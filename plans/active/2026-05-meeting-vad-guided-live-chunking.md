@@ -47,24 +47,38 @@ live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
     speech-end, 0 force-emits, 0 VAD errors, no fallback. Confirms the live path
     is correct against the real model, not just the fake-VAD unit tests.
 
-**Not yet done (need hardware / live meetings):**
-- **Phase 0** — `.cpuOnly` vs `.cpuAndNeuralEngine` benchmark + live-latency
-  measurement. The service currently defaults to `.cpuOnly`. (The
-  cached-only-vs-prepare-during-onboarding decision is now settled: prepare
-  during onboarding, flag-gated — see "Model prep" above.)
-- **Phase 5** — real-meeting threshold tuning and the default-on decision; only
-  then update `spec/05-audio-pipeline.md` / `spec/09-testing.md`.
+**Phase 0 — DONE (2026-05-29, via `meeting-vad-sim` on a real 104-min meeting):**
+Replayed both captured streams of a real meeting through the live path.
+- **Mic stream** (6274s): VAD ran at **1553× realtime**, per-ingest p99=0.20ms /
+  max=4.2ms, **0 VAD errors**, no fallback. 436 speech-aligned chunks (variable
+  2–10s) vs 1569 rigid 5s fixed chunks. Diagnostics: 226 speech-end cuts, 256
+  10s-cap force-emits, 289 dropped-silence windows.
+- **System stream** (6238s, mostly silent): VAD ran at **1357× realtime**,
+  max=11.6ms, **0 errors**; emitted only 8 chunks and dropped 618 silence
+  windows (fixed would have produced ~1247 mostly-silent chunks) — a real
+  efficiency win on system audio.
+- **Verdict:** at >1300× realtime a live 1×-realtime source cannot back up the
+  queue, so **VAD inference runs inline in the capture task** (no decoupled task
+  needed — settles the #387 open architecture question). `.cpuOnly` confirmed
+  sufficient; the `.cpuAndNeuralEngine` comparison is unnecessary given the
+  headroom.
 
-**Review findings deferred to enablement (multi-AI convergence on PR #387):**
-- **Reuse the `VadManager` across sessions.** `makeIfModelCached` loads the
-  CoreML model on every `startRecording()`. Harmless while the flag is off (no
-  model on disk), but once the model is cached (follow-up model-prep PR) this
-  adds a synchronous load to each meeting start — cache one `MeetingVADService`
-  on `MeetingRecordingService` and reuse it.
+**Done — reuse the `VadManager` across sessions** (was a deferred review item):
+`MeetingRecordingService` now caches one `MeetingVADService` (`sharedVADService`,
+loaded lazily via `liveVADService()`), so the CoreML model loads at most once per
+app session instead of at every meeting start. Re-checks cheaply (file-existence)
+while still nil, so a later session picks it up after onboarding fetches the model.
+
+**Not yet done:**
+- **Phase 5** — subjective live-preview feel on a real call (eyeball the cadence)
+  and the default-on decision; only then update `spec/05-audio-pipeline.md` /
+  `spec/09-testing.md`. The sim data above strongly supports it (speech-aligned,
+  0 errors over 104 min × 2 streams), but the on-screen feel is still unverified.
 - **Sub-minimum speech-end then prolonged silence.** A <2.0s utterance keeps
   `sawSpeechSinceLastEmit` set, so a following long silence force-emits a mostly
   silent 10s chunk to live STT. Bounded and not data-loss (timestamps stay
-  correct), but a Phase 5 tuning target.
+  correct); the 256 mic force-emits above are mostly this + long monologue. A
+  Phase 5 tuning target, not a blocker.
 
 ## Problem
 
