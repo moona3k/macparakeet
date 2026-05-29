@@ -260,9 +260,6 @@ struct MeetingsView: View {
                     detail: isLocal
                         ? "Meeting summaries and chat use \(displayName) on this Mac."
                         : nil,
-                    localityHelp: isLocal
-                        ? nil
-                        : "\(displayName) may receive transcript text when you run AI actions.",
                     tint: isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textSecondary,
                     onOpenSettings: onOpenAISettings
                 )
@@ -1095,45 +1092,39 @@ private struct IntelligenceReadyRow: View {
     let locality: String
     let localityIcon: String
     let detail: String?
-    /// Optional disclosure for the locality badge. External providers carry the
-    /// "transcript text may leave this Mac" notice here — surfaced as a hover
-    /// tooltip and a VoiceOver hint — so the card stays uncluttered while the
-    /// disclosure remains available.
-    let localityHelp: String?
     let tint: Color
     var onOpenSettings: () -> Void
 
     var body: some View {
-        // The action button sits on its own trailing row (matching the Manage
-        // buttons in the AutoNotes/Live Ask cards) so a labeled button never
-        // crowds the provider name in the narrow 280–340pt column.
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(tint)
-                    .frame(width: 22)
+        // Button beside the badge, vertically centered — matches the other
+        // Intelligence states (MeetingsInlineState). `.fixedSize()` keeps the
+        // button intact; a long provider name truncates gracefully rather than
+        // leaving a dead gap below it.
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 22)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    localityBadge
+            VStack(alignment: .leading, spacing: 6) {
+                localityBadge
 
-                    if let detail {
-                        Text(detail)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                if let detail {
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer(minLength: 0)
             }
+
+            Spacer(minLength: DesignSystem.Spacing.sm)
 
             Button(action: onOpenSettings) {
                 Label("AI Settings", systemImage: "gearshape")
             }
             .parakeetAction(.secondary)
             .help("Open AI Settings")
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .fixedSize()
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1155,26 +1146,6 @@ private struct IntelligenceReadyRow: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(Capsule().fill(tint.opacity(0.12)))
-        .modifier(LocalityDisclosure(text: localityHelp))
-    }
-}
-
-/// Attaches the cloud-provider disclosure to the locality badge when present:
-/// a hover tooltip for pointer users and an accessibility hint for VoiceOver.
-/// No-op when `text` is nil (e.g. local providers, which need no disclosure).
-private struct LocalityDisclosure: ViewModifier {
-    let text: String?
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if let text {
-            content
-                .accessibilityElement(children: .combine)
-                .help(text)
-                .accessibilityHint(text)
-        } else {
-            content
-        }
     }
 }
 
