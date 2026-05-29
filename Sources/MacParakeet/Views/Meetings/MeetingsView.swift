@@ -1095,54 +1095,48 @@ private struct IntelligenceReadyRow: View {
     let locality: String
     let localityIcon: String
     let detail: String?
-    /// Optional tooltip on the locality badge. External providers carry the
-    /// "transcript text may leave this Mac" disclosure here so the card stays
-    /// uncluttered while the notice remains discoverable on hover.
+    /// Optional disclosure for the locality badge. External providers carry the
+    /// "transcript text may leave this Mac" notice here — surfaced as a hover
+    /// tooltip and a VoiceOver hint — so the card stays uncluttered while the
+    /// disclosure remains available.
     let localityHelp: String?
     let tint: Color
     var onOpenSettings: () -> Void
 
     var body: some View {
-        // The Intelligence card sits in a 280–340pt column, so a labeled
-        // settings button beside the name can crowd it. Fall back to a stacked
-        // layout when the row is too narrow (mirrors CalendarInlineControlsRow).
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-                rowContent
-                Spacer(minLength: DesignSystem.Spacing.sm)
-                settingsButton
+        // The action button sits on its own trailing row (matching the Manage
+        // buttons in the AutoNotes/Live Ask cards) so a labeled button never
+        // crowds the provider name in the narrow 280–340pt column.
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    localityBadge
+
+                    if let detail {
+                        Text(detail)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Spacer(minLength: 0)
             }
 
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                rowContent
-                settingsButton
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+            Button(action: onOpenSettings) {
+                Label("AI Settings", systemImage: "gearshape")
             }
+            .parakeetAction(.secondary)
+            .help("Open AI Settings")
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var rowContent: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 22)
-
-            VStack(alignment: .leading, spacing: 6) {
-                localityBadge
-
-                if let detail {
-                    Text(detail)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
     }
 
     private var localityBadge: some View {
@@ -1161,27 +1155,23 @@ private struct IntelligenceReadyRow: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(Capsule().fill(tint.opacity(0.12)))
-        .modifier(OptionalHelp(text: localityHelp))
-    }
-
-    private var settingsButton: some View {
-        Button(action: onOpenSettings) {
-            Label("AI Settings", systemImage: "gearshape")
-        }
-        .parakeetAction(.secondary)
-        .help("Open AI Settings")
-        .accessibilityLabel("Open AI Settings")
+        .modifier(LocalityDisclosure(text: localityHelp))
     }
 }
 
-/// Applies `.help(_:)` only when a tooltip string is present.
-private struct OptionalHelp: ViewModifier {
+/// Attaches the cloud-provider disclosure to the locality badge when present:
+/// a hover tooltip for pointer users and an accessibility hint for VoiceOver.
+/// No-op when `text` is nil (e.g. local providers, which need no disclosure).
+private struct LocalityDisclosure: ViewModifier {
     let text: String?
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if let text {
-            content.help(text)
+            content
+                .accessibilityElement(children: .combine)
+                .help(text)
+                .accessibilityHint(text)
         } else {
             content
         }
