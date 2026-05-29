@@ -115,6 +115,16 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
         }
     }
 
+    /// Download + compile the Silero VAD model if it is not already cached, then
+    /// discard the loaded manager. `MeetingVADModelPreparer` (onboarding model
+    /// prep) calls this so the runtime `makeIfModelCached` path stays
+    /// download-free. Uses the same `.cpuOnly` load path as the runtime; throws
+    /// on download/compile failure. FluidAudio's `VadManager` init handles the
+    /// cached-or-download decision internally.
+    static func downloadModel(computeUnits: MLComputeUnits = .cpuOnly) async throws {
+        _ = try await VadManager(config: VadConfig(computeUnits: computeUnits))
+    }
+
     func makeStreamState() async -> MeetingVADStreamState {
         MeetingVADStreamState(fluidState: await manager.makeStreamState())
     }

@@ -28,11 +28,20 @@ live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
   picks fixed vs speech-boundary per session (VAD only for cached-model Parakeet
   sessions; per-source fixed fallback otherwise), with `meeting_live_chunking_mode`
   diagnostics.
+- **Model prep** — `MeetingVADModelPreparer` + `MeetingVADService.downloadModel`
+  fetch the Silero VAD model during the onboarding speech-engine warm-up, **only
+  when `meetingVadLiveChunkingEnabled` is true** and on the Parakeet path (VAD is
+  gated to Parakeet sessions). Failure is logged + swallowed (warm-up still
+  completes; runtime falls back to fixed). This makes the flag meaningfully
+  flippable: flip → relaunch → model fetched → `makeIfModelCached()` starts
+  succeeding. (`.../Services/MeetingRecording/MeetingVADModelPreparer.swift`,
+  `OnboardingViewModel.prepareMeetingVADModelIfNeeded`)
 
 **Not yet done (need hardware / live meetings):**
 - **Phase 0** — `.cpuOnly` vs `.cpuAndNeuralEngine` benchmark + live-latency
-  measurement, and the cached-only-vs-prepare-during-onboarding decision. The
-  service currently defaults to `.cpuOnly`, cached-only.
+  measurement. The service currently defaults to `.cpuOnly`. (The
+  cached-only-vs-prepare-during-onboarding decision is now settled: prepare
+  during onboarding, flag-gated — see "Model prep" above.)
 - **Phase 5** — real-meeting threshold tuning and the default-on decision; only
   then update `spec/05-audio-pipeline.md` / `spec/09-testing.md`.
 

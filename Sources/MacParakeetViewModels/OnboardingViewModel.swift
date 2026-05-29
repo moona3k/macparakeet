@@ -73,6 +73,8 @@ public final class OnboardingViewModel {
     private let sttClient: STTClientProtocol
     private let speechEngineSwitcher: SpeechEngineSwitching?
     private let diarizationService: DiarizationServiceProtocol?
+    private let meetingVADModelPreparer: MeetingVADModelPreparing?
+    private let isMeetingVADLiveChunkingEnabled: @Sendable () -> Bool
     private let isRuntimeSupported: @Sendable () -> Bool
     private let availableDiskBytes: @Sendable () -> Int64?
     private let isNetworkReachable: @Sendable () async -> Bool
@@ -113,6 +115,8 @@ public final class OnboardingViewModel {
         sttClient: STTClientProtocol,
         speechEngineSwitcher: SpeechEngineSwitching? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
+        meetingVADModelPreparer: MeetingVADModelPreparing? = nil,
+        isMeetingVADLiveChunkingEnabled: (@Sendable () -> Bool)? = nil,
         isRuntimeSupported: (@Sendable () -> Bool)? = nil,
         availableDiskBytes: (@Sendable () -> Int64?)? = nil,
         isNetworkReachable: (@Sendable () async -> Bool)? = nil,
@@ -129,6 +133,9 @@ public final class OnboardingViewModel {
         self.sttClient = sttClient
         self.speechEngineSwitcher = speechEngineSwitcher ?? (sttClient as? SpeechEngineSwitching)
         self.diarizationService = diarizationService
+        self.meetingVADModelPreparer = meetingVADModelPreparer
+        self.isMeetingVADLiveChunkingEnabled = isMeetingVADLiveChunkingEnabled
+            ?? { AppFeatures.meetingVadLiveChunkingEnabled }
         self.isRuntimeSupported = isRuntimeSupported ?? { Self.defaultRuntimeSupportedCheck() }
         self.availableDiskBytes = availableDiskBytes ?? { Self.defaultAvailableDiskBytes() }
         self.isNetworkReachable = isNetworkReachable ?? { await Self.defaultNetworkReachabilityCheck() }
@@ -477,6 +484,7 @@ public final class OnboardingViewModel {
                     ))
                     do {
                         try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                        try await self.prepareMeetingVADModelIfNeeded(generation: generation)
                     } catch is CancellationError {
                         break observationLoop
                     } catch {
@@ -721,6 +729,40 @@ public final class OnboardingViewModel {
                 description: TelemetryErrorClassifier.errorDetail(error)
             ))
             throw error
+        }
+    }
+
+    /// Fetch the Silero VAD model used by VAD-guided meeting live chunking, but
+    /// only when the feature is enabled (`AppFeatures.meetingVadLiveChunkingEnabled`).
+    /// Runs on the Parakeet warm-up path only — VAD live chunking is gated to
+    /// Parakeet sessions, so a Whisper session would never use the model.
+    ///
+    /// VAD live chunking is an optional enhancement: the meeting path falls back
+    /// to fixed chunking when the model is absent. So a download failure here is
+    /// logged and swallowed rather than failing the speech-engine warm-up.
+    /// Cancellation is still propagated so a torn-down warm-up exits cleanly.
+    private func prepareMeetingVADModelIfNeeded(generation: Int) async throws {
+        guard isMeetingVADLiveChunkingEnabled() else { return }
+        guard let meetingVADModelPreparer else { return }
+        guard await meetingVADModelPreparer.isModelReady() == false else { return }
+
+        engineState = .working(message: "Voice-activity model: downloading...", progress: nil)
+        do {
+            try await meetingVADModelPreparer.prepareModel(onProgress: { [weak self] message in
+                Task { @MainActor [weak self] in
+                    guard let self, self.engineGeneration == generation else { return }
+                    self.engineState = .working(message: "Voice-activity model: \(message)", progress: nil)
+                }
+            })
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            logger.error("meeting_vad_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
+            Telemetry.send(.errorOccurred(
+                domain: "meeting_vad",
+                code: "model_prep_failed",
+                description: TelemetryErrorClassifier.errorDetail(error)
+            ))
         }
     }
 

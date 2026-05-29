@@ -2,6 +2,10 @@ import XCTest
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
+private enum FakeVADPrepError: Error {
+    case boom
+}
+
 private final class OnboardingTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -90,6 +94,8 @@ final class OnboardingViewModelTests: XCTestCase {
         sttClient: STTClientProtocol,
         speechEngineSwitcher: SpeechEngineSwitching? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
+        meetingVADModelPreparer: MeetingVADModelPreparing? = nil,
+        isMeetingVADLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         defaults: UserDefaults,
         isRuntimeSupported: @escaping @Sendable () -> Bool = { true },
         availableDiskBytes: @escaping @Sendable () -> Int64? = { 20 * 1_024 * 1_024 * 1_024 },
@@ -107,6 +113,8 @@ final class OnboardingViewModelTests: XCTestCase {
             sttClient: sttClient,
             speechEngineSwitcher: speechEngineSwitcher,
             diarizationService: diarizationService,
+            meetingVADModelPreparer: meetingVADModelPreparer,
+            isMeetingVADLiveChunkingEnabled: isMeetingVADLiveChunkingEnabled,
             isRuntimeSupported: isRuntimeSupported,
             availableDiskBytes: availableDiskBytes,
             isNetworkReachable: isNetworkReachable,
@@ -339,6 +347,115 @@ final class OnboardingViewModelTests: XCTestCase {
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    // MARK: - Meeting VAD model prep (VAD-guided live chunking)
+
+    func testEngineWarmUpPreparesMeetingVADModelWhenEnabledAndUncached() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let vadPreparer = MockMeetingVADModelPreparer()
+        await vadPreparer.configureCached(false)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            meetingVADModelPreparer: vadPreparer,
+            isMeetingVADLiveChunkingEnabled: { true },
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        let prepared = await vadPreparer.prepareModelCalled
+        XCTAssertTrue(prepared, "VAD model should be fetched on the Parakeet warm-up path when enabled and uncached")
+        XCTAssertEqual(vm.engineState, .ready)
+    }
+
+    func testEngineWarmUpSkipsMeetingVADModelWhenFlagDisabled() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let vadPreparer = MockMeetingVADModelPreparer()
+        await vadPreparer.configureCached(false)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            meetingVADModelPreparer: vadPreparer,
+            isMeetingVADLiveChunkingEnabled: { false },
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        let prepared = await vadPreparer.prepareModelCalled
+        XCTAssertFalse(prepared, "disabled feature must not fetch the VAD model")
+        XCTAssertEqual(vm.engineState, .ready)
+    }
+
+    func testEngineWarmUpSkipsMeetingVADModelWhenAlreadyCached() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let vadPreparer = MockMeetingVADModelPreparer()
+        await vadPreparer.configureCached(true)  // already on disk
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            meetingVADModelPreparer: vadPreparer,
+            isMeetingVADLiveChunkingEnabled: { true },
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        let prepared = await vadPreparer.prepareModelCalled
+        XCTAssertFalse(prepared, "already-cached model must not be re-fetched")
+        XCTAssertEqual(vm.engineState, .ready)
+    }
+
+    func testMeetingVADModelPrepFailureDoesNotFailWarmUp() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let vadPreparer = MockMeetingVADModelPreparer()
+        await vadPreparer.configureCached(false)
+        await vadPreparer.configurePrepareModel(error: FakeVADPrepError.boom)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            meetingVADModelPreparer: vadPreparer,
+            isMeetingVADLiveChunkingEnabled: { true },
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        let prepared = await vadPreparer.prepareModelCalled
+        XCTAssertTrue(prepared)
+        // VAD live chunking is optional — a download failure must not block the
+        // speech engine, so warm-up still completes.
+        XCTAssertEqual(vm.engineState, .ready)
     }
 
     func testEngineWarmUpUsesWhisperForCJKPreferredLanguageWhenModelIsCached() async throws {

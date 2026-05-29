@@ -16,6 +16,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol? = nil,
+        meetingVADModelPreparer: (any MeetingVADModelPreparing)? = nil,
         onFinish: @escaping () -> Void,
         onHotkeyPreviewArm: @escaping () -> Void = {},
         onHotkeyPreviewDisarm: @escaping () -> Void = {},
@@ -32,7 +33,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         let vm = OnboardingViewModel(
             permissionService: permissionService,
             sttClient: sttClient,
-            diarizationService: diarizationService
+            diarizationService: diarizationService,
+            meetingVADModelPreparer: meetingVADModelPreparer
         )
         viewModel = vm
         // Retained so the rehearsal taps/overlay are torn down if the window
