@@ -240,6 +240,28 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(diag.droppedSilenceWindows, 1)
     }
 
+    func testStaleRetroactiveSpeechEndDropsTrailingSilenceInsteadOfForcing() async {
+        // speechStart, continuous speech to a 10s force-emit (window 40), then a
+        // speechEnd whose retroactive index (150 000) lands BEFORE the
+        // post-force-emit lastEmittedSample (156 000). The stale cut must clear
+        // the speech flag so the trailing silence is DROPPED — not force-emitted
+        // as a silence chunk every 10s.
+        let vad = FakeMeetingVAD(events: [
+            1: .speechStart,
+            41: .speechEnd(sampleIndex: 150_000),
+        ])
+        let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
+
+        // 40 windows force-emit once; window 41 delivers the stale end; the rest
+        // is silence that should reach the max cap (~window 78) and be dropped.
+        let chunks = await feed(chunker, windows: 78)
+
+        XCTAssertEqual(chunks.count, 1, "only the single force-emit should be emitted")
+        let diag = await chunker.diagnostics
+        XCTAssertEqual(diag.forceEmits, 1, "a stale end must not leave the speech flag set (which would force-emit silence)")
+        XCTAssertGreaterThanOrEqual(diag.droppedSilenceWindows, 1, "post-speech silence should be dropped")
+    }
+
     func testFlushTrimsTrailingSilenceAtSpeechEndBoundary() async {
         // Speech for 10 windows, then a clean speech-end inside the final partial
         // (< 256 ms) tail fed at flush. flush() must cut at the VAD boundary
@@ -285,7 +307,6 @@ private enum FakeVADError: Error {
 /// throws on `failCalls`. State is ignored (the chunker round-trips it).
 private actor FakeMeetingVAD: MeetingVoiceActivityDetecting {
     private var callIndex = 0
-    private var processed = 0
     private let events: [Int: MeetingVADEvent]
     private let failCalls: Set<Int>
 
@@ -304,15 +325,9 @@ private actor FakeMeetingVAD: MeetingVoiceActivityDetecting {
         config: MeetingVADConfig
     ) throws -> MeetingVADResult {
         callIndex += 1
-        processed += samples.count
         if failCalls.contains(callIndex) {
             throw FakeVADError.boom
         }
-        let event = events[callIndex]
-        let probability: Float = {
-            if case .speechStart = event { return 1.0 }
-            return 0.0
-        }()
-        return MeetingVADResult(state: state, event: event, probability: probability)
+        return MeetingVADResult(state: state, event: events[callIndex])
     }
 }

@@ -49,10 +49,6 @@ final class FixedMeetingLiveAudioChunkerTests: XCTestCase {
         _ = await adapter.addSamples([Float](repeating: 0.1, count: 80_000))
         await adapter.reset()
 
-        let diag = await adapter.diagnostics
-        XCTAssertEqual(diag.mode, .fixed)
-        XCTAssertEqual(diag.chunksEmitted, 0)
-
         // After reset the timeline restarts at 0.
         let chunks = await adapter.addSamples([Float](repeating: 0.1, count: 80_000))
         XCTAssertEqual(chunks.first?.startMs, 0)

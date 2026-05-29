@@ -1,6 +1,18 @@
 import Foundation
 import OSLog
 
+/// Counters exposed for unit-test observation of the chunker's state machine
+/// (silence drops, force emits, fallback). Not user-facing; carries no
+/// transcript or audio. A natural hook for Phase 5 telemetry if it lands.
+struct MeetingLiveChunkingDiagnostics: Sendable {
+    var chunksEmitted = 0
+    var speechEndEvents = 0
+    var forceEmits = 0
+    var droppedSilenceWindows = 0
+    var vadErrors = 0
+    var fellBackToFixed = false
+}
+
 /// Live-preview chunker that cuts at VAD speech boundaries instead of fixed
 /// 5-second windows. See
 /// `plans/active/2026-05-meeting-vad-guided-live-chunking.md`.
@@ -25,6 +37,10 @@ import OSLog
 /// re-fed after a forced (max-duration) cut, because that cut lands mid-word;
 /// the assembler's dedup harmlessly discards the duplicated tail words.
 ///
+/// **Concurrency.** Methods mutate shared buffers across `await` points, so the
+/// owner must call them serially. `CaptureOrchestrator` (the only caller) is an
+/// actor that drives `addSamples`/`flush`/`reset` one at a time, satisfying this.
+///
 /// This type does not depend on FluidAudio — it round-trips the opaque
 /// `MeetingVADStreamState` through a `MeetingVoiceActivityDetecting`.
 actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
@@ -33,6 +49,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     /// passed, so windows must be exactly this size to keep the boundary
     /// timeline aligned.
     private static let vadWindow = 4_096
+    private static let minChunkSamples = 2 * sampleRate          // 2.0s
+    private static let maxChunkSamples = 10 * sampleRate         // 10.0s
+    private static let forceEmitTailOverlap = sampleRate / 4     // 0.25s
+    private static let flushMinSamples = sampleRate / 2          // 0.5s
     /// Degraded-fallback fixed cadence, identical to `AudioChunker`.
     private static let fixedWindow = 5 * sampleRate
     private static let fixedOverlap = 1 * sampleRate
@@ -41,10 +61,6 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
 
     private let vad: any MeetingVoiceActivityDetecting
     private let config: MeetingVADConfig
-    private let minChunkSamples: Int
-    private let maxChunkSamples: Int
-    private let forceEmitTailOverlap: Int
-    private let flushMinSamples: Int
 
     /// VAD-examined samples from `lastEmittedSample` up to the VAD frontier; the
     /// audio a future chunk will be cut from. `buffer[0]` is absolute
@@ -59,24 +75,13 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     private var vadState: MeetingVADStreamState?
     private var consecutiveVADErrors = 0
     private var fellBackToFixed = false
-    private var diag = MeetingLiveChunkingDiagnostics(mode: .vad)
+    private var diag = MeetingLiveChunkingDiagnostics()
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "SpeechBoundaryChunker")
 
-    init(
-        vad: any MeetingVoiceActivityDetecting,
-        config: MeetingVADConfig = .default,
-        minChunkSeconds: Double = 2.0,
-        maxChunkSeconds: Double = 10.0,
-        forceEmitTailOverlapSeconds: Double = 0.25,
-        flushMinimumSeconds: Double = 0.5
-    ) {
+    init(vad: any MeetingVoiceActivityDetecting, config: MeetingVADConfig = .default) {
         self.vad = vad
         self.config = config
-        self.minChunkSamples = Int(minChunkSeconds * Double(Self.sampleRate))
-        self.maxChunkSamples = Int(maxChunkSeconds * Double(Self.sampleRate))
-        self.forceEmitTailOverlap = Int(forceEmitTailOverlapSeconds * Double(Self.sampleRate))
-        self.flushMinSamples = Int(flushMinimumSeconds * Double(Self.sampleRate))
     }
 
     var diagnostics: MeetingLiveChunkingDiagnostics { diag }
@@ -89,7 +94,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
         vadState = nil
         consecutiveVADErrors = 0
         fellBackToFixed = false
-        diag = MeetingLiveChunkingDiagnostics(mode: .vad)
+        diag = MeetingLiveChunkingDiagnostics()
     }
 
     func addSamples(_ samples: [Float]) async -> [AudioChunker.AudioChunk] {
@@ -144,11 +149,9 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             buffer.append(contentsOf: tail)
             if let result = try? await vad.processStreamingChunk(tail, state: state, config: config) {
                 vadState = result.state
-                diag.recentProbability = result.probability
                 switch result.event {
                 case .speechStart:
                     sawSpeechSinceLastEmit = true
-                    diag.speechStartEvents += 1
                 case .speechEnd(let cutSample):
                     diag.speechEndEvents += 1
                     // Trim trailing silence at the VAD-confirmed boundary. If the
@@ -163,7 +166,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             }
         }
 
-        guard sawSpeechSinceLastEmit, buffer.count >= flushMinSamples else {
+        guard sawSpeechSinceLastEmit, buffer.count >= Self.flushMinSamples else {
             return nil
         }
         return makeChunk(length: buffer.count, tailOverlap: 0)
@@ -180,12 +183,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             let result = try await vad.processStreamingChunk(window, state: state, config: config)
             vadState = result.state
             consecutiveVADErrors = 0
-            diag.recentProbability = result.probability
 
             switch result.event {
             case .speechStart:
                 sawSpeechSinceLastEmit = true
-                diag.speechStartEvents += 1
             case .speechEnd(let cutSample):
                 diag.speechEndEvents += 1
                 if let chunk = emitAtSpeechEnd(cutSample: cutSample) {
@@ -210,12 +211,20 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
 
     /// Emit `[lastEmittedSample, cutSample)` when a speech segment ends. The cut
     /// is retroactive (absolute, from VAD's stream start), so it can land before
-    /// the current ingest position; we skip cuts that are too early or that would
-    /// produce a sub-minimum chunk and let the next `speechEnd` extend the segment.
+    /// the current ingest position.
     private func emitAtSpeechEnd(cutSample: Int) -> AudioChunker.AudioChunk? {
         guard sawSpeechSinceLastEmit else { return nil }
         let length = cutSample - lastEmittedSample
-        guard length >= minChunkSamples, length <= buffer.count else { return nil }
+        if length <= 0 {
+            // Boundary lands at/behind what we already emitted (e.g. a force-emit
+            // advanced past where speech actually ended). Speech is over, so clear
+            // the flag — otherwise trailing silence would never be dropped and
+            // we'd force-emit silence every max-duration window.
+            sawSpeechSinceLastEmit = false
+            return nil
+        }
+        // Sub-minimum: keep buffering and let the next speechEnd extend the segment.
+        guard length >= Self.minChunkSamples, length <= buffer.count else { return nil }
         let chunk = makeChunk(length: length, tailOverlap: 0)
         sawSpeechSinceLastEmit = false
         return chunk
@@ -226,7 +235,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     /// silence down to a small context window so memory and latency stay bounded.
     /// Operates only on VAD-examined audio (see lockstep buffering note).
     private func maybeForceEmitOrDropSilence() -> AudioChunker.AudioChunk? {
-        guard buffer.count >= maxChunkSamples else { return nil }
+        guard buffer.count >= Self.maxChunkSamples else { return nil }
 
         guard sawSpeechSinceLastEmit else {
             let drop = buffer.count - Self.vadWindow
@@ -239,7 +248,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
         }
 
         diag.forceEmits += 1
-        return makeChunk(length: maxChunkSamples, tailOverlap: forceEmitTailOverlap)
+        return makeChunk(length: Self.maxChunkSamples, tailOverlap: Self.forceEmitTailOverlap)
     }
 
     /// Emit `buffer[0..<length]`, then advance by `length - tailOverlap`,
@@ -271,6 +280,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
 
     private func flushFixed() -> AudioChunker.AudioChunk? {
         guard buffer.count >= Self.fixedFlushMinimum else {
+            // Discard the sub-minimum tail but keep the sample counter consistent
+            // with the discarded audio, so the invariant holds if the instance is
+            // ever reused without reset().
+            lastEmittedSample += buffer.count
             buffer = []
             return nil
         }

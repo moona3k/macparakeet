@@ -14,13 +14,16 @@ enum MeetingVADEvent: Sendable {
 }
 
 /// Opaque, adapter-owned streaming VAD state. Product code round-trips this
-/// without depending on FluidAudio's `VadStreamState`. The FluidAudio-backed
-/// storage is internal; a `nil` `fluidState` is the starting state used by test
-/// doubles that drive the state machine directly.
+/// without depending on FluidAudio's `VadStreamState`; the FluidAudio-backed
+/// storage is internal. The no-argument init produces a fresh stream state.
 struct MeetingVADStreamState: Sendable {
-    var fluidState: VadStreamState?
+    var fluidState: VadStreamState
 
-    init(fluidState: VadStreamState? = nil) {
+    init() {
+        self.fluidState = VadStreamState()
+    }
+
+    init(fluidState: VadStreamState) {
         self.fluidState = fluidState
     }
 }
@@ -28,24 +31,20 @@ struct MeetingVADStreamState: Sendable {
 struct MeetingVADResult: Sendable {
     let state: MeetingVADStreamState
     let event: MeetingVADEvent?
-    let probability: Float
 }
 
 /// MacParakeet-owned VAD config. Mirrors only the knobs that actually affect
 /// FluidAudio's **streaming** state machine (verified in
-/// `VadManager+Streaming.swift`): silence-before-end, retroactive padding, and
-/// optional hysteresis override. `minSpeechDuration` / `maxSpeechDuration` /
-/// `silenceThresholdForSplit` are inert in streaming mode, so they are
-/// deliberately absent here. Min/max chunk bounds live in the chunker, not VAD.
+/// `VadManager+Streaming.swift`): silence-before-end and retroactive padding.
+/// `minSpeechDuration` / `maxSpeechDuration` / `silenceThresholdForSplit` are
+/// inert in streaming mode, so they are deliberately absent. Min/max chunk
+/// bounds live in the chunker, not VAD. The two values below are deliberate
+/// non-defaults tuned for live-meeting feel (FluidAudio defaults 0.75 / 0.10).
 struct MeetingVADConfig: Sendable {
     /// Silence that must elapse before a `speechEnd` fires.
     var minSilenceDuration: TimeInterval = 0.50
     /// Padding folded into the retroactive boundary index.
     var speechPadding: TimeInterval = 0.15
-    /// Optional explicit negative (exit) threshold. `nil` derives it from the
-    /// model's default threshold minus `negativeThresholdOffset`.
-    var negativeThreshold: Float?
-    var negativeThresholdOffset: Float = 0.15
 
     static let `default` = MeetingVADConfig()
 }
@@ -121,21 +120,14 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
         state: MeetingVADStreamState,
         config: MeetingVADConfig
     ) async throws -> MeetingVADResult {
-        let fluidState: VadStreamState
-        if let existing = state.fluidState {
-            fluidState = existing
-        } else {
-            fluidState = await manager.makeStreamState()
-        }
         let result = try await manager.processStreamingChunk(
             samples,
-            state: fluidState,
+            state: state.fluidState,
             config: config.fluidConfig
         )
         return MeetingVADResult(
             state: MeetingVADStreamState(fluidState: result.state),
-            event: result.event.map(Self.mapEvent),
-            probability: result.probability
+            event: result.event.map(Self.mapEvent)
         )
     }
 
@@ -156,9 +148,7 @@ extension MeetingVADConfig {
     var fluidConfig: VadSegmentationConfig {
         VadSegmentationConfig(
             minSilenceDuration: minSilenceDuration,
-            speechPadding: speechPadding,
-            negativeThreshold: negativeThreshold,
-            negativeThresholdOffset: negativeThresholdOffset
+            speechPadding: speechPadding
         )
     }
 }
