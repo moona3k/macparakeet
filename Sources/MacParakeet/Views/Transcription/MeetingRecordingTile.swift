@@ -166,6 +166,10 @@ struct MeetingRecordingTile: View {
                     audioLevel: isPaused ? 0 : max(viewModel.micLevel, viewModel.systemLevel)
                 )
                 .opacity(isPaused ? 0.45 : 1.0)
+                // Transient (value-keyed on a pause flip) — fires only on
+                // pause/resume, not continuously, so it costs nothing at rest
+                // and keeps the dim/undim a fade rather than a snap.
+                .animation(.easeInOut(duration: 0.25), value: isPaused)
 
                 if isPaused {
                     // Match the pill's pause-bars overlay so the two
@@ -198,6 +202,11 @@ struct MeetingRecordingTile: View {
                 Text(viewModel.formattedElapsed)
                     .font(.system(size: 15, weight: .semibold).monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    // Rolling-digit timer. Transient (value-keyed on the 1 s
+                    // elapsed tick), so it animates the digit change without any
+                    // continuous animation.
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.2), value: viewModel.elapsedSeconds)
             }
 
             Spacer()
