@@ -314,6 +314,77 @@ keep a fast-ticking observable read (elapsed timer, audio level) in the smallest
 possible leaf view; never read it in a `body`/computed-property that also builds
 a list or other heavy layout.
 
+## Continued session — settled dictation (live log, 2026-05-29)
+
+Attempted the 4th checklist item; partially completed, then aborted on owner redirect.
+
+- **Stopped the lingering dev-app meeting.** Final meeting transcription ran as a transient (~28–42% for a few seconds), then the app settled to a **clean baseline of ~0.1–0.5%** (no meeting, no dictation) — a fresh on-device confirmation that idle is ~0%.
+- **Dictation itself was NOT measured.** I set up a safe capture (scratch TextEdit as paste target, plan to cancel via Escape so nothing pastes), but the owner redirected before the dictation trigger ran — **nothing was triggered.** The prior agent's **~5–11% settled** figure stands as the comparison; the owner should capture the real number in the release-build pass (it needs a human because dictation pastes into the focused app).
+
+## Follow-up: restore the pill's lost richness (analysis + plan, not yet implemented)
+
+The owner observed the AppKit/CALayer pill dropped richness the old SwiftUI pill
+(`MeetingRecordingPillView`, now dead code) had, and correctly intuited the pill
+was never the main CPU hog. Both are right.
+
+**What the new pill lost vs the old `MeetingRecordingPillView`:**
+
+1. **Live audio-responsive glow** — the rosette's internal light intensified
+   with mic/system level. Old pill passed `audioLevel: max(micLevel, systemLevel)`
+   into `MerkabaPillIcon` and the SwiftUI view re-evaluated at the ~150ms poll
+   cadence, so `updateNSView` pushed fresh levels to `glowLayer` frequently. New
+   pill only refreshes at the 1 Hz poll + quantized 0.05 steps → glow barely
+   breathes.
+2. **Completion flourish** — old `.completing` used `FlowerCompletionView`
+   (stem-collapse spring + merkaba); old `.completed` used
+   `MeetingCompletionCheckmarkView` (ring-draw + check). New pill's `.completing`
+   is a generic 0.6 s callback and `.transcribing`/`.completed` fall through to a
+   static rosette.
+
+**Why the old pill cost anything:** the flower rotation was *already* CALayer
+(`MerkabaPillIcon`) even in the old pill — cheap. The cost was the SwiftUI
+*wrapper* re-rendering at audio cadence (to push `audioLevel` through) plus
+`.ultraThinMaterial` + shadows. **The richness was never the cost; the SwiftUI
+re-render path was.**
+
+**The richness can be restored cheaply in CALayer** (no SwiftUI re-render):
+
+- **Live glow:** push audio level straight into `glowLayer` (opacity/scale) at
+  ~20–30 fps — a layer-property set composited by the render server, ~0 app CPU.
+- **Completion merkaba + checkmark:** one-shot CA keyframe/group + stroke-end
+  animations (cheap).
+
+**The trap to avoid:** do NOT restore liveness by speeding up the shared
+`MeetingRecordingFlowCoordinator.startPillPolling` loop (1 s, at
+`MeetingRecordingFlowCoordinator.swift:733`) — that updates the `@Observable`
+`pillViewModel`/`panelViewModel` that the SwiftUI Meetings tile + workspace
+observe, and would re-introduce the Root-Cause-#2 list re-layout. Instead give
+the pill its **own** high-frequency audio channel that updates **only its
+CALayer**, leaving the view models at 1 Hz.
+
+**Concrete implementation sketch (for the next agent):**
+
+1. `MeetingRecordingFlowCoordinator`: add a second, fast loop (~33–50 ms) that
+   reads `meetingRecordingService.mic/systemLevel` and calls a new
+   `pillController?.updateLiveAudioLevel(mic:system:)` — separate from the 1 s
+   `startPillPolling` loop (which keeps driving the view models). Cancel it
+   alongside `stopPillPolling`.
+2. `MeetingRecordingPillController`: store a reference to the
+   `MeetingRecordingAppKitPillView` it creates in `show()`, and add
+   `updateLiveAudioLevel(mic:system:)` that forwards to the view.
+3. `MeetingRecordingAppKitPillView`: drive the glow from that fast path
+   (`iconView.update(isAnimating:audioLevel:)` already updates `glowLayer`
+   cheaply; the `currentAudioLevel` guard avoids redundant sets). Remove the
+   audio-glow responsibility from the 1 s `updateFromViewModel` so the two paths
+   don't fight (keep state/rotation/pause there).
+4. Completion flourish: port `FlowerCompletionView`'s flourish + the checkmark to
+   CA one-shots in the `.completing`/`.completed` branches.
+5. **Measure on-device after**: confirm the pill stays in the ~19–21% band
+   (write each number into this doc *as taken*). Honor `reduceMotion`.
+
+Estimated ~80–150 LOC across those 3 files + completion port. Could be its own PR
+("restore pill liveness") or a follow-up commit on #396 — owner's call.
+
 ## Measurement caveat: debug vs release
 
 The numbers above are from a **debug/dev build** (`-Onone`). Debug inflates Swift
