@@ -257,6 +257,16 @@ offscreen render harness that compiles the real `MerkabaPillIconView`.
 
 ![Pill: before, compacted, compacted+hover-time, paused+hover-time](assets/2026-05-pill-compaction.png)
 
+**Regression check vs PR #204 (issue #200 — tooltip wrapping past 99:59).** PR
+#204 fixed the *old SwiftUI* pill's elapsed tooltip wrapping to two lines past
+`99:59` (e.g. `114:44`). That pill is now dead code, so the fix had to be
+re-established in the new CALayer badge. It is, and more robustly: `isWrapped =
+false` plus the badge/text width are computed from the *measured* text width
+(the original bug was the tooltip being constrained to the pill's narrow width).
+Verified single-line at `114:44` and `999:59`:
+
+![Hover badge at long durations: 0:17, 12:34, 114:44 (#200), 999:59](assets/2026-05-pill-hover-longtimes.png)
+
 ## Live on-device measurement session — 2026-05-29 (agent, debug build)
 
 Driven on-device via `scripts/dev/run_app.sh` + AppleScript (menu-bar
