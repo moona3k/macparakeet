@@ -283,6 +283,17 @@ preview work.
 | Recording, **Meetings workspace visible** — *before* `MeetingsView` fix | **~25–46% sustained** (never settled) | reproduces the reported lag. `sample`: per-display-cycle `NSWindow layoutIfNeeded` → recursive `NSHostingView.layout` → **`MeetingsView.body` / `MeetingRowCard.body` / `LayoutEngineBox.sizeThatFits` storm** |
 | Recording, **Meetings workspace visible** — *after* `MeetingsView` fix | **~15–18%** (brief ~24% blips on transcript chunks) | back at the pill floor. `sample`: **no more `MeetingsView.body` / `MeetingRowCard.body`** — residual `sizeThatFits` is ScrollView content re-measure when the live tile ticks (legitimate live work) |
 
+### Coverage vs the requested 4-measurement checklist
+
+The handoff asked for four measurements. Status this session (debug build, on-device):
+
+- ✅ **Idle after restart** — 0.0%.
+- ✅ **Recording, main window visible** — ~15–18% after the `MeetingsView` fix (was ~25–46%).
+- ✅ **Recording, main window closed** — the "pill only" row (~19–21%); the main window was not open.
+- ⚠️ **Settled dictation (for comparison)** — *not re-measured this session, by choice.* Triggering dictation via automation pastes the transcript into whatever app has focus (a side effect I won't impose on a live session), and a meeting recording was concurrently active (ADR-015), which would both contaminate the number and risk stray text insertion. The prior agent's figure stands as the comparison: **~5–11% settled (debug)**. The owner should confirm it in the release-build pass.
+
+**Note on the band/noise.** The pill-only (~19–21%) and window-visible-after-fix (~15–18%) figures overlap inside one **~15–21% "capture + VAD + pill" floor band** — the ±several-% spread is debug-build noise plus transcript-chunk timing (VAD live-chunking is flag-on). The result that matters is qualitative and robust: window-visible dropped *out of* the ~25–46% regression range and *into* that floor band, and the `sizeThatFits` storm is gone from the profile.
+
 **Root cause #2 (the reported symptom).** The original complaint was "the
 Meetings workspace and hover states felt laggy *while a meeting recording was
 active*." That is **not** an animation — it is `MeetingsView.body` re-evaluating
