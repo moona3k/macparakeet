@@ -208,8 +208,9 @@ culprit from Experiment #10.
 | File | Change |
 |---|---|
 | `Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift` | **`BreathingSeedOfLifeView` migrated from SwiftUI `TimelineView(.animation)` to an `NSViewRepresentable` + CALayer (`BreathingSeedOfLifeNSView`).** Rotation/breathing now run as `CABasicAnimation`s on the render server. `freeze` uses the canonical CA pause (`layer.speed = 0` + `timeOffset`) — the clean external pause the old `TimelineView(paused:)` comment was reaching for. `reduceMotion` renders a still rosette. Public API (`BreathingSeedOfLifeView(freeze:)`) unchanged, so all three call sites (transcript watermark, live-notes watermark, summary skeleton) are fixed with no call-site edits. |
-| `Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift` | **Restored Reduce Motion** on the AppKit pill (the CA migration had dropped it — the old SwiftUI pill gated on `!reduceMotion`). Reads `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`, observes `accessibilityDisplayOptionsDidChangeNotification`. **Compacted the black capsule** from 54×106 → 54×86 (it had ~20pt of dead space above/below the flower); centered on the panel midY so the icon position is unchanged. |
+| `Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift` | **Restored Reduce Motion** on the AppKit pill (the CA migration had dropped it — the old SwiftUI pill gated on `!reduceMotion`). Reads `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`, observes `accessibilityDisplayOptionsDidChangeNotification`. **Compacted the black capsule** from 54×106 → 54×86 (it had ~20pt of dead space above/below the flower); centered on the panel midY so the icon position is unchanged. **Restored the hover-time badge** (red dot / amber when paused + live `formattedElapsed`, in a dark capsule above the pill) — the CA migration had dropped the prior SwiftUI pill's hover affordance. CALayer-based (`timeBadgeLayer`/`timeDotLayer`/`timeTextLayer`), fades in on hover, refreshes each second. |
 | `Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift` | **Removed dead animation machinery** from `SacredFlowerTile` (both call sites already passed `isAnimating: false`, so the `rotation`/`sway` `@State`, `startActive`/`stopActive`, and `onChange`/`onAppear` never ran). Now a clean static rosette; the audio-reactive glow (quantized to ~1 Hz upstream) is the only live element. Dropped the unused `reduceMotion` env var. |
+| `Sources/MacParakeet/Views/Meetings/MeetingsView.swift` | **Isolated the live status chip** (`MeetingsLiveStatusChip`). `MeetingsView.body` read `meetingPillViewModel.formattedElapsed` (via `headerStatusTitle`), so every 1 s elapsed tick re-evaluated the *entire* body — including the meetings-list `ForEach` — forcing a full-tree `sizeThatFits`/layout pass while recording. **This was the actual "laggy Meetings workspace while recording" symptom from the original report** (see on-device session below). Moving the `formattedElapsed` read into its own leaf view scopes the per-second invalidation to the chip. |
 
 These build on the already-applied WIP:
 
@@ -245,31 +246,62 @@ These build on the already-applied WIP:
    trick). The low-teens floor is inherent to the SCStream + mixing pipeline; no
    easy win there. Documented so nobody re-investigates it.
 
-### Pill capsule compaction (before / after)
+### Pill capsule compaction + hover-time badge (before / after)
 
 The floating capsule was 54×106 with ~20pt of dead space above and below the
 flower. Compacted to 54×86, centered on the panel midY so the rosette/stem and
-pause-bars don't move — only the black surface tightens. Tuned with an offscreen
-render harness that compiles the real `MerkabaPillIconView`.
+pause-bars don't move — only the black surface tightens. The hover-revealed
+elapsed-time badge (red dot / amber + timer) was also restored — it existed on
+the prior SwiftUI pill and was dropped in the CALayer migration. Tuned with an
+offscreen render harness that compiles the real `MerkabaPillIconView`.
 
-![Pill capsule before/after and paused state](assets/2026-05-pill-compaction.png)
+![Pill: before, compacted, compacted+hover-time, paused+hover-time](assets/2026-05-pill-compaction.png)
+
+## Live on-device measurement session — 2026-05-29 (agent, debug build)
+
+Driven on-device via `scripts/dev/run_app.sh` + AppleScript (menu-bar
+"Capture ▸ Start Recording" / "Go ▸ Meetings"), sampled with
+`top -l N -s 1 -pid` and `sample <pid>`. **Debug build, dev hardware** — see the
+caveat below; the absolute % is inflated, the *deltas + profile change* are the
+proof. VAD live-chunking is flag-on, so the recording floor includes VAD + STT
+preview work.
+
+| Scenario | CPU (settled) | Notes |
+|---|---|---|
+| Idle (menu-bar, no window) | **0.0%** | clean |
+| Recording, **pill only** (no main window) | **~19–21%** | capture + VAD + animated CALayer pill — the floor |
+| Recording, **Meetings workspace visible** — *before* `MeetingsView` fix | **~25–46% sustained** (never settled) | reproduces the reported lag. `sample`: per-display-cycle `NSWindow layoutIfNeeded` → recursive `NSHostingView.layout` → **`MeetingsView.body` / `MeetingRowCard.body` / `LayoutEngineBox.sizeThatFits` storm** |
+| Recording, **Meetings workspace visible** — *after* `MeetingsView` fix | **~15–18%** (brief ~24% blips on transcript chunks) | back at the pill floor. `sample`: **no more `MeetingsView.body` / `MeetingRowCard.body`** — residual `sizeThatFits` is ScrollView content re-measure when the live tile ticks (legitimate live work) |
+
+**Root cause #2 (the reported symptom).** The original complaint was "the
+Meetings workspace and hover states felt laggy *while a meeting recording was
+active*." That is **not** an animation — it is `MeetingsView.body` re-evaluating
+on every 1 s elapsed tick. `body` read `meetingPillViewModel.formattedElapsed`
+(through the inlined `headerStatusTitle` computed property), so the per-second
+elapsed update invalidated the whole body and re-laid out the entire meetings
+list (`ForEach` of `MeetingRowCard`s) — only while recording, because that is
+when elapsed ticks. Hover felt laggy because every second the list re-layout
+competed with hover feedback. Fixed by extracting `MeetingsLiveStatusChip`, a
+leaf view that owns the `formattedElapsed` read so the tick re-renders only the
+chip. Verified: ~46% → ~17%, and the `sizeThatFits` storm rooted in the list is
+gone from the profile.
+
+This is a third instance of the same family as Root Cause #1, but a different
+mechanism: not a continuous animation, but **a frequently-mutated `@Observable`
+read high in a `body` that also contains an expensive subtree.** General rule:
+keep a fast-ticking observable read (elapsed timer, audio level) in the smallest
+possible leaf view; never read it in a `body`/computed-property that also builds
+a list or other heavy layout.
 
 ## Measurement caveat: debug vs release
 
-**Every CPU number in the "Measurements" section above is from a debug/dev
-build** (`-Onone`, no optimization). Debug builds inflate Swift + SwiftUI/AppKit
-render cost substantially, so the absolute percentages are **not** the numbers
-real users see, and the debug experiment results cannot be compared 1:1 with the
-released-build figure (38–60%). The relative deltas between experiments are
-still informative (they isolate which surface mattered), but the **acceptance
-gate must be a release-build measurement**, not a debug one.
-
-This environment (headless agent) cannot reproduce the GUI render path — the
-cost only appears with windows actually compositing during a real recording,
-which needs a logged-in display session plus Mic + Screen Recording TCC grants.
-The CLI meeting path is headless and does not exercise SwiftUI/AppKit at all, so
-it cannot validate the fix. The numbers below must therefore be captured
-manually on-device.
+The numbers above are from a **debug/dev build** (`-Onone`). Debug inflates Swift
++ SwiftUI/AppKit render cost substantially, so the absolute percentages are
+**not** what release users see, and they can't be compared 1:1 with the released
+0.6.14 figure (38–60%). What *is* trustworthy here is the **relative delta and
+the profile change** — ~46% → ~17% for the reported case, with the list-layout
+storm provably gone. The **release-build re-measurement below is still the
+acceptance gate** before re-release.
 
 ## Verification matrix (owner — required before re-release)
 

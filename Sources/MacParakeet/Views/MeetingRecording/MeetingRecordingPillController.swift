@@ -246,6 +246,13 @@ private final class MeetingRecordingAppKitPillView: NSView {
     private let iconView = MerkabaPillIconView()
     private let backgroundLayer = CAShapeLayer()
     private let pauseLayer = CALayer()
+    // Hover-revealed elapsed-time badge (red/amber dot + timer) above the
+    // capsule — restores the prior SwiftUI pill's hover affordance that the
+    // CALayer migration dropped.
+    private let timeBadgeLayer = CAShapeLayer()
+    private let timeDotLayer = CAShapeLayer()
+    private let timeTextLayer = CATextLayer()
+    private let badgeFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
     private var updateTimer: Timer?
     private var completionCallbackScheduled = false
     private var trackingArea: NSTrackingArea?
@@ -302,6 +309,11 @@ private final class MeetingRecordingAppKitPillView: NSView {
         layoutLayers()
     }
 
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        timeTextLayer.contentsScale = window?.backingScaleFactor ?? 2
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let trackingArea {
@@ -320,11 +332,13 @@ private final class MeetingRecordingAppKitPillView: NSView {
     override func mouseEntered(with event: NSEvent) {
         isHovered = true
         updateBackground()
+        updateTimeBadge()
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovered = false
         updateBackground()
+        updateTimeBadge()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -350,6 +364,33 @@ private final class MeetingRecordingAppKitPillView: NSView {
         pauseLayer.addSublayer(rightBar)
         pauseLayer.isHidden = true
         layer.addSublayer(pauseLayer)
+
+        setupTimeBadge(in: layer)
+    }
+
+    private func setupTimeBadge(in root: CALayer) {
+        let scale = window?.backingScaleFactor ?? 2
+        timeBadgeLayer.fillColor = NSColor.black.withAlphaComponent(0.72).cgColor
+        timeBadgeLayer.strokeColor = NSColor.white.withAlphaComponent(0.10).cgColor
+        timeBadgeLayer.lineWidth = 0.5
+        timeBadgeLayer.shadowColor = NSColor.black.cgColor
+        timeBadgeLayer.shadowOpacity = 0.25
+        timeBadgeLayer.shadowRadius = 6
+        timeBadgeLayer.shadowOffset = CGSize(width: 0, height: -2)
+        timeBadgeLayer.opacity = 0
+
+        timeDotLayer.fillColor = NSColor.systemRed.cgColor
+
+        timeTextLayer.font = badgeFont
+        timeTextLayer.fontSize = badgeFont.pointSize
+        timeTextLayer.foregroundColor = NSColor.white.withAlphaComponent(0.92).cgColor
+        timeTextLayer.alignmentMode = .left
+        timeTextLayer.contentsScale = scale
+        timeTextLayer.isWrapped = false
+
+        timeBadgeLayer.addSublayer(timeDotLayer)
+        timeBadgeLayer.addSublayer(timeTextLayer)
+        root.addSublayer(timeBadgeLayer)
     }
 
     private func pauseBar() -> CALayer {
@@ -383,6 +424,78 @@ private final class MeetingRecordingAppKitPillView: NSView {
         pauseLayer.frame = CGRect(x: pillRect.midX - 5, y: pillRect.midY - 5.5, width: 10, height: 11)
     }
 
+    /// Hover-revealed elapsed-time badge: red dot (amber when paused) + the live
+    /// timer, in a dark capsule centered above the pill. Shown only while
+    /// hovering an active recording; the timer text refreshes each second.
+    private func updateTimeBadge() {
+        let state = viewModel.state
+        let active: Bool
+        switch state {
+        case .recording, .paused:
+            active = isHovered && viewModel.elapsedSeconds > 0
+        default:
+            active = false
+        }
+
+        guard active else {
+            if timeBadgeLayer.opacity != 0 {
+                timeBadgeLayer.opacity = 0
+            }
+            return
+        }
+
+        let text = viewModel.formattedElapsed
+        let isPaused = (state == .paused)
+
+        // Disable implicit animations for the per-second text/relayout so the
+        // digits update crisply; the fade-in is driven separately by opacity.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        timeDotLayer.fillColor = (isPaused ? NSColor.systemOrange : NSColor.systemRed).cgColor
+        if (timeTextLayer.string as? String) != text {
+            timeTextLayer.string = text
+        }
+        layoutTimeBadge(text: text)
+        CATransaction.commit()
+
+        if timeBadgeLayer.opacity != 1 {
+            timeBadgeLayer.opacity = 1
+        }
+    }
+
+    private func layoutTimeBadge(text: String) {
+        let textSize = (text as NSString).size(withAttributes: [.font: badgeFont])
+        let dot: CGFloat = 5
+        let gap: CGFloat = 5
+        let hPad: CGFloat = 10
+        let vPad: CGFloat = 5
+        let badgeH = ceil(textSize.height) + vPad * 2
+        let badgeW = dot + gap + ceil(textSize.width) + hPad * 2
+
+        let capsuleMidX = bounds.maxX - 74 + 27
+        let capsuleTop = bounds.midY - 43
+        let badgeX = capsuleMidX - badgeW / 2
+        let badgeY = capsuleTop - badgeH - 4
+
+        timeBadgeLayer.frame = CGRect(x: badgeX, y: badgeY, width: badgeW, height: badgeH)
+        timeBadgeLayer.path = CGPath(
+            roundedRect: CGRect(x: 0, y: 0, width: badgeW, height: badgeH),
+            cornerWidth: badgeH / 2,
+            cornerHeight: badgeH / 2,
+            transform: nil
+        )
+
+        let centerY = badgeH / 2
+        timeDotLayer.frame = CGRect(x: hPad, y: centerY - dot / 2, width: dot, height: dot)
+        timeDotLayer.path = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: dot, height: dot), transform: nil)
+        timeTextLayer.frame = CGRect(
+            x: hPad + dot + gap,
+            y: centerY - ceil(textSize.height) / 2,
+            width: ceil(textSize.width) + 1,
+            height: ceil(textSize.height)
+        )
+    }
+
     private func updateFromViewModel() {
         let state = viewModel.state
         let reduceMotion = self.reduceMotion
@@ -393,6 +506,11 @@ private final class MeetingRecordingAppKitPillView: NSView {
         default:
             audioLevel = 0
         }
+
+        // The elapsed time ticks every second even when state/audioLevel are
+        // unchanged (e.g. silence), so refresh the hover badge before the
+        // render-skip fast path.
+        updateTimeBadge()
 
         if renderedState == state, renderedAudioLevel == audioLevel, renderedReduceMotion == reduceMotion {
             updateBackgroundIfNeeded()
