@@ -289,7 +289,7 @@ private final class MeetingRecordingAppKitPillView: NSView {
     private var compactContainer = false
     private let pillWidth: CGFloat = 54
     private let pillTallHeight: CGFloat = 86
-    private let compactIconSize: CGFloat = 36
+    private let compactIconSize: CGFloat = 35
 
     /// System Settings → Accessibility → Display → Reduce Motion. The pill
     /// still shows (and tracks recording state via color/timer), it just stops

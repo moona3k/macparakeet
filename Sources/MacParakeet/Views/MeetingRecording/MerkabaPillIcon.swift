@@ -33,7 +33,7 @@ struct MerkabaPillIcon: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: MerkabaPillIconView, context: Context) -> CGSize? {
-        CGSize(width: showStem ? 30 : 36, height: showStem ? 74 : 36)
+        CGSize(width: showStem ? 30 : 35, height: showStem ? 74 : 35)
     }
 }
 
@@ -103,7 +103,7 @@ final class MerkabaPillIconView: NSView {
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: currentShowStem ? 30 : 36, height: currentShowStem ? 74 : 36)
+        NSSize(width: currentShowStem ? 30 : 35, height: currentShowStem ? 74 : 35)
     }
 
     override func layout() {
@@ -474,7 +474,7 @@ final class MerkabaPillIconView: NSView {
     private var activeMarkSize: CGFloat {
         guard !currentShowStem else { return 30 }
         let proposed = min(bounds.width, bounds.height)
-        return proposed > 0 ? proposed : 36
+        return proposed > 0 ? proposed : 35
     }
 
     private func layoutSpinnerAndCheck(headY: CGFloat, size: CGFloat) {
