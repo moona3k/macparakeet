@@ -34,6 +34,7 @@ final class PillPreview: NSView {
     let timeText: String
 
     private var paused: Bool { if case .paused = mode { return true } else { return false } }
+    private var compact: Bool { switch mode { case .spinner, .checkmark: return true; default: return false } }
 
     init(pillWidth: CGFloat, pillHeight: CGFloat, mode: PreviewMode, hovered: Bool = false, timeText: String = "12:34") {
         self.pillWidth = pillWidth
@@ -106,15 +107,14 @@ final class PillPreview: NSView {
 
     override func layout() {
         super.layout()
-        let pillRect = CGRect(
-            x: bounds.maxX - 74,
-            y: bounds.midY - pillHeight / 2,
-            width: pillWidth,
-            height: pillHeight
-        )
-        backgroundLayer.path = CGPath(roundedRect: pillRect, cornerWidth: pillWidth / 2, cornerHeight: pillWidth / 2, transform: nil)
-        iconView.frame = CGRect(x: pillRect.midX - 15, y: pillRect.midY - 37, width: 30, height: 74)
-        pauseLayer.frame = CGRect(x: pillRect.midX - 5, y: pillRect.midY - 5.5, width: 10, height: 11)
+        // Tall rect anchors the mark; the compact (circle) container shares the
+        // tall top edge and stops at pillWidth so its bottom rises to the head.
+        let top = bounds.midY - pillHeight / 2
+        let tallRect = CGRect(x: bounds.maxX - 74, y: top, width: pillWidth, height: pillHeight)
+        let bgRect = CGRect(x: bounds.maxX - 74, y: top, width: pillWidth, height: compact ? pillWidth : pillHeight)
+        backgroundLayer.path = CGPath(roundedRect: bgRect, cornerWidth: pillWidth / 2, cornerHeight: pillWidth / 2, transform: nil)
+        iconView.frame = CGRect(x: tallRect.midX - 15, y: tallRect.midY - 37, width: 30, height: 74)
+        pauseLayer.frame = CGRect(x: tallRect.midX - 5, y: tallRect.midY - 5.5, width: 10, height: 11)
         iconView.layoutSubtreeIfNeeded()
 
         let textSize = (timeText as NSString).size(withAttributes: [.font: badgeFont])

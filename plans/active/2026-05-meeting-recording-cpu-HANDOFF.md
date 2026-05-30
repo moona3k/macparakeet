@@ -43,7 +43,7 @@ in the old pill. It was **CPU/rendering, never memory** (RAM stayed ~0.5%).
 | File | Change |
 |---|---|
 | `Views/MeetingRecording/MeetingRecordingPanelView.swift` | `BreathingSeedOfLifeView` → `NSViewRepresentable` + CALayer (`BreathingSeedOfLifeNSView`). CA pause for `freeze`; honors Reduce Motion. Fixes all 3 consumers (transcript + live-notes watermark, summary skeleton). |
-| `Views/MeetingRecording/MeetingRecordingPillController.swift` | AppKit/CALayer pill + Reduce Motion + compacted capsule 54×106→54×86 + hover-time badge. **+ richness:** dispatches the icon faces (recording/paused/completing/transcribing/completed), `updateLiveAudioLevel` forwards the fast glow, and `withObservationTracking` makes state transitions instant. |
+| `Views/MeetingRecording/MeetingRecordingPillController.swift` | AppKit/CALayer pill + Reduce Motion + compacted capsule 54×106→54×86 + hover-time badge. **+ richness:** dispatches the icon faces (recording/paused/completing/transcribing/completed), shrinks the capsule to a **circle** for the stem-less states, `updateLiveAudioLevel` forwards the fast glow, and `refreshState()` (pushed by the coordinator) makes transitions instant. Badge ticker is a `@MainActor Task` (Swift-6 deinit-clean). |
 | `Views/MeetingRecording/MerkabaPillIcon.swift` | CALayer rosette icon. **+ richness:** now owns four lifecycle faces (rosette / collapse merkaba / spinner / checkmark) with `setLiveGlow`, `playCompletion`, `showSpinner`, `showCheckmark`; all honor Reduce Motion. |
 | `Views/Transcription/MeetingRecordingTile.swift` | `SacredFlowerTile` dead rotation/sway machinery removed → static rosette. |
 | `Views/Meetings/MeetingsView.swift` | **Root cause #2 fix** — `MeetingsLiveStatusChip` leaf view owns the `formattedElapsed` read. |
@@ -78,12 +78,14 @@ past 99:59) **not regressed** — the new CALayer badge stays single-line at
   in PR #396. Live audio-responsive glow via a pill-local **~30 fps CALayer-only**
   channel (`startPillGlowPolling`, separate from the 1 s `startPillPolling`), plus
   the completion **collapse merkaba → spinner → checkmark** ported to CALayer one-
-  shots as four "faces" on `MerkabaPillIconView`. Also fixed a latent bug: the
-  AppKit pill now `withObservationTracking`s `viewModel.state` so transitions are
-  instant (it previously only polled at 1 s, which a visible collapse flourish
-  would have exposed as lag). All faces honor `reduceMotion`. Verified ~16–17%
-  recording (debug) — no CPU added. See the debug doc's "Restore the pill's lost
-  richness — IMPLEMENTED" section + `plans/active/assets/2026-05-pill-richness-*.png`.
+  shots as four "faces" on `MerkabaPillIconView`. The stem-less states (spinner /
+  checkmark) render in a **circular** container that the capsule animates down to.
+  Also fixed a latent bug: the coordinator now pushes state via `refreshState()`
+  so transitions are instant (the pill previously only polled at 1 s, which a
+  visible collapse flourish would have exposed as lag). All faces honor
+  `reduceMotion`, and it's Swift-6 language-mode clean (the CI gate). Verified
+  ~16–17% recording (debug) — no CPU added. See the debug doc's "Restore the
+  pill's lost richness — IMPLEMENTED" section + `plans/active/assets/2026-05-pill-richness-*.png`.
 - [ ] **(Optional) Release-build CPU confirmation.** Debug numbers are inflated;
   a Release pass on the final (richness-included) build is confirmation, not a
   blocker (see TL;DR correction). Use the verification matrix in the debug doc.

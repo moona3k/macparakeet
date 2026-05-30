@@ -174,7 +174,7 @@ final class MerkabaPillIconView: NSView {
     /// glow warms green → gold, leaves detach and drift, the stem retracts, then
     /// everything fades — handing off to the processing spinner. CA port of
     /// `FlowerCompletionView`. `onFinished` fires when the collapse is done.
-    func playCompletion(reduceMotion: Bool, onFinished: @escaping () -> Void) {
+    func playCompletion(reduceMotion: Bool, onFinished: @escaping @MainActor () -> Void) {
         buildLayersIfNeeded()
         setFace(.rosette)
         stopAnimations()
@@ -189,7 +189,7 @@ final class MerkabaPillIconView: NSView {
             fade.fillMode = .forwards
             fade.isRemovedOnCompletion = false
             for layer in rosetteLayers where !layer.isHidden { layer.add(fade, forKey: "completionFade") }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: onFinished)
+            scheduleCompletion(after: 0.4, onFinished)
             return
         }
 
@@ -227,7 +227,18 @@ final class MerkabaPillIconView: NSView {
         glowFade.beginTime = CACurrentMediaTime() + 0.8
         glowLayer.add(glowFade, forKey: "completionGlowFade")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: onFinished)
+        scheduleCompletion(after: 1.0, onFinished)
+    }
+
+    /// Fire the collapse-finished callback after `delay`, on the main actor.
+    /// (A `Task` instead of `DispatchQueue.asyncAfter(execute:)` so the
+    /// `@MainActor` callback isn't forced through a `@Sendable` parameter —
+    /// Swift 6 language-mode clean.)
+    private func scheduleCompletion(after delay: Double, _ onFinished: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            onFinished()
+        }
     }
 
     /// Processing state: two counter-rotating triangles (the merkaba) with a

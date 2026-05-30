@@ -151,6 +151,7 @@ final class MeetingRecordingFlowCoordinator {
             // the pill to `.transcribing` / `.error`; we must not stomp it.
             guard self.pillViewModel.canTogglePause else { return }
             self.pillViewModel.state = wantPause ? .paused : .recording
+            self.pillController?.refreshState()
             self.panelViewModel?.isPaused = wantPause
         }
     }
@@ -483,6 +484,7 @@ final class MeetingRecordingFlowCoordinator {
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
             pillViewModel.state = .completing
+            pillController?.refreshState()
             pillViewModel.onCompletionAnimationFinished = { [weak self] in
                 guard let self, self.pillViewModel.state == .completing else { return }
                 // Flower collapsed — show merkaba spinner (or checkmark if already done)
@@ -499,6 +501,7 @@ final class MeetingRecordingFlowCoordinator {
                 } else {
                     self.pillViewModel.state = .transcribing
                 }
+                self.pillController?.refreshState()
             }
             panelViewModel?.state = .transcribing
             panelViewModel?.micLevel = 0
@@ -574,6 +577,7 @@ final class MeetingRecordingFlowCoordinator {
             // If spinner is showing, transition to checkmark now
             if pillViewModel.state == .transcribing {
                 pillViewModel.state = .completed
+                pillController?.refreshState()
             }
             panelViewModel?.state = .hidden
 
@@ -613,6 +617,7 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel?.compactErrorRecoveryMessage
                     ?? "Meeting interrupted. Open Library to retry transcription or export captured audio."
             )
+            pillController?.refreshState()
             hideMeetingPanel()
 
         case .hidePill:

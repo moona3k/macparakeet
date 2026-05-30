@@ -371,11 +371,26 @@ it.
   only while `.recording` and is cancelled alongside `stopPillPolling`. **It never
   writes `@Observable`**, so it can't re-trigger Root-Cause-#2. The 1 s poll no
   longer drives the pill glow at all.
-- **Instant state transitions:** the AppKit pill now also `withObservationTracking`s
-  `viewModel.state`, so stop → collapse → spinner → checkmark fires immediately
-  instead of waiting up to a 1 s poll tick (the 1 s timer still drives the elapsed
-  badge text). This was a latent responsiveness bug in the committed PR that a
-  visible collapse flourish would have made obvious.
+- **Instant state transitions:** the coordinator pushes each pill-state change via
+  `pillController.refreshState()`, so stop → collapse → spinner → checkmark fires
+  immediately instead of waiting up to a 1 s poll tick (a 1 s `Task` ticker still
+  drives the elapsed badge text). This was a latent responsiveness bug in the
+  committed PR that a visible collapse flourish would have made obvious. (An
+  earlier `withObservationTracking` attempt tripped Swift 6 `@Sendable` capture
+  rules; the explicit push is cleaner and matches the coordinator's style.)
+- **Stem-less states use a circular container:** the recording capsule is tall to
+  host the rosette + stem; transcribing/completed shrink it to a **circle** that
+  hugs the compact mark (matching the prior SwiftUI pill's separate `iconPill`).
+  The circle keeps the capsule's top edge and rises from the bottom, so the stop
+  reads as the stem being absorbed into the head; the path animates tall→circle in
+  sync with the collapse.
+- **Swift 6 language-mode clean (the CI gate):** CI runs a `-swift-version 6`
+  build the default `swift build` skips. The completion callback uses a
+  `@MainActor` `Task` (not `DispatchQueue.asyncAfter(execute:)`, which demands a
+  `@Sendable` closure), the badge ticker is a `@MainActor` `Task` (not a `Timer`,
+  so the nonisolated `deinit` can cancel a `Sendable` handle), and `onFinished` is
+  a `@MainActor` closure. Verified locally with the exact CI invocation
+  (`MACPARAKEET_SKIP_WHISPERKIT=1 swift build -Xswiftc -swift-version -Xswiftc 6`).
 
 **On-device verification (debug build, this session):**
 

@@ -1,6 +1,5 @@
 import AppKit
 import MacParakeetViewModels
-import Observation
 import SwiftUI
 
 private final class MeetingRecordingClickablePanel: NSPanel {
@@ -149,6 +148,13 @@ final class MeetingRecordingPillController {
         pillView?.updateLiveAudioLevel(level)
     }
 
+    /// Push a view-model state change to the pill immediately, so the
+    /// recording → completing → transcribing → completed faces switch on the
+    /// transition rather than on the pill's next 1 s tick. No-op once hidden.
+    func refreshState() {
+        pillView?.refresh()
+    }
+
     // MARK: - Context Menu
 
     private func showContextMenu(with event: NSEvent) {
@@ -263,13 +269,25 @@ private final class MeetingRecordingAppKitPillView: NSView {
     private let timeDotLayer = CAShapeLayer()
     private let timeTextLayer = CATextLayer()
     private let badgeFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
-    private var updateTimer: Timer?
+    /// 1 s ticker for the elapsed-time badge. A `@MainActor` `Task` rather than a
+    /// `Timer` so (a) its body runs in-isolation (no nonisolated `@Sendable`
+    /// hop to call `updateFromViewModel`) and (b) `Task` is `Sendable`, so the
+    /// nonisolated `deinit` can cancel it — both Swift 6 language-mode clean.
+    private var tickTask: Task<Void, Never>?
     private var completionCallbackScheduled = false
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
     private var renderedState: MeetingRecordingPillViewModel.PillState?
     private var renderedHover: Bool?
     private var renderedReduceMotion: Bool?
+    /// The recording capsule is tall to host the rosette + stem; the stem-less
+    /// states (transcribing/completed) shrink it to a circle that hugs the
+    /// compact mark — matching the prior SwiftUI pill's separate `iconPill`. The
+    /// circle keeps the capsule's top edge and rises from the bottom, so the
+    /// collapse reads as the stem being absorbed into the head.
+    private var compactContainer = false
+    private let pillWidth: CGFloat = 54
+    private let pillTallHeight: CGFloat = 86
 
     /// System Settings → Accessibility → Display → Reduce Motion. The pill
     /// still shows (and tracks recording state via color/timer), it just stops
@@ -289,12 +307,17 @@ private final class MeetingRecordingAppKitPillView: NSView {
         wantsLayer = true
         setupLayers()
         updateFromViewModel()
-        observeState()
-        // Drives the per-second elapsed badge text; state *transitions* come
-        // through observeState() so the stop → collapse → spinner → checkmark
-        // sequence reacts instantly instead of waiting up to a poll interval.
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateFromViewModel()
+        // Drives the per-second elapsed badge text. State *transitions* are
+        // pushed promptly by the coordinator via `refresh()` (see
+        // `MeetingRecordingPillController.refreshState()`), so the stop →
+        // collapse → spinner → checkmark sequence reacts immediately instead of
+        // waiting up to a poll interval.
+        tickTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { break }
+                self?.updateFromViewModel()
+            }
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
@@ -309,7 +332,7 @@ private final class MeetingRecordingAppKitPillView: NSView {
     }
 
     deinit {
-        updateTimer?.invalidate()
+        tickTask?.cancel()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
@@ -317,19 +340,10 @@ private final class MeetingRecordingAppKitPillView: NSView {
         updateFromViewModel()
     }
 
-    /// React to `viewModel.state` transitions immediately. `withObservationTracking`
-    /// is one-shot, so the change handler re-registers itself. State is mutated
-    /// on the main actor; the hop keeps us off the mutation's call stack.
-    private func observeState() {
-        withObservationTracking { [weak self] in
-            _ = self?.viewModel.state
-        } onChange: { [weak self] in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.updateFromViewModel()
-                self.observeState()
-            }
-        }
+    /// Pull the latest view-model state immediately (pushed by the coordinator
+    /// on a state transition, so animations don't wait for the 1 s timer).
+    func refresh() {
+        updateFromViewModel()
     }
 
     override func layout() {
@@ -430,26 +444,50 @@ private final class MeetingRecordingAppKitPillView: NSView {
     }
 
     private func layoutLayers() {
-        // Compact capsule that hugs the rosette + stem with even breathing room
-        // (was 54x106, which left ~20pt of dead space above and below the
-        // flower). Centered on the panel's midY so the icon and pause-bars stay
-        // put regardless of the capsule height — only the black surface shrinks.
-        let pillWidth: CGFloat = 54
-        let pillHeight: CGFloat = 86
-        let pillRect = CGRect(
-            x: bounds.maxX - 74,
-            y: bounds.midY - pillHeight / 2,
-            width: pillWidth,
-            height: pillHeight
-        )
-        backgroundLayer.path = CGPath(
-            roundedRect: pillRect,
+        // The icon + pause-bars are positioned from the *tall* rect so the mark
+        // (rosette head / spinner / checkmark) stays put across states — only
+        // the black surface shrinks to a circle for the stem-less states.
+        let tallRect = containerRect(compact: false)
+        backgroundLayer.path = backgroundPath(compact: compactContainer)
+        iconView.frame = CGRect(x: tallRect.midX - 15, y: tallRect.midY - 37, width: 30, height: 74)
+        pauseLayer.frame = CGRect(x: tallRect.midX - 5, y: tallRect.midY - 5.5, width: 10, height: 11)
+    }
+
+    /// The capsule rect for a given state. Both shapes share the same top edge
+    /// (`midY − tallHeight/2`); the compact circle just stops at `pillWidth`
+    /// tall, so the bottom rises toward the head.
+    private func containerRect(compact: Bool) -> CGRect {
+        let top = bounds.midY - pillTallHeight / 2
+        let height = compact ? pillWidth : pillTallHeight
+        return CGRect(x: bounds.maxX - 74, y: top, width: pillWidth, height: height)
+    }
+
+    private func backgroundPath(compact: Bool) -> CGPath {
+        // cornerRadius = pillWidth/2 → stadium when tall, perfect circle when compact.
+        CGPath(
+            roundedRect: containerRect(compact: compact),
             cornerWidth: pillWidth / 2,
             cornerHeight: pillWidth / 2,
             transform: nil
         )
-        iconView.frame = CGRect(x: pillRect.midX - 15, y: pillRect.midY - 37, width: 30, height: 74)
-        pauseLayer.frame = CGRect(x: pillRect.midX - 5, y: pillRect.midY - 5.5, width: 10, height: 11)
+    }
+
+    /// Switch the capsule between tall and circular. When `animated` (the
+    /// stop → collapse transition), the path interpolates from its current
+    /// presentation so the capsule visibly absorbs the stem as the flower
+    /// collapses; otherwise it snaps (recording re-entry, fresh layout).
+    private func applyContainer(compact: Bool, animated: Bool) {
+        compactContainer = compact
+        let newPath = backgroundPath(compact: compact)
+        if animated {
+            let resize = CABasicAnimation(keyPath: "path")
+            resize.fromValue = backgroundLayer.presentation()?.path ?? backgroundLayer.path
+            resize.toValue = newPath
+            resize.duration = reduceMotion ? 0.4 : 0.85
+            resize.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            backgroundLayer.add(resize, forKey: "containerResize")
+        }
+        backgroundLayer.path = newPath
     }
 
     /// Hover-revealed elapsed-time badge: red dot (amber when paused) + the live
@@ -552,28 +590,35 @@ private final class MeetingRecordingAppKitPillView: NSView {
         case .recording:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
+            applyContainer(compact: false, animated: false)
             // Glow is driven live by updateLiveAudioLevel; this sets the
             // resting base + starts the rosette rotation.
             iconView.update(isAnimating: !reduceMotion, audioLevel: 0)
         case .paused:
             pauseLayer.isHidden = false
             iconView.alphaValue = 0.45
+            applyContainer(compact: false, animated: false)
             iconView.update(isAnimating: false, audioLevel: 0)
         case .completing:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
+            // Shrink the capsule to a circle in sync with the collapsing flower.
+            applyContainer(compact: true, animated: true)
             playCompletionIfNeeded(reduceMotion: reduceMotion)
         case .transcribing:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
+            applyContainer(compact: true, animated: false)
             iconView.showSpinner(animated: !reduceMotion)
         case .completed:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
+            applyContainer(compact: true, animated: false)
             iconView.showCheckmark(animated: !reduceMotion)
         case .idle, .error:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
+            applyContainer(compact: false, animated: false)
             iconView.update(isAnimating: false, audioLevel: 0)
         }
         updateBackgroundIfNeeded()
