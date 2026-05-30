@@ -1,209 +1,231 @@
+import AppKit
 import SwiftUI
 
 /// Sacred geometry flower icon ported from Oatmeal's meeting recording pill.
-/// The Flower of Life rotates while recording, and the center glow reacts to audio level.
-struct MerkabaPillIcon: View {
+///
+/// This is AppKit/Core Animation backed instead of a pure SwiftUI
+/// `repeatForever` animation. Sampling showed the floating recording pill could
+/// add 40-55% CPU while recording because SwiftUI re-rendered the display list
+/// at animation cadence. Keeping the animation on CALayers preserves the moving
+/// pill without making the tiny floating panel drive the whole SwiftUI renderer.
+struct MerkabaPillIcon: NSViewRepresentable {
     var isAnimating: Bool = false
     var audioLevel: Float = 0
-    /// When `false`, render only the Flower-of-Life head (no stem/leaves) —
+    /// When `false`, render only the Flower-of-Life head (no stem/leaves) -
     /// used where the rosette is a compact standalone mark, e.g. inside the
     /// calendar countdown halo. Defaults to `true` so the recording pill keeps
     /// the full flower.
     var showStem: Bool = true
 
-    @State private var rotation: Double = 0
-    @State private var sway: Double = -1
-
-    private var glowOpacity: Double {
-        let base: Double = isAnimating ? 0.4 : 0.1
-        let audioBoost = Double(audioLevel) * 0.5
-        return min(0.9, base + audioBoost)
+    func makeNSView(context: Context) -> MerkabaPillIconView {
+        let view = MerkabaPillIconView()
+        view.configure(showStem: showStem)
+        view.update(isAnimating: isAnimating, audioLevel: audioLevel)
+        return view
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            flowerHead
-                .frame(width: 30, height: 30)
-                .padding(.top, showStem ? 6 : 0)
+    func updateNSView(_ nsView: MerkabaPillIconView, context: Context) {
+        nsView.configure(showStem: showStem)
+        nsView.update(isAnimating: isAnimating, audioLevel: audioLevel)
+    }
 
-            if showStem {
-                stemAndLeaves
-                    .frame(width: 30, height: 34)
-                    .padding(.bottom, 4)
-            }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: MerkabaPillIconView, context: Context) -> CGSize? {
+        CGSize(width: 30, height: showStem ? 74 : 30)
+    }
+}
+
+final class MerkabaPillIconView: NSView {
+    private let glowLayer = CAShapeLayer()
+    private let flowerLayer = CALayer()
+    private let stemLayer = CAShapeLayer()
+    private let leftLeafFillLayer = CAShapeLayer()
+    private let leftLeafStrokeLayer = CAShapeLayer()
+    private let rightLeafFillLayer = CAShapeLayer()
+    private let rightLeafStrokeLayer = CAShapeLayer()
+
+    private var didBuildLayers = false
+    private var currentShowStem = true
+    private var currentAnimating = false
+    private var currentAudioLevel: Float = -1
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 30, height: currentShowStem ? 74 : 30)
+    }
+
+    override func layout() {
+        super.layout()
+        buildLayersIfNeeded()
+        layoutLayers()
+    }
+
+    func configure(showStem: Bool) {
+        guard currentShowStem != showStem else { return }
+        currentShowStem = showStem
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+    }
+
+    func update(isAnimating: Bool, audioLevel: Float) {
+        buildLayersIfNeeded()
+
+        if currentAnimating != isAnimating {
+            currentAnimating = isAnimating
+            isAnimating ? startAnimations() : stopAnimations()
         }
-        .onChange(of: isAnimating) { _, animating in
-            if animating {
-                startAnimations()
+
+        let clampedAudio = min(1, max(0, audioLevel))
+        if currentAudioLevel != clampedAudio {
+            currentAudioLevel = clampedAudio
+            let base: Float = isAnimating ? 0.4 : 0.1
+            let opacity = min(0.9, base + clampedAudio * 0.5)
+            glowLayer.opacity = opacity
+        }
+    }
+
+    private func buildLayersIfNeeded() {
+        guard !didBuildLayers, let rootLayer = layer else { return }
+        didBuildLayers = true
+
+        rootLayer.masksToBounds = false
+        glowLayer.fillColor = NSColor(named: "SacredGlow")?.cgColor ?? NSColor.systemGreen.withAlphaComponent(0.35).cgColor
+        rootLayer.addSublayer(glowLayer)
+
+        flowerLayer.masksToBounds = false
+        rootLayer.addSublayer(flowerLayer)
+        addFlowerCircles()
+
+        for leafLayer in [leftLeafFillLayer, rightLeafFillLayer] {
+            leafLayer.fillColor = NSColor.systemGreen.withAlphaComponent(0.45).cgColor
+            leafLayer.strokeColor = nil
+        }
+        for leafLayer in [leftLeafStrokeLayer, rightLeafStrokeLayer] {
+            leafLayer.fillColor = NSColor.clear.cgColor
+            leafLayer.strokeColor = NSColor.systemGreen.withAlphaComponent(0.55).cgColor
+            leafLayer.lineWidth = 0.5
+        }
+
+        stemLayer.fillColor = NSColor.clear.cgColor
+        stemLayer.strokeColor = NSColor.systemGreen.withAlphaComponent(0.7).cgColor
+        stemLayer.lineWidth = 1.2
+        stemLayer.lineCap = .round
+
+        rootLayer.addSublayer(stemLayer)
+        rootLayer.addSublayer(leftLeafFillLayer)
+        rootLayer.addSublayer(leftLeafStrokeLayer)
+        rootLayer.addSublayer(rightLeafFillLayer)
+        rootLayer.addSublayer(rightLeafStrokeLayer)
+    }
+
+    private func addFlowerCircles() {
+        let strokeColors: [(CGFloat, CGFloat)] = [(0.55, 0.75)] + Array(repeating: (0.40, 0.75), count: 6)
+        for (index, stroke) in strokeColors.enumerated() {
+            let circle = CAShapeLayer()
+            circle.fillColor = NSColor.clear.cgColor
+            circle.strokeColor = NSColor.white.withAlphaComponent(stroke.0).cgColor
+            circle.lineWidth = stroke.1
+            circle.path = CGPath(ellipseIn: CGRect(x: -6.5, y: -6.5, width: 13, height: 13), transform: nil)
+
+            if index == 0 {
+                circle.position = CGPoint(x: 15, y: 15)
             } else {
-                stopAnimations()
-            }
-        }
-        .onAppear {
-            if isAnimating {
-                startAnimations()
-            }
-        }
-    }
-
-    private var flowerHead: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            sacredGlow.opacity(glowOpacity),
-                            sacredGlow.opacity(glowOpacity * 0.3),
-                            .clear,
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 12
-                    )
+                let angle = CGFloat(index - 1) * 60 * .pi / 180
+                circle.position = CGPoint(
+                    x: 15 + Foundation.cos(angle) * 6.5,
+                    y: 15 + Foundation.sin(angle) * 6.5
                 )
-                .frame(width: 24, height: 24)
-                .animation(.easeOut(duration: 0.1), value: audioLevel)
-
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.55), lineWidth: 0.75)
-                    .frame(width: 13, height: 13)
-
-                ForEach(0..<6, id: \.self) { index in
-                    let angle = Double(index) * 60
-                    let radians = angle * .pi / 180
-                    let radius: CGFloat = 6.5
-
-                    Circle()
-                        .stroke(Color.white.opacity(0.4), lineWidth: 0.75)
-                        .frame(width: 13, height: 13)
-                        .offset(
-                            x: radius * CGFloat(cos(radians)),
-                            y: radius * CGFloat(sin(radians))
-                        )
-                }
             }
-            .rotationEffect(.degrees(rotation))
+            flowerLayer.addSublayer(circle)
         }
     }
 
-    private var stemAndLeaves: some View {
-        let stemColor = sacredStem
-        let swayOffset = CGFloat(sway) * 1.5
+    private func layoutLayers() {
+        let headY: CGFloat = currentShowStem ? 6 : 0
+        glowLayer.path = CGPath(ellipseIn: CGRect(x: 3, y: headY + 3, width: 24, height: 24), transform: nil)
 
-        return ZStack {
-            StemShape(swayOffset: swayOffset)
-                .stroke(stemColor.opacity(0.7), lineWidth: 1.2)
+        flowerLayer.frame = CGRect(x: 0, y: headY, width: 30, height: 30)
+        flowerLayer.position = CGPoint(x: 15, y: headY + 15)
+        flowerLayer.bounds = CGRect(x: 0, y: 0, width: 30, height: 30)
 
-            LeafShape(
-                basePoint: CGPoint(x: 0.5, y: 0.38),
-                direction: .left,
-                size: 8,
-                swayOffset: swayOffset
-            )
-            .fill(stemColor.opacity(0.45))
-
-            LeafShape(
-                basePoint: CGPoint(x: 0.5, y: 0.38),
-                direction: .left,
-                size: 8,
-                swayOffset: swayOffset
-            )
-            .stroke(stemColor.opacity(0.55), lineWidth: 0.5)
-
-            LeafShape(
-                basePoint: CGPoint(x: 0.5, y: 0.62),
-                direction: .right,
-                size: 9,
-                swayOffset: swayOffset
-            )
-            .fill(stemColor.opacity(0.45))
-
-            LeafShape(
-                basePoint: CGPoint(x: 0.5, y: 0.62),
-                direction: .right,
-                size: 9,
-                swayOffset: swayOffset
-            )
-            .stroke(stemColor.opacity(0.55), lineWidth: 0.5)
+        let stemFrame = CGRect(x: 0, y: headY + 30, width: 30, height: 34)
+        for layer in [stemLayer, leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.isHidden = !currentShowStem
+            layer.frame = stemFrame
         }
+
+        stemLayer.path = stemPath(in: stemFrame.size)
+        let leftPath = leafPath(in: stemFrame.size, basePoint: CGPoint(x: 0.5, y: 0.38), direction: -1, size: 8)
+        let rightPath = leafPath(in: stemFrame.size, basePoint: CGPoint(x: 0.5, y: 0.62), direction: 1, size: 9)
+        leftLeafFillLayer.path = leftPath
+        leftLeafStrokeLayer.path = leftPath
+        rightLeafFillLayer.path = rightPath
+        rightLeafStrokeLayer.path = rightPath
+    }
+
+    private func stemPath(in size: CGSize) -> CGPath {
+        let path = CGMutablePath()
+        let midX = size.width / 2
+        path.move(to: CGPoint(x: midX, y: 0))
+        path.addQuadCurve(
+            to: CGPoint(x: midX, y: size.height),
+            control: CGPoint(x: midX, y: size.height * 0.5)
+        )
+        return path
+    }
+
+    private func leafPath(in rectSize: CGSize, basePoint: CGPoint, direction: CGFloat, size: CGFloat) -> CGPath {
+        let base = CGPoint(x: rectSize.width * basePoint.x, y: rectSize.height * basePoint.y)
+        let path = CGMutablePath()
+        path.move(to: base)
+        path.addQuadCurve(
+            to: CGPoint(x: base.x + direction * size, y: base.y - 3),
+            control: CGPoint(x: base.x + direction * size * 0.6, y: base.y - 5)
+        )
+        path.addQuadCurve(
+            to: base,
+            control: CGPoint(x: base.x + direction * size * 0.6, y: base.y + 2)
+        )
+        return path
     }
 
     private func startAnimations() {
-        withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
-            rotation = 360
-        }
-        withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-            sway = 1
+        guard flowerLayer.animation(forKey: "recordingRotation") == nil else { return }
+
+        let rotation = CABasicAnimation(keyPath: "transform.rotation.z")
+        rotation.fromValue = 0
+        rotation.toValue = CGFloat.pi * 2
+        rotation.duration = 12
+        rotation.repeatCount = .infinity
+        rotation.timingFunction = CAMediaTimingFunction(name: .linear)
+        flowerLayer.add(rotation, forKey: "recordingRotation")
+
+        for layer in [stemLayer, leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            let sway = CABasicAnimation(keyPath: "transform.translation.x")
+            sway.fromValue = -1.5
+            sway.toValue = 1.5
+            sway.duration = 3
+            sway.autoreverses = true
+            sway.repeatCount = .infinity
+            sway.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(sway, forKey: "recordingSway")
         }
     }
 
     private func stopAnimations() {
-        withAnimation(.easeOut(duration: 0.5)) {
-            rotation = 0
-            sway = 0
+        flowerLayer.removeAnimation(forKey: "recordingRotation")
+        for layer in [stemLayer, leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.removeAnimation(forKey: "recordingSway")
         }
-    }
-
-    private var sacredGlow: Color {
-        DesignSystem.Colors.sacredGlow
-    }
-
-    private var sacredStem: Color {
-        DesignSystem.Colors.sacredStem
-    }
-}
-
-private struct StemShape: Shape {
-    var swayOffset: CGFloat
-
-    var animatableData: CGFloat {
-        get { swayOffset }
-        set { swayOffset = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let midX = rect.midX
-        var path = Path()
-        path.move(to: CGPoint(x: midX, y: 0))
-        path.addQuadCurve(
-            to: CGPoint(x: midX + swayOffset * 0.3, y: rect.height),
-            control: CGPoint(x: midX + swayOffset, y: rect.height * 0.5)
-        )
-        return path
-    }
-}
-
-private struct LeafShape: Shape {
-    enum Direction { case left, right }
-
-    let basePoint: CGPoint
-    let direction: Direction
-    let size: CGFloat
-    var swayOffset: CGFloat = 0
-
-    var animatableData: CGFloat {
-        get { swayOffset }
-        set { swayOffset = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let base = CGPoint(
-            x: rect.width * basePoint.x + swayOffset * basePoint.y,
-            y: rect.height * basePoint.y
-        )
-        let sign: CGFloat = direction == .left ? -1 : 1
-
-        var path = Path()
-        path.move(to: base)
-        path.addQuadCurve(
-            to: CGPoint(x: base.x + sign * size, y: base.y - 3),
-            control: CGPoint(x: base.x + sign * size * 0.6, y: base.y - 5)
-        )
-        path.addQuadCurve(
-            to: base,
-            control: CGPoint(x: base.x + sign * size * 0.6, y: base.y + 2)
-        )
-        return path
     }
 }

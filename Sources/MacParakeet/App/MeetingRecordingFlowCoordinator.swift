@@ -735,21 +735,39 @@ final class MeetingRecordingFlowCoordinator {
         pillPollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                let micLevel = await meetingRecordingService.micLevel
-                let systemLevel = await meetingRecordingService.systemLevel
+                let micLevel = Self.displayLevel(await meetingRecordingService.micLevel)
+                let systemLevel = Self.displayLevel(await meetingRecordingService.systemLevel)
                 let elapsedSeconds = await meetingRecordingService.elapsedSeconds
                 let captureMode = await meetingRecordingService.captureMode
                 let microphoneMuteState = await meetingRecordingService.microphoneMuteState
 
                 guard !Task.isCancelled else { break }
-                pillViewModel.micLevel = micLevel
-                pillViewModel.systemLevel = systemLevel
-                pillViewModel.elapsedSeconds = elapsedSeconds
-                panelViewModel?.elapsedSeconds = elapsedSeconds
-                panelViewModel?.micLevel = micLevel
-                panelViewModel?.systemLevel = systemLevel
-                panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
-                panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
+                if pillViewModel.micLevel != micLevel {
+                    pillViewModel.micLevel = micLevel
+                }
+                if pillViewModel.systemLevel != systemLevel {
+                    pillViewModel.systemLevel = systemLevel
+                }
+                if pillViewModel.elapsedSeconds != elapsedSeconds {
+                    pillViewModel.elapsedSeconds = elapsedSeconds
+                }
+                if let panelViewModel {
+                    if panelViewModel.elapsedSeconds != elapsedSeconds {
+                        panelViewModel.elapsedSeconds = elapsedSeconds
+                    }
+                    if panelViewModel.micLevel != micLevel {
+                        panelViewModel.micLevel = micLevel
+                    }
+                    if panelViewModel.systemLevel != systemLevel {
+                        panelViewModel.systemLevel = systemLevel
+                    }
+                    if panelViewModel.isMicrophoneMuted != microphoneMuteState.isMuted {
+                        panelViewModel.isMicrophoneMuted = microphoneMuteState.isMuted
+                    }
+                    if panelViewModel.canToggleMicrophoneMute != microphoneMuteState.canMute {
+                        panelViewModel.canToggleMicrophoneMute = microphoneMuteState.canMute
+                    }
+                }
                 // Pause/resume reconciliation (issue #235). The user-facing
                 // toggle does an optimistic flip; this poll is the
                 // authoritative source if the optimistic flip diverged from
@@ -785,9 +803,14 @@ final class MeetingRecordingFlowCoordinator {
                     break
                 }
 
-                try? await Task.sleep(for: .milliseconds(150))
+                try? await Task.sleep(for: .seconds(1))
             }
         }
+    }
+
+    private static func displayLevel(_ level: Float) -> Float {
+        let clamped = min(1, max(0, level))
+        return (clamped * 20).rounded() / 20
     }
 
     private func stopPillPolling() {

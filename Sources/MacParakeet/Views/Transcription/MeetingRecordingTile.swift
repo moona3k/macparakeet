@@ -71,7 +71,6 @@ struct MeetingRecordingTile: View {
     /// Optional pause/resume handler. When `nil` the tile renders no pause
     /// control — keeps existing call sites unchanged.
     var onPauseToggle: (() -> Void)?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         tileSurface
@@ -137,7 +136,7 @@ struct MeetingRecordingTile: View {
     private var idleContent: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             if permissionState.isReady {
-                SacredFlowerTile(isAnimating: false, audioLevel: 0)
+                SacredFlowerTile(audioLevel: 0)
             } else {
                 permissionIcon
                     .frame(width: 64)
@@ -164,11 +163,9 @@ struct MeetingRecordingTile: View {
         return HStack(spacing: DesignSystem.Spacing.md) {
             ZStack {
                 SacredFlowerTile(
-                    isAnimating: !isPaused && !reduceMotion,
                     audioLevel: isPaused ? 0 : max(viewModel.micLevel, viewModel.systemLevel)
                 )
                 .opacity(isPaused ? 0.45 : 1.0)
-                .animation(.easeInOut(duration: 0.25), value: isPaused)
 
                 if isPaused {
                     // Match the pill's pause-bars overlay so the two
@@ -201,8 +198,6 @@ struct MeetingRecordingTile: View {
                 Text(viewModel.formattedElapsed)
                     .font(.system(size: 15, weight: .semibold).monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.elapsedSeconds)
             }
 
             Spacer()
@@ -572,21 +567,23 @@ private struct StopConfirmCapsule: View {
 /// Larger, light-surface variant of the flower-of-life rosette + stem + leaves
 /// motif used by the floating recording pill. Sized for the Transcribe tile
 /// (50pt head + short stem). Greens-on-light replaces the pill's white-on-black.
+///
+/// Rendered statically. The tile lives in the always-resident main window, and
+/// an animated SwiftUI rosette here (a `repeatForever` rotation/sway) drove
+/// continuous `NSHostingView` re-layout — a measured contributor to the
+/// v0.6.14 meeting-recording CPU regression. The audio-reactive glow is the
+/// only live element, and it changes at most once per second (the pill poll is
+/// quantized upstream). See `plans/active/2026-05-meeting-recording-cpu-debug.md`.
 private struct SacredFlowerTile: View {
-    var isAnimating: Bool
+    /// Drives only the glow intensity; the rosette geometry is static.
     var audioLevel: Float
-
-    @State private var rotation: Double = 0
-    @State private var sway: Double = -1
-    @State private var idleBreath: Double = 0
 
     private let headSize: CGFloat = 50
     private let stemHeight: CGFloat = 18
 
     private var glowOpacity: Double {
-        let base: Double = isAnimating ? 0.55 : (0.22 + idleBreath * 0.10)
         let audioBoost = Double(audioLevel) * 0.45
-        return min(0.85, base + audioBoost)
+        return min(0.85, 0.22 + audioBoost)
     }
 
     var body: some View {
@@ -598,16 +595,6 @@ private struct SacredFlowerTile: View {
                 .padding(.top, -2)
         }
         .frame(width: 64)
-        .onChange(of: isAnimating) { _, animating in
-            if animating { startActive() } else { stopActive() }
-        }
-        .onAppear {
-            if isAnimating {
-                startActive()
-            } else {
-                startIdleBreath()
-            }
-        }
     }
 
     private var flowerHead: some View {
@@ -626,7 +613,6 @@ private struct SacredFlowerTile: View {
                     )
                 )
                 .frame(width: headSize * 0.86, height: headSize * 0.86)
-                .animation(.easeOut(duration: 0.12), value: audioLevel)
 
             ZStack {
                 Circle()
@@ -647,13 +633,12 @@ private struct SacredFlowerTile: View {
                         )
                 }
             }
-            .rotationEffect(.degrees(rotation))
         }
     }
 
     private var stemAndLeaves: some View {
         let stemColor = DesignSystem.Colors.sacredStem
-        let swayOffset = CGFloat(sway) * 1.8
+        let swayOffset: CGFloat = 0
 
         return ZStack {
             TileStemShape(swayOffset: swayOffset)
@@ -690,49 +675,15 @@ private struct SacredFlowerTile: View {
             .stroke(stemColor.opacity(0.62), lineWidth: 0.6)
         }
     }
-
-    private func startActive() {
-        // Match the pill's 12s rotation for visual continuity.
-        withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
-            rotation = 360
-        }
-        withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-            sway = 1
-        }
-    }
-
-    private func stopActive() {
-        withAnimation(.easeOut(duration: 0.5)) {
-            rotation = 0
-            sway = 0
-        }
-        startIdleBreath()
-    }
-
-    private func startIdleBreath() {
-        // Subtle 4s breathing on the glow when idle — present, not nagging.
-        withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
-            idleBreath = 1
-        }
-    }
 }
 
 // MARK: - Recording dot (gentle breathing)
 
 private struct BreathingDot: View {
-    @State private var pulse: Bool = false
-
     var body: some View {
         Circle()
             .fill(DesignSystem.Colors.recordingRed)
             .frame(width: 8, height: 8)
-            .opacity(pulse ? 0.55 : 1.0)
-            .scaleEffect(pulse ? 0.92 : 1.0)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
-            }
     }
 }
 
