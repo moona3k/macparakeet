@@ -1,5 +1,6 @@
 import AppKit
 import MacParakeetViewModels
+import Observation
 import SwiftUI
 
 private final class MeetingRecordingClickablePanel: NSPanel {
@@ -69,6 +70,7 @@ private class PillMenuDelegate: NSObject {
 @MainActor
 final class MeetingRecordingPillController {
     private var panel: NSPanel?
+    private weak var pillView: MeetingRecordingAppKitPillView?
     private let pillViewModel: MeetingRecordingPillViewModel
     var onClick: (() -> Void)?
     var onStopRecording: (() -> Void)?
@@ -108,6 +110,7 @@ final class MeetingRecordingPillController {
         view.frame = contentView.bounds
         view.autoresizingMask = [.width, .height]
         contentView.addSubview(view)
+        self.pillView = view
 
         let panel = MeetingRecordingClickablePanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
@@ -137,6 +140,13 @@ final class MeetingRecordingPillController {
     func hide() {
         panel?.orderOut(nil)
         panel = nil
+        pillView = nil
+    }
+
+    /// Forwards the coordinator's fast (~30 fps) audio level to the pill so the
+    /// rosette glow tracks speech live. No-op once the pill is hidden.
+    func updateLiveAudioLevel(_ level: Float) {
+        pillView?.updateLiveAudioLevel(level)
     }
 
     // MARK: - Context Menu
@@ -258,7 +268,6 @@ private final class MeetingRecordingAppKitPillView: NSView {
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
     private var renderedState: MeetingRecordingPillViewModel.PillState?
-    private var renderedAudioLevel: Float = -1
     private var renderedHover: Bool?
     private var renderedReduceMotion: Bool?
 
@@ -280,6 +289,10 @@ private final class MeetingRecordingAppKitPillView: NSView {
         wantsLayer = true
         setupLayers()
         updateFromViewModel()
+        observeState()
+        // Drives the per-second elapsed badge text; state *transitions* come
+        // through observeState() so the stop → collapse → spinner → checkmark
+        // sequence reacts instantly instead of waiting up to a poll interval.
         updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateFromViewModel()
         }
@@ -302,6 +315,21 @@ private final class MeetingRecordingAppKitPillView: NSView {
 
     @objc private func reduceMotionDidChange() {
         updateFromViewModel()
+    }
+
+    /// React to `viewModel.state` transitions immediately. `withObservationTracking`
+    /// is one-shot, so the change handler re-registers itself. State is mutated
+    /// on the main actor; the hop keeps us off the mutation's call stack.
+    private func observeState() {
+        withObservationTracking { [weak self] in
+            _ = self?.viewModel.state
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.updateFromViewModel()
+                self.observeState()
+            }
+        }
     }
 
     override func layout() {
@@ -496,36 +524,37 @@ private final class MeetingRecordingAppKitPillView: NSView {
         )
     }
 
+    /// Live audio level pushed from the coordinator's fast (~30 fps) glow
+    /// channel. Drives only the rosette glow opacity (CALayer) — never an
+    /// `@Observable` write — so the "internal light" tracks speech without the
+    /// per-tick SwiftUI relayout that the 1 s state poll would cause.
+    func updateLiveAudioLevel(_ level: Float) {
+        iconView.setLiveGlow(level: level)
+    }
+
     private func updateFromViewModel() {
         let state = viewModel.state
         let reduceMotion = self.reduceMotion
-        let audioLevel: Float
-        switch state {
-        case .recording:
-            audioLevel = max(viewModel.micLevel, viewModel.systemLevel)
-        default:
-            audioLevel = 0
-        }
 
-        // The elapsed time ticks every second even when state/audioLevel are
-        // unchanged (e.g. silence), so refresh the hover badge before the
-        // render-skip fast path.
+        // The elapsed time ticks every second even when state is unchanged
+        // (e.g. silence), so refresh the hover badge before the render-skip.
         updateTimeBadge()
 
-        if renderedState == state, renderedAudioLevel == audioLevel, renderedReduceMotion == reduceMotion {
+        if renderedState == state, renderedReduceMotion == reduceMotion {
             updateBackgroundIfNeeded()
             return
         }
 
         renderedState = state
-        renderedAudioLevel = audioLevel
         renderedReduceMotion = reduceMotion
 
-        switch viewModel.state {
+        switch state {
         case .recording:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
-            iconView.update(isAnimating: !reduceMotion, audioLevel: audioLevel)
+            // Glow is driven live by updateLiveAudioLevel; this sets the
+            // resting base + starts the rosette rotation.
+            iconView.update(isAnimating: !reduceMotion, audioLevel: 0)
         case .paused:
             pauseLayer.isHidden = false
             iconView.alphaValue = 0.45
@@ -533,9 +562,16 @@ private final class MeetingRecordingAppKitPillView: NSView {
         case .completing:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
-            iconView.update(isAnimating: !reduceMotion, audioLevel: 0)
-            scheduleCompletionCallbackIfNeeded()
-        default:
+            playCompletionIfNeeded(reduceMotion: reduceMotion)
+        case .transcribing:
+            pauseLayer.isHidden = true
+            iconView.alphaValue = 1.0
+            iconView.showSpinner(animated: !reduceMotion)
+        case .completed:
+            pauseLayer.isHidden = true
+            iconView.alphaValue = 1.0
+            iconView.showCheckmark(animated: !reduceMotion)
+        case .idle, .error:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
             iconView.update(isAnimating: false, audioLevel: 0)
@@ -543,10 +579,12 @@ private final class MeetingRecordingAppKitPillView: NSView {
         updateBackgroundIfNeeded()
     }
 
-    private func scheduleCompletionCallbackIfNeeded() {
+    /// The merkaba collapse plays once; its completion (~1 s, or a quick fade
+    /// under Reduce Motion) advances the flow to the spinner/checkmark.
+    private func playCompletionIfNeeded(reduceMotion: Bool) {
         guard !completionCallbackScheduled else { return }
         completionCallbackScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        iconView.playCompletion(reduceMotion: reduceMotion) { [weak self] in
             self?.viewModel.onCompletionAnimationFinished?()
         }
     }

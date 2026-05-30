@@ -61,6 +61,7 @@ final class MeetingRecordingFlowCoordinator {
     private var microphoneMuteToggleTask: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
+    private var pillGlowPollingTask: Task<Void, Never>?
     private var transcriptObservationTask: Task<Void, Never>?
     private var speechWarmUpObservationTask: Task<Void, Never>?
     private var activeFlowSettlementWaiters: [CheckedContinuation<Void, Never>] = []
@@ -416,6 +417,7 @@ final class MeetingRecordingFlowCoordinator {
             pillController?.show()
             startSpeechWarmUpObservation()
             startPillPolling()
+            startPillGlowPolling()
             startTranscriptObservation()
 
         case .startRecording:
@@ -813,9 +815,39 @@ final class MeetingRecordingFlowCoordinator {
         return (clamped * 20).rounded() / 20
     }
 
+    /// Fast (~30 fps) channel that drives ONLY the floating pill's rosette glow
+    /// from live audio. Deliberately separate from `startPillPolling` (1 s):
+    /// the 1 s loop writes `@Observable` view-model props that fan out to
+    /// SwiftUI surfaces (panel, tile), so speeding *it* up would re-trigger the
+    /// per-tick relayout this PR fixed. This loop never touches `@Observable` —
+    /// it pushes a raw level straight to a CALayer opacity — so it stays cheap
+    /// while restoring the shipped pill's live, audio-responsive "internal
+    /// light". Runs only while actively recording (paused/processing rest dim).
+    private func startPillGlowPolling() {
+        pillGlowPollingTask?.cancel()
+        pillGlowPollingTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                if pillViewModel.state == .recording {
+                    let mic = await meetingRecordingService.micLevel
+                    let system = await meetingRecordingService.systemLevel
+                    guard !Task.isCancelled else { break }
+                    pillController?.updateLiveAudioLevel(max(mic, system))
+                }
+                try? await Task.sleep(for: .milliseconds(33))
+            }
+        }
+    }
+
+    private func stopPillGlowPolling() {
+        pillGlowPollingTask?.cancel()
+        pillGlowPollingTask = nil
+    }
+
     private func stopPillPolling() {
         pillPollingTask?.cancel()
         pillPollingTask = nil
+        stopPillGlowPolling()
     }
 
     private func startTranscriptObservation() {

@@ -1,9 +1,24 @@
 import AppKit
 
-// Offscreen preview of the floating meeting-recording pill, including the
-// hover-revealed elapsed-time badge. Reuses the real MerkabaPillIconView.
+// Offscreen preview of the floating meeting-recording pill. Reuses the real
+// MerkabaPillIconView, so it faithfully renders the rosette glow + the
+// lifecycle faces (recording / paused / transcribing spinner / completed
+// checkmark). Animations don't appear in a static snapshot, so spinner and
+// checkmark are rendered in their settled (animated:false) form; the live glow
+// is shown at two audio levels to prove it responds.
+//
+// Run:
+//   swiftc -o /tmp/pillrender plans/active/assets/pill_preview_harness.swift \
+//       Sources/MacParakeet/Views/MeetingRecording/MerkabaPillIcon.swift && /tmp/pillrender
 
 let badgeFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+
+enum PreviewMode {
+    case recording(glow: Float)
+    case paused
+    case spinner
+    case checkmark
+}
 
 final class PillPreview: NSView {
     let iconView = MerkabaPillIconView()
@@ -14,14 +29,16 @@ final class PillPreview: NSView {
     let timeTextLayer = CATextLayer()
     let pillWidth: CGFloat
     let pillHeight: CGFloat
-    let paused: Bool
+    let mode: PreviewMode
     let hovered: Bool
     let timeText: String
 
-    init(pillWidth: CGFloat, pillHeight: CGFloat, paused: Bool = false, hovered: Bool = false, timeText: String = "12:34") {
+    private var paused: Bool { if case .paused = mode { return true } else { return false } }
+
+    init(pillWidth: CGFloat, pillHeight: CGFloat, mode: PreviewMode, hovered: Bool = false, timeText: String = "12:34") {
         self.pillWidth = pillWidth
         self.pillHeight = pillHeight
-        self.paused = paused
+        self.mode = mode
         self.hovered = hovered
         self.timeText = timeText
         super.init(frame: NSRect(x: 0, y: 0, width: 118, height: 150))
@@ -31,9 +48,22 @@ final class PillPreview: NSView {
         backgroundLayer.strokeColor = NSColor.white.withAlphaComponent(hovered ? 0.15 : 0.08).cgColor
         backgroundLayer.lineWidth = 0.5
         layer?.addSublayer(backgroundLayer)
+
         iconView.configure(showStem: true)
-        iconView.update(isAnimating: !paused, audioLevel: paused ? 0 : 0.5)
-        iconView.alphaValue = paused ? 0.45 : 1.0
+        switch mode {
+        case .recording(let glow):
+            iconView.update(isAnimating: true, audioLevel: glow)
+            iconView.alphaValue = 1.0
+        case .paused:
+            iconView.update(isAnimating: false, audioLevel: 0)
+            iconView.alphaValue = 0.45
+        case .spinner:
+            iconView.showSpinner(animated: false)
+            iconView.alphaValue = 1.0
+        case .checkmark:
+            iconView.showCheckmark(animated: false)
+            iconView.alphaValue = 1.0
+        }
         addSubview(iconView)
 
         for x in [CGFloat(0), CGFloat(7)] {
@@ -46,7 +76,7 @@ final class PillPreview: NSView {
         pauseLayer.isHidden = !paused
         layer?.addSublayer(pauseLayer)
 
-        // Time badge
+        // Time badge (recording/paused only)
         timeBadgeLayer.fillColor = NSColor.black.withAlphaComponent(0.72).cgColor
         timeBadgeLayer.strokeColor = NSColor.white.withAlphaComponent(0.10).cgColor
         timeBadgeLayer.lineWidth = 0.5
@@ -54,7 +84,8 @@ final class PillPreview: NSView {
         timeBadgeLayer.shadowOpacity = 0.25
         timeBadgeLayer.shadowRadius = 6
         timeBadgeLayer.shadowOffset = CGSize(width: 0, height: -2)
-        timeBadgeLayer.opacity = hovered ? 1 : 0
+        let badgeVisible = hovered && (paused || { if case .recording = mode { return true } else { return false } }())
+        timeBadgeLayer.opacity = badgeVisible ? 1 : 0
         timeDotLayer.fillColor = (paused ? NSColor.systemOrange : NSColor.systemRed).cgColor
         timeTextLayer.font = badgeFont
         timeTextLayer.fontSize = badgeFont.pointSize
@@ -86,7 +117,6 @@ final class PillPreview: NSView {
         pauseLayer.frame = CGRect(x: pillRect.midX - 5, y: pillRect.midY - 5.5, width: 10, height: 11)
         iconView.layoutSubtreeIfNeeded()
 
-        // Badge layout (mirror of layoutTimeBadge in the real view)
         let textSize = (timeText as NSString).size(withAttributes: [.font: badgeFont])
         let dot: CGFloat = 5, gap: CGFloat = 5, hPad: CGFloat = 10, vPad: CGFloat = 5
         let badgeH = ceil(textSize.height) + vPad * 2
@@ -110,12 +140,14 @@ let cropW: CGFloat = 92
 let panelH: CGFloat = 150
 let labelH: CGFloat = 26
 
-struct Panel { let label: String; let w: CGFloat; let h: CGFloat; let paused: Bool; let hovered: Bool }
+struct Panel { let label: String; let mode: PreviewMode; let hovered: Bool }
 let panels: [Panel] = [
-    Panel(label: "0:17", w: 54, h: 86, paused: false, hovered: true),
-    Panel(label: "12:34", w: 54, h: 86, paused: false, hovered: true),
-    Panel(label: "114:44 (#200)", w: 54, h: 86, paused: false, hovered: true),
-    Panel(label: "999:59", w: 54, h: 86, paused: false, hovered: true),
+    Panel(label: "rec · quiet", mode: .recording(glow: 0.05), hovered: false),
+    Panel(label: "rec · loud", mode: .recording(glow: 0.95), hovered: false),
+    Panel(label: "rec · hover", mode: .recording(glow: 0.5), hovered: true),
+    Panel(label: "paused", mode: .paused, hovered: false),
+    Panel(label: "transcribing", mode: .spinner, hovered: false),
+    Panel(label: "completed", mode: .checkmark, hovered: false),
 ]
 
 let cols = CGFloat(panels.count)
@@ -125,8 +157,7 @@ NSColor(white: 0.40, alpha: 1).setFill()
 NSRect(x: 0, y: 0, width: cropW * cols, height: panelH + labelH).fill()
 
 for (i, p) in panels.enumerated() {
-    let v = PillPreview(pillWidth: p.w, pillHeight: p.h, paused: p.paused, hovered: p.hovered,
-                        timeText: p.label.components(separatedBy: " ").first ?? "12:34")
+    let v = PillPreview(pillWidth: 54, pillHeight: 86, mode: p.mode, hovered: p.hovered, timeText: "12:34")
     v.layoutSubtreeIfNeeded()
     if let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
         v.cacheDisplay(in: v.bounds, to: rep)
@@ -141,5 +172,5 @@ canvas.unlockFocus()
 
 guard let tiff = canvas.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
       let png = rep.representation(using: .png, properties: [:]) else { fatalError("render failed") }
-try! png.write(to: URL(fileURLWithPath: "/tmp/pill_longtimes.png"))
-print("wrote /tmp/pill_longtimes.png")
+try! png.write(to: URL(fileURLWithPath: "/tmp/pill_faces.png"))
+print("wrote /tmp/pill_faces.png")

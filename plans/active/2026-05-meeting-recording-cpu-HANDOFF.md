@@ -8,10 +8,16 @@
 
 ## TL;DR
 
-v0.6.14 shipped a meeting-recording CPU regression (released ~38–60%, dev
-~40–70% while recording, laggy hover). It was **pulled from the appcast**;
-public is back on 0.6.13. Do **not** re-release until a **release-build**
-re-measurement passes.
+> **Owner correction (2026-05-29):** this was **not a v0.6.14 regression** — the
+> meeting animations (and their CPU cost) existed since the feature shipped; it
+> was *surfaced* around v0.6.14, not introduced by it. The engineering below
+> stands regardless. The "do not re-release until a release-build pass" gate is
+> relaxed to "optional confirmation" — the owner is "ok even with the cpu spike
+> until someone complains," and the rich pill was verified to add no CPU.
+
+Meeting recording carried a long-standing elevated CPU cost while recording with
+the Meetings workspace visible (laggy hover/list). v0.6.14 was pulled from the
+appcast as a precaution; public is on 0.6.13.
 
 **Two root causes were found and fixed (verified on-device, debug build):**
 
@@ -37,57 +43,59 @@ in the old pill. It was **CPU/rendering, never memory** (RAM stayed ~0.5%).
 | File | Change |
 |---|---|
 | `Views/MeetingRecording/MeetingRecordingPanelView.swift` | `BreathingSeedOfLifeView` → `NSViewRepresentable` + CALayer (`BreathingSeedOfLifeNSView`). CA pause for `freeze`; honors Reduce Motion. Fixes all 3 consumers (transcript + live-notes watermark, summary skeleton). |
-| `Views/MeetingRecording/MeetingRecordingPillController.swift` | (prior WIP: AppKit/CALayer pill) + **restored Reduce Motion**, **compacted capsule 54×106→54×86**, **restored hover-time badge** (red/amber dot + live timer, CALayer). |
-| `Views/MeetingRecording/MerkabaPillIcon.swift` | (prior WIP) CALayer rosette icon used by the pill. |
+| `Views/MeetingRecording/MeetingRecordingPillController.swift` | AppKit/CALayer pill + Reduce Motion + compacted capsule 54×106→54×86 + hover-time badge. **+ richness:** dispatches the icon faces (recording/paused/completing/transcribing/completed), `updateLiveAudioLevel` forwards the fast glow, and `withObservationTracking` makes state transitions instant. |
+| `Views/MeetingRecording/MerkabaPillIcon.swift` | CALayer rosette icon. **+ richness:** now owns four lifecycle faces (rosette / collapse merkaba / spinner / checkmark) with `setLiveGlow`, `playCompletion`, `showSpinner`, `showCheckmark`; all honor Reduce Motion. |
 | `Views/Transcription/MeetingRecordingTile.swift` | `SacredFlowerTile` dead rotation/sway machinery removed → static rosette. |
 | `Views/Meetings/MeetingsView.swift` | **Root cause #2 fix** — `MeetingsLiveStatusChip` leaf view owns the `formattedElapsed` read. |
 | `App/AppWindowCoordinator.swift` | (prior WIP) main-window close releases the SwiftUI hosting tree. |
-| `App/MeetingRecordingFlowCoordinator.swift` | (prior WIP) pill poll 1 s + change-gated + quantized (`displayLevel`). |
-| `plans/active/2026-05-meeting-recording-cpu-debug.md` | full log + measurements + richness plan. |
+| `App/MeetingRecordingFlowCoordinator.swift` | pill poll 1 s + change-gated + quantized (`displayLevel`). **+ richness:** `startPillGlowPolling()` — a separate ~30 fps CALayer-only audio→glow loop (never touches `@Observable`). |
+| `plans/active/assets/2026-05-pill-richness-*.png` | richness proof — `-faces.png` (harness, all faces + glow levels), `-live.png` (real-app lifecycle). |
+| `plans/active/2026-05-meeting-recording-cpu-debug.md` | full log + measurements + richness (implemented). |
 
-Commits on the branch (newest first): `05c25683` (dictation outcome + richness
-plan), `0bf8f17d` (measurement coverage), `788a19ad` (#204 regression note),
-`c2ce04b9` (MeetingsView fix + hover-time), `57698106` (animation→CA + pill +
-window).
+Commits on the branch (newest first): _(richness commit — see `git log`)_,
+`05c25683` (dictation outcome + richness plan), `0bf8f17d` (measurement
+coverage), `788a19ad` (#204 regression note), `c2ce04b9` (MeetingsView fix +
+hover-time), `57698106` (animation→CA + pill + window).
 
 ## Verified on-device (debug build — numbers are inflated vs release)
 
 | Scenario | CPU |
 |---|---|
 | Idle (no window) | ~0.0–0.5% |
-| Recording, pill only | ~19–21% |
+| Recording, pill only — earlier baseline | ~19–21% |
+| Recording, **rich pill + 30 fps glow loop** (this session) | **~14–21%, avg ~16–17%** — richness added no CPU |
 | Recording, Meetings workspace visible — **before** #2 fix | ~25–46% sustained (the bug) |
 | Recording, Meetings workspace visible — **after** #2 fix | ~15–18% (storm gone from `sample` profile) |
-| Settled dictation | not re-measured; prior ~5–11% stands |
+| Settled dictation | not measured (deprioritized); prior ~5–11% stands |
 
 `swift build` ✅, `swift test` ✅ (exit 0). PR #204 (issue #200, tooltip wrap
 past 99:59) **not regressed** — the new CALayer badge stays single-line at
 `114:44`/`999:59` (`isWrapped=false` + width from measured text).
 
-## What's NOT done — next steps (priority order)
+## What's done / not done — next steps
 
-1. **[GATE] Release-build CPU re-measurement on-device.** Debug numbers are
-   inflated; the acceptance gate is a Release build. Use the verification matrix
-   in the debug doc. Key case: recording + main window visible + Transcript tab
-   should be near the closed-window floor.
-2. **Restore the pill's lost richness** (owner explicitly wants this). Full
-   analysis + concrete implementation sketch is in the debug doc under
-   "Follow-up: restore the pill's lost richness." Summary: live audio-responsive
-   glow via a **pill-local ~20–30 fps audio channel → CALayer only** (do NOT
-   speed the shared `startPillPolling` loop — that re-triggers root cause #2),
-   plus port the completion merkaba flourish + checkmark to CA one-shots. Measure
-   after; keep in the ~19–21% band; honor `reduceMotion`. ~80–150 LOC across
-   `MeetingRecordingFlowCoordinator` / `MeetingRecordingPillController` /
-   `MeetingRecordingAppKitPillView`.
-3. **Settled-dictation comparison** — needs a human (dictation pastes into the
-   focused app; must run without a concurrent meeting).
-4. **Delete dead `MeetingRecordingPillView`** (`MeetingRecordingPillView.swift`)
-   — superseded by the AppKit pill. Audit co-located helpers first
-   (`FlowerCompletionView`, `MeetingCompletionCheckmarkView` — useful as
-   reference for #2 above before deleting).
-5. **CI/lint recurrence guard** — flag `repeatForever` /
-   `TimelineView(.animation)` introduced in always-resident window surfaces. This
-   is the 2nd occurrence of this class (PR #107 was the 1st).
+- [x] **Restore the pill's lost richness** (owner explicitly wanted this) — DONE
+  in PR #396. Live audio-responsive glow via a pill-local **~30 fps CALayer-only**
+  channel (`startPillGlowPolling`, separate from the 1 s `startPillPolling`), plus
+  the completion **collapse merkaba → spinner → checkmark** ported to CALayer one-
+  shots as four "faces" on `MerkabaPillIconView`. Also fixed a latent bug: the
+  AppKit pill now `withObservationTracking`s `viewModel.state` so transitions are
+  instant (it previously only polled at 1 s, which a visible collapse flourish
+  would have exposed as lag). All faces honor `reduceMotion`. Verified ~16–17%
+  recording (debug) — no CPU added. See the debug doc's "Restore the pill's lost
+  richness — IMPLEMENTED" section + `plans/active/assets/2026-05-pill-richness-*.png`.
+- [ ] **(Optional) Release-build CPU confirmation.** Debug numbers are inflated;
+  a Release pass on the final (richness-included) build is confirmation, not a
+  blocker (see TL;DR correction). Use the verification matrix in the debug doc.
+- [x] **Dictation comparison** — deprioritized by the owner ("no need… doesn't
+  need testing rn"); it was never the regression surface.
+- [ ] **Delete dead `MeetingRecordingPillView`** (`MeetingRecordingPillView.swift`)
+  — its helpers `FlowerCompletionView` + `MeetingCompletionCheckmarkView` were the
+  SwiftUI reference for the CALayer port; remove all three together in a small
+  follow-up.
+- [ ] **CI/lint recurrence guard** — flag `repeatForever` /
+  `TimelineView(.animation)` introduced in always-resident window surfaces. 2nd
+  occurrence of this class (PR #107 was the 1st).
 
 ## Operational notes for the next agent
 

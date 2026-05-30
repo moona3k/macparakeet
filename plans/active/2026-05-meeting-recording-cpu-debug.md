@@ -2,10 +2,18 @@
 
 Date: 2026-05-29
 
+> **Owner correction (2026-05-29):** this is **not a v0.6.14 regression.** The
+> meeting-recording animations (and their CPU cost) have existed since the
+> feature shipped — the cost was *surfaced/noticed* around the v0.6.14 Meetings
+> work, not introduced by it. Treat everything below as "a long-standing CPU
+> cost we investigated and fixed," not "a regression we caught in one release."
+> The engineering findings stand regardless of which release first exposed them.
+
 ## Problem
 
-After the v0.6.14 Meetings update, the Meetings workspace and hover states felt
-laggy while a meeting recording was active.
+While a meeting recording was active, the Meetings workspace and hover states
+felt laggy. (Noticed around the v0.6.14 Meetings update; the underlying
+animation cost predates it — see correction above.)
 
 ## Release Safety Action
 
@@ -319,71 +327,77 @@ a list or other heavy layout.
 Attempted the 4th checklist item; partially completed, then aborted on owner redirect.
 
 - **Stopped the lingering dev-app meeting.** Final meeting transcription ran as a transient (~28–42% for a few seconds), then the app settled to a **clean baseline of ~0.1–0.5%** (no meeting, no dictation) — a fresh on-device confirmation that idle is ~0%.
-- **Dictation itself was NOT measured.** I set up a safe capture (scratch TextEdit as paste target, plan to cancel via Escape so nothing pastes), but the owner redirected before the dictation trigger ran — **nothing was triggered.** The prior agent's **~5–11% settled** figure stands as the comparison; the owner should capture the real number in the release-build pass (it needs a human because dictation pastes into the focused app).
+- **Dictation comparison: deprioritized by the owner (2026-05-29) — "no need… this doesn't need testing rn."** It was never the regression surface (this work is all meeting-recording UI), so a dictation number isn't required to validate the fix. The prior agent's **~5–11% settled** figure stands as the rough comparison. (Capturing a live dictation number needs a human anyway, since dictation pastes into the focused app.)
 
-## Follow-up: restore the pill's lost richness (analysis + plan, not yet implemented)
+## Restore the pill's lost richness — IMPLEMENTED (2026-05-29)
 
-The owner observed the AppKit/CALayer pill dropped richness the old SwiftUI pill
-(`MeetingRecordingPillView`, now dead code) had, and correctly intuited the pill
-was never the main CPU hog. Both are right.
+The owner observed the AppKit/CALayer pill had dropped richness the old SwiftUI
+pill (`MeetingRecordingPillView`, now dead code) had, and correctly intuited the
+pill was never the main CPU hog. Both were right — so the richness was restored
+**in CALayer**, where it's nearly free.
 
-**What the new pill lost vs the old `MeetingRecordingPillView`:**
+**What was lost, and is now back:**
 
-1. **Live audio-responsive glow** — the rosette's internal light intensified
-   with mic/system level. Old pill passed `audioLevel: max(micLevel, systemLevel)`
-   into `MerkabaPillIcon` and the SwiftUI view re-evaluated at the ~150ms poll
-   cadence, so `updateNSView` pushed fresh levels to `glowLayer` frequently. New
-   pill only refreshes at the 1 Hz poll + quantized 0.05 steps → glow barely
-   breathes.
+1. **Live audio-responsive glow** — the rosette's internal light intensifies with
+   mic/system level. The old pill pushed `audioLevel` through SwiftUI at the
+   shipped **150 ms** poll cadence; the CPU-fix branch had slowed the pill poll to
+   **1 s + quantized 0.05 steps**, so the glow barely breathed.
 2. **Completion flourish** — old `.completing` used `FlowerCompletionView`
-   (stem-collapse spring + merkaba); old `.completed` used
-   `MeetingCompletionCheckmarkView` (ring-draw + check). New pill's `.completing`
-   is a generic 0.6 s callback and `.transcribing`/`.completed` fall through to a
-   static rosette.
+   (flower accelerates, petals collapse, leaves drift, stem retracts, glow warms
+   green→gold), `.transcribing` used a merkaba spinner, `.completed` used a
+   ring-draw checkmark. The CALayer pill had a generic 0.6 s callback and a static
+   rosette for transcribing/completed.
 
-**Why the old pill cost anything:** the flower rotation was *already* CALayer
-(`MerkabaPillIcon`) even in the old pill — cheap. The cost was the SwiftUI
-*wrapper* re-rendering at audio cadence (to push `audioLevel` through) plus
-`.ultraThinMaterial` + shadows. **The richness was never the cost; the SwiftUI
-re-render path was.**
+**Why the old pill cost anything:** the rosette rotation was *already* CALayer
+even in the old pill — cheap. The cost was the SwiftUI *wrapper* re-rendering at
+audio cadence plus `.ultraThinMaterial`/shadows. **The richness was never the
+cost; the SwiftUI re-render path was.** So porting the richness to CALayer keeps
+it.
 
-**The richness can be restored cheaply in CALayer** (no SwiftUI re-render):
+**What shipped (PR #396):**
 
-- **Live glow:** push audio level straight into `glowLayer` (opacity/scale) at
-  ~20–30 fps — a layer-property set composited by the render server, ~0 app CPU.
-- **Completion merkaba + checkmark:** one-shot CA keyframe/group + stroke-end
-  animations (cheap).
+- **`MerkabaPillIconView` now owns four lifecycle "faces"** in one view — rosette
+  (recording/paused), collapse, merkaba spinner, checkmark — so transitions read
+  as the *same mark* transforming in place. New API: `setLiveGlow(level:)`,
+  `playCompletion(reduceMotion:onFinished:)`, `showSpinner(animated:)`,
+  `showCheckmark(animated:)`. `update(isAnimating:audioLevel:)` is kept intact for
+  the countdown-toast consumer. All four faces honor `reduceMotion` (collapse → a
+  quiet fade; spinner → static Star-of-David merkaba; checkmark → drawn instantly).
+- **Live glow channel:** `MeetingRecordingFlowCoordinator.startPillGlowPolling()`
+  — a **separate ~30 fps loop**, distinct from the 1 s `startPillPolling`, that
+  reads `meetingRecordingService.mic/systemLevel` and calls
+  `pillController.updateLiveAudioLevel(_:)` → the view → `iconView.setLiveGlow`
+  (EMA-smoothed, implicit-animation-disabled `glowLayer.opacity` set). It runs
+  only while `.recording` and is cancelled alongside `stopPillPolling`. **It never
+  writes `@Observable`**, so it can't re-trigger Root-Cause-#2. The 1 s poll no
+  longer drives the pill glow at all.
+- **Instant state transitions:** the AppKit pill now also `withObservationTracking`s
+  `viewModel.state`, so stop → collapse → spinner → checkmark fires immediately
+  instead of waiting up to a 1 s poll tick (the 1 s timer still drives the elapsed
+  badge text). This was a latent responsiveness bug in the committed PR that a
+  visible collapse flourish would have made obvious.
 
-**The trap to avoid:** do NOT restore liveness by speeding up the shared
-`MeetingRecordingFlowCoordinator.startPillPolling` loop (1 s, at
-`MeetingRecordingFlowCoordinator.swift:733`) — that updates the `@Observable`
-`pillViewModel`/`panelViewModel` that the SwiftUI Meetings tile + workspace
-observe, and would re-introduce the Root-Cause-#2 list re-layout. Instead give
-the pill its **own** high-frequency audio channel that updates **only its
-CALayer**, leaving the view models at 1 Hz.
+**On-device verification (debug build, this session):**
 
-**Concrete implementation sketch (for the next agent):**
+| Scenario | CPU |
+|---|---|
+| Idle after relaunch | ~0.0–0.3% |
+| Recording (rich pill + 30 fps glow loop), main window closed | **~14–21%, avg ~16–17%** |
+| After completion (checkmark dismissed) | settles back to ~0% |
 
-1. `MeetingRecordingFlowCoordinator`: add a second, fast loop (~33–50 ms) that
-   reads `meetingRecordingService.mic/systemLevel` and calls a new
-   `pillController?.updateLiveAudioLevel(mic:system:)` — separate from the 1 s
-   `startPillPolling` loop (which keeps driving the view models). Cancel it
-   alongside `stopPillPolling`.
-2. `MeetingRecordingPillController`: store a reference to the
-   `MeetingRecordingAppKitPillView` it creates in `show()`, and add
-   `updateLiveAudioLevel(mic:system:)` that forwards to the view.
-3. `MeetingRecordingAppKitPillView`: drive the glow from that fast path
-   (`iconView.update(isAnimating:audioLevel:)` already updates `glowLayer`
-   cheaply; the `currentAudioLevel` guard avoids redundant sets). Remove the
-   audio-glow responsibility from the 1 s `updateFromViewModel` so the two paths
-   don't fight (keep state/rotation/pause there).
-4. Completion flourish: port `FlowerCompletionView`'s flourish + the checkmark to
-   CA one-shots in the `.completing`/`.completed` branches.
-5. **Measure on-device after**: confirm the pill stays in the ~19–21% band
-   (write each number into this doc *as taken*). Honor `reduceMotion`.
+That recording figure sits **in/below the prior pill baseline (~19–21%)** from
+the earlier session — i.e. **restoring the richness added no measurable CPU**, as
+predicted (CA interpolates on the render server; the only new app-side work is
+one actor read + one opacity set per frame). The full lifecycle was eyeballed
+live and captured (`plans/active/assets/2026-05-pill-richness-live.png`: recording
+→ collapse→merkaba → checkmark; `…-faces.png`: all faces + glow at two audio
+levels). `swift build` ✅, `swift test` ✅ (exit 0).
 
-Estimated ~80–150 LOC across those 3 files + completion port. Could be its own PR
-("restore pill liveness") or a follow-up commit on #396 — owner's call.
+**The trap that was avoided:** liveness was *not* restored by speeding up the
+shared `startPillPolling` loop (1 s) — that updates the `@Observable`
+`pillViewModel`/`panelViewModel` the SwiftUI Meetings tile + workspace observe,
+and would re-introduce the Root-Cause-#2 list re-layout. The pill got its own
+CALayer-only channel instead.
 
 ## Measurement caveat: debug vs release
 
@@ -421,6 +435,10 @@ look right):
       a faint watermark when transcript/notes text appears.
 - [ ] Summary skeleton (`SummarySkeletonView`) still animates.
 - [ ] Reduce Motion: all rosettes render as a calm still flower.
+- [ ] **Pill richness (restored):** glow visibly intensifies with mic/system
+      audio while recording; stopping plays the collapse → merkaba spinner →
+      green checkmark sequence (instant, not delayed); Reduce Motion shows a
+      quiet fade + static merkaba + instantly-drawn check.
 
 ## Recurrence guard (proposed)
 
@@ -435,10 +453,17 @@ caused a CPU regression (PR #107 was the first). Cheap guard worth adding:
 
 ## Remaining follow-ups
 
-- [ ] **Owner:** run the release-build verification matrix above; only re-release
-      if the visible-window recording case is at/near the closed-window floor.
-- [ ] **Owner:** check telemetry for how many users already auto-updated to
-      0.6.14 before it was pulled (blast radius for the regression).
-- [ ] Delete the dead `MeetingRecordingPillView` (after auditing co-located
-      helpers in that file).
+- [x] **Restore the pill's lost richness** — done (PR #396); live glow + collapse
+      merkaba + spinner + checkmark, all CALayer, verified ~16–17% recording.
+- [ ] **Owner (optional pre-release):** run the release-build verification matrix
+      above on the final (richness-included) build. The hard "regression gate"
+      framing is relaxed — per the owner this was never a v0.6.14 regression, and
+      the owner is "ok even with the cpu spike (until someone complains)." The
+      debug delta already shows richness adds no CPU; a release pass is
+      confirmation, not a blocker.
+- [ ] Delete the dead `MeetingRecordingPillView` — note its helpers
+      `FlowerCompletionView` + `MeetingCompletionCheckmarkView` were the reference
+      for the CALayer port and are now also unreferenced once the dead pill goes.
+      Left in place this PR (safe, and useful as a SwiftUI cross-check); a small
+      follow-up can remove all three together.
 - [ ] Consider the CI/lint recurrence guard above.
