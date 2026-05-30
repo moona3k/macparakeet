@@ -313,7 +313,6 @@ final class MerkabaPillIconView: NSView {
         didBuildLayers = true
 
         rootLayer.masksToBounds = false
-        glowLayer.fillColor = NSColor(named: "SacredGlow")?.cgColor ?? NSColor.systemGreen.withAlphaComponent(0.35).cgColor
         rootLayer.addSublayer(glowLayer)
 
         flowerLayer.masksToBounds = false
@@ -321,17 +320,14 @@ final class MerkabaPillIconView: NSView {
         addFlowerCircles()
 
         for leafLayer in [leftLeafFillLayer, rightLeafFillLayer] {
-            leafLayer.fillColor = NSColor.systemGreen.withAlphaComponent(0.45).cgColor
             leafLayer.strokeColor = nil
         }
         for leafLayer in [leftLeafStrokeLayer, rightLeafStrokeLayer] {
             leafLayer.fillColor = NSColor.clear.cgColor
-            leafLayer.strokeColor = NSColor.systemGreen.withAlphaComponent(0.55).cgColor
             leafLayer.lineWidth = 0.5
         }
 
         stemLayer.fillColor = NSColor.clear.cgColor
-        stemLayer.strokeColor = NSColor.systemGreen.withAlphaComponent(0.7).cgColor
         stemLayer.lineWidth = 1.2
         stemLayer.lineCap = .round
 
@@ -343,6 +339,36 @@ final class MerkabaPillIconView: NSView {
 
         buildSpinnerLayers(in: rootLayer)
         buildCheckmarkLayers(in: rootLayer)
+
+        applyRosetteColors()
+    }
+
+    /// Brand greens for the glow + stem/leaves, matching the shipped SwiftUI
+    /// pill and the Transcribe-tab tile (`DesignSystem.Colors.sacredGlow` /
+    /// `.sacredStem`) rather than the generic `systemGreen` the first CA port
+    /// landed on. Resolved against the view's current appearance and re-applied
+    /// from `viewDidChangeEffectiveAppearance`, since `CGColor` snapshots a
+    /// dynamic `Color` at assignment time (so a Light↔Dark switch mid-recording
+    /// would otherwise leave the rosette tinted for the old appearance).
+    private func applyRosetteColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            glowLayer.fillColor = NSColor(DesignSystem.Colors.sacredGlow)
+                .withAlphaComponent(0.35).cgColor
+            let stem = NSColor(DesignSystem.Colors.sacredStem)
+            for leafLayer in [leftLeafFillLayer, rightLeafFillLayer] {
+                leafLayer.fillColor = stem.withAlphaComponent(0.45).cgColor
+            }
+            for leafLayer in [leftLeafStrokeLayer, rightLeafStrokeLayer] {
+                leafLayer.strokeColor = stem.withAlphaComponent(0.55).cgColor
+            }
+            stemLayer.strokeColor = stem.withAlphaComponent(0.7).cgColor
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        guard didBuildLayers else { return }
+        applyRosetteColors()
     }
 
     private func addFlowerCircles() {
@@ -359,8 +385,8 @@ final class MerkabaPillIconView: NSView {
             } else {
                 let angle = CGFloat(index - 1) * 60 * .pi / 180
                 circle.position = CGPoint(
-                    x: 15 + Foundation.cos(angle) * 6.5,
-                    y: 15 + Foundation.sin(angle) * 6.5
+                    x: 15 + cos(angle) * 6.5,
+                    y: 15 + sin(angle) * 6.5
                 )
             }
             flowerLayer.addSublayer(circle)

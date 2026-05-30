@@ -595,6 +595,12 @@ private struct SacredFlowerTile: View {
                 .padding(.top, -2)
         }
         .frame(width: 64)
+        // The tile shares the pill view-model, whose levels are sampled by the
+        // 1 s state poll (not the pill/panel fast loop). Ease each step so the
+        // glow breathes toward the new level instead of snapping once a second.
+        // Transient (value-scoped) — no continuous animation, so it doesn't
+        // reintroduce the resident-window render churn this PR removed.
+        .animation(.easeOut(duration: 0.5), value: audioLevel)
     }
 
     private var flowerHead: some View {

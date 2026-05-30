@@ -1386,10 +1386,20 @@ final class MeetingRecordingServiceTests: XCTestCase {
             systemBuffer,
             AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
         ))
-        try await Task.sleep(for: .milliseconds(80))
+        // The level is set asynchronously when the actor drains a yielded buffer,
+        // and it's a stored value with no decay — once non-zero it stays so. Poll
+        // (up to 2s) for the system level instead of a fixed sleep: the old 80ms
+        // sleep raced the yield→process pipeline under parallel CI load and
+        // intermittently read 0. The poll still fails if the level never rises,
+        // so it can't mask a real regression.
+        var systemLevel = await service.systemLevel
+        let levelDeadline = Date().addingTimeInterval(2)
+        while systemLevel == 0, Date() < levelDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+            systemLevel = await service.systemLevel
+        }
 
         let micLevel = await service.micLevel
-        let systemLevel = await service.systemLevel
         XCTAssertEqual(micLevel, 0)
         XCTAssertGreaterThan(systemLevel, 0)
 

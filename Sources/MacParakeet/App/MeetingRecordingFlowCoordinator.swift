@@ -762,11 +762,18 @@ final class MeetingRecordingFlowCoordinator {
                     if panelViewModel.elapsedSeconds != elapsedSeconds {
                         panelViewModel.elapsedSeconds = elapsedSeconds
                     }
-                    if panelViewModel.micLevel != micLevel {
-                        panelViewModel.micLevel = micLevel
-                    }
-                    if panelViewModel.systemLevel != systemLevel {
-                        panelViewModel.systemLevel = systemLevel
+                    // While actively recording the panel orbs are driven by the
+                    // fast (~30 fps) glow loop; this 1 s loop only settles them
+                    // (→ 0) when paused/stopped so they don't freeze on the last
+                    // live frame. Writing levels here every second while recording
+                    // would also visibly fight the fast loop's smoother updates.
+                    if captureMode != .full {
+                        if panelViewModel.micLevel != micLevel {
+                            panelViewModel.micLevel = micLevel
+                        }
+                        if panelViewModel.systemLevel != systemLevel {
+                            panelViewModel.systemLevel = systemLevel
+                        }
                     }
                     if panelViewModel.isMicrophoneMuted != microphoneMuteState.isMuted {
                         panelViewModel.isMicrophoneMuted = microphoneMuteState.isMuted
@@ -820,14 +827,15 @@ final class MeetingRecordingFlowCoordinator {
         return (clamped * 20).rounded() / 20
     }
 
-    /// Fast (~30 fps) channel that drives ONLY the floating pill's rosette glow
-    /// from live audio. Deliberately separate from `startPillPolling` (1 s):
-    /// the 1 s loop writes `@Observable` view-model props that fan out to
-    /// SwiftUI surfaces (panel, tile), so speeding *it* up would re-trigger the
-    /// per-tick relayout this PR fixed. This loop never touches `@Observable` —
-    /// it pushes a raw level straight to a CALayer opacity — so it stays cheap
-    /// while restoring the shipped pill's live, audio-responsive "internal
-    /// light". Runs only while actively recording (paused/processing rest dim).
+    /// Fast (~30 fps) audio channel for the live, near-real-time visualizers.
+    /// Deliberately separate from `startPillPolling` (1 s): that loop writes the
+    /// `@Observable` props (elapsed, state, mute) that fan out to the *whole*
+    /// panel/tile body, so speeding it up would re-trigger the per-tick relayout
+    /// this PR fixed. This loop only touches surfaces where a level change is
+    /// cheap — the pill rosette's `CALayer` opacity (no `@Observable` at all) and
+    /// the panel's `DualAudioOrbView`, whose read is isolated in the `LiveAudioOrb`
+    /// leaf so only the 20pt orb re-renders. Runs only while actively recording
+    /// (paused/processing states rest dim).
     private func startPillGlowPolling() {
         pillGlowPollingTask?.cancel()
         pillGlowPollingTask = Task { @MainActor [weak self] in
@@ -837,7 +845,20 @@ final class MeetingRecordingFlowCoordinator {
                     let mic = await meetingRecordingService.micLevel
                     let system = await meetingRecordingService.systemLevel
                     guard !Task.isCancelled else { break }
+                    // Floating pill rosette: straight to CALayer opacity.
                     pillController?.updateLiveAudioLevel(max(mic, system))
+                    // Panel orbs: quantized + change-gated, so a write (and the
+                    // leaf re-render it triggers) fires only on a visible step.
+                    if let panelViewModel {
+                        let micQ = Self.displayLevel(mic)
+                        let systemQ = Self.displayLevel(system)
+                        if panelViewModel.micLevel != micQ {
+                            panelViewModel.micLevel = micQ
+                        }
+                        if panelViewModel.systemLevel != systemQ {
+                            panelViewModel.systemLevel = systemQ
+                        }
+                    }
                 }
                 try? await Task.sleep(for: .milliseconds(33))
             }

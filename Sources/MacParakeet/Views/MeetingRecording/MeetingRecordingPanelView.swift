@@ -205,10 +205,7 @@ struct MeetingRecordingPanelView: View {
         VStack(spacing: DesignSystem.Spacing.xs) {
             HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
                 if viewModel.showsAudioLevels {
-                    DualAudioOrbView(
-                        micLevel: viewModel.micLevel,
-                        systemLevel: viewModel.systemLevel
-                    )
+                    LiveAudioOrb(viewModel: viewModel)
                 } else {
                     statusDot
                 }
@@ -374,6 +371,23 @@ struct MeetingRecordingPanelView: View {
     }
 }
 
+/// Isolates the fast-changing `micLevel` / `systemLevel` reads into a leaf so
+/// the live audio orb can breathe in near-real-time without re-evaluating the
+/// whole panel `body` (header + tab bar + transcript `ForEach`). Same pattern
+/// as `MeetingsLiveStatusChip`: the coordinator's ~30 fps glow loop writes these
+/// levels, and with the read scoped here only this 20pt view re-renders — the
+/// transcript list stays put. The orb's own `.easeOut(0.12)` smooths each step.
+private struct LiveAudioOrb: View {
+    @Bindable var viewModel: MeetingRecordingPanelViewModel
+
+    var body: some View {
+        DualAudioOrbView(
+            micLevel: viewModel.micLevel,
+            systemLevel: viewModel.systemLevel
+        )
+    }
+}
+
 /// Quiet breathing dot rendered next to "Ask" while the LLM is mid-response.
 /// Strictly bound to streaming — vanishes the instant streaming ends so it
 /// can't decay into a stale notification badge. Matches the brand-orange
@@ -523,11 +537,7 @@ final class BreathingSeedOfLifeNSView: NSView {
         didBuild = true
         root.masksToBounds = false
 
-        let accent = NSColor(DesignSystem.Colors.accent)
-
-        glowLayer.fillColor = accent.cgColor
         glowLayer.opacity = restGlowOpacity
-        glowLayer.shadowColor = accent.cgColor
         glowLayer.shadowRadius = 12
         glowLayer.shadowOffset = .zero
         glowLayer.shadowOpacity = restShadowOpacity
@@ -537,15 +547,37 @@ final class BreathingSeedOfLifeNSView: NSView {
         root.addSublayer(flowerLayer)
 
         // Center ring (alpha 0.7) + 6 petals (alpha 0.5).
-        let ringAlphas: [CGFloat] = [0.7] + Array(repeating: 0.5, count: 6)
-        for alpha in ringAlphas {
+        for _ in 0..<7 {
             let ring = CAShapeLayer()
             ring.fillColor = NSColor.clear.cgColor
-            ring.strokeColor = accent.withAlphaComponent(alpha).cgColor
             ring.lineWidth = 1.2
             flowerLayer.addSublayer(ring)
             ringLayers.append(ring)
         }
+
+        applyColors()
+    }
+
+    /// Accent-tinted glow + rosette strokes. Resolved against the view's current
+    /// appearance and re-applied from `viewDidChangeEffectiveAppearance`, since
+    /// `CGColor` snapshots a dynamic `Color` at assignment time (a Light↔Dark
+    /// switch while the rosette is on screen would otherwise leave it stale).
+    private func applyColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            let accent = NSColor(DesignSystem.Colors.accent)
+            glowLayer.fillColor = accent.cgColor
+            glowLayer.shadowColor = accent.cgColor
+            let ringAlphas: [CGFloat] = [0.7] + Array(repeating: 0.5, count: 6)
+            for (ring, alpha) in zip(ringLayers, ringAlphas) {
+                ring.strokeColor = accent.withAlphaComponent(alpha).cgColor
+            }
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        guard didBuild else { return }
+        applyColors()
     }
 
     private func layoutLayers() {
@@ -574,8 +606,8 @@ final class BreathingSeedOfLifeNSView: NSView {
             } else {
                 let angle = CGFloat(index - 1) * .pi / 3
                 ring.position = CGPoint(
-                    x: flowerCenter.x + circleRadius * Foundation.cos(angle),
-                    y: flowerCenter.y + circleRadius * Foundation.sin(angle)
+                    x: flowerCenter.x + circleRadius * cos(angle),
+                    y: flowerCenter.y + circleRadius * sin(angle)
                 )
             }
         }
@@ -633,7 +665,10 @@ final class BreathingSeedOfLifeNSView: NSView {
     private func setPaused(_ paused: Bool, _ layer: CALayer) {
         if paused {
             guard layer.speed != 0 else { return }
-            let pausedTime = layer.convertTime(CACurrentMediaTime(), from: nil)
+            // A view built already-frozen (panel opened while paused) is not in a
+            // window yet, so `convertTime` returns a large absolute time and would
+            // freeze at a random frame. Pin to 0 (the rest pose) until windowed.
+            let pausedTime = window == nil ? 0 : layer.convertTime(CACurrentMediaTime(), from: nil)
             layer.speed = 0
             layer.timeOffset = pausedTime
         } else {
