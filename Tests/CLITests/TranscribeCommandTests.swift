@@ -312,7 +312,7 @@ final class TranscribeCommandTests: XCTestCase {
         for name in ["lecture02.mp3", "lecture01.m4a", "notes.txt"] {
             try Data("x".utf8).write(to: dir.appendingPathComponent(name))
         }
-        let youtube = "https://www.youtube.com/watch?v=abc"
+        let youtube = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
         let resolved = TranscribeCommand.expandInputs([dir.path, youtube, youtube])
 
@@ -324,9 +324,23 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(resolved.last, youtube)
     }
 
+    func testExpandInputsDeduplicatesStandardizedLooseFilesAgainstFolders() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-expand-standardized-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("lecture01.mp3")
+        try Data("x".utf8).write(to: file)
+
+        let resolved = TranscribeCommand.expandInputs([dir.path, file.path])
+
+        XCTAssertEqual(resolved, [file.standardizedFileURL.path])
+    }
+
     func testSanitizedBasenameStripsExtensionAndInvalidCharacters() {
         XCTAssertEqual(TranscribeCommand.sanitizedBasename("lecture01.m4a"), "lecture01")
         XCTAssertEqual(TranscribeCommand.sanitizedBasename("a/b:c?.mp4"), "a_b_c_")
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename("bad\nname\t.mp3"), "bad_name_")
         XCTAssertEqual(TranscribeCommand.sanitizedBasename(""), "transcript")
     }
 
@@ -373,6 +387,28 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         XCTAssertNotNil(object)
+    }
+
+    func testPlainTextOutputToleratesDuplicateSpeakerIDs() {
+        let transcription = Transcription(
+            fileName: "dupe-speakers.mp3",
+            rawTranscript: "hello world",
+            wordTimestamps: [
+                WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "world", startMs: 500, endMs: 900, confidence: 0.9, speakerId: "S1"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Speaker 1"),
+                SpeakerInfo(id: "S1", label: "Duplicate Speaker 1"),
+            ],
+            status: .completed
+        )
+
+        let output = TranscribeCommand.plainTextOutput(for: transcription)
+
+        XCTAssertTrue(output.contains("Speaker 1:"))
+        XCTAssertFalse(output.contains("Duplicate Speaker 1:"))
+        XCTAssertTrue(output.contains("hello world"))
     }
 
     private func temporaryDatabaseURL() -> URL {

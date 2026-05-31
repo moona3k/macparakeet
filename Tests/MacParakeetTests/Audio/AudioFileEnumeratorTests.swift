@@ -84,6 +84,22 @@ final class AudioFileEnumeratorTests: XCTestCase {
         )
     }
 
+    func testFolderTraversalStopsAfterOverflowDetected() throws {
+        for i in 0..<10 {
+            _ = try touch(String(format: "folder/f%02d.mp3", i))
+        }
+
+        let result = AudioFileEnumerator.expand(
+            urls: [tempDir.appendingPathComponent("folder")],
+            maxFiles: 4
+        )
+
+        XCTAssertEqual(result.files.count, 4)
+        XCTAssertEqual(result.droppedCount, 1)
+        XCTAssertTrue(result.truncated)
+        XCTAssertTrue(result.stoppedEarly)
+    }
+
     func testEmptyWhenNoSupportedFiles() throws {
         let txt = try touch("a.txt")
         let result = AudioFileEnumerator.expand(urls: [txt])

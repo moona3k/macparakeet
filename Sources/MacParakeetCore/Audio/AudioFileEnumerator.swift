@@ -13,11 +13,13 @@ public enum AudioFileEnumerator {
     public struct Result: Equatable, Sendable {
         public let files: [URL]
         public let droppedCount: Int
+        public let stoppedEarly: Bool
         public var truncated: Bool { droppedCount > 0 }
 
-        public init(files: [URL], droppedCount: Int) {
+        public init(files: [URL], droppedCount: Int, stoppedEarly: Bool = false) {
             self.files = files
             self.droppedCount = droppedCount
+            self.stoppedEarly = stoppedEarly
         }
     }
 
@@ -30,8 +32,10 @@ public enum AudioFileEnumerator {
     ) -> Result {
         var collected: [URL] = []
         var seen: Set<String> = []
+        var stoppedEarly = false
+        var shouldStopFolderTraversal = false
 
-        func consider(_ url: URL, isKnownRegularFile: Bool) {
+        func consider(_ url: URL, isKnownRegularFile: Bool, stopOnOverflow: Bool) {
             let standardized = url.standardizedFileURL
             guard isSupportedExtension(standardized) else { return }
             if !isKnownRegularFile {
@@ -40,9 +44,14 @@ public enum AudioFileEnumerator {
             }
             guard seen.insert(standardized.path).inserted else { return }
             collected.append(standardized)
+            if stopOnOverflow, collected.count > maxFiles {
+                stoppedEarly = true
+                shouldStopFolderTraversal = true
+            }
         }
 
         for url in urls {
+            guard !shouldStopFolderTraversal else { break }
             var isDir: ObjCBool = false
             guard fileManager.fileExists(atPath: url.path, isDirectory: &isDir) else { continue }
             if isDir.boolValue {
@@ -54,17 +63,21 @@ public enum AudioFileEnumerator {
                 while let child = enumerator?.nextObject() as? URL {
                     let values = try? child.resourceValues(forKeys: [.isRegularFileKey])
                     if values?.isRegularFile == true {
-                        consider(child, isKnownRegularFile: true)
+                        consider(child, isKnownRegularFile: true, stopOnOverflow: true)
+                    }
+                    if shouldStopFolderTraversal {
+                        break
                     }
                 }
             } else {
-                consider(url, isKnownRegularFile: true)
+                consider(url, isKnownRegularFile: true, stopOnOverflow: false)
             }
         }
 
         // Natural name order so dropping lecture01…lecture40 processes in order.
         // Sort BEFORE applying the cap so the kept subset is the name-first
-        // `maxFiles` (not an arbitrary filesystem-enumeration slice).
+        // `maxFiles` from the collected window. Recursive folder scans stop as
+        // soon as overflow is detected so a huge drop cannot monopolize the UI.
         collected.sort { lhs, rhs in
             let byName = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
             if byName != .orderedSame { return byName == .orderedAscending }
@@ -72,7 +85,7 @@ public enum AudioFileEnumerator {
         }
         let dropped = max(0, collected.count - maxFiles)
         let files = dropped > 0 ? Array(collected.prefix(maxFiles)) : collected
-        return Result(files: files, droppedCount: dropped)
+        return Result(files: files, droppedCount: dropped, stoppedEarly: stoppedEarly)
     }
 
     private static func isSupportedExtension(_ url: URL) -> Bool {

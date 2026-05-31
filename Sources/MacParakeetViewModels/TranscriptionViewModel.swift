@@ -257,8 +257,11 @@ public final class TranscriptionViewModel {
         // `transcribeFile` clears `errorMessage`; surface any cap overflow after
         // it so the dropped-file count is never lost silently.
         if expansion.truncated {
+            let dropped = expansion.stoppedEarly
+                ? "at least \(expansion.droppedCount)"
+                : "\(expansion.droppedCount)"
             errorMessage = "Queued the first \(files.count) files; "
-                + "\(expansion.droppedCount) more were skipped "
+                + "\(dropped) more were skipped "
                 + "(\(AudioFileEnumerator.defaultMaxFiles)-file limit)."
         }
         return true

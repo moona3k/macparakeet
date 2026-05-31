@@ -57,6 +57,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
 struct MainWindowView: View {
     @Bindable var state: MainWindowState
+    @State private var showGlobalCancelConfirmation = false
 
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
@@ -278,6 +279,14 @@ struct MainWindowView: View {
             minWidth: 860,
             minHeight: DesignSystem.Layout.windowMinHeight
         )
+        .alert("Cancel All Transcriptions?", isPresented: $showGlobalCancelConfirmation) {
+            Button("Cancel All", role: .destructive) {
+                transcriptionViewModel.cancelBatch()
+            }
+            Button("Continue", role: .cancel) {}
+        } message: {
+            Text("This stops the remaining files in the batch. Files already transcribed are kept in your Library.")
+        }
         .onChange(of: transcriptionViewModel.isTranscribing) { _, isTranscribing in
             if !isTranscribing {
                 state.showingProgressDetail = false
@@ -381,7 +390,7 @@ struct MainWindowView: View {
 
             if transcriptionViewModel.isBatchActive {
                 Button {
-                    transcriptionViewModel.cancelBatch()
+                    showGlobalCancelConfirmation = true
                 } label: {
                     Text("Cancel all")
                         .font(DesignSystem.Typography.caption.weight(.semibold))

@@ -442,7 +442,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 if seen.insert(input).inserted { result.append(input) }
                 continue
             }
-            let url = localFileURL(for: input)
+            let url = localFileURL(for: input).standardizedFileURL
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
                 for file in AudioFileEnumerator.expand(urls: [url]).files where seen.insert(file.path).inserted {
@@ -451,7 +451,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             } else if seen.insert(url.standardizedFileURL.path).inserted {
                 // Standardized key matches the folder-expansion keys, so a loose
                 // file that also lives inside a dropped folder isn't transcribed twice.
-                result.append(input)
+                result.append(url.path)
             }
         }
         return result
@@ -499,7 +499,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let ext = ns.pathExtension.lowercased()
         let stem = AudioFileConverter.supportedExtensions.contains(ext) ? ns.deletingPathExtension : name
         let candidate = stem.isEmpty ? name : stem
-        let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
+        var invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
+        invalid.formUnion(.newlines)
+        invalid.formUnion(.controlCharacters)
         let safe = candidate.components(separatedBy: invalid).joined(separator: "_")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return safe.isEmpty ? "transcript" : safe
@@ -536,7 +538,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         if let words = t.wordTimestamps, !words.isEmpty,
            let speakers = t.speakers, !speakers.isEmpty,
            words.contains(where: { $0.speakerId != nil }) {
-            let speakerMap = Dictionary(uniqueKeysWithValues: speakers.map { ($0.id, $0.label) })
+            let speakerMap = speakerLabelMap(speakers)
             var lastSpeakerId: String?
             var current = ""
             for w in words {
@@ -609,7 +611,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         if let words = t.wordTimestamps, !words.isEmpty,
            let speakers = t.speakers, !speakers.isEmpty,
            words.contains(where: { $0.speakerId != nil }) {
-            let speakerMap = Dictionary(uniqueKeysWithValues: speakers.map { ($0.id, $0.label) })
+            let speakerMap = Self.speakerLabelMap(speakers)
             var lastSpeakerId: String? = nil
             for w in words {
                 if let sid = w.speakerId {
@@ -650,6 +652,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     private func printTranscript(_ t: Transcription) {
         print(Self.transcriptOutput(for: t))
+    }
+
+    private static func speakerLabelMap(_ speakers: [SpeakerInfo]) -> [String: String] {
+        Dictionary(speakers.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
     }
 }
 
