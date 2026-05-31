@@ -238,7 +238,9 @@ final class AppEnvironmentConfigurer {
         }
 
         transcriptionViewModel.onTranscriptionCompleted = { content in
-            Task { @MainActor in
+            // Invoked synchronously from the ViewModel's @MainActor completion
+            // funnel, so the chime/banner fire immediately (no run-loop hop).
+            MainActor.assumeIsolated {
                 TranscriptionCompletionPresenter.present(content)
             }
         }

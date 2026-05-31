@@ -330,6 +330,13 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(TranscribeCommand.sanitizedBasename(""), "transcript")
     }
 
+    func testSanitizedBasenameKeepsDotsInNonMediaTitles() {
+        // Metadata-derived titles (e.g. YouTube) with a natural dot must not be
+        // truncated by extension-stripping — only known media extensions strip.
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename("Dr. Smith Lecture 1"), "Dr. Smith Lecture 1")
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename("Q3 2026 review.final"), "Q3 2026 review.final")
+    }
+
     func testWriteOutputWritesTranscriptAndAvoidsOverwrite() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cli-write-\(UUID().uuidString)")

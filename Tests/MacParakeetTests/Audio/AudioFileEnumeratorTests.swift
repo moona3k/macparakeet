@@ -76,6 +76,12 @@ final class AudioFileEnumeratorTests: XCTestCase {
         XCTAssertEqual(result.files.count, 4)
         XCTAssertEqual(result.droppedCount, 6)
         XCTAssertTrue(result.truncated)
+        // Cap is applied AFTER the name sort, so the kept subset is the
+        // name-first `maxFiles` — deterministic, not a filesystem-order slice.
+        XCTAssertEqual(
+            result.files.map(\.lastPathComponent),
+            ["f00.mp3", "f01.mp3", "f02.mp3", "f03.mp3"]
+        )
     }
 
     func testEmptyWhenNoSupportedFiles() throws {

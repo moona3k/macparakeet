@@ -327,8 +327,6 @@ enum CLIErrorType {
                 return inputMissing
             case .unsupportedFormat:
                 return validation
-            case .noInputs:
-                return validation
             }
         }
         // ArgumentParser surfaces `validate()` failures as `ValidationError`.

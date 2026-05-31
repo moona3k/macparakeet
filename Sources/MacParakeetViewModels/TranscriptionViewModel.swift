@@ -230,6 +230,10 @@ public final class TranscriptionViewModel {
     /// accepted (so the drop handler knows whether to dismiss the drop UI).
     @discardableResult
     public func transcribeFiles(urls: [URL], source: TelemetryTranscriptionSource = .file) -> Bool {
+        guard transcriptionService != nil else {
+            reportMissingConfiguration("transcriptionService", action: "transcribeFiles")
+            return false
+        }
         guard !isTranscribing, !isBatchActive else { return false }
         let expansion = AudioFileEnumerator.expand(urls: urls)
         let files = expansion.files

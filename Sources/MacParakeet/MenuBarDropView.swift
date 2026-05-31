@@ -2,7 +2,7 @@ import AppKit
 import MacParakeetCore
 
 final class MenuBarDropView: NSView {
-    var onDrop: ((URL) -> Void)?
+    var onDrop: (([URL]) -> Void)?
 
     private var isDragging = false
 
@@ -60,22 +60,28 @@ final class MenuBarDropView: NSView {
         isDragging = false
         needsDisplay = true
 
-        guard let url = getFileURL(from: sender) else { return false }
-        onDrop?(url)
+        // Hand off every dropped URL (files and folders); the ViewModel expands
+        // folders and decides single vs. batch. Empty/unsupported drops are
+        // filtered downstream, so accept the drop as long as we got any URLs.
+        let urls = fileURLs(from: sender)
+        guard !urls.isEmpty else { return false }
+        onDrop?(urls)
         return true
     }
 
     private func canAcceptDrop(_ draggingInfo: NSDraggingInfo) -> NSDragOperation {
-        guard let url = getFileURL(from: draggingInfo) else { return [] }
-        let ext = url.pathExtension.lowercased()
-        return AudioFileConverter.supportedExtensions.contains(ext) ? .copy : []
+        let urls = fileURLs(from: draggingInfo)
+        // Accept if at least one dragged item is a supported file or a folder
+        // (a folder may contain supported files, expanded after the drop).
+        let acceptable = urls.contains { url in
+            AudioFileConverter.supportedExtensions.contains(url.pathExtension.lowercased())
+                || (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+        }
+        return acceptable ? .copy : []
     }
 
-    private func getFileURL(from draggingInfo: NSDraggingInfo) -> URL? {
+    private func fileURLs(from draggingInfo: NSDraggingInfo) -> [URL] {
         let pasteboard = draggingInfo.draggingPasteboard
-        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
-            return nil
-        }
-        return urls.first
+        return pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
     }
 }

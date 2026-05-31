@@ -227,7 +227,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
-            guard !resolvedInputs.isEmpty else { throw CLIError.noInputs }
+            guard !resolvedInputs.isEmpty else {
+                throw ValidationError("No transcribable inputs found — folders contained no supported audio/video files.")
+            }
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
@@ -446,7 +448,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 for file in AudioFileEnumerator.expand(urls: [url]).files where seen.insert(file.path).inserted {
                     result.append(file.path)
                 }
-            } else if seen.insert(url.path).inserted {
+            } else if seen.insert(url.standardizedFileURL.path).inserted {
+                // Standardized key matches the folder-expansion keys, so a loose
+                // file that also lives inside a dropped folder isn't transcribed twice.
                 result.append(input)
             }
         }
@@ -488,7 +492,12 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     }
 
     static func sanitizedBasename(_ name: String) -> String {
-        let stem = (name as NSString).deletingPathExtension
+        // Only strip a *known* media extension — otherwise a metadata-derived
+        // title with a natural dot (e.g. "Dr. Smith Lecture 1") would lose its
+        // tail to `deletingPathExtension`.
+        let ns = name as NSString
+        let ext = ns.pathExtension.lowercased()
+        let stem = AudioFileConverter.supportedExtensions.contains(ext) ? ns.deletingPathExtension : name
         let candidate = stem.isEmpty ? name : stem
         let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
         let safe = candidate.components(separatedBy: invalid).joined(separator: "_")
@@ -647,7 +656,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 enum CLIError: Error, LocalizedError {
     case fileNotFound(String)
     case unsupportedFormat(String)
-    case noInputs
 
     var errorDescription: String? {
         switch self {
@@ -655,8 +663,6 @@ enum CLIError: Error, LocalizedError {
             return "File not found: \(path)"
         case .unsupportedFormat(let ext):
             return "Unsupported format: .\(ext). Supported: \(AudioFileConverter.supportedExtensions.sorted().joined(separator: ", "))"
-        case .noInputs:
-            return "No transcribable inputs found (folders contained no supported audio/video files)."
         }
     }
 }

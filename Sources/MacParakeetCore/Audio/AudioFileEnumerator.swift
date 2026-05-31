@@ -30,7 +30,6 @@ public enum AudioFileEnumerator {
     ) -> Result {
         var collected: [URL] = []
         var seen: Set<String> = []
-        var dropped = 0
 
         func consider(_ url: URL, isKnownRegularFile: Bool) {
             let standardized = url.standardizedFileURL
@@ -40,11 +39,7 @@ public enum AudioFileEnumerator {
                 guard values?.isRegularFile == true else { return }
             }
             guard seen.insert(standardized.path).inserted else { return }
-            if collected.count < maxFiles {
-                collected.append(standardized)
-            } else {
-                dropped += 1
-            }
+            collected.append(standardized)
         }
 
         for url in urls {
@@ -68,12 +63,16 @@ public enum AudioFileEnumerator {
         }
 
         // Natural name order so dropping lecture01…lecture40 processes in order.
+        // Sort BEFORE applying the cap so the kept subset is the name-first
+        // `maxFiles` (not an arbitrary filesystem-enumeration slice).
         collected.sort { lhs, rhs in
             let byName = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
             if byName != .orderedSame { return byName == .orderedAscending }
             return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
         }
-        return Result(files: collected, droppedCount: dropped)
+        let dropped = max(0, collected.count - maxFiles)
+        let files = dropped > 0 ? Array(collected.prefix(maxFiles)) : collected
+        return Result(files: files, droppedCount: dropped)
     }
 
     private static func isSupportedExtension(_ url: URL) -> Bool {
