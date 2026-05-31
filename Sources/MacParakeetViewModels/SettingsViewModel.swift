@@ -1137,6 +1137,8 @@ public final class SettingsViewModel {
     public func refreshModelStatus() {
         modelStatusRefreshGeneration += 1
         let refreshGeneration = modelStatusRefreshGeneration
+        let activeEngine = speechEnginePreference
+        let activeVariant = parakeetModelVariant
         let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
 
         let parakeetModelVariantCached = self.parakeetModelVariantCached
@@ -1153,7 +1155,10 @@ public final class SettingsViewModel {
                         whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
                     )
                 }.value
-                guard let self, self.modelStatusRefreshGeneration == refreshGeneration else {
+                guard let self,
+                      self.modelStatusRefreshGeneration == refreshGeneration,
+                      self.speechEnginePreference == activeEngine,
+                      self.parakeetModelVariant == activeVariant else {
                     return
                 }
                 self.downloadedParakeetVariants = disk.parakeetDownloaded
@@ -1175,11 +1180,9 @@ public final class SettingsViewModel {
             // status. Without this branch, switching to Whisper left the
             // Whisper badge stuck at "Not Loaded" forever.
             //
-            // Snapshot the engine before the await so a mid-suspension toggle
-            // can't pair the new preference with the old engine's readiness.
-            let activeEngine = self.speechEnginePreference
-            let activeVariant = self.parakeetModelVariant
-
+            // Use the selection snapshot captured before the async work so a
+            // mid-suspension toggle can't pair a new preference with old
+            // readiness.
             async let activeEngineLoaded = sttClient.isReady()
             async let diskState = Task.detached(priority: .userInitiated) {
                 (

@@ -126,7 +126,7 @@ READMEs today: `Audio/`, `STT/`, `TextProcessing/`, `Database/`,
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet CoreML STT models (~6 GB) | FluidAudio default cache |
+| Parakeet CoreML STT models (~465 MB per build) | FluidAudio default cache |
 | WhisperKit STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | Settings | `~/Library/Preferences/com.macparakeet.plist` |
 | Logs | `~/Library/Logs/MacParakeet/` |

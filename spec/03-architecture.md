@@ -533,7 +533,7 @@ STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │     │
     │     ├── Yes → initialize slot managers → Runtime ready (~162ms warm load)
     │     │
-    │     └── No ──► AsrModels.downloadAndLoad() (~6 GB download)
+    │     └── No ──► AsrModels.downloadAndLoad() (~465 MB download)
     │                  CoreML compilation (~3.4s first time)
     │                  initialize slot managers
     │
@@ -691,7 +691,7 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 | Runs on | Neural Engine (ANE) via CoreML |
 | Input | 16kHz mono Float32 samples |
 | Output | Text + word-level timestamps + confidence |
-| Model download | ~6 GB CoreML bundle (one-time) |
+| Model download | ~465 MB CoreML bundle per build |
 
 | Optional Engine | Value |
 |-----------------|-------|
@@ -993,7 +993,7 @@ deleted.
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
 | Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
 | Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
-| Parakeet STT models | FluidAudio-managed CoreML cache (~6 GB) |
+| Parakeet STT models | FluidAudio-managed CoreML cache (~465 MB per build) |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |

@@ -174,11 +174,9 @@ We're still investigating why — likely their CTC/TDT decoding optimizations re
 
 ## The Model Size Tradeoff
 
-There is one cost: the CoreML model bundle is larger. The MLX version weighs about 2.5 GB; the CoreML version is roughly 6 GB.
+Early CoreML planning treated the full repository footprint as the user-facing download, but the shipped app fetches only the components it loads. The current Parakeet CoreML download is roughly 465 MB per build.
 
-Why? MLX stores model weights in a compact format that the GPU interprets at runtime. CoreML stores **pre-compiled, hardware-optimized model graphs** — separate bundles for the encoder, decoder, joint network, and preprocessor, each optimized for the ANE's specific execution pipeline. Think of it like the difference between source code and a compiled binary: more bytes on disk, but faster and more efficient execution.
-
-For a one-time download during first launch, we think that's a fair trade. Lower memory usage, better accuracy, and a simpler architecture are worth an extra few gigabytes of initial download.
+That keeps the first-launch cost modest while preserving the important tradeoff: lower memory usage, better accuracy, and a simpler architecture without cloud STT.
 
 ---
 

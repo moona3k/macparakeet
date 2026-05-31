@@ -520,16 +520,25 @@ public actor STTRuntime: STTRuntimeProtocol {
                 "parakeet_variant_switch_complete to=\(variant.rawValue) duration_s=\(Self.formatSeconds(duration))"
             )
         } catch {
+            let switchError = error
             // Restore the previous version so the in-memory runtime matches the
-            // persisted preference (the caller only saves on success); the next
-            // transcribe reloads `previousVersion` from cache.
+            // persisted preference; callers only save the new selection on
+            // success.
             modelVersion = previousVersion
+            do {
+                try await ensureInitialized()
+            } catch {
+                logger.error("parakeet_variant_restore_failed version=\(String(describing: previousVersion), privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+                AudioCaptureDiagnostics.append(
+                    "parakeet_variant_restore_failed version=\(previousVersion) \(AudioCaptureDiagnostics.errorFields(error))"
+                )
+            }
             let duration = Observability.durationSeconds(since: startedAt)
-            logger.error("parakeet_variant_switch_failed to=\(variant.rawValue, privacy: .public) duration_s=\(duration, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.error("parakeet_variant_switch_failed to=\(variant.rawValue, privacy: .public) duration_s=\(duration, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(switchError), privacy: .public) error_detail=\(switchError.localizedDescription, privacy: .private)")
             AudioCaptureDiagnostics.append(
-                "parakeet_variant_switch_failed to=\(variant.rawValue) duration_s=\(Self.formatSeconds(duration)) \(AudioCaptureDiagnostics.errorFields(error))"
+                "parakeet_variant_switch_failed to=\(variant.rawValue) duration_s=\(Self.formatSeconds(duration)) \(AudioCaptureDiagnostics.errorFields(switchError))"
             )
-            throw error
+            throw switchError
         }
     }
 

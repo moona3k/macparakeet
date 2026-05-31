@@ -1079,7 +1079,7 @@ struct OnboardingFlowView: View {
             if let recommendation = viewModel.whisperRecommendation {
                 return "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language."
             }
-            return "The speech model (~6 GB) downloads once. Usually takes 2–5 minutes on broadband, longer on slower connections."
+            return "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
         case .done:
             return "You're all set. Start dictating or transcribe your first file."
         }
@@ -1138,9 +1138,9 @@ struct OnboardingFlowView: View {
 
         switch state {
         case .idle:
-            return "The speech model (~6 GB) will download now. Internet is required this one time only."
+            return "The speech model (~465 MB) will download now. Internet is required this one time only."
         case .working(_, _):
-            return "Downloading the speech model (~6 GB). This is a one-time download — dictation and transcription work fully offline after this."
+            return "Downloading the speech model (~465 MB). This is a one-time download — dictation and transcription work fully offline after this."
         case .ready:
             return "Parakeet speech model is ready."
         case .failed:

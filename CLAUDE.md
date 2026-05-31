@@ -181,7 +181,7 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 - ~155x realtime on Apple Silicon (60 min audio in ~23 seconds)
 - ~2.5% Word Error Rate
 - ~66 MB working memory per active Parakeet inference slot (vs ~2 GB+ on GPU/MLX)
-- ~6 GB CoreML speech model bundle downloaded during onboarding
+- ~465 MB CoreML speech model bundle downloaded during onboarding
 - ~130 MB diarization asset bundle prepared alongside onboarding/default speaker-detection readiness
 - WhisperKit is available as a local secondary engine for broader language coverage; default model variant is `large-v3-v20240930_turbo_632MB`
 - Whisper language hints are optional (`auto` means detect); persisted default is stored in `UserDefaults` and exposed in Settings
@@ -498,7 +498,7 @@ open Package.swift  # Select MacParakeet scheme
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet STT models | FluidAudio default cache (CoreML, ~6 GB) |
+| Parakeet STT models | FluidAudio default cache (CoreML, ~465 MB per build) |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |

@@ -1719,7 +1719,7 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
 | Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Whisper depends on selected model |
-| App size | <100MB | Plus ~6 GB Parakeet model download and optional Whisper download |
+| App size | <100MB | Plus ~465 MB per Parakeet build and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 

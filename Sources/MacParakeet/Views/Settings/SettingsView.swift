@@ -1756,6 +1756,10 @@ struct SettingsView: View {
     private func parakeetModelOptionRow(_ variant: ParakeetModelVariant) -> some View {
         let isSelected = viewModel.parakeetModelVariant == variant
         let isDownloaded = viewModel.downloadedParakeetVariants.contains(variant)
+        let downloadStatusLabel = isDownloaded
+            ? "Downloaded."
+            : "\(variant.approximateDownloadSize), downloads on first use."
+
         return Button {
             selectParakeetModelVariant(variant)
         } label: {
@@ -1787,7 +1791,7 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .disabled(viewModel.speechEngineSwitching)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(variant.displayName). \(variant.coverageSummary)")
+        .accessibilityLabel("\(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
         // `.combine` can drop the wrapping Button's role, so assert it explicitly
         // alongside the selected state for VoiceOver.
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
