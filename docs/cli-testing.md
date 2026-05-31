@@ -424,8 +424,9 @@ swift run macparakeet-cli models clear
 `models warm-up` and `models repair` prepare the selected Parakeet build plus
 the diarization speech stack. Whisper is downloaded explicitly with
 `models download`. `models delete <id>` removes a single model — one Parakeet
-build or the Whisper variant — and protects the model currently in use unless
-`--force` is passed; `models clear` still wipes everything.
+build or the Whisper variant — and protects the active model plus Parakeet's
+configured build unless `--force` is passed; `models clear` still wipes
+everything.
 
 ## Text Pipeline
 

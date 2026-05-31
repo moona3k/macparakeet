@@ -88,9 +88,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   (`parakeet-v2` / `parakeet-v3`) or the Whisper variant (`whisper-*`) — freeing
   its disk space while leaving every other model in place. Contrast with
   `models clear`, which still wipes the whole local speech/speaker stack.
-- The model currently in use (the active engine's selected build) is protected:
-  `models delete` refuses it with a validation error (exit `2`) so a delete
-  can't silently force a re-download. Pass `--force` to delete it anyway.
+- The active model is protected, and Parakeet's configured build is protected
+  even while Whisper is active: `models delete` refuses it with a validation
+  error (exit `2`) so a delete can't silently force a re-download. Pass
+  `--force` to delete it anyway.
 - Deleting a model that isn't downloaded is a no-op that prints a short note and
   exits `0`.
 

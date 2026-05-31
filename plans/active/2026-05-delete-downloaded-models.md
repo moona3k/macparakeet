@@ -22,9 +22,9 @@ change to `models clear`.
 
 ## Invariants
 
-- The model the active engine would load is never deletable without `--force`
-  (CLI) and is never offered in the GUI — deleting it would silently force a
-  re-download.
+- The active model and Parakeet's configured build are never deletable without
+  `--force` (CLI) and are never offered in the GUI — deleting either would
+  silently force a re-download after current or future engine use.
 - Deleting one Parakeet build never touches the sibling build (independent
   cache dirs) or the diarization / Whisper models.
 - `models clear` behaviour is unchanged.

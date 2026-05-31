@@ -234,7 +234,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
         }
     }
 
-    func testIsModelInUseProtectsActiveParakeetBuildOnly() throws {
+    func testIsModelInUseProtectsConfiguredParakeetBuild() throws {
         let (defaults, suite) = try makeDeleteDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
@@ -252,16 +252,19 @@ final class ModelLifecycleCommandTests: XCTestCase {
         )
     }
 
-    func testIsModelInUseProtectsWhisperWhenActive() throws {
+    func testIsModelInUseProtectsWhisperAndConfiguredParakeetWhenWhisperActive() throws {
         let (defaults, suite) = try makeDeleteDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
         SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
         let variant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
 
         XCTAssertTrue(isModelInUse(.init(kind: .whisper(variant), displayName: "whisper"), defaults: defaults))
-        // Parakeet builds aren't in use while Whisper is the active engine.
-        XCTAssertFalse(isModelInUse(.init(kind: .parakeet(.v3), displayName: "v3"), defaults: defaults))
+        // Parakeet's configured build is protected too: it is what Parakeet
+        // would load if the user switches back from Whisper.
+        XCTAssertTrue(isModelInUse(.init(kind: .parakeet(.v3), displayName: "v3"), defaults: defaults))
+        XCTAssertFalse(isModelInUse(.init(kind: .parakeet(.v2), displayName: "v2"), defaults: defaults))
     }
 
     func testDeleteCommandParsesForceFlag() throws {

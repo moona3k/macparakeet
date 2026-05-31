@@ -582,9 +582,10 @@ func resolveModelDeletionTarget(
     throw ValidationError("Unknown model ID: '\(id)'. Run `macparakeet-cli models list` for valid IDs.")
 }
 
-/// Whether `target` is the model the active engine would load right now.
-/// Deleting it would force a silent re-download, so `models delete` protects it
-/// unless `--force` is passed.
+/// Whether `target` is protected from deletion without `--force`. The selected
+/// Parakeet build is protected even while Whisper is active because it is the
+/// build Parakeet would load after a switch; Whisper's single surfaced variant
+/// is protected only while Whisper is active.
 func isModelInUse(
     _ target: ModelDeletionTarget,
     defaults: UserDefaults = macParakeetAppDefaults()
@@ -592,8 +593,7 @@ func isModelInUse(
     let currentEngine = SpeechEnginePreference.current(defaults: defaults)
     switch target.kind {
     case .parakeet(let variant):
-        return currentEngine == .parakeet
-            && SpeechEnginePreference.parakeetModelVariant(defaults: defaults) == variant
+        return SpeechEnginePreference.parakeetModelVariant(defaults: defaults) == variant
     case .whisper(let variant):
         return currentEngine == .whisper
             && SpeechEnginePreference.whisperModelVariant(defaults: defaults) == variant
