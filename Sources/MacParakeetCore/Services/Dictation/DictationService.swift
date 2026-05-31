@@ -489,12 +489,22 @@ public actor DictationService: DictationServiceProtocol {
         cancelResetTask = nil
         pendingCancelledAudioURL = nil
 
+        let currentSession = activeSessionID
         _state = .processing
         do {
             let result = try await withCurrentObservabilityContextIfAny {
                 try await processCapturedAudio(audioURL: audioURL)
             }
             let device = await audioProcessor.recordingDeviceInfo
+            // Guard against reentrancy: a new session may have started while we
+            // transcribed the undone audio, replacing this one. Don't overwrite
+            // its state. Mirrors stopRecording(sessionID:).
+            guard activeSessionID == currentSession else {
+                logger.notice(
+                    "undoCancel result discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
+                )
+                return result
+            }
             _state = .success(result.dictation)
             sendDictationOperation(
                 outcome: .success,
@@ -516,12 +526,19 @@ public actor DictationService: DictationServiceProtocol {
                 device: device
             ))
             try? await Task.sleep(for: .milliseconds(500))
+            guard activeSessionID == currentSession else { return result }
             _state = .idle
             recordingStartedAt = nil
             clearCurrentOperation()
             return result
         } catch {
             let device = await audioProcessor.recordingDeviceInfo
+            guard activeSessionID == currentSession else {
+                logger.notice(
+                    "undoCancel error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
+                )
+                throw error
+            }
             _state = .idle
             if Self.isNoSpeechError(error) {
                 sendDictationOperation(

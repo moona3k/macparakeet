@@ -259,6 +259,49 @@ final class CancelFlowTests: XCTestCase {
         await dictationService.confirmCancel(sessionID: 2)
     }
 
+    /// Regression: undoCancel transcribes the cancelled audio and then settles
+    /// to .idle after a ~500ms delay. If a new dictation starts during that
+    /// window it must take over — undoCancel's terminal writes must not clobber
+    /// the new session back to .idle. Mirrors the reentrancy guard that
+    /// stopRecording(sessionID:) already has.
+    func testStaleUndoCancelDoesNotClobberNewSessionStart() async throws {
+        await mockSTT.configure(result: STTResult(text: "Hello world"))
+
+        // Session 1: start, then soft-cancel so undo is available.
+        try await dictationService.startRecording(
+            context: DictationTelemetryContext(),
+            sessionID: 1
+        )
+        await dictationService.cancelRecording()
+
+        // Begin undo for session 1. With the fast mock STT it reaches .success
+        // quickly, then sleeps ~500ms before settling to .idle — that post-
+        // success window is where a new session can land.
+        let undoTask = Task {
+            try await self.dictationService.undoCancel()
+        }
+
+        // Let undo enter its post-success settle window.
+        try await Task.sleep(for: .milliseconds(100))
+
+        // Session 2 starts during undo's settle window and takes over.
+        try await dictationService.startRecording(
+            context: DictationTelemetryContext(),
+            sessionID: 2
+        )
+
+        // Undo completes; its terminal .idle write must be skipped because the
+        // active session is now 2.
+        _ = try await undoTask.value
+
+        let state = await dictationService.state
+        if case .recording = state {} else {
+            XCTFail("Expected session 2 to remain recording after stale undo, got \(state)")
+        }
+
+        await dictationService.confirmCancel(sessionID: 2)
+    }
+
     func testStopRecordingWithEmptyTranscriptThrowsAndDoesNotSave() async throws {
         await mockSTT.configure(result: STTResult(text: "   "))
 
