@@ -237,6 +237,12 @@ final class AppEnvironmentConfigurer {
             callbacks.onMenuBarIconUpdate()
         }
 
+        transcriptionViewModel.onTranscriptionCompleted = { content in
+            Task { @MainActor in
+                TranscriptionCompletionPresenter.present(content)
+            }
+        }
+
         let coordinatorRefs = CoordinatorRefs()
         let mediaPauseCoordinator = DictationMediaPauseCoordinator(
             settingsViewModel: settingsViewModel,

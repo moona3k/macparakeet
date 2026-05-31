@@ -358,7 +358,7 @@ struct TranscribeView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Transcription In Progress")
+                        Text(viewModel.isBatchActive ? "Batch Transcription In Progress" : "Transcription In Progress")
                             .font(DesignSystem.Typography.sectionTitle)
                         if !viewModel.transcribingFileName.isEmpty {
                             Text(viewModel.transcribingFileName)
@@ -366,6 +366,11 @@ struct TranscribeView: View {
                                 .foregroundStyle(.primary.opacity(0.7))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                        }
+                        if viewModel.isBatchActive {
+                            Text(viewModel.batchStatusHeadline)
+                                .font(DesignSystem.Typography.caption.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.accent)
                         }
                         Text(viewModel.progressHeadline)
                             .font(DesignSystem.Typography.bodySmall)
@@ -410,22 +415,33 @@ struct TranscribeView: View {
                     }
                 }
 
-                Text("Processing remains local to this Mac. You can keep working while this runs.")
+                Text(viewModel.isBatchActive
+                    ? "Processing one file at a time on this Mac. Completed transcripts appear in your Library as they finish."
+                    : "Processing remains local to this Mac. You can keep working while this runs.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
 
-                Button("Cancel Transcription", role: .destructive) {
+                Button(viewModel.isBatchActive ? "Cancel All" : "Cancel Transcription", role: .destructive) {
                     showCancelConfirmation = true
                 }
                 .parakeetAction(.destructive)
                 .padding(.top, DesignSystem.Spacing.sm)
-                .alert("Cancel Transcription?", isPresented: $showCancelConfirmation) {
-                    Button("Cancel Transcription", role: .destructive) {
-                        viewModel.cancelTranscription()
+                .alert(
+                    viewModel.isBatchActive ? "Cancel All Transcriptions?" : "Cancel Transcription?",
+                    isPresented: $showCancelConfirmation
+                ) {
+                    Button(viewModel.isBatchActive ? "Cancel All" : "Cancel Transcription", role: .destructive) {
+                        if viewModel.isBatchActive {
+                            viewModel.cancelBatch()
+                        } else {
+                            viewModel.cancelTranscription()
+                        }
                     }
                     Button("Continue", role: .cancel) {}
                 } message: {
-                    Text("This will stop the current transcription. Any progress will be lost.")
+                    Text(viewModel.isBatchActive
+                        ? "This stops the remaining files in the batch. Files already transcribed are kept in your Library."
+                        : "This will stop the current transcription. Any progress will be lost.")
                 }
             }
             .padding(DesignSystem.Spacing.lg)
@@ -570,15 +586,16 @@ struct TranscribeView: View {
 
     private func openFilePicker() {
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.message = "Choose one or more audio/video files, or a folder, to transcribe."
         panel.allowedContentTypes = AudioFileConverter.supportedExtensions.compactMap {
             UTType(filenameExtension: $0)
         }
 
-        if panel.runModal() == .OK, let url = panel.url {
+        if panel.runModal() == .OK, !panel.urls.isEmpty {
             SoundManager.shared.play(.fileDropped)
-            viewModel.transcribeFile(url: url)
+            viewModel.transcribeFiles(urls: panel.urls)
         }
     }
 }

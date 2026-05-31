@@ -279,6 +279,95 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertTrue((object["error"] as? String)?.contains("File not found") == true)
     }
 
+    // MARK: - Batch (Phase C)
+
+    func testParsesMultipleInputsAndOutputDir() throws {
+        let command = try TranscribeCommand.parse([
+            "a.wav", "b.m4a", "c.mp3",
+            "--output-dir", "/tmp/out",
+            "--format", "transcript",
+        ])
+        XCTAssertEqual(command.inputs, ["a.wav", "b.m4a", "c.mp3"])
+        XCTAssertEqual(command.outputDir, "/tmp/out")
+        XCTAssertEqual(command.format, .transcript)
+    }
+
+    func testSingleInputParsesAsOneElement() throws {
+        let command = try TranscribeCommand.parse(["sample.wav"])
+        XCTAssertEqual(command.inputs, ["sample.wav"])
+        XCTAssertNil(command.outputDir)
+    }
+
+    func testRejectsEmptyInputs() {
+        // A variadic positional argument requires at least one value — the
+        // parser rejects an empty argument list before `run()`.
+        XCTAssertThrowsError(try TranscribeCommand.parse([]))
+    }
+
+    func testExpandInputsDeduplicatesAndExpandsFolders() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-expand-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for name in ["lecture02.mp3", "lecture01.m4a", "notes.txt"] {
+            try Data("x".utf8).write(to: dir.appendingPathComponent(name))
+        }
+        let youtube = "https://www.youtube.com/watch?v=abc"
+
+        let resolved = TranscribeCommand.expandInputs([dir.path, youtube, youtube])
+
+        // Folder expands to its supported files (name-sorted), txt excluded,
+        // YouTube URL passes through once.
+        XCTAssertEqual(resolved.count, 3)
+        XCTAssertTrue(resolved[0].hasSuffix("lecture01.m4a"))
+        XCTAssertTrue(resolved[1].hasSuffix("lecture02.mp3"))
+        XCTAssertEqual(resolved.last, youtube)
+    }
+
+    func testSanitizedBasenameStripsExtensionAndInvalidCharacters() {
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename("lecture01.m4a"), "lecture01")
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename("a/b:c?.mp4"), "a_b_c_")
+        XCTAssertEqual(TranscribeCommand.sanitizedBasename(""), "transcript")
+    }
+
+    func testWriteOutputWritesTranscriptAndAvoidsOverwrite() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "lecture01.m4a",
+            rawTranscript: "hello world",
+            status: .completed
+        )
+
+        let first = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        XCTAssertEqual(first.lastPathComponent, "lecture01.txt")
+        XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "hello world")
+
+        // A second write of the same name must not clobber the first.
+        let second = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        XCTAssertEqual(second.lastPathComponent, "lecture01-2.txt")
+    }
+
+    func testWriteOutputJSONIsParseable() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-json-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            rawTranscript: "hi",
+            status: .completed
+        )
+        let url = try TranscribeCommand.writeOutput(transcription, to: dir, format: .json)
+        XCTAssertEqual(url.pathExtension, "json")
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        XCTAssertNotNil(object)
+    }
+
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-\(UUID().uuidString).db")

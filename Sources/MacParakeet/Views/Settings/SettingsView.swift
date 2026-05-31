@@ -967,6 +967,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Notify when transcription finishes",
+                    detail: "Play a sound when a file, YouTube, or batch transcription completes — plus a notification banner when MacParakeet is in the background.",
+                    isOn: $viewModel.notifyOnTranscriptionComplete
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-save transcripts to disk",
                     detail: "Automatically write a file to the chosen folder after every transcription completes.",
                     isOn: $viewModel.autoSaveTranscripts

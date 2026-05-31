@@ -152,7 +152,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 MacParakeet has three primary capture modes plus a system-wide text-rewrite surface (ADR-022) in the `main` branch product direction:
 
 1. **System-wide dictation** -- Press hotkey anywhere on macOS, speak, text is pasted (WisprFlow-style)
-2. **File transcription** -- Drag-drop audio/video files or paste a YouTube link (MacWhisper-style)
+2. **File transcription** -- Drag-drop audio/video files (multi-file and folder drops, plus a multi-select/folder Browse picker, fan out into a sequential local batch — `AudioFileEnumerator` expands + caps at 200, `TranscriptionViewModel` drains one at a time, results stream into Library, "Cancel all" stops it) or paste a YouTube link (single-URL; MacWhisper-style). A finished file/URL/batch plays a chime + (backgrounded) banner behind one opt-out Settings toggle (`notifyOnTranscriptionComplete`, default on).
 3. **Meeting recording** -- Capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 4. **Transforms** -- Select text anywhere on macOS, press a bound hotkey (⌥1 / ⌥2 / ⌥3 by default), and the selection is rewritten in place through the user's LLM provider. ADR-022. Productized Transforms are enabled on `main` via `AppFeatures.transformsEnabled = true`. Ships with three built-in Transforms: *Polish*, *Distill*, *Decide* — synthesized by a paired creative-director + staff-PM review on 2026-05-12 (Improve → Re-shape → Re-direct pedagogy). Reuses the spike's brand-finished floating pill (ADR-022 §4); user-bound shortcuts dispatch through a single process-wide `TransformsHotkeyRegistry`.
 
@@ -555,7 +555,7 @@ open Package.swift  # Select MacParakeet scheme
 `macparakeet-cli` serves two audiences from one codebase:
 
 1. **Dev/testing tool** -- Agents working on MacParakeet use the CLI to verify features headlessly (database CRUD, pipeline runs, health checks, config). Not GUI parity -- just fast feedback loops where agents can't drive the GUI. Be flexible about what to include.
-2. **Real CLI surface** -- Agent operators and power users running headless STT on Apple Silicon. Core commands: `transcribe`, `export`, `llm`, `transforms`, `vocab`, `health`, `config`. Semver tracked in `Sources/CLI/CHANGELOG.md`.
+2. **Real CLI surface** -- Agent operators and power users running headless STT on Apple Silicon. Core commands: `transcribe`, `export`, `llm`, `transforms`, `vocab`, `health`, `config`. `transcribe` accepts multiple inputs (files, folders, YouTube URLs) and `--output-dir` for walk-away batch jobs (continue-on-error, one transcript file per input); a single input with no `--output-dir` is unchanged (stdout). Semver tracked in `Sources/CLI/CHANGELOG.md`.
 
 Both audiences share the same command tree. Dev-only commands (e.g. `calendar`, `audio-input-diagnostics`) don't hurt external users by being visible. When adding CLI commands, decide which audience it primarily serves -- that determines how much polish and JSON contract work it needs.
 

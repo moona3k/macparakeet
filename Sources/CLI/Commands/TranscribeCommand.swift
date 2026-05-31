@@ -61,8 +61,11 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         """
     )
 
-    @Argument(help: "Path to audio/video file or YouTube URL to transcribe.")
-    var input: String
+    @Argument(help: "One or more audio/video file paths, folders, or YouTube URLs. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
+    var inputs: [String]
+
+    @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
+    var outputDir: String?
 
     @Option(name: .shortAndLong, help: "Output format: text, transcript, json.")
     var format: TranscribeOutputFormat = .text
@@ -103,13 +106,16 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
         CLITelemetry.OperationMetadata(
             command: Self.configuration.commandName ?? "transcribe",
-            inputKind: Self.telemetryInputKind(for: input),
+            inputKind: Self.telemetryInputKind(for: inputs.first ?? ""),
             outputFormat: format.rawValue,
             json: format == .json
         )
     }
 
     func validate() throws {
+        if inputs.isEmpty {
+            throw ValidationError("Provide at least one file path, folder, or YouTube URL to transcribe.")
+        }
         if noHistory && downloadedAudio == .keep {
             throw ValidationError("--no-history cannot be combined with --downloaded-audio keep.")
         }
@@ -209,12 +215,19 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     }
 
     func run() async throws {
-        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Expand folder arguments and de-duplicate. Single resolved input with
+        // no --output-dir keeps the original stdout behavior; anything else is
+        // batch/file-output mode.
+        let resolvedInputs = Self.expandInputs(
+            inputs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        )
+        let writeToFiles = resolvedInputs.count > 1 || outputDir != nil
 
         var sttClient: STTClient?
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
+            guard !resolvedInputs.isEmpty else { throw CLIError.noInputs }
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
@@ -294,68 +307,26 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 diarizationService: diarizationService
             )
 
-            let result: Transcription
-
-            if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
-                let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
-                @Sendable func printProgressLine(_ line: String) {
-                    let shouldPrint = lastProgressLine.withLock { lastLine in
-                        guard lastLine != line else { return false }
-                        lastLine = line
-                        return true
-                    }
-                    if shouldPrint {
-                        printErr(line)
-                    }
-                }
-
-                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
-                    switch progress {
-                    case .converting: printProgressLine("Converting audio...")
-                    case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
-                    case .transcribing(let pct): printProgressLine("Transcribing... \(pct)%")
-                    case .identifyingSpeakers: printProgressLine("Identifying speakers...")
-                    case .finalizing: printProgressLine("Finalizing...")
-                    }
-                }
-                if self.noHistory {
-                    result = try await service.transcribeURLTransient(
-                        urlString: trimmedInput,
-                        onProgress: progressHandler
-                    )
-                } else {
-                    result = try await service.transcribeURL(
-                        urlString: trimmedInput,
-                        onProgress: progressHandler
-                    )
-                }
+            if writeToFiles {
+                try await runBatch(
+                    inputs: resolvedInputs,
+                    service: service,
+                    speechEngine: speechEngine
+                )
             } else {
-                let url = Self.localFileURL(for: trimmedInput)
-
-                guard FileManager.default.fileExists(atPath: url.path) else {
-                    throw CLIError.fileNotFound(url.path)
+                let result = try await transcribeOne(
+                    input: resolvedInputs[0],
+                    service: service,
+                    speechEngine: speechEngine
+                )
+                switch format {
+                case .json:
+                    try printJSON(result)
+                case .transcript:
+                    printTranscript(result)
+                case .text:
+                    printText(result)
                 }
-
-                let ext = url.pathExtension.lowercased()
-                guard AudioFileConverter.supportedExtensions.contains(ext) else {
-                    throw CLIError.unsupportedFormat(ext)
-                }
-
-                printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
-                if self.noHistory {
-                    result = try await service.transcribeTransient(fileURL: url)
-                } else {
-                    result = try await service.transcribe(fileURL: url)
-                }
-            }
-
-            switch format {
-            case .json:
-                try printJSON(result)
-            case .transcript:
-                printTranscript(result)
-            case .text:
-                printText(result)
             }
             runResult = .success(())
         } catch {
@@ -367,6 +338,222 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
         }
+    }
+
+    // MARK: - Batch
+
+    /// Transcribe each resolved input in sequence, writing one transcript file
+    /// per input. A failed input is logged to stderr and counted, never
+    /// aborting the run; if any failed, throws `CLIBatchError.someFailed` so the
+    /// process exits non-zero.
+    private func runBatch(
+        inputs: [String],
+        service: TranscriptionService,
+        speechEngine: SpeechEngineSelection
+    ) async throws {
+        let dir = try Self.prepareOutputDir(outputDir)
+        var ok = 0
+        var failed = 0
+        for (index, input) in inputs.enumerated() {
+            printErr("[\(index + 1)/\(inputs.count)] \(Self.displayName(for: input))")
+            do {
+                let result = try await transcribeOne(
+                    input: input,
+                    service: service,
+                    speechEngine: speechEngine
+                )
+                let url = try Self.writeOutput(result, to: dir, format: format)
+                printErr("  \u{2192} \(url.path)")
+                ok += 1
+            } catch {
+                printErr("  \u{2717} \(error.localizedDescription)")
+                failed += 1
+            }
+        }
+        if failed == 0 {
+            printErr("Done: \(ok) transcribed \u{2192} \(dir.path)")
+        } else {
+            printErr("Done: \(ok) ok, \(failed) failed \u{2192} \(dir.path)")
+            throw CLIBatchError.someFailed(ok: ok, failed: failed)
+        }
+    }
+
+    /// Transcribe a single resolved input (YouTube URL or local file) and
+    /// return the record. Progress is reported on stderr; this throws on
+    /// missing/unsupported files or transcription errors so callers can either
+    /// surface it (single mode) or count and continue (batch mode).
+    private func transcribeOne(
+        input: String,
+        service: TranscriptionService,
+        speechEngine: SpeechEngineSelection
+    ) async throws -> Transcription {
+        let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
+        @Sendable func printProgressLine(_ line: String) {
+            let shouldPrint = lastProgressLine.withLock { lastLine in
+                guard lastLine != line else { return false }
+                lastLine = line
+                return true
+            }
+            if shouldPrint { printErr(line) }
+        }
+        let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
+            switch progress {
+            case .converting: printProgressLine("Converting audio...")
+            case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
+            case .transcribing(let pct): printProgressLine("Transcribing... \(pct)%")
+            case .identifyingSpeakers: printProgressLine("Identifying speakers...")
+            case .finalizing: printProgressLine("Finalizing...")
+            }
+        }
+
+        if YouTubeURLValidator.isYouTubeURL(input) {
+            if noHistory {
+                return try await service.transcribeURLTransient(urlString: input, onProgress: progressHandler)
+            }
+            return try await service.transcribeURL(urlString: input, onProgress: progressHandler)
+        }
+
+        let url = Self.localFileURL(for: input)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError.fileNotFound(url.path)
+        }
+        let ext = url.pathExtension.lowercased()
+        guard AudioFileConverter.supportedExtensions.contains(ext) else {
+            throw CLIError.unsupportedFormat(ext)
+        }
+        printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
+        if noHistory {
+            return try await service.transcribeTransient(fileURL: url)
+        }
+        return try await service.transcribe(fileURL: url)
+    }
+
+    /// Expand folder arguments into their supported audio files and
+    /// de-duplicate while preserving order. YouTube URLs and individual file
+    /// paths pass through unchanged (existence/support is checked per file in
+    /// `transcribeOne`).
+    static func expandInputs(_ inputs: [String]) -> [String] {
+        var result: [String] = []
+        var seen: Set<String> = []
+        for input in inputs {
+            if YouTubeURLValidator.isYouTubeURL(input) {
+                if seen.insert(input).inserted { result.append(input) }
+                continue
+            }
+            let url = localFileURL(for: input)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                for file in AudioFileEnumerator.expand(urls: [url]).files where seen.insert(file.path).inserted {
+                    result.append(file.path)
+                }
+            } else if seen.insert(url.path).inserted {
+                result.append(input)
+            }
+        }
+        return result
+    }
+
+    static func prepareOutputDir(_ outputDir: String?) throws -> URL {
+        let dir = outputDir.map { URL(fileURLWithPath: expandTilde($0), isDirectory: true) }
+            ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static func displayName(for input: String) -> String {
+        YouTubeURLValidator.isYouTubeURL(input) ? input : localFileURL(for: input).lastPathComponent
+    }
+
+    /// Write one transcript file for `t` into `dir`, named after the source and
+    /// suffixed by format (`.json` for json, `.txt` otherwise). Never
+    /// overwrites — collisions get a `-2`, `-3`, … suffix.
+    static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) throws -> URL {
+        let ext = format == .json ? "json" : "txt"
+        let base = sanitizedBasename(t.fileName)
+        let url = uniqueURL(dir.appendingPathComponent(base).appendingPathExtension(ext))
+        let contents: String
+        switch format {
+        case .json:
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            contents = String(data: try encoder.encode(t), encoding: .utf8) ?? ""
+        case .transcript:
+            contents = transcriptOutput(for: t)
+        case .text:
+            contents = plainTextOutput(for: t)
+        }
+        try Data(contents.utf8).write(to: url)
+        return url
+    }
+
+    static func sanitizedBasename(_ name: String) -> String {
+        let stem = (name as NSString).deletingPathExtension
+        let candidate = stem.isEmpty ? name : stem
+        let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
+        let safe = candidate.components(separatedBy: invalid).joined(separator: "_")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return safe.isEmpty ? "transcript" : safe
+    }
+
+    static func uniqueURL(_ url: URL) -> URL {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return url }
+        let dir = url.deletingLastPathComponent()
+        let stem = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        var n = 2
+        while true {
+            let candidate = dir.appendingPathComponent("\(stem)-\(n)").appendingPathExtension(ext)
+            if !fm.fileExists(atPath: candidate.path) { return candidate }
+            n += 1
+        }
+    }
+
+    /// String form of the verbose `--format text` output, for file writing.
+    /// (Single-input stdout still routes through `printText` so its exact
+    /// layout is preserved.)
+    static func plainTextOutput(for t: Transcription) -> String {
+        var lines: [String] = ["", "File: \(t.fileName)"]
+        if let ms = t.durationMs {
+            let seconds = ms / 1000
+            lines.append("Duration: \(seconds / 60)m \(seconds % 60)s")
+        }
+        if let speakers = t.speakers, !speakers.isEmpty {
+            lines.append("Speakers: \(speakers.map(\.label).joined(separator: ", "))")
+        }
+        lines.append("")
+
+        if let words = t.wordTimestamps, !words.isEmpty,
+           let speakers = t.speakers, !speakers.isEmpty,
+           words.contains(where: { $0.speakerId != nil }) {
+            let speakerMap = Dictionary(uniqueKeysWithValues: speakers.map { ($0.id, $0.label) })
+            var lastSpeakerId: String?
+            var current = ""
+            for w in words {
+                if let sid = w.speakerId, sid != lastSpeakerId {
+                    if !current.isEmpty { lines.append(current.trimmingCharacters(in: .whitespaces)); current = "" }
+                    if let label = speakerMap[sid] { lines.append(""); lines.append("\(label):") }
+                    lastSpeakerId = sid
+                }
+                current += w.word + " "
+            }
+            if !current.isEmpty { lines.append(current.trimmingCharacters(in: .whitespaces)) }
+        } else {
+            lines.append(t.cleanTranscript ?? t.rawTranscript ?? "(no transcript)")
+        }
+
+        if let words = t.wordTimestamps, !words.isEmpty {
+            lines.append("")
+            lines.append("--- Word Timestamps ---")
+            for w in words {
+                let start = String(format: "%.2f", Double(w.startMs) / 1000.0)
+                let end = String(format: "%.2f", Double(w.endMs) / 1000.0)
+                let speaker = w.speakerId.map { " [\($0)]" } ?? ""
+                lines.append("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)\(speaker)")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func makeEntitlementsService() -> EntitlementsService {
@@ -460,6 +647,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 enum CLIError: Error, LocalizedError {
     case fileNotFound(String)
     case unsupportedFormat(String)
+    case noInputs
 
     var errorDescription: String? {
         switch self {
@@ -467,6 +655,19 @@ enum CLIError: Error, LocalizedError {
             return "File not found: \(path)"
         case .unsupportedFormat(let ext):
             return "Unsupported format: .\(ext). Supported: \(AudioFileConverter.supportedExtensions.sorted().joined(separator: ", "))"
+        case .noInputs:
+            return "No transcribable inputs found (folders contained no supported audio/video files)."
+        }
+    }
+}
+
+enum CLIBatchError: Error, LocalizedError {
+    case someFailed(ok: Int, failed: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .someFailed(let ok, let failed):
+            return "\(failed) input\(failed == 1 ? "" : "s") failed to transcribe (\(ok) succeeded)."
         }
     }
 }

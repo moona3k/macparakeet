@@ -85,6 +85,17 @@ public final class SettingsViewModel {
             }
         }
     }
+    /// Play a chime (and, when MacParakeet is in the background, post a banner)
+    /// when a file/URL transcription or a batch finishes. Default on.
+    public var notifyOnTranscriptionComplete: Bool {
+        didSet {
+            defaults.set(
+                notifyOnTranscriptionComplete,
+                forKey: UserDefaultsAppRuntimePreferences.notifyOnTranscriptionCompleteKey
+            )
+            Telemetry.send(.settingChanged(setting: .transcriptionCompletionNotification))
+        }
+    }
 
     // Dictation
     public var hotkeyTrigger: HotkeyTrigger {
@@ -526,6 +537,9 @@ public final class SettingsViewModel {
         appAppearanceMode = AppPreferences.appearanceMode(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
+        notifyOnTranscriptionComplete = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.notifyOnTranscriptionCompleteKey
+        ) as? Bool ?? true
         let resolvedDictationHotkeys = Self.resolveDictationHotkeyTriggers(defaults: defaults)
         hotkeyTrigger = resolvedDictationHotkeys.handsFree
         pushToTalkHotkeyTrigger = resolvedDictationHotkeys.pushToTalk

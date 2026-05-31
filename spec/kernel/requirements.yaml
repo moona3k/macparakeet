@@ -307,9 +307,26 @@ REQ-CAL-002:
   version: v0.6
   status: implemented
 
+# --- v0.6 Batch Transcription & Completion Notification ---
+
+REQ-TRANS-004:
+  description: Local audio/video files can be transcribed in batch (multi-select file picker, folder selection, and multi-file drag-drop, recursively expanded and capped at 200 with the dropped count surfaced); the queue drains sequentially on the shared file-transcription path with no added parallelism, each result lands in the Library as it finishes, a failed file never aborts the batch, and Cancel all stops the run. YouTube transcription stays single-URL.
+  version: v0.6
+  status: implemented
+
+REQ-UI-006:
+  description: A file, YouTube, or batch transcription completing plays a chime and, when MacParakeet is in the background, posts a notification banner; both are governed by one Settings toggle (default on) and the banner reuses the .alert-only authorization while the chime is delivered via SoundManager (backgrounded-safe, respects the system sound preference)
+  version: v0.6
+  status: implemented
+
 # --- CLI Public Surface ---
 
 REQ-CLI-001:
   description: CLI transcription telemetry emits a privacy-safe cli_operation event, honors explicit env/CI/UserDefaults opt-out controls, and exposes config get/set/list for the persisted telemetry preference
   version: cli-1.3.0
+  status: implemented
+
+REQ-CLI-002:
+  description: CLI transcribe accepts multiple inputs (files, folders, YouTube URLs) and an --output-dir, writing one transcript file per input; single-input stdout behavior is preserved exactly, directories expand to their supported files, and the batch continues on per-file errors then exits non-zero with a summary if any failed
+  version: cli-2.5.0
   status: implemented

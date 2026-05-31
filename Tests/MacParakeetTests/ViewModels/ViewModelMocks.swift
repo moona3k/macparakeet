@@ -345,10 +345,21 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var lastURLString: String?
     var transcribeURLProgressPhases: [TranscriptionProgress] = []
     var transcribeURLDelayMs: UInt64 = 0
+    /// Per-file overrides for batch tests, keyed by `fileURL.lastPathComponent`.
+    /// `errorsByFileName` wins over `resultsByFileName`, which wins over the
+    /// shared `transcribeError`/`transcribeResult`.
+    var resultsByFileName: [String: Transcription] = [:]
+    var errorsByFileName: [String: Error] = [:]
+    var transcribedFileNames: [String] = []
 
     func configure(result: Transcription) {
         self.transcribeResult = result
         self.transcribeError = nil
+    }
+
+    func configureBatch(results: [String: Transcription] = [:], errors: [String: Error] = [:]) {
+        self.resultsByFileName = results
+        self.errorsByFileName = errors
     }
 
     func configure(error: Error) {
@@ -380,6 +391,8 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcribeCallCount += 1
         lastFileURL = fileURL
         lastSource = source
+        let fileName = fileURL.lastPathComponent
+        transcribedFileNames.append(fileName)
 
         for phase in transcribeProgressPhases {
             onProgress?(phase)
@@ -389,12 +402,18 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             try await Task.sleep(nanoseconds: transcribeDelayMs * 1_000_000)
         }
 
+        if let error = errorsByFileName[fileName] {
+            throw error
+        }
         if let error = transcribeError {
             throw error
         }
+        if let result = resultsByFileName[fileName] {
+            return result
+        }
 
         return transcribeResult ?? Transcription(
-            fileName: fileURL.lastPathComponent,
+            fileName: fileName,
             rawTranscript: "Mock transcription",
             status: .completed
         )

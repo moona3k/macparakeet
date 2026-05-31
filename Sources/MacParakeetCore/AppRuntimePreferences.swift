@@ -117,6 +117,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
+    /// Play a chime (and, when backgrounded, post a banner) when a file/URL
+    /// transcription or a batch finishes. Default on; opt-out in Settings.
+    public static let notifyOnTranscriptionCompleteKey = "notifyOnTranscriptionComplete"
 
     private let defaults: UserDefaults
 

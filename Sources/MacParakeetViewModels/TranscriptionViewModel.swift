@@ -78,6 +78,36 @@ public final class TranscriptionViewModel {
 
     public var onTranscribingChanged: ((Bool) -> Void)?
 
+    /// Fired once when a single transcription, or a whole batch, finishes and
+    /// the user's completion-notification setting is on. The app layer plays
+    /// the chime and (when backgrounded) posts a banner. Nil-safe: the
+    /// ViewModel only invokes this with a non-nil `Content`.
+    public var onTranscriptionCompleted: ((TranscriptionCompletionNotifier.Content) -> Void)?
+
+    // MARK: - Batch transcription (local files only)
+    //
+    // A multi-file drop / multi-select / folder fans out into a sequential
+    // queue drained on the shared file-transcription path — no new STT slot and
+    // no parallelism (ADR-016). YouTube stays single-URL. The single-file path
+    // (`count <= 1`) is untouched: it never enters batch state.
+    public private(set) var isBatchActive = false
+    public private(set) var batchTotalCount = 0
+    public private(set) var batchCompletedCount = 0
+    public private(set) var batchFailedCount = 0
+    private var batchQueue: [URL] = []
+    private var batchSource: TelemetryTranscriptionSource = .file
+
+    /// One-line batch status for the global progress bar / batch card,
+    /// e.g. "Transcribing 7 of 40" or "Transcribing 7 of 40 · 1 failed".
+    public var batchStatusHeadline: String {
+        let current = min(batchCompletedCount + batchFailedCount + 1, max(batchTotalCount, 1))
+        var line = "Transcribing \(current) of \(batchTotalCount)"
+        if batchFailedCount > 0 {
+            line += " \u{00B7} \(batchFailedCount) failed"
+        }
+        return line
+    }
+
     public var isValidURL: Bool {
         YouTubeURLValidator.isYouTubeURL(urlInput)
     }
@@ -119,7 +149,7 @@ public final class TranscriptionViewModel {
     private var activeProgressWhisperVariant: String?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
-    private var dropAccepted = false
+    private var dropCollectedURLs: [URL] = []
     private static let configurationError = "Transcription services are unavailable. Please try again."
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
     private let defaults: UserDefaults
@@ -193,6 +223,43 @@ public final class TranscriptionViewModel {
         }
     }
 
+    /// Entry point for one-or-many local files (drag-drop, Browse, menu-bar
+    /// open). Folders are expanded recursively; a single resolved file routes
+    /// through the unchanged `transcribeFile` path, two or more start a
+    /// sequential batch. Returns `true` when at least one supported file was
+    /// accepted (so the drop handler knows whether to dismiss the drop UI).
+    @discardableResult
+    public func transcribeFiles(urls: [URL], source: TelemetryTranscriptionSource = .file) -> Bool {
+        guard !isTranscribing, !isBatchActive else { return false }
+        let expansion = AudioFileEnumerator.expand(urls: urls)
+        let files = expansion.files
+        guard !files.isEmpty else {
+            errorMessage = unsupportedDropMessage
+            return false
+        }
+
+        if files.count == 1 {
+            transcribeFile(url: files[0], source: source)
+            return true
+        }
+
+        batchSource = source
+        batchTotalCount = files.count
+        batchCompletedCount = 0
+        batchFailedCount = 0
+        batchQueue = Array(files.dropFirst())
+        isBatchActive = true
+        transcribeFile(url: files[0], source: source)
+        // `transcribeFile` clears `errorMessage`; surface any cap overflow after
+        // it so the dropped-file count is never lost silently.
+        if expansion.truncated {
+            errorMessage = "Queued the first \(files.count) files; "
+                + "\(expansion.droppedCount) more were skipped "
+                + "(\(AudioFileEnumerator.defaultMaxFiles)-file limit)."
+        }
+        return true
+    }
+
     public func transcribeURL() {
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "transcribeURL")
@@ -232,45 +299,36 @@ public final class TranscriptionViewModel {
         providers: [NSItemProvider],
         onAccepted: (@MainActor @Sendable () -> Void)? = nil
     ) -> Bool {
-        guard !isTranscribing else { return false }
+        guard !isTranscribing, !isBatchActive else { return false }
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier("public.file-url") }
         guard !fileProviders.isEmpty else { return false }
 
         let requestID = UUID()
         activeDropRequestID = requestID
         dropPendingCount = fileProviders.count
-        dropAccepted = false
+        dropCollectedURLs = []
 
+        // Collect every dropped URL (files and folders), then dispatch once when
+        // the last provider resolves. `transcribeFiles` expands folders, applies
+        // the supported-extension filter, and chooses single vs. batch.
         for provider in fileProviders {
             provider.loadItem(forTypeIdentifier: "public.file-url") { item, _ in
-                let droppedURL: URL?
-                if let data = item as? Data {
-                    droppedURL = URL(dataRepresentation: data, relativeTo: nil)
-                } else {
-                    droppedURL = nil
-                }
+                let droppedURL: URL? = (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
 
                 Task { @MainActor in
                     guard self.activeDropRequestID == requestID else { return }
-                    defer {
-                        self.dropPendingCount -= 1
-                        if self.dropPendingCount == 0 {
-                            if !self.dropAccepted {
-                                self.errorMessage = self.unsupportedDropMessage
-                            }
-                            self.activeDropRequestID = nil
-                        }
+                    if let droppedURL {
+                        self.dropCollectedURLs.append(droppedURL)
                     }
+                    self.dropPendingCount -= 1
+                    guard self.dropPendingCount == 0 else { return }
 
-                    guard let droppedURL else { return }
-                    let ext = droppedURL.pathExtension.lowercased()
-                    guard AudioFileConverter.supportedExtensions.contains(ext) else { return }
-                    guard !self.dropAccepted, !self.isTranscribing else { return }
-
-                    self.dropAccepted = true
-                    self.errorMessage = nil
-                    onAccepted?()
-                    self.transcribeFile(url: droppedURL, source: .dragDrop)
+                    self.activeDropRequestID = nil
+                    let urls = self.dropCollectedURLs
+                    self.dropCollectedURLs = []
+                    if self.transcribeFiles(urls: urls, source: .dragDrop) {
+                        onAccepted?()
+                    }
                 }
             }
         }
@@ -434,6 +492,70 @@ public final class TranscriptionViewModel {
         transcriptionTask?.cancel()
     }
 
+    /// Cancel an in-progress batch deterministically: drop everything still
+    /// queued, cancel the in-flight task, and clear all batch + transcription
+    /// state *now*. Crucially we also drop `activeTranscriptionTaskID`, so if the
+    /// in-flight file's STT inference isn't cancellation-aware and completes
+    /// anyway, its completion funnel no-ops on the task-ID guard — the batch
+    /// never advances or fires a spurious completion chime after "Cancel all".
+    public func cancelBatch() {
+        guard isBatchActive else { return }
+        batchQueue.removeAll()
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        activeTranscriptionTaskID = nil
+        resetBatchState()
+        endTranscription()
+        errorMessage = nil
+        loadTranscriptions()
+    }
+
+    /// Submit the next queued file, or finish the batch when the queue drains.
+    /// Called only from the completion funnels, where `transcriptionTask` is
+    /// already nil — so `transcribeFile` → `beginNewTranscription`'s
+    /// `cancel()` is a no-op and never aborts the next file.
+    private func advanceBatch() {
+        guard isBatchActive else { return }
+        if batchQueue.isEmpty {
+            finishBatch()
+        } else {
+            let next = batchQueue.removeFirst()
+            transcribeFile(url: next, source: batchSource)
+        }
+    }
+
+    private func finishBatch() {
+        let content = TranscriptionCompletionNotifier.batchContent(
+            settingEnabled: notifyOnCompletionEnabled,
+            completed: batchCompletedCount,
+            failed: batchFailedCount
+        )
+        resetBatchState()
+        emitCompletionSignal(content)
+    }
+
+    private func resetBatchState() {
+        isBatchActive = false
+        batchTotalCount = 0
+        batchCompletedCount = 0
+        batchFailedCount = 0
+        batchQueue.removeAll()
+    }
+
+    private func emitCompletionSignal(_ content: TranscriptionCompletionNotifier.Content?) {
+        guard let content else { return }
+        onTranscriptionCompleted?(content)
+    }
+
+    private var notifyOnCompletionEnabled: Bool {
+        defaults.object(forKey: UserDefaultsAppRuntimePreferences.notifyOnTranscriptionCompleteKey) as? Bool ?? true
+    }
+
+    private static func wordCount(of transcription: Transcription) -> Int {
+        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        return text.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
     public func confirmDelete() {
         guard let transcription = pendingDeleteTranscription else { return }
         pendingDeleteTranscription = nil
@@ -506,8 +628,26 @@ public final class TranscriptionViewModel {
         transcriptionTask = nil
         activeTranscriptionTaskID = nil
         endTranscription()
-        presentCompletedTranscription(result, autoSave: false, runAutoPrompts: runAutoPrompts)
-        autoSaveIfEnabled(result)
+
+        if isBatchActive {
+            // Ambient batch: don't present each file (no nav thrash) and don't
+            // auto-run prompts per file. Export-to-folder still honors its own
+            // toggle, and Library refreshes live so results appear as they land.
+            batchCompletedCount += 1
+            autoSaveIfEnabled(result)
+            loadTranscriptions()
+            advanceBatch()
+        } else {
+            presentCompletedTranscription(result, autoSave: false, runAutoPrompts: runAutoPrompts)
+            autoSaveIfEnabled(result)
+            emitCompletionSignal(
+                TranscriptionCompletionNotifier.singleContent(
+                    settingEnabled: notifyOnCompletionEnabled,
+                    transcriptName: result.fileName,
+                    wordCount: Self.wordCount(of: result)
+                )
+            )
+        }
     }
 
     private func autoSaveIfEnabled(_ transcription: Transcription) {
@@ -586,9 +726,19 @@ public final class TranscriptionViewModel {
         guard activeTranscriptionTaskID == taskID else { return }
         transcriptionTask = nil
         activeTranscriptionTaskID = nil
-        errorMessage = error.localizedDescription
         endTranscription()
-        loadTranscriptions()
+
+        if isBatchActive {
+            // A failed file never aborts the batch — it bumps the failure count
+            // (surfaced in the status line + completion banner) and advances.
+            batchFailedCount += 1
+            logger.error("Batch file transcription failed error=\(error.localizedDescription, privacy: .public)")
+            loadTranscriptions()
+            advanceBatch()
+        } else {
+            errorMessage = error.localizedDescription
+            loadTranscriptions()
+        }
     }
 
     private func completeCancelledTranscription(taskID: UUID) {
@@ -597,6 +747,11 @@ public final class TranscriptionViewModel {
         activeTranscriptionTaskID = nil
         errorMessage = nil
         endTranscription()
+        // Any cancellation ends the whole batch — there is no per-item cancel,
+        // so "Cancel all" and a stray single cancel converge to the same reset.
+        if isBatchActive {
+            resetBatchState()
+        }
         loadTranscriptions()
     }
 

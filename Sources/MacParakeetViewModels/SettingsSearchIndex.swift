@@ -183,6 +183,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
+            id: "transcription.completion.notification",
+            tab: .modes,
+            title: "Notify when transcription finishes",
+            subtitle: "in Transcription",
+            keywords: ["notification", "notify", "sound", "chime", "alert", "banner", "done", "finished", "complete", "batch"],
+            cardAnchor: "transcription"
+        ),
+        SettingsSearchEntry(
             id: "transcription.autosave",
             tab: .modes,
             title: "Auto-save transcripts to disk",

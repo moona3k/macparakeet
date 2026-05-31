@@ -53,6 +53,8 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | REQ-DATA-003 | `MacParakeetCore/Database/ChatConversationRepository.swift`, `MacParakeetCore/Models/ChatConversation.swift` | `ChatConversationRepositoryTests.swift`, `TranscriptChatViewModelTests.swift` |
 | REQ-YT-002 | `MacParakeetCore/Database/TranscriptionRepository.swift` | `TranscriptionRepositoryTests.swift` |
 | REQ-TRANS-003 | `MacParakeetCore/Services/MediaMetadataExtractor.swift`, `MacParakeetCore/Services/TranscriptionService.swift`, `MacParakeetCore/Services/ThumbnailCacheService.swift` | `MediaMetadataExtractorTests.swift`, `TranscriptionServiceTests.swift`, `ThumbnailCacheServiceTests.swift` |
+| REQ-TRANS-004 | `MacParakeetCore/Audio/AudioFileEnumerator.swift`, `MacParakeetViewModels/TranscriptionViewModel.swift`, `MacParakeet/Views/Transcription/TranscribeView.swift`, `MacParakeet/Views/MainWindowView.swift`, `MacParakeet/App/MenuBarCoordinator.swift` | `AudioFileEnumeratorTests.swift`, `TranscriptionViewModelBatchTests.swift` |
+| REQ-UI-006 | `MacParakeetViewModels/TranscriptionCompletionNotifier.swift`, `MacParakeetViewModels/TranscriptionViewModel.swift`, `MacParakeet/App/TranscriptionCompletionPresenter.swift`, `MacParakeet/App/AppEnvironmentConfigurer.swift`, `MacParakeetViewModels/SettingsViewModel.swift`, `MacParakeet/Views/Settings/SettingsView.swift` | `TranscriptionCompletionNotifierTests.swift`, `TranscriptionViewModelBatchTests.swift` |
 | REQ-DATA-004 | `MacParakeetCore/Database/TranscriptionRepository.swift` | `TranscriptionRepositoryTests.swift` |
 
 ## v0.5 Video Player & UI Revamp
@@ -112,3 +114,4 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
 | REQ-CLI-001 | `CLI/MacParakeetCLI.swift`, `CLI/Commands/CLIHelpers.swift`, `CLI/Commands/CLITelemetry.swift`, `CLI/Commands/ConfigCommand.swift`, `CLI/Commands/TranscribeCommand.swift`, `MacParakeetCore/Services/Telemetry/TelemetryEvent.swift`, `MacParakeet/Views/Settings/SettingsView.swift` | `LLMJSONOutputTests.swift`, `CLITelemetryTests.swift`, `ConfigCommandTests.swift`, `CLIOperationPrivacyTests.swift` |
+| REQ-CLI-002 | `CLI/Commands/TranscribeCommand.swift`, `CLI/Commands/CLIHelpers.swift`, `MacParakeetCore/Audio/AudioFileEnumerator.swift` | `TranscribeCommandTests.swift` |

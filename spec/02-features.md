@@ -418,12 +418,43 @@ Display in scrollable result view
 └─────────────────────────────────────────────────────┘
 ```
 
+**Batch transcription (v0.6, local files only — REQ-TRANS-004):**
+
+A power user (e.g. a student with 40 one-hour lectures) can transcribe many
+files in one action. The file picker is multi-select and can choose folders;
+drag-drop accepts many files and folders at once. Selections are expanded
+recursively (hidden files and packages skipped), de-duplicated, name-sorted,
+and capped at 200 — overflow is surfaced, never silently dropped. Two or more
+resolved files start a **sequential** batch on the same shared STT path (no new
+execution slot, no parallelism — ADR-016): one file at a time, each result
+landing in the Library as it finishes. A failed file is counted and skipped,
+never aborting the run. The Transcribe tab and the global progress bar show
+"Transcribing N of M · K failed" with a **Cancel all** control. One file routes
+through the unchanged single-file path. YouTube stays single-URL (different
+ingestion model; the queue machinery is generic enough for a future
+playlist front-end). The CLI mirrors this — see F11 / `macparakeet-cli
+transcribe` and the CLI CHANGELOG (REQ-CLI-002).
+
+**Completion notification (v0.6 — REQ-UI-006):**
+
+When a file, YouTube, or batch transcription finishes, MacParakeet plays a
+chime and — only when it is in the background — posts a notification banner
+(a batch posts one summary banner on drain, not one per file). A single
+Settings toggle ("Notify when transcription finishes", default on) governs
+both. The chime is delivered via the in-app sound system so it plays while
+backgrounded and respects the macOS "Play sound effects" preference; the banner
+reuses the shared `.alert`-only notification authorization.
+
 **Technical notes:**
 - FFmpeg (bundled) for format conversion to 16kHz mono WAV
 - Local STT input is normalized to 16kHz mono WAV
 - Max file duration: configurable, default 4 hours
 - Large files show progress bar with estimated time remaining
 - Word-level timestamps preserved for subtitle export (v0.3)
+- Folder expansion + supported-extension filtering + the 200-file cap live in
+  `AudioFileEnumerator` (Core); the sequential drain is owned by
+  `TranscriptionViewModel`; completion-signal copy/gating is the pure
+  `TranscriptionCompletionNotifier`.
 
 **Acceptance criteria:**
 - [x] Drag-and-drop file onto app window triggers transcription
@@ -436,6 +467,9 @@ Display in scrollable result view
 - [x] All supported video formats extract audio and transcribe
 - [x] Word-level timestamps stored for later export use
 - [x] Handles corrupt/empty files gracefully (error message, not crash)
+- [x] Multi-select / folder picker and multi-file drop transcribe in a sequential batch (v0.6)
+- [x] A failed file does not abort the batch; "Cancel all" stops it (v0.6)
+- [x] Completion plays a chime + (backgrounded) banner, behind one opt-out toggle (v0.6)
 
 ---
 

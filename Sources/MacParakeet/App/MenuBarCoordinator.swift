@@ -596,15 +596,16 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.message = "Choose one or more audio/video files, or a folder, to transcribe."
         panel.allowedContentTypes = AudioFileConverter.supportedExtensions.compactMap {
             UTType(filenameExtension: $0)
         }
 
-        if panel.runModal() == .OK, let url = panel.url {
+        if panel.runModal() == .OK, !panel.urls.isEmpty {
             onOpenMainWindow()
-            transcriptionViewModel.transcribeFile(url: url)
+            transcriptionViewModel.transcribeFiles(urls: panel.urls)
             SoundManager.shared.play(.fileDropped)
         }
     }
