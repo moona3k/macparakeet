@@ -50,9 +50,9 @@ public protocol MicrophoneEnginePlatform: AnyObject, Sendable {
 ///   the VPAU aggregate device. A long-lived engine keeps the VPAU alive
 ///   indefinitely, which inherits the duplex layout into other engines.
 /// - When configured with a `deviceAttemptsBuilder`, each `configureAndStart`
-///   walks the resolved attempt list (selected → implicit systemDefault →
-///   builtIn) and recreates the engine on every failed attempt before trying
-///   the next — the same fallback shape `MicrophoneCapture` uses today.
+///   walks the resolved attempt list (selected → explicit systemDefault when
+///   System Default is selected → implicit systemDefault → builtIn) and
+///   recreates the engine on every failed attempt before trying the next.
 public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
     public typealias DeviceAttemptsBuilder = @Sendable () -> [MeetingInputDeviceAttempt]
     public typealias InputDeviceSetter = @Sendable (AudioDeviceID, AVAudioEngine) -> Bool
