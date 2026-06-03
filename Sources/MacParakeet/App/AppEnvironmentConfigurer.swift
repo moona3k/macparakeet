@@ -263,6 +263,7 @@ final class AppEnvironmentConfigurer {
             sttRuntime: env.sttRuntime,
             runtimePreferences: env.runtimePreferences,
             permissionService: env.permissionService,
+            focusedAppContextService: env.focusedAppContextService,
             mediaPauseCoordinator: mediaPauseCoordinator,
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true

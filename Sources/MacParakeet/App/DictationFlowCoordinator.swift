@@ -145,6 +145,7 @@ final class DictationFlowCoordinator {
     private let sttRuntime: any DictationSTTReadinessChecking
     private let runtimePreferences: AppRuntimePreferencesProtocol
     private let permissionService: PermissionServiceProtocol
+    private let focusedAppContextService: any FocusedAppContextProviding
     private let captionTiming: DictationProcessingLoadCaptionTiming
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
@@ -205,6 +206,7 @@ final class DictationFlowCoordinator {
         sttRuntime: any DictationSTTReadinessChecking,
         runtimePreferences: AppRuntimePreferencesProtocol,
         permissionService: PermissionServiceProtocol = PermissionService(),
+        focusedAppContextService: any FocusedAppContextProviding = FocusedAppContextService(),
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
@@ -224,6 +226,7 @@ final class DictationFlowCoordinator {
         self.sttRuntime = sttRuntime
         self.runtimePreferences = runtimePreferences
         self.permissionService = permissionService
+        self.focusedAppContextService = focusedAppContextService
         self.captionTiming = captionTiming
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
         self.overlayControllerFactory = overlayControllerFactory
@@ -856,6 +859,16 @@ final class DictationFlowCoordinator {
         }
     }
 
+    private func formatterContext(from context: AppPromptContext?) -> AppPromptContext? {
+        guard let context else { return nil }
+        if let bundleIdentifier = context.bundleIdentifier,
+           let ownBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(Bundle.main.bundleIdentifier),
+           bundleIdentifier == ownBundleIdentifier {
+            return nil
+        }
+        return context
+    }
+
     private func startRecordingTask(
         mode: FnKeyStateMachine.RecordingMode,
         generation: Int,
@@ -865,6 +878,7 @@ final class DictationFlowCoordinator {
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()
+                let startContext = self.formatterContext(from: self.focusedAppContextService.currentContext())
                 // Fire-and-forget: the media-pause round-trip must not gate
                 // capture start, or its out-of-process now-playing lookup
                 // clips the first words of the dictation. The coordinator's
@@ -878,6 +892,11 @@ final class DictationFlowCoordinator {
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
                     )
+                )
+                await self.serviceSession.updateAIFormatterAppContext(
+                    startContext,
+                    phase: .start,
+                    sessionID: sessionID
                 )
                 let serviceState = await self.serviceSession.state
                 guard case .recording = serviceState else {
@@ -988,10 +1007,14 @@ final class DictationFlowCoordinator {
                 self.dictationLog.notice(
                     "stop_recording_requested gen=\(generation) session=\(sessionID) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
                 )
+                let finishContext = self.focusedAppContextService.currentContext()
                 await self.serviceSession.updateTelemetryAppCategory(
-                    TelemetryAppCategory(
-                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                    ),
+                    finishContext?.category,
+                    sessionID: sessionID
+                )
+                await self.serviceSession.updateAIFormatterAppContext(
+                    self.formatterContext(from: finishContext),
+                    phase: .finish,
                     sessionID: sessionID
                 )
                 let result = try await self.serviceSession.stopRecording(sessionID: sessionID)
@@ -1008,10 +1031,14 @@ final class DictationFlowCoordinator {
         actionTask = Task { @MainActor in
             do {
                 let sessionID = self.serviceSession.currentSessionID
+                let finishContext = self.focusedAppContextService.currentContext()
                 await self.serviceSession.updateTelemetryAppCategory(
-                    TelemetryAppCategory(
-                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                    ),
+                    finishContext?.category,
+                    sessionID: sessionID
+                )
+                await self.serviceSession.updateAIFormatterAppContext(
+                    self.formatterContext(from: finishContext),
+                    phase: .finish,
                     sessionID: sessionID
                 )
                 let result = try await self.serviceSession.undoCancel()

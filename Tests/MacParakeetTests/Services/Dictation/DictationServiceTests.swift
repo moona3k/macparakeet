@@ -382,6 +382,90 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testStopRecordingUsesAIFormatterProfileResolutionAndStoresMetadata() async throws {
+        await mockSTT.configure(result: STTResult(text: "send update to team"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send update to team."
+        let profileID = UUID()
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "Slack style prompt",
+                matchKind: .exactApp,
+                profileID: profileID,
+                profileName: "Slack",
+                profileOrigin: .custom
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        let context = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        await service.updateAIFormatterAppContext(context, phase: .start)
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(mockLLMService.lastFormatterPromptTemplate, "Slack style prompt")
+        XCTAssertEqual(mockLLMService.lastFormatterDefaultPromptUsed, false)
+        XCTAssertEqual(result.dictation.cleanTranscript, "Send update to team.")
+        XCTAssertEqual(result.dictation.aiFormatterProfileID, profileID)
+        XCTAssertEqual(result.dictation.aiFormatterProfileName, "Slack")
+        XCTAssertEqual(result.dictation.aiFormatterProfileMatchKind, .exactApp)
+
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [context])
+
+        let fetched = try XCTUnwrap(dictationRepo.fetch(id: result.dictation.id))
+        XCTAssertEqual(fetched.aiFormatterProfileID, profileID)
+        XCTAssertEqual(fetched.aiFormatterProfileName, "Slack")
+        XCTAssertEqual(fetched.aiFormatterProfileMatchKind, .exactApp)
+    }
+
+    func testStopRecordingUsesFinishAIFormatterContextOverStartContext() async throws {
+        await mockSTT.configure(result: STTResult(text: "send update"))
+        let mockLLMService = MockLLMService()
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "Finish app prompt",
+                matchKind: .category
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        await service.updateAIFormatterAppContext(
+            AppPromptContext(bundleIdentifier: "com.apple.notes", displayName: "Notes"),
+            phase: .start
+        )
+        let finishContext = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        await service.updateAIFormatterAppContext(finishContext, phase: .finish)
+        _ = try await service.stopRecording()
+
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [finishContext])
+        XCTAssertEqual(mockLLMService.lastFormatterPromptTemplate, "Finish app prompt")
+    }
+
     func testStopRecordingFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()
@@ -446,9 +530,12 @@ final class DictationServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        _ = try await service.stopRecording()
+        let result = try await service.stopRecording()
 
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertNil(result.dictation.aiFormatterProfileID)
+        XCTAssertNil(result.dictation.aiFormatterProfileName)
+        XCTAssertNil(result.dictation.aiFormatterProfileMatchKind)
         XCTAssertEqual(try llmRunRepo.count(), 0)
     }
 
@@ -499,6 +586,24 @@ final class DictationServiceTests: XCTestCase {
     private static func isRecording(_ state: DictationState) -> Bool {
         if case .recording = state { return true }
         return false
+    }
+}
+
+private actor RecordingAIFormatterPromptResolver: AIFormatterPromptResolving {
+    private let resolution: AIFormatterPromptResolution
+    private var contexts: [AppPromptContext?] = []
+
+    init(resolution: AIFormatterPromptResolution) {
+        self.resolution = resolution
+    }
+
+    func resolvePrompt(for context: AppPromptContext?) async -> AIFormatterPromptResolution {
+        contexts.append(context)
+        return resolution
+    }
+
+    func recordedContexts() -> [AppPromptContext?] {
+        contexts
     }
 }
 

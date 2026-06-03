@@ -31,9 +31,10 @@ public struct Dictation: Codable, Identifiable, Sendable {
     /// `false` for new rows and for legacy rows backfilled by the
     /// `v0.12-dictation-display-raw` migration.
     public var displayRawTranscript: Bool
-    /// Local-only provenance for the AI Formatter profile used on this
-    /// dictation. Nil means the run predated profiles, AI Formatter was off, or
-    /// the global formatter prompt was used.
+    /// Local-only provenance for the AI Formatter routing decision used on
+    /// this dictation. Global formatter runs store `.global` with no profile
+    /// id/name; nil means the row predates routing metadata or AI Formatter
+    /// was off.
     public var aiFormatterProfileID: UUID?
     public var aiFormatterProfileName: String?
     public var aiFormatterProfileMatchKind: AIFormatterProfileMatchKind?

@@ -29,6 +29,56 @@ public struct AIFormatterPromptResolution: Sendable, Equatable {
     }
 }
 
+public protocol AIFormatterPromptResolving: Sendable {
+    func resolvePrompt(for context: AppPromptContext?) async -> AIFormatterPromptResolution
+}
+
+public struct AIFormatterGlobalPromptResolver: AIFormatterPromptResolving {
+    private let promptTemplate: @Sendable () -> String
+
+    public init(promptTemplate: @escaping @Sendable () -> String) {
+        self.promptTemplate = promptTemplate
+    }
+
+    public func resolvePrompt(for context: AppPromptContext?) async -> AIFormatterPromptResolution {
+        .global(promptTemplate: promptTemplate())
+    }
+}
+
+public final class AIFormatterProfilePromptResolver: AIFormatterPromptResolving {
+    private let profileRepository: AIFormatterProfileRepositoryProtocol
+    private let globalPromptTemplate: @Sendable () -> String
+    private let onFetchError: (@Sendable (Error) -> Void)?
+
+    public init(
+        profileRepository: AIFormatterProfileRepositoryProtocol,
+        globalPromptTemplate: @escaping @Sendable () -> String,
+        onFetchError: (@Sendable (Error) -> Void)? = nil
+    ) {
+        self.profileRepository = profileRepository
+        self.globalPromptTemplate = globalPromptTemplate
+        self.onFetchError = onFetchError
+    }
+
+    public func resolvePrompt(for context: AppPromptContext?) async -> AIFormatterPromptResolution {
+        let globalPromptTemplate = globalPromptTemplate()
+        guard let context else {
+            return .global(promptTemplate: globalPromptTemplate)
+        }
+
+        do {
+            return AIFormatterProfileMatcher.resolve(
+                profiles: try profileRepository.fetchEnabled(),
+                context: context,
+                globalPromptTemplate: globalPromptTemplate
+            )
+        } catch {
+            onFetchError?(error)
+            return .global(promptTemplate: globalPromptTemplate)
+        }
+    }
+}
+
 public enum AIFormatterProfileMatcher {
     public static func match(
         profiles: [AIFormatterProfile],
@@ -77,4 +127,3 @@ public enum AIFormatterProfileMatcher {
         )
     }
 }
-

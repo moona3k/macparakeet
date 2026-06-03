@@ -45,8 +45,14 @@ public protocol DictationServiceProtocol: Sendable {
 private struct FormatterOutcome: Sendable {
     let text: String?
     let run: LLMRun?
+    let resolution: AIFormatterPromptResolution?
 
-    static let skipped = FormatterOutcome(text: nil, run: nil)
+    static let skipped = FormatterOutcome(text: nil, run: nil, resolution: nil)
+}
+
+public enum AIFormatterAppContextPhase: Sendable {
+    case start
+    case finish
 }
 
 extension DictationServiceProtocol {
@@ -75,7 +81,7 @@ public actor DictationService: DictationServiceProtocol {
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
-    private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let markFirstDictationCompleted: (@Sendable () -> Void)?
     private let cancelWindow: Duration
 
@@ -88,6 +94,8 @@ public actor DictationService: DictationServiceProtocol {
     private var currentOperationID: String?
     private var currentOperationTelemetryContext = DictationTelemetryContext()
     private var currentObservabilityOperationContext: ObservabilityOperationContext?
+    private var currentAIFormatterStartContext: AppPromptContext?
+    private var currentAIFormatterFinishContext: AppPromptContext?
     private var activeSessionID: Int = 0
     private var cancellationRequestedDuringStartSessionID: Int?
     private var pendingCancelReason: TelemetryDictationCancelReason?
@@ -115,6 +123,7 @@ public actor DictationService: DictationServiceProtocol {
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
@@ -132,7 +141,9 @@ public actor DictationService: DictationServiceProtocol {
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
-        self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.aiFormatterPromptResolver = aiFormatterPromptResolver
+            ?? AIFormatterGlobalPromptResolver(promptTemplate: promptTemplate)
         self.markFirstDictationCompleted = markFirstDictationCompleted
         self.cancelWindow = cancelWindow
     }
@@ -150,6 +161,25 @@ public actor DictationService: DictationServiceProtocol {
         case .recording, .cancelled, .processing:
             currentTelemetryContext.appCategory = appCategory
             currentOperationTelemetryContext.appCategory = appCategory
+        case .idle, .success, .error:
+            return
+        }
+    }
+
+    public func updateAIFormatterAppContext(
+        _ context: AppPromptContext?,
+        phase: AIFormatterAppContextPhase,
+        sessionID: Int? = nil
+    ) {
+        if let sessionID, sessionID != activeSessionID { return }
+        switch _state {
+        case .recording, .cancelled, .processing:
+            switch phase {
+            case .start:
+                currentAIFormatterStartContext = context
+            case .finish:
+                currentAIFormatterFinishContext = context
+            }
         case .idle, .success, .error:
             return
         }
@@ -211,6 +241,8 @@ public actor DictationService: DictationServiceProtocol {
         activeSessionID = requestedSessionID
         cancellationRequestedDuringStartSessionID = nil
         pendingCancelReason = nil
+        currentAIFormatterStartContext = nil
+        currentAIFormatterFinishContext = nil
         currentOperationID = operationContext.operationID
         currentOperationTelemetryContext = context
         currentObservabilityOperationContext = operationContext
@@ -677,6 +709,12 @@ public actor DictationService: DictationServiceProtocol {
             language: SpeechEnginePreference.normalizeKnownLanguage(result.language)
         )
 
+        if saveHistory, let resolution = formatterOutcome.resolution {
+            dictation.aiFormatterProfileID = resolution.profileID
+            dictation.aiFormatterProfileName = resolution.profileName
+            dictation.aiFormatterProfileMatchKind = resolution.matchKind
+        }
+
         if saveHistory, shouldSaveAudio?() ?? false {
             do { try AppPaths.ensureDirectories() }
             catch { logger.error("dictation_directory_create_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
@@ -735,7 +773,10 @@ public actor DictationService: DictationServiceProtocol {
             )
         }
 
-        let promptTemplate = aiFormatterPromptTemplate()
+        let resolution = await aiFormatterPromptResolver.resolvePrompt(
+            for: currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        )
+        let promptTemplate = resolution.promptTemplate
         // Normalize before comparing: `AIFormatter.renderPrompt` passes the
         // template through `normalizedPromptTemplate` before sending, which
         // trims whitespace and folds legacy-v1 prompts back onto the current
@@ -755,7 +796,7 @@ public actor DictationService: DictationServiceProtocol {
             let run = runSource.map {
                 LLMRun(formatterResult: result, source: $0, feature: .formatterDictation)
             }
-            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run)
+            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run, resolution: resolution)
         } catch {
             if error is CancellationError {
                 throw error
@@ -780,7 +821,7 @@ public actor DictationService: DictationServiceProtocol {
                     startedAt: startedAt
                 )
             }
-            return FormatterOutcome(text: nil, run: run)
+            return FormatterOutcome(text: nil, run: run, resolution: resolution)
         }
     }
 
@@ -845,6 +886,8 @@ public actor DictationService: DictationServiceProtocol {
         currentOperationID = nil
         currentOperationTelemetryContext = DictationTelemetryContext()
         currentObservabilityOperationContext = nil
+        currentAIFormatterStartContext = nil
+        currentAIFormatterFinishContext = nil
         pendingCancelReason = nil
     }
 
