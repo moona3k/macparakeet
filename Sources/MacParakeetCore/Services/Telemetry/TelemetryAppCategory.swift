@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Answers product questions like "what kinds of apps do people dictate into?"
 /// and "where do Transforms get used?" without identifying individual apps.
-public enum TelemetryAppCategory: String, Sendable, Equatable, CaseIterable {
+public enum TelemetryAppCategory: String, Codable, Sendable, Equatable, CaseIterable {
     case messaging
     case email
     case browser

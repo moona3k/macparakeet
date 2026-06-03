@@ -906,6 +906,51 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.21 — App-aware AI Formatter profiles. Profiles are local user
+        // data: exact app bundle IDs and display names are used only for local
+        // prompt resolution and local history/debug provenance.
+        migrator.registerMigration("v0.21-ai-formatter-profiles") { db in
+            if !(try db.tableExists("ai_formatter_profiles")) {
+                try db.create(table: "ai_formatter_profiles") { t in
+                    t.column("id", .text).primaryKey()
+                    t.column("name", .text).notNull()
+                    t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                    t.column("targetKind", .text).notNull()
+                    t.column("bundleIdentifier", .text)
+                    t.column("appDisplayName", .text)
+                    t.column("appCategory", .text)
+                    t.column("promptTemplate", .text).notNull()
+                    t.column("origin", .text).notNull().defaults(to: AIFormatterProfileOrigin.custom.rawValue)
+                    t.column("sortOrder", .integer).notNull().defaults(to: 0)
+                    t.column("createdAt", .text).notNull()
+                    t.column("updatedAt", .text).notNull()
+                }
+                try db.create(
+                    index: "idx_ai_formatter_profiles_enabled_sort",
+                    on: "ai_formatter_profiles",
+                    columns: ["isEnabled", "sortOrder"]
+                )
+                try db.create(
+                    index: "idx_ai_formatter_profiles_target_kind",
+                    on: "ai_formatter_profiles",
+                    columns: ["targetKind"]
+                )
+            }
+
+            let existingColumns = try db.columns(in: "dictations").map(\.name)
+            try db.alter(table: "dictations") { t in
+                if !existingColumns.contains("aiFormatterProfileID") {
+                    t.add(column: "aiFormatterProfileID", .text)
+                }
+                if !existingColumns.contains("aiFormatterProfileName") {
+                    t.add(column: "aiFormatterProfileName", .text)
+                }
+                if !existingColumns.contains("aiFormatterProfileMatchKind") {
+                    t.add(column: "aiFormatterProfileMatchKind", .text)
+                }
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

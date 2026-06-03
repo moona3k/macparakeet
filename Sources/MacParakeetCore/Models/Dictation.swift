@@ -31,6 +31,12 @@ public struct Dictation: Codable, Identifiable, Sendable {
     /// `false` for new rows and for legacy rows backfilled by the
     /// `v0.12-dictation-display-raw` migration.
     public var displayRawTranscript: Bool
+    /// Local-only provenance for the AI Formatter profile used on this
+    /// dictation. Nil means the run predated profiles, AI Formatter was off, or
+    /// the global formatter prompt was used.
+    public var aiFormatterProfileID: UUID?
+    public var aiFormatterProfileName: String?
+    public var aiFormatterProfileMatchKind: AIFormatterProfileMatchKind?
 
     public enum ProcessingMode: String, Codable, Sendable {
         case raw
@@ -77,7 +83,10 @@ public struct Dictation: Codable, Identifiable, Sendable {
         engine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
-        displayRawTranscript: Bool = false
+        displayRawTranscript: Bool = false,
+        aiFormatterProfileID: UUID? = nil,
+        aiFormatterProfileName: String? = nil,
+        aiFormatterProfileMatchKind: AIFormatterProfileMatchKind? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -96,6 +105,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
         self.engineVariant = engineVariant
         self.language = language
         self.displayRawTranscript = displayRawTranscript
+        self.aiFormatterProfileID = aiFormatterProfileID
+        self.aiFormatterProfileName = aiFormatterProfileName
+        self.aiFormatterProfileMatchKind = aiFormatterProfileMatchKind
     }
 
     // MARK: - Codable
@@ -105,6 +117,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
         case audioPath, pastedToApp, processingMode, status, errorMessage
         case updatedAt, hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
+        case aiFormatterProfileID, aiFormatterProfileName, aiFormatterProfileMatchKind
     }
 
     public init(from decoder: Decoder) throws {
@@ -128,6 +141,12 @@ public struct Dictation: Codable, Identifiable, Sendable {
         // Decode-if-present so legacy serialized snapshots (in-flight Codable
         // payloads, tests) round-trip without explicitly setting the field.
         displayRawTranscript = try container.decodeIfPresent(Bool.self, forKey: .displayRawTranscript) ?? false
+        aiFormatterProfileID = try container.decodeIfPresent(UUID.self, forKey: .aiFormatterProfileID)
+        aiFormatterProfileName = try container.decodeIfPresent(String.self, forKey: .aiFormatterProfileName)
+        aiFormatterProfileMatchKind = try container.decodeIfPresent(
+            AIFormatterProfileMatchKind.self,
+            forKey: .aiFormatterProfileMatchKind
+        )
     }
 }
 
@@ -185,5 +204,6 @@ extension Dictation: FetchableRecord, PersistableRecord {
         case audioPath, pastedToApp, processingMode, status, errorMessage, updatedAt
         case hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
+        case aiFormatterProfileID, aiFormatterProfileName, aiFormatterProfileMatchKind
     }
 }

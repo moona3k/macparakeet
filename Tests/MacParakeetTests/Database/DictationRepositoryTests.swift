@@ -48,6 +48,23 @@ final class DictationRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.language, "ko")
     }
 
+    func testAIFormatterProfileMetadataRoundTrips() throws {
+        let profileID = UUID()
+        let dictation = Dictation(
+            durationMs: 1000,
+            rawTranscript: "profile test",
+            aiFormatterProfileID: profileID,
+            aiFormatterProfileName: "Slack Casual",
+            aiFormatterProfileMatchKind: .exactApp
+        )
+        try repo.save(dictation)
+
+        let fetched = try repo.fetch(id: dictation.id)
+        XCTAssertEqual(fetched?.aiFormatterProfileID, profileID)
+        XCTAssertEqual(fetched?.aiFormatterProfileName, "Slack Casual")
+        XCTAssertEqual(fetched?.aiFormatterProfileMatchKind, .exactApp)
+    }
+
     func testLegacyDictationDecodesWithNilEngineFields() throws {
         let dictation = Dictation(
             durationMs: 1000,
@@ -59,6 +76,9 @@ final class DictationRepositoryTests: XCTestCase {
         XCTAssertNil(fetched?.engine)
         XCTAssertNil(fetched?.engineVariant)
         XCTAssertNil(fetched?.language)
+        XCTAssertNil(fetched?.aiFormatterProfileID)
+        XCTAssertNil(fetched?.aiFormatterProfileName)
+        XCTAssertNil(fetched?.aiFormatterProfileMatchKind)
     }
 
     func testFetchAll() throws {
