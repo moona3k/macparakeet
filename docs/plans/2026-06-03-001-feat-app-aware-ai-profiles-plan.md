@@ -1,7 +1,7 @@
 ---
 title: "feat: Add app-aware AI formatter profiles"
 type: feat
-status: active
+status: completed
 date: 2026-06-03
 origin: docs/brainstorms/2026-06-03-app-aware-ai-profiles-requirements.md
 ---
