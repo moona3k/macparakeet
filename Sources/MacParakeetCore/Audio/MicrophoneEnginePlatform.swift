@@ -454,6 +454,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             AudioCaptureDiagnostics.append(
                 "audio_default_input_changed \(AudioCaptureDiagnostics.defaultInputDeviceSummary())"
             )
+            NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
         }
         let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),

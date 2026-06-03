@@ -241,6 +241,7 @@ public actor AudioRecorder {
         warmCaptureLifecycleGeneration += 1
         if enabled {
             preRollCaptureGeneration.withLock { $0 += 1 }
+            preRollConverterCache.reset()
             preRollBuffer.withLock { $0.clear() }
             let shouldAcceptPreRoll = !recording && !starting
             preRollAcceptingSamples.withLock { $0 = shouldAcceptPreRoll }
@@ -250,6 +251,7 @@ public actor AudioRecorder {
             preRollAcceptingSamples.withLock { $0 = false }
             preRollCaptureGeneration.withLock { $0 += 1 }
             sharedProcessingQueue.sync {}
+            preRollConverterCache.reset()
             preRollBuffer.withLock { $0.clear() }
             await stopWarmCapture()
         }
@@ -261,19 +263,18 @@ public actor AudioRecorder {
         preRollAcceptingSamples.withLock { $0 = false }
         preRollCaptureGeneration.withLock { $0 += 1 }
         sharedProcessingQueue.sync {}
+        preRollConverterCache.reset()
         preRollBuffer.withLock { $0.clear() }
         if recording || starting {
             await sharedStream.restartPassiveSubscribers()
             return
         }
 
-        let hadActiveSubscribers = sharedStream.diagnostics.activeSubscriberCount > 0
         await stopWarmCapture()
         preRollCaptureGeneration.withLock { $0 += 1 }
+        preRollConverterCache.reset()
         preRollBuffer.withLock { $0.clear() }
-        if hadActiveSubscribers {
-            await sharedStream.restartPassiveSubscribers()
-        }
+        await sharedStream.restartPassiveSubscribers()
         preRollAcceptingSamples.withLock { $0 = true }
         await startWarmCaptureIfNeeded()
     }
@@ -333,8 +334,9 @@ public actor AudioRecorder {
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
         self.preRollAcceptingSamples.withLock { $0 = false }
-        self.preRollCaptureGeneration.withLock { $0 += 1 }
         self.sharedProcessingQueue.sync {}
+        self.preRollCaptureGeneration.withLock { $0 += 1 }
+        self.preRollConverterCache.reset()
         let preRollSamples: [Float] = instantDictationEnabled
             ? self.preRollBuffer.withLock { buffer in
                 let samples = buffer.suffix(maxSamples: Self.preRollPrependSamples)
@@ -351,6 +353,7 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollConverterCache.reset()
                 preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
@@ -501,6 +504,7 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollConverterCache.reset()
                 preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
@@ -529,6 +533,7 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollConverterCache.reset()
                 preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
@@ -599,6 +604,7 @@ public actor AudioRecorder {
         recording = false
         atomicAudioLevel.withLock { $0 = 0.0 }
         preRollCaptureGeneration.withLock { $0 += 1 }
+        preRollConverterCache.reset()
         preRollBuffer.withLock { $0.clear() }
         if instantDictationEnabled {
             let hasWarmSubscriber = warmSubscriberToken != nil
@@ -706,6 +712,8 @@ public actor AudioRecorder {
             guard let self else { return }
             self.preRollAcceptingSamples.withLock { $0 = false }
             self.preRollCaptureGeneration.withLock { $0 += 1 }
+            self.sharedProcessingQueue.sync {}
+            self.preRollConverterCache.reset()
             self.preRollBuffer.withLock { $0.clear() }
             Task { await self.handleWarmCaptureEngineDeath() }
         }
@@ -723,6 +731,7 @@ public actor AudioRecorder {
                 preRollAcceptingSamples.withLock { $0 = false }
                 preRollCaptureGeneration.withLock { $0 += 1 }
                 sharedProcessingQueue.sync {}
+                preRollConverterCache.reset()
                 preRollBuffer.withLock { $0.clear() }
                 await sharedStream.unsubscribe(token)
                 return
@@ -745,6 +754,7 @@ public actor AudioRecorder {
         preRollAcceptingSamples.withLock { $0 = false }
         preRollCaptureGeneration.withLock { $0 += 1 }
         sharedProcessingQueue.sync {}
+        preRollConverterCache.reset()
         preRollBuffer.withLock { $0.clear() }
         await sharedStream.unsubscribe(token)
         AudioCaptureDiagnostics.append("dictation_warm_capture_stopped")
@@ -1080,4 +1090,9 @@ func copyPCMBufferForAsyncUse(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
 private final class TapConverterCache: @unchecked Sendable {
     var converter: AVAudioConverter?
     var sourceFormat: AVAudioFormat?
+
+    func reset() {
+        converter = nil
+        sourceFormat = nil
+    }
 }

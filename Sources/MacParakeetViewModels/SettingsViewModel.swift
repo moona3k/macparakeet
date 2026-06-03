@@ -168,6 +168,7 @@ public final class SettingsViewModel {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
             if selectedMicrophoneDeviceUID != normalized {
                 selectedMicrophoneDeviceUID = normalized
+                return
             }
             if normalized == Self.systemDefaultMicrophoneSelection {
                 defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)

@@ -290,6 +290,18 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testSelectedMicrophoneNormalizesBlankSelectionToSystemDefault() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        var microphoneNotificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            microphoneNotificationCount += 1
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
         viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
         XCTAssertEqual(
             testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
@@ -300,6 +312,13 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedMicrophoneDeviceUID, SettingsViewModel.systemDefaultMicrophoneSelection)
         XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
+        XCTAssertEqual(microphoneNotificationCount, 2)
+
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.microphoneSelection, .microphoneSelection])
     }
 
     func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
