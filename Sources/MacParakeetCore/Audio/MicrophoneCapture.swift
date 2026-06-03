@@ -90,9 +90,7 @@ public func meetingInputDeviceAttempts(
     }
 
     let defaultDeviceID = defaultInputDevice()
-    if selectedUID == nil, let defaultDeviceID {
-        appendExplicit(.systemDefault, deviceID: defaultDeviceID)
-    } else if let defaultDeviceID {
+    if let defaultDeviceID {
         seenDeviceIDs.insert(defaultDeviceID)
     }
     attempts.append(.implicitSystemDefault(resolvedDeviceID: defaultDeviceID))
