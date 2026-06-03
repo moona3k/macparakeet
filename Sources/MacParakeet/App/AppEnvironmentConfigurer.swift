@@ -151,7 +151,8 @@ final class AppEnvironmentConfigurer {
         )
         llmSettingsViewModel.configure(
             configStore: env.llmConfigStore,
-            llmClient: env.llmClient
+            llmClient: env.llmClient,
+            aiFormatterProfileRepo: env.aiFormatterProfileRepo
         )
 
         settingsViewModel.onDictationStateChanged = { [weak self] in
@@ -263,6 +264,7 @@ final class AppEnvironmentConfigurer {
             sttRuntime: env.sttRuntime,
             runtimePreferences: env.runtimePreferences,
             permissionService: env.permissionService,
+            focusedAppContextService: env.focusedAppContextService,
             mediaPauseCoordinator: mediaPauseCoordinator,
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true

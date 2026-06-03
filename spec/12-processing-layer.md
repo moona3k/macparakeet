@@ -70,6 +70,25 @@ The Prompt Library is intentionally general-purpose. This spec locks summary/res
 
 Additional categories are future schema decisions and are not part of this spec.
 
+### Dictation AI Formatter Profiles
+
+Dictation AI Formatter app/category profiles are deliberately separate from the
+Prompt Library. They live in `ai_formatter_profiles` and are resolved by
+`AIFormatterProfileMatcher` before the formatter calls `LLMService`.
+
+Reasoning:
+
+- The global AI Formatter prompt is a runtime preference, not a Prompt Library
+  row.
+- Formatter profiles are keyed by local app context, not by a reusable
+  summary/transform prompt card.
+- Transform prompts already use `Prompt.Category.transform`; future per-app
+  Transform variants can reuse `AppPromptContext` and matcher concepts without
+  forcing Dictation Formatter storage into `prompts`.
+
+See [spec/11-llm-integration.md](11-llm-integration.md) for provider behavior
+and [spec/01-data-model.md](01-data-model.md) for the profile table.
+
 ---
 
 ## Prompt Library + Multi-Summary
@@ -324,6 +343,7 @@ Provider architecture is unchanged. The Prompt Library changes what goes into th
 | `summaries` table / `PromptResult` model (one-to-many) | Workflow engine / step chaining |
 | Prompt model + repository, including Transform prompt rows | Triggered automation |
 | PromptResult model + repository | Agent profiles / agent handoff |
+| Dictation AI Formatter profiles in `ai_formatter_profiles` | Browser hostname/domain matching |
 | Prompt chips + generation popover | Desktop-context collection |
 | Extra instructions field | Apple Shortcuts / App Intents integration |
 | Multi-summary tab navigation + queued pipeline | |

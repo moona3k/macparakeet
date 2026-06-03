@@ -262,6 +262,126 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
     }
 
+    // MARK: - AI Formatter Profiles
+
+    func testConfigureLoadsAIFormatterProfiles() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        let profile = AIFormatterProfile.category(
+            name: "Messaging",
+            appCategory: .messaging,
+            promptTemplate: "Messaging prompt"
+        )
+        try repo.save(profile)
+
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [profile.id])
+        XCTAssertNil(viewModel.aiFormatterProfileError)
+    }
+
+    func testSaveAIFormatterExactAppProfile() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .bundle)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Slack")
+        viewModel.updateAIFormatterProfileDraft(\.bundleIdentifier, to: " COM.TINYSPECK.SLACKMACGAP ")
+        viewModel.updateAIFormatterProfileDraft(\.appDisplayName, to: "Slack")
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "Slack prompt")
+
+        XCTAssertTrue(viewModel.saveAIFormatterProfileDraft())
+
+        let saved = try XCTUnwrap(repo.fetchAll().first)
+        XCTAssertEqual(saved.name, "Slack")
+        XCTAssertEqual(saved.targetKind, .bundle)
+        XCTAssertEqual(saved.bundleIdentifier, "com.tinyspeck.slackmacgap")
+        XCTAssertEqual(saved.appDisplayName, "Slack")
+        XCTAssertEqual(saved.promptTemplate, "Slack prompt")
+        XCTAssertNil(saved.appCategory)
+        XCTAssertNil(viewModel.aiFormatterProfileDraft)
+        XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [saved.id])
+    }
+
+    func testBlankAIFormatterProfilePromptIsRejected() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Email")
+        viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "   ")
+
+        XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "Prompt template is required.")
+        XCTAssertEqual(try repo.fetchAll().count, 0)
+        XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
+    }
+
+    func testDuplicateAIFormatterProfileSurfacesErrorAndKeepsDraft() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        try repo.save(AIFormatterProfile.category(
+            name: "Email",
+            appCategory: .email,
+            promptTemplate: "Email prompt"
+        ))
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Email 2")
+        viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
+
+        XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "A profile already exists for email.")
+        XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
+        XCTAssertEqual(try repo.fetchAll().count, 1)
+    }
+
+    func testToggleAndDeleteAIFormatterProfile() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        let profile = AIFormatterProfile.category(
+            name: "Terminal",
+            appCategory: .terminal,
+            promptTemplate: "Terminal prompt"
+        )
+        try repo.save(profile)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        let loaded = try XCTUnwrap(viewModel.aiFormatterProfiles.first)
+        viewModel.setAIFormatterProfile(loaded, enabled: false)
+        XCTAssertEqual(viewModel.aiFormatterProfiles.first?.isEnabled, false)
+
+        let disabled = try XCTUnwrap(viewModel.aiFormatterProfiles.first)
+        viewModel.deleteAIFormatterProfile(disabled)
+
+        XCTAssertTrue(viewModel.aiFormatterProfiles.isEmpty)
+        XCTAssertTrue(try repo.fetchAll().isEmpty)
+    }
+
     // MARK: - Test Connection
 
     func testConnectionSuccess() async throws {

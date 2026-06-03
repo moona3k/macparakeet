@@ -111,6 +111,9 @@ deriving it from the event name when older clients do not send the field.
 - File names or paths
 - YouTube URLs
 - LLM prompts or responses
+- AI Formatter profile names, profile ids, profile prompts, or match kinds
+- Exact app bundle identifiers or app display names
+- Browser hostnames, domains, URLs, or window titles
 - IP addresses
 - Microphone names, device UIDs, serial numbers, or hardware IDs
 - Persistent user identifiers across sessions
@@ -230,6 +233,14 @@ the bundle id never leaves the device, and any unrecognized app maps to
 appears on `transform_executed` / `transform_operation` (the app a Transform
 rewrote text in).
 
+Dictation AI Formatter profiles can use exact bundle IDs, app display names, and
+profile prompts locally to choose a formatter prompt and annotate saved
+dictation history. V1 does not add any formatter-profile telemetry fields:
+profile ids, profile names, profile match kinds, exact bundle IDs, app display
+names, and prompt bodies stay on-device. Future aggregate profile-adoption
+telemetry must update the paired website Worker allowlist and stats paths before
+shipping.
+
 `speech_engine` and `engine_variant` describe the STT engine that actually
 processed the audio. They come from `STTResult` attribution or persisted
 transcription output, not the user's current mutable engine setting. Unknown
@@ -299,6 +310,12 @@ events remain useful for diarization-specific timing and failure analysis.
 | `transcription_favorited` | `is_favorite` (true/false) | Which content types get saved? |
 | `dictation_undo_used` | — | Is the 5-second undo window used? |
 | `chat_conversation_created` | — | Multi-conversation adoption |
+
+Formatter profile routing is intentionally absent from the formatter telemetry
+props in V1. The existing `default_prompt_used` value can distinguish global
+default prompt usage from a custom prompt body, but it does not identify whether
+that custom prompt came from the global formatter preference or a local
+app/category profile.
 
 ### 4b. Meeting Recovery — "Does crash resilience work?"
 

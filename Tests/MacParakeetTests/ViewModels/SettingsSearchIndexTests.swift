@@ -106,6 +106,11 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testAIFormatterSearchEntryUsesFormatterAnchor() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.formatter" })
+        XCTAssertEqual(entry.cardAnchor, "ai.formatter")
+    }
+
     func testEveryTabHasAtLeastOneEntry() {
         let tabs = Set(SettingsSearchIndex.entries.map(\.tab))
         XCTAssertEqual(tabs, Set(SettingsTab.allCases), "Every tab should be reachable via search")

@@ -48,6 +48,99 @@ final class DictationRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.language, "ko")
     }
 
+    func testAIFormatterProfileMetadataRoundTrips() throws {
+        let profileID = UUID()
+        let dictation = Dictation(
+            durationMs: 1000,
+            rawTranscript: "profile test",
+            aiFormatterProfileID: profileID,
+            aiFormatterProfileName: "Slack Casual",
+            aiFormatterProfileMatchKind: .exactApp
+        )
+        try repo.save(dictation)
+
+        let fetched = try repo.fetch(id: dictation.id)
+        XCTAssertEqual(fetched?.aiFormatterProfileID, profileID)
+        XCTAssertEqual(fetched?.aiFormatterProfileName, "Slack Casual")
+        XCTAssertEqual(fetched?.aiFormatterProfileMatchKind, .exactApp)
+    }
+
+    func testFetchTreatsUnknownAIFormatterProfileMatchKindAsNil() throws {
+        let manager = try DatabaseManager()
+        let localRepo = DictationRepository(dbQueue: manager.dbQueue)
+        let dictation = Dictation(
+            durationMs: 1000,
+            rawTranscript: "profile test",
+            aiFormatterProfileMatchKind: .exactApp
+        )
+        try localRepo.save(dictation)
+
+        try manager.dbQueue.write { db in
+            try db.execute(sql: "UPDATE dictations SET aiFormatterProfileMatchKind = 'future_match_kind'")
+        }
+
+        let fetched = try XCTUnwrap(localRepo.fetch(id: dictation.id))
+        XCTAssertNil(fetched.aiFormatterProfileMatchKind)
+    }
+
+    func testSavingHiddenDictationAgainKeepsTranscriptScrubbed() throws {
+        let id = UUID()
+        let scrubbedHidden = Dictation(
+            id: id,
+            durationMs: 1000,
+            rawTranscript: "",
+            cleanTranscript: nil,
+            hidden: true,
+            wordCount: 2
+        )
+        try repo.save(scrubbedHidden)
+
+        var laterMetadataSave = scrubbedHidden
+        laterMetadataSave.rawTranscript = "private raw transcript"
+        laterMetadataSave.cleanTranscript = "private clean transcript"
+        laterMetadataSave.audioPath = "/tmp/private.wav"
+        laterMetadataSave.pastedToApp = "com.apple.TextEdit"
+        laterMetadataSave.aiFormatterProfileID = UUID()
+        laterMetadataSave.aiFormatterProfileName = "Private Profile"
+        laterMetadataSave.aiFormatterProfileMatchKind = .exactApp
+        laterMetadataSave.updatedAt = Date()
+        try repo.save(laterMetadataSave)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: id))
+        XCTAssertTrue(fetched.hidden)
+        XCTAssertEqual(fetched.rawTranscript, "")
+        XCTAssertNil(fetched.cleanTranscript)
+        XCTAssertNil(fetched.audioPath)
+        XCTAssertNil(fetched.pastedToApp)
+        XCTAssertNil(fetched.aiFormatterProfileID)
+        XCTAssertNil(fetched.aiFormatterProfileName)
+        XCTAssertNil(fetched.aiFormatterProfileMatchKind)
+    }
+
+    func testTopAppsExcludesHiddenDictations() throws {
+        let visible = Dictation(
+            durationMs: 1000,
+            rawTranscript: "visible",
+            pastedToApp: "com.apple.TextEdit",
+            wordCount: 2
+        )
+        let hidden = Dictation(
+            durationMs: 1000,
+            rawTranscript: "",
+            pastedToApp: "com.apple.Terminal",
+            hidden: true,
+            wordCount: 5
+        )
+
+        try repo.save(visible)
+        try repo.save(hidden)
+
+        let topApps = try repo.topApps(limit: 10)
+        XCTAssertEqual(topApps.count, 1)
+        XCTAssertEqual(topApps.first?.app, "com.apple.TextEdit")
+        XCTAssertEqual(topApps.first?.words, 2)
+    }
+
     func testLegacyDictationDecodesWithNilEngineFields() throws {
         let dictation = Dictation(
             durationMs: 1000,
@@ -59,6 +152,9 @@ final class DictationRepositoryTests: XCTestCase {
         XCTAssertNil(fetched?.engine)
         XCTAssertNil(fetched?.engineVariant)
         XCTAssertNil(fetched?.language)
+        XCTAssertNil(fetched?.aiFormatterProfileID)
+        XCTAssertNil(fetched?.aiFormatterProfileName)
+        XCTAssertNil(fetched?.aiFormatterProfileMatchKind)
     }
 
     func testFetchAll() throws {

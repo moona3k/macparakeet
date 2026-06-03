@@ -14,6 +14,7 @@ final class AppEnvironment {
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
     let llmRunRepo: LLMRunRepository
+    let aiFormatterProfileRepo: AIFormatterProfileRepository
     let transformHistoryRepo: TransformHistoryRepository
     let quickPromptRepo: QuickPromptRepository
     let sttRuntime: STTRuntime
@@ -37,6 +38,7 @@ final class AppEnvironment {
     let exportService: ExportService
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
+    let focusedAppContextService: FocusedAppContextService
     let entitlementsService: EntitlementsService
     let launchAtLoginService: LaunchAtLoginService
     let checkoutURL: URL?
@@ -59,6 +61,7 @@ final class AppEnvironment {
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
         llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
+        aiFormatterProfileRepo = AIFormatterProfileRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
@@ -118,6 +121,7 @@ final class AppEnvironment {
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
+        focusedAppContextService = FocusedAppContextService()
         launchAtLoginService = LaunchAtLoginService()
 
         // Retained purchase activation / entitlements. Current free/GPL builds
@@ -179,6 +183,10 @@ final class AppEnvironment {
         let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
         }
+        let aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
+            profileRepository: aiFormatterProfileRepo,
+            globalPromptTemplate: aiFormatterPromptClosure
+        )
 
         llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
@@ -204,7 +212,7 @@ final class AppEnvironment {
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
-            aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            aiFormatterPromptResolver: aiFormatterPromptResolver,
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a
                 // dictation ever completes on this install. `activation_window`
