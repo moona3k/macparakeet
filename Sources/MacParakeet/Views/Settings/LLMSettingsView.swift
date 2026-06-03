@@ -409,10 +409,12 @@ struct LLMSettingsView: View {
                 }
             }
 
-            Divider()
+            if AppFeatures.aiFormatterProfilesEnabled {
+                Divider()
 
-            aiFormatterProfilesSection
-                .id("ai.formatter")
+                aiFormatterProfilesSection
+                    .id("ai.formatter")
+            }
         }
     }
 

@@ -73,9 +73,9 @@ public struct SettingsSearchEntry: Identifiable, Hashable, Sendable {
 /// Anchor drift is currently caught by manual review — the index and
 /// the view are coupled by string convention, not by a compiler check.
 ///
-/// **Feature flags:** entries pointing at meeting-recording surfaces
-/// are filtered out when `AppFeatures.meetingRecordingEnabled` is
-/// `false`, so search never lands on a card or row that won't render.
+/// **Feature flags:** entries pointing at gated surfaces are filtered out
+/// when their `AppFeatures` flag is `false`, so search never lands on a
+/// card or row that won't render.
 public enum SettingsSearchIndex {
     /// Ids whose destination card or row is gated on
     /// `AppFeatures.meetingRecordingEnabled`. When the flag is off these
@@ -94,6 +94,13 @@ public enum SettingsSearchIndex {
         "meeting.calendar"
     ]
 
+    /// Ids gated on `AppFeatures.aiFormatterProfilesEnabled`. The global AI
+    /// Formatter prompt remains visible via `ai.provider`; only app/category
+    /// profile management is hidden by this gate.
+    private static let aiFormatterProfileGatedIds: Set<String> = [
+        "ai.formatter"
+    ]
+
     public static let entries: [SettingsSearchEntry] = {
         var result = allEntries
         if !AppFeatures.meetingRecordingEnabled {
@@ -101,6 +108,9 @@ public enum SettingsSearchIndex {
         }
         if !AppFeatures.calendarEnabled {
             result = result.filter { !calendarGatedIds.contains($0.id) }
+        }
+        if !AppFeatures.aiFormatterProfilesEnabled {
+            result = result.filter { !aiFormatterProfileGatedIds.contains($0.id) }
         }
         return result
     }()

@@ -152,7 +152,7 @@ final class AppEnvironmentConfigurer {
         llmSettingsViewModel.configure(
             configStore: env.llmConfigStore,
             llmClient: env.llmClient,
-            aiFormatterProfileRepo: env.aiFormatterProfileRepo
+            aiFormatterProfileRepo: AppFeatures.aiFormatterProfilesEnabled ? env.aiFormatterProfileRepo : nil
         )
 
         settingsViewModel.onDictationStateChanged = { [weak self] in

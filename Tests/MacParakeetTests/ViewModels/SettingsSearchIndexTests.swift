@@ -107,8 +107,12 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testAIFormatterSearchEntryUsesFormatterAnchor() throws {
-        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.formatter" })
-        XCTAssertEqual(entry.cardAnchor, "ai.formatter")
+        let entry = SettingsSearchIndex.entries.first { $0.id == "ai.formatter" }
+        if AppFeatures.aiFormatterProfilesEnabled {
+            XCTAssertEqual(try XCTUnwrap(entry).cardAnchor, "ai.formatter")
+        } else {
+            XCTAssertNil(entry)
+        }
     }
 
     func testEveryTabHasAtLeastOneEntry() {

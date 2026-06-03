@@ -183,10 +183,17 @@ final class AppEnvironment {
         let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
         }
-        let aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
-            profileRepository: aiFormatterProfileRepo,
-            globalPromptTemplate: aiFormatterPromptClosure
-        )
+        let aiFormatterPromptResolver: any AIFormatterPromptResolving
+        if AppFeatures.aiFormatterProfilesEnabled {
+            aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
+                profileRepository: aiFormatterProfileRepo,
+                globalPromptTemplate: aiFormatterPromptClosure
+            )
+        } else {
+            aiFormatterPromptResolver = AIFormatterGlobalPromptResolver(
+                promptTemplate: aiFormatterPromptClosure
+            )
+        }
 
         llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
