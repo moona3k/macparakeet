@@ -8,10 +8,10 @@
 
 `SharedMicrophoneStream` — the process-wide microphone source. Every
 consumer (dictation, meeting mic) calls
-`subscribe(wantsVPIO:onEngineDeath:handler:)` and receives every
-buffer. The stream owns engine lifecycle, VPIO arbitration, and
-fan-out. There is exactly one instance per process, owned by
-`AppEnvironment`.
+`subscribe(wantsVPIO:blocksVPIOPromotion:onEngineDeath:handler:)`
+and receives every buffer. The stream owns engine lifecycle, VPIO
+arbitration, and fan-out. There is exactly one instance per process,
+owned by `AppEnvironment`.
 
 ## What's here
 
@@ -27,7 +27,11 @@ fan-out. There is exactly one instance per process, owned by
 - `AudioRecorder.swift` — dictation capture.
   `subscribe(wantsVPIO: false)`. Writes 16 kHz mono Float32 WAVs to
   `$TMPDIR/macparakeet/`. Owns the dictation diagnostic timers
-  (first-buffer watchdog + recording heartbeat).
+  (first-buffer watchdog + recording heartbeat). Optional Instant
+  Dictation keeps a passive warm subscriber attached while idle,
+  stores a 1-second RAM-only 16 kHz mono ring buffer, and prepends up
+  to 0.45 seconds when the user starts dictation. It does not run STT
+  while idle.
 - `MicrophoneCapture.swift` — meeting microphone capture. Subscribes
   with `wantsVPIO: false` by default via `MeetingMicProcessingMode.raw`.
   VPIO modes remain available for explicit experiments, with raw fallback
@@ -100,6 +104,15 @@ this. Don't try to disengage VPIO mid-session — coreaudiod attaches
 the VPAU aggregate device to the **process**, and toggling VPIO mid-
 flight changes the input format under live subscribers.
 
+**Passive warm subscribers do not block VPIO promotion.** User-visible
+raw capture sessions (`AudioRecorder` active dictation and
+`MicrophoneCapture` raw meeting mic) keep `blocksVPIOPromotion=true`
+so an explicit VPIO request is deferred until they leave. The Instant
+Dictation warm/pre-roll lease passes `blocksVPIOPromotion=false`: it
+may keep the shared engine running while idle, but it is not a
+recording session and must not prevent a meeting experiment from
+promoting the process-wide engine to VPIO.
+
 **Channel 0 mono extraction is mandatory when VPIO is engaged.** VPIO
 exposes a duplex layout (typically `ch=9`) where only ch[0] is the
 post-AEC processed mono and the rest are reference channels. Use
@@ -120,6 +133,12 @@ actor hops, no `await`. State touched from the tap path uses
 passed in is valid only for the synchronous duration of the call —
 copy via `copyPCMBufferForAsyncUse` before retaining or dispatching
 async.
+
+**Warm pre-roll is in-memory only.** Instant Dictation's idle audio is
+bounded to the private ring in `AudioRecorder`, cleared when recording
+starts/stops, when the setting is disabled, and when the warm engine
+dies. The only persisted audio remains the normal dictation WAV after
+the user starts dictation.
 
 **Diagnostic logging is observability-only.** The first-buffer
 watchdog and recording heartbeat in `AudioRecorder` log to

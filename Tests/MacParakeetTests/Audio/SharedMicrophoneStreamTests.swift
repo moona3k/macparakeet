@@ -125,6 +125,51 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         XCTAssertEqual(platform.stopEngineCallCount, 1)
     }
 
+    func testPassiveWarmSubscriberDoesNotBlockVPIOPromotion() async throws {
+        let warm = try await stream.subscribe(
+            wantsVPIO: false,
+            blocksVPIOPromotion: false
+        ) { _, _ in }
+
+        XCTAssertEqual(platform.configureAndStartCalls.count, 1)
+        XCTAssertEqual(platform.configureAndStartCalls.last?.vpioEnabled, false)
+        XCTAssertEqual(stream.diagnostics.passiveSubscriberCount, 1)
+
+        let vpio = try await stream.subscribe(wantsVPIO: true) { _, _ in }
+
+        XCTAssertEqual(platform.configureAndStartCalls.count, 2)
+        XCTAssertEqual(platform.configureAndStartCalls.last?.vpioEnabled, true)
+        XCTAssertTrue(stream.diagnostics.vpioEngaged)
+        XCTAssertFalse(stream.diagnostics.vpioDeferred)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 2)
+
+        await stream.unsubscribe(warm)
+        await stream.unsubscribe(vpio)
+    }
+
+    func testActiveNonVPIOSubscriberStillBlocksVPIOWhenPassiveWarmSubscriberExists() async throws {
+        let warm = try await stream.subscribe(
+            wantsVPIO: false,
+            blocksVPIOPromotion: false
+        ) { _, _ in }
+        let active = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+        let vpio = try await stream.subscribe(wantsVPIO: true) { _, _ in }
+
+        XCTAssertEqual(platform.configureAndStartCalls.count, 1)
+        XCTAssertFalse(stream.diagnostics.vpioEngaged)
+        XCTAssertTrue(stream.diagnostics.vpioDeferred)
+
+        await stream.unsubscribe(warm)
+        XCTAssertTrue(stream.diagnostics.vpioDeferred, "active raw subscriber should still block promotion")
+
+        await stream.unsubscribe(active)
+        XCTAssertEqual(platform.configureAndStartCalls.count, 2)
+        XCTAssertEqual(platform.configureAndStartCalls.last?.vpioEnabled, true)
+        XCTAssertTrue(stream.diagnostics.vpioEngaged)
+
+        await stream.unsubscribe(vpio)
+    }
+
     func testDeferredVPIOClearsWhenVPIOSubscriberLeavesBeforePromotion() async throws {
         let t1 = try await stream.subscribe(wantsVPIO: false) { _, _ in }
         let t2 = try await stream.subscribe(wantsVPIO: true) { _, _ in }

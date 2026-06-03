@@ -16,6 +16,8 @@ final class AppSettingsObserverCoordinator {
     private let onAppearanceModeChanged: () -> Void
     private let onMenuBarOnlyModeChanged: () -> Void
     private let onShowIdlePillChanged: () -> Void
+    private let onInstantDictationChanged: () -> Void
+    private let onMicrophoneSelectionChanged: () -> Void
 
     private var onboardingObserver: Any?
     private var settingsObserver: Any?
@@ -27,6 +29,8 @@ final class AppSettingsObserverCoordinator {
     private var appearanceModeObserver: Any?
     private var menuBarOnlyModeObserver: Any?
     private var showIdlePillObserver: Any?
+    private var instantDictationObserver: Any?
+    private var microphoneSelectionObserver: Any?
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -39,7 +43,9 @@ final class AppSettingsObserverCoordinator {
         onYouTubeTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
         onAppearanceModeChanged: @escaping () -> Void,
         onMenuBarOnlyModeChanged: @escaping () -> Void,
-        onShowIdlePillChanged: @escaping () -> Void
+        onShowIdlePillChanged: @escaping () -> Void,
+        onInstantDictationChanged: @escaping () -> Void,
+        onMicrophoneSelectionChanged: @escaping () -> Void
     ) {
         self.notificationCenter = notificationCenter
         self.onOpenOnboarding = onOpenOnboarding
@@ -52,6 +58,8 @@ final class AppSettingsObserverCoordinator {
         self.onAppearanceModeChanged = onAppearanceModeChanged
         self.onMenuBarOnlyModeChanged = onMenuBarOnlyModeChanged
         self.onShowIdlePillChanged = onShowIdlePillChanged
+        self.onInstantDictationChanged = onInstantDictationChanged
+        self.onMicrophoneSelectionChanged = onMicrophoneSelectionChanged
     }
 
     func startObserving() {
@@ -157,6 +165,26 @@ final class AppSettingsObserverCoordinator {
                 self?.onShowIdlePillChanged()
             }
         }
+
+        instantDictationObserver = notificationCenter.addObserver(
+            forName: .macParakeetInstantDictationDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.onInstantDictationChanged()
+            }
+        }
+
+        microphoneSelectionObserver = notificationCenter.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.onMicrophoneSelectionChanged()
+            }
+        }
     }
 
     nonisolated private static func settingsTab(from notification: Notification) -> SettingsTab? {
@@ -206,6 +234,14 @@ final class AppSettingsObserverCoordinator {
         if let showIdlePillObserver {
             notificationCenter.removeObserver(showIdlePillObserver)
             self.showIdlePillObserver = nil
+        }
+        if let instantDictationObserver {
+            notificationCenter.removeObserver(instantDictationObserver)
+            self.instantDictationObserver = nil
+        }
+        if let microphoneSelectionObserver {
+            notificationCenter.removeObserver(microphoneSelectionObserver)
+            self.microphoneSelectionObserver = nil
         }
     }
 }

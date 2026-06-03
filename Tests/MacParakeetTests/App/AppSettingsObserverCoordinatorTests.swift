@@ -25,6 +25,8 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         var appearanceModeCount = 0
         var menuBarOnlyCount = 0
         var showIdlePillCount = 0
+        var instantDictationCount = 0
+        var microphoneSelectionCount = 0
         var onCallback: (() -> Void)?
 
         lazy var coordinator: AppSettingsObserverCoordinator = AppSettingsObserverCoordinator(
@@ -69,6 +71,14 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
             onShowIdlePillChanged: { [unowned self] in
                 self.showIdlePillCount += 1
                 self.onCallback?()
+            },
+            onInstantDictationChanged: { [unowned self] in
+                self.instantDictationCount += 1
+                self.onCallback?()
+            },
+            onMicrophoneSelectionChanged: { [unowned self] in
+                self.microphoneSelectionCount += 1
+                self.onCallback?()
             }
         )
     }
@@ -78,7 +88,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
     func test_startObserving_routesEachNotificationToItsCallback() async {
         let fx = Fixture()
         let callbacks = expectation(description: "all callbacks fire")
-        callbacks.expectedFulfillmentCount = 10
+        callbacks.expectedFulfillmentCount = 12
         fx.onCallback = { callbacks.fulfill() }
         fx.coordinator.startObserving()
 
@@ -92,6 +102,8 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.center.post(name: .macParakeetAppearanceModeDidChange, object: nil)
         fx.center.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
         fx.center.post(name: .macParakeetShowIdlePillDidChange, object: nil)
+        fx.center.post(name: .macParakeetInstantDictationDidChange, object: nil)
+        fx.center.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
 
         await fulfillment(of: [callbacks], timeout: 1.0)
 
@@ -106,6 +118,8 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.appearanceModeCount, 1)
         XCTAssertEqual(fx.menuBarOnlyCount, 1)
         XCTAssertEqual(fx.showIdlePillCount, 1)
+        XCTAssertEqual(fx.instantDictationCount, 1)
+        XCTAssertEqual(fx.microphoneSelectionCount, 1)
     }
 
     func test_stopObserving_removesAllObservers() async {
@@ -126,6 +140,8 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.center.post(name: .macParakeetAppearanceModeDidChange, object: nil)
         fx.center.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
         fx.center.post(name: .macParakeetShowIdlePillDidChange, object: nil)
+        fx.center.post(name: .macParakeetInstantDictationDidChange, object: nil)
+        fx.center.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
 
         await fulfillment(of: [noCallbacks], timeout: 0.2)
 
@@ -140,6 +156,8 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.appearanceModeCount, 0)
         XCTAssertEqual(fx.menuBarOnlyCount, 0)
         XCTAssertEqual(fx.showIdlePillCount, 0)
+        XCTAssertEqual(fx.instantDictationCount, 0)
+        XCTAssertEqual(fx.microphoneSelectionCount, 0)
     }
 
     func test_startObserving_isIdempotent_doesNotDoubleFire() async {

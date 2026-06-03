@@ -73,6 +73,94 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         }
     }
 
+    func testInstantDictationPrependsWarmPreRoll() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        XCTAssertTrue(stream.diagnostics.engineRunning)
+        XCTAssertEqual(stream.diagnostics.passiveSubscriberCount, 1)
+
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 12_000)
+        XCTAssertEqual(samples[0], 0.6, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_199], 0.6, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_200], 0.2, accuracy: 0.0001)
+        XCTAssertEqual(samples[11_999], 0.2, accuracy: 0.0001)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 1, "warm passive subscriber should remain after dictation stop")
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testInstantDictationIncludesQueuedWarmPreRollAtStart() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.8))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 12_000)
+        XCTAssertEqual(samples[0], 0.8, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_199], 0.8, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_200], 0.2, accuracy: 0.0001)
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testInstantDictationDoesNotCarryPreviousRecordingTailIntoNextStart() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.7))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+        let firstURL = try await recorder.stop()
+        try? FileManager.default.removeItem(at: firstURL)
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.4))
+        let secondURL = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: secondURL) }
+
+        let samples = try readFloatSamples(from: secondURL)
+        XCTAssertEqual(samples.count, 4_800)
+        XCTAssertEqual(try XCTUnwrap(samples.first), 0.4, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(samples.last), 0.4, accuracy: 0.0001)
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
     func testSharedModeStopDuringStartAbortsPendingSubscription() async throws {
         let platform = AudioRecorderBlockingPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
@@ -282,6 +370,17 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             samples[index] = sampleValue
         }
         return buffer
+    }
+
+    private func readFloatSamples(from url: URL) throws -> [Float] {
+        let file = try AVAudioFile(forReading: url)
+        let frameCount = AVAudioFrameCount(file.length)
+        let buffer = try XCTUnwrap(
+            AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount)
+        )
+        try file.read(into: buffer)
+        let samples = try XCTUnwrap(buffer.floatChannelData?[0])
+        return (0..<Int(buffer.frameLength)).map { samples[$0] }
     }
 }
 

@@ -33,6 +33,69 @@ private struct RecordingRuntimeMetrics: Sendable {
     var invalidFormatBufferCount: Int = 0
 }
 
+private struct DictationPreRollRingBuffer: Sendable {
+    private let capacitySamples: Int
+    private var storage: [Float]
+    private var startIndex = 0
+    private var sampleCount = 0
+
+    init(capacitySamples: Int) {
+        self.capacitySamples = max(1, capacitySamples)
+        self.storage = Array(repeating: 0, count: max(1, capacitySamples))
+    }
+
+    mutating func append(_ samples: UnsafePointer<Float>, count incomingCount: Int) {
+        guard incomingCount > 0 else { return }
+
+        if incomingCount >= capacitySamples {
+            let offset = incomingCount - capacitySamples
+            for index in 0..<capacitySamples {
+                storage[index] = samples[offset + index]
+            }
+            startIndex = 0
+            sampleCount = capacitySamples
+            return
+        }
+
+        for index in 0..<incomingCount {
+            let writeIndex = (startIndex + sampleCount) % capacitySamples
+            storage[writeIndex] = samples[index]
+            if sampleCount < capacitySamples {
+                sampleCount += 1
+            } else {
+                startIndex = (startIndex + 1) % capacitySamples
+            }
+        }
+    }
+
+    mutating func append(_ samples: [Float]) {
+        samples.withUnsafeBufferPointer { pointer in
+            guard let baseAddress = pointer.baseAddress else { return }
+            append(baseAddress, count: samples.count)
+        }
+    }
+
+    mutating func clear() {
+        startIndex = 0
+        sampleCount = 0
+    }
+
+    func suffix(maxSamples: Int) -> [Float] {
+        let count = min(sampleCount, max(0, maxSamples))
+        guard count > 0 else { return [] }
+
+        let firstSampleIndex = sampleCount - count
+        return (0..<count).map { offset in
+            storage[(startIndex + firstSampleIndex + offset) % capacitySamples]
+        }
+    }
+}
+
+private struct UncheckedSendableFloatSamples: @unchecked Sendable {
+    let baseAddress: UnsafePointer<Float>
+    let count: Int
+}
+
 /// Holds the per-recording diagnostic generation. The first-buffer timeout
 /// fires once if no buffer has been delivered within
 /// `firstBufferTimeoutSeconds` after `dictation_capture_engine_started`; the
@@ -63,6 +126,8 @@ public actor AudioRecorder {
     private let sharedStream: SharedMicrophoneStream
     private var audioFile: AVAudioFile?
     private var sharedSubscriberToken: SharedMicrophoneStream.SubscriberToken?
+    private var warmSubscriberToken: SharedMicrophoneStream.SubscriberToken?
+    private var instantDictationEnabled = false
     /// Thread-safe sample counter updated synchronously from the audio tap callback.
     /// Using OSAllocatedUnfairLock because the tap runs on the real-time audio thread,
     /// and actor-hopped Tasks would race with stop() on the actor queue.
@@ -75,6 +140,14 @@ public actor AudioRecorder {
     nonisolated private let runtimeMetrics = OSAllocatedUnfairLock(
         initialState: RecordingRuntimeMetrics()
     )
+    nonisolated private let preRollBuffer = OSAllocatedUnfairLock(
+        initialState: DictationPreRollRingBuffer(
+            capacitySamples: Int(Double(ASRConstants.sampleRate) * 1.0)
+        )
+    )
+    nonisolated private let preRollAcceptingSamples = OSAllocatedUnfairLock(initialState: false)
+    nonisolated private let preRollCaptureGeneration = OSAllocatedUnfairLock(initialState: 0)
+    nonisolated private let preRollConverterCache = TapConverterCache()
     nonisolated private let firstBufferLogged = OSAllocatedUnfairLock(initialState: false)
     nonisolated private let sharedProcessingQueue = DispatchQueue(
         label: "com.macparakeet.audio-recorder.shared-processing",
@@ -108,6 +181,7 @@ public actor AudioRecorder {
     private var startCallGeneration: Int = 0
 
     private static let outputSampleRate = ASRConstants.sampleRate
+    private static let preRollPrependSamples = Int(Double(outputSampleRate) * 0.45)
 
     /// Minimum samples before sending to STT. Mirrors FluidAudio's ASR guard,
     /// currently 0.3 seconds at 16 kHz.
@@ -150,6 +224,41 @@ public actor AudioRecorder {
     /// telemetry treats `nil` as "device unknown".
     public var deviceInfo: RecordingDeviceInfo? {
         nil
+    }
+
+    public func setInstantDictationEnabled(_ enabled: Bool) async {
+        guard enabled != instantDictationEnabled else {
+            if enabled {
+                await startWarmCaptureIfNeeded()
+            }
+            return
+        }
+
+        instantDictationEnabled = enabled
+        if enabled {
+            preRollCaptureGeneration.withLock { $0 += 1 }
+            preRollBuffer.withLock { $0.clear() }
+            let shouldAcceptPreRoll = !recording && !starting
+            preRollAcceptingSamples.withLock { $0 = shouldAcceptPreRoll }
+            await startWarmCaptureIfNeeded()
+        } else {
+            preRollAcceptingSamples.withLock { $0 = false }
+            preRollCaptureGeneration.withLock { $0 += 1 }
+            sharedProcessingQueue.sync {}
+            preRollBuffer.withLock { $0.clear() }
+            await stopWarmCapture()
+        }
+    }
+
+    public func refreshInstantDictationWarmCapture() async {
+        guard instantDictationEnabled else { return }
+        guard !recording, !starting else { return }
+
+        await stopWarmCapture()
+        preRollCaptureGeneration.withLock { $0 += 1 }
+        preRollBuffer.withLock { $0.clear() }
+        preRollAcceptingSamples.withLock { $0 = true }
+        await startWarmCaptureIfNeeded()
     }
 
     /// Subscribe to the shared microphone stream and start writing converted
@@ -206,6 +315,29 @@ public actor AudioRecorder {
         self.firstBufferLogged.withLock { $0 = false }
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
+        self.preRollAcceptingSamples.withLock { $0 = false }
+        self.sharedProcessingQueue.sync {}
+        let preRollSamples: [Float] = instantDictationEnabled
+            ? self.preRollBuffer.withLock { buffer in
+                let samples = buffer.suffix(maxSamples: Self.preRollPrependSamples)
+                buffer.clear()
+                return samples
+            }
+            : []
+        do {
+            if !preRollSamples.isEmpty {
+                try writePreRollSamples(preRollSamples, to: file, format: outputFormat)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            if instantDictationEnabled {
+                let hasWarmSubscriber = warmSubscriberToken != nil
+                preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+            }
+            throw error
+        }
+        self.preRollCaptureGeneration.withLock { $0 += 1 }
 
         let preSubscribeGeneration = self.sessionGeneration.withLock { $0 }
         let tapGeneration = preSubscribeGeneration
@@ -282,54 +414,12 @@ public actor AudioRecorder {
                 return
             }
 
-            if tapConverterNeedsRebuild(
-                cachedSourceFormat: converterCache.sourceFormat,
-                incomingBufferFormat: bufferFormat
+            switch convertDictationBuffer(
+                monoBuffer,
+                outputFormat: outputFormatBox.format,
+                converterCache: converterCache
             ) {
-                converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormatBox.format)
-                converterCache.sourceFormat = bufferFormat
-            }
-            guard let converter = converterCache.converter else {
-                let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                    let was = logged; logged = true; return was
-                }
-                if !alreadyLogged {
-                    let sr = bufferFormat.sampleRate
-                    let ch = bufferFormat.channelCount
-                    Task { await self.logTapError("converter_init_failed sr=\(sr) ch=\(ch)") }
-                }
-                return
-            }
-
-            let outputFrameCapacity = AVAudioFrameCount(
-                ceil(Double(monoBuffer.frameLength) * outputFormatBox.format.sampleRate / bufferFormat.sampleRate)
-            )
-            guard outputFrameCapacity > 0,
-                  let convertedBuffer = AVAudioPCMBuffer(
-                      pcmFormat: outputFormatBox.format,
-                      frameCapacity: outputFrameCapacity
-                  )
-            else { return }
-
-            let inputBuffer = UncheckedSendableAudioPCMBuffer(monoBuffer)
-            let inputConsumed = OSAllocatedUnfairLock(initialState: false)
-            var error: NSError?
-            let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-                let shouldProvideInput = inputConsumed.withLock { consumed -> Bool in
-                    guard !consumed else { return false }
-                    consumed = true
-                    return true
-                }
-                if !shouldProvideInput {
-                    outStatus.pointee = .noDataNow
-                    return nil
-                }
-                outStatus.pointee = .haveData
-                return inputBuffer.buffer
-            }
-
-            switch status {
-            case .haveData:
+            case .converted(let convertedBuffer):
                 guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
                 do {
                     let convertedFrameLength = Int(convertedBuffer.frameLength)
@@ -345,17 +435,14 @@ public actor AudioRecorder {
                         Task { await self.logTapError("audio_write_error \(errorFields)") }
                     }
                 }
-            case .error:
+            case .failed(let message):
                 let alreadyLogged = self.tapErrorLogged.withLock { logged in
                     let was = logged; logged = true; return was
                 }
                 if !alreadyLogged {
-                    let errorFields = error.map(AudioCaptureDiagnostics.errorFields) ?? "error_type=unknown"
-                    Task { await self.logTapError("converter_error \(errorFields)") }
+                    Task { await self.logTapError(message) }
                 }
-            case .endOfStream, .inputRanDry:
-                break
-            @unknown default:
+            case .noData:
                 break
             }
         }
@@ -393,6 +480,11 @@ public actor AudioRecorder {
             )
         } catch {
             try? FileManager.default.removeItem(at: url)
+            if instantDictationEnabled {
+                let hasWarmSubscriber = warmSubscriberToken != nil
+                preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+            }
             AudioCaptureDiagnostics.append(
                 "dictation_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
             )
@@ -415,6 +507,11 @@ public actor AudioRecorder {
             let stream = sharedStream
             Task { await stream.unsubscribe(token) }
             try? FileManager.default.removeItem(at: url)
+            if instantDictationEnabled {
+                let hasWarmSubscriber = warmSubscriberToken != nil
+                preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+            }
             AudioCaptureDiagnostics.append(
                 "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\""
             )
@@ -481,6 +578,15 @@ public actor AudioRecorder {
         audioFile = nil
         recording = false
         atomicAudioLevel.withLock { $0 = 0.0 }
+        preRollCaptureGeneration.withLock { $0 += 1 }
+        preRollBuffer.withLock { $0.clear() }
+        if instantDictationEnabled {
+            let hasWarmSubscriber = warmSubscriberToken != nil
+            preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+            if warmSubscriberToken == nil {
+                Task { await self.startWarmCaptureIfNeeded() }
+            }
+        }
 
         let url = outputURL
         outputURL = nil
@@ -514,6 +620,120 @@ public actor AudioRecorder {
         AudioCaptureDiagnostics.append("dictation_capture_tap_error \(message)")
     }
 
+    private func writePreRollSamples(
+        _ samples: [Float],
+        to file: AVAudioFile,
+        format: AVAudioFormat
+    ) throws {
+        guard !samples.isEmpty,
+              let buffer = AVAudioPCMBuffer(
+                  pcmFormat: format,
+                  frameCapacity: AVAudioFrameCount(samples.count)
+              ),
+              let destination = buffer.floatChannelData?[0] else {
+            return
+        }
+
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { pointer in
+            if let baseAddress = pointer.baseAddress {
+                destination.update(from: baseAddress, count: samples.count)
+            }
+        }
+        try file.write(from: buffer)
+        sampleCounter.withLock { $0 += samples.count }
+        runtimeMetrics.withLock { $0.outputBufferCount += 1 }
+        let duration = Double(samples.count) / Double(Self.outputSampleRate)
+        AudioCaptureDiagnostics.append(
+            "dictation_capture_preroll_prepend sample_count=\(samples.count) duration_s=\(String(format: "%.3f", duration))"
+        )
+    }
+
+    private func startWarmCaptureIfNeeded() async {
+        guard instantDictationEnabled, warmSubscriberToken == nil else { return }
+        guard permissionProvider() else {
+            preRollAcceptingSamples.withLock { $0 = false }
+            AudioCaptureDiagnostics.append("dictation_warm_capture_start_skipped reason=\"permission_denied\"")
+            return
+        }
+
+        let bufferHandler: SharedMicrophoneStream.BufferHandler = { [weak self] buffer, _ in
+            guard let self else { return }
+            guard self.preRollAcceptingSamples.withLock({ $0 }) else { return }
+            let generation = self.preRollCaptureGeneration.withLock { $0 }
+            guard let copiedBuffer = copyPCMBufferForAsyncUse(buffer) else { return }
+            let copiedBufferBox = UncheckedSendableAudioPCMBuffer(copiedBuffer)
+            self.sharedProcessingQueue.async {
+                self.appendPreRollBuffer(copiedBufferBox.buffer, generation: generation)
+            }
+        }
+        let deathHandler: SharedMicrophoneStream.EngineDeathHandler = { [weak self] in
+            guard let self else { return }
+            self.preRollAcceptingSamples.withLock { $0 = false }
+            self.preRollCaptureGeneration.withLock { $0 += 1 }
+            self.preRollBuffer.withLock { $0.clear() }
+            Task { await self.handleWarmCaptureEngineDeath() }
+        }
+
+        do {
+            let token = try await sharedStream.subscribe(
+                wantsVPIO: false,
+                blocksVPIOPromotion: false,
+                onEngineDeath: deathHandler,
+                handler: bufferHandler
+            )
+            warmSubscriberToken = token
+            let shouldAcceptPreRoll = !recording && !starting
+            preRollAcceptingSamples.withLock { $0 = shouldAcceptPreRoll }
+            AudioCaptureDiagnostics.append("dictation_warm_capture_started preroll_s=0.450")
+        } catch {
+            preRollAcceptingSamples.withLock { $0 = false }
+            AudioCaptureDiagnostics.append(
+                "dictation_warm_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
+            )
+        }
+    }
+
+    private func stopWarmCapture() async {
+        guard let token = warmSubscriberToken else { return }
+        warmSubscriberToken = nil
+        preRollAcceptingSamples.withLock { $0 = false }
+        preRollCaptureGeneration.withLock { $0 += 1 }
+        sharedProcessingQueue.sync {}
+        preRollBuffer.withLock { $0.clear() }
+        await sharedStream.unsubscribe(token)
+        AudioCaptureDiagnostics.append("dictation_warm_capture_stopped")
+    }
+
+    private func handleWarmCaptureEngineDeath() {
+        warmSubscriberToken = nil
+        Task {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            await self.startWarmCaptureIfNeeded()
+        }
+    }
+
+    nonisolated private func appendPreRollBuffer(_ buffer: AVAudioPCMBuffer, generation: Int) {
+        guard preRollCaptureGeneration.withLock({ $0 }) == generation else { return }
+        guard let monoBuffer = extractChannelZero(from: buffer) else { return }
+        guard monoBuffer.format.sampleRate > 0, monoBuffer.format.channelCount > 0 else { return }
+        guard case .converted(let convertedBuffer) = convertDictationBuffer(
+            monoBuffer,
+            outputFormat: Self.preRollOutputFormatBox.format,
+            converterCache: preRollConverterCache
+        ) else {
+            return
+        }
+        let frameCount = Int(convertedBuffer.frameLength)
+        guard frameCount > 0, let samples = convertedBuffer.floatChannelData?[0] else { return }
+        let sampleView = UncheckedSendableFloatSamples(
+            baseAddress: UnsafePointer(samples),
+            count: frameCount
+        )
+        guard preRollCaptureGeneration.withLock({ $0 }) == generation else { return }
+        preRollBuffer.withLock { $0.append(sampleView.baseAddress, count: sampleView.count) }
+    }
+
     private static func fileSizeBytes(at url: URL) -> UInt64? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = attributes[.size] as? UInt64 else {
@@ -521,6 +741,15 @@ public actor AudioRecorder {
         }
         return size
     }
+
+    nonisolated private static let preRollOutputFormatBox = UncheckedSendableAudioFormat(
+        AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: Double(outputSampleRate),
+            channels: 1,
+            interleaved: false
+        )!
+    )
 
     // MARK: - Capture diagnostics (log-only)
 
@@ -619,6 +848,72 @@ func tapConverterNeedsRebuild(
     incomingBufferFormat: AVAudioFormat
 ) -> Bool {
     cachedSourceFormat?.isEqual(incomingBufferFormat) != true
+}
+
+private enum DictationBufferConversionResult {
+    case converted(AVAudioPCMBuffer)
+    case noData
+    case failed(String)
+}
+
+private func convertDictationBuffer(
+    _ monoBuffer: AVAudioPCMBuffer,
+    outputFormat: AVAudioFormat,
+    converterCache: TapConverterCache
+) -> DictationBufferConversionResult {
+    let bufferFormat = monoBuffer.format
+    if tapConverterNeedsRebuild(
+        cachedSourceFormat: converterCache.sourceFormat,
+        incomingBufferFormat: bufferFormat
+    ) {
+        converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
+        converterCache.sourceFormat = bufferFormat
+    }
+    guard let converter = converterCache.converter else {
+        let sr = bufferFormat.sampleRate
+        let ch = bufferFormat.channelCount
+        return .failed("converter_init_failed sr=\(sr) ch=\(ch)")
+    }
+
+    let outputFrameCapacity = AVAudioFrameCount(
+        ceil(Double(monoBuffer.frameLength) * outputFormat.sampleRate / bufferFormat.sampleRate)
+    )
+    guard outputFrameCapacity > 0,
+          let convertedBuffer = AVAudioPCMBuffer(
+              pcmFormat: outputFormat,
+              frameCapacity: outputFrameCapacity
+          ) else {
+        return .noData
+    }
+
+    let inputBuffer = UncheckedSendableAudioPCMBuffer(monoBuffer)
+    let inputConsumed = OSAllocatedUnfairLock(initialState: false)
+    var error: NSError?
+    let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+        let shouldProvideInput = inputConsumed.withLock { consumed -> Bool in
+            guard !consumed else { return false }
+            consumed = true
+            return true
+        }
+        if !shouldProvideInput {
+            outStatus.pointee = .noDataNow
+            return nil
+        }
+        outStatus.pointee = .haveData
+        return inputBuffer.buffer
+    }
+
+    switch status {
+    case .haveData:
+        return .converted(convertedBuffer)
+    case .error:
+        let errorFields = error.map(AudioCaptureDiagnostics.errorFields) ?? "error_type=unknown"
+        return .failed("converter_error \(errorFields)")
+    case .endOfStream, .inputRanDry:
+        return .noData
+    @unknown default:
+        return .noData
+    }
 }
 
 /// Extracts channel 0 from a multi-channel buffer as a mono buffer.

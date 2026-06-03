@@ -11,6 +11,8 @@ public extension Notification.Name {
     static let macParakeetAppearanceModeDidChange = Notification.Name("macparakeet.appearanceModeDidChange")
     static let macParakeetMenuBarOnlyModeDidChange = Notification.Name("macparakeet.menuBarOnlyModeDidChange")
     static let macParakeetShowIdlePillDidChange = Notification.Name("macparakeet.showIdlePillDidChange")
+    static let macParakeetInstantDictationDidChange = Notification.Name("macparakeet.instantDictationDidChange")
+    static let macParakeetMicrophoneSelectionDidChange = Notification.Name("macparakeet.microphoneSelectionDidChange")
     static let macParakeetAIFormatterWarning = Notification.Name("macparakeet.aiFormatterWarning")
     /// Posted by `DictationService`/`TranscriptionService` just before the AI
     /// formatter begins running on a transcript. Observed by the dictation

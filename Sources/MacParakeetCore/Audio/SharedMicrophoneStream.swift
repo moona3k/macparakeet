@@ -33,9 +33,11 @@ import os
 ///    it stays on for the engine's lifetime. Disengaging mid-session would
 ///    require another stop+start dance with no user-visible benefit.
 ///
-/// 5. **VPIO engagement is deferred** if a non-VPIO subscriber is in
+/// 5. **VPIO engagement is deferred** if an active non-VPIO subscriber is in
 ///    flight. Avoids a format-change in the middle of an active dictation
-///    stream. The deferral counter is exposed for telemetry sizing.
+///    stream. Passive warm subscribers keep the engine alive but do not block
+///    VPIO promotion because they are not user-visible recording sessions.
+///    The deferral counter is exposed for telemetry sizing.
 ///
 /// 6. **Subscribers receive a read-only buffer** valid only for the
 ///    synchronous handler call. Retention or mutation requires copying
@@ -72,6 +74,7 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     public struct Diagnostics: Equatable, Sendable {
         public let subscriberCount: Int
         public let vpioSubscriberCount: Int
+        public let passiveSubscriberCount: Int
         public let engineRunning: Bool
         public let vpioEngaged: Bool
         public let vpioDeferred: Bool
@@ -81,6 +84,7 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     private struct Subscriber {
         let token: SubscriberToken
         let wantsVPIO: Bool
+        let blocksVPIOPromotion: Bool
         let handler: BufferHandler
         let onEngineDeath: EngineDeathHandler?
     }
@@ -142,6 +146,7 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
             Diagnostics(
                 subscriberCount: state.subscribers.count,
                 vpioSubscriberCount: state.subscribers.values.filter { $0.wantsVPIO }.count,
+                passiveSubscriberCount: state.subscribers.values.filter { !$0.blocksVPIOPromotion }.count,
                 engineRunning: state.engineRunning,
                 vpioEngaged: state.vpioEngaged,
                 vpioDeferred: state.vpioDeferred,
@@ -164,8 +169,14 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     /// "this subscription is no longer receiving buffers; surface a stall
     /// and either retry or escalate." It does **not** fire for normal
     /// teardown.
+    ///
+    /// `blocksVPIOPromotion` should stay `true` for user-visible capture
+    /// sessions. A warm/pre-roll lease can pass `false` so it keeps the mic
+    /// engine alive without preventing an explicit VPIO subscriber from
+    /// promoting the engine.
     public func subscribe(
         wantsVPIO: Bool,
+        blocksVPIOPromotion: Bool = true,
         onEngineDeath: EngineDeathHandler? = nil,
         handler: @escaping BufferHandler
     ) async throws -> SubscriberToken {
@@ -181,6 +192,7 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                         state: &state,
                         token: token,
                         wantsVPIO: wantsVPIO,
+                        blocksVPIOPromotion: blocksVPIOPromotion,
                         handler: handler,
                         onEngineDeath: onEngineDeath
                     )
@@ -189,26 +201,57 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                 }
 
                 if action == .none {
-                    self.emitDiagnosticsLog(transition: "subscribe", wantsVPIO: wantsVPIO)
+                    self.emitDiagnosticsLog(
+                        transition: "subscribe",
+                        wantsVPIO: wantsVPIO,
+                        blocksVPIOPromotion: blocksVPIOPromotion
+                    )
                     cont.resume(returning: token)
                     return
                 }
 
                 do {
                     try self.executeEngineAction(action)
-                    self.emitDiagnosticsLog(transition: "subscribe", wantsVPIO: wantsVPIO)
+                    self.emitDiagnosticsLog(
+                        transition: "subscribe",
+                        wantsVPIO: wantsVPIO,
+                        blocksVPIOPromotion: blocksVPIOPromotion
+                    )
                     cont.resume(returning: token)
                 } catch {
-                    self.lock.withLock { state in
-                        state.subscribers.removeValue(forKey: token)
-                        if state.subscribers.isEmpty {
+                    let deathCallbacks: [EngineDeathHandler] = self.lock.withLock { state in
+                        var callbacks: [EngineDeathHandler] = []
+                        if action == .reconfigureToVPIO {
+                            callbacks = state.subscribers
+                                .filter { $0.key != token }
+                                .compactMap { $0.value.onEngineDeath }
+                            state.subscribers.removeAll()
                             state.engineRunning = false
                             state.vpioEngaged = false
                             state.vpioDeferred = false
+                        } else {
+                            state.subscribers.removeValue(forKey: token)
+                            if state.subscribers.isEmpty {
+                                state.engineRunning = false
+                                state.vpioEngaged = false
+                                state.vpioDeferred = false
+                            }
                         }
                         Self.refreshHandlersSnapshot(&state)
+                        return callbacks
                     }
-                    self.emitDiagnosticsLog(transition: "subscribe_failed", wantsVPIO: wantsVPIO)
+                    if !deathCallbacks.isEmpty {
+                        self.callbackQueue.async {
+                            for callback in deathCallbacks {
+                                callback()
+                            }
+                        }
+                    }
+                    self.emitDiagnosticsLog(
+                        transition: "subscribe_failed",
+                        wantsVPIO: wantsVPIO,
+                        blocksVPIOPromotion: blocksVPIOPromotion
+                    )
                     cont.resume(
                         throwing: SubscribeError.engineStartFailed(
                             AudioCaptureDiagnostics.sanitizedLogValue(error.localizedDescription)
@@ -244,14 +287,22 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                 }
 
                 if action == .none {
-                    self.emitDiagnosticsLog(transition: "unsubscribe", wantsVPIO: nil)
+                    self.emitDiagnosticsLog(
+                        transition: "unsubscribe",
+                        wantsVPIO: nil,
+                        blocksVPIOPromotion: nil
+                    )
                     cont.resume()
                     return
                 }
 
                 do {
                     try self.executeEngineAction(action)
-                    self.emitDiagnosticsLog(transition: "unsubscribe", wantsVPIO: nil)
+                    self.emitDiagnosticsLog(
+                        transition: "unsubscribe",
+                        wantsVPIO: nil,
+                        blocksVPIOPromotion: nil
+                    )
                 } catch {
                     switch action {
                     case .reconfigureToVPIO:
@@ -274,7 +325,11 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                         AudioCaptureDiagnostics.append(
                             "shared_mic_engine_reconfigure_failed engine_dead=true \(AudioCaptureDiagnostics.errorFields(error))"
                         )
-                        self.emitDiagnosticsLog(transition: "unsubscribe_engine_dead", wantsVPIO: nil)
+                        self.emitDiagnosticsLog(
+                            transition: "unsubscribe_engine_dead",
+                            wantsVPIO: nil,
+                            blocksVPIOPromotion: nil
+                        )
                         // Fire callbacks off-lock and off the engine queue so
                         // a slow handler cannot block future stream operations.
                         if !deathCallbacks.isEmpty {
@@ -292,7 +347,11 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                         AudioCaptureDiagnostics.append(
                             "shared_mic_engine_stop_failed \(AudioCaptureDiagnostics.errorFields(error))"
                         )
-                        self.emitDiagnosticsLog(transition: "unsubscribe_stop_failed", wantsVPIO: nil)
+                        self.emitDiagnosticsLog(
+                            transition: "unsubscribe_stop_failed",
+                            wantsVPIO: nil,
+                            blocksVPIOPromotion: nil
+                        )
                     case .startEngine, .none:
                         break
                     }
@@ -316,14 +375,18 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         state: inout State,
         token: SubscriberToken,
         wantsVPIO: Bool,
+        blocksVPIOPromotion: Bool,
         handler: @escaping BufferHandler,
         onEngineDeath: EngineDeathHandler?
     ) -> EngineAction {
         let isFirst = state.subscribers.isEmpty
-        let hasNonVPIOInFlight = state.subscribers.values.contains { !$0.wantsVPIO }
+        let hasNonVPIOBlocker = state.subscribers.values.contains {
+            !$0.wantsVPIO && $0.blocksVPIOPromotion
+        }
         state.subscribers[token] = Subscriber(
             token: token,
             wantsVPIO: wantsVPIO,
+            blocksVPIOPromotion: blocksVPIOPromotion,
             handler: handler,
             onEngineDeath: onEngineDeath
         )
@@ -347,15 +410,15 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
             return .none
         }
 
-        // wantsVPIO and engine not in VPIO → there must be at least one
-        // non-VPIO subscriber holding it raw (otherwise the engine would
-        // have either started VPIO via the isFirst branch above, or be
-        // sticky-on from a prior VPIO sub). Defer engagement until that
-        // subscriber leaves; promotion then happens via the unsubscribe
-        // path. The `hasNonVPIOInFlight` guard is therefore always true
-        // here, but kept as a precondition assertion in case future state
-        // changes alter the invariant.
-        assert(hasNonVPIOInFlight, "VPIO not engaged but no non-VPIO subscriber in flight — invariant broken")
+        // wantsVPIO and engine not in VPIO. Active non-VPIO subscribers hold
+        // the raw format until they leave. Passive warm subscribers do not:
+        // if they are the only raw listeners, promote immediately.
+        guard hasNonVPIOBlocker else {
+            state.vpioDeferred = false
+            state.vpioEngaged = true
+            return .reconfigureToVPIO
+        }
+
         state.vpioDeferred = true
         state.vpioDeferralCount += 1
         return .none
@@ -386,8 +449,10 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         }
 
         if state.vpioDeferred {
-            let stillHasNonVPIO = state.subscribers.values.contains { !$0.wantsVPIO }
-            if !stillHasNonVPIO {
+            let stillHasNonVPIOBlocker = state.subscribers.values.contains {
+                !$0.wantsVPIO && $0.blocksVPIOPromotion
+            }
+            if !stillHasNonVPIOBlocker {
                 state.vpioDeferred = false
                 state.vpioEngaged = true
                 return .reconfigureToVPIO
@@ -429,11 +494,16 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     /// log captures the state-machine evolution alongside the
     /// dictation- and meeting-side events. `wantsVPIO` is the request
     /// flavour for subscribe transitions; nil for unsubscribe.
-    private func emitDiagnosticsLog(transition: String, wantsVPIO: Bool?) {
+    private func emitDiagnosticsLog(
+        transition: String,
+        wantsVPIO: Bool?,
+        blocksVPIOPromotion: Bool?
+    ) {
         let snapshot = diagnostics
         let wantsField = wantsVPIO.map { "wants_vpio=\($0)" } ?? "wants_vpio=n/a"
+        let blocksField = blocksVPIOPromotion.map { "blocks_vpio_promotion=\($0)" } ?? "blocks_vpio_promotion=n/a"
         AudioCaptureDiagnostics.append(
-            "shared_mic_diagnostics transition=\(transition) \(wantsField) subscribers=\(snapshot.subscriberCount) vpio_subs=\(snapshot.vpioSubscriberCount) engine_running=\(snapshot.engineRunning) vpio_engaged=\(snapshot.vpioEngaged) vpio_deferred=\(snapshot.vpioDeferred) vpio_deferral_count=\(snapshot.vpioDeferralCount)"
+            "shared_mic_diagnostics transition=\(transition) \(wantsField) \(blocksField) subscribers=\(snapshot.subscriberCount) vpio_subs=\(snapshot.vpioSubscriberCount) passive_subs=\(snapshot.passiveSubscriberCount) engine_running=\(snapshot.engineRunning) vpio_engaged=\(snapshot.vpioEngaged) vpio_deferred=\(snapshot.vpioDeferred) vpio_deferral_count=\(snapshot.vpioDeferralCount)"
         )
     }
 

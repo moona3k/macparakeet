@@ -8,6 +8,7 @@
 > Amendment note (2026-04-29, superseded 2026-04-30): meeting system audio moved from Core Audio process taps to ScreenCaptureKit audio, and meeting mic capture now prefers VPIO. Dictation remained raw on its independent `AVAudioEngine` until the shared-engine amendment below replaced that topology.
 > Amendment note (2026-04-30): the original "independent AVAudioEngine instances" decision was incompatible with VPIO. coreaudiod attaches the VPAU aggregate device to the **process**, not the engine, so once meeting recording engaged VPIO, every other `AVAudioEngine` in the process inherited the multi-channel duplex layout — and dictation read silence on channel 0 of the wrong layout. Section 1 is rewritten below to describe the shared-engine architecture that ships in v0.6 (PR #189). The rest of the ADR (STT scheduler, menu bar priority, UI layers, hotkey, audio semantics) is unchanged.
 > Amendment note (2026-05-14): shipped meeting mic capture returns to raw by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants. The shared-engine architecture and VPIO arbitration remain for explicit VPIO experiments.
+> Amendment note (2026-06-02): optional Instant Dictation keeps a passive warm subscriber on `SharedMicrophoneStream` while dictation is idle and stores only a bounded in-memory pre-roll. Passive subscribers do not block VPIO promotion; active dictation and raw meeting capture still do.
 
 ## Context
 
@@ -28,6 +29,7 @@ Microphone capture is owned by a process-wide `SharedMicrophoneStream`. Both flo
 | Flow | Audio Source | Subscription |
 |------|--------------|--------------|
 | Dictation | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false)` |
+| Instant Dictation warm lease | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false, blocksVPIOPromotion: false)` while enabled and idle |
 | Meeting (mic) | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false)` by default; explicit VPIO requests still use shared arbitration |
 | Meeting (system) | `SystemAudioStream` (ScreenCaptureKit `SCStream`) | independent of mic engine |
 
@@ -40,6 +42,14 @@ macOS Voice Processing I/O (VPIO) provides built-in echo cancellation, noise sup
 Two independent `AVAudioEngine` instances cannot escape this — VPIO state is process-scoped, not engine-scoped. The shared-engine design accepts this and exploits it: subscribers explicitly request VPIO or raw, the stream resolves the engine's actual mode (sticky once engaged, deferred when a non-VPIO subscriber blocks), and every subscriber that consumes audio while VPIO is engaged extracts channel 0 as mono. See `Sources/MacParakeetCore/Audio/SharedMicrophoneStream.swift` and `extractChannelZero(from:)` in `AudioRecorder.swift` for the implementation.
 
 **Why a shared engine is also fine for lifecycle:** the original ADR worried that a long-running meeting engine would glitch when dictation start/stop touched it. In practice, dictation `subscribe`/`unsubscribe` calls are buffer-fanout list mutations behind a lock — they don't touch the running `AVAudioEngine`, don't reconfigure VPIO, and don't restart the engine. The engine starts on the first subscriber and stops on the last; mid-session subscribers join an already-running engine.
+
+Instant Dictation keeps that same topology. Its idle warm lease is passive:
+it can keep the engine running and maintain a small RAM-only pre-roll, but it
+is not a user-visible capture session. If an explicit VPIO subscriber arrives
+while only the warm lease is present, the shared stream may promote to VPIO
+immediately. If active raw dictation or raw meeting capture is present, the
+existing deferral rule still protects that live session from a mid-stream
+format flip.
 
 ### 2. Shared STT runtime with explicit scheduling
 

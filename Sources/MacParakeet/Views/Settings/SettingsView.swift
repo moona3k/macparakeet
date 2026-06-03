@@ -804,6 +804,15 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Instant dictation",
+                    detail: "Keeps the microphone warm and prepends a short in-memory buffer. macOS will show the microphone indicator while this is on.",
+                    isBeta: true,
+                    isOn: $viewModel.instantDictationEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop

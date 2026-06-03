@@ -307,6 +307,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowIdlePillChanged: { [weak self] in
             self?.handleShowIdlePillChange()
+        },
+        onInstantDictationChanged: { [weak self] in
+            self?.applyInstantDictationPreference(refreshWarmCapture: true)
+        },
+        onMicrophoneSelectionChanged: { [weak self] in
+            self?.applyInstantDictationPreference(refreshWarmCapture: true)
         }
     )
 
@@ -462,6 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
+        applyInstantDictationPreference(refreshWarmCapture: false)
 
         // Shared resolver for the user's LLM provider — returns the live
         // service when a provider is configured, nil otherwise. Consumed by
@@ -665,6 +672,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dictationFlowCoordinator?.showIdlePill()
         } else {
             dictationFlowCoordinator?.hideIdlePill()
+        }
+    }
+
+    private func applyInstantDictationPreference(refreshWarmCapture: Bool) {
+        guard let env = appEnvironment else { return }
+        let enabled = env.runtimePreferences.instantDictationEnabled
+        Task {
+            await env.audioProcessor.setInstantDictationEnabled(enabled)
+            if refreshWarmCapture, enabled {
+                await env.audioProcessor.refreshInstantDictationWarmCapture()
+            }
         }
     }
 

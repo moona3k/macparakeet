@@ -19,6 +19,7 @@ Mic Input → SharedMicrophoneStream tap → temp WAV → selected local STT eng
 - **Output format**: temporary WAV, 16kHz mono Float32
 - **Minimum sample threshold**: 4,800 samples (0.3 seconds at 16kHz) required before sending to STT, mirroring FluidAudio's ASR guard. Header-only and near-empty recordings are rejected before they reach the speech engine.
 - Dictation always extracts channel 0 before conversion so VPIO duplex layouts produce the post-AEC mono stream instead of channel-mixed reference audio.
+- **Instant Dictation**: default-off setting that keeps a passive shared-stream subscriber attached while idle, stores a bounded 1-second RAM-only ring at 16kHz mono, and prepends up to 0.45 seconds to the next dictation WAV. macOS shows the microphone indicator while this is enabled. No STT or transcript processing runs while idle.
 - Dictation does not use the meeting crash-recovery lock-file pipeline. The current implementation writes a temp WAV and either moves it into retained storage or deletes it after processing.
 
 ### Storage
@@ -35,6 +36,8 @@ Mic Input → SharedMicrophoneStream tap → temp WAV → selected local STT eng
 ```
 User triggers dictation
     → Check microphone permission
+    → If Instant Dictation is enabled, stop accepting idle pre-roll
+      and prepend the most recent in-memory samples to the temp WAV
     → Subscribe to SharedMicrophoneStream
     → Shared stream starts the mic engine if needed
     → Convert samples to 16kHz mono Float32
@@ -238,9 +241,10 @@ Meeting recording and dictation share one process-wide microphone engine. Both f
 | Flow | Shared mic role | Notes |
 |------|--------|-------|
 | Dictation | `AudioRecorder` subscribes with `wantsVPIO: false` | Copies tap buffers for async conversion/writes and extracts ch[0] if a VPIO duplex layout is already active |
+| Instant Dictation warm lease | `AudioRecorder` subscribes with `wantsVPIO: false, blocksVPIOPromotion: false` while the setting is enabled and dictation is idle | Keeps the mic engine warm and maintains only a bounded in-memory pre-roll; because it is passive, explicit VPIO subscribers can still promote the engine immediately when no active raw capture is in flight |
 | Meeting mic | `MicrophoneCapture` subscribes with `wantsVPIO` derived from `MeetingMicProcessingMode` | Raw capture by default; VPIO can still be explicitly requested, and meeting mic extracts ch[0] when VPIO is engaged |
 
-`SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while a non-VPIO dictation subscriber is already in flight, so dictation does not get a mid-session format flip. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
+`SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while an active non-VPIO capture subscriber is already in flight, so dictation or raw meeting capture does not get a mid-session format flip. Passive warm subscribers do not count as blockers. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
 
 All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only opt-in); WhisperKit can be selected explicitly. That keeps:
 

@@ -13,6 +13,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var pauseMediaDuringDictation: Bool { get }
+    var instantDictationEnabled: Bool { get }
     var shouldKeepDictationOnClipboard: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
@@ -115,6 +116,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
@@ -178,6 +180,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
+    }
+
+    public var instantDictationEnabled: Bool {
+        defaults.object(forKey: Self.instantDictationEnabledKey) as? Bool ?? false
     }
 
     public var shouldKeepDictationOnClipboard: Bool {

@@ -44,4 +44,12 @@ public actor AudioProcessor: AudioProcessorProtocol {
     public func stopCapture() async throws -> URL {
         try await recorder.stop()
     }
+
+    public func setInstantDictationEnabled(_ enabled: Bool) async {
+        await recorder.setInstantDictationEnabled(enabled)
+    }
+
+    public func refreshInstantDictationWarmCapture() async {
+        await recorder.refreshInstantDictationWarmCapture()
+    }
 }
