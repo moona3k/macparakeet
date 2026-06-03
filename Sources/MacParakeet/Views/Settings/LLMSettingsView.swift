@@ -542,6 +542,8 @@ struct LLMSettingsView: View {
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.small)
+            .accessibilityLabel("Enable \(profile.name)")
+            .accessibilityValue(profile.isEnabled ? "Enabled" : "Disabled")
 
             Button {
                 viewModel.editAIFormatterProfile(profile)
@@ -679,6 +681,12 @@ struct LLMSettingsView: View {
                     RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                         .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
                 )
+            }
+
+            if let validationMessage = draft.validationMessage {
+                Text(validationMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
             }
 
             HStack(spacing: DesignSystem.Spacing.sm) {

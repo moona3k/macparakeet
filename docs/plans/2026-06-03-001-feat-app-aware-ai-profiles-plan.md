@@ -372,7 +372,7 @@ Focused app at stop/undo
     -> exact profile / category profile / global prompt
     -> LLMService.formatTranscriptDetailed(...)
     -> Dictation row with local profile metadata
-    -> Telemetry with coarse category and optional match kind only
+    -> Telemetry with existing coarse app category only
 ```
 
 ## Privacy Review Checklist
@@ -381,7 +381,7 @@ Focused app at stop/undo
 - App display name stays local.
 - Profile prompt body is not telemetry.
 - Transcript content is not telemetry.
-- Profile match kind is bounded enum.
+- Profile match kind stays local in V1.
 - App category is existing bounded enum.
 - Browser hostname matching is absent in v1.
 - No selected text, clipboard, or screen context is read by this feature.

@@ -128,6 +128,11 @@ REQ-LLM-003:
   version: v0.18
   status: implemented
 
+REQ-LLM-004:
+  description: Dictation AI Formatter supports local exact-app and app-category prompt profiles with global prompt fallback and local-only routing provenance
+  version: v0.6
+  status: implemented
+
 # --- v0.5 Data & Reliability ---
 
 REQ-DICT-005:

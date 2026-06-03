@@ -211,6 +211,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Live Ask chat with thinking-partner quick prompts + pinned after-response pills + persist-on-finalize handoff
 - [x] Customizable Ask quick prompts: GRDB-backed unified prompt library with pinning, Ask Prompts sheet, and `macparakeet-cli quick-prompts` import/export
 - [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
+- [x] Dictation AI Formatter profiles: exact-app/category prompt routing, Settings management, global fallback, and local-only routing provenance
 - [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
 - [x] Live meeting notepad (ADR-020): Notes/Transcript/Ask three-tab layout with Notes default (⌘1/⌘2/⌘3), debounced auto-save through `MeetingRecordingService.updateNotes`, lock-file extension carries notes through crash recovery, soft-cap warning at 7,500 words
 - [x] Memo-steered summary infrastructure (ADR-020): `{{userNotes}}` + `{{transcript}}` template variables via `PromptTemplateRenderer` (single-pass, simultaneous), `userNotesSnapshot` captured on the `PromptResult` row at generation time. *Note: the "Memo-Steered Notes" built-in prompt that exercised this path was reverted on 2026-05-02 (see ADR-020 amendment) — the template variables remain available for custom prompts.*

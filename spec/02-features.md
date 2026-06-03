@@ -1415,7 +1415,7 @@ Internal data model improvements, reliability fixes, and open-source release. No
 
 > Status: **IMPLEMENTED**
 
-**What:** A `hidden` flag on dictations that excludes them from history and voice stats. Used for sensitive dictations the user doesn't want in their history.
+**What:** A `hidden` flag on dictations that excludes transcript/audio/app details from history while preserving aggregate duration and word-count metrics. Used for sensitive dictations the user doesn't want in their history.
 
 **Schema:** `dictations.hidden` (BOOLEAN, NOT NULL, DEFAULT 0)
 

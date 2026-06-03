@@ -91,6 +91,7 @@ CREATE INDEX idx_dictations_created_at ON dictations(createdAt);
 **Notes:**
 - `audioPath` is nullable because audio retention is configurable (Settings > Storage).
 - `pastedToApp` captures the frontmost app's bundle ID at paste time (e.g., `com.apple.TextEdit`). Useful for history context.
+- Hidden/no-history dictation rows are metric-only: `rawTranscript` is empty, transcript/audio/app/profile provenance fields are `NULL`, while duration and word-count stats remain.
 - `processingMode` records which mode was active when the dictation was captured.
 - `engine` / `engineVariant` record the STT engine attribution for rows created after the v0.8 migration. Legacy rows keep `NULL` rather than being silently relabeled.
 - `language` records the normalized detected STT language code for rows created after the v0.19 migration. Unknown, auto-detect, or non-catalog values remain `NULL`.
@@ -428,19 +429,45 @@ CREATE TABLE ai_formatter_profiles (
     origin           TEXT NOT NULL DEFAULT 'custom',      -- custom / template
     sortOrder        INTEGER NOT NULL DEFAULT 0,
     createdAt        TEXT NOT NULL,
-    updatedAt        TEXT NOT NULL
+    updatedAt        TEXT NOT NULL,
+    CHECK (targetKind IN ('bundle', 'category')),
+    CHECK (origin IN ('custom', 'template')),
+    CHECK (
+        (
+            targetKind = 'bundle'
+            AND bundleIdentifier IS NOT NULL
+            AND TRIM(bundleIdentifier) != ''
+            AND bundleIdentifier = LOWER(TRIM(bundleIdentifier))
+            AND appCategory IS NULL
+        )
+        OR
+        (
+            targetKind = 'category'
+            AND appCategory IS NOT NULL
+            AND appCategory IN ('messaging', 'email', 'browser', 'notes', 'docs', 'code', 'terminal', 'other')
+            AND bundleIdentifier IS NULL
+            AND appDisplayName IS NULL
+        )
+    )
 );
 
 CREATE INDEX idx_ai_formatter_profiles_enabled_sort
     ON ai_formatter_profiles(isEnabled, sortOrder);
 CREATE INDEX idx_ai_formatter_profiles_target_kind
     ON ai_formatter_profiles(targetKind);
+CREATE UNIQUE INDEX idx_ai_formatter_profiles_bundle_unique
+    ON ai_formatter_profiles(LOWER(TRIM(bundleIdentifier)))
+    WHERE targetKind = 'bundle' AND bundleIdentifier IS NOT NULL;
+CREATE UNIQUE INDEX idx_ai_formatter_profiles_category_unique
+    ON ai_formatter_profiles(appCategory)
+    WHERE targetKind = 'category' AND appCategory IS NOT NULL;
 ```
 
 **Notes:**
 - Exact app profiles store bundle IDs and display names as local user data only. They are used for prompt resolution and local history/debug provenance, not telemetry.
 - Matching precedence is exact bundle, then coarse category, then the existing global AI Formatter prompt.
-- Duplicate exact-bundle and category targets are rejected by `AIFormatterProfileRepository` so the matching rule stays deterministic.
+- Duplicate exact-bundle and category targets are rejected by both schema unique indexes and `AIFormatterProfileRepository` so the matching rule stays deterministic and direct/future write paths cannot create ambiguous routing.
+- Bundle profile rows require a non-empty lowercased/trimmed bundle ID. Category profile rows require a valid `TelemetryAppCategory` raw value.
 - Browser hostname/domain matching is intentionally not represented in this schema. V1 treats browsers as exact browser apps or the coarse `browser` category.
 
 ---

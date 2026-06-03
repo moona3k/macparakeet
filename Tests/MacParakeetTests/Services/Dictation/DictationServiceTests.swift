@@ -430,6 +430,60 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(fetched.aiFormatterProfileMatchKind, .exactApp)
     }
 
+    func testExactAppFormatterProfileDoesNotEmitExactTelemetryData() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(result: STTResult(text: "send confidential roadmap"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send confidential roadmap."
+        let profileID = UUID()
+        let profileName = "Slack Casual"
+        let promptTemplate = "Slack-only private prompt: {{TRANSCRIPT}}"
+        let bundleIdentifier = "com.tinyspeck.slackmacgap"
+        let displayName = "Slack"
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: promptTemplate,
+                matchKind: .exactApp,
+                profileID: profileID,
+                profileName: profileName,
+                profileOrigin: .custom
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        let context = AppPromptContext(bundleIdentifier: bundleIdentifier, displayName: displayName)
+        await service.updateTelemetryAppCategory(context.category)
+        await service.updateAIFormatterAppContext(context, phase: .finish)
+        _ = try await service.stopRecording()
+
+        let telemetryProps = allTelemetryProps(in: telemetry.snapshot())
+        XCTAssertFalse(telemetryProps.isEmpty)
+        for props in telemetryProps {
+            let serialized = props
+                .flatMap { [$0.key, $0.value] }
+                .joined(separator: "\n")
+                .lowercased()
+            XCTAssertFalse(serialized.contains(bundleIdentifier))
+            XCTAssertFalse(serialized.contains(displayName.lowercased()))
+            XCTAssertFalse(serialized.contains(profileID.uuidString.lowercased()))
+            XCTAssertFalse(serialized.contains(profileName.lowercased()))
+            XCTAssertFalse(serialized.contains(promptTemplate.lowercased()))
+            XCTAssertFalse(serialized.contains("send confidential roadmap"))
+            XCTAssertFalse(serialized.contains(AIFormatterProfileMatchKind.exactApp.rawValue))
+        }
+        XCTAssertTrue(telemetryProps.contains { $0["app_category"] == TelemetryAppCategory.messaging.rawValue })
+    }
+
     func testStopRecordingUsesFinishAIFormatterContextOverStartContext() async throws {
         await mockSTT.configure(result: STTResult(text: "send update"))
         let mockLLMService = MockLLMService()
@@ -581,6 +635,10 @@ final class DictationServiceTests: XCTestCase {
             guard case .dictationOperation = event else { return nil }
             return event.props ?? [:]
         }
+    }
+
+    private func allTelemetryProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
+        events.compactMap(\.props)
     }
 
     private static func isRecording(_ state: DictationState) -> Bool {

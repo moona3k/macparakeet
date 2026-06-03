@@ -131,18 +131,28 @@ public final class DictationRepository: DictationRepositoryProtocol {
             // the pre-write durationMs / wordCount / status. Reordering would silently turn
             // every delta-path save into a zero-delta no-op.
             let existing = try Dictation.fetchOne(db, key: dictation.id)
-            try dictation.save(db)
+            var persisted = dictation
+            if persisted.hidden {
+                persisted.rawTranscript = ""
+                persisted.cleanTranscript = nil
+                persisted.audioPath = nil
+                persisted.pastedToApp = nil
+                persisted.aiFormatterProfileID = nil
+                persisted.aiFormatterProfileName = nil
+                persisted.aiFormatterProfileMatchKind = nil
+            }
+            try persisted.save(db)
 
-            switch (existing?.status, dictation.status) {
+            switch (existing?.status, persisted.status) {
             case (.some(.completed), .completed):
                 // Mutating an already-counted row (e.g. a future "edit transcript" path).
                 // Apply the delta. longestDurationMs is a high-water mark — never decrements.
                 let prior = existing!  // guaranteed by .some(.completed) match
                 try Self.applyLifetimeDelta(
                     db: db,
-                    durationDelta: dictation.durationMs - prior.durationMs,
-                    wordDelta: dictation.wordCount - prior.wordCount,
-                    newDurationMs: dictation.durationMs
+                    durationDelta: persisted.durationMs - prior.durationMs,
+                    wordDelta: persisted.wordCount - prior.wordCount,
+                    newDurationMs: persisted.durationMs
                 )
                 // Daily stats: apply the delta to the row's original day. The
                 // app treats `Dictation.createdAt` as immutable once a row is
@@ -154,22 +164,22 @@ public final class DictationRepository: DictationRepositoryProtocol {
                 try Self.applyDailyDelta(
                     db: db,
                     day: prior.createdAt,
-                    durationDelta: dictation.durationMs - prior.durationMs,
-                    wordDelta: dictation.wordCount - prior.wordCount
+                    durationDelta: persisted.durationMs - prior.durationMs,
+                    wordDelta: persisted.wordCount - prior.wordCount
                 )
             case (_, .completed):
                 // Fresh insert at .completed, or transition (.recording / .processing /
                 // .error → .completed). Increment by the full row.
                 try Self.incrementLifetimeStats(
                     db: db,
-                    durationMs: dictation.durationMs,
-                    wordCount: dictation.wordCount
+                    durationMs: persisted.durationMs,
+                    wordCount: persisted.wordCount
                 )
                 try Self.incrementDailyStats(
                     db: db,
-                    day: dictation.createdAt,
-                    durationMs: dictation.durationMs,
-                    wordCount: dictation.wordCount
+                    day: persisted.createdAt,
+                    durationMs: persisted.durationMs,
+                    wordCount: persisted.wordCount
                 )
             default:
                 // Target status isn't .completed — no-op. In practice the app
@@ -634,6 +644,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
                 SELECT pastedToApp, COUNT(*) AS cnt, COALESCE(SUM(wordCount), 0) AS words
                 FROM dictations
                 WHERE status = 'completed'
+                  AND hidden = 0
                   AND pastedToApp IS NOT NULL
                   AND TRIM(pastedToApp) != ''
                 GROUP BY pastedToApp

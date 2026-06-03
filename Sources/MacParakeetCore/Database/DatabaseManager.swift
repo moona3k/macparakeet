@@ -910,6 +910,9 @@ public final class DatabaseManager: Sendable {
         // data: exact app bundle IDs and display names are used only for local
         // prompt resolution and local history/debug provenance.
         migrator.registerMigration("v0.21-ai-formatter-profiles") { db in
+            let allowedCategories = TelemetryAppCategory.allCases
+                .map { "'\($0.rawValue)'" }
+                .joined(separator: ", ")
             if !(try db.tableExists("ai_formatter_profiles")) {
                 try db.create(table: "ai_formatter_profiles") { t in
                     t.column("id", .text).primaryKey()
@@ -924,6 +927,24 @@ public final class DatabaseManager: Sendable {
                     t.column("sortOrder", .integer).notNull().defaults(to: 0)
                     t.column("createdAt", .text).notNull()
                     t.column("updatedAt", .text).notNull()
+                    t.check(sql: "targetKind IN ('bundle', 'category')")
+                    t.check(sql: "origin IN ('custom', 'template')")
+                    t.check(sql: """
+                        (
+                            targetKind = 'bundle'
+                            AND bundleIdentifier IS NOT NULL
+                            AND TRIM(bundleIdentifier) != ''
+                            AND bundleIdentifier = LOWER(TRIM(bundleIdentifier))
+                            AND appCategory IS NULL
+                        )
+                        OR (
+                            targetKind = 'category'
+                            AND appCategory IS NOT NULL
+                            AND appCategory IN (\(allowedCategories))
+                            AND bundleIdentifier IS NULL
+                            AND appDisplayName IS NULL
+                        )
+                        """)
                 }
                 try db.create(
                     index: "idx_ai_formatter_profiles_enabled_sort",
@@ -935,6 +956,16 @@ public final class DatabaseManager: Sendable {
                     on: "ai_formatter_profiles",
                     columns: ["targetKind"]
                 )
+                try db.execute(sql: """
+                    CREATE UNIQUE INDEX idx_ai_formatter_profiles_bundle_unique
+                    ON ai_formatter_profiles(LOWER(TRIM(bundleIdentifier)))
+                    WHERE targetKind = 'bundle' AND bundleIdentifier IS NOT NULL
+                    """)
+                try db.execute(sql: """
+                    CREATE UNIQUE INDEX idx_ai_formatter_profiles_category_unique
+                    ON ai_formatter_profiles(appCategory)
+                    WHERE targetKind = 'category' AND appCategory IS NOT NULL
+                    """)
             }
 
             let existingColumns = try db.columns(in: "dictations").map(\.name)
@@ -949,6 +980,18 @@ public final class DatabaseManager: Sendable {
                     t.add(column: "aiFormatterProfileMatchKind", .text)
                 }
             }
+
+            try db.execute(sql: """
+                UPDATE dictations
+                SET rawTranscript = '',
+                    cleanTranscript = NULL,
+                    audioPath = NULL,
+                    pastedToApp = NULL,
+                    aiFormatterProfileID = NULL,
+                    aiFormatterProfileName = NULL,
+                    aiFormatterProfileMatchKind = NULL
+                WHERE hidden = 1
+                """)
         }
 
         try migrator.migrate(dbQueue)

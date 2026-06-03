@@ -1,3 +1,4 @@
+import GRDB
 import XCTest
 @testable import MacParakeetCore
 
@@ -86,6 +87,106 @@ final class AIFormatterProfileRepositoryTests: XCTestCase {
         }
     }
 
+    func testDuplicateExactAppProfilesAreRejectedByDatabaseInvariant() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, bundleIdentifier, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Slack",
+                    true,
+                    AIFormatterProfileTargetKind.bundle.rawValue,
+                    "com.tinyspeck.slackmacgap",
+                    "Prompt A",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        }
+
+        XCTAssertThrowsError(try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, bundleIdentifier, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Slack Duplicate",
+                    true,
+                    AIFormatterProfileTargetKind.bundle.rawValue,
+                    "com.tinyspeck.slackmacgap",
+                    "Prompt B",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        })
+    }
+
+    func testEmptyBundleProfileIsRejectedByDatabaseInvariant() throws {
+        let manager = try DatabaseManager()
+
+        XCTAssertThrowsError(try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, bundleIdentifier, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Empty Bundle",
+                    true,
+                    AIFormatterProfileTargetKind.bundle.rawValue,
+                    "   ",
+                    "Prompt",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        })
+    }
+
+    func testNonNormalizedBundleProfileIsRejectedByDatabaseInvariant() throws {
+        let manager = try DatabaseManager()
+
+        XCTAssertThrowsError(try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, bundleIdentifier, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Spaced Bundle",
+                    true,
+                    AIFormatterProfileTargetKind.bundle.rawValue,
+                    " COM.TINYSPECK.SLACKMACGAP ",
+                    "Prompt",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        })
+    }
+
     func testDuplicateCategoryProfilesThrow() throws {
         try repo.save(AIFormatterProfile.category(
             name: "Email",
@@ -100,6 +201,80 @@ final class AIFormatterProfileRepositoryTests: XCTestCase {
         ))) { error in
             XCTAssertEqual(error as? AIFormatterProfileRepositoryError, .duplicateCategory(.email))
         }
+    }
+
+    func testDuplicateCategoryProfilesAreRejectedByDatabaseInvariant() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, appCategory, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Email",
+                    true,
+                    AIFormatterProfileTargetKind.category.rawValue,
+                    TelemetryAppCategory.email.rawValue,
+                    "Prompt A",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        }
+
+        XCTAssertThrowsError(try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, appCategory, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Email Duplicate",
+                    true,
+                    AIFormatterProfileTargetKind.category.rawValue,
+                    TelemetryAppCategory.email.rawValue,
+                    "Prompt B",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        })
+    }
+
+    func testUnknownCategoryProfileIsRejectedByDatabaseInvariant() throws {
+        let manager = try DatabaseManager()
+
+        XCTAssertThrowsError(try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO ai_formatter_profiles
+                    (id, name, isEnabled, targetKind, appCategory, promptTemplate, origin, sortOrder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString,
+                    "Unknown Category",
+                    true,
+                    AIFormatterProfileTargetKind.category.rawValue,
+                    "calendar",
+                    "Prompt",
+                    AIFormatterProfileOrigin.custom.rawValue,
+                    0,
+                    "2026-06-03T00:00:00Z",
+                    "2026-06-03T00:00:00Z",
+                ]
+            )
+        })
     }
 
     func testDeleteRemovesProfile() throws {
