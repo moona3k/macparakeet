@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var environmentSetupTask: Task<Void, Never>?
     private var meetingQuitTask: Task<Void, Never>?
     private var speechPreWarmTask: Task<Void, Never>?
+    private var instantDictationPreferenceTask: Task<Void, Never>?
+    private var instantDictationPreferenceGeneration = 0
     private var isHotkeyRecorderActive = false
     // Let first paint and onboarding routing settle before starting CoreML cache work.
     private let preWarmDeferralMs: Int = 1500
@@ -309,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleShowIdlePillChange()
         },
         onInstantDictationChanged: { [weak self] in
-            self?.applyInstantDictationPreference(refreshWarmCapture: true)
+            self?.applyInstantDictationPreference(refreshWarmCapture: false)
         },
         onMicrophoneSelectionChanged: { [weak self] in
             self?.applyInstantDictationPreference(refreshWarmCapture: true)
@@ -677,9 +679,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyInstantDictationPreference(refreshWarmCapture: Bool) {
         guard let env = appEnvironment else { return }
-        let enabled = env.runtimePreferences.instantDictationEnabled
-        Task {
+        instantDictationPreferenceGeneration += 1
+        let generation = instantDictationPreferenceGeneration
+        instantDictationPreferenceTask?.cancel()
+        instantDictationPreferenceTask = Task { [weak self, env] in
+            guard !Task.isCancelled else { return }
+            let enabled = env.runtimePreferences.instantDictationEnabled
+            let isCurrent = await MainActor.run {
+                self?.instantDictationPreferenceGeneration == generation
+            }
+            guard isCurrent, !Task.isCancelled else { return }
             await env.audioProcessor.setInstantDictationEnabled(enabled)
+            let shouldRefresh = await MainActor.run {
+                self?.instantDictationPreferenceGeneration == generation
+            }
+            guard shouldRefresh, !Task.isCancelled else { return }
             if refreshWarmCapture, enabled {
                 await env.audioProcessor.refreshInstantDictationWarmCapture()
             }

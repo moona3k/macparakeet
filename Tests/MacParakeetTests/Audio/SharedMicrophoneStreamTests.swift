@@ -170,6 +170,47 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         await stream.unsubscribe(vpio)
     }
 
+    func testVPIOLeavingOnlyPassiveWarmSubscriberRestartsRawEngine() async throws {
+        let warm = try await stream.subscribe(
+            wantsVPIO: false,
+            blocksVPIOPromotion: false
+        ) { _, _ in }
+        let vpio = try await stream.subscribe(wantsVPIO: true) { _, _ in }
+
+        XCTAssertEqual(platform.configureAndStartCalls.map(\.vpioEnabled), [false, true])
+        XCTAssertTrue(stream.diagnostics.vpioEngaged)
+
+        await stream.unsubscribe(vpio)
+
+        XCTAssertEqual(platform.configureAndStartCalls.map(\.vpioEnabled), [false, true, false])
+        XCTAssertFalse(stream.diagnostics.vpioEngaged)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 1)
+        XCTAssertEqual(stream.diagnostics.passiveSubscriberCount, 1)
+
+        await stream.unsubscribe(warm)
+    }
+
+    func testPassiveRestartRequestDefersUntilActiveSubscriberLeaves() async throws {
+        let warm = try await stream.subscribe(
+            wantsVPIO: false,
+            blocksVPIOPromotion: false
+        ) { _, _ in }
+        let active = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+
+        await stream.restartPassiveSubscribers()
+
+        XCTAssertEqual(platform.configureAndStartCalls.count, 1)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 2)
+
+        await stream.unsubscribe(active)
+
+        XCTAssertEqual(platform.configureAndStartCalls.map(\.vpioEnabled), [false, false])
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 1)
+        XCTAssertEqual(stream.diagnostics.passiveSubscriberCount, 1)
+
+        await stream.unsubscribe(warm)
+    }
+
     func testDeferredVPIOClearsWhenVPIOSubscriberLeavesBeforePromotion() async throws {
         let t1 = try await stream.subscribe(wantsVPIO: false) { _, _ in }
         let t2 = try await stream.subscribe(wantsVPIO: true) { _, _ in }

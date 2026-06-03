@@ -219,20 +219,32 @@ final class SettingsViewModelTests: XCTestCase {
     func testInstantDictationPersistsEmitsTelemetryAndPostsNotification() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
-        let notification = expectation(description: "instant dictation notification")
+        var instantDictationNotificationCount = 0
+        var microphoneNotificationCount = 0
         let observer = NotificationCenter.default.addObserver(
             forName: .macParakeetInstantDictationDidChange,
             object: nil,
-            queue: .main
+            queue: nil
         ) { _ in
-            notification.fulfill()
+            instantDictationNotificationCount += 1
         }
-        defer { NotificationCenter.default.removeObserver(observer) }
+        let microphoneObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            microphoneNotificationCount += 1
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+            NotificationCenter.default.removeObserver(microphoneObserver)
+        }
 
         viewModel.instantDictationEnabled = true
 
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey))
-        wait(for: [notification], timeout: 1.0)
+        XCTAssertEqual(instantDictationNotificationCount, 1)
+        XCTAssertEqual(microphoneNotificationCount, 0)
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
             guard case .settingChanged(let setting) = event else { return nil }
@@ -242,16 +254,26 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
-        let notification = expectation(description: "microphone selection notification")
-        notification.expectedFulfillmentCount = 2
+        var microphoneNotificationCount = 0
+        var instantDictationNotificationCount = 0
         let observer = NotificationCenter.default.addObserver(
             forName: .macParakeetMicrophoneSelectionDidChange,
             object: nil,
-            queue: .main
+            queue: nil
         ) { _ in
-            notification.fulfill()
+            microphoneNotificationCount += 1
         }
-        defer { NotificationCenter.default.removeObserver(observer) }
+        let instantDictationObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetInstantDictationDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            instantDictationNotificationCount += 1
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+            NotificationCenter.default.removeObserver(instantDictationObserver)
+        }
 
         viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
 
@@ -263,7 +285,8 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.selectedMicrophoneDeviceUID = SettingsViewModel.systemDefaultMicrophoneSelection
 
         XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
-        wait(for: [notification], timeout: 1.0)
+        XCTAssertEqual(microphoneNotificationCount, 2)
+        XCTAssertEqual(instantDictationNotificationCount, 0)
     }
 
     func testSelectedMicrophoneNormalizesBlankSelectionToSystemDefault() {

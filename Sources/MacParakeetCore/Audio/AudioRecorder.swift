@@ -127,6 +127,9 @@ public actor AudioRecorder {
     private var audioFile: AVAudioFile?
     private var sharedSubscriberToken: SharedMicrophoneStream.SubscriberToken?
     private var warmSubscriberToken: SharedMicrophoneStream.SubscriberToken?
+    private var warmCaptureStartInFlight = false
+    private var warmCaptureStartPending = false
+    private var warmCaptureLifecycleGeneration = 0
     private var instantDictationEnabled = false
     /// Thread-safe sample counter updated synchronously from the audio tap callback.
     /// Using OSAllocatedUnfairLock because the tap runs on the real-time audio thread,
@@ -235,6 +238,7 @@ public actor AudioRecorder {
         }
 
         instantDictationEnabled = enabled
+        warmCaptureLifecycleGeneration += 1
         if enabled {
             preRollCaptureGeneration.withLock { $0 += 1 }
             preRollBuffer.withLock { $0.clear() }
@@ -242,6 +246,7 @@ public actor AudioRecorder {
             preRollAcceptingSamples.withLock { $0 = shouldAcceptPreRoll }
             await startWarmCaptureIfNeeded()
         } else {
+            warmCaptureStartPending = false
             preRollAcceptingSamples.withLock { $0 = false }
             preRollCaptureGeneration.withLock { $0 += 1 }
             sharedProcessingQueue.sync {}
@@ -252,11 +257,23 @@ public actor AudioRecorder {
 
     public func refreshInstantDictationWarmCapture() async {
         guard instantDictationEnabled else { return }
-        guard !recording, !starting else { return }
+        warmCaptureLifecycleGeneration += 1
+        preRollAcceptingSamples.withLock { $0 = false }
+        preRollCaptureGeneration.withLock { $0 += 1 }
+        sharedProcessingQueue.sync {}
+        preRollBuffer.withLock { $0.clear() }
+        if recording || starting {
+            await sharedStream.restartPassiveSubscribers()
+            return
+        }
 
+        let hadActiveSubscribers = sharedStream.diagnostics.activeSubscriberCount > 0
         await stopWarmCapture()
         preRollCaptureGeneration.withLock { $0 += 1 }
         preRollBuffer.withLock { $0.clear() }
+        if hadActiveSubscribers {
+            await sharedStream.restartPassiveSubscribers()
+        }
         preRollAcceptingSamples.withLock { $0 = true }
         await startWarmCaptureIfNeeded()
     }
@@ -316,6 +333,7 @@ public actor AudioRecorder {
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
         self.preRollAcceptingSamples.withLock { $0 = false }
+        self.preRollCaptureGeneration.withLock { $0 += 1 }
         self.sharedProcessingQueue.sync {}
         let preRollSamples: [Float] = instantDictationEnabled
             ? self.preRollBuffer.withLock { buffer in
@@ -333,11 +351,11 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
             throw error
         }
-        self.preRollCaptureGeneration.withLock { $0 += 1 }
 
         let preSubscribeGeneration = self.sessionGeneration.withLock { $0 }
         let tapGeneration = preSubscribeGeneration
@@ -483,6 +501,7 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
             AudioCaptureDiagnostics.append(
@@ -510,6 +529,7 @@ public actor AudioRecorder {
             if instantDictationEnabled {
                 let hasWarmSubscriber = warmSubscriberToken != nil
                 preRollCaptureGeneration.withLock { $0 += 1 }
+                preRollBuffer.withLock { $0.clear() }
                 preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
             }
             AudioCaptureDiagnostics.append(
@@ -650,11 +670,26 @@ public actor AudioRecorder {
     }
 
     private func startWarmCaptureIfNeeded() async {
-        guard instantDictationEnabled, warmSubscriberToken == nil else { return }
+        guard instantDictationEnabled,
+              warmSubscriberToken == nil else { return }
+        if warmCaptureStartInFlight {
+            warmCaptureStartPending = true
+            return
+        }
         guard permissionProvider() else {
             preRollAcceptingSamples.withLock { $0 = false }
             AudioCaptureDiagnostics.append("dictation_warm_capture_start_skipped reason=\"permission_denied\"")
             return
+        }
+
+        let lifecycleGeneration = warmCaptureLifecycleGeneration
+        warmCaptureStartInFlight = true
+        defer {
+            warmCaptureStartInFlight = false
+            if warmCaptureStartPending {
+                warmCaptureStartPending = false
+                Task { await self.startWarmCaptureIfNeeded() }
+            }
         }
 
         let bufferHandler: SharedMicrophoneStream.BufferHandler = { [weak self] buffer, _ in
@@ -682,6 +717,16 @@ public actor AudioRecorder {
                 onEngineDeath: deathHandler,
                 handler: bufferHandler
             )
+            guard instantDictationEnabled,
+                  lifecycleGeneration == warmCaptureLifecycleGeneration,
+                  warmSubscriberToken == nil else {
+                preRollAcceptingSamples.withLock { $0 = false }
+                preRollCaptureGeneration.withLock { $0 += 1 }
+                sharedProcessingQueue.sync {}
+                preRollBuffer.withLock { $0.clear() }
+                await sharedStream.unsubscribe(token)
+                return
+            }
             warmSubscriberToken = token
             let shouldAcceptPreRoll = !recording && !starting
             preRollAcceptingSamples.withLock { $0 = shouldAcceptPreRoll }
@@ -707,6 +752,7 @@ public actor AudioRecorder {
 
     private func handleWarmCaptureEngineDeath() {
         warmSubscriberToken = nil
+        warmCaptureLifecycleGeneration += 1
         Task {
             try? await Task.sleep(nanoseconds: 200_000_000)
             await self.startWarmCaptureIfNeeded()

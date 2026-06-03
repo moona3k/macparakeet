@@ -161,6 +161,179 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         await recorder.setInstantDictationEnabled(false)
     }
 
+    func testInstantDictationDisableDuringPendingWarmStartDoesNotLeaveSubscriber() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let arrived = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        platform.configureAndStartHook = {
+            arrived.signal()
+            release.wait()
+        }
+
+        let enableTask = Task {
+            await recorder.setInstantDictationEnabled(true)
+        }
+
+        XCTAssertEqual(arrived.wait(timeout: .now() + 5), .success)
+        await recorder.setInstantDictationEnabled(false)
+        release.signal()
+        await enableTask.value
+
+        let drained = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount == 0 && !stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(drained, "disabling during a pending warm subscribe must unsubscribe the stale token")
+        XCTAssertEqual(stream.diagnostics.passiveSubscriberCount, 0)
+    }
+
+    func testInstantDictationReenableDuringStaleWarmStartCleanupStartsWarmCapture() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let arrived = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        platform.configureAndStartHook = {
+            arrived.signal()
+            release.wait()
+        }
+
+        let enableTask = Task {
+            await recorder.setInstantDictationEnabled(true)
+        }
+
+        XCTAssertEqual(arrived.wait(timeout: .now() + 5), .success)
+        await recorder.setInstantDictationEnabled(false)
+        let reenableTask = Task {
+            await recorder.setInstantDictationEnabled(true)
+        }
+        platform.configureAndStartHook = nil
+        release.signal()
+        await enableTask.value
+        await reenableTask.value
+
+        let restarted = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount == 1
+                && stream.diagnostics.passiveSubscriberCount == 1
+                && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(restarted, "reenabling during stale cleanup should preserve the warm-start intent")
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testInstantDictationRefreshClearsStaleWarmPreRoll() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.9))
+        try await Task.sleep(for: .milliseconds(50))
+
+        await recorder.refreshInstantDictationWarmCapture()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.5))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 12_000)
+        XCTAssertEqual(samples[0], 0.5, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_199], 0.5, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_200], 0.2, accuracy: 0.0001)
+        XCTAssertFalse(samples.contains { abs($0 - 0.9) < 0.0001 })
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testInstantDictationRefreshDuringActiveSubscriberRestartsWarmAfterActiveLeaves() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        let active = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+
+        await recorder.refreshInstantDictationWarmCapture()
+
+        XCTAssertEqual(platform.configureAndStartCallCount, 1, "active capture keeps the old engine until it leaves")
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.9))
+        try await Task.sleep(for: .milliseconds(50))
+        let oldEngineRestartBuffer = UncheckedSendableAudioPCMBuffer(
+            try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.8)
+        )
+        platform.configureAndStartHook = {
+            platform.deliverBuffer(oldEngineRestartBuffer.buffer)
+        }
+        await stream.unsubscribe(active)
+
+        let restarted = await pollUntil(timeout: .seconds(2)) {
+            platform.configureAndStartCallCount == 2
+                && stream.diagnostics.subscriberCount == 1
+                && stream.diagnostics.passiveSubscriberCount == 1
+        }
+        XCTAssertTrue(restarted, "warm capture should restart once only the passive subscriber remains")
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 4_800)
+        XCTAssertEqual(try XCTUnwrap(samples.first), 0.2, accuracy: 0.0001)
+        XCTAssertFalse(samples.contains { abs($0 - 0.9) < 0.0001 })
+        XCTAssertFalse(samples.contains { abs($0 - 0.8) < 0.0001 })
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testInstantDictationRefreshDuringActiveDictationRestartsWarmAfterStop() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+
+        await recorder.refreshInstantDictationWarmCapture()
+
+        XCTAssertEqual(platform.configureAndStartCallCount, 1, "active dictation keeps the old engine until stop")
+        let url = try await recorder.stop()
+        try? FileManager.default.removeItem(at: url)
+
+        let restarted = await pollUntil(timeout: .seconds(2)) {
+            platform.configureAndStartCallCount == 2
+                && stream.diagnostics.subscriberCount == 1
+                && stream.diagnostics.passiveSubscriberCount == 1
+        }
+        XCTAssertTrue(restarted, "warm capture should restart after active dictation drains")
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
     func testSharedModeStopDuringStartAbortsPendingSubscription() async throws {
         let platform = AudioRecorderBlockingPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
@@ -388,6 +561,7 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
     private let lock = NSLock()
     private let hookLock = NSLock()
     private var _isRunning = false
+    private var _configureAndStartCallCount = 0
     private var _tapHandler: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
     private var _configureAndStartHook: (@Sendable () -> Void)?
 
@@ -398,6 +572,10 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
 
     var isEngineRunning: Bool {
         lock.withLock { _isRunning }
+    }
+
+    var configureAndStartCallCount: Int {
+        lock.withLock { _configureAndStartCallCount }
     }
 
     var inputFormat: AVAudioFormat? {
@@ -411,6 +589,7 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
     ) throws {
         configureAndStartHook?()
         lock.withLock {
+            _configureAndStartCallCount += 1
             _isRunning = true
             _tapHandler = tapHandler
         }
