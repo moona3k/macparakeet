@@ -42,6 +42,10 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 │     llm_runs     │   v0.18 — Local LLM run metadata ledger
 └──────────────────┘   FK -> dictations / transcriptions / summaries /
                        chat_conversations / transform_history
+
+┌───────────────────────┐
+│ ai_formatter_profiles │   v0.21 — Local app/category formatter prompts
+└───────────────────────┘
 ```
 
 Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `llm_runs` has nullable foreign-key columns back to the feature-owned source rows that triggered each LLM call. At least one `llm_runs` source link is required. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
@@ -71,7 +75,11 @@ CREATE TABLE dictations (
     wordCount INTEGER NOT NULL DEFAULT 0,             -- v0.5: Cached word count for voice stats
     engine TEXT,                                      -- v0.8: STT engine (`parakeet` / `whisper`)
     engineVariant TEXT,                               -- v0.8: Engine-specific model variant
-    language TEXT                                     -- v0.19: Normalized detected STT language code
+    language TEXT,                                    -- v0.19: Normalized detected STT language code
+    displayRawTranscript INTEGER NOT NULL DEFAULT 0,  -- v0.12: Show raw transcript instead of cleaned text
+    aiFormatterProfileID TEXT,                        -- v0.21: Local formatter profile UUID used
+    aiFormatterProfileName TEXT,                      -- v0.21: Local formatter profile display name snapshot
+    aiFormatterProfileMatchKind TEXT                  -- v0.21: exact_app / category / global
 );
 
 CREATE INDEX idx_dictations_created_at ON dictations(createdAt);
@@ -86,6 +94,8 @@ CREATE INDEX idx_dictations_created_at ON dictations(createdAt);
 - `processingMode` records which mode was active when the dictation was captured.
 - `engine` / `engineVariant` record the STT engine attribution for rows created after the v0.8 migration. Legacy rows keep `NULL` rather than being silently relabeled.
 - `language` records the normalized detected STT language code for rows created after the v0.19 migration. Unknown, auto-detect, or non-catalog values remain `NULL`.
+- `displayRawTranscript` lets history/export/menu surfaces show the raw STT text while preserving the cleaned text for reversible "Undo AI edit" behavior.
+- `aiFormatterProfileID`, `aiFormatterProfileName`, and `aiFormatterProfileMatchKind` are local-only AI Formatter routing provenance. Global formatter runs store `aiFormatterProfileMatchKind = 'global'` with no profile id/name; `NULL` means the row predates the v0.21 metadata or AI Formatter did not run.
 - ~~FTS5 was created in v0.1 but dropped in v0.5~~ — search uses `LIKE` queries instead. The FTS5 table and its 3 sync triggers added write overhead on every INSERT/UPDATE/DELETE without being queried.
 
 ---
@@ -395,6 +405,43 @@ CREATE INDEX idx_llm_runs_transform_history_id ON llm_runs(transformHistoryId);
 - Formatter writes are the first producer. Prompt result, chat, and transform rows should be added only after their streaming app APIs expose a terminal metadata envelope.
 - Private/no-history dictations and transient transcriptions do not create formatter run rows because there is no durable user-visible source row to link.
 - Deleting a source row cascades associated run metadata.
+
+---
+
+### `ai_formatter_profiles` (v0.21)
+
+Local profile table for Dictation AI Formatter prompt routing. Profiles match
+either an exact macOS bundle identifier or a coarse app category, then provide a
+prompt template that follows the same `{{TRANSCRIPT}}` contract as the global
+formatter prompt.
+
+```sql
+CREATE TABLE ai_formatter_profiles (
+    id               TEXT PRIMARY KEY,                    -- UUID string
+    name             TEXT NOT NULL,                       -- User-visible profile name
+    isEnabled        INTEGER NOT NULL DEFAULT 1,
+    targetKind       TEXT NOT NULL,                       -- bundle / category
+    bundleIdentifier TEXT,                                -- normalized lowercase bundle id
+    appDisplayName   TEXT,                                -- local display name snapshot
+    appCategory      TEXT,                                -- TelemetryAppCategory raw value
+    promptTemplate   TEXT NOT NULL,
+    origin           TEXT NOT NULL DEFAULT 'custom',      -- custom / template
+    sortOrder        INTEGER NOT NULL DEFAULT 0,
+    createdAt        TEXT NOT NULL,
+    updatedAt        TEXT NOT NULL
+);
+
+CREATE INDEX idx_ai_formatter_profiles_enabled_sort
+    ON ai_formatter_profiles(isEnabled, sortOrder);
+CREATE INDEX idx_ai_formatter_profiles_target_kind
+    ON ai_formatter_profiles(targetKind);
+```
+
+**Notes:**
+- Exact app profiles store bundle IDs and display names as local user data only. They are used for prompt resolution and local history/debug provenance, not telemetry.
+- Matching precedence is exact bundle, then coarse category, then the existing global AI Formatter prompt.
+- Duplicate exact-bundle and category targets are rejected by `AIFormatterProfileRepository` so the matching rule stays deterministic.
+- Browser hostname/domain matching is intentionally not represented in this schema. V1 treats browsers as exact browser apps or the coarse `browser` category.
 
 ---
 
@@ -773,6 +820,48 @@ extension LLMRun: FetchableRecord, PersistableRecord {
 }
 ```
 
+### AIFormatterProfile
+
+```swift
+import Foundation
+import GRDB
+
+public enum AIFormatterProfileTargetKind: String, Codable, Sendable {
+    case bundle
+    case category
+}
+
+public enum AIFormatterProfileMatchKind: String, Codable, Sendable {
+    case exactApp = "exact_app"
+    case category
+    case global
+}
+
+public enum AIFormatterProfileOrigin: String, Codable, Sendable {
+    case custom
+    case template
+}
+
+public struct AIFormatterProfile: Codable, Identifiable, Sendable, Equatable {
+    public var id: UUID
+    public var name: String
+    public var isEnabled: Bool
+    public var targetKind: AIFormatterProfileTargetKind
+    public var bundleIdentifier: String?
+    public var appDisplayName: String?
+    public var appCategory: TelemetryAppCategory?
+    public var promptTemplate: String
+    public var origin: AIFormatterProfileOrigin
+    public var sortOrder: Int
+    public var createdAt: Date
+    public var updatedAt: Date
+}
+
+extension AIFormatterProfile: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "ai_formatter_profiles"
+}
+```
+
 ---
 
 ## Migration Strategy
@@ -1039,9 +1128,12 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.derivedSnippet` | v0.9 | Cached display preview snippet derived from transcript content |
 | `quick_prompts` | v0.10 | User-customizable live Ask tab shortcut pills; v0.6 product feature |
 | `idx_transcriptions_source_type_created_at` / `idx_transcriptions_favorite_created_at` / `idx_transcriptions_status_created_at` | v0.10 | Library filter/sort indexes for source type, favorites, and status |
+| `dictations.displayRawTranscript` | v0.12 | Reversible local "Undo AI edit" display override |
 | `transform_history` | v0.14 (re-created v0.17) | Local Transform run history (input/output/source app/timings). Dropped by v0.16 along with the workbench tables, then recreated standalone in v0.17 once history was restored without the workbench. |
 | ~~`transform_profiles`~~ / ~~`writing_samples`~~ | ~~v0.15~~ | ~~Transform Workbench tables~~ (dropped in v0.16; workbench feature removed) |
 | `llm_runs` | v0.18 | Local metadata ledger for persisted LLM operations. Stores source links, feature/status, provider/model, latency, token counts, character counts, and errors; never stores prompt/input/output content. |
+| `ai_formatter_profiles` | v0.21 | Local Dictation AI Formatter profiles keyed by exact bundle or coarse app category |
+| `dictations.aiFormatterProfileID` / `dictations.aiFormatterProfileName` / `dictations.aiFormatterProfileMatchKind` | v0.21 | Local formatter routing provenance; not emitted in telemetry |
 
 ### Tables NOT Planned (YAGNI)
 
