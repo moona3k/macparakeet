@@ -312,6 +312,26 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [saved.id])
     }
 
+    func testBlankAIFormatterProfilePromptIsRejected() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Email")
+        viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "   ")
+
+        XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "Prompt template is required.")
+        XCTAssertEqual(try repo.fetchAll().count, 0)
+        XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
+    }
+
     func testDuplicateAIFormatterProfileSurfacesErrorAndKeepsDraft() throws {
         let dbManager = try DatabaseManager()
         let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)

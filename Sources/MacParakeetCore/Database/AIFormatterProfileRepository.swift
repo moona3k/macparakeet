@@ -128,10 +128,12 @@ public final class AIFormatterProfileRepository: AIFormatterProfileRepositoryPro
         excluding id: UUID,
         db: Database
     ) throws {
-        let profiles = try AIFormatterProfile
+        let count = try AIFormatterProfile
             .filter(AIFormatterProfile.Columns.targetKind == AIFormatterProfileTargetKind.bundle.rawValue)
-            .fetchAll(db)
-        if profiles.contains(where: { $0.id != id && $0.bundleIdentifier == bundleIdentifier }) {
+            .filter(AIFormatterProfile.Columns.bundleIdentifier == bundleIdentifier)
+            .filter(AIFormatterProfile.Columns.id != id)
+            .fetchCount(db)
+        if count > 0 {
             throw AIFormatterProfileRepositoryError.duplicateExactApp(bundleIdentifier)
         }
     }
@@ -141,10 +143,12 @@ public final class AIFormatterProfileRepository: AIFormatterProfileRepositoryPro
         excluding id: UUID,
         db: Database
     ) throws {
-        let profiles = try AIFormatterProfile
+        let count = try AIFormatterProfile
             .filter(AIFormatterProfile.Columns.targetKind == AIFormatterProfileTargetKind.category.rawValue)
-            .fetchAll(db)
-        if profiles.contains(where: { $0.id != id && $0.appCategory == category }) {
+            .filter(AIFormatterProfile.Columns.appCategory == category.rawValue)
+            .filter(AIFormatterProfile.Columns.id != id)
+            .fetchCount(db)
+        if count > 0 {
             throw AIFormatterProfileRepositoryError.duplicateCategory(category)
         }
     }

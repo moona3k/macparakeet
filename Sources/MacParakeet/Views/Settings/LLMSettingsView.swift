@@ -412,6 +412,7 @@ struct LLMSettingsView: View {
             Divider()
 
             aiFormatterProfilesSection
+                .id("ai.formatter")
         }
     }
 

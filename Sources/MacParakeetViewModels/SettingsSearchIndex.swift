@@ -283,7 +283,7 @@ public enum SettingsSearchIndex {
                 "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
                 "bundle id", "category", "rewrite", "polish"
             ],
-            cardAnchor: "ai.provider"
+            cardAnchor: "ai.formatter"
         ),
 
         // MARK: System

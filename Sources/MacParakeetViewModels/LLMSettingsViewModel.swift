@@ -100,6 +100,9 @@ public final class LLMSettingsViewModel {
                bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Bundle ID is required for app profiles."
             }
+            if promptTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Prompt template is required."
+            }
             return nil
         }
 
