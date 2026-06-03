@@ -408,6 +408,335 @@ struct LLMSettingsView: View {
                     .disabled(!viewModel.canResetAIFormatterPrompt)
                 }
             }
+
+            Divider()
+
+            aiFormatterProfilesSection
+        }
+    }
+
+    @ViewBuilder
+    private var aiFormatterProfilesSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text("Profiles")
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                        Text(profileCountText)
+                            .font(DesignSystem.Typography.micro.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(DesignSystem.Colors.surfaceElevated)
+                            )
+                    }
+                    Text("Override the global formatter prompt for specific app bundle IDs or broad app categories.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Exact app profiles take precedence over category profiles; the global prompt remains the fallback.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Button {
+                        viewModel.startCreatingAIFormatterProfile(targetKind: .bundle)
+                    } label: {
+                        Label("Add App", systemImage: "app.badge")
+                    }
+                    .parakeetAction(.secondary)
+                    .disabled(!viewModel.canManageAIFormatterProfiles)
+
+                    Button {
+                        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+                    } label: {
+                        Label("Add Category", systemImage: "square.grid.2x2")
+                    }
+                    .parakeetAction(.secondary)
+                    .disabled(!viewModel.canManageAIFormatterProfiles)
+                }
+            }
+
+            if let error = viewModel.aiFormatterProfileError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    Text(error)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                }
+            }
+
+            if let draft = viewModel.aiFormatterProfileDraft {
+                aiFormatterProfileEditor(draft)
+            }
+
+            if viewModel.aiFormatterProfiles.isEmpty {
+                Text("No profiles yet.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, DesignSystem.Spacing.xs)
+            } else {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    ForEach(viewModel.aiFormatterProfiles) { profile in
+                        aiFormatterProfileRow(profile)
+                    }
+                }
+            }
+        }
+    }
+
+    private var profileCountText: String {
+        let count = viewModel.aiFormatterProfiles.count
+        return count == 1 ? "1 profile" : "\(count) profiles"
+    }
+
+    private func aiFormatterProfileRow(_ profile: AIFormatterProfile) -> some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: profile.targetKind == .bundle ? "app" : "square.grid.2x2")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(DesignSystem.Colors.accent.opacity(0.10)))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(profile.name)
+                        .font(DesignSystem.Typography.body.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    Text(profilePromptModeText(profile))
+                        .font(DesignSystem.Typography.micro.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(DesignSystem.Colors.background)
+                        )
+                }
+                Text(profileTargetText(profile))
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { profile.isEnabled },
+                    set: { viewModel.setAIFormatterProfile(profile, enabled: $0) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Button {
+                viewModel.editAIFormatterProfile(profile)
+            } label: {
+                Image(systemName: "pencil")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("Edit profile")
+            .accessibilityLabel("Edit \(profile.name)")
+
+            Button(role: .destructive) {
+                viewModel.deleteAIFormatterProfile(profile)
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(DesignSystem.Colors.errorRed)
+            .help("Delete profile")
+            .accessibilityLabel("Delete \(profile.name)")
+        }
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private func aiFormatterProfileEditor(_ draft: LLMSettingsViewModel.AIFormatterProfileDraft) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .center) {
+                Text(draft.profileID == nil ? "New profile" : "Edit profile")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                Spacer()
+                Toggle(
+                    "Enabled",
+                    isOn: profileDraftBinding(\.isEnabled, fallback: true)
+                )
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text("Type")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                    Picker("Profile type", selection: profileDraftBinding(\.targetKind, fallback: .bundle)) {
+                        Text("App").tag(AIFormatterProfileTargetKind.bundle)
+                        Text("Category").tag(AIFormatterProfileTargetKind.category)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 180)
+                }
+
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text("Name")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                    TextField(
+                        "Profile name",
+                        text: profileDraftBinding(\.name, fallback: "")
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                }
+            }
+
+            if draft.targetKind == .bundle {
+                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                        Text("Bundle ID")
+                            .font(DesignSystem.Typography.caption.weight(.medium))
+                        TextField(
+                            "com.example.app",
+                            text: profileDraftBinding(\.bundleIdentifier, fallback: "")
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 260)
+                    }
+
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                        Text("Display name")
+                            .font(DesignSystem.Typography.caption.weight(.medium))
+                        TextField(
+                            "Optional",
+                            text: profileDraftBinding(\.appDisplayName, fallback: "")
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text("Category")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                    Picker("Category", selection: profileDraftBinding(\.appCategory, fallback: .messaging)) {
+                        ForEach(TelemetryAppCategory.allCases, id: \.self) { category in
+                            Text(categoryTitle(category)).tag(category)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 220)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack {
+                    Text("Prompt")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                    Spacer()
+                    Button("Use Global Prompt") {
+                        viewModel.updateAIFormatterProfileDraft(
+                            \.promptTemplate,
+                            to: viewModel.aiFormatterPrompt
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                }
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: profileDraftBinding(\.promptTemplate, fallback: AIFormatter.defaultPromptTemplate))
+                        .font(.system(.body, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 150)
+                .background(DesignSystem.Colors.background)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
+                )
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Button("Save Profile") {
+                    _ = viewModel.saveAIFormatterProfileDraft()
+                }
+                .parakeetAction(.primaryProminent)
+                .disabled(!draft.canSave)
+
+                Button("Cancel") {
+                    viewModel.cancelAIFormatterProfileEdit()
+                }
+                .parakeetAction(.secondary)
+
+                Spacer()
+            }
+        }
+        .padding(.top, DesignSystem.Spacing.xs)
+    }
+
+    private func profileDraftBinding<Value>(
+        _ keyPath: WritableKeyPath<LLMSettingsViewModel.AIFormatterProfileDraft, Value>,
+        fallback: Value
+    ) -> Binding<Value> {
+        Binding(
+            get: { viewModel.aiFormatterProfileDraft?[keyPath: keyPath] ?? fallback },
+            set: { viewModel.updateAIFormatterProfileDraft(keyPath, to: $0) }
+        )
+    }
+
+    private func profileTargetText(_ profile: AIFormatterProfile) -> String {
+        switch profile.targetKind {
+        case .bundle:
+            let bundle = profile.bundleIdentifier ?? "Unknown bundle"
+            if let displayName = profile.appDisplayName, !displayName.isEmpty {
+                return "\(displayName) · \(bundle)"
+            }
+            return bundle
+        case .category:
+            return categoryTitle(profile.appCategory ?? .other)
+        }
+    }
+
+    private func profilePromptModeText(_ profile: AIFormatterProfile) -> String {
+        profile.promptTemplate == AIFormatter.defaultPromptTemplate
+            ? "Default prompt"
+            : "Custom prompt"
+    }
+
+    private func categoryTitle(_ category: TelemetryAppCategory) -> String {
+        switch category {
+        case .messaging: return "Messaging"
+        case .email: return "Email"
+        case .browser: return "Browser"
+        case .notes: return "Notes"
+        case .docs: return "Documents"
+        case .code: return "Code"
+        case .terminal: return "Terminal"
+        case .other: return "Other"
         }
     }
 

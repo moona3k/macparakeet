@@ -274,6 +274,17 @@ public enum SettingsSearchIndex {
             ],
             cardAnchor: "ai.provider"
         ),
+        SettingsSearchEntry(
+            id: "ai.formatter",
+            tab: .ai,
+            title: "AI Formatter",
+            subtitle: "Global prompt and app-specific formatter profiles.",
+            keywords: [
+                "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
+                "bundle id", "category", "rewrite", "polish"
+            ],
+            cardAnchor: "ai.provider"
+        ),
 
         // MARK: System
         SettingsSearchEntry(

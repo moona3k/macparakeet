@@ -30,10 +30,108 @@ public final class LLMSettingsViewModel {
         case cannotConnect(displayName: String, message: String)
     }
 
+    public struct AIFormatterProfileDraft: Identifiable, Equatable, Sendable {
+        private let draftID: UUID
+        public var profileID: UUID?
+        public var name: String
+        public var isEnabled: Bool
+        public var targetKind: AIFormatterProfileTargetKind
+        public var bundleIdentifier: String
+        public var appDisplayName: String
+        public var appCategory: TelemetryAppCategory
+        public var promptTemplate: String
+        public var origin: AIFormatterProfileOrigin
+        public var sortOrder: Int
+        public var createdAt: Date
+
+        public var id: UUID {
+            profileID ?? draftID
+        }
+
+        public init(
+            profileID: UUID? = nil,
+            name: String,
+            isEnabled: Bool = true,
+            targetKind: AIFormatterProfileTargetKind,
+            bundleIdentifier: String = "",
+            appDisplayName: String = "",
+            appCategory: TelemetryAppCategory = .messaging,
+            promptTemplate: String,
+            origin: AIFormatterProfileOrigin = .custom,
+            sortOrder: Int = 0,
+            createdAt: Date = Date(),
+            draftID: UUID = UUID()
+        ) {
+            self.draftID = draftID
+            self.profileID = profileID
+            self.name = name
+            self.isEnabled = isEnabled
+            self.targetKind = targetKind
+            self.bundleIdentifier = bundleIdentifier
+            self.appDisplayName = appDisplayName
+            self.appCategory = appCategory
+            self.promptTemplate = promptTemplate
+            self.origin = origin
+            self.sortOrder = sortOrder
+            self.createdAt = createdAt
+        }
+
+        public init(profile: AIFormatterProfile) {
+            self.init(
+                profileID: profile.id,
+                name: profile.name,
+                isEnabled: profile.isEnabled,
+                targetKind: profile.targetKind,
+                bundleIdentifier: profile.bundleIdentifier ?? "",
+                appDisplayName: profile.appDisplayName ?? "",
+                appCategory: profile.appCategory ?? .messaging,
+                promptTemplate: profile.promptTemplate,
+                origin: profile.origin,
+                sortOrder: profile.sortOrder,
+                createdAt: profile.createdAt
+            )
+        }
+
+        public var validationMessage: String? {
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Name is required."
+            }
+            if targetKind == .bundle,
+               bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Bundle ID is required for app profiles."
+            }
+            return nil
+        }
+
+        public var canSave: Bool {
+            validationMessage == nil
+        }
+
+        func makeProfile(now: Date = Date()) -> AIFormatterProfile {
+            AIFormatterProfile(
+                id: profileID ?? UUID(),
+                name: name,
+                isEnabled: isEnabled,
+                targetKind: targetKind,
+                bundleIdentifier: targetKind == .bundle ? bundleIdentifier : nil,
+                appDisplayName: targetKind == .bundle ? appDisplayName : nil,
+                appCategory: targetKind == .category ? appCategory : nil,
+                promptTemplate: promptTemplate,
+                origin: origin,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+                updatedAt: now
+            )
+        }
+    }
+
     public private(set) var draft: LLMSettingsDraft
     public var connectionTestState: ConnectionTestState = .idle
     public var saveState: SaveState = .idle
     public private(set) var modelListState: ModelListState = .idle
+    public private(set) var aiFormatterProfiles: [AIFormatterProfile] = []
+    public var aiFormatterProfileDraft: AIFormatterProfileDraft?
+    public var aiFormatterProfileError: String?
     private var discoveredModels: [String] = []
 
     public var selectedProviderID: LLMProviderID? {
@@ -314,11 +412,16 @@ public final class LLMSettingsViewModel {
         draft.aiFormatterPrompt != AIFormatter.defaultPromptTemplate
     }
 
+    public var canManageAIFormatterProfiles: Bool {
+        aiFormatterProfileRepo != nil
+    }
+
     public var onConfigurationChanged: (() -> Void)?
 
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
+    private var aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol?
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
@@ -344,12 +447,15 @@ public final class LLMSettingsViewModel {
     public func configure(
         configStore: LLMConfigStoreProtocol,
         llmClient: LLMClientProtocol,
-        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
+        aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol? = nil
     ) {
         self.configStore = configStore
         self.llmClient = llmClient
         self.cliConfigStore = cliConfigStore
+        self.aiFormatterProfileRepo = aiFormatterProfileRepo
         loadExistingConfig()
+        loadAIFormatterProfiles()
     }
 
     public func saveConfiguration() {
@@ -466,6 +572,98 @@ public final class LLMSettingsViewModel {
 
     public func resetAIFormatterPrompt() {
         aiFormatterPrompt = AIFormatter.defaultPromptTemplate
+    }
+
+    public func loadAIFormatterProfiles() {
+        guard let aiFormatterProfileRepo else {
+            aiFormatterProfiles = []
+            aiFormatterProfileError = nil
+            return
+        }
+        do {
+            aiFormatterProfiles = try aiFormatterProfileRepo.fetchAll()
+            aiFormatterProfileError = nil
+        } catch {
+            aiFormatterProfileError = error.localizedDescription
+        }
+    }
+
+    public func startCreatingAIFormatterProfile(targetKind: AIFormatterProfileTargetKind) {
+        let nextSortOrder = (aiFormatterProfiles.map(\.sortOrder).max() ?? -1) + 1
+        aiFormatterProfileDraft = AIFormatterProfileDraft(
+            name: targetKind == .bundle ? "New app profile" : "New category profile",
+            targetKind: targetKind,
+            promptTemplate: draft.normalizedAIFormatterPrompt,
+            sortOrder: nextSortOrder
+        )
+        aiFormatterProfileError = nil
+    }
+
+    public func editAIFormatterProfile(_ profile: AIFormatterProfile) {
+        aiFormatterProfileDraft = AIFormatterProfileDraft(profile: profile)
+        aiFormatterProfileError = nil
+    }
+
+    public func updateAIFormatterProfileDraft<Value>(
+        _ keyPath: WritableKeyPath<AIFormatterProfileDraft, Value>,
+        to value: Value
+    ) {
+        guard var draft = aiFormatterProfileDraft else { return }
+        draft[keyPath: keyPath] = value
+        aiFormatterProfileDraft = draft
+        aiFormatterProfileError = nil
+    }
+
+    @discardableResult
+    public func saveAIFormatterProfileDraft() -> Bool {
+        guard let aiFormatterProfileRepo else {
+            aiFormatterProfileError = "Formatter profiles are not available."
+            return false
+        }
+        guard let draft = aiFormatterProfileDraft else { return false }
+        if let validationMessage = draft.validationMessage {
+            aiFormatterProfileError = validationMessage
+            return false
+        }
+        do {
+            try aiFormatterProfileRepo.save(draft.makeProfile())
+            aiFormatterProfileDraft = nil
+            loadAIFormatterProfiles()
+            return true
+        } catch {
+            aiFormatterProfileError = error.localizedDescription
+            return false
+        }
+    }
+
+    public func cancelAIFormatterProfileEdit() {
+        aiFormatterProfileDraft = nil
+        aiFormatterProfileError = nil
+    }
+
+    public func setAIFormatterProfile(_ profile: AIFormatterProfile, enabled: Bool) {
+        guard let aiFormatterProfileRepo else { return }
+        var copy = profile
+        copy.isEnabled = enabled
+        do {
+            try aiFormatterProfileRepo.save(copy)
+            loadAIFormatterProfiles()
+        } catch {
+            aiFormatterProfileError = error.localizedDescription
+        }
+    }
+
+    public func deleteAIFormatterProfile(_ profile: AIFormatterProfile) {
+        guard let aiFormatterProfileRepo else { return }
+        do {
+            _ = try aiFormatterProfileRepo.delete(id: profile.id)
+            if aiFormatterProfileDraft?.profileID == profile.id {
+                aiFormatterProfileDraft = nil
+            }
+            loadAIFormatterProfiles()
+        } catch {
+            aiFormatterProfileError = error.localizedDescription
+        }
     }
 
     public func refreshAvailableModels() {
