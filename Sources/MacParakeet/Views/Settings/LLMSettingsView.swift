@@ -424,15 +424,17 @@ struct LLMSettingsView: View {
                     HStack(spacing: 7) {
                         Text("Profiles")
                             .font(DesignSystem.Typography.body.weight(.semibold))
-                        Text(profileCountText)
-                            .font(DesignSystem.Typography.micro.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(DesignSystem.Colors.surfaceElevated)
-                            )
+                        if !viewModel.aiFormatterProfiles.isEmpty {
+                            Text(profileCountText)
+                                .font(DesignSystem.Typography.micro.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(DesignSystem.Colors.surfaceElevated)
+                                )
+                        }
                     }
                     Text("Override the global formatter prompt for specific app bundle IDs or broad app categories.")
                         .font(DesignSystem.Typography.caption)
