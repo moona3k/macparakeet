@@ -769,7 +769,7 @@ struct OnboardingFlowView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("\(recommendation.languageName) setup")
                                 .font(DesignSystem.Typography.sectionTitle)
-                            Text("Your Mac language suggests \(recommendation.languageName). MacParakeet will set up local Whisper instead of Parakeet so dictation works for this language from the first run.")
+                            Text("Your Mac language settings suggest \(recommendation.languageName). MacParakeet will set up local Whisper instead of Parakeet so dictation works for this language from the first run.")
                                 .font(DesignSystem.Typography.bodySmall)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1077,7 +1077,7 @@ struct OnboardingFlowView: View {
             return "Two ways to dictate — pick whichever feels natural."
         case .engine:
             if let recommendation = viewModel.whisperRecommendation {
-                return "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language."
+                return "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language settings."
             }
             return "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
         case .done:

@@ -176,7 +176,7 @@ final class OnboardingViewModelTests: XCTestCase {
             "ko"
         )
         XCTAssertEqual(
-            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "ja-JP"])?.languageCode,
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["ja-JP"])?.languageCode,
             "ja"
         )
         XCTAssertEqual(
@@ -184,6 +184,12 @@ final class OnboardingViewModelTests: XCTestCase {
             "zh"
         )
         XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "fr-FR"]))
+    }
+
+    func testWhisperOnboardingRecommendationKeepsParakeetWhenEnglishIsPreferred() {
+        XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "ja-JP"]))
+        XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["ja-JP", "en-US"]))
+        XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["zh-Hans-CN", "English"]))
     }
 
     func testMeetingRecordingStepCanContinueWithoutPermission() {

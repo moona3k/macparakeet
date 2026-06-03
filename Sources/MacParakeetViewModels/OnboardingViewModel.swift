@@ -890,11 +890,14 @@ public final class OnboardingViewModel {
         preferredLanguages: [String]
     ) -> WhisperOnboardingRecommendation? {
         let cjkWhisperLanguageCodes: Set<String> = ["ko", "ja", "zh", "yue"]
-        for language in preferredLanguages {
-            guard let code = SpeechEnginePreference.normalizeKnownLanguage(language),
-                  cjkWhisperLanguageCodes.contains(code) else {
-                continue
-            }
+        let normalizedLanguages = preferredLanguages.compactMap {
+            SpeechEnginePreference.normalizeKnownLanguage($0)
+        }
+        guard !normalizedLanguages.contains("en") else {
+            return nil
+        }
+
+        for code in normalizedLanguages where cjkWhisperLanguageCodes.contains(code) {
             return WhisperOnboardingRecommendation(
                 languageCode: code,
                 languageName: WhisperLanguageCatalog.displayLabel(for: code)
