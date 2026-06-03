@@ -286,6 +286,32 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["app_category"], "email")
     }
 
+    func testNilStopTimeAppCategoryRecordsOtherTelemetryBucket() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(result: STTResult(text: "finish target"))
+
+        try await service.startRecording(
+            context: DictationTelemetryContext(
+                trigger: .hotkey,
+                mode: .hold,
+                appCategory: .browser
+            )
+        )
+        await service.updateTelemetryAppCategory(nil)
+        _ = try await service.stopRecording()
+
+        let events = telemetry.snapshot()
+        let completed = try XCTUnwrap(events.last { event in
+            if case .dictationCompleted = event { return true }
+            return false
+        })
+        XCTAssertEqual(completed.props?["app_category"], "other")
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["app_category"], "other")
+    }
+
     func testFirstDictationFlagFlipsAfterSuccessfulSave() async throws {
         let defaults = UserDefaults(suiteName: "dictation-first-success-\(UUID().uuidString)")!
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)

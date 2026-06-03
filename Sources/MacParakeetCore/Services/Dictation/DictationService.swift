@@ -159,8 +159,9 @@ public actor DictationService: DictationServiceProtocol {
         if let sessionID, sessionID != activeSessionID { return }
         switch _state {
         case .recording, .cancelled, .processing:
-            currentTelemetryContext.appCategory = appCategory
-            currentOperationTelemetryContext.appCategory = appCategory
+            let sampledCategory = appCategory ?? .other
+            currentTelemetryContext.appCategory = sampledCategory
+            currentOperationTelemetryContext.appCategory = sampledCategory
         case .idle, .success, .error:
             return
         }
