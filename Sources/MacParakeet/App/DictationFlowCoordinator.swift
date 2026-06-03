@@ -861,9 +861,7 @@ final class DictationFlowCoordinator {
 
     private func formatterContext(from context: AppPromptContext?) -> AppPromptContext? {
         guard let context else { return nil }
-        if let bundleIdentifier = context.bundleIdentifier,
-           let ownBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(Bundle.main.bundleIdentifier),
-           bundleIdentifier == ownBundleIdentifier {
+        if context.isSelfApp(bundleIdentifier: Bundle.main.bundleIdentifier) {
             return nil
         }
         return context

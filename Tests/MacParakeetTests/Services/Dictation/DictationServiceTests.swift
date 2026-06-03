@@ -254,7 +254,9 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(fetched?.language, "ko")
 
-        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        let operation = try XCTUnwrap(
+            dictationOperationProps(in: telemetry.snapshot()).last { $0["outcome"] == "success" }
+        )
         XCTAssertEqual(operation["speech_engine"], "whisper")
         XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(operation["language"], "ko")

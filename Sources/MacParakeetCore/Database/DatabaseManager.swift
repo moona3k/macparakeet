@@ -910,9 +910,10 @@ public final class DatabaseManager: Sendable {
         // data: exact app bundle IDs and display names are used only for local
         // prompt resolution and local history/debug provenance.
         migrator.registerMigration("v0.21-ai-formatter-profiles") { db in
-            let allowedCategories = TelemetryAppCategory.allCases
-                .map { "'\($0.rawValue)'" }
-                .joined(separator: ", ")
+            // Freeze the v0.21 category set inside the migration. Future
+            // category additions need a follow-up migration so old and fresh
+            // databases enforce the same contract.
+            let allowedCategories = "'messaging', 'email', 'browser', 'notes', 'docs', 'code', 'terminal', 'other'"
             if !(try db.tableExists("ai_formatter_profiles")) {
                 try db.create(table: "ai_formatter_profiles") { t in
                     t.column("id", .text).primaryKey()
