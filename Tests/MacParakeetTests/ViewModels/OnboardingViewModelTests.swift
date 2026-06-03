@@ -183,6 +183,14 @@ final class OnboardingViewModelTests: XCTestCase {
             OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["zh-Hant-HK"])?.languageCode,
             "zh"
         )
+        XCTAssertEqual(
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["zh-Hans-CN", "ja-JP"])?.languageCode,
+            "zh"
+        )
+        XCTAssertEqual(
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["ja-JP", "zh-Hans-CN"])?.languageCode,
+            "ja"
+        )
         XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "fr-FR"]))
     }
 
