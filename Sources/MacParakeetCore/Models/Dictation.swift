@@ -144,10 +144,11 @@ public struct Dictation: Codable, Identifiable, Sendable {
         displayRawTranscript = try container.decodeIfPresent(Bool.self, forKey: .displayRawTranscript) ?? false
         aiFormatterProfileID = try container.decodeIfPresent(UUID.self, forKey: .aiFormatterProfileID)
         aiFormatterProfileName = try container.decodeIfPresent(String.self, forKey: .aiFormatterProfileName)
-        aiFormatterProfileMatchKind = try container.decodeIfPresent(
-            AIFormatterProfileMatchKind.self,
-            forKey: .aiFormatterProfileMatchKind
-        )
+        if let rawMatchKind = try container.decodeIfPresent(String.self, forKey: .aiFormatterProfileMatchKind) {
+            aiFormatterProfileMatchKind = AIFormatterProfileMatchKind(rawValue: rawMatchKind)
+        } else {
+            aiFormatterProfileMatchKind = nil
+        }
     }
 }
 

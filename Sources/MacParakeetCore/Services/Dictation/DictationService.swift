@@ -349,6 +349,7 @@ public actor DictationService: DictationServiceProtocol {
         }
 
         let currentSession = activeSessionID
+        let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
         _state = .processing
         logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
@@ -359,7 +360,7 @@ public actor DictationService: DictationServiceProtocol {
                 "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )
             let result = try await withCurrentObservabilityContextIfAny {
-                try await processCapturedAudio(audioURL: audioURL)
+                try await processCapturedAudio(audioURL: audioURL, formatterContext: formatterContext)
             }
             // Guard against reentrancy: a new session may have started during
             // transcription, replacing this session. Don't overwrite its state.
@@ -523,10 +524,11 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledAudioURL = nil
 
         let currentSession = activeSessionID
+        let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
         _state = .processing
         do {
             let result = try await withCurrentObservabilityContextIfAny {
-                try await processCapturedAudio(audioURL: audioURL)
+                try await processCapturedAudio(audioURL: audioURL, formatterContext: formatterContext)
             }
             let device = await audioProcessor.recordingDeviceInfo
             // Guard against reentrancy: a new session may have started while we
@@ -631,7 +633,10 @@ public actor DictationService: DictationServiceProtocol {
         }
     }
 
-    private func processCapturedAudio(audioURL: URL) async throws -> DictationResult {
+    private func processCapturedAudio(
+        audioURL: URL,
+        formatterContext: AppPromptContext?
+    ) async throws -> DictationResult {
         // Track whether the audio file is consumed (moved or explicitly deleted).
         // If an error occurs before that point, clean up the temp file.
         var audioConsumed = false
@@ -690,7 +695,8 @@ public actor DictationService: DictationServiceProtocol {
         let dictationID = UUID()
         let formatterOutcome = try await formatTranscriptIfNeeded(
             baseText,
-            runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil
+            runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
+            formatterContext: formatterContext
         )
         let formattedTranscript = formatterOutcome.text
         let finalText = formattedTranscript ?? baseText
@@ -750,7 +756,8 @@ public actor DictationService: DictationServiceProtocol {
 
     private func formatTranscriptIfNeeded(
         _ text: String,
-        runSource: LLMRunSource?
+        runSource: LLMRunSource?,
+        formatterContext: AppPromptContext?
     ) async throws -> FormatterOutcome {
         guard shouldUseAIFormatter(), let llmService else {
             return .skipped
@@ -774,9 +781,7 @@ public actor DictationService: DictationServiceProtocol {
             )
         }
 
-        let resolution = await aiFormatterPromptResolver.resolvePrompt(
-            for: currentAIFormatterFinishContext ?? currentAIFormatterStartContext
-        )
+        let resolution = await aiFormatterPromptResolver.resolvePrompt(for: formatterContext)
         let promptTemplate = resolution.promptTemplate
         // Normalize before comparing: `AIFormatter.renderPrompt` passes the
         // template through `normalizedPromptTemplate` before sending, which

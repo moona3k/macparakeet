@@ -548,6 +548,54 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(mockLLMService.lastFormatterPromptTemplate, "Finish app prompt")
     }
 
+    func testOverlappingSessionKeepsAIFormatterContextBoundToStoppedSession() async throws {
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "send first update"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send first update."
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "First app prompt",
+                matchKind: .exactApp
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording(sessionID: 1)
+        let firstContext = AppPromptContext(
+            bundleIdentifier: "com.apple.notes",
+            displayName: "Notes"
+        )
+        await service.updateAIFormatterAppContext(firstContext, phase: .finish)
+
+        let service = service!
+        let stopTask = Task {
+            try await service.stopRecording(sessionID: 1)
+        }
+        await delayedSTT.waitForTranscribeCall(1)
+
+        try await service.startRecording(sessionID: 2)
+        await service.updateAIFormatterAppContext(
+            AppPromptContext(bundleIdentifier: "com.tinyspeck.slackmacgap", displayName: "Slack"),
+            phase: .finish
+        )
+
+        await delayedSTT.releaseTranscribeCall(1)
+        let result = try await stopTask.value
+        await service.confirmCancel(sessionID: 2)
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Send first update.")
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [firstContext])
+    }
+
     func testStopRecordingFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()
@@ -690,6 +738,56 @@ private actor RecordingAIFormatterPromptResolver: AIFormatterPromptResolving {
 
     func recordedContexts() -> [AppPromptContext?] {
         contexts
+    }
+}
+
+private actor DelayedSTTTranscriber: STTTranscribing {
+    private let result: STTResult
+    private var transcribeCalls = 0
+    private var waitersByCall: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var releaseWaitersByCall: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var releasedCalls: Set<Int> = []
+
+    init(result: STTResult) {
+        self.result = result
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        transcribeCalls += 1
+        let call = transcribeCalls
+        signalTranscribeCall(call)
+        await waitUntilReleased(call)
+        return result
+    }
+
+    func waitForTranscribeCall(_ call: Int) async {
+        guard transcribeCalls < call else { return }
+        await withCheckedContinuation { continuation in
+            waitersByCall[call, default: []].append(continuation)
+        }
+    }
+
+    func releaseTranscribeCall(_ call: Int) {
+        releasedCalls.insert(call)
+        releaseWaitersByCall.removeValue(forKey: call)?.resume()
+    }
+
+    private func signalTranscribeCall(_ call: Int) {
+        let waiters = waitersByCall.removeValue(forKey: call) ?? []
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    private func waitUntilReleased(_ call: Int) async {
+        guard !releasedCalls.contains(call) else { return }
+        await withCheckedContinuation { continuation in
+            releaseWaitersByCall[call] = continuation
+        }
     }
 }
 

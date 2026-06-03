@@ -65,6 +65,24 @@ final class DictationRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.aiFormatterProfileMatchKind, .exactApp)
     }
 
+    func testFetchTreatsUnknownAIFormatterProfileMatchKindAsNil() throws {
+        let manager = try DatabaseManager()
+        let localRepo = DictationRepository(dbQueue: manager.dbQueue)
+        let dictation = Dictation(
+            durationMs: 1000,
+            rawTranscript: "profile test",
+            aiFormatterProfileMatchKind: .exactApp
+        )
+        try localRepo.save(dictation)
+
+        try manager.dbQueue.write { db in
+            try db.execute(sql: "UPDATE dictations SET aiFormatterProfileMatchKind = 'future_match_kind'")
+        }
+
+        let fetched = try XCTUnwrap(localRepo.fetch(id: dictation.id))
+        XCTAssertNil(fetched.aiFormatterProfileMatchKind)
+    }
+
     func testSavingHiddenDictationAgainKeepsTranscriptScrubbed() throws {
         let id = UUID()
         let scrubbedHidden = Dictation(
