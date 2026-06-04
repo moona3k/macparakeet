@@ -1044,32 +1044,46 @@ struct LLMSettingsView: View {
 
     nonisolated private static func discoverInstalledApps() -> [AIFormatterInstalledApp] {
         let fileManager = FileManager.default
+        let userApplications = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications", isDirectory: true)
         let directories = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
-            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true),
+            URL(fileURLWithPath: "/Applications/Utilities", isDirectory: true),
+            userApplications,
+            userApplications.appendingPathComponent("Utilities", isDirectory: true),
             URL(fileURLWithPath: "/System/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/System/Applications/Utilities", isDirectory: true),
         ]
-        let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .localizedNameKey]
         let selfBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(Bundle.main.bundleIdentifier)
         var appsByBundleIdentifier: [String: AIFormatterInstalledApp] = [:]
 
         for directory in directories {
-            guard let enumerator = fileManager.enumerator(
+            guard let urls = try? fileManager.contentsOfDirectory(
                 at: directory,
-                includingPropertiesForKeys: resourceKeys,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
             ) else { continue }
 
-            for case let url as URL in enumerator where url.pathExtension == "app" {
-                guard let bundle = Bundle(url: url),
-                      let bundleIdentifier = AppPromptContext.normalizedBundleIdentifier(bundle.bundleIdentifier),
+            for url in urls where url.pathExtension == "app" {
+                let plistURL = url
+                    .appendingPathComponent("Contents", isDirectory: true)
+                    .appendingPathComponent("Info.plist")
+                guard let plistData = try? Data(contentsOf: plistURL),
+                      let plistObject = try? PropertyListSerialization.propertyList(
+                          from: plistData,
+                          options: [],
+                          format: nil
+                      ),
+                      let plist = plistObject as? [String: Any],
+                      let rawBundleIdentifier = plist["CFBundleIdentifier"] as? String,
+                      let bundleIdentifier = AppPromptContext.normalizedBundleIdentifier(rawBundleIdentifier),
                       bundleIdentifier != selfBundleIdentifier,
                       appsByBundleIdentifier[bundleIdentifier] == nil
                 else { continue }
 
                 let displayName = AppPromptContext.normalizedDisplayName(
-                    bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-                        ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+                    plist["CFBundleDisplayName"] as? String
+                        ?? plist["CFBundleName"] as? String
                         ?? url.deletingPathExtension().lastPathComponent
                 ) ?? bundleIdentifier
                 appsByBundleIdentifier[bundleIdentifier] = AIFormatterInstalledApp(
@@ -1081,8 +1095,9 @@ struct LLMSettingsView: View {
         }
 
         return appsByBundleIdentifier.values.sorted {
-            if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) != .orderedSame {
-                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            let nameOrder = $0.displayName.localizedCaseInsensitiveCompare($1.displayName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
             }
             return $0.bundleIdentifier < $1.bundleIdentifier
         }
@@ -1102,9 +1117,20 @@ struct LLMSettingsView: View {
     }
 
     private func profilePromptModeText(_ profile: AIFormatterProfile) -> String {
-        profile.promptTemplate == AIFormatter.defaultPromptTemplate
-            ? "Default prompt"
-            : "Custom prompt"
+        let promptTemplate = AIFormatter.normalizedPromptTemplate(profile.promptTemplate)
+        if promptTemplate == AIFormatter.defaultPromptTemplate {
+            return "Fallback prompt"
+        }
+
+        let category = profile.appCategory
+            ?? profile.bundleIdentifier.map { TelemetryAppCategory(bundleIdentifier: $0) }
+        if let category,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: category),
+           promptTemplate == AIFormatter.normalizedPromptTemplate(categoryDefault.promptTemplate) {
+            return "Smart default"
+        }
+
+        return "Custom prompt"
     }
 
     private func categoryTitle(_ category: TelemetryAppCategory) -> String {

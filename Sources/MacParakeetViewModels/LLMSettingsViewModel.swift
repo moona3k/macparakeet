@@ -776,8 +776,11 @@ public final class LLMSettingsViewModel {
         _ normalizedPrompt: String,
         previousCategoryDefault: AIFormatterSmartDefaults.CategoryDefault?
     ) -> Bool {
-        normalizedPrompt == previousCategoryDefault?.promptTemplate
-            || normalizedPrompt == draft.normalizedAIFormatterPrompt
+        if let previousCategoryDefault,
+           normalizedPrompt == AIFormatter.normalizedPromptTemplate(previousCategoryDefault.promptTemplate) {
+            return true
+        }
+        return normalizedPrompt == draft.normalizedAIFormatterPrompt
             || normalizedPrompt == AIFormatter.defaultPromptTemplate
     }
 

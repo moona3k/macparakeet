@@ -348,6 +348,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
     }
 
+    func testChangingCategoryProfileDraftTreatsNormalizedSmartDefaultAsAutoPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "\n\(messagingDefault?.promptTemplate ?? "")\n"
+        )
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
     func testChangingCategoryProfileDraftPreservesCustomNameAndPrompt() {
         viewModel.startCreatingAIFormatterProfile(targetKind: .category)
         viewModel.updateAIFormatterProfileDraft(\.name, to: "My Messages")

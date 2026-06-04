@@ -89,8 +89,9 @@ public enum AIFormatterProfileMatcher {
             .filter(\.isEnabled)
             .sorted { lhs, rhs in
                 if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
-                if lhs.name.localizedCaseInsensitiveCompare(rhs.name) != .orderedSame {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                if nameOrder != .orderedSame {
+                    return nameOrder == .orderedAscending
                 }
                 return lhs.id.uuidString < rhs.id.uuidString
             }
