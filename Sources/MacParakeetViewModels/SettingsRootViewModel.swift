@@ -1,18 +1,31 @@
 import Foundation
 
+public enum SettingsCaptureWorkflow: String, CaseIterable, Identifiable, Sendable {
+    case dictation
+    case transcription
+    case meetings
+
+    public var id: String { rawValue }
+
+    public static let `default`: SettingsCaptureWorkflow = .dictation
+}
+
 /// Coordinator view-model for the tabbed Settings panel.
 ///
 /// Owns purely-UI state that spans tabs:
 /// - `activeTab` — currently visible tab; persisted across launches via
 ///   UserDefaults so a user who lives in System (e.g. while auditing
 ///   permissions) returns there on next launch.
+/// - `activeCaptureWorkflow` — currently selected workflow inside the Capture
+///   tab; persisted so reopening Settings keeps the user's place.
 /// - `searchQuery` — top-of-panel search text; non-empty switches the panel
 ///   into flat-results mode.
 ///
-/// Intentionally **does not** own per-tab state. Sub-VMs (`Modes`, `Engine`,
-/// `AI`, `System`) will be wired in subsequent commits and addressed by the
-/// parent view, not stored here. Keeping this VM small is the explicit
-/// remedy for the 1,265-line god-object pattern that motivated the split.
+/// Intentionally does not own settings forms or service state. Sub-VMs
+/// (`Capture`, `Engine`, `AI`, `System`) will be wired in subsequent commits
+/// and addressed by the parent view, not stored here. Keeping this VM small is
+/// the explicit remedy for the 1,265-line god-object pattern that motivated
+/// the split.
 @MainActor
 @Observable
 public final class SettingsRootViewModel {
@@ -20,6 +33,7 @@ public final class SettingsRootViewModel {
     /// because it is a UI-only preference and does not belong in the runtime
     /// preferences contract consumed by Core services.
     public static let lastViewedTabKey = "settings.lastViewedTab"
+    public static let lastCaptureWorkflowKey = "settings.capture.lastWorkflow"
 
     public var activeTab: SettingsTab {
         didSet {
@@ -29,6 +43,13 @@ public final class SettingsRootViewModel {
     }
 
     public var searchQuery: String = ""
+
+    public var activeCaptureWorkflow: SettingsCaptureWorkflow {
+        didSet {
+            guard activeCaptureWorkflow != oldValue else { return }
+            defaults.set(activeCaptureWorkflow.rawValue, forKey: Self.lastCaptureWorkflowKey)
+        }
+    }
 
     /// `true` when the user has typed something into the search field. The
     /// view collapses the tab layout into flat results in this state.
@@ -44,6 +65,12 @@ public final class SettingsRootViewModel {
 
     public init(defaults: UserDefaults = .standard, initialTab: SettingsTab? = nil) {
         self.defaults = defaults
+        if let raw = defaults.string(forKey: Self.lastCaptureWorkflowKey),
+           let restored = SettingsCaptureWorkflow(rawValue: raw) {
+            self.activeCaptureWorkflow = restored
+        } else {
+            self.activeCaptureWorkflow = .default
+        }
         if let initialTab {
             self.activeTab = initialTab
             defaults.set(initialTab.rawValue, forKey: Self.lastViewedTabKey)

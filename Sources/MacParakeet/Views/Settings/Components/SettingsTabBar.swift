@@ -115,8 +115,8 @@ enum SettingsTabMetadata {
 
     static func `for`(_ tab: SettingsTab) -> Info {
         switch tab {
-        case .modes:
-            return Info(title: "Modes", systemImage: "rectangle.3.group", keyboardShortcut: "1", shortcutDigit: "1")
+        case .capture:
+            return Info(title: "Capture", systemImage: "waveform", keyboardShortcut: "1", shortcutDigit: "1")
         case .engine:
             return Info(title: "Engine", systemImage: "cpu", keyboardShortcut: "2", shortcutDigit: "2")
         case .ai:
@@ -128,7 +128,7 @@ enum SettingsTabMetadata {
 }
 
 #Preview("Light — clean", traits: .fixedLayout(width: 640, height: 120)) {
-    @Previewable @State var tab: SettingsTab = .modes
+    @Previewable @State var tab: SettingsTab = .capture
 
     return SettingsTabBar(activeTab: $tab, tabBadges: [:])
         .padding()
@@ -142,7 +142,7 @@ enum SettingsTabMetadata {
     return SettingsTabBar(
         activeTab: $tab,
         tabBadges: [
-            .modes: .recommended,
+            .capture: .recommended,
             .engine: .required,
             .system: .recommended
         ]
@@ -158,7 +158,7 @@ enum SettingsTabMetadata {
     return SettingsTabBar(
         activeTab: $tab,
         tabBadges: [
-            .modes: .recommended,
+            .capture: .recommended,
             .engine: .required
         ]
     )

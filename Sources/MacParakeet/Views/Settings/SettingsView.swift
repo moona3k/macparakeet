@@ -111,12 +111,47 @@ enum SettingsDictationHotkeyDisplay {
     }
 }
 
+private extension SettingsCaptureWorkflow {
+    var title: LocalizedStringKey {
+        switch self {
+        case .dictation: "Dictation"
+        case .transcription: "Transcription"
+        case .meetings: "Meetings"
+        }
+    }
+
+    var eyebrow: LocalizedStringKey {
+        switch self {
+        case .dictation: "Anywhere"
+        case .transcription: "Files & URLs"
+        case .meetings: "Calls"
+        }
+    }
+
+    var detail: LocalizedStringKey {
+        switch self {
+        case .dictation: "Hotkeys, overlay, silence, and paste behavior."
+        case .transcription: "File, YouTube, speaker, notification, and save options."
+        case .meetings: "System audio, recovery, auto-save, and calendar setup."
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .dictation: "waveform"
+        case .transcription: "doc.text"
+        case .meetings: "record.circle"
+        }
+    }
+}
+
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
     let updater: SPUUpdater
     let transformHotkeys: [Prompt]
     let requestedTab: SettingsTab?
+    let requestedAnchor: String?
     let requestedTabRevision: Int
     let onRequestedTabConsumed: () -> Void
     /// Fired by each `HotkeyRecorderView` when it starts/stops capturing
@@ -147,6 +182,7 @@ struct SettingsView: View {
         updater: SPUUpdater,
         transformHotkeys: [Prompt] = [],
         requestedTab: SettingsTab? = nil,
+        requestedAnchor: String? = nil,
         requestedTabRevision: Int = 0,
         onRequestedTabConsumed: @escaping () -> Void = {},
         onHotkeyRecordingStateChanged: @escaping (Bool) -> Void
@@ -156,6 +192,7 @@ struct SettingsView: View {
         self.updater = updater
         self.transformHotkeys = transformHotkeys
         self.requestedTab = requestedTab
+        self.requestedAnchor = requestedAnchor
         self.requestedTabRevision = requestedTabRevision
         self.onRequestedTabConsumed = onRequestedTabConsumed
         self.onHotkeyRecordingStateChanged = onHotkeyRecordingStateChanged
@@ -187,8 +224,8 @@ struct SettingsView: View {
                     )
                 } else {
                     switch rootViewModel.activeTab {
-                    case .modes:
-                        modesTabContent
+                    case .capture:
+                        captureTabContent
                     case .engine:
                         engineTabContent
                     case .ai:
@@ -219,13 +256,14 @@ struct SettingsView: View {
             Task { await viewModel.refreshCalendarNotificationAuthorization() }
         }
         .onAppear {
-            if requestedTab != nil {
+            if requestedTab != nil || requestedAnchor != nil {
+                openRequestedSettingsDestination(tab: requestedTab, anchor: requestedAnchor)
                 onRequestedTabConsumed()
             }
         }
         .onChange(of: requestedTabRevision) { _, _ in
-            if let requestedTab {
-                rootViewModel.open(tab: requestedTab)
+            if requestedTab != nil || requestedAnchor != nil {
+                openRequestedSettingsDestination(tab: requestedTab, anchor: requestedAnchor)
                 onRequestedTabConsumed()
             }
         }
@@ -284,16 +322,16 @@ struct SettingsView: View {
     private var tabBadges: [SettingsTab: SettingsStatusChip.Status] {
         var badges: [SettingsTab: SettingsStatusChip.Status] = [:]
 
-        var modesStatuses: [SettingsCardStatus?] = [
+        var captureStatuses: [SettingsCardStatus?] = [
             viewModel.microphoneGranted
                 ? SettingsCardStatus(.ok, label: "Granted")
                 : SettingsCardStatus(.required, label: "Permission required")
         ]
         if AppFeatures.meetingRecordingEnabled {
-            modesStatuses.append(meetingRecordingCardStatus)
+            captureStatuses.append(meetingRecordingCardStatus)
         }
-        if let badge = Self.attentionBadge(for: modesStatuses) {
-            badges[.modes] = badge
+        if let badge = Self.attentionBadge(for: captureStatuses) {
+            badges[.capture] = badge
         }
 
         if let badge = Self.attentionBadge(for: [
@@ -332,9 +370,50 @@ struct SettingsView: View {
     /// 3. Clear the search query — this also drops `isSearching` to
     ///    false. SwiftUI batches these so the user perceives one swap.
     private func handleSearchResultTap(_ entry: SettingsSearchEntry) {
-        pendingScrollTarget = entry.cardAnchor
+        if entry.tab == .capture, let section = captureSection(for: entry.cardAnchor) {
+            rootViewModel.activeCaptureWorkflow = section
+        }
+        pendingScrollTarget = normalizedScrollAnchor(for: entry.cardAnchor, tab: entry.tab)
         rootViewModel.activeTab = entry.tab
         rootViewModel.clearSearch()
+    }
+
+    private func openRequestedSettingsDestination(tab: SettingsTab?, anchor: String?) {
+        let destinationTab = tab ?? rootViewModel.activeTab
+        if destinationTab == .capture, let anchor, let section = captureSection(for: anchor) {
+            rootViewModel.activeCaptureWorkflow = section
+        }
+        if let anchor {
+            pendingScrollTarget = normalizedScrollAnchor(for: anchor, tab: destinationTab)
+        }
+        rootViewModel.open(tab: destinationTab)
+    }
+
+    private func normalizedScrollAnchor(for anchor: String, tab: SettingsTab) -> String {
+        guard tab == .capture, let section = captureSection(for: anchor) else {
+            return anchor
+        }
+        switch section {
+        case .dictation:
+            return "dictation"
+        case .transcription:
+            return "transcription"
+        case .meetings:
+            return "meeting"
+        }
+    }
+
+    private func captureSection(for anchor: String) -> SettingsCaptureWorkflow? {
+        if anchor.hasPrefix("dictation") {
+            return .dictation
+        }
+        if anchor.hasPrefix("transcription") {
+            return .transcription
+        }
+        if anchor.hasPrefix("meeting") {
+            return AppFeatures.meetingRecordingEnabled ? .meetings : nil
+        }
+        return nil
     }
 
     /// Hidden button that registers ⌘F as a focus shortcut. Lives in a
@@ -350,21 +429,27 @@ struct SettingsView: View {
         .accessibilityHidden(true)
     }
 
-    /// Modes tab — daily-ops config for the three product modes, plus the
-    /// Audio Input prerequisite that gates them. The legacy `headerCard`
-    /// "Workspace Controls" was eliminated (its stat chips are redundant
-    /// with Storage / Permissions / per-mode chips). The legacy `generalCard`
-    /// was split: "Show idle pill" lives on the Dictation card now;
-    /// Launch at Login + Menu Bar Only moved to the System Startup card.
-    /// The Calendar card was folded into Meeting Recording.
-    private var modesTabContent: some View {
+    /// Capture tab — daily-ops config for the three product workflows. The
+    /// shared microphone strip stays above the workflow picker because input is
+    /// a capture prerequisite, not a fourth mode.
+    private var captureTabContent: some View {
         scrollableTabBody {
-            audioInputCard.id("audio.input")
-            dictationCard.id("dictation")
-            transcriptionCard.id("transcription")
-            if AppFeatures.meetingRecordingEnabled {
-                meetingRecordingCard.id("meeting")
+            captureMicrophoneStrip.id("audio.input")
+            captureWorkflowSwitcher
+
+            Group {
+                switch displayedCaptureWorkflow {
+                case .dictation:
+                    dictationCard.id("dictation")
+                case .transcription:
+                    transcriptionCard.id("transcription")
+                case .meetings:
+                    if AppFeatures.meetingRecordingEnabled {
+                        meetingRecordingCard.id("meeting")
+                    }
+                }
             }
+            .animation(DesignSystem.Animation.contentSwap, value: rootViewModel.activeCaptureWorkflow)
         }
     }
 
@@ -538,84 +623,199 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Audio Input
+    // MARK: - Capture
 
-    private var audioInputCard: some View {
-        SettingsCard(
-            title: "Audio Input",
-            subtitle: "Choose the microphone used for dictation and meetings.",
-            icon: "mic",
-            status: viewModel.microphoneGranted
-                ? SettingsCardStatus(.ok, label: "Granted")
-                : SettingsCardStatus(.required, label: "Permission required")
-        ) {
-            VStack(spacing: DesignSystem.Spacing.md) {
-                HStack(alignment: .center) {
-                    rowText(
-                        title: "Microphone",
-                        detail: viewModel.selectedMicrophoneStatusText
+    private var availableCaptureSections: [SettingsCaptureWorkflow] {
+        SettingsCaptureWorkflow.allCases.filter { section in
+            section != .meetings || AppFeatures.meetingRecordingEnabled
+        }
+    }
+
+    private var displayedCaptureWorkflow: SettingsCaptureWorkflow {
+        if availableCaptureSections.contains(rootViewModel.activeCaptureWorkflow) {
+            return rootViewModel.activeCaptureWorkflow
+        }
+        return .dictation
+    }
+
+    private var captureMicrophoneStrip: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "mic")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(DesignSystem.Colors.accent.opacity(0.12))
                     )
-                    Spacer(minLength: DesignSystem.Spacing.md)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: DesignSystem.Spacing.sm) {
-                        Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
-                            Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
-                            ForEach(viewModel.microphoneDeviceOptions) { device in
-                                Text(device.displayName).tag(device.uid)
-                                    .disabled(!device.isAvailable)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
-
-                        Button {
-                            viewModel.refreshMicrophoneDevices()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .parakeetAction(.secondary)
-                        .help("Refresh microphones")
-                        .accessibilityLabel("Refresh microphones")
-                    }
-                }
-
-                Divider()
-
-                HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-                    microphoneTestStatus
-                    Spacer(minLength: DesignSystem.Spacing.md)
-                    Button {
-                        switch viewModel.microphoneTestState {
-                        case .testing:
-                            viewModel.cancelMicrophoneTest()
-                        default:
-                            viewModel.testSelectedMicrophone()
-                        }
-                    } label: {
-                        Label(
-                            viewModel.microphoneTestState == .testing ? "Stop Test" : "Test Input",
-                            systemImage: viewModel.microphoneTestState == .testing ? "stop.fill" : "waveform"
+                        Text("Microphone")
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                        SettingsStatusChip(
+                            status: viewModel.microphoneGranted ? .ok : .required,
+                            label: viewModel.microphoneGranted ? "Granted" : "Permission required"
                         )
                     }
-                    .parakeetAction(.primaryProminent)
-                    .disabled(!viewModel.microphoneGranted && viewModel.microphoneTestState != .testing)
+                    Text(viewModel.selectedMicrophoneStatusText)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
+                        Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
+                        ForEach(viewModel.microphoneDeviceOptions) { device in
+                            Text(device.displayName).tag(device.uid)
+                                .disabled(!device.isAvailable)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(minWidth: 160, idealWidth: 220, maxWidth: 280)
+
+                    Button {
+                        viewModel.refreshMicrophoneDevices()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .parakeetAction(.secondary)
+                    .help("Refresh microphones")
+                    .accessibilityLabel("Refresh microphones")
+                }
+            }
+
+            Divider()
+
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    microphoneLevelMeter(level: viewModel.microphoneTestLevel)
+                    Text(microphoneTestTitle)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(microphoneTestDetailColor)
+                        .lineLimit(1)
+                        .frame(minWidth: 82, alignment: .leading)
+                }
+
+                Spacer()
+
+                Button {
+                    switch viewModel.microphoneTestState {
+                    case .testing:
+                        viewModel.cancelMicrophoneTest()
+                    default:
+                        viewModel.testSelectedMicrophone()
+                    }
+                } label: {
+                    Label(
+                        viewModel.microphoneTestState == .testing ? "Stop" : "Test Input",
+                        systemImage: viewModel.microphoneTestState == .testing ? "stop.fill" : "waveform"
+                    )
+                }
+                .parakeetAction(.primaryProminent)
+                .disabled(!viewModel.microphoneGranted && viewModel.microphoneTestState != .testing)
+                .help(microphoneTestDetail)
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.cardBackground)
+                .cardShadow(DesignSystem.Shadows.cardRest)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+        )
+    }
+
+    private var captureWorkflowSwitcher: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Capture workflow")
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ForEach(availableCaptureSections) { section in
+                    captureWorkflowButton(section)
                 }
             }
         }
+        .id("capture.workflow")
     }
 
-    private var microphoneTestStatus: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            microphoneLevelMeter(level: viewModel.microphoneTestLevel)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(microphoneTestTitle)
-                    .font(DesignSystem.Typography.body)
-                Text(microphoneTestDetail)
+    private func captureWorkflowButton(_ section: SettingsCaptureWorkflow) -> some View {
+        let isActive = section == displayedCaptureWorkflow
+        return Button {
+            rootViewModel.activeCaptureWorkflow = section
+        } label: {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: section.systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(isActive ? DesignSystem.Colors.accent.opacity(0.14) : DesignSystem.Colors.surfaceElevated)
+                        )
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(section.eyebrow)
+                            .font(DesignSystem.Typography.micro.weight(.semibold))
+                            .foregroundStyle(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
+                        Text(section.title)
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    }
+
+                    Spacer(minLength: DesignSystem.Spacing.sm)
+
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.accent)
+                    }
+                }
+
+                Text(section.detail)
                     .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(microphoneTestDetailColor)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(DesignSystem.Spacing.md)
+            .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .fill(isActive ? DesignSystem.Colors.accentLight : DesignSystem.Colors.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .strokeBorder(
+                        isActive ? DesignSystem.Colors.accent.opacity(0.75) : DesignSystem.Colors.border.opacity(0.55),
+                        lineWidth: isActive ? 1 : 0.5
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(section.title)
+        .accessibilityHint(section.detail)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
+
+    // MARK: - Microphone Helpers
 
     private var microphoneTestTitle: String {
         switch viewModel.microphoneTestState {

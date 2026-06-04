@@ -119,10 +119,10 @@ public enum SettingsSearchIndex {
     /// by `entries.filter(...)`, and tests assert that the filter is
     /// stable in index order.
     private static let allEntries: [SettingsSearchEntry] = [
-        // MARK: Modes
+        // MARK: Capture
         SettingsSearchEntry(
             id: "audio.input",
-            tab: .modes,
+            tab: .capture,
             title: "Audio Input",
             subtitle: "Choose the microphone used for dictation and meetings.",
             keywords: ["microphone", "mic", "input device", "audio device"],
@@ -130,7 +130,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "dictation",
-            tab: .modes,
+            tab: .capture,
             title: "Dictation",
             subtitle: "Hotkey, silence detection, and overlay behavior.",
             keywords: ["hotkey", "fn key", "shortcut", "voice", "dictate", "talk", "press to talk"],
@@ -138,7 +138,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "dictation.idle.pill",
-            tab: .modes,
+            tab: .capture,
             title: "Show idle pill at all times",
             subtitle: "in Dictation",
             keywords: ["pill", "indicator", "always visible", "menu bar", "floating"],
@@ -146,7 +146,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "dictation.keep.clipboard",
-            tab: .modes,
+            tab: .capture,
             title: "Keep dictation on clipboard",
             subtitle: "in Dictation",
             keywords: ["clipboard", "copy", "paste", "cmd v", "command v", "transcript", "retain", "remote"],
@@ -154,7 +154,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription",
-            tab: .modes,
+            tab: .capture,
             title: "Transcription",
             subtitle: "How file and YouTube transcription behaves.",
             keywords: ["file", "youtube", "drag drop", "audio file", "video file", "transcribe"],
@@ -162,7 +162,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.hotkey.file",
-            tab: .modes,
+            tab: .capture,
             title: "File transcription hotkey",
             subtitle: "in Transcription",
             keywords: ["hotkey", "shortcut", "file", "drag drop", "audio file", "video file"],
@@ -170,7 +170,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.hotkey.youtube",
-            tab: .modes,
+            tab: .capture,
             title: "YouTube transcription hotkey",
             subtitle: "in Transcription",
             keywords: ["hotkey", "shortcut", "youtube", "url", "video"],
@@ -178,7 +178,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.youtube.audio.quality",
-            tab: .modes,
+            tab: .capture,
             title: "YouTube audio quality",
             subtitle: "in Transcription",
             keywords: ["youtube", "audio", "quality", "m4a", "best available", "opus", "webm"],
@@ -186,7 +186,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.diarization",
-            tab: .modes,
+            tab: .capture,
             title: "Speaker detection",
             subtitle: "in Transcription",
             keywords: ["speaker", "diarization", "pyannote", "who said what", "speakers"],
@@ -194,7 +194,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.completion.notification",
-            tab: .modes,
+            tab: .capture,
             title: "Notify when transcription finishes",
             subtitle: "in Transcription",
             keywords: ["notification", "notify", "sound", "chime", "alert", "banner", "done", "finished", "complete", "batch"],
@@ -202,7 +202,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "transcription.autosave",
-            tab: .modes,
+            tab: .capture,
             title: "Auto-save transcripts to disk",
             subtitle: "in Transcription",
             keywords: ["auto save", "autosave", "export", "save", "disk", "folder", "file"],
@@ -210,7 +210,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "meeting",
-            tab: .modes,
+            tab: .capture,
             title: "Meeting Recording",
             subtitle: "Dedicated controls for meeting audio capture.",
             keywords: ["meeting", "system audio", "screen recording", "meeting capture", "core audio taps"],
@@ -218,7 +218,7 @@ public enum SettingsSearchIndex {
         ),
         SettingsSearchEntry(
             id: "meeting.calendar",
-            tab: .modes,
+            tab: .capture,
             title: "Calendar",
             subtitle: "in Meeting Recording",
             keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],

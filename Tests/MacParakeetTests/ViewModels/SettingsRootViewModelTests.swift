@@ -22,9 +22,10 @@ final class SettingsRootViewModelTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDefaultsToModesTabOnFirstLaunch() {
+    func testDefaultsToCaptureTabOnFirstLaunch() {
         let vm = SettingsRootViewModel(defaults: defaults)
-        XCTAssertEqual(vm.activeTab, .modes)
+        XCTAssertEqual(vm.activeTab, .capture)
+        XCTAssertEqual(vm.activeCaptureWorkflow, .dictation)
         XCTAssertEqual(vm.searchQuery, "")
         XCTAssertFalse(vm.isSearching)
     }
@@ -55,6 +56,30 @@ final class SettingsRootViewModelTests: XCTestCase {
             let reader = SettingsRootViewModel(defaults: defaults)
             XCTAssertEqual(reader.activeTab, tab, "Tab \(tab.rawValue) should round-trip")
         }
+    }
+
+    func testActiveCaptureWorkflowPersistsAcrossInstances() {
+        let first = SettingsRootViewModel(defaults: defaults)
+        first.activeCaptureWorkflow = .meetings
+
+        let second = SettingsRootViewModel(defaults: defaults)
+        XCTAssertEqual(second.activeCaptureWorkflow, .meetings)
+    }
+
+    func testEachCaptureWorkflowRoundTripsThroughPersistence() {
+        for workflow in SettingsCaptureWorkflow.allCases {
+            let writer = SettingsRootViewModel(defaults: defaults)
+            writer.activeCaptureWorkflow = workflow
+
+            let reader = SettingsRootViewModel(defaults: defaults)
+            XCTAssertEqual(reader.activeCaptureWorkflow, workflow, "Workflow \(workflow.rawValue) should round-trip")
+        }
+    }
+
+    func testCorruptedPersistedCaptureWorkflowFallsBackToDefault() {
+        defaults.set("not-a-real-workflow", forKey: SettingsRootViewModel.lastCaptureWorkflowKey)
+        let vm = SettingsRootViewModel(defaults: defaults)
+        XCTAssertEqual(vm.activeCaptureWorkflow, .default)
     }
 
     func testCorruptedPersistedTabFallsBackToDefault() {
@@ -109,10 +134,18 @@ final class SettingsRootViewModelTests: XCTestCase {
         // UserDefaults writes directly, but we can confirm setting the same
         // value doesn't somehow change behavior.
         let vm = SettingsRootViewModel(defaults: defaults)
-        vm.activeTab = .modes
-        XCTAssertEqual(vm.activeTab, .modes)
+        vm.activeTab = .capture
+        XCTAssertEqual(vm.activeTab, .capture)
 
-        vm.activeTab = .modes
-        XCTAssertEqual(vm.activeTab, .modes)
+        vm.activeTab = .capture
+        XCTAssertEqual(vm.activeTab, .capture)
+    }
+
+    func testLegacyModesRawValueRestoresCaptureTab() {
+        defaults.set("modes", forKey: SettingsRootViewModel.lastViewedTabKey)
+
+        let vm = SettingsRootViewModel(defaults: defaults)
+
+        XCTAssertEqual(vm.activeTab, .capture)
     }
 }
