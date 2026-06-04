@@ -288,10 +288,10 @@ public enum SettingsSearchIndex {
             id: "ai.formatter",
             tab: .ai,
             title: "AI Formatter",
-            subtitle: "Global prompt and app-specific formatter profiles.",
+            subtitle: "Smart defaults, fallback prompt, and app-specific formatter profiles.",
             keywords: [
                 "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
-                "bundle id", "category", "rewrite", "polish"
+                "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish"
             ],
             cardAnchor: "ai.formatter"
         ),

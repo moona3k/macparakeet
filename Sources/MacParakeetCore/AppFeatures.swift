@@ -55,5 +55,5 @@ public enum AppFeatures {
     /// hidden from Settings/search and dictation uses only the global formatter
     /// prompt. The profile table and repository still migrate so enabling this
     /// later does not require a data-model catch-up release.
-    public static let aiFormatterProfilesEnabled: Bool = false
+    public static let aiFormatterProfilesEnabled: Bool = true
 }

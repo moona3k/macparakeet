@@ -114,16 +114,26 @@ public enum AIFormatterProfileMatcher {
         context: AppPromptContext?,
         globalPromptTemplate: String
     ) -> AIFormatterPromptResolution {
-        guard let profile = match(profiles: profiles, context: context) else {
-            return .global(promptTemplate: globalPromptTemplate)
+        if let profile = match(profiles: profiles, context: context) {
+            return AIFormatterPromptResolution(
+                promptTemplate: profile.promptTemplate,
+                matchKind: profile.matchKind,
+                profileID: profile.id,
+                profileName: profile.name,
+                profileOrigin: profile.origin
+            )
         }
 
-        return AIFormatterPromptResolution(
-            promptTemplate: profile.promptTemplate,
-            matchKind: profile.matchKind,
-            profileID: profile.id,
-            profileName: profile.name,
-            profileOrigin: profile.origin
-        )
+        if let context,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: context.category) {
+            return AIFormatterPromptResolution(
+                promptTemplate: categoryDefault.promptTemplate,
+                matchKind: .category,
+                profileName: categoryDefault.name,
+                profileOrigin: .template
+            )
+        }
+
+        return .global(promptTemplate: globalPromptTemplate)
     }
 }

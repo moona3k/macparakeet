@@ -593,13 +593,168 @@ public final class LLMSettingsViewModel {
 
     public func startCreatingAIFormatterProfile(targetKind: AIFormatterProfileTargetKind) {
         let nextSortOrder = (aiFormatterProfiles.map(\.sortOrder).max() ?? -1) + 1
+        let defaultCategory = TelemetryAppCategory.messaging
+        let promptTemplate: String
+        let name: String
+        if targetKind == .category,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: defaultCategory) {
+            name = Self.aiFormatterProfileCategoryName(defaultCategory)
+            promptTemplate = categoryDefault.promptTemplate
+        } else {
+            name = "New app profile"
+            promptTemplate = draft.normalizedAIFormatterPrompt
+        }
+
         aiFormatterProfileDraft = AIFormatterProfileDraft(
-            name: targetKind == .bundle ? "New app profile" : "New category profile",
+            name: name,
             targetKind: targetKind,
-            promptTemplate: draft.normalizedAIFormatterPrompt,
+            appCategory: defaultCategory,
+            promptTemplate: promptTemplate,
             sortOrder: nextSortOrder
         )
         aiFormatterProfileError = nil
+    }
+
+    public func applyAIFormatterProfileDraftCategory(_ category: TelemetryAppCategory) {
+        if aiFormatterProfileDraft == nil {
+            startCreatingAIFormatterProfile(targetKind: .category)
+        }
+
+        guard var draft = aiFormatterProfileDraft else { return }
+        let previousCategory = draft.appCategory
+        let previousSmartDefault = AIFormatterSmartDefaults.categoryDefault(for: previousCategory)
+        let normalizedPrompt = AIFormatter.normalizedPromptTemplate(draft.promptTemplate)
+        let shouldUseSmartDefaultPrompt = isAIFormatterAutoPrompt(
+            normalizedPrompt,
+            previousCategoryDefault: previousSmartDefault
+        )
+        let currentName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previousAppDisplayName = AppPromptContext.normalizedDisplayName(draft.appDisplayName)
+        let previousBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier)
+        let shouldReplaceName = currentName.isEmpty
+            || currentName == "New app profile"
+            || currentName == "New category profile"
+            || currentName == Self.aiFormatterProfileCategoryName(previousCategory)
+            || previousAppDisplayName.map { currentName == $0 } == true
+            || previousBundleIdentifier.map { currentName == $0 } == true
+
+        draft.targetKind = .category
+        draft.appCategory = category
+        if shouldReplaceName {
+            draft.name = Self.aiFormatterProfileCategoryName(category)
+        }
+        if shouldUseSmartDefaultPrompt,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: category) {
+            draft.promptTemplate = categoryDefault.promptTemplate
+        }
+        aiFormatterProfileDraft = draft
+        aiFormatterProfileError = nil
+    }
+
+    public func applyAIFormatterProfileDraftTargetKind(_ targetKind: AIFormatterProfileTargetKind) {
+        if aiFormatterProfileDraft == nil {
+            startCreatingAIFormatterProfile(targetKind: targetKind)
+            return
+        }
+
+        switch targetKind {
+        case .category:
+            applyAIFormatterProfileDraftCategory(aiFormatterProfileDraft?.appCategory ?? .messaging)
+        case .bundle:
+            guard var draft = aiFormatterProfileDraft else { return }
+            if AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier) != nil {
+                applyAIFormatterProfileDraftApp(
+                    bundleIdentifier: draft.bundleIdentifier,
+                    displayName: draft.appDisplayName
+                )
+                return
+            }
+
+            let previousCategory = draft.appCategory
+            let previousSmartDefault = AIFormatterSmartDefaults.categoryDefault(for: previousCategory)
+            let normalizedPrompt = AIFormatter.normalizedPromptTemplate(draft.promptTemplate)
+            let currentName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let shouldReplaceName = currentName.isEmpty
+                || currentName == "New category profile"
+                || currentName == Self.aiFormatterProfileCategoryName(previousCategory)
+
+            draft.targetKind = .bundle
+            if shouldReplaceName {
+                draft.name = "New app profile"
+            }
+            if isAIFormatterAutoPrompt(normalizedPrompt, previousCategoryDefault: previousSmartDefault) {
+                draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+            }
+            aiFormatterProfileDraft = draft
+            aiFormatterProfileError = nil
+        }
+    }
+
+    public func applyAIFormatterProfileDraftApp(
+        bundleIdentifier: String?,
+        displayName: String?
+    ) {
+        guard let normalizedBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(bundleIdentifier) else {
+            aiFormatterProfileError = "Bundle ID is required for app profiles."
+            return
+        }
+
+        if aiFormatterProfileDraft == nil {
+            startCreatingAIFormatterProfile(targetKind: .bundle)
+        }
+
+        guard var draft = aiFormatterProfileDraft else { return }
+        let normalizedDisplayName = AppPromptContext.normalizedDisplayName(displayName)
+        let previousSmartDefault = AIFormatterSmartDefaults.categoryDefault(for: draft.appCategory)
+        let normalizedPrompt = AIFormatter.normalizedPromptTemplate(draft.promptTemplate)
+        let appCategory = TelemetryAppCategory(bundleIdentifier: normalizedBundleIdentifier)
+        let currentName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previousAppDisplayName = AppPromptContext.normalizedDisplayName(draft.appDisplayName)
+        let previousBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier)
+        let shouldReplaceName = currentName.isEmpty
+            || currentName == "New app profile"
+            || currentName == "New category profile"
+            || currentName == Self.aiFormatterProfileCategoryName(draft.appCategory)
+            || previousAppDisplayName.map { currentName == $0 } == true
+            || previousBundleIdentifier.map { currentName == $0 } == true
+        let shouldUseSmartDefaultPrompt = isAIFormatterAutoPrompt(
+            normalizedPrompt,
+            previousCategoryDefault: previousSmartDefault
+        )
+
+        draft.targetKind = .bundle
+        draft.bundleIdentifier = normalizedBundleIdentifier
+        draft.appDisplayName = normalizedDisplayName ?? ""
+        draft.appCategory = appCategory
+        if shouldReplaceName {
+            draft.name = normalizedDisplayName ?? normalizedBundleIdentifier
+        }
+        if shouldUseSmartDefaultPrompt,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: appCategory) {
+            draft.promptTemplate = categoryDefault.promptTemplate
+        } else if shouldUseSmartDefaultPrompt {
+            draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+        }
+        aiFormatterProfileDraft = draft
+        aiFormatterProfileError = nil
+    }
+
+    public func aiFormatterPromptPreview(
+        for context: AppPromptContext?,
+        including draft: AIFormatterProfileDraft? = nil
+    ) -> AIFormatterPromptResolution {
+        var profiles = aiFormatterProfiles
+        if let draft, draft.canSave {
+            let draftProfile = draft.makeProfile()
+            profiles.removeAll { $0.id == draftProfile.id }
+            profiles.append(draftProfile)
+        }
+
+        return AIFormatterProfileMatcher.resolve(
+            profiles: profiles,
+            context: context,
+            globalPromptTemplate: self.draft.normalizedAIFormatterPrompt
+        )
     }
 
     public func editAIFormatterProfile(_ profile: AIFormatterProfile) {
@@ -615,6 +770,15 @@ public final class LLMSettingsViewModel {
         draft[keyPath: keyPath] = value
         aiFormatterProfileDraft = draft
         aiFormatterProfileError = nil
+    }
+
+    private func isAIFormatterAutoPrompt(
+        _ normalizedPrompt: String,
+        previousCategoryDefault: AIFormatterSmartDefaults.CategoryDefault?
+    ) -> Bool {
+        normalizedPrompt == previousCategoryDefault?.promptTemplate
+            || normalizedPrompt == draft.normalizedAIFormatterPrompt
+            || normalizedPrompt == AIFormatter.defaultPromptTemplate
     }
 
     @discardableResult
@@ -922,6 +1086,19 @@ public final class LLMSettingsViewModel {
         AIFormatter.normalizedPromptTemplate(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey) ?? ""
         )
+    }
+
+    private static func aiFormatterProfileCategoryName(_ category: TelemetryAppCategory) -> String {
+        switch category {
+        case .messaging: return "Messaging"
+        case .email: return "Email"
+        case .browser: return "Browser"
+        case .notes: return "Notes"
+        case .docs: return "Documents"
+        case .code: return "Code"
+        case .terminal: return "Terminal"
+        case .other: return "Other"
+        }
     }
 
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {

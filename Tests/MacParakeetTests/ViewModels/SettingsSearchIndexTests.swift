@@ -115,6 +115,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testAIFormatterSmartDefaultsQueriesFindFormatterEntry() {
+        for query in ["smart defaults", "fallback prompt"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+
+            if AppFeatures.aiFormatterProfilesEnabled {
+                XCTAssertTrue(ids.contains("ai.formatter"), "Query \(query) should find AI Formatter")
+            } else {
+                XCTAssertFalse(ids.contains("ai.formatter"), "Query \(query) should not reveal hidden AI Formatter profiles")
+            }
+        }
+    }
+
     func testEveryTabHasAtLeastOneEntry() {
         let tabs = Set(SettingsSearchIndex.entries.map(\.tab))
         XCTAssertEqual(tabs, Set(SettingsTab.allCases), "Every tab should be reachable via search")
