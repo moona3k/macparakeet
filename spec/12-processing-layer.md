@@ -78,8 +78,8 @@ Prompt Library. They live in `ai_formatter_profiles` and are resolved by
 
 Reasoning:
 
-- The global AI Formatter prompt is a runtime preference, not a Prompt Library
-  row.
+- The AI Formatter fallback prompt is a runtime preference, not a Prompt
+  Library row.
 - Formatter profiles are keyed by local app context, not by a reusable
   summary/transform prompt card.
 - Transform prompts already use `Prompt.Category.transform`; future per-app

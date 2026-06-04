@@ -312,6 +312,195 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [saved.id])
     }
 
+    func testApplyAIFormatterProfileDraftAppNormalizesBundleAndUsesDisplayName() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: " COM.TINYSPECK.SLACKMACGAP ",
+            displayName: " Slack "
+        )
+
+        let draft = viewModel.aiFormatterProfileDraft
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        XCTAssertEqual(draft?.targetKind, .bundle)
+        XCTAssertEqual(draft?.bundleIdentifier, "com.tinyspeck.slackmacgap")
+        XCTAssertEqual(draft?.appDisplayName, "Slack")
+        XCTAssertEqual(draft?.appCategory, .messaging)
+        XCTAssertEqual(draft?.name, "Slack")
+        XCTAssertEqual(draft?.promptTemplate, messagingDefault?.promptTemplate)
+        XCTAssertNil(viewModel.aiFormatterProfileError)
+    }
+
+    func testCategoryProfileStartsFromSmartDefaultPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Messaging")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, messagingDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftUpdatesSmartDefaultPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Email")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftTreatsNormalizedSmartDefaultAsAutoPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "\n\(messagingDefault?.promptTemplate ?? "")\n"
+        )
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftPreservesCustomNameAndPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "My Messages")
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "Custom prompt \(AIFormatter.transcriptPlaceholder)")
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "My Messages")
+        XCTAssertEqual(
+            viewModel.aiFormatterProfileDraft?.promptTemplate,
+            "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testChangingEditedCategoryProfilePreservesCustomNameAndPrompt() {
+        let profile = AIFormatterProfile.category(
+            name: "My Messages",
+            appCategory: .messaging,
+            promptTemplate: "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+        viewModel.editAIFormatterProfile(profile)
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.profileID, profile.id)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "My Messages")
+        XCTAssertEqual(
+            viewModel.aiFormatterProfileDraft?.promptTemplate,
+            "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testApplyingBlankAppBundleSetsErrorAndPreservesDraft() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        let originalDraft = viewModel.aiFormatterProfileDraft
+
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "   ",
+            displayName: "Blank"
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "Bundle ID is required for app profiles.")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft, originalDraft)
+    }
+
+    func testUnknownAppProfileUsesFallbackPrompt() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.example.privateapp",
+            displayName: "Private App"
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .bundle)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.example.privateapp")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .other)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Private App")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+    }
+
+    func testChangingSelectedAppReplacesPreviousSmartDefaultPrompt() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.apple.mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testProfileTargetKindSwitchNormalizesCategoryAndAppDrafts() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.applyAIFormatterProfileDraftTargetKind(.bundle)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .bundle)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "New app profile")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+        viewModel.applyAIFormatterProfileDraftTargetKind(.category)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .category)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Email")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testAIFormatterPromptPreviewUsesBuiltInCategoryDefault() {
+        let context = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+
+        let resolution = viewModel.aiFormatterPromptPreview(for: context)
+
+        XCTAssertEqual(resolution.matchKind, .category)
+        XCTAssertEqual(resolution.profileName, "Messaging")
+        XCTAssertEqual(resolution.profileOrigin, .template)
+        XCTAssertNil(resolution.profileID)
+    }
+
+    func testAIFormatterPromptPreviewIncludesUnsavedDraft() throws {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Mail Formal")
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "Formal mail prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+        let draft = try XCTUnwrap(viewModel.aiFormatterProfileDraft)
+
+        let resolution = viewModel.aiFormatterPromptPreview(
+            for: AppPromptContext(bundleIdentifier: "com.apple.mail", displayName: "Mail"),
+            including: draft
+        )
+
+        XCTAssertEqual(resolution.matchKind, .exactApp)
+        XCTAssertEqual(resolution.profileName, "Mail Formal")
+        XCTAssertEqual(resolution.profileOrigin, .custom)
+        XCTAssertEqual(resolution.promptTemplate, "Formal mail prompt \(AIFormatter.transcriptPlaceholder)")
+    }
+
     func testBlankAIFormatterProfilePromptIsRejected() throws {
         let dbManager = try DatabaseManager()
         let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)

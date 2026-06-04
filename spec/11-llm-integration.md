@@ -365,14 +365,15 @@ Transforms are managed in the dedicated Transforms sidebar tab, not in Settings.
 
 ### Dictation AI Formatter Profiles
 
-The global AI Formatter prompt remains the default. Dictation can optionally
-route through local formatter profiles before calling `LLMService`:
+Dictation routes through local formatter profiles and built-in category smart
+defaults before calling `LLMService`:
 
 1. Capture a best-effort local app context at dictation start.
 2. Capture the focused target app again at stop/undo time.
 3. Resolve an enabled exact-bundle profile first.
 4. Resolve an enabled coarse-category profile second.
-5. Fall back to the global AI Formatter prompt.
+5. Resolve a built-in coarse-category smart default third.
+6. Fall back to the user-editable AI Formatter fallback prompt.
 
 `AppPromptContext` contains the local bundle identifier, display name, and
 `TelemetryAppCategory`. The exact app fields are used only for local profile
@@ -389,9 +390,9 @@ context and falling back to the start-time context when the finish context is
 missing or points at MacParakeet itself.
 
 Profiles apply only to Dictation AI Formatter in V1. File/URL transcription
-formatting continues to use the global formatter prompt, and meeting transcripts
-still bypass AI Formatter unless their finalization path is explicitly wired in
-later.
+formatting continues to use the fallback formatter prompt, and meeting
+transcripts still bypass AI Formatter unless their finalization path is
+explicitly wired in later.
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but

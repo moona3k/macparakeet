@@ -877,12 +877,12 @@ Important constraints:
 - formatter is a separate toggle, not a dictation mode
 - formatter uses the shared `LLMService`
 - formatter runs for dictation and file/YouTube transcription flows; meeting transcripts currently use deterministic cleanup only (see `TelemetryFormatterSource` — `.dictation` and `.transcription` are the only emitter sources wired today)
-- dictation formatter prompts can be routed by local exact-app or coarse-category profiles; exact app beats category, and both fall back to the global formatter prompt
-- file/YouTube transcription formatter prompts continue to use the global formatter prompt in V1
+- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
+- file/YouTube transcription formatter prompts continue to use the fallback formatter prompt in V1
 - browser hostname/domain matching is not attempted in V1; browser apps can match exact browser profiles or the coarse `browser` category only
 - formatter falls back to deterministic cleanup if the provider errors or times out
 - formatter prompt is user-editable in AI settings
-- formatter profiles are managed in AI settings with manual bundle ID entry and category selection
+- formatter profiles are managed in AI settings with built-in smart defaults, app selection, manual bundle ID entry, and category selection
 - persisted formatter runs record metadata in `llm_runs` (source row, feature, status, provider/model, latency, token usage when available, character counts, and error type); transcript text, prompts, and formatter output are not duplicated into the ledger
 - saved dictation rows can record local formatter routing provenance (`aiFormatterProfileID`, `aiFormatterProfileName`, `aiFormatterProfileMatchKind`); this data is local history/debug metadata, not telemetry
 - private/no-history dictations and transient transcriptions do not create `llm_runs` rows
@@ -895,7 +895,7 @@ Important constraints:
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
 - [x] Dictation formatter profiles support exact-app and category prompt routing
-- [x] Dictation profile routing preserves global prompt fallback
+- [x] Dictation profile routing preserves smart defaults and fallback prompt routing
 - [x] Graceful fallback to deterministic cleanup if formatting fails
 - [x] Persisted formatter runs write local metadata-only `llm_runs` records linked to the saved source row
 
