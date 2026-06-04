@@ -80,6 +80,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `transcribe` now accepts per-run speaker-count constraints for diarization:
+  `--speaker-count <n>` for an exact known count and `--speaker-min <n>` /
+  `--speaker-max <n>` for a range. These flags imply speaker detection when
+  `--speaker-detection` is left at `app-default`, and they are rejected with
+  `--speaker-detection off` or `--no-diarize`.
+
 ## [2.6.0] -- 2026-05-31
 
 ### Added

@@ -92,6 +92,38 @@ final class DiarizationServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: repoDirectory.path))
     }
 
+    func testOfflineConfigAppliesExactSpeakerConstraint() {
+        let config = DiarizationService.offlineConfig(speakerConstraint: .exact(2))
+
+        XCTAssertEqual(config.clustering.numSpeakers, 2)
+        XCTAssertNil(config.clustering.minSpeakers)
+        XCTAssertNil(config.clustering.maxSpeakers)
+    }
+
+    func testOfflineConfigAppliesSpeakerRangeConstraint() {
+        let config = DiarizationService.offlineConfig(speakerConstraint: .range(min: 2, max: 4))
+
+        XCTAssertNil(config.clustering.numSpeakers)
+        XCTAssertEqual(config.clustering.minSpeakers, 2)
+        XCTAssertEqual(config.clustering.maxSpeakers, 4)
+    }
+
+    func testOfflineConfigAppliesMinimumSpeakerRangeConstraint() {
+        let config = DiarizationService.offlineConfig(speakerConstraint: .range(min: 2, max: nil))
+
+        XCTAssertNil(config.clustering.numSpeakers)
+        XCTAssertEqual(config.clustering.minSpeakers, 2)
+        XCTAssertNil(config.clustering.maxSpeakers)
+    }
+
+    func testOfflineConfigAppliesMaximumSpeakerRangeConstraint() {
+        let config = DiarizationService.offlineConfig(speakerConstraint: .range(min: nil, max: 4))
+
+        XCTAssertNil(config.clustering.numSpeakers)
+        XCTAssertNil(config.clustering.minSpeakers)
+        XCTAssertEqual(config.clustering.maxSpeakers, 4)
+    }
+
     func testDiarizePreparesModelsUsingCustomDirectoryBeforeColdStartInference() async throws {
         let customDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

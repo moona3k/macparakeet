@@ -198,6 +198,19 @@ macparakeet-cli transcribe /path/to/audio.mp3 \
   --format json
 ```
 
+For a specific file or recording where the speaker count is known, constrain
+speaker detection per run instead of changing the saved default:
+
+```bash
+macparakeet-cli transcribe /path/to/interview.mp3 --speaker-count 2 --format json
+macparakeet-cli transcribe /path/to/panel.mp3 --speaker-min 2 --speaker-max 4 --format json
+```
+
+Those constraint flags imply speaker detection when `--speaker-detection` is
+left at `app-default`; they are rejected with `--speaker-detection off` or
+`--no-diarize`. Use `--speaker-count` for an exact count, or `--speaker-min`
+and/or `--speaker-max` for bounds.
+
 Agents can also set those shared defaults without opening the GUI. Treat this
 as pre-run setup: a running GUI may cache some settings until relaunch or an
 in-app change.
@@ -432,7 +445,9 @@ macparakeet-cli prompts run "<prompt-name>" \
   GUI-default behavior. Pin explicit flags for reproducible agent tests.
 - `config get speaker-detection` reports the saved app-default value. Bare
   `transcribe` and `--speaker-detection app-default` use that value; pass
-  `--speaker-detection on` or `off` to override it for one run.
+  `--speaker-detection on` or `off` to override it for one run. For known
+  speaker counts, use per-run `--speaker-count`, `--speaker-min`, or
+  `--speaker-max` instead of mutating the saved default.
 ````
 
 ## Conventions

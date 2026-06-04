@@ -29,6 +29,7 @@ macparakeet-cli
 │   └── --engine app-default|parakeet|whisper [--language <code>]
 │       --parakeet-model app-default|v3|v2 [--output-dir DIR]
 │       --speaker-detection app-default|on|off
+│       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
 │       --youtube-audio-quality app-default|m4a|best-available
 ├── history                              View and manage history
 │   ├── dictations [--limit] [--json]    List recent dictations (default)
@@ -206,9 +207,18 @@ the explicit option, or use the legacy alias to force it off:
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection on
+swift run macparakeet-cli transcribe "<FILE>" --speaker-count 2
+swift run macparakeet-cli transcribe "<FILE>" --speaker-min 2 --speaker-max 4
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection off
 swift run macparakeet-cli transcribe "<FILE>" --no-diarize
 ```
+
+`--speaker-count`, `--speaker-min`, and `--speaker-max` are per-run
+constraints. They imply speaker detection when `--speaker-detection` is left at
+`app-default`, and they cannot be combined with `--speaker-detection off` or
+`--no-diarize`. Use `--speaker-count` for an exact count, or `--speaker-min`
+and/or `--speaker-max` for bounds; values must be positive, and
+`--speaker-min` cannot exceed `--speaker-max`.
 
 `config get speaker-detection` reports the saved app-default value used by
 bare `transcribe` and by `--speaker-detection app-default`.

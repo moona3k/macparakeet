@@ -158,6 +158,62 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.on, storedEnabled: true, noDiarize: true))
     }
 
+    func testResolveSpeakerDetectionConstraintsImplyDetectionForAppDefault() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .appDefault,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: 2,
+            speakerMin: nil,
+            speakerMax: nil
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .exact(2))
+    }
+
+    func testResolveSpeakerDetectionRangeConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .on,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: 2,
+            speakerMax: 4
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .range(min: 2, max: 4))
+    }
+
+    func testResolveSpeakerDetectionEqualRangeNormalizesToExactConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .on,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: 2,
+            speakerMax: 2
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .exact(2))
+    }
+
+    func testResolveSpeakerDetectionSupportsOneSidedRangeConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .appDefault,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: nil,
+            speakerMax: 4
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .range(min: nil, max: 4))
+    }
+
     func testParsesWhisperEngineAndLanguage() throws {
         let command = try TranscribeCommand.parse([
             "sample.wav",
@@ -178,6 +234,81 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertEqual(command.engine, .appDefault)
         XCTAssertEqual(command.speakerDetection, .appDefault)
+    }
+
+    func testParsesSpeakerConstraintFlags() throws {
+        let exact = try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "2",
+        ])
+        XCTAssertEqual(exact.speakerCount, 2)
+
+        let range = try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min", "2",
+            "--speaker-max", "4",
+        ])
+        XCTAssertEqual(range.speakerMin, 2)
+        XCTAssertEqual(range.speakerMax, 4)
+    }
+
+    func testSpeakerConstraintFlagsRejectExplicitDisable() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-detection", "off",
+            "--speaker-count", "2",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-detection off cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--no-diarize",
+            "--speaker-min", "2",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--no-diarize cannot be combined"))
+        }
+    }
+
+    func testSpeakerConstraintFlagsValidateRangeShape() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "2",
+            "--speaker-max", "4",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-count cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min", "5",
+            "--speaker-max", "4",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-min cannot be greater"))
+        }
+    }
+
+    func testSpeakerConstraintFlagsRejectNonpositiveValues() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "0",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-count must be at least 1"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min=-1",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-min must be at least 1"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-max", "0",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-max must be at least 1"))
+        }
     }
 
     func testParsesYouTubeAudioQuality() throws {

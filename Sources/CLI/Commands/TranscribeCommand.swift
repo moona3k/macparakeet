@@ -45,6 +45,11 @@ enum SpeakerDetectionOption: String, ExpressibleByArgument, CaseIterable, Sendab
     case off
 }
 
+struct ResolvedSpeakerDetection: Equatable, Sendable {
+    let enabled: Bool
+    let constraint: SpeakerDiarizationConstraint?
+}
+
 struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
@@ -94,6 +99,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(name: .long, help: "Speaker detection: app-default, on, off. Default: app-default, which follows the saved GUI/CLI preference.")
     var speakerDetection: SpeakerDetectionOption = .appDefault
 
+    @Option(name: .long, help: "Exact speaker count for this run. Mutually exclusive with --speaker-min/--speaker-max; implies speaker detection for app-default.")
+    var speakerCount: Int?
+
+    @Option(name: .long, help: "Minimum speaker count for this run. Can be combined with --speaker-max; implies speaker detection for app-default.")
+    var speakerMin: Int?
+
+    @Option(name: .long, help: "Maximum speaker count for this run. Can be combined with --speaker-min; implies speaker detection for app-default.")
+    var speakerMax: Int?
+
     @Flag(help: "Compatibility alias for --speaker-detection off.")
     var noDiarize: Bool = false
 
@@ -119,6 +133,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         if noHistory && downloadedAudio == .keep {
             throw ValidationError("--no-history cannot be combined with --downloaded-audio keep.")
         }
+        try Self.validateSpeakerConstraintOptions(
+            speakerDetection: speakerDetection,
+            noDiarize: noDiarize,
+            speakerCount: speakerCount,
+            speakerMin: speakerMin,
+            speakerMax: speakerMax
+        )
     }
 
     static func resolveProcessingMode(_ mode: TranscribeMode, storedMode: String?) -> Dictation.ProcessingMode {
@@ -191,15 +212,101 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         storedEnabled: Bool?,
         noDiarize: Bool
     ) -> Bool {
-        if noDiarize { return false }
+        resolveSpeakerDetection(
+            option,
+            storedEnabled: storedEnabled,
+            noDiarize: noDiarize,
+            speakerCount: nil,
+            speakerMin: nil,
+            speakerMax: nil
+        ).enabled
+    }
+
+    static func resolveSpeakerDetection(
+        _ option: SpeakerDetectionOption,
+        storedEnabled: Bool?,
+        noDiarize: Bool,
+        speakerCount: Int?,
+        speakerMin: Int?,
+        speakerMax: Int?
+    ) -> ResolvedSpeakerDetection {
+        if noDiarize { return ResolvedSpeakerDetection(enabled: false, constraint: nil) }
+
+        let constraint = speakerConstraint(
+            speakerCount: speakerCount,
+            speakerMin: speakerMin,
+            speakerMax: speakerMax
+        )
+
         switch option {
         case .appDefault:
-            return storedEnabled ?? false
+            return ResolvedSpeakerDetection(
+                enabled: constraint != nil || (storedEnabled ?? false),
+                constraint: constraint
+            )
         case .on:
-            return true
+            return ResolvedSpeakerDetection(enabled: true, constraint: constraint)
         case .off:
-            return false
+            return ResolvedSpeakerDetection(enabled: false, constraint: nil)
         }
+    }
+
+    static func validateSpeakerConstraintOptions(
+        speakerDetection: SpeakerDetectionOption,
+        noDiarize: Bool,
+        speakerCount: Int?,
+        speakerMin: Int?,
+        speakerMax: Int?
+    ) throws {
+        let hasConstraint = speakerCount != nil || speakerMin != nil || speakerMax != nil
+        guard hasConstraint else { return }
+
+        if noDiarize {
+            throw ValidationError("--no-diarize cannot be combined with speaker count constraints.")
+        }
+        if speakerDetection == .off {
+            throw ValidationError("--speaker-detection off cannot be combined with speaker count constraints.")
+        }
+        if let speakerCount, speakerCount < 1 {
+            throw ValidationError("--speaker-count must be at least 1.")
+        }
+        if let speakerMin, speakerMin < 1 {
+            throw ValidationError("--speaker-min must be at least 1.")
+        }
+        if let speakerMax, speakerMax < 1 {
+            throw ValidationError("--speaker-max must be at least 1.")
+        }
+        if speakerCount != nil && (speakerMin != nil || speakerMax != nil) {
+            throw ValidationError("--speaker-count cannot be combined with --speaker-min or --speaker-max.")
+        }
+        if let speakerMin, let speakerMax, speakerMin > speakerMax {
+            throw ValidationError("--speaker-min cannot be greater than --speaker-max.")
+        }
+    }
+
+    static func speakerConstraint(
+        speakerCount: Int?,
+        speakerMin: Int?,
+        speakerMax: Int?
+    ) -> SpeakerDiarizationConstraint? {
+        if let speakerCount {
+            return .exact(speakerCount)
+        }
+        guard speakerMin != nil || speakerMax != nil else { return nil }
+        if let speakerMin, let speakerMax, speakerMin == speakerMax {
+            return .exact(speakerMin)
+        }
+        return .range(min: speakerMin, max: speakerMax)
+    }
+
+    static func makeDiarizationService(
+        for speakerDetection: ResolvedSpeakerDetection
+    ) -> DiarizationService? {
+        guard speakerDetection.enabled else { return nil }
+        guard let constraint = speakerDetection.constraint else {
+            return DiarizationService()
+        }
+        return DiarizationService(speakerConstraint: constraint)
     }
 
     static func localFileURL(for input: String) -> URL {
@@ -242,10 +349,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
                 explicitLanguage: self.language
             )
-            let speakerDetectionEnabled = Self.resolveSpeakerDetection(
+            let resolvedSpeakerDetection = Self.resolveSpeakerDetection(
                 self.speakerDetection,
                 storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
-                noDiarize: self.noDiarize
+                noDiarize: self.noDiarize,
+                speakerCount: self.speakerCount,
+                speakerMin: self.speakerMin,
+                speakerMax: self.speakerMax
             )
             let processingMode = Self.resolveProcessingMode(
                 self.mode,
@@ -290,7 +400,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 await entitlementsService.refreshValidationIfNeeded()
             }
 
-            let diarizationService: DiarizationService? = speakerDetectionEnabled ? DiarizationService() : nil
+            let diarizationService = Self.makeDiarizationService(for: resolvedSpeakerDetection)
             let service = TranscriptionService(
                 audioProcessor: audioProcessor,
                 sttTranscriber: sttTranscriber,
@@ -304,7 +414,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 shouldKeepDownloadedAudio: {
                     shouldKeepDownloadedAudio
                 },
-                shouldDiarize: { speakerDetectionEnabled },
+                shouldDiarize: { resolvedSpeakerDetection.enabled },
                 youtubeDownloader: youtubeDownloader,
                 diarizationService: diarizationService
             )
