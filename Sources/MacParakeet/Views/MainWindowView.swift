@@ -135,7 +135,7 @@ struct MainWindowView: View {
                             },
                             onPauseToggleMeeting: onPauseToggleMeeting,
                             onOpenCalendarSettings: {
-                                state.navigateToSettings(tab: .modes)
+                                state.navigateToSettings(tab: .capture, anchor: "meeting")
                             },
                             onOpenAISettings: {
                                 state.navigateToSettings(tab: .ai)
@@ -259,6 +259,7 @@ struct MainWindowView: View {
                             updater: updater,
                             transformHotkeys: transformsViewModel.transforms,
                             requestedTab: state.requestedSettingsTab,
+                            requestedAnchor: state.requestedSettingsAnchor,
                             requestedTabRevision: state.requestedSettingsTabRevision,
                             onRequestedTabConsumed: {
                                 state.consumeRequestedSettingsTab()
