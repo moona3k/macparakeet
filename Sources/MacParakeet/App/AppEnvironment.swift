@@ -283,7 +283,7 @@ final class AppEnvironment {
         derivedFieldsBackfill.runInBackground()
     }
 
-    private static func enableAIFormatterByDefaultWhenLLMConfigured(
+    nonisolated static func enableAIFormatterByDefaultWhenLLMConfigured(
         defaults: UserDefaults,
         configStore: LLMConfigStoreProtocol
     ) {
