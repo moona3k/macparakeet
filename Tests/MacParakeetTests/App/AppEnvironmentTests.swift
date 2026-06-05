@@ -3,13 +3,13 @@ import MacParakeetCore
 import XCTest
 
 final class AppEnvironmentTests: XCTestCase {
-    func testEnableAIFormatterByDefaultWhenLLMConfiguredWritesTrueWhenPreferenceUnset() {
+    func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
 
-        AppEnvironment.enableAIFormatterByDefaultWhenLLMConfigured(
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
             defaults: defaults,
             configStore: configStore
         )
@@ -18,37 +18,146 @@ final class AppEnvironmentTests: XCTestCase {
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
             true
         )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
     }
 
-    func testEnableAIFormatterByDefaultWhenLLMConfiguredPreservesExplicitFalse() {
+    func testSyncAIFormatterAvailabilityOverwritesLegacyExplicitFalseWhenProviderExists() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
 
-        AppEnvironment.enableAIFormatterByDefaultWhenLLMConfigured(
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
             defaults: defaults,
             configStore: configStore
         )
 
         XCTAssertEqual(
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
             false
         )
     }
 
-    func testEnableAIFormatterByDefaultWhenLLMConfiguredLeavesPreferenceUnsetWithoutProvider() {
+    func testSyncAIFormatterAvailabilityDoesNotMigrateLegacyExplicitFalseOnSecondRun() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test")
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+    }
+
+    func testSyncAIFormatterAvailabilityDoesNotMigrateNewProviderOnSecondRun() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test")
 
-        AppEnvironment.enableAIFormatterByDefaultWhenLLMConfigured(
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+    }
+
+    func testSyncAIFormatterAvailabilityMigratesLegacyExplicitTrueToDictationPreference() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test")
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            true
+        )
+    }
+
+    func testSyncAIFormatterAvailabilityPreservesExistingDictationPreference() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test")
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+    }
+
+    func testSyncAIFormatterAvailabilityRemovesPreferenceWithoutProvider() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        let configStore = MockLLMConfigStore()
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
             defaults: defaults,
             configStore: configStore
         )
 
         XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
     }
 
     private func makeDefaults() -> (suiteName: String, defaults: UserDefaults) {

@@ -67,7 +67,7 @@ final class AppEnvironment {
 
         // Services
         let llmConfigStore = LLMConfigStore()
-        Self.enableAIFormatterByDefaultWhenLLMConfigured(
+        Self.syncAIFormatterAvailabilityWithLLMConfiguration(
             defaults: .standard,
             configStore: llmConfigStore
         )
@@ -283,14 +283,35 @@ final class AppEnvironment {
         derivedFieldsBackfill.runInBackground()
     }
 
-    nonisolated static func enableAIFormatterByDefaultWhenLLMConfigured(
+    nonisolated static func syncAIFormatterAvailabilityWithLLMConfiguration(
         defaults: UserDefaults,
         configStore: LLMConfigStoreProtocol
     ) {
-        guard defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) == nil else {
+        let config: LLMProviderConfig?
+        do {
+            config = try configStore.loadConfig()
+        } catch {
             return
         }
-        guard (try? configStore.loadConfig()) != nil else { return }
-        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        let hasDictationRoutingPreference = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+        ) != nil
+        if config != nil {
+            let legacyFormatterWasEnabled = defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey
+            ) as? Bool == true
+            if !hasDictationRoutingPreference {
+                defaults.set(
+                    legacyFormatterWasEnabled,
+                    forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+                )
+            }
+            defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        } else {
+            defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+            if !hasDictationRoutingPreference {
+                defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+            }
+        }
     }
 }

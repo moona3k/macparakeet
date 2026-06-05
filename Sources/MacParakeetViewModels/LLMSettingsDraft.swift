@@ -36,7 +36,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public var commandTemplate: String
     public var selectedCLITemplate: LocalCLITemplate?
     public var cliTimeoutSeconds: Double
-    public var aiFormatterEnabled: Bool
     public var aiFormatterPrompt: String
 
     public init(
@@ -49,7 +48,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         commandTemplate: String = "",
         selectedCLITemplate: LocalCLITemplate? = nil,
         cliTimeoutSeconds: Double = LocalCLIConfig.defaultTimeout,
-        aiFormatterEnabled: Bool = false,
         aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
     ) {
         self.providerID = providerID
@@ -61,7 +59,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         self.commandTemplate = commandTemplate
         self.selectedCLITemplate = selectedCLITemplate
         self.cliTimeoutSeconds = max(LocalCLIConfig.minimumTimeout, cliTimeoutSeconds)
-        self.aiFormatterEnabled = aiFormatterEnabled
         self.aiFormatterPrompt = AIFormatter.normalizedPromptTemplate(aiFormatterPrompt)
     }
 
@@ -192,7 +189,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         apiKey: String = "",
         defaultModelName: String = "",
         cliConfig: LocalCLIConfig? = nil,
-        aiFormatterEnabled: Bool = false,
         aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
     ) -> Self {
         let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
@@ -206,7 +202,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             commandTemplate: cliConfig?.commandTemplate ?? "",
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
-            aiFormatterEnabled: aiFormatterEnabled,
             aiFormatterPrompt: aiFormatterPrompt
         )
     }
@@ -217,7 +212,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         defaultModelName: String,
         defaultBaseURL: String,
         cliConfig: LocalCLIConfig? = nil,
-        aiFormatterEnabled: Bool = false,
         aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
     ) -> Self {
         let isSuggestedModel = suggestedModels.contains(config.modelName)
@@ -232,7 +226,6 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             commandTemplate: cliConfig?.commandTemplate ?? "",
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
-            aiFormatterEnabled: aiFormatterEnabled,
             aiFormatterPrompt: aiFormatterPrompt
         )
     }

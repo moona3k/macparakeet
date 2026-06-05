@@ -92,7 +92,6 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
-
     func testSetupStatusReadyUsesSavedProviderDisplayName() {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -772,12 +771,11 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testSelectingNoneDisablesAIFormatter() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
-        viewModel.aiFormatterEnabled = true
 
         viewModel.selectedProviderID = nil
 
         XCTAssertFalse(viewModel.aiFormatterEnabled)
-        XCTAssertFalse(viewModel.canToggleAIFormatter)
+        XCTAssertFalse(viewModel.isAIFormatterAvailable)
     }
 
     func testNoneProviderReturnsEmptyModels() {
@@ -997,7 +995,6 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
         viewModel.apiKeyInput = "sk-test"
-        viewModel.aiFormatterEnabled = true
         viewModel.aiFormatterPrompt = "Rewrite this carefully:\n\(AIFormatter.transcriptPlaceholder)"
 
         viewModel.saveConfiguration()
@@ -1020,10 +1017,14 @@ final class LLMSettingsViewModelTests: XCTestCase {
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
             true
         )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
         XCTAssertTrue(viewModel.aiFormatterEnabled)
     }
 
-    func testSavePreservesExplicitAIFormatterDisabledPreference() {
+    func testSaveEnablesAIFormatterWhenLegacyPreferenceWasFalse() {
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
@@ -1033,9 +1034,13 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
             false
         )
-        XCTAssertFalse(viewModel.aiFormatterEnabled)
+        XCTAssertTrue(viewModel.aiFormatterEnabled)
     }
 
     func testFieldChangeResetsSaveState() {
@@ -1079,25 +1084,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
     }
 
-    func testAIFormatterStaysDisabledUntilProviderIsSaved() {
+    func testAIFormatterUnavailableUntilProviderIsSaved() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
 
-        XCTAssertFalse(viewModel.canToggleAIFormatter)
-
-        viewModel.aiFormatterEnabled = true
-
+        XCTAssertFalse(viewModel.isAIFormatterAvailable)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
     }
 
-    func testAIFormatterTogglePersistsImmediatelyWhenConfigured() {
+    func testAIFormatterPromptPersistsImmediatelyWhenConfigured() {
         mockConfigStore.config = .openai(apiKey: "sk-test")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
-        XCTAssertTrue(viewModel.canToggleAIFormatter)
+        XCTAssertTrue(viewModel.isAIFormatterAvailable)
 
-        viewModel.aiFormatterEnabled = true
         viewModel.aiFormatterPrompt = "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
 
         XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
