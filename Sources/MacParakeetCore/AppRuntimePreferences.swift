@@ -169,10 +169,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// global `aiFormatterEnabled` switch so users can keep AI formatting for
     /// long-form file/meeting transcripts while keeping dictation low-latency
     /// (the LLM round-trip is the dominant cost on short utterances). Defaults
-    /// to `true`, preserving the prior behavior where dictation followed the
-    /// global toggle. The dictation gate is the logical AND of both flags.
+    /// to `false`; the dictation gate is the logical AND of both flags.
     public var aiFormatterEnabledForDictation: Bool {
-        defaults.object(forKey: Self.aiFormatterEnabledForDictationKey) as? Bool ?? true
+        defaults.object(forKey: Self.aiFormatterEnabledForDictationKey) as? Bool ?? false
     }
 
     public var aiFormatterPrompt: String {

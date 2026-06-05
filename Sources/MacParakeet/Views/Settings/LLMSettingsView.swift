@@ -356,7 +356,7 @@ struct LLMSettingsView: View {
                                         .fill(DesignSystem.Colors.accent.opacity(0.12))
                                 )
                         }
-                        Text("Formats dictation with app-aware smart defaults after the usual cleanup step.")
+                        Text("Formats file and meeting transcripts with app-aware smart defaults after the usual cleanup step.")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -385,9 +385,9 @@ struct LLMSettingsView: View {
                     Divider()
                     Toggle(isOn: $viewModel.aiFormatterEnabledForDictation) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Apply to dictation")
+                            Text("Also use for dictation")
                                 .font(DesignSystem.Typography.body.weight(.medium))
-                            Text("Run the AI Formatter on live dictation. Turn off to keep dictation fast — file and meeting transcripts are still formatted.")
+                            Text("Run the AI Formatter on live dictation too. This can add latency on short utterances.")
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)

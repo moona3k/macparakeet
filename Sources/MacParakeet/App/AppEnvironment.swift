@@ -66,6 +66,11 @@ final class AppEnvironment {
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
         // Services
+        let llmConfigStore = LLMConfigStore()
+        Self.enableAIFormatterByDefaultWhenLLMConfigured(
+            defaults: .standard,
+            configStore: llmConfigStore
+        )
         let runtimePreferences = UserDefaultsAppRuntimePreferences()
         self.runtimePreferences = runtimePreferences
         let selectedInputDeviceUIDProvider: @Sendable () -> String? = { [runtimePreferences] in
@@ -204,7 +209,7 @@ final class AppEnvironment {
         }
 
         llmClient = RoutingLLMClient()
-        llmConfigStore = LLMConfigStore()
+        self.llmConfigStore = llmConfigStore
         llmService = LLMService(
             client: llmClient,
             contextResolver: StoredLLMExecutionContextResolver(
@@ -276,5 +281,16 @@ final class AppEnvironment {
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()
+    }
+
+    private static func enableAIFormatterByDefaultWhenLLMConfigured(
+        defaults: UserDefaults,
+        configStore: LLMConfigStoreProtocol
+    ) {
+        guard defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) == nil else {
+            return
+        }
+        guard (try? configStore.loadConfig()) != nil else { return }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
     }
 }

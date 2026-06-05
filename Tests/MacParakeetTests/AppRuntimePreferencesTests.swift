@@ -87,18 +87,16 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
     }
 
-    func testAIFormatterEnabledForDictationDefaultsToTrueAndReadsPersistedValue() {
+    func testAIFormatterEnabledForDictationDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        // Defaults to true so existing installs keep formatting dictation as
-        // before — opting dictation out is an explicit user choice (issue #408).
-        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
-
-        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
-
         XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
     }
 
     /// Models the gate the composition root installs on the dictation path: the
