@@ -120,22 +120,6 @@ private extension SettingsCaptureWorkflow {
         }
     }
 
-    var eyebrow: LocalizedStringKey {
-        switch self {
-        case .dictation: "Anywhere"
-        case .transcription: "Files & URLs"
-        case .meetings: "Calls"
-        }
-    }
-
-    var detail: LocalizedStringKey {
-        switch self {
-        case .dictation: "Hotkeys, overlay, silence, and paste behavior."
-        case .transcription: "File, YouTube, speaker, notification, and save options."
-        case .meetings: "System audio, recovery, auto-save, and calendar setup."
-        }
-    }
-
     var systemImage: String {
         switch self {
         case .dictation: "waveform"
@@ -759,43 +743,19 @@ struct SettingsView: View {
         return Button {
             rootViewModel.activeCaptureWorkflow = section
         } label: {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-                    Image(systemName: section.systemImage)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(isActive ? DesignSystem.Colors.accent.opacity(0.14) : DesignSystem.Colors.surfaceElevated)
-                        )
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
+                    .frame(width: 16, height: 16)
+                    .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(section.eyebrow)
-                            .font(DesignSystem.Typography.micro.weight(.semibold))
-                            .foregroundStyle(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
-                        Text(section.title)
-                            .font(DesignSystem.Typography.body.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    }
-
-                    Spacer(minLength: DesignSystem.Spacing.sm)
-
-                    if isActive {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.accent)
-                    }
-                }
-
-                Text(section.detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(section.title)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(isActive ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                    .lineLimit(1)
             }
-            .padding(DesignSystem.Spacing.md)
-            .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 42)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                     .fill(isActive ? DesignSystem.Colors.accentLight : DesignSystem.Colors.cardBackground)
@@ -811,7 +771,7 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(section.title)
-        .accessibilityHint(section.detail)
+        .accessibilityHint("Shows settings for this capture workflow")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
