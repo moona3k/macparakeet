@@ -86,4 +86,39 @@ final class AppRuntimePreferencesTests: XCTestCase {
 
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
     }
+
+    func testAIFormatterEnabledForDictationDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        // Defaults to true so existing installs keep formatting dictation as
+        // before — opting dictation out is an explicit user choice (issue #408).
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
+    }
+
+    /// Models the gate the composition root installs on the dictation path: the
+    /// AI Formatter runs on dictation only when the global switch AND the
+    /// dictation-specific switch are both on, while the file/meeting path keys
+    /// off the global switch alone.
+    func testDictationFormatterGateIsConjunctionOfGlobalAndDictationFlags() {
+        func dictationGate(global: Bool, dictation: Bool) -> Bool {
+            let suite = "app-runtime-prefs-\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set(global, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+            defaults.set(dictation, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+            let prefs = UserDefaultsAppRuntimePreferences(defaults: defaults)
+            return prefs.aiFormatterEnabled && prefs.aiFormatterEnabledForDictation
+        }
+
+        XCTAssertTrue(dictationGate(global: true, dictation: true))
+        XCTAssertFalse(dictationGate(global: true, dictation: false))
+        XCTAssertFalse(dictationGate(global: false, dictation: true))
+        XCTAssertFalse(dictationGate(global: false, dictation: false))
+    }
 }

@@ -380,6 +380,22 @@ struct LLMSettingsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                if viewModel.aiFormatterEnabled {
+                    Divider()
+                    Toggle(isOn: $viewModel.aiFormatterEnabledForDictation) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Apply to dictation")
+                                .font(DesignSystem.Typography.body.weight(.medium))
+                            Text("Run the AI Formatter on live dictation. Turn off to keep dictation fast — file and meeting transcripts are still formatted.")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             if AppFeatures.aiFormatterProfilesEnabled {

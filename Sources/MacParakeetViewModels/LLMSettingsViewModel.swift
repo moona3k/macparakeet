@@ -360,6 +360,24 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    /// Whether the AI Formatter also runs on live dictation. Unlike
+    /// `aiFormatterEnabled`, this is a routing preference rather than part of the
+    /// saved provider config, so it lives directly on the view model instead of
+    /// the draft. It persists immediately through the injected `defaults` — the
+    /// same store the rest of this view model uses, and the same eager-write
+    /// behavior `aiFormatterEnabled` already has via
+    /// `persistAIFormatterDraftIfNeeded`. Default `true` preserves prior
+    /// behavior; `clearConfiguration()` resets it. See issue #408.
+    public var aiFormatterEnabledForDictation: Bool {
+        didSet {
+            guard aiFormatterEnabledForDictation != oldValue else { return }
+            defaults.set(
+                aiFormatterEnabledForDictation,
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+            )
+        }
+    }
+
     public var canToggleAIFormatter: Bool {
         draft.providerID != nil && draft.providerID == savedProviderID
     }
@@ -441,6 +459,7 @@ public final class LLMSettingsViewModel {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
         self.draft = LLMSettingsDraft(
             aiFormatterEnabled: false,
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
@@ -553,6 +572,9 @@ public final class LLMSettingsViewModel {
         }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        // Restore the dictation routing preference to its default so a config
+        // clear returns the formatter to a fully predictable state.
+        aiFormatterEnabledForDictation = true
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
@@ -1083,6 +1105,10 @@ public final class LLMSettingsViewModel {
 
     private static func loadStoredAIFormatterEnabled(from defaults: UserDefaults) -> Bool {
         defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool ?? false
+    }
+
+    private static func loadStoredAIFormatterEnabledForDictation(from defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool ?? true
     }
 
     private static func loadStoredAIFormatterPrompt(from defaults: UserDefaults) -> String {

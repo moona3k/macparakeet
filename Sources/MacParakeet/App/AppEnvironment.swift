@@ -180,6 +180,14 @@ final class AppEnvironment {
             runtimePreferences.aiFormatterEnabled
         }
 
+        // Dictation gates the AI Formatter on BOTH the global switch and the
+        // dictation-specific switch, so users can keep AI formatting for
+        // file/meeting transcripts (which use `aiFormatterEnabledClosure`) while
+        // keeping live dictation fast. See issue #408.
+        let dictationAIFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForDictation
+        }
+
         let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
         }
@@ -218,7 +226,7 @@ final class AppEnvironment {
             processingMode: processingModeClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
-            shouldUseAIFormatter: aiFormatterEnabledClosure,
+            shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a

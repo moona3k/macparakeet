@@ -9,6 +9,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
+    var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterPrompt: String { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
@@ -111,6 +112,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
+    public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
@@ -161,6 +163,16 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var aiFormatterEnabled: Bool {
         defaults.object(forKey: Self.aiFormatterEnabledKey) as? Bool ?? false
+    }
+
+    /// Whether the AI Formatter also runs on live dictation. Independent of the
+    /// global `aiFormatterEnabled` switch so users can keep AI formatting for
+    /// long-form file/meeting transcripts while keeping dictation low-latency
+    /// (the LLM round-trip is the dominant cost on short utterances). Defaults
+    /// to `true`, preserving the prior behavior where dictation followed the
+    /// global toggle. The dictation gate is the logical AND of both flags.
+    public var aiFormatterEnabledForDictation: Bool {
+        defaults.object(forKey: Self.aiFormatterEnabledForDictationKey) as? Bool ?? true
     }
 
     public var aiFormatterPrompt: String {
