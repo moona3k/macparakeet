@@ -53,7 +53,7 @@ struct ResolvedSpeakerDetection: Equatable, Sendable {
 struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
-        abstract: "Transcribe an audio/video file or YouTube URL.",
+        abstract: "Transcribe an audio/video file or media URL.",
         discussion: """
         Telemetry: the root CLI runner emits one privacy-safe `cli_operation` \
         event per invocation; `transcribe` adds allowlisted input/output metadata \
@@ -66,7 +66,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         """
     )
 
-    @Argument(help: "One or more audio/video file paths, folders, or YouTube URLs. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
+    @Argument(help: "One or more audio/video file paths, folders, YouTube URLs, or HTTP(S) media URLs supported by yt-dlp. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
     var inputs: [String]
 
     @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
@@ -87,11 +87,14 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only). app-default follows the saved preference; ignored for Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
-    @Option(help: "Downloaded YouTube audio retention: app-default, keep, delete.")
+    @Option(help: "Downloaded media retention: app-default, keep, delete.")
     var downloadedAudio: DownloadedAudioPolicy = .appDefault
 
-    @Option(help: "YouTube audio quality: app-default, m4a, best-available.")
-    var youtubeAudioQuality: YouTubeAudioQualityOption = .appDefault
+    @Option(name: .customLong("media-audio-quality"), help: "Downloaded media audio quality: app-default, m4a, best-available.")
+    var mediaAudioQuality: YouTubeAudioQualityOption?
+
+    @Option(name: .customLong("youtube-audio-quality"), help: .hidden)
+    var legacyYouTubeAudioQuality: YouTubeAudioQualityOption?
 
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
@@ -114,7 +117,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Flag(help: "Run retained entitlement checks before transcribing. Current free builds remain unlocked.")
     var enforceEntitlements: Bool = false
 
-    @Flag(name: .long, help: "Do not save the completed transcription to MacParakeet history. YouTube audio is temporary.")
+    @Flag(name: .long, help: "Do not save the completed transcription to MacParakeet history. Downloaded media is temporary.")
     var noHistory: Bool = false
 
     var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
@@ -126,12 +129,19 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         )
     }
 
+    var effectiveMediaAudioQuality: YouTubeAudioQualityOption {
+        mediaAudioQuality ?? legacyYouTubeAudioQuality ?? .appDefault
+    }
+
     func validate() throws {
         if inputs.isEmpty {
-            throw ValidationError("Provide at least one file path, folder, or YouTube URL to transcribe.")
+            throw ValidationError("Provide at least one file path, folder, or media URL to transcribe.")
         }
         if noHistory && downloadedAudio == .keep {
             throw ValidationError("--no-history cannot be combined with --downloaded-audio keep.")
+        }
+        if mediaAudioQuality != nil && legacyYouTubeAudioQuality != nil {
+            throw ValidationError("--media-audio-quality and --youtube-audio-quality cannot be combined.")
         }
         try Self.validateSpeakerConstraintOptions(
             speakerDetection: speakerDetection,
@@ -153,7 +163,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
     }
 
-    static func resolveYouTubeAudioQuality(
+    static func resolveMediaAudioQuality(
         _ quality: YouTubeAudioQualityOption,
         storedQuality: String?
     ) -> YouTubeAudioQuality {
@@ -318,7 +328,25 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
             return .youtube
         }
+        if DownloadableMediaURLValidator.isDownloadableMediaURL(trimmedInput) {
+            return .media
+        }
         return Observability.inputKind(for: Self.localFileURL(for: trimmedInput)) ?? .unknown
+    }
+
+    static func isDownloadableURLInput(_ input: String) -> Bool {
+        downloadableURLInput(input) != nil
+    }
+
+    static func downloadableURLInput(_ input: String) -> String? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard YouTubeURLValidator.isYouTubeURL(trimmed)
+            || DownloadableMediaURLValidator.isDownloadableMediaURL(trimmed)
+        else {
+            return nil
+        }
+        return trimmed
     }
 
     func run() async throws {
@@ -361,8 +389,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 self.mode,
                 storedMode: defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             )
-            let resolvedYouTubeAudioQuality = Self.resolveYouTubeAudioQuality(
-                self.youtubeAudioQuality,
+            let resolvedMediaAudioQuality = Self.resolveMediaAudioQuality(
+                self.effectiveMediaAudioQuality,
                 storedQuality: defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
             )
             let configuredShouldKeepDownloadedAudio: Bool = switch self.downloadedAudio {
@@ -391,7 +419,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {
-                resolvedYouTubeAudioQuality
+                resolvedMediaAudioQuality
             })
             let entitlementsService = enforceEntitlements ? makeEntitlementsService() : nil
 
@@ -490,7 +518,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
     }
 
-    /// Transcribe a single resolved input (YouTube URL or local file) and
+    /// Transcribe a single resolved input (media URL or local file) and
     /// return the record. Progress is reported on stderr; this throws on
     /// missing/unsupported files or transcription errors so callers can either
     /// surface it (single mode) or count and continue (batch mode).
@@ -518,11 +546,11 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             }
         }
 
-        if YouTubeURLValidator.isYouTubeURL(input) {
+        if let mediaURL = Self.downloadableURLInput(input) {
             if noHistory {
-                return try await service.transcribeURLTransient(urlString: input, onProgress: progressHandler)
+                return try await service.transcribeURLTransient(urlString: mediaURL, onProgress: progressHandler)
             }
-            return try await service.transcribeURL(urlString: input, onProgress: progressHandler)
+            return try await service.transcribeURL(urlString: mediaURL, onProgress: progressHandler)
         }
 
         let url = Self.localFileURL(for: input)
@@ -541,15 +569,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     }
 
     /// Expand folder arguments into their supported audio files and
-    /// de-duplicate while preserving order. YouTube URLs and individual file
+    /// de-duplicate while preserving order. Media URLs and individual file
     /// paths pass through unchanged (existence/support is checked per file in
     /// `transcribeOne`).
     static func expandInputs(_ inputs: [String]) -> [String] {
         var result: [String] = []
         var seen: Set<String> = []
         for input in inputs {
-            if YouTubeURLValidator.isYouTubeURL(input) {
-                if seen.insert(input).inserted { result.append(input) }
+            if let mediaURL = Self.downloadableURLInput(input) {
+                if seen.insert(mediaURL).inserted { result.append(mediaURL) }
                 continue
             }
             let url = localFileURL(for: input).standardizedFileURL
@@ -575,7 +603,18 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     }
 
     static func displayName(for input: String) -> String {
-        YouTubeURLValidator.isYouTubeURL(input) ? input : localFileURL(for: input).lastPathComponent
+        if let mediaURL = Self.downloadableURLInput(input) {
+            return displayNameForMediaURL(mediaURL)
+        }
+        return localFileURL(for: input).lastPathComponent
+    }
+
+    static func displayNameForMediaURL(_ mediaURL: String) -> String {
+        let trimmed = mediaURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let queryOrFragmentIndex = trimmed.firstIndex(where: { $0 == "?" || $0 == "#" }) else {
+            return trimmed
+        }
+        return String(trimmed[..<queryOrFragmentIndex])
     }
 
     /// Write one transcript file for `t` into `dir`, named after the source and

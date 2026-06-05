@@ -109,7 +109,7 @@ deriving it from the event name when older clients do not send the field.
 - Transcription text content
 - Custom word or snippet values
 - File names or paths
-- YouTube URLs
+- YouTube/media URLs
 - LLM prompts or responses
 - AI Formatter profile names, profile ids, profile prompts, or match kinds
 - Exact app bundle identifiers or app display names
@@ -260,7 +260,7 @@ catalog.
 | `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `speech_engine`, `engine_variant`, `language` | Real-world performance, speaker-label coverage, language coverage, and STT engine adoption across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
-| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `language`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
+| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `language`, `error_type` | One wide outcome event per file, media URL, or meeting transcription |
 
 `transcription_operation` is the broad product-health outcome event. Its
 `stage` values are `preflight`, `download`, `audio_conversion`, `stt`,

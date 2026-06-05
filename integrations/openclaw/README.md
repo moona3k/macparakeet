@@ -17,7 +17,7 @@ Local speech-to-text and transcription for an OpenClaw agent running on Apple
 Silicon. Wraps `macparakeet-cli` so an OpenClaw skill can:
 
 - Transcribe a local audio/video file.
-- Transcribe a YouTube URL.
+- Transcribe a media URL.
 - Search the user's prior dictation/transcription history.
 - Inspect meeting recordings and store external meeting results.
 - Run a prompt against a transcription (action items, summary, etc.).
@@ -47,7 +47,7 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 | Health probe (run at skill init) | `macparakeet-cli health --json` |
 | Discover core contract | `macparakeet-cli spec --json` |
 | Transcribe a file | `macparakeet-cli transcribe <path> --format json` |
-| Transcribe a YouTube URL | `macparakeet-cli transcribe <url> --format json` |
+| Transcribe a media URL | `macparakeet-cli transcribe <url> --format json` |
 | Use GUI/default preferences | `macparakeet-cli transcribe <path> --engine app-default --parakeet-model app-default --speaker-detection app-default --mode app-default --downloaded-audio app-default --youtube-audio-quality app-default --format json` |
 | Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` |
 | Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json` |

@@ -11,6 +11,7 @@ public enum ObservabilityOutcome: String, Sendable {
 public enum ObservabilityInputKind: String, Sendable {
     case audio
     case video
+    case media
     case youtube
     case meeting
     case unknown

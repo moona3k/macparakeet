@@ -197,7 +197,7 @@ struct HealthCommand: AsyncParsableCommand {
             ytDlp = .init(
                 status: "missing",
                 path: nil,
-                error: "Run `macparakeet-cli health --repair-binaries` or transcribe a YouTube URL to install yt-dlp."
+                error: "Run `macparakeet-cli health --repair-binaries` or transcribe a media URL to install yt-dlp."
             )
         }
         report.ytDlp = ytDlp

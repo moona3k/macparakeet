@@ -201,6 +201,22 @@ final class CLITelemetryTests: XCTestCase {
         XCTAssertFalse(metadata.suppressEvent)
     }
 
+    func testTranscribeMetadataUsesMediaInputKindForGenericURL() throws {
+        let command = try CLI.parseAsRoot([
+            "transcribe",
+            "https://www.facebook.com/reel/1998924354042801",
+            "--format",
+            "json",
+        ])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "transcribe")
+        XCTAssertEqual(metadata.inputKind, .media)
+        XCTAssertEqual(metadata.outputFormat, "json")
+        XCTAssertEqual(metadata.json, true)
+    }
+
     func testTelemetryOutcomeTreatsSuccessfulExitCodeAsSuccess() {
         let result = Result<Void, Error>.failure(ExitCode.success)
 

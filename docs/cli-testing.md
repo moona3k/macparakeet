@@ -24,7 +24,7 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 
 ```
 macparakeet-cli
-├── transcribe <input...> [options]      Transcribe files, folders, or YouTube URLs
+├── transcribe <input...> [options]      Transcribe files, folders, or media URLs
 │   ├── --format text|transcript|json [--no-history]
 │   └── --engine app-default|parakeet|whisper [--language <code>]
 │       --parakeet-model app-default|v3|v2 [--output-dir DIR]
@@ -134,7 +134,7 @@ detection setting; the explicit flag below keeps the behavior visible in test
 commands.
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine app-default \
   --parakeet-model app-default \
   --speaker-detection app-default \
@@ -148,7 +148,7 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
 Explicitly pins behavior.
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine parakeet \
   --parakeet-model v3 \
   --speaker-detection off \
@@ -160,7 +160,7 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
 Or clean mode with retained downloads:
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine parakeet \
   --parakeet-model v3 \
   --speaker-detection on \
@@ -377,7 +377,7 @@ swift run macparakeet-cli health --repair-binaries
 managed or app-bundled `yt-dlp`, but it does not install or update helper
 binaries. `health --repair-binaries` explicitly fetches the latest managed
 `yt-dlp` copy. App-bundled CLI installs include a signed `yt-dlp` seed so
-YouTube URL transcription works without a first-use helper download.
+media URL transcription works without a first-use helper download.
 
 ## Meetings
 
