@@ -210,6 +210,61 @@ final class FeedbackServiceTests: XCTestCase {
         XCTAssertEqual(screenshots?[1]["base64"] as? String, "AwQ=")
     }
 
+    func testSubmitFeedbackEncodesDiagnosticLog() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            var bodyData: Data?
+            if let body = request.httpBody {
+                bodyData = body
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                var buffer = [UInt8](repeating: 0, count: 65536)
+                var collected = Data()
+                while stream.hasBytesAvailable {
+                    let count = stream.read(&buffer, maxLength: buffer.count)
+                    if count > 0 { collected.append(buffer, count: count) }
+                    else { break }
+                }
+                stream.close()
+                bodyData = collected
+            }
+            if let data = bodyData {
+                capturedBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{\"success\":true}".utf8))
+        }
+
+        let payload = FeedbackPayload(
+            category: .bug,
+            message: "Diagnostics attached",
+            email: nil,
+            screenshotBase64: nil,
+            screenshotFilename: nil,
+            diagnosticLog: FeedbackDiagnosticLog(filename: "dictation-audio.log", base64: "ZGlhZw=="),
+            systemInfo: SystemInfo(
+                appVersion: "1.0",
+                buildNumber: "1",
+                gitCommit: "abc123",
+                buildSource: "test",
+                macOSVersion: "15.0.0",
+                chipType: "Apple M1"
+            )
+        )
+
+        try await service.submitFeedback(payload)
+
+        let diagnosticLog = capturedBody?["diagnostic_log"] as? [String: Any]
+        XCTAssertEqual(diagnosticLog?["filename"] as? String, "dictation-audio.log")
+        XCTAssertEqual(diagnosticLog?["base64"] as? String, "ZGlhZw==")
+    }
+
     func testEmptyMessageThrowsError() async {
         let payload = FeedbackPayload(
             category: .bug,

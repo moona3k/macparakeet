@@ -303,7 +303,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
 | `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
 | `feedback_submitted` | `category` (bug, featureRequest, other) | Feedback volume and sentiment split |
-| `feedback_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `category`, `outcome`, `duration_seconds`, `screenshot_attached`, `system_info_included`, `error_type` | Feedback delivery health without storing message text or email |
+| `feedback_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `category`, `outcome`, `duration_seconds`, `screenshot_attached`, `diagnostic_log_attached`, `system_info_included`, `error_type` | Feedback delivery health without storing message text, email, or diagnostic log contents |
 | `auto_save_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `scope`, `format`, `outcome`, `duration_seconds`, `error_type` | Whether transcript/meeting auto-save succeeds for configured users |
 | `transcription_deleted` | — | Are users cleaning up transcriptions? |
 | `dictation_deleted` | — | History hygiene patterns |
@@ -776,13 +776,13 @@ External AI review of the telemetry design. Each point was evaluated and accepte
   paths, URLs, API-key-looking strings, and emails before D1 insert. The app
   already sanitizes current emitted details, but the Worker should not rely on
   every future client doing the right thing.
-- **Local diagnostic export** — Build an explicit user-triggered diagnostic
-  bundle that includes recent `os.Logger` entries for MacParakeet subsystems,
-  `~/Library/Logs/MacParakeet/dictation-audio.log` status/metric lines,
-  app version/build info, and redacted runtime metadata. Do not upload
-  automatically. Do not include audio bytes, transcripts, notes, prompts, file
-  names, paths, URLs, API keys, microphone names, CoreAudio device IDs, or
-  device UIDs.
+- **Expanded local diagnostic export** — The in-app feedback form can now
+  attach `~/Library/Logs/MacParakeet/dictation-audio.log` by explicit opt-in.
+  A fuller user-triggered bundle should add recent `os.Logger` entries for
+  MacParakeet subsystems, app version/build info, and redacted runtime metadata.
+  Do not upload automatically. Do not include audio bytes, transcripts, notes,
+  prompts, file names, paths, URLs, API keys, microphone names, CoreAudio
+  device IDs, or device UIDs.
 - **Operation-event coverage gate** — For any new workflow that can succeed,
   fail, cancel, or become unavailable, require a matching wide `*_operation`
   event or a documented reason it is intentionally breadcrumb-only.

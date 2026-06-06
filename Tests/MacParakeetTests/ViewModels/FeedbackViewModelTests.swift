@@ -22,6 +22,37 @@ final class MockFeedbackService: FeedbackServiceProtocol, @unchecked Sendable {
     }
 }
 
+private final class FeedbackTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 @MainActor
 final class FeedbackViewModelTests: XCTestCase {
     var viewModel: FeedbackViewModel!
@@ -31,6 +62,7 @@ final class FeedbackViewModelTests: XCTestCase {
         mockService = MockFeedbackService()
         viewModel = FeedbackViewModel()
         viewModel.configure(feedbackService: mockService)
+        Telemetry.configure(NoOpTelemetryService())
     }
 
     // MARK: - Initial State
@@ -42,6 +74,7 @@ final class FeedbackViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.screenshotData)
         XCTAssertNil(viewModel.screenshotFilename)
         XCTAssertTrue(viewModel.screenshotAttachments.isEmpty)
+        XCTAssertFalse(viewModel.includeDiagnosticLog)
         XCTAssertFalse(viewModel.showSystemInfo)
         XCTAssertEqual(viewModel.submissionState, .idle)
     }
@@ -141,6 +174,7 @@ final class FeedbackViewModelTests: XCTestCase {
         viewModel.email = "a@b.com"
         viewModel.screenshotData = Data([0x00])
         viewModel.screenshotFilename = "test.png"
+        viewModel.includeDiagnosticLog = true
         viewModel.showSystemInfo = true
         viewModel.submissionState = .error("something")
 
@@ -152,6 +186,7 @@ final class FeedbackViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.screenshotData)
         XCTAssertNil(viewModel.screenshotFilename)
         XCTAssertTrue(viewModel.screenshotAttachments.isEmpty)
+        XCTAssertFalse(viewModel.includeDiagnosticLog)
         XCTAssertFalse(viewModel.showSystemInfo)
         XCTAssertEqual(viewModel.submissionState, .idle)
     }
@@ -226,6 +261,159 @@ final class FeedbackViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.screenshotAttachments[0].filename, "first.png")
         XCTAssertEqual(viewModel.screenshotAttachments[0].data, Data([0x09]))
         XCTAssertEqual(viewModel.screenshotAttachments[1], second)
+    }
+
+    // MARK: - Diagnostic Log
+
+    func testRefreshDiagnosticLogStatusCachesAvailableLogDescription() async throws {
+        let logURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("available-dictation-audio-\(UUID().uuidString).log")
+        try Data("dictation_capture_stop duration_s=1.400\n".utf8).write(to: logURL)
+        defer { try? FileManager.default.removeItem(at: logURL) }
+
+        viewModel = FeedbackViewModel(diagnosticLogURL: logURL)
+
+        viewModel.refreshDiagnosticLogStatus()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertTrue(viewModel.diagnosticLogIsAvailable)
+        XCTAssertTrue(viewModel.diagnosticLogAvailabilityDescription.contains("dictation-audio.log"))
+    }
+
+    func testRefreshDiagnosticLogStatusClearsOptInWhenLogIsMissing() async throws {
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-status-dictation-audio-\(UUID().uuidString).log")
+        viewModel = FeedbackViewModel(diagnosticLogURL: missingURL)
+        viewModel.includeDiagnosticLog = true
+
+        viewModel.refreshDiagnosticLogStatus()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertFalse(viewModel.diagnosticLogIsAvailable)
+        XCTAssertFalse(viewModel.includeDiagnosticLog)
+        XCTAssertEqual(
+            viewModel.diagnosticLogAvailabilityDescription,
+            "Run dictation or meeting recording once to create this log."
+        )
+    }
+
+    func testSubmissionIncludesDiagnosticLogWhenOptedIn() async throws {
+        let logURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dictation-audio-\(UUID().uuidString).log")
+        let logData = Data("dictation_capture_stop duration_s=1.400\n".utf8)
+        try logData.write(to: logURL)
+        defer { try? FileManager.default.removeItem(at: logURL) }
+
+        viewModel = FeedbackViewModel(diagnosticLogURL: logURL)
+        viewModel.configure(feedbackService: mockService)
+        viewModel.message = "Dictation acted weird"
+        viewModel.includeDiagnosticLog = true
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(mockService.submitCallCount, 1)
+        XCTAssertEqual(mockService.lastPayload?.diagnosticLog?.filename, "dictation-audio.log")
+        XCTAssertEqual(
+            mockService.lastPayload?.diagnosticLog?.base64,
+            logData.base64EncodedString()
+        )
+    }
+
+    func testSubmissionFailsWhenDiagnosticLogIsSelectedButMissing() async throws {
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-dictation-audio-\(UUID().uuidString).log")
+        viewModel = FeedbackViewModel(diagnosticLogURL: missingURL)
+        viewModel.configure(feedbackService: mockService)
+        viewModel.message = "Dictation acted weird"
+        viewModel.includeDiagnosticLog = true
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(mockService.submitCallCount, 0)
+        if case .error(let message) = viewModel.submissionState {
+            XCTAssertEqual(message, "No diagnostic log found yet.")
+        } else {
+            XCTFail("Expected missing diagnostic log error, got \(viewModel.submissionState)")
+        }
+    }
+
+    func testDiagnosticLogReadFailureEmitsFeedbackOperationTelemetry() async throws {
+        let telemetry = FeedbackTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-telemetry-dictation-audio-\(UUID().uuidString).log")
+        viewModel = FeedbackViewModel(diagnosticLogURL: missingURL)
+        viewModel.configure(feedbackService: mockService)
+        viewModel.message = "Dictation acted weird"
+        viewModel.includeDiagnosticLog = true
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+
+        let operation = telemetry.snapshot().compactMap { event -> (
+            category: String,
+            outcome: ObservabilityOutcome,
+            screenshotAttached: Bool,
+            diagnosticLogAttached: Bool,
+            systemInfoIncluded: Bool,
+            errorType: String?
+        )? in
+            guard case .feedbackOperation(
+                _,
+                _,
+                let category,
+                let outcome,
+                _,
+                let screenshotAttached,
+                let diagnosticLogAttached,
+                let systemInfoIncluded,
+                let errorType
+            ) = event else {
+                return nil
+            }
+            return (
+                category,
+                outcome,
+                screenshotAttached,
+                diagnosticLogAttached,
+                systemInfoIncluded,
+                errorType
+            )
+        }.first
+
+        XCTAssertEqual(operation?.category, FeedbackCategory.bug.rawValue)
+        XCTAssertEqual(operation?.outcome, .failure)
+        XCTAssertEqual(operation?.screenshotAttached, false)
+        XCTAssertEqual(operation?.diagnosticLogAttached, true)
+        XCTAssertEqual(operation?.systemInfoIncluded, true)
+        XCTAssertNotNil(operation?.errorType)
+    }
+
+    func testSubmissionFailsWhenDiagnosticLogIsTooLarge() async throws {
+        let logURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("oversized-dictation-audio-\(UUID().uuidString).log")
+        let oversizedData = Data(count: Int(AudioCaptureDiagnostics.diagnosticLogMaxBytes) + 1)
+        try oversizedData.write(to: logURL)
+        defer { try? FileManager.default.removeItem(at: logURL) }
+
+        viewModel = FeedbackViewModel(diagnosticLogURL: logURL)
+        viewModel.configure(feedbackService: mockService)
+        viewModel.message = "Dictation acted weird"
+        viewModel.includeDiagnosticLog = true
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(mockService.submitCallCount, 0)
+        if case .error(let message) = viewModel.submissionState {
+            XCTAssertEqual(message, "The diagnostic log is too large to attach.")
+        } else {
+            XCTFail("Expected oversized diagnostic log error, got \(viewModel.submissionState)")
+        }
     }
 
     // MARK: - System Info
