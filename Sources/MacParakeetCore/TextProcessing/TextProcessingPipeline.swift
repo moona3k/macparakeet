@@ -291,6 +291,10 @@ public struct TextProcessingPipeline: Sendable {
 
     private func firstTokenHasIntentionalUppercase(in text: String) -> Bool {
         let token = text.prefix { !$0.isWhitespace }
+        if token.first == "I" {
+            guard let second = token.dropFirst().first else { return true }
+            if !second.isLowercase { return true }
+        }
         return token.dropFirst().contains { $0.isUppercase }
     }
 

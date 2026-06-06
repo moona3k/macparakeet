@@ -239,6 +239,44 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "MacParakeet works")
     }
 
+    func testInlineInsertionStylePreservesPronounI() {
+        let result = pipeline.process(
+            text: "I am ready.",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "I am ready")
+    }
+
+    func testInlineInsertionStylePreservesPronounIContractions() {
+        let examples = [
+            ("I'm ready.", "I'm ready"),
+            ("I've got this.", "I've got this"),
+            ("I'll go.", "I'll go"),
+            ("I'd agree.", "I'd agree")
+        ]
+        for (input, expected) in examples {
+            let result = pipeline.process(
+                text: input,
+                customWords: [],
+                snippets: [],
+                insertionStyle: .inline
+            )
+            XCTAssertEqual(result.text, expected)
+        }
+    }
+
+    func testInlineInsertionStyleStillLowercasesLeadingIWords() {
+        let result = pipeline.process(
+            text: "In progress.",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "in progress")
+    }
+
     func testInlineInsertionStylePreservesCustomWordCasing() {
         let words = [
             CustomWord(word: "kubernetes", replacement: "Kubernetes")
