@@ -55,6 +55,14 @@ public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, E
             return "hello world"
         }
     }
+
+    public static func current(defaults: UserDefaults = .standard) -> DictationInsertionStyle {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey),
+              let style = DictationInsertionStyle(rawValue: raw) else {
+            return .sentence
+        }
+        return style
+    }
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -169,8 +177,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     public var dictationInsertionStyle: DictationInsertionStyle {
-        let raw = defaults.string(forKey: Self.dictationInsertionStyleKey)
-        return DictationInsertionStyle(rawValue: raw ?? DictationInsertionStyle.sentence.rawValue) ?? .sentence
+        DictationInsertionStyle.current(defaults: defaults)
     }
 
     public var voiceReturnTrigger: String? {
