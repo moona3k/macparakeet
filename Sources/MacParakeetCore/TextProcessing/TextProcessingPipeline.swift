@@ -306,15 +306,16 @@ public struct TextProcessingPipeline: Sendable {
             let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !term.isEmpty, text.hasPrefix(term) else { continue }
             let end = text.index(text.startIndex, offsetBy: term.count)
-            if end == text.endIndex || Self.leadingTermBoundaryCharacters.contains(text[end]) {
+            if end == text.endIndex || Self.isLeadingTermBoundary(text[end]) {
                 return true
             }
         }
         return false
     }
 
+    private static func isLeadingTermBoundary(_ character: Character) -> Bool {
+        character.isWhitespace || (!character.isLetter && !character.isNumber)
+    }
+
     private static let inlineTerminalPunctuation: Set<Character> = [".", "!", "?"]
-    private static let leadingTermBoundaryCharacters: Set<Character> = [
-        " ", "\n", "\t", ".", ",", "!", "?", ";", ":", ")", "]", "}"
-    ]
 }

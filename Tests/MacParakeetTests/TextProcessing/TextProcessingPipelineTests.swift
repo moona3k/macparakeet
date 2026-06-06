@@ -290,6 +290,27 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "Kubernetes is great")
     }
 
+    func testInlineInsertionStylePreservesProtectedLeadingTermsBeforeSeparators() {
+        let words = [
+            CustomWord(word: "kubernetes", replacement: "Kubernetes")
+        ]
+        let examples = [
+            ("kubernetes-based deployment.", "Kubernetes-based deployment"),
+            ("kubernetes/helm setup.", "Kubernetes/helm setup"),
+            ("kubernetes(cluster) setup.", "Kubernetes(cluster) setup")
+        ]
+
+        for (input, expected) in examples {
+            let result = pipeline.process(
+                text: input,
+                customWords: words,
+                snippets: [],
+                insertionStyle: .inline
+            )
+            XCTAssertEqual(result.text, expected)
+        }
+    }
+
     func testInlineInsertionStylePreservesExpandedSnippetCasing() {
         let snippets = [
             TextSnippet(trigger: "my signature", expansion: "Best regards")
@@ -301,6 +322,19 @@ final class TextProcessingPipelineTests: XCTestCase {
             insertionStyle: .inline
         )
         XCTAssertEqual(result.text, "Best regards")
+    }
+
+    func testInlineInsertionStylePreservesExpandedSnippetCasingBeforeSeparators() {
+        let snippets = [
+            TextSnippet(trigger: "product name", expansion: "MacParakeet")
+        ]
+        let result = pipeline.process(
+            text: "product name-based workflow.",
+            customWords: [],
+            snippets: snippets,
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "MacParakeet-based workflow")
     }
 
     func testMultiplePunctuationSpaces() {

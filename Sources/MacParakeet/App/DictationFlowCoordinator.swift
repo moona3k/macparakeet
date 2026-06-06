@@ -185,6 +185,8 @@ final class DictationFlowCoordinator {
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
+    /// Insertion style used to shape the most recent dictation result, used for paste spacing.
+    private var currentDictationInsertionStyle: DictationInsertionStyle = .sentence
     /// Ephemeral post-paste action from the text processing pipeline (e.g., simulate Return key).
     private var pendingPostPasteAction: KeyAction?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
@@ -550,6 +552,7 @@ final class DictationFlowCoordinator {
                 return
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
+            let insertionStyle = currentDictationInsertionStyle
             actionTask = Task { @MainActor in
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
@@ -562,7 +565,7 @@ final class DictationFlowCoordinator {
                 let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 let appendsTrailingSpace = !(
                     dictation.processingMode.usesDeterministicPipeline
-                    && self.runtimePreferences.dictationInsertionStyle == .inline
+                    && insertionStyle == .inline
                 )
                 let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
 
@@ -584,7 +587,7 @@ final class DictationFlowCoordinator {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
                         }
                     } else {
-                        // Normal paste path: spacing follows the current insertion style.
+                        // Normal paste path: spacing follows the style used to shape this dictation.
                         try await self.clipboardService.pasteText(
                             normalPasteText,
                             restoresClipboard: !keepDictationOnClipboard
@@ -638,6 +641,7 @@ final class DictationFlowCoordinator {
         case .reloadHistory:
             onHistoryReload()
             currentDictation = nil
+            currentDictationInsertionStyle = .sentence
             pendingPostPasteAction = nil
 
         // MARK: App integration
@@ -1056,6 +1060,7 @@ final class DictationFlowCoordinator {
 
     private func consumeDictationResult(_ result: DictationResult) {
         currentDictation = result.dictation
+        currentDictationInsertionStyle = result.insertionStyle
         pendingPostPasteAction = result.postPasteAction
     }
 

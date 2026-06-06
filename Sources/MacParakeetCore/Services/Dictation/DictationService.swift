@@ -769,7 +769,11 @@ public actor DictationService: DictationServiceProtocol {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
-        return DictationResult(dictation: dictation, postPasteAction: refinement.postPasteAction)
+        return DictationResult(
+            dictation: dictation,
+            insertionStyle: insertionStyle,
+            postPasteAction: refinement.postPasteAction
+        )
     }
 
     private func formatTranscriptIfNeeded(

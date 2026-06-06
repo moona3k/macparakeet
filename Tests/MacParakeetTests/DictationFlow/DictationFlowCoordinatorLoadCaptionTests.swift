@@ -217,6 +217,37 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastCopiedText)
     }
 
+    func testPasteSpacingUsesInsertionStyleCapturedWithDictationResult() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "Hello world.",
+            keepDictationOnClipboard: true,
+            processingMode: .clean,
+            dictationInsertionStyle: .inline
+        )
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let completed = await waitUntil { harness.coordinator.overlayStateForTesting?.isSuccessForTest == true }
+        XCTAssertTrue(completed)
+
+        harness.preferencesDefaults.set(
+            DictationInsertionStyle.sentence.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
+
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(clipboard.lastPastedText, "hello world")
+    }
+
     func testKeepDictationOnClipboardDoesNotRetainWhitespaceForEmptyCleanTranscript() async throws {
         let harness = try makeHarness(
             isReady: true,
@@ -309,7 +340,13 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             onPresentEntitlementsAlert: { _ in }
         )
 
-        return Harness(coordinator: coordinator, stt: stt, telemetry: telemetry, clipboard: clipboard)
+        return Harness(
+            coordinator: coordinator,
+            stt: stt,
+            telemetry: telemetry,
+            clipboard: clipboard,
+            preferencesDefaults: preferencesDefaults
+        )
     }
 
     private func waitUntil(
@@ -345,6 +382,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let stt: DelayedSTTClient
         let telemetry: LoadCaptionTelemetrySpy
         let clipboard: MockClipboardService
+        let preferencesDefaults: UserDefaults
 
         @MainActor
         func startAndStop() async throws {
@@ -535,6 +573,11 @@ private extension DictationOverlayViewModel.OverlayState {
 
     var isProcessingForTest: Bool {
         if case .processing = self { return true }
+        return false
+    }
+
+    var isSuccessForTest: Bool {
+        if case .success = self { return true }
         return false
     }
 
