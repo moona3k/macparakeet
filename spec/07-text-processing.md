@@ -55,14 +55,16 @@ Trigger phrases are replaced with their full expansion text.
 - Expanded snippet IDs are tracked so use counts can be updated after processing
 - Example: `"my signature"` → `"Best regards, David"`
 
-### Step 5: Whitespace Cleanup
+### Step 5: Whitespace Cleanup + Insertion Style
 
 Final normalization pass:
 
 1. **Collapse multiple spaces** — `"hello   world"` → `"hello world"`
 2. **Remove space before punctuation** — `"hello ."` → `"hello."`
 3. **Trim** — strip leading/trailing whitespace
-4. **Capitalize first letter** — ensure the first character is uppercase
+4. **Apply insertion style**:
+   - **Sentence** (default): capitalize the first letter and keep final sentence punctuation.
+   - **Inline**: remove terminal sentence punctuation (`.`, `!`, `?`) and lowercase ordinary sentence-initial capitalization so the result can replace selected text, fill fields, or append to typed text. Acronyms, camelCase, custom vocabulary, and expanded snippet casing are preserved.
 
 ---
 
@@ -78,6 +80,11 @@ Final normalization pass:
 **Raw**: No processing. The exact text output from Parakeet is used as-is. Useful for debugging or when the user wants full control.
 
 **Clean** (default): The deterministic 5-step pipeline runs. Fast and predictable. Good for most dictation use cases.
+
+Clean dictation also has an insertion-style preference. Sentence style keeps
+the historical sentence-shaped output. Inline style keeps the same deterministic
+pipeline but shapes the final output for selected-text replacement, search
+fields, forms, terminal commands, and hybrid typing.
 
 ---
 

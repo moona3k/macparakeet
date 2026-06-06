@@ -167,6 +167,10 @@ final class AppEnvironment {
             runtimePreferences.processingMode
         }
 
+        let dictationInsertionStyleClosure: @Sendable () -> DictationInsertionStyle = { [runtimePreferences] in
+            runtimePreferences.dictationInsertionStyle
+        }
+
         let binaryBootstrap = BinaryBootstrap()
         youtubeDownloader = YouTubeDownloader(
             binaryBootstrap: binaryBootstrap,
@@ -229,6 +233,7 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             voiceReturnTrigger: voiceReturnTriggerClosure,
             processingMode: processingModeClosure,
+            dictationInsertionStyle: dictationInsertionStyleClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,

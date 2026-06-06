@@ -199,6 +199,72 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result, "Hello world")
     }
 
+    func testInlineInsertionStyleRemovesSentenceEndingAndLeadingCapitalization() {
+        let result = pipeline.process(
+            text: "Hello world.",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "hello world")
+    }
+
+    func testInlineInsertionStyleRemovesMultipleTerminalSentenceMarks() {
+        let result = pipeline.process(
+            text: "Stop now?!",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "stop now")
+    }
+
+    func testInlineInsertionStylePreservesAcronymCasing() {
+        let result = pipeline.process(
+            text: "API endpoint.",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "API endpoint")
+    }
+
+    func testInlineInsertionStylePreservesCamelCaseCasing() {
+        let result = pipeline.process(
+            text: "MacParakeet works.",
+            customWords: [],
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "MacParakeet works")
+    }
+
+    func testInlineInsertionStylePreservesCustomWordCasing() {
+        let words = [
+            CustomWord(word: "kubernetes", replacement: "Kubernetes")
+        ]
+        let result = pipeline.process(
+            text: "kubernetes is great.",
+            customWords: words,
+            snippets: [],
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "Kubernetes is great")
+    }
+
+    func testInlineInsertionStylePreservesExpandedSnippetCasing() {
+        let snippets = [
+            TextSnippet(trigger: "my signature", expansion: "Best regards")
+        ]
+        let result = pipeline.process(
+            text: "my signature.",
+            customWords: [],
+            snippets: snippets,
+            insertionStyle: .inline
+        )
+        XCTAssertEqual(result.text, "Best regards")
+    }
+
     func testMultiplePunctuationSpaces() {
         let result = pipeline.cleanWhitespace(in: "hello , world . great !")
         XCTAssertEqual(result, "Hello, world. great!")

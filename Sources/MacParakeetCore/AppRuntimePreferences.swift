@@ -2,6 +2,7 @@ import Foundation
 
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
+    var dictationInsertionStyle: DictationInsertionStyle { get }
     var voiceReturnTrigger: String? { get }
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
@@ -22,6 +23,38 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     /// subsequent call.
     @discardableResult
     func markFirstDictationCompleted() -> Bool
+}
+
+public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, Equatable {
+    case sentence
+    case inline
+
+    public var displayTitle: String {
+        switch self {
+        case .sentence:
+            return "Sentence"
+        case .inline:
+            return "Inline"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .sentence:
+            return "Starts like a sentence and keeps ending punctuation."
+        case .inline:
+            return "Fits replacements, fields, search, and commands."
+        }
+    }
+
+    public var previewText: String {
+        switch self {
+        case .sentence:
+            return "Hello world."
+        case .inline:
+            return "hello world"
+        }
+    }
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -106,6 +139,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let voiceReturnEnabledKey = "voiceReturnEnabled"
     public static let voiceReturnTriggerKey = "voiceReturnTrigger"
     public static let processingModeKey = "processingMode"
+    public static let dictationInsertionStyleKey = "dictationInsertionStyle"
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
@@ -132,6 +166,11 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+    }
+
+    public var dictationInsertionStyle: DictationInsertionStyle {
+        let raw = defaults.string(forKey: Self.dictationInsertionStyleKey)
+        return DictationInsertionStyle(rawValue: raw ?? DictationInsertionStyle.sentence.rawValue) ?? .sentence
     }
 
     public var voiceReturnTrigger: String? {

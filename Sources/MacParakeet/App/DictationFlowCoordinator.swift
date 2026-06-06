@@ -560,7 +560,11 @@ final class DictationFlowCoordinator {
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
                 let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                let normalPasteText = transcript + " "
+                let appendsTrailingSpace = !(
+                    dictation.processingMode.usesDeterministicPipeline
+                    && self.runtimePreferences.dictationInsertionStyle == .inline
+                )
+                let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
 
                 do {
                     if action == nil && !transcriptHasText {
@@ -580,7 +584,7 @@ final class DictationFlowCoordinator {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
                         }
                     } else {
-                        // Normal mode: trailing space as before
+                        // Normal paste path: spacing follows the current insertion style.
                         try await self.clipboardService.pasteText(
                             normalPasteText,
                             restoresClipboard: !keepDictationOnClipboard

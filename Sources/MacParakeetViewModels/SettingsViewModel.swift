@@ -253,6 +253,15 @@ public final class SettingsViewModel {
             Telemetry.send(.processingModeChanged(mode: processingMode))
         }
     }
+    public var dictationInsertionStyle: DictationInsertionStyle {
+        didSet {
+            defaults.set(
+                dictationInsertionStyle.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+            )
+            Telemetry.send(.settingChanged(setting: .dictationInsertionStyle))
+        }
+    }
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
 
@@ -585,6 +594,7 @@ public final class SettingsViewModel {
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
+        dictationInsertionStyle = UserDefaultsAppRuntimePreferences(defaults: defaults).dictationInsertionStyle
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true

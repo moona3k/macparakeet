@@ -57,8 +57,13 @@ mode.
    expansion so the trigger phrase isn't mangled by step 4.
 4. **Text snippet expansion.** Plain text snippets (where
    `action == nil`) replace their trigger phrases with their bodies.
-5. **Whitespace cleanup.** Collapse repeated spaces, fix punctuation
-   spacing, normalize.
+5. **Whitespace cleanup and insertion styling.** Collapse repeated
+   spaces, fix punctuation spacing, normalize, then apply the selected
+   dictation insertion style. Sentence style preserves the historic
+   first-letter capitalization behavior. Inline style removes terminal
+   sentence punctuation and lowercases ordinary sentence-initial words
+   while preserving acronyms, camelCase, custom vocabulary, and expanded
+   snippet casing.
 
 **The order is load-bearing.** Filler removal before custom words
 prevents a custom rule from accidentally matching `"um"` as a

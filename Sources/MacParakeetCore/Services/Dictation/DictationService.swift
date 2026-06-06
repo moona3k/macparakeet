@@ -77,6 +77,7 @@ public actor DictationService: DictationServiceProtocol {
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let voiceReturnTrigger: @Sendable () -> String?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
@@ -119,6 +120,7 @@ public actor DictationService: DictationServiceProtocol {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
@@ -137,6 +139,7 @@ public actor DictationService: DictationServiceProtocol {
         self.snippetRepo = snippetRepo
         self.voiceReturnTrigger = voiceReturnTrigger ?? { nil }
         self.processingMode = processingMode ?? { .raw }
+        self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
@@ -664,6 +667,7 @@ public actor DictationService: DictationServiceProtocol {
         }
 
         let mode = processingMode()
+        let insertionStyle = mode.usesDeterministicPipeline ? dictationInsertionStyle() : .sentence
         var words: [CustomWord] = []
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
@@ -686,10 +690,16 @@ public actor DictationService: DictationServiceProtocol {
             rawText: result.text,
             mode: mode,
             customWords: words,
-            snippets: snippets
+            snippets: snippets,
+            insertionStyle: insertionStyle
         )
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs
+        let protectedLeadingTerms = TextProcessingPipeline().protectedLeadingTerms(
+            customWords: words,
+            textSnippets: snippets.filter { $0.action == nil },
+            expandedSnippetIDs: expandedSnippetIDs
+        )
         let baseText = cleanTranscript ?? result.text
         let saveHistory = shouldSaveDictationHistory?() ?? true
         let dictationID = UUID()
@@ -698,7 +708,14 @@ public actor DictationService: DictationServiceProtocol {
             runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
             formatterContext: formatterContext
         )
-        let formattedTranscript = formatterOutcome.text
+        let formattedTranscript = formatterOutcome.text.map {
+            guard insertionStyle == .inline else { return $0 }
+            return TextProcessingPipeline().applyInsertionStyle(
+                to: $0,
+                insertionStyle: insertionStyle,
+                protectedLeadingTerms: protectedLeadingTerms
+            )
+        }
         let finalText = formattedTranscript ?? baseText
         let wc = finalText.split(whereSeparator: \.isWhitespace).count
 

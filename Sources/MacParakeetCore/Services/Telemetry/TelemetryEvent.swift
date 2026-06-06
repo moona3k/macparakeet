@@ -412,6 +412,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case microphoneSelection = "microphone_selection"
     case meetingAudioSourceMode = "meeting_audio_source_mode"
     case pauseMediaDuringDictation = "pause_media_during_dictation"
+    case dictationInsertionStyle = "dictation_insertion_style"
     case transcriptionCompletionNotification = "transcription_completion_notification"
 
     case launchAtLogin = "launch_at_login"

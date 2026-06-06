@@ -138,6 +138,7 @@ final class SettingsViewModelTests: XCTestCase {
             viewModel.keepDictationOnClipboard,
             "keepDictationOnClipboard should default to false (opt-in)"
         )
+        XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
@@ -160,6 +161,10 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(true, forKey: "silenceAutoStop")
         testDefaults.set(3.0, forKey: "silenceDelay")
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        testDefaults.set(
+            DictationInsertionStyle.inline.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         testDefaults.set(
@@ -185,6 +190,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.silenceAutoStop)
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertTrue(vm.keepDictationOnClipboard)
+        XCTAssertEqual(vm.dictationInsertionStyle, .inline)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
@@ -510,6 +516,23 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.keepDictationOnClipboard])
+    }
+
+    func testSettingDictationInsertionStylePersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationInsertionStyle = .inline
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey),
+            DictationInsertionStyle.inline.rawValue
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.dictationInsertionStyle])
     }
 
     func testSettingSaveAudioRecordingsPersists() {

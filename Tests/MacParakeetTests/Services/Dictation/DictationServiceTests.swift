@@ -410,6 +410,25 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testStopRecordingAppliesInlineInsertionStyleToCleanDictation() async throws {
+        await mockSTT.configure(result: STTResult(text: "Hello world."))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean },
+            dictationInsertionStyle: { .inline }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "Hello world.")
+        XCTAssertEqual(result.dictation.cleanTranscript, "hello world")
+        XCTAssertEqual(result.dictation.wordCount, 2)
+    }
+
     func testStopRecordingUsesAIFormatterProfileResolutionAndStoresMetadata() async throws {
         await mockSTT.configure(result: STTResult(text: "send update to team"))
         let mockLLMService = MockLLMService()

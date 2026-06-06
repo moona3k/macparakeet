@@ -195,6 +195,28 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastCopiedText)
     }
 
+    func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "Hello world.",
+            keepDictationOnClipboard: true,
+            processingMode: .clean,
+            dictationInsertionStyle: .inline
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(clipboard.lastPastedText, "hello world")
+        XCTAssertEqual(clipboard.lastRestoresClipboard, false)
+        XCTAssertNil(clipboard.lastCopiedText)
+    }
+
     func testKeepDictationOnClipboardDoesNotRetainWhitespaceForEmptyCleanTranscript() async throws {
         let harness = try makeHarness(
             isReady: true,
@@ -224,6 +246,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         hasCompletedFirstDictation: Bool = false,
         keepDictationOnClipboard: Bool = false,
         processingMode: Dictation.ProcessingMode = .raw,
+        dictationInsertionStyle: DictationInsertionStyle = .sentence,
         timing: DictationProcessingLoadCaptionTiming? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
@@ -240,6 +263,10 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let preferencesDefaults = UserDefaults(suiteName: "load-caption-\(UUID().uuidString)")!
         preferencesDefaults.set(keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        preferencesDefaults.set(
+            dictationInsertionStyle.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
         let preferences = UserDefaultsAppRuntimePreferences(defaults: preferencesDefaults)
         if hasCompletedFirstDictation {
             preferences.markFirstDictationCompleted()
@@ -250,6 +277,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             sttTranscriber: stt,
             dictationRepo: repo,
             processingMode: { processingMode },
+            dictationInsertionStyle: { dictationInsertionStyle },
             markFirstDictationCompleted: {
                 preferences.markFirstDictationCompleted()
             }

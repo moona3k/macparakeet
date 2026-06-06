@@ -17,6 +17,10 @@ struct VocabularyView: View {
         Dictation.ProcessingMode(rawValue: settingsViewModel.processingMode) ?? .raw
     }
 
+    private var selectedInsertionStyle: DictationInsertionStyle {
+        settingsViewModel.dictationInsertionStyle
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
@@ -113,6 +117,10 @@ struct VocabularyView: View {
             icon: "list.number"
         ) {
             VStack(spacing: 0) {
+                insertionStyleRow
+
+                dividerLine
+
                 pipelineStep(
                     number: 1,
                     title: "Remove fillers",
@@ -151,14 +159,62 @@ struct VocabularyView: View {
 
                 pipelineStep(
                     number: 4,
-                    title: "Clean whitespace",
-                    detail: "Fixes spacing and punctuation boundaries",
+                    title: "Shape text",
+                    detail: "Spacing, casing, and ending punctuation",
                     actionTitle: nil,
                     action: nil
                 )
             }
             .padding(.top, 2)
         }
+    }
+
+    private var insertionStyleRow: some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "text.cursor")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Insertion style")
+                    .font(DesignSystem.Typography.body)
+                Text(selectedInsertionStyle.detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Picker("Insertion style", selection: $settingsViewModel.dictationInsertionStyle) {
+                    ForEach(DictationInsertionStyle.allCases, id: \.self) { style in
+                        Text(style.displayTitle).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 210)
+
+                Text(selectedInsertionStyle.previewText)
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                            .fill(DesignSystem.Colors.surfaceElevated)
+                    )
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
     }
 
     // MARK: - Voice Return
