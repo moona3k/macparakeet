@@ -395,11 +395,11 @@ public actor AudioRecorder {
             "dictation_capture_starting"
         )
 
-        var subscribedToken: SharedMicrophoneStream.SubscriberToken?
+        let token: SharedMicrophoneStream.SubscriberToken
         var subscribeAttempt = 1
         while true {
             do {
-                subscribedToken = try await sharedStream.subscribe(
+                token = try await sharedStream.subscribe(
                     wantsVPIO: false,
                     onEngineDeath: deathHandler,
                     handler: bufferHandler
@@ -442,10 +442,6 @@ public actor AudioRecorder {
                 )
                 throw AudioProcessorError.inputUnavailable(.engineStartFailed)
             }
-        }
-        guard let token = subscribedToken else {
-            try? FileManager.default.removeItem(at: url)
-            throw AudioProcessorError.inputUnavailable(.engineStartFailed)
         }
 
         // Actor-reentrancy guard. While we awaited subscribe, another
