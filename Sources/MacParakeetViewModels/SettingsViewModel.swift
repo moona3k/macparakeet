@@ -313,6 +313,7 @@ public final class SettingsViewModel {
     public var speechEngineSwitching = false
     public var speechEngineSwitchTarget: SpeechEnginePreference?
     public var speechEngineSwitchDetail: String?
+    public var pendingSpeechEngineSwitchConfirmation: SpeechEnginePreference?
     /// True while a Parakeet *build* swap (v3 ↔ v2) is in flight, as opposed to
     /// an engine switch. Both set `speechEngineSwitchTarget = .parakeet`, so the
     /// banner needs this to avoid the misleading "Switching to Parakeet" copy
@@ -1145,6 +1146,29 @@ public final class SettingsViewModel {
         case .unavailable:
             return "Speech engine is temporarily unavailable"
         }
+    }
+
+    public func requestSpeechEngineSwitchConfirmation(to preference: SpeechEnginePreference) {
+        guard preference != speechEnginePreference,
+              !speechEngineSwitching,
+              pendingSpeechEngineSwitchConfirmation == nil else { return }
+        speechEngineError = nil
+        pendingSpeechEngineSwitchConfirmation = preference
+    }
+
+    public func cancelPendingSpeechEngineSwitchConfirmation() {
+        pendingSpeechEngineSwitchConfirmation = nil
+    }
+
+    public func confirmPendingSpeechEngineSwitch() {
+        guard let preference = pendingSpeechEngineSwitchConfirmation else { return }
+        pendingSpeechEngineSwitchConfirmation = nil
+        guard preference != speechEnginePreference else { return }
+        guard !speechEngineSwitching else {
+            speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+            return
+        }
+        speechEnginePreference = preference
     }
 
     public func refreshEntitlements() {

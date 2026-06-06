@@ -1095,6 +1095,89 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.whisperDefaultLanguage, .whisperDefaultLanguage])
     }
 
+    func testSpeechEngineSwitchConfirmationDefersChangeUntilConfirm() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+
+        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        let preferencesBeforeConfirm = await switcher.preferences
+        XCTAssertTrue(preferencesBeforeConfirm.isEmpty)
+
+        viewModel.confirmPendingSpeechEngineSwitch()
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        let preferencesAfterConfirm = await switcher.preferences
+        XCTAssertEqual(preferencesAfterConfirm, [.whisper])
+        XCTAssertEqual(viewModel.speechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
+    }
+
+    func testSpeechEngineSwitchConfirmationCancelLeavesEngineUnchanged() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+    }
+
+    func testSpeechEngineSwitchConfirmationIgnoresRequestsWhilePending() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.speechEngineError = "Existing error"
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+
+        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.speechEngineError, "Existing error")
+    }
+
+    func testSpeechEngineSwitchConfirmationIgnoresCurrentEngine() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .parakeet)
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+    }
+
+    func testConfirmPendingSpeechEngineSwitchShowsErrorWhenSwitchStartsFirst() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.speechEngineSwitching = true
+
+        viewModel.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(
+            viewModel.speechEngineError,
+            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+        )
+    }
+
     func testSpeechEngineChangeCallsSwitcherAndPersistsOnSuccess() async throws {
         let switcher = MockSpeechEngineSwitcher()
         viewModel.whisperModelStatus = .notLoaded
