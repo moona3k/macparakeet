@@ -58,7 +58,7 @@ REQ-UI-003:
   status: implemented
 
 REQ-DATA-001:
-  description: Dictation history with date-grouped search and audio playback
+  description: Dictation history with date-grouped search, multi-select cleanup, and audio playback
   version: v0.1
   status: implemented
 

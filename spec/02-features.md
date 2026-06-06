@@ -535,7 +535,7 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 
 ### F4: Dictation History
 
-**What:** Searchable, date-grouped flat list of all dictations with hover actions, bottom bar audio player, and copy/delete support.
+**What:** Searchable, date-grouped flat list of all dictations with hover actions, bottom bar audio player, and copy/delete support, including multi-select cleanup.
 
 **History view (flat list + bottom bar player):**
 
@@ -575,6 +575,7 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 - Context menu: Play/Pause, Copy, Download Audio, Delete
 - Keyboard shortcut: Cmd+Backspace to delete
 - Text selection enabled on transcript text
+- Multi-select cleanup bar for selecting visible dictations and deleting them together
 - Delete confirmation dialog before permanent removal
 
 **Database schema:**
@@ -624,6 +625,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] Can play audio via bottom bar player (Spotify-style progress bar)
 - [x] Can copy transcript text to clipboard (with checkmark confirmation)
 - [x] Can delete individual dictations (with confirmation dialog)
+- [x] Can select and delete multiple visible dictations together (with confirmation dialog)
 - [x] Can download audio files via three-dot menu
 - [x] Hover actions appear without layout shift (overlay pattern)
 - [x] History persists across app restarts (SQLite via GRDB)

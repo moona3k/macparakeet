@@ -37,20 +37,20 @@ struct DictationHistoryView: View {
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.playbackError != nil)
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.selectedSubTab)
         .alert(
-            "Delete Dictation?",
+            deleteAlertTitle,
             isPresented: Binding(
-                get: { viewModel.pendingDeleteDictation != nil },
-                set: { if !$0 { viewModel.pendingDeleteDictation = nil } }
+                get: { viewModel.pendingDeleteCount > 0 },
+                set: { if !$0 { viewModel.cancelPendingDelete() } }
             )
         ) {
             Button("Cancel", role: .cancel) {
-                viewModel.pendingDeleteDictation = nil
+                viewModel.cancelPendingDelete()
             }
             Button("Delete", role: .destructive) {
-                viewModel.confirmDelete()
+                viewModel.confirmPendingDelete()
             }
         } message: {
-            Text("This dictation and its audio file will be permanently deleted.")
+            Text(deleteAlertMessage)
         }
     }
 
@@ -73,7 +73,13 @@ struct DictationHistoryView: View {
         if viewModel.groupedDictations.isEmpty {
             emptyState
         } else {
-            dictationList
+            VStack(spacing: 0) {
+                if viewModel.hasSelectedDictations {
+                    selectedActionsBar
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                dictationList
+            }
         }
     }
 
@@ -134,6 +140,8 @@ struct DictationHistoryView: View {
                             searchText: viewModel.searchText,
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
+                            isSelected: viewModel.isDictationSelected(dictation),
+                            onToggleSelection: { viewModel.toggleSelection(for: dictation) },
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: {
                                 viewModel.copyToClipboard(dictation)
@@ -151,6 +159,46 @@ struct DictationHistoryView: View {
             }
             .padding(.bottom, DesignSystem.Spacing.md)
         }
+    }
+
+    private var selectedActionsBar: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+
+            Text("\(viewModel.selectedDictationCount) selected")
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Button {
+                viewModel.selectAllVisibleDictations()
+            } label: {
+                Label("Select All", systemImage: "checkmark.circle")
+            }
+            .disabled(viewModel.areAllVisibleDictationsSelected)
+            .parakeetAction(.secondary)
+
+            Button {
+                viewModel.clearSelection()
+            } label: {
+                Label("Clear", systemImage: "xmark.circle")
+            }
+            .parakeetAction(.secondary)
+
+            Button(role: .destructive) {
+                viewModel.requestDeleteSelectedDictations()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .parakeetAction(.destructive)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.surfaceElevated)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: - Status Bars
@@ -231,6 +279,19 @@ struct DictationHistoryView: View {
                 }
         )
     }
+
+    private var deleteAlertTitle: String {
+        let count = viewModel.pendingDeleteCount
+        return count > 1 ? "Delete \(count) Dictations?" : "Delete Dictation?"
+    }
+
+    private var deleteAlertMessage: String {
+        let count = viewModel.pendingDeleteCount
+        if count > 1 {
+            return "These dictations and their audio files will be permanently deleted."
+        }
+        return "This dictation and its audio file will be permanently deleted."
+    }
 }
 
 // MARK: - Card Row View
@@ -240,6 +301,8 @@ struct DictationCardRow: View {
     var searchText: String = ""
     var isPlayingThis: Bool = false
     var isCopied: Bool = false
+    var isSelected: Bool = false
+    var onToggleSelection: (() -> Void)?
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
@@ -251,6 +314,10 @@ struct DictationCardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.md) {
+                SelectionToggleButton(isSelected: isSelected) {
+                    onToggleSelection?()
+                }
+
                 SonicMandalaView(
                     data: .from(text: dictation.rawTranscript, durationMs: dictation.durationMs),
                     size: 32,
@@ -350,16 +417,14 @@ struct DictationCardRow: View {
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .fill(isPlayingThis
-                      ? DesignSystem.Colors.accent.opacity(0.06)
-                      : DesignSystem.Colors.cardBackground)
+                .fill(cardFill)
                 .cardShadow(isHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(
-                    isPlayingThis ? DesignSystem.Colors.accent.opacity(0.24) : DesignSystem.Colors.border.opacity(0.5),
-                    lineWidth: 0.5
+                    cardStroke,
+                    lineWidth: isSelected ? 1 : 0.5
                 )
                 .allowsHitTesting(false)
         )
@@ -369,6 +434,27 @@ struct DictationCardRow: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: isPlayingThis)
+        .animation(DesignSystem.Animation.selectionChange, value: isSelected)
+    }
+
+    private var cardFill: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent.opacity(0.10)
+        }
+        if isPlayingThis {
+            return DesignSystem.Colors.accent.opacity(0.06)
+        }
+        return DesignSystem.Colors.cardBackground
+    }
+
+    private var cardStroke: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent.opacity(0.45)
+        }
+        if isPlayingThis {
+            return DesignSystem.Colors.accent.opacity(0.24)
+        }
+        return DesignSystem.Colors.border.opacity(0.5)
     }
 
     // MARK: - Highlighted Transcript
@@ -413,6 +499,36 @@ struct DictationCardRow: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Selection Toggle
+
+private struct SelectionToggleButton: View {
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(iconColor)
+        .help(isSelected ? "Deselect" : "Select")
+        .accessibilityLabel(isSelected ? "Deselect dictation" : "Select dictation")
+        .onHover { isHovered = $0 }
+    }
+
+    private var iconColor: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent
+        }
+        return isHovered ? Color.primary : Color.secondary
     }
 }
 
