@@ -472,6 +472,25 @@ struct SettingsView: View {
         } message: { deletion in
             Text(modelDeletionMessage(for: deletion))
         }
+        .alert(
+            speechEngineSwitchConfirmationTitle,
+            isPresented: Binding(
+                get: { viewModel.pendingSpeechEngineSwitchConfirmation != nil },
+                set: { if !$0 { viewModel.cancelPendingSpeechEngineSwitchConfirmation() } }
+            ),
+            presenting: viewModel.pendingSpeechEngineSwitchConfirmation
+        ) { engine in
+            Button("Cancel", role: .cancel) {
+                viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+            }
+            Button("Switch to \(engine.displayName)") {
+                withAnimation(DesignSystem.Animation.contentSwap) {
+                    viewModel.confirmPendingSpeechEngineSwitch()
+                }
+            }
+        } message: { engine in
+            Text(speechEngineSwitchConfirmationMessage(for: engine))
+        }
     }
 
     /// A downloaded model awaiting delete confirmation. `parakeet` carries the
@@ -517,6 +536,25 @@ struct SettingsView: View {
             viewModel.deleteWhisperModel()
         }
         pendingModelDeletion = nil
+    }
+
+    private var speechEngineSwitchConfirmationTitle: String {
+        guard let engine = viewModel.pendingSpeechEngineSwitchConfirmation else {
+            return "Switch speech engine?"
+        }
+        return "Switch to \(engine.displayName)?"
+    }
+
+    private func speechEngineSwitchConfirmationMessage(for engine: SpeechEnginePreference) -> String {
+        switch engine {
+        case .whisper:
+            if viewModel.whisperHasBeenOptimized {
+                return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
+            }
+            return "Preparing Whisper can take several minutes the first time while Core ML optimizes it for this Mac. Dictation, file transcription, and meetings pause until the switch finishes."
+        case .parakeet:
+            return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
+        }
     }
 
     /// AI tab — optional setup for summaries, chat, prompt actions, and Ask.
@@ -2251,13 +2289,13 @@ struct SettingsView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Routes a tile click through `speechEnginePreference`. The VM's setter
-    /// validates (e.g. would revert if Whisper isn't downloaded), but we
-    /// pre-empt that case in `handleWhisperTileTap` so the user never sees
-    /// the briefly-selected-then-reverted state.
+    /// Routes a tile click through a confirmation step. The VM's eventual
+    /// setter still validates and performs the actual switch, but the first tap
+    /// no longer starts a potentially multi-minute engine reload by surprise.
     private func selectEngine(_ engine: SpeechEnginePreference) {
         guard viewModel.speechEnginePreference != engine,
-              !viewModel.speechEngineSwitching else { return }
+              !viewModel.speechEngineSwitching,
+              viewModel.pendingSpeechEngineSwitchConfirmation == nil else { return }
         Task { @MainActor in
             let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
@@ -2265,7 +2303,7 @@ struct SettingsView: View {
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.speechEnginePreference = engine
+                viewModel.requestSpeechEngineSwitchConfirmation(to: engine)
             }
         }
     }
