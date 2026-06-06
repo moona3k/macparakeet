@@ -114,33 +114,33 @@ public final class DictationHistoryViewModel {
     public var pendingDeleteDictation: Dictation? {
         didSet {
             if pendingDeleteDictation != nil {
-                pendingDeleteSelectedDictationIDs = []
+                pendingDeleteSelectedDictations = []
             }
         }
     }
 
-    public var pendingDeleteSelectedDictationIDs: Set<UUID> = [] {
+    public var pendingDeleteSelectedDictations: [Dictation] = [] {
         didSet {
-            if !pendingDeleteSelectedDictationIDs.isEmpty {
+            if !pendingDeleteSelectedDictations.isEmpty {
                 pendingDeleteDictation = nil
             }
         }
     }
 
     public var pendingDeleteCount: Int {
-        if !pendingDeleteSelectedDictationIDs.isEmpty {
-            return pendingDeleteSelectedDictationIDs.count
+        if !pendingDeleteSelectedDictations.isEmpty {
+            return pendingDeleteSelectedDictations.count
         }
         return pendingDeleteDictation == nil ? 0 : 1
     }
 
     public func cancelPendingDelete() {
         pendingDeleteDictation = nil
-        pendingDeleteSelectedDictationIDs = []
+        pendingDeleteSelectedDictations = []
     }
 
     public func confirmPendingDelete() {
-        if !pendingDeleteSelectedDictationIDs.isEmpty {
+        if !pendingDeleteSelectedDictations.isEmpty {
             confirmDeleteSelectedDictations()
         } else {
             confirmDelete()
@@ -217,22 +217,18 @@ public final class DictationHistoryViewModel {
     }
 
     public func requestDeleteSelectedDictations() {
-        let selectedVisibleIDs = selectedDictationIDs.intersection(visibleDictationIDs)
-        guard !selectedVisibleIDs.isEmpty else {
+        let selectedDictations = visibleDictations.filter { selectedDictationIDs.contains($0.id) }
+        guard !selectedDictations.isEmpty else {
             clearSelection()
             return
         }
-        pendingDeleteSelectedDictationIDs = selectedVisibleIDs
+        pendingDeleteSelectedDictations = selectedDictations
     }
 
     public func confirmDeleteSelectedDictations() {
-        let ids = pendingDeleteSelectedDictationIDs
-        pendingDeleteSelectedDictationIDs = []
-        guard !ids.isEmpty else { return }
-
-        let selectedDictations = groupedDictations
-            .flatMap(\.1)
-            .filter { ids.contains($0.id) }
+        let selectedDictations = pendingDeleteSelectedDictations
+        pendingDeleteSelectedDictations = []
+        guard !selectedDictations.isEmpty else { return }
         deleteDictations(selectedDictations)
     }
 
@@ -257,19 +253,16 @@ public final class DictationHistoryViewModel {
             stopPlayback()
         }
 
-        for dictation in dictations {
-            if let path = dictation.audioPath {
-                try? FileManager.default.removeItem(atPath: path)
-            }
-            do {
-                _ = try repo.delete(id: dictation.id)
-                selectedDictationIDs.remove(dictation.id)
+        selectedDictationIDs.subtract(ids)
+        let targets = dictations.map { DeleteTarget(id: $0.id, audioPath: $0.audioPath) }
+
+        Task { [repo, targets] in
+            let deletedIDs = await Self.deleteTargets(targets, using: repo)
+            for _ in deletedIDs {
                 Telemetry.send(.dictationDeleted)
-            } catch {
-                logger.error("Failed to delete dictation \(dictation.id): \(error.localizedDescription)")
             }
+            loadDictations()
         }
-        loadDictations()
     }
 
     private func refreshStats() {
@@ -490,7 +483,11 @@ public final class DictationHistoryViewModel {
     }
 
     private var visibleDictationIDs: Set<UUID> {
-        Set(groupedDictations.flatMap(\.1).map(\.id))
+        Set(visibleDictations.map(\.id))
+    }
+
+    private var visibleDictations: [Dictation] {
+        groupedDictations.flatMap(\.1)
     }
 
     private func pruneSelectionToVisibleDictations() {
@@ -514,6 +511,35 @@ public final class DictationHistoryViewModel {
         } else {
             return Self.dateHeaderFormatter.string(from: date)
         }
+    }
+
+    private struct DeleteTarget: Sendable {
+        let id: UUID
+        let audioPath: String?
+    }
+
+    private nonisolated static func deleteTargets(
+        _ targets: [DeleteTarget],
+        using repo: DictationRepositoryProtocol
+    ) async -> [UUID] {
+        await Task.detached(priority: .userInitiated) {
+            let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "DictationHistory")
+            var deletedIDs: [UUID] = []
+
+            for target in targets {
+                if let path = target.audioPath {
+                    try? FileManager.default.removeItem(atPath: path)
+                }
+                do {
+                    _ = try repo.delete(id: target.id)
+                    deletedIDs.append(target.id)
+                } catch {
+                    logger.error("Failed to delete dictation \(target.id): \(error.localizedDescription)")
+                }
+            }
+
+            return deletedIDs
+        }.value
     }
 }
 

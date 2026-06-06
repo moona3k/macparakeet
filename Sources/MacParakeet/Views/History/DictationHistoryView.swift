@@ -80,6 +80,7 @@ struct DictationHistoryView: View {
                 }
                 dictationList
             }
+            .animation(DesignSystem.Animation.contentSwap, value: viewModel.hasSelectedDictations)
         }
     }
 
