@@ -115,6 +115,16 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testTranscriptAIContextQueriesFindTranscriptContextEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.transcriptContext" })
+        XCTAssertEqual(entry.cardAnchor, "ai.transcriptContext")
+
+        for query in ["rich transcript", "plain transcript", "speaker labels", "diarization", "meeting context"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("ai.transcriptContext"), "Query \(query) should find Transcript Context for AI")
+        }
+    }
+
     func testAIFormatterSmartDefaultsQueriesFindFormatterEntry() {
         for query in ["smart defaults", "fallback prompt"] {
             let ids = Set(SettingsSearchIndex.matches(query).map(\.id))

@@ -166,6 +166,10 @@ struct LLMSettingsView: View {
 
             Divider()
 
+            transcriptAIContextSection
+
+            Divider()
+
             aiFormatterSection
         }
     }
@@ -335,6 +339,51 @@ struct LLMSettingsView: View {
                     .frame(width: 220, alignment: .leading)
             }
         }
+    }
+
+    private var transcriptAIContextSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Transcript context for AI")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text("Controls what summaries, transcript chat, and Meeting Ask send to your AI provider.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Picker("Transcript context for AI", selection: $viewModel.transcriptAIContextMode) {
+                    ForEach(TranscriptAIContextMode.allCases) { mode in
+                        Text(mode.displayTitle).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 300)
+            }
+
+            Text(viewModel.transcriptAIContextMode.detail)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if viewModel.transcriptAIContextMode == .richTranscript {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    Text("Speaker labels are a rough reference from audio-source separation and diarization, not a high-accuracy identification of who said each line.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .id("ai.transcriptContext")
     }
 
     @ViewBuilder

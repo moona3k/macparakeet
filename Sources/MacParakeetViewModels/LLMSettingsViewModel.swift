@@ -369,6 +369,16 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var transcriptAIContextMode: TranscriptAIContextMode {
+        didSet {
+            guard transcriptAIContextMode != oldValue else { return }
+            defaults.set(
+                transcriptAIContextMode.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey
+            )
+        }
+    }
+
     public var isAIFormatterAvailable: Bool {
         draft.providerID != nil && draft.providerID == savedProviderID
     }
@@ -447,6 +457,7 @@ public final class LLMSettingsViewModel {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
+        self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
         )

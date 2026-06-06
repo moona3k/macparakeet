@@ -285,6 +285,18 @@ public enum SettingsSearchIndex {
             cardAnchor: "ai.provider"
         ),
         SettingsSearchEntry(
+            id: "ai.transcriptContext",
+            tab: .ai,
+            title: "Transcript Context for AI",
+            subtitle: "Rich or plain transcript context for summaries, chat, and Meeting Ask.",
+            keywords: [
+                "meeting ai", "meeting context", "transcript context", "rich transcript",
+                "plain transcript", "speaker labels", "speaker diarization", "timestamps",
+                "summary context", "chat context", "ask context"
+            ],
+            cardAnchor: "ai.transcriptContext"
+        ),
+        SettingsSearchEntry(
             id: "ai.formatter",
             tab: .ai,
             title: "AI Formatter",
