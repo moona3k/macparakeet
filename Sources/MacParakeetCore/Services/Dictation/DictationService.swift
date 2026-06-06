@@ -710,8 +710,9 @@ public actor DictationService: DictationServiceProtocol {
         )
         let formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
+            let normalizedFormatterText = $0.trimmingCharacters(in: .whitespacesAndNewlines)
             return TextProcessingPipeline().applyInsertionStyle(
-                to: $0,
+                to: normalizedFormatterText,
                 insertionStyle: insertionStyle,
                 protectedLeadingTerms: protectedLeadingTerms
             )
