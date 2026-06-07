@@ -30,6 +30,11 @@ public final class FeedbackViewModel {
     public var email: String = ""
     public var screenshotAttachments: [FeedbackScreenshotAttachment] = []
     public var includeDiagnosticLog: Bool = false
+    /// Advanced opt-in: attach the entire local diagnostics history instead of
+    /// just the recent window. Off by default — uploads scope to the last week
+    /// (see `DiagnosticLogScope.recent`). Only meaningful while
+    /// `includeDiagnosticLog` is on.
+    public var includeFullDiagnosticHistory: Bool = false
     public var showSystemInfo: Bool = false
     public private(set) var diagnosticLogIsAvailable: Bool = false
     public private(set) var diagnosticLogAvailabilityDescription: String = "Run dictation or meeting recording once to create this log."
@@ -254,6 +259,7 @@ public final class FeedbackViewModel {
 
     private nonisolated static func readDiagnosticLogAttachmentIfNeeded(
         includeDiagnosticLog: Bool,
+        includeFullHistory: Bool,
         diagnosticLogURL: URL
     ) async throws -> FeedbackDiagnosticLog? {
         guard includeDiagnosticLog else { return nil }
@@ -264,23 +270,20 @@ public final class FeedbackViewModel {
                     throw DiagnosticLogAttachmentError.missing
                 }
 
-                if let fileSize = try diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                    guard fileSize >= 0 else {
-                        throw DiagnosticLogAttachmentError.tooLarge
-                    }
-                    if UInt64(fileSize) > AudioCaptureDiagnostics.diagnosticLogMaxBytes {
-                        throw DiagnosticLogAttachmentError.tooLarge
-                    }
-                }
-
                 let data = try Data(contentsOf: diagnosticLogURL)
-                guard UInt64(data.count) <= AudioCaptureDiagnostics.diagnosticLogMaxBytes else {
-                    throw DiagnosticLogAttachmentError.tooLarge
+                // Scope to a recent window by default; the on-disk file is
+                // already byte-capped, so `.full` only lifts the time window.
+                let scoped = AudioCaptureDiagnostics.scopedLogForUpload(
+                    String(decoding: data, as: UTF8.self),
+                    scope: includeFullHistory ? .full : .recent
+                )
+                guard !scoped.isEmpty else {
+                    throw DiagnosticLogAttachmentError.empty
                 }
 
                 return FeedbackDiagnosticLog(
                     filename: Self.diagnosticLogFilename,
-                    base64: data.base64EncodedString()
+                    base64: Data(scoped.utf8).base64EncodedString()
                 )
             } catch {
                 if error is DiagnosticLogAttachmentError {
@@ -293,15 +296,15 @@ public final class FeedbackViewModel {
 
     private enum DiagnosticLogAttachmentError: LocalizedError {
         case missing
-        case tooLarge
+        case empty
         case readFailed(String)
 
         var errorDescription: String? {
             switch self {
             case .missing:
                 return "No diagnostic log found yet."
-            case .tooLarge:
-                return "The diagnostic log is too large to attach."
+            case .empty:
+                return "The diagnostic log is empty."
             case .readFailed(let detail):
                 return "Failed to read diagnostic log: \(detail)"
             }
@@ -318,6 +321,7 @@ public final class FeedbackViewModel {
         submissionState = .submitting
 
         let shouldIncludeDiagnosticLog = includeDiagnosticLog
+        let shouldIncludeFullDiagnosticHistory = includeFullDiagnosticHistory
         let diagnosticLogURL = diagnosticLogURL
         let category = category
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -335,6 +339,7 @@ public final class FeedbackViewModel {
             do {
                 let diagnosticLog = try await Self.readDiagnosticLogAttachmentIfNeeded(
                     includeDiagnosticLog: shouldIncludeDiagnosticLog,
+                    includeFullHistory: shouldIncludeFullDiagnosticHistory,
                     diagnosticLogURL: diagnosticLogURL
                 )
                 guard !Task.isCancelled else { return }
@@ -423,6 +428,7 @@ public final class FeedbackViewModel {
         email = ""
         screenshotAttachments = []
         includeDiagnosticLog = false
+        includeFullDiagnosticHistory = false
         pendingScreenshotFilename = nil
         showSystemInfo = false
         submissionState = .idle

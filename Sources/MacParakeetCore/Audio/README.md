@@ -50,6 +50,11 @@ fan-out. There is exactly one instance per process, owned by
   `~/Library/Logs/MacParakeet/dictation-audio.log`. 5 MB cap;
   delete-on-overflow (not rotated). Used by every file in this
   folder and by `AppDelegate`'s boot marker.
+- `DiagnosticLogScope.swift` — `AudioCaptureDiagnostics.scopedLogForUpload`
+  trims the log to a recent window (`.recent`, the feedback default:
+  last 7 days, 2 MB / 20k-line safety ceilings, min-tail fallback) or
+  the whole file (`.full`, advanced opt-in) before a feedback upload.
+  Scopes whole lines by recency; never edits line contents.
 - `AudioChunker.swift` — actor that buffers resampled audio for
   incremental STT (live meeting transcription).
 - `MeetingLiveAudioChunking.swift`,

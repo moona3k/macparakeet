@@ -354,7 +354,7 @@ struct FeedbackView: View {
                         )
                         .help(viewModel.diagnosticLogURL.path)
 
-                    Text("Use this for dictation or meeting recording issues. It attaches the log to the public report so we can inspect capture timing, buffers, silence, and device errors.")
+                    Text(diagnosticLogScopeDescription)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -411,6 +411,9 @@ struct FeedbackView: View {
             }
 
             if isAvailable {
+                if viewModel.includeDiagnosticLog {
+                    diagnosticLogScopeToggle
+                }
                 diagnosticLogSample
             }
         }
@@ -436,6 +439,35 @@ struct FeedbackView: View {
     /// `~/Library/Logs/MacParakeet/dictation-audio.log` location on disk.
     private var diagnosticLogDisplayPath: String {
         (viewModel.diagnosticLogURL.path as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// Lead copy for the attach control — accurately reflects how far back the
+    /// upload reaches so users know what they are sharing.
+    private var diagnosticLogScopeDescription: String {
+        let attached = viewModel.includeFullDiagnosticHistory
+            ? "It attaches your full local history"
+            : "It attaches the last 7 days"
+        return "Use this for dictation or meeting recording issues. \(attached) to the public report so we can inspect capture timing, buffers, silence, and device errors."
+    }
+
+    /// Advanced opt-in to send the entire local log instead of only the recent
+    /// window. Shown as a subordinate checkbox under the main switch, so it
+    /// reads as a refinement of "attach diagnostics" rather than a peer toggle.
+    private var diagnosticLogScopeToggle: some View {
+        Toggle(isOn: $viewModel.includeFullDiagnosticHistory) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Include full history")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                Text("Off attaches only the last 7 days. Turn on to include older entries — useful for issues that are hard to reproduce.")
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .toggleStyle(.checkbox)
+        .tint(DesignSystem.Colors.accent)
+        .padding(.top, 2)
+        .accessibilityHint("Attaches your entire local diagnostics history instead of only the last seven days")
     }
 
     // A real, representative slice of `dictation-audio.log` — a full capture

@@ -175,7 +175,15 @@ self-hosted telemetry pipeline.
 
 The in-app feedback flow has an explicit opt-in control for attaching
 `~/Library/Logs/MacParakeet/dictation-audio.log` when users report dictation or
-meeting recording problems. A broader diagnostic bundle is still a follow-up:
+meeting recording problems. The attachment is scoped to a recent window by
+default (`DiagnosticLogScope.recent`: the last 7 days, with 2 MB / 20k-line
+safety ceilings, falling back to the last few hundred lines when nothing is
+that recent) so a public issue carries the window around the bug rather than the
+full multi-week on-disk history. An advanced "Include full history" toggle lifts
+the time window to the entire on-disk log for intermittent issues. Scoping
+selects *whole lines by recency*; it never edits line contents, which are
+already privacy-scrubbed at write time.
+A broader diagnostic bundle is still a follow-up:
 it should contain recent MacParakeet `os.Logger` entries, the audio diagnostics
 log, app version/build info, and redacted runtime metadata. It must not include
 audio, transcripts, notes, prompts, file names, file paths, URLs, API keys, or
