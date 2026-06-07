@@ -31,14 +31,16 @@ private struct RecordingRuntimeMetrics: Sendable {
     var nonSilentBufferCount: Int = 0
     var missingFloatChannelDataBufferCount: Int = 0
     var invalidFormatBufferCount: Int = 0
+    var noBufferTimeoutFired: Bool = false
 }
 
 /// Holds the per-recording diagnostic generation. The first-buffer timeout
 /// fires once if no buffer has been delivered within
 /// `firstBufferTimeoutSeconds` after `dictation_capture_engine_started`; the
 /// heartbeat repeats every `heartbeatIntervalSeconds` while the recording is
-/// active. Both are log-only and generation-guarded, so stale delayed closures
-/// bail out after `stop()` or the next recording starts. See
+/// active. The timeout records no-buffer state for capture health, and both
+/// closures are generation-guarded so stale delayed closures bail out after
+/// `stop()` or the next recording starts. See
 /// `journal/2026-05-03-dictation-silent-stall.md`.
 private struct CaptureDiagnosticsTimers {
     /// Generation that delivered its first buffer. This may be set before
@@ -98,6 +100,8 @@ public actor AudioRecorder {
     private var outputURL: URL?
     private var recording = false
     private var starting = false
+    private var recordingStartedAt: TimeInterval?
+    private var _lastCaptureHealth: AudioCaptureHealth?
     /// Bumped on every `start()` entry that passes the entry guard. Each call
     /// captures its value as `myStartCallGeneration`; the `defer` only clears
     /// `starting` if no newer call has claimed the slot. Without this, an
@@ -119,6 +123,7 @@ public actor AudioRecorder {
     /// emitting `dictation_capture_no_buffers_within_timeout`. Mirrors the
     /// 2 s value used by `MicrophoneCapture.scheduleSilentBufferWatchdog`.
     private static let firstBufferTimeoutSeconds: TimeInterval = 2.0
+    private static let maxStartAttempts = 2
     /// Cadence for the recording heartbeat log. Long enough that short
     /// dictations (< 5 s) don't add log noise; short enough that a stalled
     /// 18 s recording produces ~3 heartbeats showing `input_buffers=0`.
@@ -152,9 +157,14 @@ public actor AudioRecorder {
         nil
     }
 
+    public var lastCaptureHealth: AudioCaptureHealth? {
+        _lastCaptureHealth
+    }
+
     /// Subscribe to the shared microphone stream and start writing converted
-    /// buffers to a temp WAV file. Returns once the subscription is owned and
-    /// the watchdog is armed.
+    /// buffers to a temp WAV file. Returns only after the stream delivers a
+    /// first usable buffer; otherwise retries/fails before the caller treats
+    /// recording as healthy.
     public func start() async throws {
         guard !recording, !starting else { return }
         starting = true
@@ -206,6 +216,7 @@ public actor AudioRecorder {
         self.firstBufferLogged.withLock { $0 = false }
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
+        self._lastCaptureHealth = nil
 
         let preSubscribeGeneration = self.sessionGeneration.withLock { $0 }
         let tapGeneration = preSubscribeGeneration
@@ -247,7 +258,7 @@ public actor AudioRecorder {
                 self.runtimeMetrics.withLock { metrics in
                     metrics.maxRMS = max(metrics.maxRMS, rmsValue)
                     metrics.maxAudioLevel = max(metrics.maxAudioLevel, normalizedValue)
-                    if normalizedValue >= 0.02 {
+                    if normalizedValue >= AudioCaptureHealth.silentInputMaximumLevel {
                         metrics.nonSilentBufferCount += 1
                     }
                 }
@@ -375,8 +386,8 @@ public actor AudioRecorder {
 
         let deathHandler: SharedMicrophoneStream.EngineDeathHandler = { [weak self] in
             // Engine death = recording is dead. Bump the generation so any
-            // in-flight buffer handlers bail. The next caller of `stop()`
-            // will surface `insufficientSamples` if no audio was captured.
+            // in-flight buffer handlers bail. The next caller surfaces the
+            // capture-health problem instead of continuing with stale audio.
             self?.sessionGeneration.withLock { $0 += 1 }
         }
 
@@ -385,18 +396,52 @@ public actor AudioRecorder {
         )
 
         let token: SharedMicrophoneStream.SubscriberToken
-        do {
-            token = try await sharedStream.subscribe(
-                wantsVPIO: false,
-                onEngineDeath: deathHandler,
-                handler: bufferHandler
-            )
-        } catch {
-            try? FileManager.default.removeItem(at: url)
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
-            )
-            throw AudioProcessorError.recordingFailed(error.localizedDescription)
+        var subscribeAttempt = 1
+        while true {
+            do {
+                token = try await sharedStream.subscribe(
+                    wantsVPIO: false,
+                    onEngineDeath: deathHandler,
+                    handler: bufferHandler
+                )
+                break
+            } catch {
+                if error is CancellationError {
+                    try? FileManager.default.removeItem(at: url)
+                    throw error
+                }
+
+                let startWasCancelled = preSubscribeGeneration != self.sessionGeneration.withLock { $0 }
+                    || !self.starting
+                    || self.startCallGeneration != myStartCallGeneration
+                if startWasCancelled {
+                    try? FileManager.default.removeItem(at: url)
+                    AudioCaptureDiagnostics.append(
+                        "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\""
+                    )
+                    throw AudioProcessorError.recordingFailed("interrupted during subscribe")
+                }
+
+                if subscribeAttempt < Self.maxStartAttempts, Self.isRetryableStartError(error) {
+                    AudioCaptureDiagnostics.append(
+                        "dictation_capture_start_retry attempt=\(subscribeAttempt + 1) reason=engine_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                    )
+                    subscribeAttempt += 1
+                    do {
+                        try await Task.sleep(for: .milliseconds(100))
+                    } catch {
+                        try? FileManager.default.removeItem(at: url)
+                        throw error
+                    }
+                    continue
+                }
+
+                try? FileManager.default.removeItem(at: url)
+                AudioCaptureDiagnostics.append(
+                    "dictation_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                )
+                throw AudioProcessorError.inputUnavailable(.engineStartFailed)
+            }
         }
 
         // Actor-reentrancy guard. While we awaited subscribe, another
@@ -424,6 +469,7 @@ public actor AudioRecorder {
         self.audioFile = file
         self.outputURL = url
         self.recording = true
+        self.recordingStartedAt = ProcessInfo.processInfo.systemUptime
         self.sharedSubscriberToken = token
 
         let liveFormat = sharedStream.inputFormat
@@ -437,12 +483,25 @@ public actor AudioRecorder {
             "dictation_capture_started"
         )
 
-        // Diagnostic instrumentation. Strictly log-only — these timers fire
-        // observability events and never abort the recording. Treating the
-        // tap-silence condition as "the user's recording is over" would mask
-        // a regression behind a friendlier error message; we want to surface
-        // the regression instead. See journal/2026-05-03-dictation-silent-stall.md.
+        // Diagnostic instrumentation plus first-buffer readiness. The delayed
+        // log still records the stall shape, while start() now refuses to
+        // report a healthy recording until a usable first buffer arrives.
         armCaptureDiagnostics(generation: tapGeneration)
+
+        let firstBufferArrived = await waitForFirstBuffer(
+            generation: tapGeneration,
+            timeoutSeconds: Self.firstBufferTimeoutSeconds
+        )
+        if !firstBufferArrived {
+            await abortStartedCapture(
+                token: token,
+                url: url,
+                generation: tapGeneration,
+                reason: "no_first_buffer"
+            )
+            try Task.checkCancellation()
+            throw AudioProcessorError.inputUnavailable(.noInputBuffers)
+        }
     }
 
     /// Stop recording and return the path to the recorded WAV file.
@@ -480,6 +539,8 @@ public actor AudioRecorder {
         }
         audioFile = nil
         recording = false
+        let startedAt = recordingStartedAt
+        recordingStartedAt = nil
         atomicAudioLevel.withLock { $0 = 0.0 }
 
         let url = outputURL
@@ -493,10 +554,34 @@ public actor AudioRecorder {
         let metrics = runtimeMetrics.withLock { $0 }
         let fileBytes = Self.fileSizeBytes(at: url)
         let duration = Double(sampleCount) / Double(Self.outputSampleRate)
+        let wallDuration = startedAt.map { ProcessInfo.processInfo.systemUptime - $0 } ?? duration
+        let health = AudioCaptureHealth(
+            sampleCount: sampleCount,
+            audioDurationSeconds: duration,
+            wallDurationSeconds: wallDuration,
+            fileBytes: fileBytes,
+            inputBufferCount: metrics.inputBufferCount,
+            outputBufferCount: metrics.outputBufferCount,
+            inputFrameCount: metrics.inputFrameCount,
+            maxRMS: metrics.maxRMS,
+            maxAudioLevel: metrics.maxAudioLevel,
+            nonSilentBufferCount: metrics.nonSilentBufferCount,
+            missingFloatChannelDataBufferCount: metrics.missingFloatChannelDataBufferCount,
+            invalidFormatBufferCount: metrics.invalidFormatBufferCount,
+            noBufferTimeoutFired: metrics.noBufferTimeoutFired
+        )
+        _lastCaptureHealth = health
         logger.debug("stop sampleCount=\(sampleCount, privacy: .public)")
         AudioCaptureDiagnostics.append(
-            "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount)"
+            "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) wall_duration_s=\(String(format: "%.3f", wallDuration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount) no_buffer_timeout=\(metrics.noBufferTimeoutFired)"
         )
+        if let problem = health.terminalProblem {
+            try? FileManager.default.removeItem(at: url)
+            AudioCaptureDiagnostics.append(
+                "dictation_capture_unavailable problem=\(problem.rawValue) sample_count=\(sampleCount) input_buffers=\(metrics.inputBufferCount) non_silent_buffers=\(metrics.nonSilentBufferCount) max_level=\(String(format: "%.3f", metrics.maxAudioLevel))"
+            )
+            throw AudioProcessorError.inputUnavailable(problem)
+        }
         guard sampleCount >= Self.minimumSamples else {
             // Clean up the too-short file
             try? FileManager.default.removeItem(at: url)
@@ -514,6 +599,60 @@ public actor AudioRecorder {
         AudioCaptureDiagnostics.append("dictation_capture_tap_error \(message)")
     }
 
+    private static func isRetryableStartError(_ error: Error) -> Bool {
+        if case SharedMicrophoneStream.SubscribeError.engineStartFailed = error {
+            return true
+        }
+        return false
+    }
+
+    private func waitForFirstBuffer(
+        generation: Int,
+        timeoutSeconds: TimeInterval
+    ) async -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeoutSeconds
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            if Task.isCancelled {
+                return false
+            }
+            if captureDiagnosticsTimers.withLock({ $0.firstBufferSeenGeneration == generation }) {
+                return true
+            }
+            if sessionGeneration.withLock({ $0 }) != generation || !recording {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        return captureDiagnosticsTimers.withLock { $0.firstBufferSeenGeneration == generation }
+    }
+
+    private func abortStartedCapture(
+        token: SharedMicrophoneStream.SubscriberToken,
+        url: URL,
+        generation: Int,
+        reason: String
+    ) async {
+        let generationStillActive = sessionGeneration.withLock { $0 } == generation
+        let recorderStillOwnsToken = sharedSubscriberToken == token && recording
+        guard generationStillActive || recorderStillOwnsToken else { return }
+
+        sharedSubscriberToken = nil
+        audioFile = nil
+        outputURL = nil
+        recording = false
+        recordingStartedAt = nil
+        atomicAudioLevel.withLock { $0 = 0.0 }
+        sessionGeneration.withLock { $0 += 1 }
+        disarmCaptureDiagnostics()
+        sharedProcessingQueue.sync {}
+
+        AudioCaptureDiagnostics.append(
+            "dictation_capture_start_failed reason=\(reason)"
+        )
+        await sharedStream.unsubscribe(token)
+        try? FileManager.default.removeItem(at: url)
+    }
+
     private static func fileSizeBytes(at url: URL) -> UInt64? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = attributes[.size] as? UInt64 else {
@@ -522,10 +661,10 @@ public actor AudioRecorder {
         return size
     }
 
-    // MARK: - Capture diagnostics (log-only)
+    // MARK: - Capture diagnostics
 
-    /// Arm the first-buffer timeout and recording heartbeat. Both are
-    /// log-only; firing them does not affect the recording.
+    /// Arm the first-buffer timeout and recording heartbeat. The timeout also
+    /// records no-buffer state used by start/stop capture-health checks.
     ///
     /// `armedGeneration` (captured by both closures) is the value of
     /// `sessionGeneration` at the moment `start()` succeeded. If the closure
@@ -564,6 +703,7 @@ public actor AudioRecorder {
             }
             guard shouldFire else { return }
             guard self.sessionGeneration.withLock({ $0 }) == armedGeneration else { return }
+            self.runtimeMetrics.withLock { $0.noBufferTimeoutFired = true }
             let isRunning = stream.diagnostics.engineRunning
             let defaultInput = AudioCaptureDiagnostics.defaultInputDeviceSummary()
             AudioCaptureDiagnostics.append(

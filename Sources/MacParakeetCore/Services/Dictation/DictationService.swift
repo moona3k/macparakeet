@@ -358,12 +358,17 @@ public actor DictationService: DictationServiceProtocol {
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
+            let captureHealth = await audioProcessor.lastCaptureHealth
             let device = await audioProcessor.recordingDeviceInfo
             logger.debug(
                 "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )
             let result = try await withCurrentObservabilityContextIfAny {
-                try await processCapturedAudio(audioURL: audioURL, formatterContext: formatterContext)
+                try await processCapturedAudio(
+                    audioURL: audioURL,
+                    captureHealth: captureHealth,
+                    formatterContext: formatterContext
+                )
             }
             // Guard against reentrancy: a new session may have started during
             // transcription, replacing this session. Don't overwrite its state.
@@ -528,10 +533,15 @@ public actor DictationService: DictationServiceProtocol {
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let captureHealth = await audioProcessor.lastCaptureHealth
         _state = .processing
         do {
             let result = try await withCurrentObservabilityContextIfAny {
-                try await processCapturedAudio(audioURL: audioURL, formatterContext: formatterContext)
+                try await processCapturedAudio(
+                    audioURL: audioURL,
+                    captureHealth: captureHealth,
+                    formatterContext: formatterContext
+                )
             }
             let device = await audioProcessor.recordingDeviceInfo
             // Guard against reentrancy: a new session may have started while we
@@ -638,6 +648,7 @@ public actor DictationService: DictationServiceProtocol {
 
     private func processCapturedAudio(
         audioURL: URL,
+        captureHealth: AudioCaptureHealth?,
         formatterContext: AppPromptContext?
     ) async throws -> DictationResult {
         // Track whether the audio file is consumed (moved or explicitly deleted).
@@ -652,6 +663,13 @@ public actor DictationService: DictationServiceProtocol {
         AudioCaptureDiagnostics.append(
             "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
         )
+        if let captureHealth, let problem = captureHealth.terminalProblem {
+            logger.warning("dictation_capture_unavailable problem=\(problem.rawValue, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "dictation_transcribe_skipped problem=\(problem.rawValue) input_buffers=\(captureHealth.inputBufferCount) non_silent_buffers=\(captureHealth.nonSilentBufferCount) max_level=\(String(format: "%.3f", captureHealth.maxAudioLevel))"
+            )
+            throw AudioProcessorError.inputUnavailable(problem)
+        }
         let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
         logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
         AudioCaptureDiagnostics.append(

@@ -121,13 +121,14 @@ passed in is valid only for the synchronous duration of the call —
 copy via `copyPCMBufferForAsyncUse` before retaining or dispatching
 async.
 
-**Diagnostic logging is observability-only.** The first-buffer
-watchdog and recording heartbeat in `AudioRecorder` log to
-`dictation-audio.log` but **never** abort the recording. PR #210
-shipped this deliberately; converting any of those signals into a
-user-facing error would mask a regression as a fact of life.
-Telemetry counters can be added separately, but the log path stays
-non-disruptive.
+**Dictation startup requires a first buffer.** `AudioRecorder.start()`
+does not report a healthy recording until the shared stream delivers a
+first usable buffer. A transient engine-start failure is retried once;
+a stream that starts but never delivers a first buffer fails as
+`AudioProcessorError.inputUnavailable(.noInputBuffers)` instead of
+letting the user record into a dead capture. The heartbeat remains
+diagnostic, and stop-time health still separates silent buffers from
+genuine short/no-speech recordings.
 
 **First-buffer can arrive before timers are armed.** When subscribing
 from an actor, the AVAudioEngine tap can fire its first buffer

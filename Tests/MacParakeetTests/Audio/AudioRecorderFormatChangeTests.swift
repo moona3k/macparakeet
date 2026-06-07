@@ -44,8 +44,13 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             permissionProvider: { true }
         )
 
-        try await recorder.start()
+        let startTask = Task { try await recorder.start() }
+        let started = await pollUntil(timeout: .seconds(2)) {
+            platform.isEngineRunning
+        }
+        XCTAssertTrue(started, "expected mock platform to start before delivering first buffer")
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+        try await startTask.value
 
         let url = try await recorder.stop()
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
@@ -60,14 +65,131 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             permissionProvider: { true }
         )
 
-        try await recorder.start()
+        let startTask = Task { try await recorder.start() }
+        let started = await pollUntil(timeout: .seconds(2)) {
+            platform.isEngineRunning
+        }
+        XCTAssertTrue(started, "expected mock platform to start before delivering first buffer")
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_799))
+        try await startTask.value
 
         do {
             _ = try await recorder.stop()
             XCTFail("stop() should reject recordings below FluidAudio's current 0.3s floor")
         } catch AudioProcessorError.insufficientSamples {
             // Expected.
+        } catch {
+            XCTFail("Unexpected stop error: \(error)")
+        }
+    }
+
+    func testSharedModeStartRetriesTransientEngineStartFailure() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        platform.enqueueConfigureAndStartErrors([TestMicrophoneStartError.coreAudio10868])
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        let startTask = Task { try await recorder.start() }
+        let retriedAndRunning = await pollUntil(timeout: .seconds(2)) {
+            platform.configureAndStartCallCount >= 2 && platform.isEngineRunning
+        }
+        XCTAssertTrue(retriedAndRunning, "expected recorder to retry once and restart the mock engine")
+
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+        try await startTask.value
+
+        XCTAssertEqual(platform.configureAndStartCallCount, 2)
+        let url = try await recorder.stop()
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func testSharedModeStartFailsWhenFirstBufferNeverArrives() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        do {
+            try await recorder.start()
+            XCTFail("start() should fail when the shared stream never delivers a first buffer")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected start error: \(error)")
+        }
+
+        let isRecording = await recorder.isRecording
+        XCTAssertFalse(isRecording)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 0)
+        XCTAssertFalse(stream.diagnostics.engineRunning)
+    }
+
+    func testSharedModeStopDuringFirstBufferWaitCleansUpRecorder() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        let startTask = Task { try await recorder.start() }
+        let waitingForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount == 1 && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(waitingForFirstBuffer, "expected start() to own a subscriber before first-buffer gate")
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should reject a zero-sample capture")
+        } catch AudioProcessorError.insufficientSamples {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected stop error: \(error)")
+        }
+
+        do {
+            try await startTask.value
+            XCTFail("start() should fail after stop invalidates the first-buffer wait")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected start error: \(error)")
+        }
+
+        let isRecording = await recorder.isRecording
+        XCTAssertFalse(isRecording)
+        let drained = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount == 0 && !stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(drained, "expected stop() to unsubscribe the pending first-buffer capture")
+    }
+
+    func testSharedModeStopFailsSilentLongCaptureBeforeSTT() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        let startTask = Task { try await recorder.start() }
+        let started = await pollUntil(timeout: .seconds(2)) {
+            platform.isEngineRunning
+        }
+        XCTAssertTrue(started, "expected mock platform to start before delivering first buffer")
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 32_000, sampleValue: 0))
+        try await startTask.value
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should classify a sustained zero-signal capture as unavailable input")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .silentInput)
         } catch {
             XCTFail("Unexpected stop error: \(error)")
         }
@@ -208,6 +330,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             XCTFail("Unexpected start #1 error: \(error)")
         }
 
+        let readyForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount >= 1 && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(readyForFirstBuffer, "expected start #2 to hold a subscriber before first-buffer gate")
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+
         do {
             try await task2.value
         } catch {
@@ -285,12 +413,22 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
     }
 }
 
+private enum TestMicrophoneStartError: Error, LocalizedError {
+    case coreAudio10868
+
+    var errorDescription: String? {
+        "The operation couldn’t be completed. (com.apple.coreaudio.avfaudio error -10868.)"
+    }
+}
+
 private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @unchecked Sendable {
     private let lock = NSLock()
     private let hookLock = NSLock()
     private var _isRunning = false
     private var _tapHandler: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
     private var _configureAndStartHook: (@Sendable () -> Void)?
+    private var _configureAndStartCallCount = 0
+    private var _configureAndStartErrors: [Error] = []
 
     var configureAndStartHook: (@Sendable () -> Void)? {
         get { hookLock.withLock { _configureAndStartHook } }
@@ -301,8 +439,18 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
         lock.withLock { _isRunning }
     }
 
+    var configureAndStartCallCount: Int {
+        lock.withLock { _configureAndStartCallCount }
+    }
+
     var inputFormat: AVAudioFormat? {
         AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)
+    }
+
+    func enqueueConfigureAndStartErrors(_ errors: [Error]) {
+        lock.withLock {
+            _configureAndStartErrors.append(contentsOf: errors)
+        }
     }
 
     func configureAndStart(
@@ -310,6 +458,15 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
+        let queuedError = lock.withLock { () -> Error? in
+            _configureAndStartCallCount += 1
+            guard !_configureAndStartErrors.isEmpty else { return nil }
+            return _configureAndStartErrors.removeFirst()
+        }
+        if let queuedError {
+            throw queuedError
+        }
+
         configureAndStartHook?()
         lock.withLock {
             _isRunning = true
