@@ -58,14 +58,6 @@ struct DictationHistoryView: View {
         } message: {
             Text(deleteAlertMessage)
         }
-        .onDisappear {
-            // The view model is a process-lifetime singleton and the Dictations
-            // tab is conditionally mounted, so bulk-selection state would
-            // otherwise survive navigating to another section and back. Tear it
-            // down on the way out so the user always returns to ordinary
-            // browsing.
-            viewModel.exitBulkSelection()
-        }
     }
 
     // MARK: - Sub-tab Picker

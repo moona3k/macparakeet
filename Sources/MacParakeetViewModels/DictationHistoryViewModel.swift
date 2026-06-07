@@ -258,10 +258,12 @@ public final class DictationHistoryViewModel {
         let selectedDictations = pendingDeleteSelectedDictations
         pendingDeleteSelectedDictations = []
         guard !selectedDictations.isEmpty else { return }
-        // A confirmed bulk delete is a deliberate end to the bulk workflow, so
-        // exit the mode and return the list to ordinary browsing. The selected
-        // IDs are cleared by `deleteDictations` as it prunes the deleted rows.
-        isBulkSelectionModeEnabled = false
+        // A confirmed bulk delete is a deliberate end to the bulk workflow. Tear
+        // the mode down through the single exit path so the cleanup is explicit
+        // and self-contained — `exitBulkSelection` clears the live selection
+        // unconditionally, while the rows to delete are held in the local
+        // snapshot, so deletion is unaffected.
+        exitBulkSelection()
         deleteDictations(selectedDictations)
     }
 

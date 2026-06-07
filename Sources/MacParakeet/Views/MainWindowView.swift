@@ -298,6 +298,17 @@ struct MainWindowView: View {
                 state.selectedItem = .library
             }
         }
+        .onChange(of: state.selectedItem) { _, newItem in
+            // Bulk-selection mode is a History-only affordance living on a
+            // process-lifetime singleton, so tear it down at the navigation
+            // boundary when the user leaves the Dictations section. Handled here
+            // rather than via `DictationHistoryView.onDisappear`, which can fire
+            // on transient macOS view-lifecycle events and reset an active
+            // selection mid-browse.
+            if newItem != .dictations {
+                historyViewModel.exitBulkSelection()
+            }
+        }
     }
 
     /// Show the global bottom bar when transcribing on any tab except Transcribe (which has its own detailed view)

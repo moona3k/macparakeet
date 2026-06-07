@@ -260,15 +260,20 @@ valid while the user is in bulk mode and has cleared all rows.
 
 File:
 
-- `Sources/MacParakeet/Views/History/DictationHistoryView.swift`
+- `Sources/MacParakeet/Views/MainWindowView.swift`
 
-Add `.onDisappear { viewModel.exitBulkSelection() }` to the top-level body of
-`DictationHistoryView`. Because the view model is a long-lived singleton and the
-Dictations tab is conditionally mounted (see Lifecycle Constraint), this is the
-hook that fires when the user navigates to another top-level section. Verify in
-the manual smoke test that switching top-level sections clears bulk mode on
-return. (This also retroactively fixes the pre-existing wart where a raw
-selection from PR #445 survived top-level navigation.)
+Add `.onChange(of: state.selectedItem)` to the `MainWindowView` body, calling
+`historyViewModel.exitBulkSelection()` whenever `newItem != .dictations`. Because
+the view model is a long-lived singleton and the Dictations tab is conditionally
+mounted (see Lifecycle Constraint), bulk mode would otherwise survive navigating
+to another top-level section and back.
+
+Handle this at the navigation boundary in the parent rather than via
+`DictationHistoryView.onDisappear`: on macOS, `onDisappear` can fire during
+transient view-lifecycle events (window resize, parent re-render) and reset an
+active selection while the user is still browsing. `onChange(of: selectedItem)`
+fires only on actual navigation. (This also retroactively fixes the pre-existing
+wart where a raw selection from PR #445 survived top-level navigation.)
 
 ### Unit 6 - Tests
 
