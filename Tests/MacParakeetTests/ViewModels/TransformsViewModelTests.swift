@@ -200,6 +200,40 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥4")
     }
 
+    func testStaleAutoLoadCannotOverwriteSavedTransformSnapshot() async throws {
+        let repo = BlockingPromptRepository(prompts: Prompt.builtInPrompts())
+        repo.blockNextFetchAll()
+        let viewModel = TransformsViewModel()
+        viewModel.configure(
+            repo: repo,
+            historyRepo: nil,
+            clipboardService: nil,
+            hasLLMProvider: true
+        )
+
+        let staleLoadStarted = await Task.detached {
+            repo.waitForBlockedFetch()
+        }.value
+        XCTAssertTrue(staleLoadStarted, "Bootstrap load did not reach the controlled fetch.")
+
+        var polish = try XCTUnwrap(Prompt.builtInPrompts().first(where: { $0.name == "Polish" }))
+        polish.content = "Custom polish prompt body."
+        polish.keyboardShortcut = KeyboardShortcut.parse("opt+4")!.encodedString()
+        let savedPolish = await viewModel.save(polish)
+        XCTAssertTrue(savedPolish)
+
+        repo.releaseBlockedFetch()
+        let staleLoadFinished = await Task.detached {
+            repo.waitForReleasedFetch()
+        }.value
+        XCTAssertTrue(staleLoadFinished, "Bootstrap load did not finish after release.")
+        await Task.yield()
+
+        let reloadedPolish = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == polish.id }))
+        XCTAssertEqual(reloadedPolish.content, "Custom polish prompt body.")
+        XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥4")
+    }
+
     func testResetBuiltInAllowsDefaultShortcutWhenReservedByBareModifierDictationHotkey() async throws {
         var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
         polish.content = "Custom polish prompt body."
@@ -542,6 +576,103 @@ final class MockTransformsClipboardService: ClipboardServiceProtocol, @unchecked
         lastCopied = text
         return copyReturnValue
     }
+}
+
+private final class BlockingPromptRepository: PromptRepositoryProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var prompts: [Prompt]
+    private var shouldBlockNextFetch = false
+    private let fetchBlocked = DispatchSemaphore(value: 0)
+    private let releaseFetch = DispatchSemaphore(value: 0)
+    private let fetchReleased = DispatchSemaphore(value: 0)
+
+    init(prompts: [Prompt]) {
+        self.prompts = prompts
+    }
+
+    func blockNextFetchAll() {
+        lock.lock()
+        shouldBlockNextFetch = true
+        lock.unlock()
+    }
+
+    func waitForBlockedFetch() -> Bool {
+        fetchBlocked.wait(timeout: .now() + 5) == .success
+    }
+
+    func releaseBlockedFetch() {
+        releaseFetch.signal()
+    }
+
+    func waitForReleasedFetch() -> Bool {
+        fetchReleased.wait(timeout: .now() + 5) == .success
+    }
+
+    func save(_ prompt: Prompt) throws {
+        lock.lock()
+        if let index = prompts.firstIndex(where: { $0.id == prompt.id }) {
+            prompts[index] = prompt
+        } else {
+            prompts.append(prompt)
+        }
+        lock.unlock()
+    }
+
+    func fetch(id: UUID) throws -> Prompt? {
+        lock.lock()
+        let prompt = prompts.first { $0.id == id }
+        lock.unlock()
+        return prompt
+    }
+
+    func fetchAll() throws -> [Prompt] {
+        lock.lock()
+        let snapshot = prompts
+        let shouldBlock = shouldBlockNextFetch
+        shouldBlockNextFetch = false
+        lock.unlock()
+
+        if shouldBlock {
+            fetchBlocked.signal()
+            _ = releaseFetch.wait(timeout: .now() + 5)
+            fetchReleased.signal()
+        }
+
+        return snapshot.sorted {
+            if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    func fetchVisible(category: Prompt.Category?) throws -> [Prompt] {
+        try fetchAll().filter { prompt in
+            prompt.isVisible && (category == nil || prompt.category == category)
+        }
+    }
+
+    func fetchAutoRunPrompts() throws -> [Prompt] {
+        try fetchAll().filter { $0.isAutoRun && $0.isVisible && $0.category == .result }
+    }
+
+    func fetchAutoRunPrompts(for sourceType: Transcription.SourceType) throws -> [Prompt] {
+        try fetchAutoRunPrompts().filter { $0.autoRuns(for: sourceType) }
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let index = prompts.firstIndex(where: { $0.id == id }),
+              !prompts[index].isBuiltIn else {
+            return false
+        }
+        prompts.remove(at: index)
+        return true
+    }
+
+    func toggleVisibility(id: UUID) throws {}
+    func toggleAutoRun(id: UUID) throws {}
+    func setAutoRun(id: UUID, source: Transcription.SourceType, enabled: Bool) throws {}
+    func restoreDefaults() throws {}
 }
 
 private final class BlockingTransformHistoryRepository: TransformHistoryRepositoryProtocol, @unchecked Sendable {

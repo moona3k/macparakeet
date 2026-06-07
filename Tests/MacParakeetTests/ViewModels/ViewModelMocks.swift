@@ -612,6 +612,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
     var lastChatQuestion: String?
+    var lastSummaryTranscript: String?
+    var lastChatTranscript: String?
     var lastChatHistory: [ChatMessage]?
     var lastChatUserNotes: String?
     var lastChatSource: TelemetryChatSource?
@@ -623,6 +625,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
+        lastSummaryTranscript = transcript
         lastSummarySystemPrompt = systemPrompt
         if let error = errorToThrow { throw error }
         return summarizeResult
@@ -630,6 +633,9 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
 
     func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
         chatCallCount += 1
+        lastChatQuestion = question
+        lastChatTranscript = transcript
+        lastChatHistory = history
         lastChatUserNotes = userNotes
         lastChatSource = source
         if let error = errorToThrow { throw error }
@@ -702,6 +708,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         summarizeCallCount += 1
+        lastSummaryTranscript = transcript
         lastSummarySystemPrompt = systemPrompt
         let tokens: [String]
         if streamTokenBatches.isEmpty {
@@ -733,6 +740,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         chatCallCount += 1
         lastChatQuestion = question
+        lastChatTranscript = transcript
         lastChatHistory = history
         lastChatUserNotes = userNotes
         lastChatSource = source

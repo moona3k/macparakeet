@@ -5,6 +5,7 @@ import MacParakeetViewModels
 
 struct DictationHistoryView: View {
     @Bindable var viewModel: DictationHistoryViewModel
+    @State private var deleteAlertCount = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,21 +37,26 @@ struct DictationHistoryView: View {
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.playingDictationId)
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.playbackError != nil)
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.selectedSubTab)
+        .onChange(of: viewModel.pendingDeleteCount) { _, count in
+            if count > 0 {
+                deleteAlertCount = count
+            }
+        }
         .alert(
-            "Delete Dictation?",
+            deleteAlertTitle,
             isPresented: Binding(
-                get: { viewModel.pendingDeleteDictation != nil },
-                set: { if !$0 { viewModel.pendingDeleteDictation = nil } }
+                get: { viewModel.pendingDeleteCount > 0 },
+                set: { if !$0 { viewModel.cancelPendingDelete() } }
             )
         ) {
             Button("Cancel", role: .cancel) {
-                viewModel.pendingDeleteDictation = nil
+                viewModel.cancelPendingDelete()
             }
             Button("Delete", role: .destructive) {
-                viewModel.confirmDelete()
+                viewModel.confirmPendingDelete()
             }
         } message: {
-            Text("This dictation and its audio file will be permanently deleted.")
+            Text(deleteAlertMessage)
         }
     }
 
@@ -73,7 +79,14 @@ struct DictationHistoryView: View {
         if viewModel.groupedDictations.isEmpty {
             emptyState
         } else {
-            dictationList
+            VStack(spacing: 0) {
+                if viewModel.isBulkSelectionModeEnabled {
+                    selectedActionsBar
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                dictationList
+            }
+            .animation(DesignSystem.Animation.contentSwap, value: viewModel.isBulkSelectionModeEnabled)
         }
     }
 
@@ -134,6 +147,9 @@ struct DictationHistoryView: View {
                             searchText: viewModel.searchText,
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
+                            isSelected: viewModel.isDictationSelected(dictation),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            onToggleSelection: { viewModel.toggleSelection(for: dictation) },
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: {
                                 viewModel.copyToClipboard(dictation)
@@ -142,7 +158,8 @@ struct DictationHistoryView: View {
                                 viewModel.pendingDeleteDictation = dictation
                             },
                             onDownloadAudio: { viewModel.downloadAudio(for: dictation) },
-                            onToggleAIEdit: { viewModel.toggleDisplayRawTranscript(for: dictation) }
+                            onToggleAIEdit: { viewModel.toggleDisplayRawTranscript(for: dictation) },
+                            onBeginBulkSelection: { viewModel.beginBulkSelection(startingWith: dictation) }
                         )
                         .padding(.horizontal, DesignSystem.Spacing.lg)
                         .padding(.bottom, DesignSystem.Spacing.sm)
@@ -151,6 +168,55 @@ struct DictationHistoryView: View {
             }
             .padding(.bottom, DesignSystem.Spacing.md)
         }
+    }
+
+    private var selectedActionsBar: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+
+            Text("\(viewModel.selectedDictationCount) selected")
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Button {
+                viewModel.exitBulkSelection()
+            } label: {
+                Text("Cancel")
+            }
+            .parakeetAction(.subtle)
+
+            Button {
+                viewModel.selectAllVisibleDictations()
+            } label: {
+                Label("Select All", systemImage: "checkmark.circle")
+            }
+            .disabled(viewModel.areAllVisibleDictationsSelected)
+            .parakeetAction(.secondary)
+
+            Button {
+                viewModel.clearSelection()
+            } label: {
+                Label("Clear", systemImage: "xmark.circle")
+            }
+            .disabled(!viewModel.hasSelectedDictations)
+            .parakeetAction(.secondary)
+
+            Button(role: .destructive) {
+                viewModel.requestDeleteSelectedDictations()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .disabled(!viewModel.hasSelectedDictations)
+            .parakeetAction(.destructive)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.surfaceElevated)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: - Status Bars
@@ -231,6 +297,23 @@ struct DictationHistoryView: View {
                 }
         )
     }
+
+    private var deleteAlertTitle: String {
+        let count = displayedDeleteAlertCount
+        return count > 1 ? "Delete \(count) Dictations?" : "Delete Dictation?"
+    }
+
+    private var deleteAlertMessage: String {
+        let count = displayedDeleteAlertCount
+        if count > 1 {
+            return "These dictations and their audio files will be permanently deleted."
+        }
+        return "This dictation and its audio file will be permanently deleted."
+    }
+
+    private var displayedDeleteAlertCount: Int {
+        deleteAlertCount > 0 ? deleteAlertCount : viewModel.pendingDeleteCount
+    }
 }
 
 // MARK: - Card Row View
@@ -240,17 +323,30 @@ struct DictationCardRow: View {
     var searchText: String = ""
     var isPlayingThis: Bool = false
     var isCopied: Bool = false
+    var isSelected: Bool = false
+    /// Whether the leading per-row selection circle is shown. Only true while
+    /// the History list is in bulk-selection mode; hidden during ordinary
+    /// browsing so a row doesn't look like a selection target.
+    var showsSelectionControls: Bool = false
+    var onToggleSelection: (() -> Void)?
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
     var onDownloadAudio: (() -> Void)?
     var onToggleAIEdit: (() -> Void)?
+    var onBeginBulkSelection: (() -> Void)?
 
     @State private var isHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    SelectionToggleButton(isSelected: isSelected) {
+                        onToggleSelection?()
+                    }
+                }
+
                 SonicMandalaView(
                     data: .from(text: dictation.rawTranscript, durationMs: dictation.durationMs),
                     size: 32,
@@ -331,9 +427,11 @@ struct DictationCardRow: View {
                         hasAudio: dictation.audioPath != nil,
                         hasAIEdit: dictation.hasAIEdit && onToggleAIEdit != nil,
                         isShowingRaw: dictation.displayRawTranscript,
+                        showsBulkSelectionEntry: !showsSelectionControls && onBeginBulkSelection != nil,
                         onDownloadAudio: { onDownloadAudio?() },
                         onDelete: { onDelete() },
-                        onToggleAIEdit: onToggleAIEdit
+                        onToggleAIEdit: onToggleAIEdit,
+                        onBeginBulkSelection: { onBeginBulkSelection?() }
                     )
                 }
             }
@@ -350,16 +448,14 @@ struct DictationCardRow: View {
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .fill(isPlayingThis
-                      ? DesignSystem.Colors.accent.opacity(0.06)
-                      : DesignSystem.Colors.cardBackground)
+                .fill(cardFill)
                 .cardShadow(isHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(
-                    isPlayingThis ? DesignSystem.Colors.accent.opacity(0.24) : DesignSystem.Colors.border.opacity(0.5),
-                    lineWidth: 0.5
+                    cardStroke,
+                    lineWidth: isSelected ? 1 : 0.5
                 )
                 .allowsHitTesting(false)
         )
@@ -369,6 +465,27 @@ struct DictationCardRow: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: isPlayingThis)
+        .animation(DesignSystem.Animation.selectionChange, value: isSelected)
+    }
+
+    private var cardFill: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent.opacity(0.10)
+        }
+        if isPlayingThis {
+            return DesignSystem.Colors.accent.opacity(0.06)
+        }
+        return DesignSystem.Colors.cardBackground
+    }
+
+    private var cardStroke: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent.opacity(0.45)
+        }
+        if isPlayingThis {
+            return DesignSystem.Colors.accent.opacity(0.24)
+        }
+        return DesignSystem.Colors.border.opacity(0.5)
     }
 
     // MARK: - Highlighted Transcript
@@ -416,6 +533,36 @@ struct DictationCardRow: View {
     }
 }
 
+// MARK: - Selection Toggle
+
+private struct SelectionToggleButton: View {
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(iconColor)
+        .help(isSelected ? "Deselect" : "Select")
+        .accessibilityLabel(isSelected ? "Deselect dictation" : "Select dictation")
+        .onHover { isHovered = $0 }
+    }
+
+    private var iconColor: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent
+        }
+        return isHovered ? Color.primary : Color.secondary
+    }
+}
+
 // MARK: - Hover-Aware Action Button
 
 private struct CardActionButton: View {
@@ -448,9 +595,11 @@ private struct CardMenuButton: View {
     let hasAudio: Bool
     let hasAIEdit: Bool
     let isShowingRaw: Bool
+    let showsBulkSelectionEntry: Bool
     let onDownloadAudio: () -> Void
     let onDelete: () -> Void
     let onToggleAIEdit: (() -> Void)?
+    let onBeginBulkSelection: () -> Void
 
     var body: some View {
         CardActionButton(icon: "ellipsis", color: .secondary) {
@@ -473,6 +622,13 @@ private struct CardMenuButton: View {
             let title = isShowingRaw ? "Re-apply AI edit" : "Undo AI edit"
             let icon = isShowingRaw ? "wand.and.stars" : "arrow.uturn.backward"
             menu.addItem(CallbackMenuItem(title: title, icon: icon, action: onToggleAIEdit))
+        }
+
+        // Neutral entry into bulk-selection mode. Hidden once the user is
+        // already in bulk mode (it would be redundant). Named to read as a
+        // non-destructive selection gesture, not a delete.
+        if showsBulkSelectionEntry {
+            menu.addItem(CallbackMenuItem(title: "Select Multiple…", icon: "checklist", action: onBeginBulkSelection))
         }
 
         if !menu.items.isEmpty {

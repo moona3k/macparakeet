@@ -56,9 +56,10 @@ sitting at a keyboard, it lives in the .app.
   per-minute charges.
 - **Audio + video file transcription** -- accepts MP3 / WAV / MP4 / MOV /
   WebM / etc. via the bundled FFmpeg.
-- **YouTube transcription** via yt-dlp. The standalone Homebrew install uses
+- **Media URL transcription** via yt-dlp, including YouTube and other public
+  media URLs supported by yt-dlp. The standalone Homebrew install uses
   Homebrew's `yt-dlp`; the app bundle can seed a signed helper into
-  MacParakeet's Application Support folder before first YouTube use.
+  MacParakeet's Application Support folder before first media URL use.
 - **Persistent SQLite memory layer** -- everything transcribed is queryable
   later: dictation history, transcriptions, prompt outputs.
 - **Shared app/CLI preferences** -- agents can set speech engine, processing
@@ -194,9 +195,22 @@ macparakeet-cli transcribe /path/to/audio.mp3 \
   --speaker-detection app-default \
   --mode app-default \
   --downloaded-audio app-default \
-  --youtube-audio-quality app-default \
+  --media-audio-quality app-default \
   --format json
 ```
+
+For a specific file or recording where the speaker count is known, constrain
+speaker detection per run instead of changing the saved default:
+
+```bash
+macparakeet-cli transcribe /path/to/interview.mp3 --speaker-count 2 --format json
+macparakeet-cli transcribe /path/to/panel.mp3 --speaker-min 2 --speaker-max 4 --format json
+```
+
+Those constraint flags imply speaker detection when `--speaker-detection` is
+left at `app-default`; they are rejected with `--speaker-detection off` or
+`--no-diarize`. Use `--speaker-count` for an exact count, or `--speaker-min`
+and/or `--speaker-max` for bounds.
 
 Agents can also set those shared defaults without opening the GUI. Treat this
 as pre-run setup: a running GUI may cache some settings until relaunch or an
@@ -216,10 +230,10 @@ macparakeet-cli config set youtube-audio-quality m4a
 is passed. The saved Whisper language is used when `--engine app-default`
 resolves to Whisper.
 
-### Transcribe a YouTube video
+### Transcribe a media URL
 
 ```bash
-macparakeet-cli transcribe "https://www.youtube.com/watch?v=..." --format json
+macparakeet-cli transcribe "https://www.facebook.com/reel/..." --format json
 ```
 
 ### Look up past transcriptions
@@ -366,27 +380,27 @@ macparakeet-cli health --json
 If it fails, report the `errorType`/message and stop. Do not guess that models,
 FFmpeg, yt-dlp, or the database are ready. App-bundled CLI installs should
 already have a signed yt-dlp helper seed; if `yt-dlp` is still missing and the
-user wants YouTube transcription, run
+user wants media URL transcription, run
 `macparakeet-cli health --repair-binaries` before retrying.
 
 ## Core Commands
 
 ```bash
 macparakeet-cli spec --json
-macparakeet-cli transcribe "<path-or-youtube-url>" --format json
-macparakeet-cli transcribe "<path-or-youtube-url>" --format transcript --no-history
+macparakeet-cli transcribe "<path-or-media-url>" --format json
+macparakeet-cli transcribe "<path-or-media-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli config set parakeet-model v3 --json
-macparakeet-cli transcribe "<path-or-youtube-url>" --engine whisper --language ko --format json
-macparakeet-cli transcribe "<path-or-youtube-url>" \
+macparakeet-cli transcribe "<path-or-media-url>" --engine whisper --language ko --format json
+macparakeet-cli transcribe "<path-or-media-url>" \
   --engine app-default \
   --parakeet-model app-default \
   --speaker-detection app-default \
   --mode app-default \
   --downloaded-audio app-default \
-  --youtube-audio-quality app-default \
+  --media-audio-quality app-default \
   --format json
 macparakeet-cli config list --json
 macparakeet-cli config set speech-engine parakeet --json
@@ -428,11 +442,13 @@ macparakeet-cli prompts run "<prompt-name>" \
 - Use the full app-default group (`--engine app-default`,
   `--parakeet-model app-default`, `--speaker-detection app-default`,
   `--mode app-default`, `--downloaded-audio app-default`, and
-  `--youtube-audio-quality app-default`) when you are intentionally checking
+  `--media-audio-quality app-default`) when you are intentionally checking
   GUI-default behavior. Pin explicit flags for reproducible agent tests.
 - `config get speaker-detection` reports the saved app-default value. Bare
   `transcribe` and `--speaker-detection app-default` use that value; pass
-  `--speaker-detection on` or `off` to override it for one run.
+  `--speaker-detection on` or `off` to override it for one run. For known
+  speaker counts, use per-run `--speaker-count`, `--speaker-min`, or
+  `--speaker-max` instead of mutating the saved default.
 ````
 
 ## Conventions
@@ -462,7 +478,7 @@ macparakeet-cli prompts run "<prompt-name>" \
   produce a `.ambiguous` error; missing records produce `.notFound`.
 - **Privacy:** STT and database access never touch the network. Network
   egress paths are: explicit helper repair (`health --repair-binaries`),
-  YouTube downloads (yt-dlp), optional LLM provider calls (only when
+  media URL downloads (yt-dlp), optional LLM provider calls (only when
   `prompts run` or `llm` targets a hosted provider, or when a configured
   Local CLI command contacts its own service), Sparkle update checks (app,
   not CLI), and a single privacy-safe

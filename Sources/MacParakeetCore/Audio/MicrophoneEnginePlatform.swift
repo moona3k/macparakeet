@@ -50,9 +50,9 @@ public protocol MicrophoneEnginePlatform: AnyObject, Sendable {
 ///   the VPAU aggregate device. A long-lived engine keeps the VPAU alive
 ///   indefinitely, which inherits the duplex layout into other engines.
 /// - When configured with a `deviceAttemptsBuilder`, each `configureAndStart`
-///   walks the resolved attempt list (selected → explicit systemDefault when
-///   System Default is selected → implicit systemDefault → builtIn) and
-///   recreates the engine on every failed attempt before trying the next.
+///   walks the resolved attempt list (selected → implicit systemDefault →
+///   builtIn) and recreates the engine on every failed attempt before trying
+///   the next — the same fallback shape `MicrophoneCapture` uses today.
 public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
     public typealias DeviceAttemptsBuilder = @Sendable () -> [MeetingInputDeviceAttempt]
     public typealias InputDeviceSetter = @Sendable (AudioDeviceID, AVAudioEngine) -> Bool
@@ -87,6 +87,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// trigger for the silent tap-stall under investigation.
     private var configurationChangeObserver: NSObjectProtocol?
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
+
+    private static func nowNanos() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds
+    }
+
+    private static func elapsedMilliseconds(from start: UInt64, to end: UInt64) -> String {
+        String(format: "%.3f", Double(end - start) / 1_000_000.0)
+    }
 
     public init(
         deviceAttemptsBuilder: DeviceAttemptsBuilder? = nil,
@@ -177,13 +185,21 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             for attempt in attempts {
                 let transport = AudioCaptureDiagnostics.deviceTransportLabel(attempt.deviceID)
                 let deviceLabel = AudioCaptureDiagnostics.deviceLabel(attempt.deviceID)
+                var setDeviceMilliseconds = "0.000"
                 if let deviceID = attempt.explicitDeviceID {
-                    guard inputDeviceSetter(deviceID, audioEngine) else {
+                    let setDeviceStartedAt = Self.nowNanos()
+                    let didSetDevice = inputDeviceSetter(deviceID, audioEngine)
+                    let setDeviceEndedAt = Self.nowNanos()
+                    setDeviceMilliseconds = Self.elapsedMilliseconds(
+                        from: setDeviceStartedAt,
+                        to: setDeviceEndedAt
+                    )
+                    guard didSetDevice else {
                         logger.warning(
                             "shared_mic_engine_input_device_set_failed source=\(attempt.source.logValue, privacy: .public) transport=\(transport, privacy: .public)"
                         )
                         AudioCaptureDiagnostics.append(
-                            "shared_mic_engine_input_device_set_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport)"
+                            "shared_mic_engine_input_device_set_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) set_device_ms=\(setDeviceMilliseconds)"
                         )
                         if lastError == nil {
                             lastError = AVAudioEngineMicrophonePlatformError.deviceSetFailed(attempt)
@@ -194,17 +210,23 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 }
 
                 do {
+                    let startEngineStartedAt = Self.nowNanos()
                     try startConfiguredEngineLocked(
                         vpioEnabled: vpioEnabled,
                         bufferSize: bufferSize,
                         tapHandler: tapHandler
+                    )
+                    let startEngineEndedAt = Self.nowNanos()
+                    let startEngineMilliseconds = Self.elapsedMilliseconds(
+                        from: startEngineStartedAt,
+                        to: startEngineEndedAt
                     )
                     lastSucceededAttemptLocked = attempt
                     logger.info(
                         "shared_mic_engine_input_device_started source=\(attempt.source.logValue, privacy: .public) transport=\(transport, privacy: .public) vpio=\(vpioEnabled, privacy: .public)"
                     )
                     AudioCaptureDiagnostics.append(
-                        "shared_mic_engine_input_device_started source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) vpio=\(vpioEnabled)"
+                        "shared_mic_engine_input_device_started source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) vpio=\(vpioEnabled) set_device_ms=\(setDeviceMilliseconds) start_engine_ms=\(startEngineMilliseconds)"
                     )
                     return
                 } catch {
@@ -214,7 +236,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                         "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue, privacy: .public) transport=\(transport, privacy: .public) error_type=\(errorType, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
                     )
                     AudioCaptureDiagnostics.append(
-                        "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) \(AudioCaptureDiagnostics.errorFields(error))"
+                        "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) set_device_ms=\(setDeviceMilliseconds) \(AudioCaptureDiagnostics.errorFields(error))"
                     )
                     // startConfiguredEngineLocked already replaces the engine on
                     // failure, so nothing more to reset here.
@@ -265,11 +287,22 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
+        let totalStartedAt = Self.nowNanos()
+        var setVPIOMilliseconds = "0.000"
+        var duckingMilliseconds = "0.000"
+        var outputFormatMilliseconds = "0.000"
+        var installTapMilliseconds = "0.000"
+        var audioEngineStartMilliseconds = "0.000"
         let inputNode = audioEngine.inputNode
         do {
+            let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
                 try inputNode.setVoiceProcessingEnabled(vpioEnabled)
             }
+            setVPIOMilliseconds = Self.elapsedMilliseconds(
+                from: phaseStartedAt,
+                to: Self.nowNanos()
+            )
         } catch {
             // VPIO toggle failed before tap install / engine start. Replace
             // the engine so the next attempt isn't on a half-configured one.
@@ -278,12 +311,17 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
         if vpioEnabled, #available(macOS 14.0, *) {
             do {
+                let phaseStartedAt = Self.nowNanos()
                 try catchingObjCException {
                     inputNode.voiceProcessingOtherAudioDuckingConfiguration = .init(
                         enableAdvancedDucking: false,
                         duckingLevel: .min
                     )
                 }
+                duckingMilliseconds = Self.elapsedMilliseconds(
+                    from: phaseStartedAt,
+                    to: Self.nowNanos()
+                )
             } catch {
                 let errorType = AudioCaptureDiagnostics.errorType(error)
                 logger.debug(
@@ -294,9 +332,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
         let liveFormat: AVAudioFormat
         do {
+            let phaseStartedAt = Self.nowNanos()
             liveFormat = try catchingObjCException {
                 inputNode.outputFormat(forBus: 0)
             }
+            outputFormatMilliseconds = Self.elapsedMilliseconds(
+                from: phaseStartedAt,
+                to: Self.nowNanos()
+            )
         } catch {
             replaceEngineAfterFailureLocked()
             throw error
@@ -310,6 +353,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
 
         do {
+            let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
                 inputNode.installTap(
                     onBus: 0,
@@ -319,6 +363,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     tapHandler(buffer, time)
                 }
             }
+            installTapMilliseconds = Self.elapsedMilliseconds(
+                from: phaseStartedAt,
+                to: Self.nowNanos()
+            )
         } catch {
             try? catchingObjCException {
                 inputNode.removeTap(onBus: 0)
@@ -331,9 +379,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
 
         do {
+            let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
                 try audioEngine.start()
             }
+            audioEngineStartMilliseconds = Self.elapsedMilliseconds(
+                from: phaseStartedAt,
+                to: Self.nowNanos()
+            )
         } catch {
             try? catchingObjCException {
                 inputNode.removeTap(onBus: 0)
@@ -347,6 +400,13 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         running = true
         installConfigurationChangeObserverLocked()
         installDefaultInputChangeObserverLocked()
+        let totalMilliseconds = Self.elapsedMilliseconds(
+            from: totalStartedAt,
+            to: Self.nowNanos()
+        )
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_start_timing vpio=\(vpioEnabled) buffer_size=\(bufferSize) set_vpio_ms=\(setVPIOMilliseconds) ducking_ms=\(duckingMilliseconds) output_format_ms=\(outputFormatMilliseconds) install_tap_ms=\(installTapMilliseconds) audio_engine_start_ms=\(audioEngineStartMilliseconds) total_ms=\(totalMilliseconds)"
+        )
     }
 
     private func tearDownLocked() {

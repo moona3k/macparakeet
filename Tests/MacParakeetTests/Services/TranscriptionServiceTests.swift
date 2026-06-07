@@ -855,6 +855,39 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(metadata.thumbnailURL, "https://img.example/thumb.jpg")
     }
 
+    func testTranscribeURLAcceptsGenericMediaURLThroughDownloader() async throws {
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+        let facebookURL = "https://www.facebook.com/reel/1998924354042801"
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Facebook Reel",
+            durationSeconds: 85
+        ))
+
+        await mockSTT.configure(result: STTResult(text: "Downloaded transcript"))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldKeepDownloadedAudio: { false },
+            youtubeDownloader: downloader
+        )
+
+        let result = try await service.transcribeURL(urlString: "  \(facebookURL)\n")
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        let lastDownloadURL = await downloader.lastURL
+
+        XCTAssertEqual(lastDownloadURL, facebookURL)
+        XCTAssertEqual(result.sourceURL, facebookURL)
+        XCTAssertEqual(result.fileName, "Facebook Reel")
+        XCTAssertEqual(result.rawTranscript, "Downloaded transcript")
+        XCTAssertEqual(fetched.sourceURL, facebookURL)
+        XCTAssertEqual(fetched.sourceType, .youtube)
+    }
+
     func testTranscribeMeetingUsesFinalizeLaneAndMergesFreshSourceTranscriptsByAlignment() async throws {
         let telemetry = TelemetrySpy()
         Telemetry.configure(telemetry)

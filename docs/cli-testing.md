@@ -24,12 +24,13 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 
 ```
 macparakeet-cli
-├── transcribe <input...> [options]      Transcribe files, folders, or YouTube URLs
+├── transcribe <input...> [options]      Transcribe files, folders, or media URLs
 │   ├── --format text|transcript|json [--no-history]
 │   └── --engine app-default|parakeet|whisper [--language <code>]
 │       --parakeet-model app-default|v3|v2 [--output-dir DIR]
 │       --speaker-detection app-default|on|off
-│       --youtube-audio-quality app-default|m4a|best-available
+│       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
+│       --media-audio-quality app-default|m4a|best-available
 ├── history                              View and manage history
 │   ├── dictations [--limit] [--json]    List recent dictations (default)
 │   ├── transcriptions [--limit] [--json]  List recent transcriptions
@@ -133,13 +134,13 @@ detection setting; the explicit flag below keeps the behavior visible in test
 commands.
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine app-default \
   --parakeet-model app-default \
   --speaker-detection app-default \
   --mode app-default \
   --downloaded-audio app-default \
-  --youtube-audio-quality app-default
+  --media-audio-quality app-default
 ```
 
 ### 2) Deterministic Mode (recommended for CI/agent reproducibility)
@@ -147,28 +148,28 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
 Explicitly pins behavior.
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine parakeet \
   --parakeet-model v3 \
   --speaker-detection off \
   --mode raw \
   --downloaded-audio delete \
-  --youtube-audio-quality m4a
+  --media-audio-quality m4a
 ```
 
 Or clean mode with retained downloads:
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine parakeet \
   --parakeet-model v3 \
   --speaker-detection on \
   --mode clean \
   --downloaded-audio keep \
-  --youtube-audio-quality best-available
+  --media-audio-quality best-available
 ```
 
-`--youtube-audio-quality app-default` follows the GUI setting. `m4a` matches
+`--media-audio-quality app-default` follows the GUI setting. `m4a` matches
 the app's default compatibility-first selector. `best-available` asks `yt-dlp`
 for the best audio stream and then lets the normal conversion pipeline prepare
 the STT input.
@@ -206,9 +207,18 @@ the explicit option, or use the legacy alias to force it off:
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection on
+swift run macparakeet-cli transcribe "<FILE>" --speaker-count 2
+swift run macparakeet-cli transcribe "<FILE>" --speaker-min 2 --speaker-max 4
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection off
 swift run macparakeet-cli transcribe "<FILE>" --no-diarize
 ```
+
+`--speaker-count`, `--speaker-min`, and `--speaker-max` are per-run
+constraints. They imply speaker detection when `--speaker-detection` is left at
+`app-default`, and they cannot be combined with `--speaker-detection off` or
+`--no-diarize`. Use `--speaker-count` for an exact count, or `--speaker-min`
+and/or `--speaker-max` for bounds; values must be positive, and
+`--speaker-min` cannot exceed `--speaker-max`.
 
 `config get speaker-detection` reports the saved app-default value used by
 bare `transcribe` and by `--speaker-detection app-default`.
@@ -250,7 +260,7 @@ swift run macparakeet-cli transcribe "<FILE>" --format json
 swift run macparakeet-cli transcribe "<FILE>" --format transcript
 
 # Transient transcription: no completed row in Library/history
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" --format transcript --no-history
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" --format transcript --no-history
 
 # Batch mode: writes one transcript file per resolved input
 swift run macparakeet-cli transcribe lecture1.m4a lectures/ \
@@ -263,7 +273,7 @@ swift run macparakeet-cli transcribe lecture1.m4a lectures/ \
 piped directly into `pbcopy`, `grep`, `tee`, or a local LLM command.
 
 `--no-history` uses the same transcription pipeline without retaining a completed
-history row. For YouTube inputs, downloaded audio is temporary regardless of
+history row. For media URL inputs, downloaded audio is temporary regardless of
 the shared audio-retention default.
 
 ## Model Selection
@@ -367,7 +377,7 @@ swift run macparakeet-cli health --repair-binaries
 managed or app-bundled `yt-dlp`, but it does not install or update helper
 binaries. `health --repair-binaries` explicitly fetches the latest managed
 `yt-dlp` copy. App-bundled CLI installs include a signed `yt-dlp` seed so
-YouTube URL transcription works without a first-use helper download.
+media URL transcription works without a first-use helper download.
 
 ## Meetings
 

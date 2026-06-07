@@ -53,6 +53,14 @@ public final class DictationServiceSession {
         await service.updateTelemetryAppCategory(appCategory, sessionID: sessionID)
     }
 
+    public func updateAIFormatterAppContext(
+        _ context: AppPromptContext?,
+        phase: AIFormatterAppContextPhase,
+        sessionID: Int
+    ) async {
+        await service.updateAIFormatterAppContext(context, phase: phase, sessionID: sessionID)
+    }
+
     public func cancelRecording(
         reason: TelemetryDictationCancelReason?,
         sessionID: Int

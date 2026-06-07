@@ -42,6 +42,53 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
         XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Default prompt")
+        XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
+    }
+
+    // MARK: - AI Formatter: dictation routing toggle (#408)
+
+    func testAIFormatterEnabledForDictationDefaultsToFalse() {
+        XCTAssertFalse(viewModel.aiFormatterEnabledForDictation)
+    }
+
+    func testAIFormatterEnabledForDictationPersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+
+        viewModel.aiFormatterEnabledForDictation = true
+
+        XCTAssertEqual(defaults.object(forKey: key) as? Bool, true)
+        XCTAssertTrue(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForDictation)
+    }
+
+    func testAIFormatterEnabledForDictationLoadsStoredValueOnInit() {
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+        let reloaded = LLMSettingsViewModel(defaults: defaults)
+        XCTAssertTrue(reloaded.aiFormatterEnabledForDictation)
+    }
+
+    func testTranscriptAIContextModePersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey
+
+        viewModel.transcriptAIContextMode = .plainTranscript
+
+        XCTAssertEqual(defaults.string(forKey: key), TranscriptAIContextMode.plainTranscript.rawValue)
+        XCTAssertEqual(LLMSettingsViewModel(defaults: defaults).transcriptAIContextMode, .plainTranscript)
+    }
+
+    func testClearConfigurationRestoresDictationRoutingDefault() {
+        mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.aiFormatterEnabledForDictation = true
+
+        viewModel.clearConfiguration()
+
+        XCTAssertFalse(viewModel.aiFormatterEnabledForDictation)
+        XCTAssertEqual(
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+            ) as? Bool,
+            false
+        )
     }
 
     func testSetupStatusReadyUsesSavedProviderDisplayName() {
@@ -195,6 +242,15 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.useCustomModel)
     }
 
+    func testLoadsExistingConfigEnablesAIFormatterByDefaultWhenPreferenceUnset() {
+        mockConfigStore.config = .openai(apiKey: "sk-existing", model: "gpt-4.1")
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertTrue(viewModel.aiFormatterEnabled)
+        XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+    }
+
     func testLoadsExistingConfigWithCustomModel() {
         mockConfigStore.config = .openai(apiKey: "sk-existing", model: "gpt-4")
 
@@ -253,13 +309,323 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         viewModel.clearConfiguration()
 
-        XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+        XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabled)
         XCTAssertEqual(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
             AIFormatter.defaultPromptTemplate
         )
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+    }
+
+    // MARK: - AI Formatter Profiles
+
+    func testConfigureLoadsAIFormatterProfiles() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        let profile = AIFormatterProfile.category(
+            name: "Messaging",
+            appCategory: .messaging,
+            promptTemplate: "Messaging prompt"
+        )
+        try repo.save(profile)
+
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [profile.id])
+        XCTAssertNil(viewModel.aiFormatterProfileError)
+    }
+
+    func testSaveAIFormatterExactAppProfile() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .bundle)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Slack")
+        viewModel.updateAIFormatterProfileDraft(\.bundleIdentifier, to: " COM.TINYSPECK.SLACKMACGAP ")
+        viewModel.updateAIFormatterProfileDraft(\.appDisplayName, to: "Slack")
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "Slack prompt")
+
+        XCTAssertTrue(viewModel.saveAIFormatterProfileDraft())
+
+        let saved = try XCTUnwrap(repo.fetchAll().first)
+        XCTAssertEqual(saved.name, "Slack")
+        XCTAssertEqual(saved.targetKind, .bundle)
+        XCTAssertEqual(saved.bundleIdentifier, "com.tinyspeck.slackmacgap")
+        XCTAssertEqual(saved.appDisplayName, "Slack")
+        XCTAssertEqual(saved.promptTemplate, "Slack prompt")
+        XCTAssertNil(saved.appCategory)
+        XCTAssertNil(viewModel.aiFormatterProfileDraft)
+        XCTAssertEqual(viewModel.aiFormatterProfiles.map(\.id), [saved.id])
+    }
+
+    func testApplyAIFormatterProfileDraftAppNormalizesBundleAndUsesDisplayName() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: " COM.TINYSPECK.SLACKMACGAP ",
+            displayName: " Slack "
+        )
+
+        let draft = viewModel.aiFormatterProfileDraft
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        XCTAssertEqual(draft?.targetKind, .bundle)
+        XCTAssertEqual(draft?.bundleIdentifier, "com.tinyspeck.slackmacgap")
+        XCTAssertEqual(draft?.appDisplayName, "Slack")
+        XCTAssertEqual(draft?.appCategory, .messaging)
+        XCTAssertEqual(draft?.name, "Slack")
+        XCTAssertEqual(draft?.promptTemplate, messagingDefault?.promptTemplate)
+        XCTAssertNil(viewModel.aiFormatterProfileError)
+    }
+
+    func testCategoryProfileStartsFromSmartDefaultPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Messaging")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, messagingDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftUpdatesSmartDefaultPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Email")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftTreatsNormalizedSmartDefaultAsAutoPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "\n\(messagingDefault?.promptTemplate ?? "")\n"
+        )
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testChangingCategoryProfileDraftPreservesCustomNameAndPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "My Messages")
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "Custom prompt \(AIFormatter.transcriptPlaceholder)")
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "My Messages")
+        XCTAssertEqual(
+            viewModel.aiFormatterProfileDraft?.promptTemplate,
+            "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testChangingEditedCategoryProfilePreservesCustomNameAndPrompt() {
+        let profile = AIFormatterProfile.category(
+            name: "My Messages",
+            appCategory: .messaging,
+            promptTemplate: "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+        viewModel.editAIFormatterProfile(profile)
+
+        viewModel.applyAIFormatterProfileDraftCategory(.email)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.profileID, profile.id)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "My Messages")
+        XCTAssertEqual(
+            viewModel.aiFormatterProfileDraft?.promptTemplate,
+            "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testApplyingBlankAppBundleSetsErrorAndPreservesDraft() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        let originalDraft = viewModel.aiFormatterProfileDraft
+
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "   ",
+            displayName: "Blank"
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "Bundle ID is required for app profiles.")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft, originalDraft)
+    }
+
+    func testUnknownAppProfileUsesFallbackPrompt() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.example.privateapp",
+            displayName: "Private App"
+        )
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .bundle)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.example.privateapp")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .other)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Private App")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+    }
+
+    func testChangingSelectedAppReplacesPreviousSmartDefaultPrompt() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.apple.mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testProfileTargetKindSwitchNormalizesCategoryAndAppDrafts() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.applyAIFormatterProfileDraftTargetKind(.bundle)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .bundle)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "New app profile")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+        viewModel.applyAIFormatterProfileDraftTargetKind(.category)
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .category)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Email")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testAIFormatterPromptPreviewUsesBuiltInCategoryDefault() {
+        let context = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+
+        let resolution = viewModel.aiFormatterPromptPreview(for: context)
+
+        XCTAssertEqual(resolution.matchKind, .category)
+        XCTAssertEqual(resolution.profileName, "Messaging")
+        XCTAssertEqual(resolution.profileOrigin, .template)
+        XCTAssertNil(resolution.profileID)
+    }
+
+    func testAIFormatterPromptPreviewIncludesUnsavedDraft() throws {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Mail Formal")
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "Formal mail prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+        let draft = try XCTUnwrap(viewModel.aiFormatterProfileDraft)
+
+        let resolution = viewModel.aiFormatterPromptPreview(
+            for: AppPromptContext(bundleIdentifier: "com.apple.mail", displayName: "Mail"),
+            including: draft
+        )
+
+        XCTAssertEqual(resolution.matchKind, .exactApp)
+        XCTAssertEqual(resolution.profileName, "Mail Formal")
+        XCTAssertEqual(resolution.profileOrigin, .custom)
+        XCTAssertEqual(resolution.promptTemplate, "Formal mail prompt \(AIFormatter.transcriptPlaceholder)")
+    }
+
+    func testBlankAIFormatterProfilePromptIsRejected() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Email")
+        viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
+        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "   ")
+
+        XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "Prompt template is required.")
+        XCTAssertEqual(try repo.fetchAll().count, 0)
+        XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
+    }
+
+    func testDuplicateAIFormatterProfileSurfacesErrorAndKeepsDraft() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        try repo.save(AIFormatterProfile.category(
+            name: "Email",
+            appCategory: .email,
+            promptTemplate: "Email prompt"
+        ))
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        viewModel.startCreatingAIFormatterProfile(targetKind: .category)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "Email 2")
+        viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
+
+        XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "A profile already exists for email.")
+        XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
+        XCTAssertEqual(try repo.fetchAll().count, 1)
+    }
+
+    func testToggleAndDeleteAIFormatterProfile() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        let profile = AIFormatterProfile.category(
+            name: "Terminal",
+            appCategory: .terminal,
+            promptTemplate: "Terminal prompt"
+        )
+        try repo.save(profile)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        let loaded = try XCTUnwrap(viewModel.aiFormatterProfiles.first)
+        viewModel.setAIFormatterProfile(loaded, enabled: false)
+        XCTAssertEqual(viewModel.aiFormatterProfiles.first?.isEnabled, false)
+
+        let disabled = try XCTUnwrap(viewModel.aiFormatterProfiles.first)
+        viewModel.deleteAIFormatterProfile(disabled)
+
+        XCTAssertTrue(viewModel.aiFormatterProfiles.isEmpty)
+        XCTAssertTrue(try repo.fetchAll().isEmpty)
     }
 
     // MARK: - Test Connection
@@ -404,12 +770,11 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testSelectingNoneDisablesAIFormatter() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
-        viewModel.aiFormatterEnabled = true
 
         viewModel.selectedProviderID = nil
 
         XCTAssertFalse(viewModel.aiFormatterEnabled)
-        XCTAssertFalse(viewModel.canToggleAIFormatter)
+        XCTAssertFalse(viewModel.isAIFormatterAvailable)
     }
 
     func testNoneProviderReturnsEmptyModels() {
@@ -629,7 +994,6 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
         viewModel.apiKeyInput = "sk-test"
-        viewModel.aiFormatterEnabled = true
         viewModel.aiFormatterPrompt = "Rewrite this carefully:\n\(AIFormatter.transcriptPlaceholder)"
 
         viewModel.saveConfiguration()
@@ -639,6 +1003,43 @@ final class LLMSettingsViewModelTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
             "Rewrite this carefully:\n\(AIFormatter.transcriptPlaceholder)"
         )
+    }
+
+    func testSaveEnablesAIFormatterByDefaultForNewProviderConfiguration() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+        XCTAssertTrue(viewModel.aiFormatterEnabled)
+    }
+
+    func testSaveEnablesAIFormatterWhenLegacyPreferenceWasFalse() {
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+        XCTAssertTrue(viewModel.aiFormatterEnabled)
     }
 
     func testFieldChangeResetsSaveState() {
@@ -682,25 +1083,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
     }
 
-    func testAIFormatterStaysDisabledUntilProviderIsSaved() {
+    func testAIFormatterUnavailableUntilProviderIsSaved() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
 
-        XCTAssertFalse(viewModel.canToggleAIFormatter)
-
-        viewModel.aiFormatterEnabled = true
-
+        XCTAssertFalse(viewModel.isAIFormatterAvailable)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
     }
 
-    func testAIFormatterTogglePersistsImmediatelyWhenConfigured() {
+    func testAIFormatterPromptPersistsImmediatelyWhenConfigured() {
         mockConfigStore.config = .openai(apiKey: "sk-test")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
-        XCTAssertTrue(viewModel.canToggleAIFormatter)
+        XCTAssertTrue(viewModel.isAIFormatterAvailable)
 
-        viewModel.aiFormatterEnabled = true
         viewModel.aiFormatterPrompt = "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
 
         XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))

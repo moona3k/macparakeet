@@ -148,6 +148,11 @@ user-facing error would mask a regression as a fact of life.
 Telemetry counters can be added separately, but the log path stays
 non-disruptive.
 
+`MicrophoneEnginePlatform` also logs per-phase engine-start timings
+(`shared_mic_engine_start_timing`) so a slow first-buffer report can be split
+between device setting, VPIO toggling, input format lookup, tap install, and
+`AVAudioEngine.start()`.
+
 **First-buffer can arrive before timers are armed.** When subscribing
 from an actor, the AVAudioEngine tap can fire its first buffer
 during the `await sharedStream.subscribe(...)` suspension, before

@@ -106,6 +106,37 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testAIFormatterSearchEntryUsesFormatterAnchor() throws {
+        let entry = SettingsSearchIndex.entries.first { $0.id == "ai.formatter" }
+        if AppFeatures.aiFormatterProfilesEnabled {
+            XCTAssertEqual(try XCTUnwrap(entry).cardAnchor, "ai.formatter")
+        } else {
+            XCTAssertNil(entry)
+        }
+    }
+
+    func testTranscriptAIContextQueriesFindTranscriptContextEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.transcriptContext" })
+        XCTAssertEqual(entry.cardAnchor, "ai.transcriptContext")
+
+        for query in ["rich transcript", "plain transcript", "speaker labels", "diarization", "meeting context"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("ai.transcriptContext"), "Query \(query) should find Transcript Context for AI")
+        }
+    }
+
+    func testAIFormatterSmartDefaultsQueriesFindFormatterEntry() {
+        for query in ["smart defaults", "fallback prompt"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+
+            if AppFeatures.aiFormatterProfilesEnabled {
+                XCTAssertTrue(ids.contains("ai.formatter"), "Query \(query) should find AI Formatter")
+            } else {
+                XCTAssertFalse(ids.contains("ai.formatter"), "Query \(query) should not reveal hidden AI Formatter profiles")
+            }
+        }
+    }
+
     func testEveryTabHasAtLeastOneEntry() {
         let tabs = Set(SettingsSearchIndex.entries.map(\.tab))
         XCTAssertEqual(tabs, Set(SettingsTab.allCases), "Every tab should be reachable via search")

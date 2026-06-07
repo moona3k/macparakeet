@@ -13,6 +13,14 @@ public enum AudioCaptureDiagnostics {
     /// the 5 s heartbeat, which roughly doubles per-recording log volume.
     private static let maxLogBytes: UInt64 = 5_000_000
 
+    public static var diagnosticLogFileURL: URL {
+        diagnosticLogURL()
+    }
+
+    public static var diagnosticLogMaxBytes: UInt64 {
+        maxLogBytes
+    }
+
     /// Device identity is private: diagnostics are designed to be shared, so
     /// labels intentionally omit CoreAudio IDs, UIDs, and microphone names.
     static func deviceLabel(_ deviceID: AudioDeviceID?) -> String {

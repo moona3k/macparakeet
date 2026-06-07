@@ -16,6 +16,49 @@ class of bugs ADR-015 fixed. The warm lease therefore belongs inside
 `SharedMicrophoneStream` as a passive subscriber that does not block VPIO
 promotion.
 
+## Issue #450 Evidence
+
+Checked again on 2026-06-07 while triaging
+[issue #450](https://github.com/moona3k/macparakeet/issues/450).
+
+The report is a controlled timing test: speaking immediately at button press
+often loses the first one to three spoken numbers, while waiting until the
+dictation pill reaches about one second captures all eight numbers. The 2x2
+matrix across Auto Pause on/off and Clean/Raw vocabulary mode shows the same
+shape, which rules out pause detection and text cleanup as primary causes.
+
+The attached `dictation-audio.log` confirms healthy audio after a late first
+buffer rather than an STT or silent-stream failure. In the repro window
+(`2026-06-07T17:55Z` through `17:59Z`), all captures use the USB default input
+and the timing is tightly clustered:
+
+| Phase | Median |
+|-------|--------|
+| `dictation_capture_start` -> `shared_mic_engine_input_device_started` | 563 ms |
+| `dictation_capture_start` -> `dictation_capture_engine_started` | 568 ms |
+| `dictation_capture_start` -> `dictation_capture_first_buffer` | 662 ms |
+| `dictation_capture_engine_started` -> first buffer | 95 ms |
+
+The variable cost is therefore before live buffers reach `AudioRecorder`: input
+device / Core Audio / `AVAudioEngine` startup. The final buffer period is the
+expected tap cadence. Once buffers arrive, the log shows non-silent input and
+normal Parakeet v2 transcription completion.
+
+Across the full uploaded log, press-to-first-buffer latency is bimodal and
+device-sensitive rather than a clean app-version regression:
+
+- Built-in input sessions generally sit around 240-270 ms.
+- USB input sessions in this log generally sit around 650-700 ms.
+- The same v0.6.21 process starts built-in at 251-274 ms around `06:17Z`, then
+  after the default input moves to USB it stays around 654-710 ms through the
+  #450 reproduction.
+
+This makes #450 the deterministic user-facing form of the same startup window
+that originally motivated Instant Dictation. It is adjacent to #421/#432, but
+not identical: #450 has valid, non-silent capture after a late first buffer;
+#432 describes intermittent silent/no-input capture and still needs the
+separate capture-health handling in PR #441.
+
 ## References
 
 | Project | Checked ref | Relevant behavior |

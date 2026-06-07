@@ -141,7 +141,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
     // MARK: - Delete
 
-    func testDeleteRemovesFromList() {
+    func testDeleteRemovesFromList() async {
         let dictation = Dictation(durationMs: 1000, rawTranscript: "To be deleted")
         mockRepo.dictations = [dictation]
 
@@ -149,9 +149,212 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(totalDictationCount(), 1)
 
         viewModel.deleteDictation(dictation)
+        await waitForCondition("dictation deleted") {
+            self.viewModel.groupedDictations.isEmpty
+        }
 
         XCTAssertTrue(viewModel.groupedDictations.isEmpty, "List should be empty after deletion")
         XCTAssertTrue(mockRepo.deleteCalledWith.contains(dictation.id))
+    }
+
+    func testToggleSelectionAddsAndRemovesDictation() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Selectable")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.toggleSelection(for: dictation)
+
+        XCTAssertTrue(viewModel.isDictationSelected(dictation))
+        XCTAssertEqual(viewModel.selectedDictationCount, 1)
+
+        viewModel.toggleSelection(for: dictation)
+
+        XCTAssertFalse(viewModel.isDictationSelected(dictation))
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
+    }
+
+    func testSelectAllVisibleDictationsUsesCurrentSearchResults() {
+        let matching = Dictation(durationMs: 1000, rawTranscript: "project note")
+        let hiddenBySearch = Dictation(durationMs: 1000, rawTranscript: "shopping list")
+        mockRepo.dictations = [matching, hiddenBySearch]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.searchText = "project"
+        viewModel.loadDictations(shouldRefreshStats: false)
+        viewModel.selectAllVisibleDictations()
+
+        XCTAssertEqual(viewModel.selectedDictationIDs, [matching.id])
+        XCTAssertTrue(viewModel.areAllVisibleDictationsSelected)
+    }
+
+    func testSearchReloadPrunesSelectionToVisibleDictations() {
+        let matching = Dictation(durationMs: 1000, rawTranscript: "project note")
+        let hiddenBySearch = Dictation(durationMs: 1000, rawTranscript: "shopping list")
+        mockRepo.dictations = [matching, hiddenBySearch]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.toggleSelection(for: matching)
+        viewModel.toggleSelection(for: hiddenBySearch)
+        XCTAssertEqual(viewModel.selectedDictationCount, 2)
+
+        viewModel.searchText = "project"
+        viewModel.loadDictations(shouldRefreshStats: false)
+
+        XCTAssertEqual(viewModel.selectedDictationIDs, [matching.id])
+    }
+
+    func testRequestDeleteSelectedDictationsQueuesSelectionConfirmation() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.toggleSelection(for: first)
+        viewModel.toggleSelection(for: second)
+
+        viewModel.requestDeleteSelectedDictations()
+
+        XCTAssertNil(viewModel.pendingDeleteDictation)
+        XCTAssertEqual(Set(viewModel.pendingDeleteSelectedDictations.map(\.id)), [first.id, second.id])
+        XCTAssertEqual(viewModel.pendingDeleteCount, 2)
+    }
+
+    func testPendingSelectedDeletePreservesRowsAcrossSearchReload() {
+        let matching = Dictation(durationMs: 1000, rawTranscript: "project note")
+        let hiddenBySearch = Dictation(durationMs: 1000, rawTranscript: "shopping list")
+        mockRepo.dictations = [matching, hiddenBySearch]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.toggleSelection(for: matching)
+        viewModel.toggleSelection(for: hiddenBySearch)
+        viewModel.requestDeleteSelectedDictations()
+
+        viewModel.searchText = "project"
+        viewModel.loadDictations(shouldRefreshStats: false)
+
+        XCTAssertEqual(Set(viewModel.pendingDeleteSelectedDictations.map(\.id)), [matching.id, hiddenBySearch.id])
+        XCTAssertEqual(viewModel.pendingDeleteCount, 2)
+    }
+
+    func testConfirmDeleteSelectedDictationsRemovesMultipleRowsAndClearsSelection() async {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        let remaining = Dictation(durationMs: 1000, rawTranscript: "Remaining")
+        mockRepo.dictations = [first, second, remaining]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.toggleSelection(for: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedDictations()
+
+        viewModel.confirmDeleteSelectedDictations()
+        await waitForCondition("selected dictations deleted") {
+            self.totalDictationCount() == 1
+        }
+
+        XCTAssertEqual(Set(mockRepo.deleteCalledWith), [first.id, second.id])
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
+        XCTAssertEqual(viewModel.pendingDeleteCount, 0)
+        XCTAssertEqual(totalDictationCount(), 1)
+        XCTAssertEqual(viewModel.groupedDictations.flatMap(\.1).first?.id, remaining.id)
+    }
+
+    // MARK: - Bulk Selection Mode
+
+    func testBeginBulkSelectionEnablesModeAndPreselectsStartingDictation() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.beginBulkSelection(startingWith: dictation)
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertEqual(viewModel.selectedDictationCount, 1)
+        XCTAssertTrue(viewModel.isDictationSelected(dictation))
+    }
+
+    func testExitBulkSelectionClearsModeAndSelection() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: dictation)
+
+        viewModel.exitBulkSelection()
+
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertTrue(viewModel.selectedDictationIDs.isEmpty)
+    }
+
+    func testClearSelectionKeepsBulkSelectionModeActive() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        XCTAssertEqual(viewModel.selectedDictationCount, 2)
+
+        viewModel.clearSelection()
+
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Clear deselects without leaving bulk mode")
+    }
+
+    func testCancelPendingSelectedDeletePreservesBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedDictations()
+        XCTAssertEqual(viewModel.pendingDeleteCount, 2)
+
+        viewModel.cancelPendingDelete()
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Canceling the alert keeps bulk mode")
+        XCTAssertEqual(viewModel.selectedDictationCount, 2, "Canceling keeps the selection for further editing")
+        XCTAssertEqual(viewModel.pendingDeleteCount, 0)
+    }
+
+    func testConfirmDeleteSelectedDictationsExitsBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedDictations()
+
+        viewModel.confirmDeleteSelectedDictations()
+
+        // Mode flips synchronously on confirm, before the async delete pipeline
+        // runs, so we assert it without awaiting the list update.
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled, "Confirmed bulk delete leaves bulk mode")
+    }
+
+    func testSingleRowDeleteFromMenuKeepsBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+
+        // A per-row "Delete" from the ellipsis menu routes through the single
+        // pending-delete path, which intentionally stays in bulk mode.
+        viewModel.pendingDeleteDictation = second
+        viewModel.confirmPendingDelete()
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Single-row delete does not exit bulk mode")
+    }
+
+    func testSwitchingToStatsExitsBulkSelectionMode() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: dictation)
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+
+        viewModel.selectedSubTab = .stats
+
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled, "Selection is a History-only affordance")
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
     }
 
     // MARK: - Unconfigured
@@ -257,7 +460,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
     // MARK: - Confirm Delete
 
-    func testConfirmDeleteRemovesDictation() {
+    func testConfirmDeleteRemovesDictation() async {
         let dictation = Dictation(durationMs: 1000, rawTranscript: "To be confirmed deleted")
         mockRepo.dictations = [dictation]
         viewModel.configure(dictationRepo: mockRepo)
@@ -266,6 +469,9 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.pendingDeleteDictation)
 
         viewModel.confirmDelete()
+        await waitForCondition("pending dictation deleted") {
+            self.viewModel.groupedDictations.isEmpty
+        }
 
         XCTAssertNil(viewModel.pendingDeleteDictation, "Pending should be cleared after confirm")
         XCTAssertTrue(mockRepo.deleteCalledWith.contains(dictation.id), "Should have called delete")
@@ -296,7 +502,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(mockRepo.statsCallCount, 1)
     }
 
-    func testStatsRefreshOnDelete() {
+    func testStatsRefreshOnDelete() async {
         let d1 = Dictation(durationMs: 1000, rawTranscript: "First dictation")
         let d2 = Dictation(durationMs: 2000, rawTranscript: "Second")
         mockRepo.dictations = [d1, d2]
@@ -305,10 +511,13 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.stats.totalCount, 2)
 
         viewModel.deleteDictation(d1)
+        await waitForCondition("stats refreshed after delete") {
+            self.viewModel.stats.totalCount == 1
+        }
         XCTAssertEqual(viewModel.stats.totalCount, 1)
     }
 
-    func testDeleteRefreshesStatsOncePerDelete() {
+    func testDeleteRefreshesStatsOncePerDelete() async {
         let d1 = Dictation(durationMs: 1000, rawTranscript: "First")
         let d2 = Dictation(durationMs: 2000, rawTranscript: "Second")
         mockRepo.dictations = [d1, d2]
@@ -317,6 +526,9 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(mockRepo.statsCallCount, 1)
 
         viewModel.deleteDictation(d1)
+        await waitForCondition("stats call after delete") {
+            self.mockRepo.statsCallCount == 2
+        }
         XCTAssertEqual(mockRepo.statsCallCount, 2)
     }
 
@@ -403,5 +615,32 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
     private func totalDictationCount() -> Int {
         viewModel.groupedDictations.reduce(0) { $0 + $1.1.count }
+    }
+
+    private func waitForCondition(
+        _ description: String,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        predicate: @escaping () -> Bool
+    ) async {
+        if predicate() { return }
+
+        let expectation = expectation(description: description)
+        let pollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                if predicate() {
+                    expectation.fulfill()
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+        }
+
+        await fulfillment(of: [expectation], timeout: 5.0)
+        pollTask.cancel()
+
+        if !predicate() {
+            XCTFail("Timed out waiting for \(description)", file: file, line: line)
+        }
     }
 }

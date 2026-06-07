@@ -24,6 +24,26 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNotNil(manager.dbQueue)
     }
 
+    func testAIFormatterProfilesMigrationCreatesTableAndDictationMetadataColumns() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("ai_formatter_profiles"))
+
+            let profileColumns = try db.columns(in: "ai_formatter_profiles").map(\.name)
+            XCTAssertTrue(profileColumns.contains("targetKind"))
+            XCTAssertTrue(profileColumns.contains("bundleIdentifier"))
+            XCTAssertTrue(profileColumns.contains("appCategory"))
+            XCTAssertTrue(profileColumns.contains("promptTemplate"))
+            XCTAssertTrue(profileColumns.contains("origin"))
+
+            let dictationColumns = try db.columns(in: "dictations").map(\.name)
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileID"))
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileName"))
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileMatchKind"))
+        }
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")

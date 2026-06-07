@@ -8,6 +8,10 @@
 > Dashboard taxonomy update: Codex (2026-05-05). Deployed `surface` separation
 > for GUI vs CLI telemetry, split true operation failures from non-failure
 > terminal outcomes, and renamed the dashboard error panel to failure-event log.
+> Activation cohort caveats: Codex (2026-06-03). `first_dictation_completed`
+> shipped 2026-05-23; do not divide 30d `first_dictation` by 30d `onboarding_completed`
+> or compare 7d vs 30d without a ship-date cutoff. See
+> [`docs/audits/2026-06-03-activation-metrics-cohort-caveats.md`](audits/2026-06-03-activation-metrics-cohort-caveats.md).
 
 ## Philosophy
 
@@ -105,8 +109,11 @@ deriving it from the event name when older clients do not send the field.
 - Transcription text content
 - Custom word or snippet values
 - File names or paths
-- YouTube URLs
+- YouTube/media URLs
 - LLM prompts or responses
+- AI Formatter profile names, profile ids, profile prompts, or match kinds
+- Exact app bundle identifiers or app display names
+- Browser hostnames, domains, URLs, or window titles
 - IP addresses
 - Microphone names, device UIDs, serial numbers, or hardware IDs
 - Persistent user identifiers across sessions
@@ -177,13 +184,37 @@ when the question is "what happened to this operation?"
 | `onboarding_completed` | `duration_seconds` | How long does setup take? |
 | `onboarding_step` | `step` (permissions, model_download, etc.) | Where do people get stuck in onboarding? |
 
+#### Activation analytics caveats (agents: read this)
+
+**Do not conflate** `first_dictation_completed`, `onboarding_completed`, and
+`dictation_completed` without reading
+[`docs/audits/2026-06-03-activation-metrics-cohort-caveats.md`](audits/2026-06-03-activation-metrics-cohort-caveats.md).
+
+| Pitfall | Correct approach |
+|---------|------------------|
+| `first_dictation_completed / onboarding_completed` over 30d → “~76% never activate” | **Invalid** if the window includes onboardings before **2026-05-23** (event did not exist). Pre-ship completers can have `dictation_completed` but zero `first_dictation_completed`. |
+| 7d vs 30d `first_dictation` same-session rate → “activation improved” | Usually **ship-date mix**, not product. Post-ship cohorts are ~**43–45%** for both windows (2026-06-03 verify). |
+| `app_launched` sessions = installs | **Session** resets every launch; install milestones fire once per UserDefaults install. |
+
+**Preferred T0 KPI (history-safe):** share of `onboarding_completed` **sessions**
+with at least one **`dictation_completed` in the same session** (~45–48% as of
+2026-06-03). Use **`first_dictation_completed`** only for installs that
+completed onboarding **on or after 2026-05-23**, for time-to-first-success
+(`activation_window`) — not for long-window “% never activate” unless the
+denominator is cohort-filtered.
+
+The public stats dashboard (`/stats/`, `GET /api/stats`) exposes these as
+`activation` (30d GUI): `t0_success_rate`, `post_ship_first_dictation_rate`
+(cohort-filtered), and `onboarding_abandon_rate`, plus the ship-date caveat in
+the UI. Setup **step views** remain a separate 24h funnel (`onboarding`).
+
 ### 2. Dictation — "Is the core feature working well?"
 
 | Event | Props | Question It Answers |
 |---|---|---|
 | `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
 | `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `app_category`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? Where do people dictate? |
-| `first_dictation_completed` | `activation_window` (under_1m, under_1h, under_1d, under_1w, over_1w, unknown) | Activation: do new users reach first value, and how fast? One-shot per install; counted against `onboarding_completed` |
+| `first_dictation_completed` | `activation_window` (under_1m, under_1h, under_1d, under_1w, over_1w, unknown) | First **successful** dictation per install (shipped **2026-05-23**). Not comparable to 30d `onboarding_completed` without ship-date cohort filter — see [activation caveats](audits/2026-06-03-activation-metrics-cohort-caveats.md) |
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
@@ -201,6 +232,14 @@ the bundle id never leaves the device, and any unrecognized app maps to
 `other`, so a niche or identifying app is never observable. The same prop
 appears on `transform_executed` / `transform_operation` (the app a Transform
 rewrote text in).
+
+Dictation AI Formatter profiles can use exact bundle IDs, app display names, and
+profile prompts locally to choose a formatter prompt and annotate saved
+dictation history. V1 does not add any formatter-profile telemetry fields:
+profile ids, profile names, profile match kinds, exact bundle IDs, app display
+names, and prompt bodies stay on-device. Future aggregate profile-adoption
+telemetry must update the paired website Worker allowlist and stats paths before
+shipping.
 
 `speech_engine` and `engine_variant` describe the STT engine that actually
 processed the audio. They come from `STTResult` attribution or persisted
@@ -221,7 +260,7 @@ catalog.
 | `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `speech_engine`, `engine_variant`, `language` | Real-world performance, speaker-label coverage, language coverage, and STT engine adoption across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
-| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `language`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
+| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `language`, `error_type` | One wide outcome event per file, media URL, or meeting transcription |
 
 `transcription_operation` is the broad product-health outcome event. Its
 `stage` values are `preflight`, `download`, `audio_conversion`, `stt`,
@@ -264,13 +303,19 @@ events remain useful for diarization-specific timing and failure analysis.
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
 | `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
 | `feedback_submitted` | `category` (bug, featureRequest, other) | Feedback volume and sentiment split |
-| `feedback_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `category`, `outcome`, `duration_seconds`, `screenshot_attached`, `system_info_included`, `error_type` | Feedback delivery health without storing message text or email |
+| `feedback_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `category`, `outcome`, `duration_seconds`, `screenshot_attached`, `diagnostic_log_attached`, `system_info_included`, `error_type` | Feedback delivery health without storing message text, email, or diagnostic log contents |
 | `auto_save_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `scope`, `format`, `outcome`, `duration_seconds`, `error_type` | Whether transcript/meeting auto-save succeeds for configured users |
 | `transcription_deleted` | — | Are users cleaning up transcriptions? |
 | `dictation_deleted` | — | History hygiene patterns |
 | `transcription_favorited` | `is_favorite` (true/false) | Which content types get saved? |
 | `dictation_undo_used` | — | Is the 5-second undo window used? |
 | `chat_conversation_created` | — | Multi-conversation adoption |
+
+Formatter profile routing is intentionally absent from the formatter telemetry
+props in V1. The existing `default_prompt_used` value can distinguish global
+default prompt usage from a custom prompt body, but it does not identify whether
+that custom prompt came from the global formatter preference or a local
+app/category profile.
 
 ### 4b. Meeting Recovery — "Does crash resilience work?"
 
@@ -310,7 +355,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, parakeet_model_variant, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, pause_media_during_dictation, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. Appearance changes log only that the setting changed, not the selected light/dark/system value. The Parakeet model picker, Whisper language picker, and CJK first-run setup emit only the setting name; selected speech engine details are observed from actual STT usage rows. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, parakeet_model_variant, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, pause_media_during_dictation, dictation_insertion_style, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. Appearance changes log only that the setting changed, not the selected light/dark/system value. The dictation insertion-style picker logs only that the control changed, not the selected style or dictated text. The Parakeet model picker, Whisper language picker, and CJK first-run setup emit only the setting name; selected speech engine details are observed from actual STT usage rows. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -592,6 +637,10 @@ from non-failure terminal states such as `cancelled`, `empty`, and
 permission-gated `unavailable`; otherwise ordinary user cancellation can be
 mislabeled as an error bucket.
 
+Operation health groups by an **event-specific primary dimension** (for example
+`dictation_operation` uses `trigger · mode`, not a COALESCE chain that would
+prefer `speech_engine` and hide hotkey vs pill_click success rates).
+
 The deployed stats endpoint returns both `operations.failures` and
 `operations.non_failure`. The dashboard's "Failure Event Log" is only for
 explicit failure breadcrumb events and crash reports; normal terminal outcomes
@@ -727,13 +776,13 @@ External AI review of the telemetry design. Each point was evaluated and accepte
   paths, URLs, API-key-looking strings, and emails before D1 insert. The app
   already sanitizes current emitted details, but the Worker should not rely on
   every future client doing the right thing.
-- **Local diagnostic export** — Build an explicit user-triggered diagnostic
-  bundle that includes recent `os.Logger` entries for MacParakeet subsystems,
-  `~/Library/Logs/MacParakeet/dictation-audio.log` status/metric lines,
-  app version/build info, and redacted runtime metadata. Do not upload
-  automatically. Do not include audio bytes, transcripts, notes, prompts, file
-  names, paths, URLs, API keys, microphone names, CoreAudio device IDs, or
-  device UIDs.
+- **Expanded local diagnostic export** — The in-app feedback form can now
+  attach `~/Library/Logs/MacParakeet/dictation-audio.log` by explicit opt-in.
+  A fuller user-triggered bundle should add recent `os.Logger` entries for
+  MacParakeet subsystems, app version/build info, and redacted runtime metadata.
+  Do not upload automatically. Do not include audio bytes, transcripts, notes,
+  prompts, file names, paths, URLs, API keys, microphone names, CoreAudio
+  device IDs, or device UIDs.
 - **Operation-event coverage gate** — For any new workflow that can succeed,
   fail, cancel, or become unavailable, require a matching wide `*_operation`
   event or a documented reason it is intentionally breadcrumb-only.

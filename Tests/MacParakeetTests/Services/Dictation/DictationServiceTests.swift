@@ -254,7 +254,9 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(fetched?.language, "ko")
 
-        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        let operation = try XCTUnwrap(
+            dictationOperationProps(in: telemetry.snapshot()).last { $0["outcome"] == "success" }
+        )
         XCTAssertEqual(operation["speech_engine"], "whisper")
         XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(operation["language"], "ko")
@@ -284,6 +286,32 @@ final class DictationServiceTests: XCTestCase {
 
         let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
         XCTAssertEqual(operation["app_category"], "email")
+    }
+
+    func testNilStopTimeAppCategoryRecordsOtherTelemetryBucket() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(result: STTResult(text: "finish target"))
+
+        try await service.startRecording(
+            context: DictationTelemetryContext(
+                trigger: .hotkey,
+                mode: .hold,
+                appCategory: .browser
+            )
+        )
+        await service.updateTelemetryAppCategory(nil)
+        _ = try await service.stopRecording()
+
+        let events = telemetry.snapshot()
+        let completed = try XCTUnwrap(events.last { event in
+            if case .dictationCompleted = event { return true }
+            return false
+        })
+        XCTAssertEqual(completed.props?["app_category"], "other")
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["app_category"], "other")
     }
 
     func testFirstDictationFlagFlipsAfterSuccessfulSave() async throws {
@@ -382,6 +410,234 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testStopRecordingAppliesInlineInsertionStyleToCleanDictation() async throws {
+        await mockSTT.configure(result: STTResult(text: "Hello world."))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean },
+            dictationInsertionStyle: { .inline }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "Hello world.")
+        XCTAssertEqual(result.dictation.cleanTranscript, "hello world")
+        XCTAssertEqual(result.dictation.wordCount, 2)
+    }
+
+    func testStopRecordingNormalizesAIFormatterOutputBeforeInlineInsertionStyle() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "  Hello world. \n"
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean },
+            dictationInsertionStyle: { .inline },
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "hello world")
+        XCTAssertEqual(result.dictation.wordCount, 2)
+    }
+
+    func testStopRecordingUsesAIFormatterProfileResolutionAndStoresMetadata() async throws {
+        await mockSTT.configure(result: STTResult(text: "send update to team"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send update to team."
+        let profileID = UUID()
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "Slack style prompt",
+                matchKind: .exactApp,
+                profileID: profileID,
+                profileName: "Slack",
+                profileOrigin: .custom
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        let context = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        await service.updateAIFormatterAppContext(context, phase: .start)
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(mockLLMService.lastFormatterPromptTemplate, "Slack style prompt")
+        XCTAssertEqual(mockLLMService.lastFormatterDefaultPromptUsed, false)
+        XCTAssertEqual(result.dictation.cleanTranscript, "Send update to team.")
+        XCTAssertEqual(result.dictation.aiFormatterProfileID, profileID)
+        XCTAssertEqual(result.dictation.aiFormatterProfileName, "Slack")
+        XCTAssertEqual(result.dictation.aiFormatterProfileMatchKind, .exactApp)
+
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [context])
+
+        let fetched = try XCTUnwrap(dictationRepo.fetch(id: result.dictation.id))
+        XCTAssertEqual(fetched.aiFormatterProfileID, profileID)
+        XCTAssertEqual(fetched.aiFormatterProfileName, "Slack")
+        XCTAssertEqual(fetched.aiFormatterProfileMatchKind, .exactApp)
+    }
+
+    func testExactAppFormatterProfileDoesNotEmitExactTelemetryData() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(result: STTResult(text: "send confidential roadmap"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send confidential roadmap."
+        let profileID = UUID()
+        let profileName = "Slack Casual"
+        let promptTemplate = "Slack-only private prompt: {{TRANSCRIPT}}"
+        let bundleIdentifier = "com.tinyspeck.slackmacgap"
+        let displayName = "Slack"
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: promptTemplate,
+                matchKind: .exactApp,
+                profileID: profileID,
+                profileName: profileName,
+                profileOrigin: .custom
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        let context = AppPromptContext(bundleIdentifier: bundleIdentifier, displayName: displayName)
+        await service.updateTelemetryAppCategory(context.category)
+        await service.updateAIFormatterAppContext(context, phase: .finish)
+        _ = try await service.stopRecording()
+
+        let telemetryProps = allTelemetryProps(in: telemetry.snapshot())
+        XCTAssertFalse(telemetryProps.isEmpty)
+        for props in telemetryProps {
+            let serialized = props
+                .flatMap { [$0.key, $0.value] }
+                .joined(separator: "\n")
+                .lowercased()
+            XCTAssertFalse(serialized.contains(bundleIdentifier))
+            XCTAssertFalse(serialized.contains(displayName.lowercased()))
+            XCTAssertFalse(serialized.contains(profileID.uuidString.lowercased()))
+            XCTAssertFalse(serialized.contains(profileName.lowercased()))
+            XCTAssertFalse(serialized.contains(promptTemplate.lowercased()))
+            XCTAssertFalse(serialized.contains("send confidential roadmap"))
+            XCTAssertFalse(serialized.contains(AIFormatterProfileMatchKind.exactApp.rawValue))
+        }
+        XCTAssertTrue(telemetryProps.contains { $0["app_category"] == TelemetryAppCategory.messaging.rawValue })
+    }
+
+    func testStopRecordingUsesFinishAIFormatterContextOverStartContext() async throws {
+        await mockSTT.configure(result: STTResult(text: "send update"))
+        let mockLLMService = MockLLMService()
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "Finish app prompt",
+                matchKind: .category
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        await service.updateAIFormatterAppContext(
+            AppPromptContext(bundleIdentifier: "com.apple.notes", displayName: "Notes"),
+            phase: .start
+        )
+        let finishContext = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        await service.updateAIFormatterAppContext(finishContext, phase: .finish)
+        _ = try await service.stopRecording()
+
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [finishContext])
+        XCTAssertEqual(mockLLMService.lastFormatterPromptTemplate, "Finish app prompt")
+    }
+
+    func testOverlappingSessionKeepsAIFormatterContextBoundToStoppedSession() async throws {
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "send first update"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Send first update."
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "First app prompt",
+                matchKind: .exactApp
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording(sessionID: 1)
+        let firstContext = AppPromptContext(
+            bundleIdentifier: "com.apple.notes",
+            displayName: "Notes"
+        )
+        await service.updateAIFormatterAppContext(firstContext, phase: .finish)
+
+        let service = service!
+        let stopTask = Task {
+            try await service.stopRecording(sessionID: 1)
+        }
+        await delayedSTT.waitForTranscribeCall(1)
+
+        try await service.startRecording(sessionID: 2)
+        await service.updateAIFormatterAppContext(
+            AppPromptContext(bundleIdentifier: "com.tinyspeck.slackmacgap", displayName: "Slack"),
+            phase: .finish
+        )
+
+        await delayedSTT.releaseTranscribeCall(1)
+        let result = try await stopTask.value
+        await service.confirmCancel(sessionID: 2)
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Send first update.")
+        let contexts = await resolver.recordedContexts()
+        XCTAssertEqual(contexts, [firstContext])
+    }
+
     func testStopRecordingFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()
@@ -446,9 +702,12 @@ final class DictationServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        _ = try await service.stopRecording()
+        let result = try await service.stopRecording()
 
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertNil(result.dictation.aiFormatterProfileID)
+        XCTAssertNil(result.dictation.aiFormatterProfileName)
+        XCTAssertNil(result.dictation.aiFormatterProfileMatchKind)
         XCTAssertEqual(try llmRunRepo.count(), 0)
     }
 
@@ -496,9 +755,81 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    private func allTelemetryProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
+        events.compactMap(\.props)
+    }
+
     private static func isRecording(_ state: DictationState) -> Bool {
         if case .recording = state { return true }
         return false
+    }
+}
+
+private actor RecordingAIFormatterPromptResolver: AIFormatterPromptResolving {
+    private let resolution: AIFormatterPromptResolution
+    private var contexts: [AppPromptContext?] = []
+
+    init(resolution: AIFormatterPromptResolution) {
+        self.resolution = resolution
+    }
+
+    func resolvePrompt(for context: AppPromptContext?) async -> AIFormatterPromptResolution {
+        contexts.append(context)
+        return resolution
+    }
+
+    func recordedContexts() -> [AppPromptContext?] {
+        contexts
+    }
+}
+
+private actor DelayedSTTTranscriber: STTTranscribing {
+    private let result: STTResult
+    private var transcribeCalls = 0
+    private var waitersByCall: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var releaseWaitersByCall: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var releasedCalls: Set<Int> = []
+
+    init(result: STTResult) {
+        self.result = result
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        transcribeCalls += 1
+        let call = transcribeCalls
+        signalTranscribeCall(call)
+        await waitUntilReleased(call)
+        return result
+    }
+
+    func waitForTranscribeCall(_ call: Int) async {
+        guard transcribeCalls < call else { return }
+        await withCheckedContinuation { continuation in
+            waitersByCall[call, default: []].append(continuation)
+        }
+    }
+
+    func releaseTranscribeCall(_ call: Int) {
+        releasedCalls.insert(call)
+        releaseWaitersByCall.removeValue(forKey: call)?.resume()
+    }
+
+    private func signalTranscribeCall(_ call: Int) {
+        let waiters = waitersByCall.removeValue(forKey: call) ?? []
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    private func waitUntilReleased(_ call: Int) async {
+        guard !releasedCalls.contains(call) else { return }
+        await withCheckedContinuation { continuation in
+            releaseWaitersByCall[call] = continuation
+        }
     }
 }
 

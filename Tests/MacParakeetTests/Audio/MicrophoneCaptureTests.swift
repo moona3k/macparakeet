@@ -346,28 +346,6 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testSystemDefaultSelectionPinsResolvedDefaultBeforeImplicitFallback() {
-        let attempts = meetingInputDeviceAttempts(
-            selectedUID: nil,
-            selectedInputDeviceID: { _ in nil },
-            defaultInputDevice: { AudioDeviceID(20) },
-            builtInMicrophone: { AudioDeviceID(30) }
-        )
-
-        XCTAssertEqual(
-            attempts,
-            [
-                MeetingInputDeviceAttempt(source: .systemDefault, deviceID: 20),
-                .implicitSystemDefault(resolvedDeviceID: 20),
-                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
-            ]
-        )
-        XCTAssertFalse(attempts[0].usesImplicitSystemDefault)
-        XCTAssertTrue(attempts[1].usesImplicitSystemDefault)
-        XCTAssertEqual(attempts[0].explicitDeviceID, 20)
-        XCTAssertNil(attempts[1].explicitDeviceID)
-    }
-
     func testInputDeviceAttemptsDeduplicateDefaultAndBuiltIn() {
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
@@ -379,7 +357,6 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertEqual(
             attempts,
             [
-                MeetingInputDeviceAttempt(source: .systemDefault, deviceID: 30),
                 .implicitSystemDefault(resolvedDeviceID: 30),
             ]
         )
@@ -455,67 +432,6 @@ final class MicrophoneCaptureTests: XCTestCase {
         defer { platform.stopEngine() }
 
         XCTAssertEqual(recorder.deviceIDs, [10])
-        XCTAssertEqual(platform.lastSucceededAttempt, .implicitSystemDefault(resolvedDeviceID: 20))
-    }
-
-    func testPlatformFallsBackToImplicitSystemDefaultWhenExplicitDefaultSetFails() throws {
-        let recorder = MicrophoneCaptureInputDeviceSetterRecorder()
-        let platform = AVAudioEngineMicrophonePlatform(
-            deviceAttemptsBuilder: {
-                [
-                    MeetingInputDeviceAttempt(source: .systemDefault, deviceID: 20),
-                    .implicitSystemDefault(resolvedDeviceID: 20),
-                ]
-            },
-            inputDeviceSetter: { deviceID, _ in
-                recorder.record(deviceID)
-                return false
-            },
-            engineStarter: { _, _, _, _ in }
-        )
-
-        try platform.configureAndStart(
-            vpioEnabled: false,
-            bufferSize: 1024,
-            tapHandler: { _, _ in }
-        )
-        defer { platform.stopEngine() }
-
-        XCTAssertEqual(recorder.deviceIDs, [20])
-        XCTAssertEqual(platform.lastSucceededAttempt, .implicitSystemDefault(resolvedDeviceID: 20))
-    }
-
-    func testPlatformFallsBackToImplicitSystemDefaultWhenExplicitDefaultStartFails() throws {
-        let recorder = MicrophoneCaptureInputDeviceSetterRecorder()
-        let startAttempts = MicrophoneCaptureTestCounter()
-        let platform = AVAudioEngineMicrophonePlatform(
-            deviceAttemptsBuilder: {
-                [
-                    MeetingInputDeviceAttempt(source: .systemDefault, deviceID: 20),
-                    .implicitSystemDefault(resolvedDeviceID: 20),
-                ]
-            },
-            inputDeviceSetter: { deviceID, _ in
-                recorder.record(deviceID)
-                return true
-            },
-            engineStarter: { _, _, _, _ in
-                startAttempts.increment()
-                if startAttempts.value == 1 {
-                    throw MicrophoneCaptureMockError.simulatedFailure
-                }
-            }
-        )
-
-        try platform.configureAndStart(
-            vpioEnabled: false,
-            bufferSize: 1024,
-            tapHandler: { _, _ in }
-        )
-        defer { platform.stopEngine() }
-
-        XCTAssertEqual(recorder.deviceIDs, [20])
-        XCTAssertEqual(startAttempts.value, 2)
         XCTAssertEqual(platform.lastSucceededAttempt, .implicitSystemDefault(resolvedDeviceID: 20))
     }
 

@@ -124,6 +124,8 @@ public final class LocalCLIExecutor: Sendable {
     private static let processTreeWarmupPollCount = 40
     private static let processTreeWarmupPollIntervalUs: useconds_t = 5_000
     private static let processTreePollIntervalUs: useconds_t = 50_000
+    private static let cachedPATH = OSAllocatedUnfairLock<String?>(initialState: nil)
+    private static let pathDiscoveryLock = NSLock()
 
     private final class ProcessExecutionState: @unchecked Sendable {
         private let lock = NSLock()
@@ -213,11 +215,7 @@ public final class LocalCLIExecutor: Sendable {
         }
     }
 
-    private let cachedPATH: OSAllocatedUnfairLock<String?>
-
-    public init() {
-        self.cachedPATH = OSAllocatedUnfairLock(initialState: nil)
-    }
+    public init() {}
 
     /// Execute a CLI command with the given prompt components.
     /// - Parameters:
@@ -758,13 +756,20 @@ public final class LocalCLIExecutor: Sendable {
     /// Returns the user's full shell PATH. Apps launched from Finder/Dock
     /// inherit a minimal PATH that lacks Homebrew, nvm, etc.
     private func preferredPATH(fallback: String?) -> String {
-        if let cached = cachedPATH.withLock({ $0 }) {
+        if let cached = Self.cachedPATH.withLock({ $0 }) {
+            return cached
+        }
+
+        Self.pathDiscoveryLock.lock()
+        defer { Self.pathDiscoveryLock.unlock() }
+
+        if let cached = Self.cachedPATH.withLock({ $0 }) {
             return cached
         }
 
         if let discovered = Self.discoverPATH() {
             let merged = Self.mergedPATH([discovered, fallback, Self.defaultPATH]) ?? Self.defaultPATH
-            cachedPATH.withLock { $0 = merged }
+            Self.cachedPATH.withLock { $0 = merged }
             return merged
         }
 

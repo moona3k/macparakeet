@@ -63,8 +63,14 @@ public final class MeetingRecordingPanelViewModel {
 
     private var copiedResetTask: Task<Void, Never>?
     private var previewLineWordCounts: [Int] = []
+    private let transcriptAIContextModeProvider: @MainActor () -> TranscriptAIContextMode
 
-    public init() {
+    public init(
+        transcriptAIContextModeProvider: @escaping @MainActor () -> TranscriptAIContextMode = {
+            TranscriptAIContextMode.current()
+        }
+    ) {
+        self.transcriptAIContextModeProvider = transcriptAIContextModeProvider
         // Mark the chat VM as the live in-meeting Ask surface so
         // `llm_chat_used` telemetry distinguishes Ask chat from
         // post-transcription transcript chat. Without this the two sources
@@ -115,20 +121,30 @@ public final class MeetingRecordingPanelViewModel {
             if !lines.isEmpty {
                 liveTranscriptStatus = .live
             }
-            // Keep the live Ask tab fed with the latest transcript without disturbing
-            // chat history. Bracketed timestamps stripped — LLMs do better without them.
-            chatViewModel.updateTranscriptText(chatTranscript)
+            refreshChatTranscriptContext()
         }
         self.isTranscriptionLagging = isTranscriptionLagging
+    }
+
+    public func refreshChatTranscriptContext() {
+        chatViewModel.updateTranscriptText(chatTranscript)
     }
 
     public var transcriptText: String {
         previewLines.map { "[\($0.timestamp)] \($0.speakerLabel): \($0.text)" }.joined(separator: "\n")
     }
 
-    /// Cleaner transcript shape for LLM consumption: speaker label + text, no timestamps.
     public var chatTranscript: String {
-        previewLines.map { "\($0.speakerLabel): \($0.text)" }.joined(separator: "\n")
+        switch transcriptAIContextModeProvider() {
+        case .richTranscript:
+            return transcriptText
+        case .plainTranscript:
+            return previewLines.map { line in
+                let label = line.speakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !label.isEmpty else { return line.text }
+                return "\(label): \(line.text)"
+            }.joined(separator: "\n")
+        }
     }
 
     public var canCopy: Bool {
@@ -154,6 +170,7 @@ public final class MeetingRecordingPanelViewModel {
         showCopiedConfirmation = false
         selectedTab = .notes
         notesViewModel.reset()
+        chatViewModel.loadTranscript("", transcriptionId: nil)
     }
 
     public var formattedElapsed: String {

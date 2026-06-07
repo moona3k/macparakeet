@@ -168,6 +168,13 @@ public final class TranscriptionViewModel {
         }
     }
 
+    private func aiContextText(for transcription: Transcription) -> String {
+        TranscriptAIContextFormatter.format(
+            transcription: transcription,
+            mode: TranscriptAIContextMode.current(defaults: defaults)
+        )
+    }
+
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
@@ -715,7 +722,7 @@ public final class TranscriptionViewModel {
             autoSaveIfEnabled(transcription)
         }
         guard runAutoPrompts else { return }
-        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        let text = aiContextText(for: transcription)
         promptResultsViewModel?.autoGeneratePromptResults(
             transcript: text,
             transcriptionId: transcription.id,

@@ -107,11 +107,20 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     func testFailureShowsFailureCaptionBeforeErrorCard() async throws {
         let harness = try makeHarness(
             isReady: false,
-            transcribeDelayMs: 60,
-            transcribeError: STTError.engineStartFailed("load failed")
+            transcribeDelayMs: 180,
+            transcribeError: STTError.engineStartFailed("load failed"),
+            timing: DictationProcessingLoadCaptionTiming(
+                graceMs: 20,
+                escalationMs: 50,
+                failureDisplayMs: 150
+            )
         )
 
         try await harness.startAndStop()
+        let preparingCaptionShown = await waitUntil {
+            self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting)
+        }
+        XCTAssertTrue(preparingCaptionShown)
         let failedCaptionShown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .failed }
         XCTAssertTrue(failedCaptionShown)
         XCTAssertTrue(harness.coordinator.overlayStateForTesting?.isProcessingForTest == true)
@@ -195,6 +204,59 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastCopiedText)
     }
 
+    func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "Hello world.",
+            keepDictationOnClipboard: true,
+            processingMode: .clean,
+            dictationInsertionStyle: .inline
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(clipboard.lastPastedText, "hello world")
+        XCTAssertEqual(clipboard.lastRestoresClipboard, false)
+        XCTAssertNil(clipboard.lastCopiedText)
+    }
+
+    func testPasteSpacingUsesInsertionStyleCapturedWithDictationResult() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "Hello world.",
+            keepDictationOnClipboard: true,
+            processingMode: .clean,
+            dictationInsertionStyle: .inline
+        )
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let completed = await waitUntil { harness.coordinator.overlayStateForTesting?.isSuccessForTest == true }
+        XCTAssertTrue(completed)
+
+        harness.preferencesDefaults.set(
+            DictationInsertionStyle.sentence.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
+
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(clipboard.lastPastedText, "hello world")
+    }
+
     func testKeepDictationOnClipboardDoesNotRetainWhitespaceForEmptyCleanTranscript() async throws {
         let harness = try makeHarness(
             isReady: true,
@@ -224,6 +286,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         hasCompletedFirstDictation: Bool = false,
         keepDictationOnClipboard: Bool = false,
         processingMode: Dictation.ProcessingMode = .raw,
+        dictationInsertionStyle: DictationInsertionStyle = .sentence,
         timing: DictationProcessingLoadCaptionTiming? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
@@ -240,6 +303,10 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let preferencesDefaults = UserDefaults(suiteName: "load-caption-\(UUID().uuidString)")!
         preferencesDefaults.set(keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        preferencesDefaults.set(
+            dictationInsertionStyle.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
         let preferences = UserDefaultsAppRuntimePreferences(defaults: preferencesDefaults)
         if hasCompletedFirstDictation {
             preferences.markFirstDictationCompleted()
@@ -250,6 +317,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             sttTranscriber: stt,
             dictationRepo: repo,
             processingMode: { processingMode },
+            dictationInsertionStyle: { preferences.dictationInsertionStyle },
             markFirstDictationCompleted: {
                 preferences.markFirstDictationCompleted()
             }
@@ -281,7 +349,13 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             onPresentEntitlementsAlert: { _ in }
         )
 
-        return Harness(coordinator: coordinator, stt: stt, telemetry: telemetry, clipboard: clipboard)
+        return Harness(
+            coordinator: coordinator,
+            stt: stt,
+            telemetry: telemetry,
+            clipboard: clipboard,
+            preferencesDefaults: preferencesDefaults
+        )
     }
 
     private func waitUntil(
@@ -317,6 +391,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let stt: DelayedSTTClient
         let telemetry: LoadCaptionTelemetrySpy
         let clipboard: MockClipboardService
+        let preferencesDefaults: UserDefaults
 
         @MainActor
         func startAndStop() async throws {
@@ -507,6 +582,11 @@ private extension DictationOverlayViewModel.OverlayState {
 
     var isProcessingForTest: Bool {
         if case .processing = self { return true }
+        return false
+    }
+
+    var isSuccessForTest: Bool {
+        if case .success = self { return true }
         return false
     }
 

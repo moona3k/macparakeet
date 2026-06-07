@@ -139,6 +139,7 @@ final class SettingsViewModelTests: XCTestCase {
             viewModel.keepDictationOnClipboard,
             "keepDictationOnClipboard should default to false (opt-in)"
         )
+        XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
@@ -161,6 +162,10 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(true, forKey: "silenceAutoStop")
         testDefaults.set(3.0, forKey: "silenceDelay")
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        testDefaults.set(
+            DictationInsertionStyle.inline.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         testDefaults.set(
@@ -187,6 +192,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.silenceAutoStop)
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertTrue(vm.keepDictationOnClipboard)
+        XCTAssertEqual(vm.dictationInsertionStyle, .inline)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
@@ -592,6 +598,23 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.keepDictationOnClipboard])
+    }
+
+    func testSettingDictationInsertionStylePersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationInsertionStyle = .inline
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey),
+            DictationInsertionStyle.inline.rawValue
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.dictationInsertionStyle])
     }
 
     func testSettingSaveAudioRecordingsPersists() {
@@ -1175,6 +1198,89 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.whisperDefaultLanguage, .whisperDefaultLanguage])
+    }
+
+    func testSpeechEngineSwitchConfirmationDefersChangeUntilConfirm() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+
+        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        let preferencesBeforeConfirm = await switcher.preferences
+        XCTAssertTrue(preferencesBeforeConfirm.isEmpty)
+
+        viewModel.confirmPendingSpeechEngineSwitch()
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        let preferencesAfterConfirm = await switcher.preferences
+        XCTAssertEqual(preferencesAfterConfirm, [.whisper])
+        XCTAssertEqual(viewModel.speechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
+    }
+
+    func testSpeechEngineSwitchConfirmationCancelLeavesEngineUnchanged() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+    }
+
+    func testSpeechEngineSwitchConfirmationIgnoresRequestsWhilePending() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.speechEngineError = "Existing error"
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+
+        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.speechEngineError, "Existing error")
+    }
+
+    func testSpeechEngineSwitchConfirmationIgnoresCurrentEngine() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .parakeet)
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+    }
+
+    func testConfirmPendingSpeechEngineSwitchShowsErrorWhenSwitchStartsFirst() {
+        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.speechEngineSwitching = true
+
+        viewModel.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(
+            viewModel.speechEngineError,
+            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+        )
     }
 
     func testSpeechEngineChangeCallsSwitcherAndPersistsOnSuccess() async throws {

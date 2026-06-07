@@ -25,6 +25,11 @@ public struct SpeakerSegment: Sendable {
     }
 }
 
+public enum SpeakerDiarizationConstraint: Equatable, Sendable {
+    case exact(Int)
+    case range(min: Int?, max: Int?)
+}
+
 public protocol DiarizationServiceProtocol: Sendable {
     func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult
     func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws
@@ -72,6 +77,16 @@ public actor DiarizationService: DiarizationServiceProtocol {
         self.init(
             manager: OfflineDiarizerManager(config: config),
             modelsDirectory: modelsDirectory ?? OfflineDiarizerModels.defaultModelsDirectory()
+        )
+    }
+
+    public init(
+        speakerConstraint: SpeakerDiarizationConstraint,
+        modelsDirectory: URL? = nil
+    ) {
+        self.init(
+            config: Self.offlineConfig(speakerConstraint: speakerConstraint),
+            modelsDirectory: modelsDirectory
         )
     }
 
@@ -174,6 +189,20 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     nonisolated static func requiredModelNames() -> [String] {
         Array(ModelNames.OfflineDiarizer.requiredModels)
+    }
+
+    nonisolated static func offlineConfig(
+        speakerConstraint: SpeakerDiarizationConstraint?
+    ) -> OfflineDiarizerConfig {
+        let config = OfflineDiarizerConfig.default
+        guard let speakerConstraint else { return config }
+
+        switch speakerConstraint {
+        case .exact(let count):
+            return config.withSpeakers(exactly: count)
+        case .range(let min, let max):
+            return config.withSpeakers(min: min, max: max)
+        }
     }
 }
 

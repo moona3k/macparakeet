@@ -535,7 +535,7 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 
 ### F4: Dictation History
 
-**What:** Searchable, date-grouped flat list of all dictations with hover actions, bottom bar audio player, and copy/delete support.
+**What:** Searchable, date-grouped flat list of all dictations with hover actions, bottom bar audio player, and copy/delete support, including multi-select cleanup.
 
 **History view (flat list + bottom bar player):**
 
@@ -568,13 +568,14 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 - Full-width flat chronological list (no split pane, no detail view)
 - Grouped by date (Today, Yesterday, specific dates)
 - Each entry shows: time, duration, full transcript text (no line limit)
-- Hover actions: Play/Pause, Copy (with checkmark confirmation), three-dot menu (Download Audio, Delete)
+- Hover actions: Play/Pause, Copy (with checkmark confirmation), three-dot menu (Download Audio, Select Multiple…, Delete)
 - Currently-playing row has subtle accent tint background
 - Bottom bar audio player (Spotify-style): play/pause, transcript snippet, progress bar, time, close
 - Search bar filters by transcript content (substring match, case-insensitive)
 - Context menu: Play/Pause, Copy, Download Audio, Delete
 - Keyboard shortcut: Cmd+Backspace to delete
 - Text selection enabled on transcript text
+- Multi-select cleanup is an explicit bulk-selection mode: hidden during ordinary browsing, entered via the row three-dot menu's `Select Multiple…` (which preselects that row), surfacing per-row selection circles and a bulk action bar (Cancel, Select All, Clear, Delete). The mode exits on confirmed bulk delete, Cancel, switching to the Stats sub-tab, or leaving the Dictations section.
 - Delete confirmation dialog before permanent removal
 
 **Database schema:**
@@ -624,6 +625,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] Can play audio via bottom bar player (Spotify-style progress bar)
 - [x] Can copy transcript text to clipboard (with checkmark confirmation)
 - [x] Can delete individual dictations (with confirmation dialog)
+- [x] Can select and delete multiple visible dictations together (with confirmation dialog)
 - [x] Can download audio files via three-dot menu
 - [x] Hover actions appear without layout shift (overlay pattern)
 - [x] History persists across app restarts (SQLite via GRDB)
@@ -877,9 +879,14 @@ Important constraints:
 - formatter is a separate toggle, not a dictation mode
 - formatter uses the shared `LLMService`
 - formatter runs for dictation and file/YouTube transcription flows; meeting transcripts currently use deterministic cleanup only (see `TelemetryFormatterSource` — `.dictation` and `.transcription` are the only emitter sources wired today)
+- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
+- file/YouTube transcription formatter prompts continue to use the fallback formatter prompt in V1
+- browser hostname/domain matching is not attempted in V1; browser apps can match exact browser profiles or the coarse `browser` category only
 - formatter falls back to deterministic cleanup if the provider errors or times out
 - formatter prompt is user-editable in AI settings
+- formatter profiles are managed in AI settings with built-in smart defaults, app selection, manual bundle ID entry, and category selection
 - persisted formatter runs record metadata in `llm_runs` (source row, feature, status, provider/model, latency, token usage when available, character counts, and error type); transcript text, prompts, and formatter output are not duplicated into the ledger
+- saved dictation rows can record local formatter routing provenance (`aiFormatterProfileID`, `aiFormatterProfileName`, `aiFormatterProfileMatchKind`); this data is local history/debug metadata, not telemetry
 - private/no-history dictations and transient transcriptions do not create `llm_runs` rows
 
 **Acceptance criteria:**
@@ -889,6 +896,8 @@ Important constraints:
 - [ ] Formatter supports meeting transcription (not yet wired — meeting path goes through `MeetingTranscriptFinalizer` without invoking `formatTranscript`)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
+- [x] Dictation formatter profiles support exact-app and category prompt routing
+- [x] Dictation profile routing preserves smart defaults and fallback prompt routing
 - [x] Graceful fallback to deterministic cleanup if formatting fails
 - [x] Persisted formatter runs write local metadata-only `llm_runs` records linked to the saved source row
 
@@ -1408,7 +1417,7 @@ Internal data model improvements, reliability fixes, and open-source release. No
 
 > Status: **IMPLEMENTED**
 
-**What:** A `hidden` flag on dictations that excludes them from history and voice stats. Used for sensitive dictations the user doesn't want in their history.
+**What:** A `hidden` flag on dictations that excludes transcript/audio/app details from history while preserving aggregate duration and word-count metrics. Used for sensitive dictations the user doesn't want in their history.
 
 **Schema:** `dictations.hidden` (BOOLEAN, NOT NULL, DEFAULT 0)
 

@@ -80,6 +80,23 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [2.7.0] -- 2026-06-06
+
+### Added
+
+- `transcribe` now accepts per-run speaker-count constraints for diarization:
+  `--speaker-count <n>` for an exact known count and `--speaker-min <n>` /
+  `--speaker-max <n>` for a range. These flags imply speaker detection when
+  `--speaker-detection` is left at `app-default`, and they are rejected with
+  `--speaker-detection off` or `--no-diarize`.
+- `transcribe` now accepts any explicit `http://` or `https://` media URL that
+  `yt-dlp` can download, including non-YouTube sites such as Facebook Reels,
+  before passing the downloaded audio/video through the local transcription
+  pipeline.
+- `transcribe --media-audio-quality app-default|m4a|best-available` is the new
+  canonical spelling for downloaded media quality. The older
+  `--youtube-audio-quality` spelling remains accepted as a compatibility alias.
+
 ## [2.6.0] -- 2026-05-31
 
 ### Added

@@ -564,9 +564,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         persistResult: Bool,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
+        let mediaURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         let operation = TranscriptionOperationContext(
             source: .youtube,
-            inputKind: .youtube,
+            inputKind: YouTubeURLValidator.isYouTubeURL(mediaURL) ? .youtube : .media,
             mediaExtension: nil,
             fileSizeBucket: nil
         )
@@ -594,7 +595,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             let downloadResult: YouTubeDownloader.DownloadResult
             do {
                 onProgress?(.downloading(percent: 0))
-                downloadResult = try await downloader.download(url: urlString) { percent in
+                downloadResult = try await downloader.download(url: mediaURL) { percent in
                     onProgress?(.downloading(percent: percent))
                 }
             } catch {
@@ -669,7 +670,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 durationMs: durationMs,
                 language: nil,
                 status: .processing,
-                sourceURL: urlString,
+                sourceURL: mediaURL,
                 thumbnailURL: downloadResult.thumbnailURL,
                 channelName: channelName,
                 videoDescription: videoDescription,

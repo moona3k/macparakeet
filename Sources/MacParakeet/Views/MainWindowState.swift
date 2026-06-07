@@ -7,12 +7,14 @@ import MacParakeetViewModels
 final class MainWindowState {
     var selectedItem: SidebarItem = .transcribe
     var requestedSettingsTab: SettingsTab?
+    var requestedSettingsAnchor: String?
     var requestedSettingsTabRevision = 0
     var showingProgressDetail = false
 
-    func navigateToSettings(tab: SettingsTab? = nil) {
+    func navigateToSettings(tab: SettingsTab? = nil, anchor: String? = nil) {
         requestedSettingsTab = tab
-        if tab != nil {
+        requestedSettingsAnchor = anchor
+        if tab != nil || anchor != nil {
             requestedSettingsTabRevision += 1
         }
         selectedItem = .settings
@@ -35,6 +37,7 @@ final class MainWindowState {
 
     func consumeRequestedSettingsTab() {
         requestedSettingsTab = nil
+        requestedSettingsAnchor = nil
     }
 
     /// Transforms tab — pending sheet state (ADR-022). When non-nil the

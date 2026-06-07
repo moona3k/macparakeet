@@ -14,6 +14,7 @@ final class AppEnvironment {
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
     let llmRunRepo: LLMRunRepository
+    let aiFormatterProfileRepo: AIFormatterProfileRepository
     let transformHistoryRepo: TransformHistoryRepository
     let quickPromptRepo: QuickPromptRepository
     let sttRuntime: STTRuntime
@@ -37,6 +38,7 @@ final class AppEnvironment {
     let exportService: ExportService
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
+    let focusedAppContextService: FocusedAppContextService
     let entitlementsService: EntitlementsService
     let launchAtLoginService: LaunchAtLoginService
     let checkoutURL: URL?
@@ -59,10 +61,16 @@ final class AppEnvironment {
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
         llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
+        aiFormatterProfileRepo = AIFormatterProfileRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
         // Services
+        let llmConfigStore = LLMConfigStore()
+        Self.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: .standard,
+            configStore: llmConfigStore
+        )
         let runtimePreferences = UserDefaultsAppRuntimePreferences()
         self.runtimePreferences = runtimePreferences
         let selectedInputDeviceUIDProvider: @Sendable () -> String? = { [runtimePreferences] in
@@ -118,6 +126,7 @@ final class AppEnvironment {
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
+        focusedAppContextService = FocusedAppContextService()
         launchAtLoginService = LaunchAtLoginService()
 
         // Retained purchase activation / entitlements. Current free/GPL builds
@@ -158,6 +167,10 @@ final class AppEnvironment {
             runtimePreferences.processingMode
         }
 
+        let dictationInsertionStyleClosure: @Sendable () -> DictationInsertionStyle = { [runtimePreferences] in
+            runtimePreferences.dictationInsertionStyle
+        }
+
         let binaryBootstrap = BinaryBootstrap()
         youtubeDownloader = YouTubeDownloader(
             binaryBootstrap: binaryBootstrap,
@@ -176,12 +189,31 @@ final class AppEnvironment {
             runtimePreferences.aiFormatterEnabled
         }
 
+        // Dictation gates the AI Formatter on BOTH the global switch and the
+        // dictation-specific switch, so users can keep AI formatting for
+        // file/meeting transcripts (which use `aiFormatterEnabledClosure`) while
+        // keeping live dictation fast. See issue #408.
+        let dictationAIFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForDictation
+        }
+
         let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
         }
+        let aiFormatterPromptResolver: any AIFormatterPromptResolving
+        if AppFeatures.aiFormatterProfilesEnabled {
+            aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
+                profileRepository: aiFormatterProfileRepo,
+                globalPromptTemplate: aiFormatterPromptClosure
+            )
+        } else {
+            aiFormatterPromptResolver = AIFormatterGlobalPromptResolver(
+                promptTemplate: aiFormatterPromptClosure
+            )
+        }
 
         llmClient = RoutingLLMClient()
-        llmConfigStore = LLMConfigStore()
+        self.llmConfigStore = llmConfigStore
         llmService = LLMService(
             client: llmClient,
             contextResolver: StoredLLMExecutionContextResolver(
@@ -201,10 +233,11 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             voiceReturnTrigger: voiceReturnTriggerClosure,
             processingMode: processingModeClosure,
+            dictationInsertionStyle: dictationInsertionStyleClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
-            shouldUseAIFormatter: aiFormatterEnabledClosure,
-            aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
+            aiFormatterPromptResolver: aiFormatterPromptResolver,
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a
                 // dictation ever completes on this install. `activation_window`
@@ -253,5 +286,37 @@ final class AppEnvironment {
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()
+    }
+
+    nonisolated static func syncAIFormatterAvailabilityWithLLMConfiguration(
+        defaults: UserDefaults,
+        configStore: LLMConfigStoreProtocol
+    ) {
+        let config: LLMProviderConfig?
+        do {
+            config = try configStore.loadConfig()
+        } catch {
+            return
+        }
+        let hasDictationRoutingPreference = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+        ) != nil
+        if config != nil {
+            let legacyFormatterWasEnabled = defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey
+            ) as? Bool == true
+            if !hasDictationRoutingPreference {
+                defaults.set(
+                    legacyFormatterWasEnabled,
+                    forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+                )
+            }
+            defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        } else {
+            defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+            if !hasDictationRoutingPreference {
+                defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+            }
+        }
     }
 }

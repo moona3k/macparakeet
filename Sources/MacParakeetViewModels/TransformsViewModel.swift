@@ -52,6 +52,9 @@ public final class TransformsViewModel {
     private var historyRepo: TransformHistoryRepositoryProtocol?
     private var clipboardService: ClipboardServiceProtocol?
     private var copiedResetTask: Task<Void, Never>?
+    /// Invalidates passive transform loads that started before a
+    /// save/delete/reset changed repository state.
+    private var transformsMutationGeneration: Int = 0
 
     /// Passive reloads are allowed to coalesce with each other, but never to
     /// outrank a user mutation. A `.transformHistoryChanged` reload can start
@@ -73,10 +76,6 @@ public final class TransformsViewModel {
         self.historyRepo = historyRepo
         self.clipboardService = clipboardService
         self.hasLLMProvider = hasLLMProvider
-        // `loadHistory()` is driven by the view (`.onAppear` and the
-        // `.transformHistoryChanged` notification). Doing it here too
-        // would race the view's first explicit load and clobber state
-        // when the generation-guarded snapshot resolves out of order.
         Task { await load() }
     }
 
@@ -86,6 +85,7 @@ public final class TransformsViewModel {
     @discardableResult
     public func load() async -> Bool {
         guard let repo else { return false }
+        let mutationGenerationAtStart = transformsMutationGeneration
         do {
             let loaded = try await Task.detached(priority: .utility) { [repo] in
                 let all = try repo.fetchAll()
@@ -97,11 +97,17 @@ public final class TransformsViewModel {
                     })
                 return (all: all, transforms: transforms)
             }.value
+            guard shouldApplyTransformsLoad(
+                mutationGenerationAtStart: mutationGenerationAtStart
+            ) else { return false }
             allPrompts = loaded.all
             transforms = loaded.transforms
             errorMessage = nil
             return true
         } catch {
+            guard shouldApplyTransformsLoad(
+                mutationGenerationAtStart: mutationGenerationAtStart
+            ) else { return false }
             errorMessage = error.localizedDescription
             return false
         }
@@ -120,6 +126,7 @@ public final class TransformsViewModel {
     @discardableResult
     public func save(_ prompt: Prompt) async -> Bool {
         guard let repo else { return false }
+        beginTransformsMutation()
         do {
             try await Task.detached(priority: .utility) { [repo, prompt] in
                 try repo.save(prompt)
@@ -139,6 +146,7 @@ public final class TransformsViewModel {
     @discardableResult
     public func delete(_ prompt: Prompt) async -> Bool {
         guard let repo, !prompt.isBuiltIn else { return false }
+        beginTransformsMutation()
         do {
             let deleted = try await Task.detached(priority: .utility) { [repo, id = prompt.id] in
                 try repo.delete(id: id)
@@ -318,6 +326,7 @@ public final class TransformsViewModel {
         guard let canonical = Prompt.builtInPrompts().first(where: { $0.id == prompt.id }) else {
             return false
         }
+        beginTransformsMutation()
         do {
             let result = try await Task.detached(priority: .utility) { [repo, prompt, canonical, reservedHotkeys] in
                 if let shortcut = canonical.shortcut {
@@ -378,6 +387,7 @@ public final class TransformsViewModel {
         reservedHotkeys: [TransformShortcutReservedHotkey] = []
     ) async -> Bool {
         guard let repo else { return false }
+        beginTransformsMutation()
         let canonical = Prompt.builtInPrompts().filter { $0.category == .transform }
         do {
             let clearedShortcuts = try await Task.detached(priority: .utility) { [repo, canonical, reservedHotkeys] in
@@ -409,6 +419,16 @@ public final class TransformsViewModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    private func beginTransformsMutation() {
+        transformsMutationGeneration += 1
+    }
+
+    private func shouldApplyTransformsLoad(
+        mutationGenerationAtStart: Int
+    ) -> Bool {
+        mutationGenerationAtStart == transformsMutationGeneration
     }
 
     // MARK: - Convenience accessors

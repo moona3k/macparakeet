@@ -80,6 +80,105 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.wordCount, 7)
     }
 
+    func testChatTranscriptCanUseRichPreviewContext() {
+        let viewModel = MeetingRecordingPanelViewModel(
+            transcriptAIContextModeProvider: { .richTranscript }
+        )
+        viewModel.updatePreviewLines([
+            MeetingRecordingPreviewLine(
+                id: "1",
+                timestamp: "0:05",
+                speakerLabel: "Me",
+                text: "Testing the meeting panel",
+                source: .microphone
+            ),
+            MeetingRecordingPreviewLine(
+                id: "2",
+                timestamp: "0:08",
+                speakerLabel: "Others",
+                text: "Reply from the call",
+                source: .system
+            )
+        ])
+
+        XCTAssertEqual(
+            viewModel.chatTranscript,
+            """
+            [0:05] Me: Testing the meeting panel
+            [0:08] Others: Reply from the call
+            """
+        )
+    }
+
+    func testChatTranscriptCanUsePlainPreviewContext() {
+        let viewModel = MeetingRecordingPanelViewModel(
+            transcriptAIContextModeProvider: { .plainTranscript }
+        )
+        viewModel.updatePreviewLines([
+            MeetingRecordingPreviewLine(
+                id: "1",
+                timestamp: "0:05",
+                speakerLabel: "Me",
+                text: "Testing the meeting panel",
+                source: .microphone
+            ),
+            MeetingRecordingPreviewLine(
+                id: "2",
+                timestamp: "0:08",
+                speakerLabel: "Others",
+                text: "Reply from the call",
+                source: .system
+            )
+        ])
+
+        XCTAssertEqual(
+            viewModel.chatTranscript,
+            """
+            Me: Testing the meeting panel
+            Others: Reply from the call
+            """
+        )
+    }
+
+    func testRefreshingChatTranscriptContextUsesCurrentModeWithoutPreviewChange() async throws {
+        var mode = TranscriptAIContextMode.richTranscript
+        let viewModel = MeetingRecordingPanelViewModel(
+            transcriptAIContextModeProvider: { mode }
+        )
+        let mockService = MockLLMService()
+        viewModel.chatViewModel.configure(llmService: mockService, transcriptText: "")
+        viewModel.updatePreviewLines([
+            MeetingRecordingPreviewLine(
+                id: "1",
+                timestamp: "0:05",
+                speakerLabel: "Me",
+                text: "Testing the meeting panel",
+                source: .microphone
+            ),
+            MeetingRecordingPreviewLine(
+                id: "2",
+                timestamp: "0:08",
+                speakerLabel: "Others",
+                text: "Reply from the call",
+                source: .system
+            )
+        ])
+
+        mode = .plainTranscript
+        viewModel.refreshChatTranscriptContext()
+        viewModel.chatViewModel.inputText = "Summarize this"
+        viewModel.chatViewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(
+            mockService.lastChatTranscript,
+            """
+            Me: Testing the meeting panel
+            Others: Reply from the call
+            """
+        )
+    }
+
     func testTranscribingAndErrorStatesUpdateStatusSurface() {
         let viewModel = MeetingRecordingPanelViewModel()
 
@@ -244,6 +343,31 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         viewModel.reset()
 
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
+    }
+
+    func testResetClearsComposedAskContext() async throws {
+        let viewModel = MeetingRecordingPanelViewModel(
+            transcriptAIContextModeProvider: { .richTranscript }
+        )
+        let mockService = MockLLMService()
+        viewModel.chatViewModel.configure(llmService: mockService, transcriptText: "")
+        viewModel.updatePreviewLines([
+            MeetingRecordingPreviewLine(
+                id: "1",
+                timestamp: "0:42",
+                speakerLabel: "Them",
+                text: "Previous meeting context",
+                source: .system
+            )
+        ])
+
+        viewModel.reset()
+        viewModel.chatViewModel.inputText = "What was said?"
+        viewModel.chatViewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(mockService.lastChatTranscript, "")
+        XCTAssertEqual(viewModel.chatViewModel.messages.count, 2)
     }
 
     func testNotesAndTranscriptTabsHaveNoBadgeInAnyState() {

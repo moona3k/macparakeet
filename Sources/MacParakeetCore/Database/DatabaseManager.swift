@@ -906,6 +906,95 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.21 — App-aware AI Formatter profiles. Profiles are local user
+        // data: exact app bundle IDs and display names are used only for local
+        // prompt resolution and local history/debug provenance.
+        migrator.registerMigration("v0.21-ai-formatter-profiles") { db in
+            // Freeze the v0.21 category set inside the migration. Future
+            // category additions need a follow-up migration so old and fresh
+            // databases enforce the same contract.
+            let allowedCategories = "'messaging', 'email', 'browser', 'notes', 'docs', 'code', 'terminal', 'other'"
+            if !(try db.tableExists("ai_formatter_profiles")) {
+                try db.create(table: "ai_formatter_profiles") { t in
+                    t.column("id", .text).primaryKey()
+                    t.column("name", .text).notNull()
+                    t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                    t.column("targetKind", .text).notNull()
+                    t.column("bundleIdentifier", .text)
+                    t.column("appDisplayName", .text)
+                    t.column("appCategory", .text)
+                    t.column("promptTemplate", .text).notNull()
+                    t.column("origin", .text).notNull().defaults(to: AIFormatterProfileOrigin.custom.rawValue)
+                    t.column("sortOrder", .integer).notNull().defaults(to: 0)
+                    t.column("createdAt", .text).notNull()
+                    t.column("updatedAt", .text).notNull()
+                    t.check(sql: "targetKind IN ('bundle', 'category')")
+                    t.check(sql: "origin IN ('custom', 'template')")
+                    t.check(sql: """
+                        (
+                            targetKind = 'bundle'
+                            AND bundleIdentifier IS NOT NULL
+                            AND TRIM(bundleIdentifier) != ''
+                            AND bundleIdentifier = LOWER(TRIM(bundleIdentifier))
+                            AND appCategory IS NULL
+                        )
+                        OR (
+                            targetKind = 'category'
+                            AND appCategory IS NOT NULL
+                            AND appCategory IN (\(allowedCategories))
+                            AND bundleIdentifier IS NULL
+                            AND appDisplayName IS NULL
+                        )
+                        """)
+                }
+                try db.create(
+                    index: "idx_ai_formatter_profiles_enabled_sort",
+                    on: "ai_formatter_profiles",
+                    columns: ["isEnabled", "sortOrder"]
+                )
+                try db.create(
+                    index: "idx_ai_formatter_profiles_target_kind",
+                    on: "ai_formatter_profiles",
+                    columns: ["targetKind"]
+                )
+                try db.execute(sql: """
+                    CREATE UNIQUE INDEX idx_ai_formatter_profiles_bundle_unique
+                    ON ai_formatter_profiles(LOWER(TRIM(bundleIdentifier)))
+                    WHERE targetKind = 'bundle' AND bundleIdentifier IS NOT NULL
+                    """)
+                try db.execute(sql: """
+                    CREATE UNIQUE INDEX idx_ai_formatter_profiles_category_unique
+                    ON ai_formatter_profiles(appCategory)
+                    WHERE targetKind = 'category' AND appCategory IS NOT NULL
+                    """)
+            }
+
+            let existingColumns = try db.columns(in: "dictations").map(\.name)
+            try db.alter(table: "dictations") { t in
+                if !existingColumns.contains("aiFormatterProfileID") {
+                    t.add(column: "aiFormatterProfileID", .text)
+                }
+                if !existingColumns.contains("aiFormatterProfileName") {
+                    t.add(column: "aiFormatterProfileName", .text)
+                }
+                if !existingColumns.contains("aiFormatterProfileMatchKind") {
+                    t.add(column: "aiFormatterProfileMatchKind", .text)
+                }
+            }
+
+            try db.execute(sql: """
+                UPDATE dictations
+                SET rawTranscript = '',
+                    cleanTranscript = NULL,
+                    audioPath = NULL,
+                    pastedToApp = NULL,
+                    aiFormatterProfileID = NULL,
+                    aiFormatterProfileName = NULL,
+                    aiFormatterProfileMatchKind = NULL
+                WHERE hidden = 1
+                """)
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

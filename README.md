@@ -105,6 +105,15 @@ First launch downloads the default Parakeet CoreML build (~465 MB) plus speaker-
 
 The DMG is the stable release.
 
+**Mac app (Homebrew cask):**
+
+```bash
+brew install --cask moona3k/tap/macparakeet
+```
+
+The cask installs the same notarized DMG as the direct download. In-app updates
+continue through Sparkle.
+
 **Standalone CLI (Homebrew):**
 
 ```bash

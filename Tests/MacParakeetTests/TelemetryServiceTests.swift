@@ -1054,6 +1054,31 @@ final class TelemetryServiceTests: XCTestCase {
         }
     }
 
+    func testFeedbackOperationSerializesAttachmentFlags() {
+        let event = TelemetryEvent(
+            spec: .feedbackOperation(
+                operationID: "op-feedback",
+                category: "bug",
+                outcome: .success,
+                durationSeconds: 0.6,
+                screenshotAttached: true,
+                diagnosticLogAttached: true,
+                systemInfoIncluded: true,
+                errorType: nil
+            ),
+            appVer: "0.6.18",
+            osVer: "26.5",
+            locale: "en-US",
+            chip: "Apple M1 Max",
+            session: "session"
+        )
+
+        XCTAssertEqual(event.event, "feedback_operation")
+        XCTAssertEqual(event.props?["screenshot_attached"], "true")
+        XCTAssertEqual(event.props?["diagnostic_log_attached"], "true")
+        XCTAssertEqual(event.props?["system_info_included"], "true")
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -1384,6 +1409,7 @@ final class TelemetryServiceTests: XCTestCase {
                 outcome: .success,
                 durationSeconds: 0.6,
                 screenshotAttached: false,
+                diagnosticLogAttached: false,
                 systemInfoIncluded: true,
                 errorType: nil
             ),

@@ -12,7 +12,8 @@ public struct TextProcessingPipeline: Sendable {
     public func process(
         text: String,
         customWords: [CustomWord],
-        snippets: [TextSnippet]
+        snippets: [TextSnippet],
+        insertionStyle: DictationInsertionStyle = .sentence
     ) -> TextProcessingResult {
         guard !text.isEmpty else {
             return TextProcessingResult(text: "")
@@ -46,7 +47,16 @@ public struct TextProcessingPipeline: Sendable {
         result = expandedText
 
         // Step 5: Whitespace cleanup
-        result = cleanWhitespace(in: result)
+        let protectedLeadingTerms = protectedLeadingTerms(
+            customWords: customWords,
+            textSnippets: textSnippets,
+            expandedSnippetIDs: expandedIDs
+        )
+        result = cleanWhitespace(
+            in: result,
+            insertionStyle: insertionStyle,
+            protectedLeadingTerms: protectedLeadingTerms
+        )
 
         return TextProcessingResult(
             text: result,
@@ -176,7 +186,11 @@ public struct TextProcessingPipeline: Sendable {
 
     // MARK: - Step 5: Whitespace Cleanup
 
-    func cleanWhitespace(in text: String) -> String {
+    func cleanWhitespace(
+        in text: String,
+        insertionStyle: DictationInsertionStyle = .sentence,
+        protectedLeadingTerms: [String] = []
+    ) -> String {
         var result = text
 
         // 5a: Collapse multiple spaces
@@ -211,11 +225,97 @@ public struct TextProcessingPipeline: Sendable {
         // 5c: Trim
         result = result.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 5d: Capitalize first letter
-        if let first = result.first, first.isLowercase {
-            result = first.uppercased() + result.dropFirst()
-        }
+        return applyInsertionStyle(
+            to: result,
+            insertionStyle: insertionStyle,
+            protectedLeadingTerms: protectedLeadingTerms
+        )
+    }
 
+    func applyInsertionStyle(
+        to text: String,
+        insertionStyle: DictationInsertionStyle,
+        protectedLeadingTerms: [String] = []
+    ) -> String {
+        switch insertionStyle {
+        case .sentence:
+            return capitalizeFirstLetter(in: text)
+        case .inline:
+            let withoutTerminalPunctuation = removeTerminalSentencePunctuation(from: text)
+            return lowercaseLeadingSentenceCase(
+                in: withoutTerminalPunctuation,
+                protectedLeadingTerms: protectedLeadingTerms
+            )
+        }
+    }
+
+    func protectedLeadingTerms(
+        customWords: [CustomWord],
+        textSnippets: [TextSnippet],
+        expandedSnippetIDs: Set<UUID>
+    ) -> [String] {
+        let customTerms = customWords
+            .filter(\.isEnabled)
+            .map { $0.replacement ?? $0.word }
+        let snippetTerms = textSnippets
+            .filter { $0.isEnabled && expandedSnippetIDs.contains($0.id) }
+            .map(\.expansion)
+        return customTerms + snippetTerms
+    }
+
+    private func capitalizeFirstLetter(in text: String) -> String {
+        guard let first = text.first, first.isLowercase else { return text }
+        return first.uppercased() + text.dropFirst()
+    }
+
+    private func removeTerminalSentencePunctuation(from text: String) -> String {
+        var result = text
+        while let last = result.last, Self.inlineTerminalPunctuation.contains(last) {
+            result.removeLast()
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         return result
     }
+
+    private func lowercaseLeadingSentenceCase(
+        in text: String,
+        protectedLeadingTerms: [String]
+    ) -> String {
+        guard let first = text.first, first.isUppercase else { return text }
+        guard !hasProtectedLeadingTerm(text, protectedLeadingTerms: protectedLeadingTerms) else {
+            return text
+        }
+        guard !firstTokenHasIntentionalUppercase(in: text) else { return text }
+        return first.lowercased() + text.dropFirst()
+    }
+
+    private func firstTokenHasIntentionalUppercase(in text: String) -> Bool {
+        let token = text.prefix { !$0.isWhitespace }
+        if token.first == "I" {
+            guard let second = token.dropFirst().first else { return true }
+            if !second.isLowercase { return true }
+        }
+        return token.dropFirst().contains { $0.isUppercase }
+    }
+
+    private func hasProtectedLeadingTerm(
+        _ text: String,
+        protectedLeadingTerms: [String]
+    ) -> Bool {
+        for rawTerm in protectedLeadingTerms {
+            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty, text.hasPrefix(term) else { continue }
+            let end = text.index(text.startIndex, offsetBy: term.count)
+            if end == text.endIndex || Self.isLeadingTermBoundary(text[end]) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func isLeadingTermBoundary(_ character: Character) -> Bool {
+        character.isWhitespace || (!character.isLetter && !character.isNumber)
+    }
+
+    private static let inlineTerminalPunctuation: Set<Character> = [".", "!", "?"]
 }

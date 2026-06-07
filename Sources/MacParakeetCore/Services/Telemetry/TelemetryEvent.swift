@@ -413,6 +413,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case meetingAudioSourceMode = "meeting_audio_source_mode"
     case pauseMediaDuringDictation = "pause_media_during_dictation"
     case instantDictation = "instant_dictation"
+    case dictationInsertionStyle = "dictation_insertion_style"
     case transcriptionCompletionNotification = "transcription_completion_notification"
 
     case launchAtLogin = "launch_at_login"
@@ -685,6 +686,7 @@ public enum TelemetryEventSpec: Sendable {
         outcome: ObservabilityOutcome,
         durationSeconds: Double,
         screenshotAttached: Bool,
+        diagnosticLogAttached: Bool,
         systemInfoIncluded: Bool,
         errorType: String?
     )
@@ -1353,6 +1355,7 @@ extension TelemetryEventSpec {
             let outcome,
             let durationSeconds,
             let screenshotAttached,
+            let diagnosticLogAttached,
             let systemInfoIncluded,
             let errorType
         ):
@@ -1364,6 +1367,7 @@ extension TelemetryEventSpec {
                 ("outcome", outcome.rawValue),
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("screenshot_attached", Self.boolString(screenshotAttached)),
+                ("diagnostic_log_attached", Self.boolString(diagnosticLogAttached)),
                 ("system_info_included", Self.boolString(systemInfoIncluded)),
                 ("error_type", errorType)
             )
@@ -1658,7 +1662,7 @@ public enum TelemetryImplementedContract {
         .modelOperation: ["operation_id", "action", "outcome", "duration_seconds"],
         .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds", "was_cold"],
         .feedbackSubmitted: ["category"],
-        .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "system_info_included"],
+        .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "diagnostic_log_attached", "system_info_included"],
         .transcriptionDeleted: [],
         .dictationDeleted: [],
         .transcriptionFavorited: ["is_favorite"],

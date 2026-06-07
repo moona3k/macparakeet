@@ -59,6 +59,13 @@ public final class DictationHistoryViewModel {
 
     public var selectedSubTab: SubTab = .history {
         didSet {
+            // Selection is a History-only affordance; leaving the History
+            // sub-tab tears down any active bulk-selection mode. Keyed off
+            // "not History" rather than "== .stats" so a future third sub-tab
+            // can't silently strand the user in bulk mode.
+            if selectedSubTab != .history {
+                exitBulkSelection()
+            }
             if selectedSubTab == .stats {
                 refreshStatsTabData()
             }
@@ -92,9 +99,67 @@ public final class DictationHistoryViewModel {
     public var playbackError: String?
     private var playbackErrorResetTask: Task<Void, Never>?
 
+    // MARK: - Selection
+
+    public var selectedDictationIDs: Set<UUID> = []
+
+    /// When true, the History list shows per-row selection controls and the
+    /// bulk action bar. Bulk selection is a deliberate mode the user enters
+    /// from a row's ellipsis menu — selection chrome stays hidden during
+    /// ordinary browsing. Exited on confirmed bulk delete, Cancel, leaving the
+    /// History sub-tab, or leaving the Dictations section.
+    public var isBulkSelectionModeEnabled = false
+
+    public var selectedDictationCount: Int {
+        selectedDictationIDs.count
+    }
+
+    public var hasSelectedDictations: Bool {
+        !selectedDictationIDs.isEmpty
+    }
+
+    public var areAllVisibleDictationsSelected: Bool {
+        let ids = visibleDictationIDs
+        return !ids.isEmpty && ids.isSubset(of: selectedDictationIDs)
+    }
+
     // MARK: - Delete Confirmation
 
-    public var pendingDeleteDictation: Dictation?
+    public var pendingDeleteDictation: Dictation? {
+        didSet {
+            if pendingDeleteDictation != nil {
+                pendingDeleteSelectedDictations = []
+            }
+        }
+    }
+
+    public var pendingDeleteSelectedDictations: [Dictation] = [] {
+        didSet {
+            if !pendingDeleteSelectedDictations.isEmpty {
+                pendingDeleteDictation = nil
+            }
+        }
+    }
+
+    public var pendingDeleteCount: Int {
+        if !pendingDeleteSelectedDictations.isEmpty {
+            return pendingDeleteSelectedDictations.count
+        }
+        return pendingDeleteDictation == nil ? 0 : 1
+    }
+
+    public func cancelPendingDelete() {
+        pendingDeleteDictation = nil
+        pendingDeleteSelectedDictations = []
+    }
+
+    public func confirmPendingDelete() {
+        if !pendingDeleteSelectedDictations.isEmpty {
+            confirmDeleteSelectedDictations()
+        } else {
+            confirmDelete()
+        }
+    }
 
     public func confirmDelete() {
         guard let dictation = pendingDeleteDictation else { return }
@@ -138,27 +203,101 @@ public final class DictationHistoryViewModel {
         groupedDictations = grouped.sorted { $0.key > $1.key }.map { (key, value) in
             (formatDateHeader(key), value.sorted { $0.createdAt > $1.createdAt })
         }
+        pruneSelectionToVisibleDictations()
 
         if shouldRefreshStats {
             refreshStats()
         }
     }
 
+    public func isDictationSelected(_ dictation: Dictation) -> Bool {
+        selectedDictationIDs.contains(dictation.id)
+    }
+
+    public func toggleSelection(for dictation: Dictation) {
+        if selectedDictationIDs.contains(dictation.id) {
+            selectedDictationIDs.remove(dictation.id)
+        } else {
+            selectedDictationIDs.insert(dictation.id)
+        }
+    }
+
+    public func selectAllVisibleDictations() {
+        selectedDictationIDs = visibleDictationIDs
+    }
+
+    /// Empty the selection without leaving bulk mode, so the user can clear and
+    /// reselect without reopening the menu. Distinct from `exitBulkSelection()`,
+    /// which also tears down the mode.
+    public func clearSelection() {
+        selectedDictationIDs = []
+    }
+
+    /// Enter bulk-selection mode, preselecting the row the user invoked it from.
+    public func beginBulkSelection(startingWith dictation: Dictation) {
+        isBulkSelectionModeEnabled = true
+        selectedDictationIDs.insert(dictation.id)
+    }
+
+    /// Leave bulk-selection mode and drop any selection.
+    public func exitBulkSelection() {
+        isBulkSelectionModeEnabled = false
+        selectedDictationIDs = []
+    }
+
+    public func requestDeleteSelectedDictations() {
+        let selectedDictations = visibleDictations.filter { selectedDictationIDs.contains($0.id) }
+        guard !selectedDictations.isEmpty else {
+            clearSelection()
+            return
+        }
+        pendingDeleteSelectedDictations = selectedDictations
+    }
+
+    public func confirmDeleteSelectedDictations() {
+        let selectedDictations = pendingDeleteSelectedDictations
+        pendingDeleteSelectedDictations = []
+        guard !selectedDictations.isEmpty else { return }
+        // A confirmed bulk delete is a deliberate end to the bulk workflow. Tear
+        // the mode down through the single exit path so the cleanup is explicit
+        // and self-contained — `exitBulkSelection` clears the live selection
+        // unconditionally, while the rows to delete are held in the local
+        // snapshot, so deletion is unaffected.
+        exitBulkSelection()
+        deleteDictations(selectedDictations)
+    }
+
     public func deleteDictation(_ dictation: Dictation) {
         guard let repo = dictationRepo else { return }
-        if playingDictationId == dictation.id {
+        deleteDictations([dictation], using: repo)
+    }
+
+    private func deleteDictations(_ dictations: [Dictation]) {
+        guard let repo = dictationRepo else { return }
+        deleteDictations(dictations, using: repo)
+    }
+
+    private func deleteDictations(
+        _ dictations: [Dictation],
+        using repo: DictationRepositoryProtocol
+    ) {
+        guard !dictations.isEmpty else { return }
+
+        let ids = Set(dictations.map(\.id))
+        if let playingDictationId, ids.contains(playingDictationId) {
             stopPlayback()
         }
-        if let path = dictation.audioPath {
-            try? FileManager.default.removeItem(atPath: path)
+
+        selectedDictationIDs.subtract(ids)
+        let targets = dictations.map { DeleteTarget(id: $0.id, audioPath: $0.audioPath) }
+
+        Task { [repo, targets] in
+            let deletedIDs = await Self.deleteTargets(targets, using: repo)
+            for _ in deletedIDs {
+                Telemetry.send(.dictationDeleted)
+            }
+            loadDictations()
         }
-        do {
-            _ = try repo.delete(id: dictation.id)
-            Telemetry.send(.dictationDeleted)
-        } catch {
-            logger.error("Failed to delete dictation \(dictation.id): \(error.localizedDescription)")
-        }
-        loadDictations()
     }
 
     private func refreshStats() {
@@ -378,6 +517,19 @@ public final class DictationHistoryViewModel {
         }
     }
 
+    private var visibleDictationIDs: Set<UUID> {
+        Set(visibleDictations.map(\.id))
+    }
+
+    private var visibleDictations: [Dictation] {
+        groupedDictations.flatMap(\.1)
+    }
+
+    private func pruneSelectionToVisibleDictations() {
+        let ids = visibleDictationIDs
+        selectedDictationIDs = selectedDictationIDs.intersection(ids)
+    }
+
     private static let dateHeaderFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium
@@ -394,6 +546,35 @@ public final class DictationHistoryViewModel {
         } else {
             return Self.dateHeaderFormatter.string(from: date)
         }
+    }
+
+    private struct DeleteTarget: Sendable {
+        let id: UUID
+        let audioPath: String?
+    }
+
+    private nonisolated static func deleteTargets(
+        _ targets: [DeleteTarget],
+        using repo: DictationRepositoryProtocol
+    ) async -> [UUID] {
+        await Task.detached(priority: .userInitiated) {
+            let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "DictationHistory")
+            var deletedIDs: [UUID] = []
+
+            for target in targets {
+                if let path = target.audioPath {
+                    try? FileManager.default.removeItem(atPath: path)
+                }
+                do {
+                    _ = try repo.delete(id: target.id)
+                    deletedIDs.append(target.id)
+                } catch {
+                    logger.error("Failed to delete dictation \(target.id): \(error.localizedDescription)")
+                }
+            }
+
+            return deletedIDs
+        }.value
     }
 }
 

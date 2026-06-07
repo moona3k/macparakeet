@@ -50,4 +50,10 @@ public enum AppFeatures {
     /// clean inline performance and Phase 4.5 made model prep universal. Keep
     /// `vad_model_prep` allowlisted and deployed before shipping flag-on builds.
     public static let meetingVadLiveChunkingEnabled: Bool = true
+
+    /// App-aware AI Formatter profiles. When `false`, profile management is
+    /// hidden from Settings/search and dictation uses only the global formatter
+    /// prompt. The profile table and repository still migrate so enabling this
+    /// later does not require a data-model catch-up release.
+    public static let aiFormatterProfilesEnabled: Bool = false
 }

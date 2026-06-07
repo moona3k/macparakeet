@@ -173,10 +173,11 @@ Errors are always logged locally. If telemetry is enabled, non-identifying
 operation failures and crash reports may also be sent to MacParakeet's
 self-hosted telemetry pipeline.
 
-Diagnostic export is a follow-up, not a shipped menu action in the current code.
-The desired support path is an explicit user-triggered bundle containing recent
-MacParakeet `os.Logger` entries, `~/Library/Logs/MacParakeet/dictation-audio.log`,
-app version/build info, and redacted runtime metadata. It must not include
+The in-app feedback flow has an explicit opt-in control for attaching
+`~/Library/Logs/MacParakeet/dictation-audio.log` when users report dictation or
+meeting recording problems. A broader diagnostic bundle is still a follow-up:
+it should contain recent MacParakeet `os.Logger` entries, the audio diagnostics
+log, app version/build info, and redacted runtime metadata. It must not include
 audio, transcripts, notes, prompts, file names, file paths, URLs, API keys, or
 microphone identity (names, CoreAudio device IDs, device UIDs), and it must not
 upload automatically.

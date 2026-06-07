@@ -5,6 +5,8 @@ import SwiftUI
 
 struct MeetingRecordingPanelView: View {
     @Bindable var viewModel: MeetingRecordingPanelViewModel
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey)
+    private var transcriptAIContextModeRaw = TranscriptAIContextMode.richTranscript.rawValue
     @State private var autoScroll = true
     /// Tab currently under the cursor — drives the hover-revealed `⌘N` chip
     /// next to the tab label. Discoverability for the keyboard shortcuts
@@ -29,6 +31,9 @@ struct MeetingRecordingPanelView: View {
         }
         .frame(minWidth: 360, idealWidth: 420, minHeight: 320, idealHeight: 520)
         .background(DesignSystem.Colors.surface)
+        .onChange(of: transcriptAIContextModeRaw) {
+            viewModel.refreshChatTranscriptContext()
+        }
     }
 
     @ViewBuilder

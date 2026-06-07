@@ -160,12 +160,17 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["transcribe"],
-            summary: "Transcribe an audio, video, or YouTube input.",
+            summary: "Transcribe an audio/video file, folder, or media URL.",
             jsonMode: "--format json",
-            arguments: [.argument("input", summary: "Path or supported URL.")],
+            arguments: [.argument("input", summary: "File path, folder path, YouTube URL, or HTTP(S) media URL supported by yt-dlp.")],
             options: [
                 CLISpecParameter.option("--engine", valueName: "parakeet|whisper|app-default", summary: "Speech engine for this run."),
                 CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Whisper."),
+                CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection behavior for this run."),
+                CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
+                CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
+                CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
+                CLISpecParameter.option("--media-audio-quality", valueName: "app-default|m4a|best-available", summary: "Downloaded media audio quality."),
                 CLISpecParameter.flag("--no-history", summary: "Do not persist the completed transcription."),
             ],
             output: "Transcription result object."

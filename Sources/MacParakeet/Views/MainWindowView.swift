@@ -135,7 +135,7 @@ struct MainWindowView: View {
                             },
                             onPauseToggleMeeting: onPauseToggleMeeting,
                             onOpenCalendarSettings: {
-                                state.navigateToSettings(tab: .modes)
+                                state.navigateToSettings(tab: .capture, anchor: "meeting")
                             },
                             onOpenAISettings: {
                                 state.navigateToSettings(tab: .ai)
@@ -259,6 +259,7 @@ struct MainWindowView: View {
                             updater: updater,
                             transformHotkeys: transformsViewModel.transforms,
                             requestedTab: state.requestedSettingsTab,
+                            requestedAnchor: state.requestedSettingsAnchor,
                             requestedTabRevision: state.requestedSettingsTabRevision,
                             onRequestedTabConsumed: {
                                 state.consumeRequestedSettingsTab()
@@ -295,6 +296,17 @@ struct MainWindowView: View {
         .onChange(of: transcriptionViewModel.currentTranscription?.id) { _, newID in
             if newID != nil {
                 state.selectedItem = .library
+            }
+        }
+        .onChange(of: state.selectedItem) { _, newItem in
+            // Bulk-selection mode is a History-only affordance living on a
+            // process-lifetime singleton, so tear it down at the navigation
+            // boundary when the user leaves the Dictations section. Handled here
+            // rather than via `DictationHistoryView.onDisappear`, which can fire
+            // on transient macOS view-lifecycle events and reset an active
+            // selection mid-browse.
+            if newItem != .dictations {
+                historyViewModel.exitBulkSelection()
             }
         }
     }

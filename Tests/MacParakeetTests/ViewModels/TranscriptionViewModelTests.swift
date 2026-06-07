@@ -1725,6 +1725,106 @@ final class TranscriptionViewModelTests: XCTestCase {
                              "Fresh transcribe must still fire auto-run prompts")
     }
 
+    func testAutoRunPromptsUseRichTranscriptContextByDefault() {
+        let suite = "test.transcription.context.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        viewModel = TranscriptionViewModel(defaults: defaults)
+
+        let llm = MockLLMService()
+        llm.streamDelayNs = 1_000_000_000
+        let promptRepo = MockPromptRepository()
+        promptRepo.prompts = Prompt.builtInPrompts()
+        let promptResultsVM = PromptResultsViewModel()
+        promptResultsVM.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: llm,
+            promptResultRepo: mockPromptResultRepo,
+            promptResultsViewModel: promptResultsVM
+        )
+        let transcription = Transcription(
+            fileName: "meeting.wav",
+            rawTranscript: "Hello there. Thanks.",
+            cleanTranscript: "Hello there. Thanks.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.99, speakerId: "microphone"),
+                WordTimestamp(word: "there.", startMs: 450, endMs: 900, confidence: 0.98, speakerId: "microphone"),
+                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system")
+            ],
+            speakers: [
+                SpeakerInfo(id: "microphone", label: "Me"),
+                SpeakerInfo(id: "system", label: "Others")
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        viewModel.presentCompletedTranscription(transcription, autoSave: false)
+
+        XCTAssertEqual(
+            promptResultsVM.pendingGenerations.first?.transcript,
+            """
+            [0:00] Me: Hello there.
+            [0:02] Others: Thanks.
+            """
+        )
+    }
+
+    func testAutoRunPromptsUsePlainTranscriptContextWhenConfigured() {
+        let suite = "test.transcription.context.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(
+            TranscriptAIContextMode.plainTranscript.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey
+        )
+        viewModel = TranscriptionViewModel(defaults: defaults)
+
+        let llm = MockLLMService()
+        llm.streamDelayNs = 1_000_000_000
+        let promptRepo = MockPromptRepository()
+        promptRepo.prompts = Prompt.builtInPrompts()
+        let promptResultsVM = PromptResultsViewModel()
+        promptResultsVM.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: llm,
+            promptResultRepo: mockPromptResultRepo,
+            promptResultsViewModel: promptResultsVM
+        )
+        let transcription = Transcription(
+            fileName: "meeting.wav",
+            rawTranscript: "Hello there. Thanks.",
+            cleanTranscript: "Hello there. Thanks.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.99, speakerId: "microphone"),
+                WordTimestamp(word: "there.", startMs: 450, endMs: 900, confidence: 0.98, speakerId: "microphone"),
+                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system")
+            ],
+            speakers: [
+                SpeakerInfo(id: "microphone", label: "Me"),
+                SpeakerInfo(id: "system", label: "Others")
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        viewModel.presentCompletedTranscription(transcription, autoSave: false)
+
+        XCTAssertEqual(promptResultsVM.pendingGenerations.first?.transcript, "Hello there. Thanks.")
+    }
+
     func testRetranscribeFailureLeavesOriginalIntact() async throws {
         let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-fail-test.mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))

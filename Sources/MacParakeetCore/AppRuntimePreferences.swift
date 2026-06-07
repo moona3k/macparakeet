@@ -2,6 +2,7 @@ import Foundation
 
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
+    var dictationInsertionStyle: DictationInsertionStyle { get }
     var voiceReturnTrigger: String? { get }
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
@@ -9,7 +10,9 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
+    var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterPrompt: String { get }
+    var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var pauseMediaDuringDictation: Bool { get }
@@ -22,6 +25,79 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     /// subsequent call.
     @discardableResult
     func markFirstDictationCompleted() -> Bool
+}
+
+public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, Equatable {
+    case sentence
+    case inline
+
+    public var displayTitle: String {
+        switch self {
+        case .sentence:
+            return "Sentence"
+        case .inline:
+            return "Inline"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .sentence:
+            return "Starts like a sentence and keeps ending punctuation."
+        case .inline:
+            return "Fits replacements, fields, search, and commands."
+        }
+    }
+
+    public var previewText: String {
+        switch self {
+        case .sentence:
+            return "Hello world."
+        case .inline:
+            return "hello world"
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> DictationInsertionStyle {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey),
+              let style = DictationInsertionStyle(rawValue: raw) else {
+            return .sentence
+        }
+        return style
+    }
+}
+
+public enum TranscriptAIContextMode: String, CaseIterable, Codable, Identifiable, Sendable, Equatable {
+    case richTranscript = "rich_transcript"
+    case plainTranscript = "plain_transcript"
+
+    public var id: String { rawValue }
+
+    public var displayTitle: String {
+        switch self {
+        case .richTranscript:
+            return "Rich transcript"
+        case .plainTranscript:
+            return "Plain transcript"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .richTranscript:
+            return "Use timestamps and available speaker labels when the transcript has them."
+        case .plainTranscript:
+            return "Use transcript text without timestamps."
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> TranscriptAIContextMode {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey),
+              let mode = TranscriptAIContextMode(rawValue: raw) else {
+            return .richTranscript
+        }
+        return mode
+    }
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -106,13 +182,16 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let voiceReturnEnabledKey = "voiceReturnEnabled"
     public static let voiceReturnTriggerKey = "voiceReturnTrigger"
     public static let processingModeKey = "processingMode"
+    public static let dictationInsertionStyleKey = "dictationInsertionStyle"
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
+    public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let transcriptAIContextModeKey = "transcriptAIContextMode"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
@@ -132,6 +211,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+    }
+
+    public var dictationInsertionStyle: DictationInsertionStyle {
+        DictationInsertionStyle.current(defaults: defaults)
     }
 
     public var voiceReturnTrigger: String? {
@@ -165,9 +248,22 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: Self.aiFormatterEnabledKey) as? Bool ?? false
     }
 
+    /// Whether the AI Formatter also runs on live dictation. Independent of the
+    /// global `aiFormatterEnabled` switch so users can keep AI formatting for
+    /// long-form file/meeting transcripts while keeping dictation low-latency
+    /// (the LLM round-trip is the dominant cost on short utterances). Defaults
+    /// to `false`; the dictation gate is the logical AND of both flags.
+    public var aiFormatterEnabledForDictation: Bool {
+        defaults.object(forKey: Self.aiFormatterEnabledForDictationKey) as? Bool ?? false
+    }
+
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    public var transcriptAIContextMode: TranscriptAIContextMode {
+        TranscriptAIContextMode.current(defaults: defaults)
     }
 
     public var selectedMicrophoneDeviceUID: String? {

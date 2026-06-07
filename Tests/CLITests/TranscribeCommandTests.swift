@@ -46,26 +46,26 @@ final class TranscribeCommandTests: XCTestCase {
         )
     }
 
-    func testResolveYouTubeAudioQualityUsesM4AForAppDefaultWhenUnset() {
-        let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: nil)
+    func testResolveMediaAudioQualityUsesM4AForAppDefaultWhenUnset() {
+        let quality = TranscribeCommand.resolveMediaAudioQuality(.appDefault, storedQuality: nil)
         XCTAssertEqual(quality, .m4a)
     }
 
-    func testResolveYouTubeAudioQualityUsesM4AForAppDefaultWhenStoredQualityInvalid() {
-        let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: "not-a-quality")
+    func testResolveMediaAudioQualityUsesM4AForAppDefaultWhenStoredQualityInvalid() {
+        let quality = TranscribeCommand.resolveMediaAudioQuality(.appDefault, storedQuality: "not-a-quality")
         XCTAssertEqual(quality, .m4a)
     }
 
-    func testResolveYouTubeAudioQualityUsesStoredQualityForAppDefaultWhenValid() {
-        let quality = TranscribeCommand.resolveYouTubeAudioQuality(
+    func testResolveMediaAudioQualityUsesStoredQualityForAppDefaultWhenValid() {
+        let quality = TranscribeCommand.resolveMediaAudioQuality(
             .appDefault,
             storedQuality: YouTubeAudioQuality.bestAvailable.rawValue
         )
         XCTAssertEqual(quality, .bestAvailable)
     }
 
-    func testResolveYouTubeAudioQualityRespectsExplicitQuality() {
-        let quality = TranscribeCommand.resolveYouTubeAudioQuality(
+    func testResolveMediaAudioQualityRespectsExplicitQuality() {
+        let quality = TranscribeCommand.resolveMediaAudioQuality(
             .bestAvailable,
             storedQuality: YouTubeAudioQuality.m4a.rawValue
         )
@@ -158,6 +158,62 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.on, storedEnabled: true, noDiarize: true))
     }
 
+    func testResolveSpeakerDetectionConstraintsImplyDetectionForAppDefault() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .appDefault,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: 2,
+            speakerMin: nil,
+            speakerMax: nil
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .exact(2))
+    }
+
+    func testResolveSpeakerDetectionRangeConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .on,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: 2,
+            speakerMax: 4
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .range(min: 2, max: 4))
+    }
+
+    func testResolveSpeakerDetectionEqualRangeNormalizesToExactConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .on,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: 2,
+            speakerMax: 2
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .exact(2))
+    }
+
+    func testResolveSpeakerDetectionSupportsOneSidedRangeConstraint() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .appDefault,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: nil,
+            speakerMax: 4
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertEqual(resolved.constraint, .range(min: nil, max: 4))
+    }
+
     func testParsesWhisperEngineAndLanguage() throws {
         let command = try TranscribeCommand.parse([
             "sample.wav",
@@ -180,13 +236,107 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.speakerDetection, .appDefault)
     }
 
-    func testParsesYouTubeAudioQuality() throws {
+    func testParsesSpeakerConstraintFlags() throws {
+        let exact = try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "2",
+        ])
+        XCTAssertEqual(exact.speakerCount, 2)
+
+        let range = try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min", "2",
+            "--speaker-max", "4",
+        ])
+        XCTAssertEqual(range.speakerMin, 2)
+        XCTAssertEqual(range.speakerMax, 4)
+    }
+
+    func testSpeakerConstraintFlagsRejectExplicitDisable() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-detection", "off",
+            "--speaker-count", "2",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-detection off cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--no-diarize",
+            "--speaker-min", "2",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--no-diarize cannot be combined"))
+        }
+    }
+
+    func testSpeakerConstraintFlagsValidateRangeShape() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "2",
+            "--speaker-max", "4",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-count cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min", "5",
+            "--speaker-max", "4",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-min cannot be greater"))
+        }
+    }
+
+    func testSpeakerConstraintFlagsRejectNonpositiveValues() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-count", "0",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-count must be at least 1"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-min=-1",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-min must be at least 1"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-max", "0",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-max must be at least 1"))
+        }
+    }
+
+    func testParsesMediaAudioQuality() throws {
+        let command = try TranscribeCommand.parse([
+            "https://www.youtube.com/watch?v=abc",
+            "--media-audio-quality", "best-available",
+        ])
+
+        XCTAssertEqual(command.effectiveMediaAudioQuality, .bestAvailable)
+    }
+
+    func testParsesLegacyYouTubeAudioQualityAlias() throws {
         let command = try TranscribeCommand.parse([
             "https://www.youtube.com/watch?v=abc",
             "--youtube-audio-quality", "best-available",
         ])
 
-        XCTAssertEqual(command.youtubeAudioQuality, .bestAvailable)
+        XCTAssertEqual(command.effectiveMediaAudioQuality, .bestAvailable)
+    }
+
+    func testRejectsMediaAndLegacyAudioQualityTogether() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "https://www.youtube.com/watch?v=abc",
+            "--media-audio-quality", "m4a",
+            "--youtube-audio-quality", "best-available",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("cannot be combined"))
+        }
     }
 
     func testParsesTranscriptFormatAndNoHistory() throws {
@@ -215,7 +365,7 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.engine, .parakeet)
         XCTAssertNil(command.language)
         XCTAssertEqual(command.speakerDetection, .appDefault)
-        XCTAssertEqual(command.youtubeAudioQuality, .appDefault)
+        XCTAssertEqual(command.effectiveMediaAudioQuality, .appDefault)
     }
 
     func testLocalFileURLExpandsTilde() {
@@ -223,6 +373,27 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(
             url.path,
             FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("sample.wav").path
+        )
+    }
+
+    func testTelemetryInputKindUsesMediaForNonYouTubeURL() {
+        XCTAssertEqual(
+            TranscribeCommand.telemetryInputKind(for: "https://www.facebook.com/reel/1998924354042801"),
+            .media
+        )
+    }
+
+    func testDownloadableURLInputAcceptsGenericHTTPURL() {
+        XCTAssertTrue(TranscribeCommand.isDownloadableURLInput(
+            "https://www.facebook.com/reel/1998924354042801"
+        ))
+        XCTAssertFalse(TranscribeCommand.isDownloadableURLInput("/tmp/video.mp4"))
+    }
+
+    func testDownloadableURLInputTrimsPastedMediaURL() {
+        XCTAssertEqual(
+            TranscribeCommand.downloadableURLInput("  https://www.facebook.com/reel/1998924354042801\n"),
+            "https://www.facebook.com/reel/1998924354042801"
         )
     }
 
@@ -313,15 +484,29 @@ final class TranscribeCommandTests: XCTestCase {
             try Data("x".utf8).write(to: dir.appendingPathComponent(name))
         }
         let youtube = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        let facebook = "https://www.facebook.com/reel/1998924354042801"
 
-        let resolved = TranscribeCommand.expandInputs([dir.path, youtube, youtube])
+        let resolved = TranscribeCommand.expandInputs([dir.path, youtube, facebook, facebook, youtube])
 
         // Folder expands to its supported files (name-sorted), txt excluded,
-        // YouTube URL passes through once.
-        XCTAssertEqual(resolved.count, 3)
+        // media URLs pass through once.
+        XCTAssertEqual(resolved.count, 4)
         XCTAssertTrue(resolved[0].hasSuffix("lecture01.m4a"))
         XCTAssertTrue(resolved[1].hasSuffix("lecture02.mp3"))
-        XCTAssertEqual(resolved.last, youtube)
+        XCTAssertEqual(resolved[2], youtube)
+        XCTAssertEqual(resolved[3], facebook)
+    }
+
+    func testDisplayNameKeepsGenericMediaURLReadable() {
+        let facebook = "https://www.facebook.com/reel/1998924354042801"
+        XCTAssertEqual(TranscribeCommand.displayName(for: facebook), facebook)
+    }
+
+    func testDisplayNameStripsMediaURLQueryAndFragment() {
+        XCTAssertEqual(
+            TranscribeCommand.displayName(for: "https://example.com/watch/video.mp4?token=secret#section"),
+            "https://example.com/watch/video.mp4"
+        )
     }
 
     func testExpandInputsDeduplicatesStandardizedLooseFilesAgainstFolders() throws {

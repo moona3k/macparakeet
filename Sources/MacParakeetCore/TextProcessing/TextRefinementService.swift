@@ -31,7 +31,8 @@ public struct TextRefinementService: Sendable {
         rawText: String,
         mode: Dictation.ProcessingMode,
         customWords: [CustomWord],
-        snippets: [TextSnippet]
+        snippets: [TextSnippet],
+        insertionStyle: DictationInsertionStyle = .sentence
     ) async -> TextRefinementResult {
         guard mode.usesDeterministicPipeline else {
             // Raw mode: skip full pipeline but still extract trailing action (Voice Return)
@@ -60,7 +61,8 @@ public struct TextRefinementService: Sendable {
         let deterministic = TextProcessingPipeline().process(
             text: rawText,
             customWords: customWords,
-            snippets: snippets
+            snippets: snippets,
+            insertionStyle: insertionStyle
         )
 
         return TextRefinementResult(

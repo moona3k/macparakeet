@@ -38,14 +38,14 @@ description: Local speech-to-text, transcription, and prompt automation
              on Apple Silicon. Powered by Parakeet TDT on the Neural Engine.
 when_to_use:
   - User wants to transcribe a local audio/video file.
-  - User wants to transcribe a YouTube URL.
+  - User wants to transcribe a media URL.
   - User asks "what was said in <past meeting / dictation>?"
   - User asks for action items / summary from a recorded transcript.
 commands:
   spec: macparakeet-cli spec --json
   health: macparakeet-cli health --json
   transcribe_file: macparakeet-cli transcribe "{path}" --format json
-  transcribe_youtube: macparakeet-cli transcribe "{url}" --format json
+  transcribe_media_url: macparakeet-cli transcribe "{url}" --format json
   transcribe_app_defaults: |
     macparakeet-cli transcribe "{path}" \
       --engine app-default \
@@ -53,7 +53,7 @@ commands:
       --speaker-detection app-default \
       --mode app-default \
       --downloaded-audio app-default \
-      --youtube-audio-quality app-default \
+      --media-audio-quality app-default \
       --format json
   list_models: macparakeet-cli models list --json
   set_parakeet_model: macparakeet-cli config set parakeet-model "{v3_or_v2}" --json

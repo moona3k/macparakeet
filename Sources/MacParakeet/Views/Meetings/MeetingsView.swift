@@ -17,20 +17,27 @@ struct MeetingsView: View {
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
 
+    private static let rightRailWidth: CGFloat = 280
+    private static let twoColumnMinimumWidth: CGFloat = 1_100
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                header
-                recordingSurface
-                contentColumns
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                    header
+                    recordingSurface
+                    contentColumns(
+                        usesTwoColumnLayout: proxy.size.width >= Self.twoColumnMinimumWidth
+                    )
+                }
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.top, DesignSystem.Spacing.lg)
+                .padding(.bottom, DesignSystem.Spacing.xl)
+                .frame(maxWidth: 1180, alignment: .topLeading)
             }
-            .padding(.horizontal, DesignSystem.Spacing.lg)
-            .padding(.top, DesignSystem.Spacing.lg)
-            .padding(.bottom, DesignSystem.Spacing.xl)
-            .frame(maxWidth: 1180, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(DesignSystem.Colors.contentBackground)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(DesignSystem.Colors.contentBackground)
         .onAppear {
             viewModel.refreshIfNeeded()
         }
@@ -114,32 +121,42 @@ struct MeetingsView: View {
         )
     }
 
-    private var contentColumns: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.lg) {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                    upcomingSection
-                    recentMeetingsSection
-                }
-                .frame(minWidth: 480, maxWidth: .infinity, alignment: .topLeading)
-
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                    attentionSection
-                    intelligenceSection
-                    autoNotesSection
-                    meetingPromptsSection
-                }
-                .frame(minWidth: 280, maxWidth: 340, alignment: .topLeading)
+    private func contentColumns(usesTwoColumnLayout: Bool) -> some View {
+        Group {
+            if usesTwoColumnLayout {
+                twoColumnContent
+            } else {
+                oneColumnContent
             }
+        }
+    }
 
+    private var twoColumnContent: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.lg) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 upcomingSection
+                recentMeetingsSection
+            }
+            .frame(minWidth: 480, maxWidth: .infinity, alignment: .topLeading)
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 attentionSection
                 intelligenceSection
                 autoNotesSection
                 meetingPromptsSection
-                recentMeetingsSection
             }
+            .frame(width: Self.rightRailWidth, alignment: .topLeading)
+        }
+    }
+
+    private var oneColumnContent: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+            upcomingSection
+            attentionSection
+            recentMeetingsSection
+            intelligenceSection
+            autoNotesSection
+            meetingPromptsSection
         }
     }
 
@@ -389,20 +406,7 @@ struct MeetingsView: View {
                         action: recentMeetingsEmptyAction
                     )
                 } else {
-                    ForEach(viewModel.recentMeetingsViewModel.groupedTranscriptions, id: \.group) { section in
-                        MeetingDateGroupHeader(group: section.group)
-                        ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
-                            MeetingRowCard(
-                                transcription: transcription,
-                                searchText: viewModel.recentMeetingsViewModel.searchText,
-                                onTap: { onSelectMeeting(transcription) },
-                                menuContent: { recentMeetingMenu(for: transcription) }
-                            )
-                            if idx < section.items.count - 1 {
-                                MeetingRowHairline()
-                            }
-                        }
-                    }
+                    recentMeetingRows
 
                     if viewModel.recentMeetingsViewModel.hasMore {
                         HStack {
@@ -421,6 +425,25 @@ struct MeetingsView: View {
                             Spacer()
                         }
                         .padding(.vertical, DesignSystem.Spacing.md)
+                    }
+                }
+            }
+        }
+    }
+
+    private var recentMeetingRows: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(viewModel.recentMeetingsViewModel.groupedTranscriptions, id: \.group) { section in
+                MeetingDateGroupHeader(group: section.group)
+                ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
+                    MeetingRowCard(
+                        transcription: transcription,
+                        searchText: viewModel.recentMeetingsViewModel.searchText,
+                        onTap: { onSelectMeeting(transcription) },
+                        menuContent: { recentMeetingMenu(for: transcription) }
+                    )
+                    if idx < section.items.count - 1 {
+                        MeetingRowHairline()
                     }
                 }
             }
@@ -1100,49 +1123,66 @@ private struct IntelligenceReadyRow: View {
     var onOpenSettings: () -> Void
 
     var body: some View {
-        // Button beside the badge, vertically centered — matches the other
-        // Intelligence states (MeetingsInlineState). `.fixedSize()` keeps the
-        // button intact; a long provider name truncates gracefully rather than
-        // leaving a dead gap below it.
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 22)
+        // The Intelligence card lives in the fixed 280pt right rail (see
+        // `rightRailWidth`). A provider badge ("Google Gemini · External ☁")
+        // and an "AI Settings" button cannot fit side by side at that width —
+        // the squeeze previously collapsed the unconstrained "External" label
+        // into one-letter-per-line vertical text. So the badge takes the full
+        // row width and the button sits on its own trailing row below, matching
+        // how the Live Ask / After Each Meeting cards anchor their actions.
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 22)
 
-            VStack(alignment: .leading, spacing: 6) {
-                localityBadge
+                VStack(alignment: .leading, spacing: 6) {
+                    localityBadge
 
-                if let detail {
-                    Text(detail)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail {
+                        Text(detail)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: DesignSystem.Spacing.sm)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-            Button(action: onOpenSettings) {
-                Label("AI Settings", systemImage: "gearshape")
+                Button(action: onOpenSettings) {
+                    Label("AI Settings", systemImage: "gearshape")
+                }
+                .parakeetAction(.secondary)
+                .help("Open AI Settings")
+                .fixedSize()
             }
-            .parakeetAction(.secondary)
-            .help("Open AI Settings")
-            .fixedSize()
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var localityBadge: some View {
+        // Everything stays on one line. The locality word ("Local"/"External")
+        // and its icon are short and fixed — `.fixedSize()` keeps them from
+        // ever being the element the layout sacrifices. Only the provider name
+        // truncates (tail) under pressure, so the badge can never wrap into
+        // vertical letters again.
         HStack(spacing: 6) {
             Text(displayName)
                 .font(DesignSystem.Typography.body.weight(.semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .lineLimit(1)
+                .truncationMode(.tail)
             Text(locality)
                 .font(DesignSystem.Typography.micro.weight(.semibold))
                 .foregroundStyle(tint)
+                .lineLimit(1)
+                .fixedSize()
             Image(systemName: localityIcon)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(tint)
