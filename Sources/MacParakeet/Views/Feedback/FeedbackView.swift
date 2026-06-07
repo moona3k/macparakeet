@@ -25,6 +25,7 @@ struct FeedbackView: View {
         .background(DesignSystem.Colors.background)
         .onAppear {
             viewModel.configure(feedbackService: FeedbackService())
+            viewModel.refreshDiagnosticLogStatus()
         }
     }
 
@@ -272,6 +273,8 @@ struct FeedbackView: View {
                 }
             }
 
+            diagnosticLogOption
+
             // System info disclosure
             DisclosureGroup("System Info", isExpanded: $viewModel.showSystemInfo) {
                 Text(viewModel.systemInfo.displaySummary)
@@ -310,6 +313,92 @@ struct FeedbackView: View {
             }
             .padding(.top, DesignSystem.Spacing.xs)
         }
+    }
+
+    private var diagnosticLogOption: some View {
+        let isAvailable = viewModel.diagnosticLogIsAvailable
+
+        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(viewModel.includeDiagnosticLog ? DesignSystem.Colors.accent : .secondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                viewModel.includeDiagnosticLog
+                                    ? DesignSystem.Colors.accent.opacity(0.12)
+                                    : DesignSystem.Colors.surfaceElevated
+                            )
+                    )
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Attach capture diagnostics")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+
+                    Text(viewModel.diagnosticLogFilename)
+                        .font(DesignSystem.Typography.micro.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(DesignSystem.Colors.surfaceElevated)
+                        )
+
+                    Text("Use this for dictation or meeting recording issues. It attaches the log to the public report so we can inspect capture timing, buffers, silence, and device errors.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("No audio or transcript text. You can also give this log to Claude Code, Codex, or another coding agent for debugging.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: isAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(isAvailable ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+                        Text(viewModel.diagnosticLogAvailabilityDescription)
+                            .font(DesignSystem.Typography.micro)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.top, 2)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.sm)
+
+                Toggle("", isOn: $viewModel.includeDiagnosticLog)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .tint(DesignSystem.Colors.accent)
+                    .disabled(!isAvailable)
+                    .accessibilityLabel("Attach capture diagnostics")
+                    .accessibilityHint("Includes the dictation audio diagnostics log with this feedback report")
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated.opacity(viewModel.includeDiagnosticLog ? 0.95 : 0.65))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(
+                    viewModel.includeDiagnosticLog
+                        ? DesignSystem.Colors.accent.opacity(0.45)
+                        : DesignSystem.Colors.border.opacity(0.7),
+                    lineWidth: viewModel.includeDiagnosticLog ? 1 : 0.5
+                )
+        )
     }
 
     private func errorBanner(_ error: String) -> some View {

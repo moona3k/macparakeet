@@ -345,65 +345,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     // MARK: - Subtitle Cue Building
 
-    public struct SubtitleCue: Sendable {
-        public let startMs: Int
-        public let endMs: Int
-        public let text: String
-        public let speakerId: String?
-    }
+    public typealias SubtitleCue = TranscriptCue
 
     /// Groups word timestamps into subtitle cues suitable for SRT/VTT and overlay display.
     /// Rules: max ~12 words per cue, break on sentence-ending punctuation,
     /// break on long pauses (>800ms), max ~7 seconds per cue, break on speaker change.
     public func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
-        guard !words.isEmpty else { return [] }
-
-        var cues: [SubtitleCue] = []
-        var currentWords: [String] = []
-        var cueStartMs = words[0].startMs
-        var cueEndMs = words[0].endMs
-        var cueSpeakerId = words[0].speakerId
-
-        for (i, word) in words.enumerated() {
-            // Break on speaker change before adding the word
-            let speakerChanged = !currentWords.isEmpty && word.speakerId != cueSpeakerId
-            if speakerChanged {
-                cues.append(SubtitleCue(
-                    startMs: cueStartMs,
-                    endMs: cueEndMs,
-                    text: currentWords.joined(separator: " "),
-                    speakerId: cueSpeakerId
-                ))
-                currentWords = []
-                cueStartMs = word.startMs
-                cueSpeakerId = word.speakerId
-            }
-
-            currentWords.append(word.word)
-            cueEndMs = word.endMs
-
-            let isLast = i == words.count - 1
-            let endsWithPunctuation = word.word.last.map { ".!?".contains($0) } ?? false
-            let hasLongGap = !isLast && (words[i + 1].startMs - word.endMs) > 800
-            let tooManyWords = currentWords.count >= 12
-            let tooLong = (cueEndMs - cueStartMs) > 7000
-
-            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong {
-                cues.append(SubtitleCue(
-                    startMs: cueStartMs,
-                    endMs: cueEndMs,
-                    text: currentWords.joined(separator: " "),
-                    speakerId: cueSpeakerId
-                ))
-                currentWords = []
-                if !isLast {
-                    cueStartMs = words[i + 1].startMs
-                    cueSpeakerId = words[i + 1].speakerId
-                }
-            }
-        }
-
-        return cues
+        TranscriptCueBuilder.build(from: words)
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.

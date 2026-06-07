@@ -69,6 +69,9 @@ struct TranscriptResultView: View {
     var onRetranscribe: ((Transcription, SpeechEngineSelection?) -> Void)?
     var onSetUpAI: (() -> Void)?
 
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey)
+    private var transcriptAIContextModeRaw = TranscriptAIContextMode.richTranscript.rawValue
+
     @State private var backHovered = false
     @State private var headerExpanded = false
     @State private var speakerOverviewExpanded = false
@@ -158,7 +161,7 @@ struct TranscriptResultView: View {
             syncTranscriptDisplayMode()
             promptResultsViewModel.loadVisiblePrompts()
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
+            let text = currentAIContextText
             chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
             // Feed the user's typed meeting notes (if any) into chat alongside
             // the transcript. The closure is re-evaluated on every chat-send so
@@ -201,7 +204,7 @@ struct TranscriptResultView: View {
             viewModel.loadPersistedContent()
             syncTranscriptDisplayMode()
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
+            let text = currentAIContextText
             chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
         }
         .onChange(of: activeTranscription.speakers) {
@@ -212,6 +215,9 @@ struct TranscriptResultView: View {
         }
         .onChange(of: activeTranscription.diarizationSegments) {
             rebuildSegmentCache()
+        }
+        .onChange(of: transcriptAIContextModeRaw) {
+            chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
         }
         .onChange(of: viewModel.selectedTab) {
             if case .result(let id) = viewModel.selectedTab {
@@ -624,6 +630,17 @@ struct TranscriptResultView: View {
 
     private var transcriptText: String {
         activeTranscription.cleanTranscript ?? activeTranscription.rawTranscript ?? ""
+    }
+
+    private var currentAIContextMode: TranscriptAIContextMode {
+        TranscriptAIContextMode(rawValue: transcriptAIContextModeRaw) ?? .richTranscript
+    }
+
+    private var currentAIContextText: String {
+        TranscriptAIContextFormatter.format(
+            transcription: activeTranscription,
+            mode: currentAIContextMode
+        )
     }
 
     private var rawTranscriptText: String {
@@ -1428,7 +1445,7 @@ struct TranscriptResultView: View {
                         Spacer()
 
                         Button {
-                            if let generationID = promptResultsViewModel.regeneratePromptResult(promptResult, transcript: transcriptText) {
+                            if let generationID = promptResultsViewModel.regeneratePromptResult(promptResult, transcript: currentAIContextText) {
                                 viewModel.selectedTab = .generation(id: generationID)
                             }
                         } label: {
@@ -1645,7 +1662,7 @@ struct TranscriptResultView: View {
                 Button {
                     showGeneratePopover = false
                     if let generationID = promptResultsViewModel.generatePromptResult(
-                        transcript: transcriptText,
+                        transcript: currentAIContextText,
                         transcriptionId: transcription.id
                     ) {
                         viewModel.selectedTab = .generation(id: generationID)
@@ -2522,10 +2539,7 @@ struct TranscriptResultView: View {
             return
         }
 
-        let updatedText = viewModel.currentTranscription?.cleanTranscript
-            ?? viewModel.currentTranscription?.rawTranscript
-            ?? trimmed
-        chatViewModel.loadTranscript(updatedText, transcriptionId: viewModel.currentTranscription?.id)
+        chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
         transcriptDraft = ""
         transcriptEditError = nil
         editingTranscript = false
@@ -2536,8 +2550,7 @@ struct TranscriptResultView: View {
 
     private func revertTranscriptEdit() {
         guard viewModel.revertCurrentTranscriptToOriginal() else { return }
-        let originalText = viewModel.currentTranscription?.rawTranscript ?? rawTranscriptText
-        chatViewModel.loadTranscript(originalText, transcriptionId: viewModel.currentTranscription?.id)
+        chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
         transcriptDraft = ""
         transcriptEditError = nil
         editingTranscript = false

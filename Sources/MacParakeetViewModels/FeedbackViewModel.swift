@@ -22,13 +22,17 @@ public struct FeedbackScreenshotAttachment: Identifiable, Equatable, Sendable {
 public final class FeedbackViewModel {
     private static let maxScreenshotSizeBytes = 5 * 1024 * 1024
     private static let maxScreenshotCount = 5
+    private nonisolated static let diagnosticLogFilename = "dictation-audio.log"
 
     // Form fields
     public var category: FeedbackCategory = .bug
     public var message: String = ""
     public var email: String = ""
     public var screenshotAttachments: [FeedbackScreenshotAttachment] = []
+    public var includeDiagnosticLog: Bool = false
     public var showSystemInfo: Bool = false
+    public private(set) var diagnosticLogIsAvailable: Bool = false
+    public private(set) var diagnosticLogAvailabilityDescription: String = "Run dictation or meeting recording once to create this log."
     private var pendingScreenshotFilename: String?
 
     public var screenshotData: Data? {
@@ -92,10 +96,22 @@ public final class FeedbackViewModel {
         SystemInfo.current
     }
 
+    public var diagnosticLogURL: URL {
+        diagnosticLogURLOverride ?? AudioCaptureDiagnostics.diagnosticLogFileURL
+    }
+
+    public var diagnosticLogFilename: String {
+        Self.diagnosticLogFilename
+    }
+
+    private let diagnosticLogURLOverride: URL?
     private var feedbackService: (any FeedbackServiceProtocol)?
     private var submitTask: Task<Void, Never>?
+    private var diagnosticLogStatusTask: Task<Void, Never>?
 
-    public init() {}
+    public init(diagnosticLogURL: URL? = nil) {
+        self.diagnosticLogURLOverride = diagnosticLogURL
+    }
 
     public func configure(feedbackService: any FeedbackServiceProtocol) {
         self.feedbackService = feedbackService
@@ -182,6 +198,116 @@ public final class FeedbackViewModel {
         }
     }
 
+    // MARK: - Diagnostic Log
+
+    public func refreshDiagnosticLogStatus() {
+        diagnosticLogStatusTask?.cancel()
+
+        let diagnosticLogURL = diagnosticLogURL
+        diagnosticLogStatusTask = Task { [weak self] in
+            let status = await Self.loadDiagnosticLogStatus(diagnosticLogURL: diagnosticLogURL)
+            guard let self, !Task.isCancelled else { return }
+
+            diagnosticLogIsAvailable = status.isAvailable
+            diagnosticLogAvailabilityDescription = status.description
+            if !status.isAvailable {
+                includeDiagnosticLog = false
+            }
+            diagnosticLogStatusTask = nil
+        }
+    }
+
+    private nonisolated static func loadDiagnosticLogStatus(diagnosticLogURL: URL) async -> DiagnosticLogStatus {
+        await Task.detached(priority: .utility) {
+            guard FileManager.default.fileExists(atPath: diagnosticLogURL.path) else {
+                return DiagnosticLogStatus(
+                    isAvailable: false,
+                    description: "Run dictation or meeting recording once to create this log."
+                )
+            }
+
+            let fileSize = try? diagnosticLogURL
+                .resourceValues(forKeys: [.fileSizeKey])
+                .fileSize
+            if let fileSize, fileSize >= 0 {
+                let sizeDescription = ByteCountFormatter.string(
+                    fromByteCount: Int64(fileSize),
+                    countStyle: .file
+                )
+                return DiagnosticLogStatus(
+                    isAvailable: true,
+                    description: "\(Self.diagnosticLogFilename) · \(sizeDescription)"
+                )
+            }
+
+            return DiagnosticLogStatus(
+                isAvailable: true,
+                description: Self.diagnosticLogFilename
+            )
+        }.value
+    }
+
+    private struct DiagnosticLogStatus: Sendable {
+        let isAvailable: Bool
+        let description: String
+    }
+
+    private nonisolated static func readDiagnosticLogAttachmentIfNeeded(
+        includeDiagnosticLog: Bool,
+        diagnosticLogURL: URL
+    ) async throws -> FeedbackDiagnosticLog? {
+        guard includeDiagnosticLog else { return nil }
+
+        return try await Task.detached(priority: .userInitiated) {
+            do {
+                guard FileManager.default.fileExists(atPath: diagnosticLogURL.path) else {
+                    throw DiagnosticLogAttachmentError.missing
+                }
+
+                if let fileSize = try diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    guard fileSize >= 0 else {
+                        throw DiagnosticLogAttachmentError.tooLarge
+                    }
+                    if UInt64(fileSize) > AudioCaptureDiagnostics.diagnosticLogMaxBytes {
+                        throw DiagnosticLogAttachmentError.tooLarge
+                    }
+                }
+
+                let data = try Data(contentsOf: diagnosticLogURL)
+                guard UInt64(data.count) <= AudioCaptureDiagnostics.diagnosticLogMaxBytes else {
+                    throw DiagnosticLogAttachmentError.tooLarge
+                }
+
+                return FeedbackDiagnosticLog(
+                    filename: Self.diagnosticLogFilename,
+                    base64: data.base64EncodedString()
+                )
+            } catch {
+                if error is DiagnosticLogAttachmentError {
+                    throw error
+                }
+                throw DiagnosticLogAttachmentError.readFailed(error.localizedDescription)
+            }
+        }.value
+    }
+
+    private enum DiagnosticLogAttachmentError: LocalizedError {
+        case missing
+        case tooLarge
+        case readFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .missing:
+                return "No diagnostic log found yet."
+            case .tooLarge:
+                return "The diagnostic log is too large to attach."
+            case .readFailed(let detail):
+                return "Failed to read diagnostic log: \(detail)"
+            }
+        }
+    }
+
     // MARK: - Submit
 
     public func submit() {
@@ -190,50 +316,82 @@ public final class FeedbackViewModel {
 
         submitTask?.cancel()
         submissionState = .submitting
+
+        let shouldIncludeDiagnosticLog = includeDiagnosticLog
+        let diagnosticLogURL = diagnosticLogURL
+        let category = category
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let operationContext = Observability.childOperationContext()
         let screenshots = screenshotAttachments.map {
             FeedbackScreenshot(filename: $0.filename, base64: $0.data.base64EncodedString())
         }
-
-        let payload = FeedbackPayload(
-            category: category,
-            message: trimmedMessage,
-            email: trimmedEmail.isEmpty ? nil : trimmedEmail,
-            screenshotBase64: screenshots.first?.base64,
-            screenshotFilename: screenshots.first?.filename,
-            screenshots: screenshots,
-            systemInfo: systemInfo
-        )
-        let hasScreenshots = !payload.screenshots.isEmpty
+        let systemInfo = systemInfo
 
         submitTask = Task { [weak self] in
             guard let self else { return }
             defer { submitTask = nil }
 
+            let operationContext = Observability.childOperationContext()
             do {
-                try await service.submitFeedback(payload)
+                let diagnosticLog = try await Self.readDiagnosticLogAttachmentIfNeeded(
+                    includeDiagnosticLog: shouldIncludeDiagnosticLog,
+                    diagnosticLogURL: diagnosticLogURL
+                )
                 guard !Task.isCancelled else { return }
 
-                Telemetry.send(.feedbackSubmitted(category: payload.category.rawValue))
-                Telemetry.send(.feedbackOperation(
-                    operationID: operationContext.operationID,
-                    operationContext: operationContext,
-                    category: payload.category.rawValue,
-                    outcome: .success,
-                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
-                    screenshotAttached: hasScreenshots,
-                    systemInfoIncluded: true,
-                    errorType: nil
-                ))
-                submissionState = .success
-                // Auto-reset after 3 seconds
-                try await Task.sleep(for: .seconds(3))
-                guard !Task.isCancelled else { return }
+                let payload = FeedbackPayload(
+                    category: category,
+                    message: trimmedMessage,
+                    email: trimmedEmail.isEmpty ? nil : trimmedEmail,
+                    screenshotBase64: screenshots.first?.base64,
+                    screenshotFilename: screenshots.first?.filename,
+                    screenshots: screenshots,
+                    diagnosticLog: diagnosticLog,
+                    systemInfo: systemInfo
+                )
+                let hasScreenshots = !payload.screenshots.isEmpty
+                let hasDiagnosticLog = payload.diagnosticLog != nil
 
-                if submissionState == .success {
-                    resetForm()
+                do {
+                    try await service.submitFeedback(payload)
+                    guard !Task.isCancelled else { return }
+
+                    Telemetry.send(.feedbackSubmitted(category: payload.category.rawValue))
+                    Telemetry.send(.feedbackOperation(
+                        operationID: operationContext.operationID,
+                        operationContext: operationContext,
+                        category: payload.category.rawValue,
+                        outcome: .success,
+                        durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                        screenshotAttached: hasScreenshots,
+                        diagnosticLogAttached: hasDiagnosticLog,
+                        systemInfoIncluded: true,
+                        errorType: nil
+                    ))
+                    submissionState = .success
+                    // Auto-reset after 3 seconds
+                    try await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+
+                    if submissionState == .success {
+                        resetForm()
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    Telemetry.send(.feedbackOperation(
+                        operationID: operationContext.operationID,
+                        operationContext: operationContext,
+                        category: payload.category.rawValue,
+                        outcome: .failure,
+                        durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                        screenshotAttached: hasScreenshots,
+                        diagnosticLogAttached: hasDiagnosticLog,
+                        systemInfoIncluded: true,
+                        errorType: Observability.errorType(for: error)
+                    ))
+                    submissionState = .error(error.localizedDescription)
                 }
             } catch is CancellationError {
                 return
@@ -242,10 +400,11 @@ public final class FeedbackViewModel {
                 Telemetry.send(.feedbackOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
-                    category: payload.category.rawValue,
+                    category: category.rawValue,
                     outcome: .failure,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
-                    screenshotAttached: hasScreenshots,
+                    screenshotAttached: !screenshots.isEmpty,
+                    diagnosticLogAttached: shouldIncludeDiagnosticLog,
                     systemInfoIncluded: true,
                     errorType: Observability.errorType(for: error)
                 ))
@@ -263,9 +422,11 @@ public final class FeedbackViewModel {
         message = ""
         email = ""
         screenshotAttachments = []
+        includeDiagnosticLog = false
         pendingScreenshotFilename = nil
         showSystemInfo = false
         submissionState = .idle
+        refreshDiagnosticLogStatus()
     }
 
     public func dismissError() {

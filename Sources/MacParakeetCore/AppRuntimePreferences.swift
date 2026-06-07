@@ -12,6 +12,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterEnabled: Bool { get }
     var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterPrompt: String { get }
+    var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var pauseMediaDuringDictation: Bool { get }
@@ -62,6 +63,39 @@ public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, E
             return .sentence
         }
         return style
+    }
+}
+
+public enum TranscriptAIContextMode: String, CaseIterable, Codable, Identifiable, Sendable, Equatable {
+    case richTranscript = "rich_transcript"
+    case plainTranscript = "plain_transcript"
+
+    public var id: String { rawValue }
+
+    public var displayTitle: String {
+        switch self {
+        case .richTranscript:
+            return "Rich transcript"
+        case .plainTranscript:
+            return "Plain transcript"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .richTranscript:
+            return "Use timestamps and available speaker labels when the transcript has them."
+        case .plainTranscript:
+            return "Use the transcript text without timing or speaker labels."
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> TranscriptAIContextMode {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey),
+              let mode = TranscriptAIContextMode(rawValue: raw) else {
+            return .richTranscript
+        }
+        return mode
     }
 }
 
@@ -156,6 +190,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let transcriptAIContextModeKey = "transcriptAIContextMode"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
@@ -223,6 +258,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    public var transcriptAIContextMode: TranscriptAIContextMode {
+        TranscriptAIContextMode.current(defaults: defaults)
     }
 
     public var selectedMicrophoneDeviceUID: String? {

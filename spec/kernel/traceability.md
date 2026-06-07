@@ -15,7 +15,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | REQ-UI-001 | `MacParakeet/Views/Dictation/DictationOverlayView.swift` | (ViewModel tests) |
 | REQ-UI-002 | `MacParakeet/Views/Dictation/IdlePillView.swift` | (ViewModel tests) |
 | REQ-UI-003 | `MacParakeet/Views/MainWindowView.swift` | (ViewModel tests) |
-| REQ-DATA-001 | `MacParakeetCore/Database/DictationRepository.swift` | `DictationRepositoryTests.swift` |
+| REQ-DATA-001 | `MacParakeetCore/Database/DictationRepository.swift`, `MacParakeetViewModels/DictationHistoryViewModel.swift`, `MacParakeet/Views/History/DictationHistoryView.swift` | `DictationRepositoryTests.swift`, `DictationHistoryViewModelTests.swift` |
 | REQ-DATA-002 | `MacParakeetCore/Database/DatabaseManager.swift` | `DatabaseManagerTests.swift` |
 | REQ-STT-001 | `MacParakeet/App/AppEnvironment.swift`, `MacParakeetCore/STT/STTRuntime.swift`, `MacParakeetCore/STT/STTScheduler.swift`, `MacParakeetCore/STT/STTClient.swift`, `MacParakeetCore/Services/Dictation/DictationService.swift`, `MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift`, `MacParakeetCore/Services/TranscriptionService.swift`, `MacParakeetViewModels/OnboardingViewModel.swift` | `STTSchedulerTests.swift`, `STTClientTests.swift`, `DictationServiceTests.swift`, `MeetingRecordingServiceTests.swift`, `TranscriptionServiceTests.swift`, `OnboardingViewModelTests.swift` |
 | REQ-EXP-001 | `MacParakeetCore/Services/ExportService.swift` | `ExportServiceTests.swift` |

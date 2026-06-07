@@ -42,6 +42,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
         XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Default prompt")
+        XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
     // MARK: - AI Formatter: dictation routing toggle (#408)
@@ -52,28 +53,26 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testAIFormatterEnabledForDictationPersistsThroughInjectedDefaults() {
         let key = UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
-        let standard = UserDefaults.standard
-        let priorStandardValue = standard.object(forKey: key)
-        standard.set(false, forKey: key)
-        defer {
-            if let priorStandardValue {
-                standard.set(priorStandardValue, forKey: key)
-            } else {
-                standard.removeObject(forKey: key)
-            }
-        }
 
         viewModel.aiFormatterEnabledForDictation = true
 
         XCTAssertEqual(defaults.object(forKey: key) as? Bool, true)
-        // The view model uses the injected store, not UserDefaults.standard.
-        XCTAssertEqual(standard.object(forKey: key) as? Bool, false)
+        XCTAssertTrue(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForDictation)
     }
 
     func testAIFormatterEnabledForDictationLoadsStoredValueOnInit() {
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
         let reloaded = LLMSettingsViewModel(defaults: defaults)
         XCTAssertTrue(reloaded.aiFormatterEnabledForDictation)
+    }
+
+    func testTranscriptAIContextModePersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey
+
+        viewModel.transcriptAIContextMode = .plainTranscript
+
+        XCTAssertEqual(defaults.string(forKey: key), TranscriptAIContextMode.plainTranscript.rawValue)
+        XCTAssertEqual(LLMSettingsViewModel(defaults: defaults).transcriptAIContextMode, .plainTranscript)
     }
 
     func testClearConfigurationRestoresDictationRoutingDefault() {
