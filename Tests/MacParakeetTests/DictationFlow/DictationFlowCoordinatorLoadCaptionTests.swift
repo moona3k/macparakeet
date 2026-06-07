@@ -107,11 +107,20 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     func testFailureShowsFailureCaptionBeforeErrorCard() async throws {
         let harness = try makeHarness(
             isReady: false,
-            transcribeDelayMs: 60,
-            transcribeError: STTError.engineStartFailed("load failed")
+            transcribeDelayMs: 180,
+            transcribeError: STTError.engineStartFailed("load failed"),
+            timing: DictationProcessingLoadCaptionTiming(
+                graceMs: 20,
+                escalationMs: 50,
+                failureDisplayMs: 150
+            )
         )
 
         try await harness.startAndStop()
+        let preparingCaptionShown = await waitUntil {
+            self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting)
+        }
+        XCTAssertTrue(preparingCaptionShown)
         let failedCaptionShown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .failed }
         XCTAssertTrue(failedCaptionShown)
         XCTAssertTrue(harness.coordinator.overlayStateForTesting?.isProcessingForTest == true)
