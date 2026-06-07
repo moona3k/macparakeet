@@ -255,6 +255,108 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.groupedDictations.flatMap(\.1).first?.id, remaining.id)
     }
 
+    // MARK: - Bulk Selection Mode
+
+    func testBeginBulkSelectionEnablesModeAndPreselectsStartingDictation() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.beginBulkSelection(startingWith: dictation)
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertEqual(viewModel.selectedDictationCount, 1)
+        XCTAssertTrue(viewModel.isDictationSelected(dictation))
+    }
+
+    func testExitBulkSelectionClearsModeAndSelection() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: dictation)
+
+        viewModel.exitBulkSelection()
+
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertTrue(viewModel.selectedDictationIDs.isEmpty)
+    }
+
+    func testClearSelectionKeepsBulkSelectionModeActive() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        XCTAssertEqual(viewModel.selectedDictationCount, 2)
+
+        viewModel.clearSelection()
+
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Clear deselects without leaving bulk mode")
+    }
+
+    func testCancelPendingSelectedDeletePreservesBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedDictations()
+        XCTAssertEqual(viewModel.pendingDeleteCount, 2)
+
+        viewModel.cancelPendingDelete()
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Canceling the alert keeps bulk mode")
+        XCTAssertEqual(viewModel.selectedDictationCount, 2, "Canceling keeps the selection for further editing")
+        XCTAssertEqual(viewModel.pendingDeleteCount, 0)
+    }
+
+    func testConfirmDeleteSelectedDictationsExitsBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedDictations()
+
+        viewModel.confirmDeleteSelectedDictations()
+
+        // Mode flips synchronously on confirm, before the async delete pipeline
+        // runs, so we assert it without awaiting the list update.
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled, "Confirmed bulk delete leaves bulk mode")
+    }
+
+    func testSingleRowDeleteFromMenuKeepsBulkSelectionMode() {
+        let first = Dictation(durationMs: 1000, rawTranscript: "First")
+        let second = Dictation(durationMs: 1000, rawTranscript: "Second")
+        mockRepo.dictations = [first, second]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: first)
+
+        // A per-row "Delete" from the ellipsis menu routes through the single
+        // pending-delete path, which intentionally stays in bulk mode.
+        viewModel.pendingDeleteDictation = second
+        viewModel.confirmPendingDelete()
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled, "Single-row delete does not exit bulk mode")
+    }
+
+    func testSwitchingToStatsExitsBulkSelectionMode() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.beginBulkSelection(startingWith: dictation)
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+
+        viewModel.selectedSubTab = .stats
+
+        XCTAssertFalse(viewModel.isBulkSelectionModeEnabled, "Selection is a History-only affordance")
+        XCTAssertEqual(viewModel.selectedDictationCount, 0)
+    }
+
     // MARK: - Unconfigured
 
     func testLoadDictationsBeforeConfigureIsNoOp() {

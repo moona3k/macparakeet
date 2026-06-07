@@ -58,6 +58,14 @@ struct DictationHistoryView: View {
         } message: {
             Text(deleteAlertMessage)
         }
+        .onDisappear {
+            // The view model is a process-lifetime singleton and the Dictations
+            // tab is conditionally mounted, so bulk-selection state would
+            // otherwise survive navigating to another section and back. Tear it
+            // down on the way out so the user always returns to ordinary
+            // browsing.
+            viewModel.exitBulkSelection()
+        }
     }
 
     // MARK: - Sub-tab Picker
@@ -80,13 +88,13 @@ struct DictationHistoryView: View {
             emptyState
         } else {
             VStack(spacing: 0) {
-                if viewModel.hasSelectedDictations {
+                if viewModel.isBulkSelectionModeEnabled {
                     selectedActionsBar
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 dictationList
             }
-            .animation(DesignSystem.Animation.contentSwap, value: viewModel.hasSelectedDictations)
+            .animation(DesignSystem.Animation.contentSwap, value: viewModel.isBulkSelectionModeEnabled)
         }
     }
 
@@ -148,6 +156,7 @@ struct DictationHistoryView: View {
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
                             isSelected: viewModel.isDictationSelected(dictation),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             onToggleSelection: { viewModel.toggleSelection(for: dictation) },
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: {
@@ -157,7 +166,8 @@ struct DictationHistoryView: View {
                                 viewModel.pendingDeleteDictation = dictation
                             },
                             onDownloadAudio: { viewModel.downloadAudio(for: dictation) },
-                            onToggleAIEdit: { viewModel.toggleDisplayRawTranscript(for: dictation) }
+                            onToggleAIEdit: { viewModel.toggleDisplayRawTranscript(for: dictation) },
+                            onBeginBulkSelection: { viewModel.beginBulkSelection(startingWith: dictation) }
                         )
                         .padding(.horizontal, DesignSystem.Spacing.lg)
                         .padding(.bottom, DesignSystem.Spacing.sm)
@@ -181,6 +191,13 @@ struct DictationHistoryView: View {
             Spacer(minLength: DesignSystem.Spacing.md)
 
             Button {
+                viewModel.exitBulkSelection()
+            } label: {
+                Text("Cancel")
+            }
+            .parakeetAction(.subtle)
+
+            Button {
                 viewModel.selectAllVisibleDictations()
             } label: {
                 Label("Select All", systemImage: "checkmark.circle")
@@ -193,6 +210,7 @@ struct DictationHistoryView: View {
             } label: {
                 Label("Clear", systemImage: "xmark.circle")
             }
+            .disabled(!viewModel.hasSelectedDictations)
             .parakeetAction(.secondary)
 
             Button(role: .destructive) {
@@ -200,6 +218,7 @@ struct DictationHistoryView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .disabled(!viewModel.hasSelectedDictations)
             .parakeetAction(.destructive)
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
@@ -313,20 +332,27 @@ struct DictationCardRow: View {
     var isPlayingThis: Bool = false
     var isCopied: Bool = false
     var isSelected: Bool = false
+    /// Whether the leading per-row selection circle is shown. Only true while
+    /// the History list is in bulk-selection mode; hidden during ordinary
+    /// browsing so a row doesn't look like a selection target.
+    var showsSelectionControls: Bool = false
     var onToggleSelection: (() -> Void)?
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
     var onDownloadAudio: (() -> Void)?
     var onToggleAIEdit: (() -> Void)?
+    var onBeginBulkSelection: (() -> Void)?
 
     @State private var isHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.md) {
-                SelectionToggleButton(isSelected: isSelected) {
-                    onToggleSelection?()
+                if showsSelectionControls {
+                    SelectionToggleButton(isSelected: isSelected) {
+                        onToggleSelection?()
+                    }
                 }
 
                 SonicMandalaView(
@@ -409,9 +435,11 @@ struct DictationCardRow: View {
                         hasAudio: dictation.audioPath != nil,
                         hasAIEdit: dictation.hasAIEdit && onToggleAIEdit != nil,
                         isShowingRaw: dictation.displayRawTranscript,
+                        showsBulkSelectionEntry: !showsSelectionControls && onBeginBulkSelection != nil,
                         onDownloadAudio: { onDownloadAudio?() },
                         onDelete: { onDelete() },
-                        onToggleAIEdit: onToggleAIEdit
+                        onToggleAIEdit: onToggleAIEdit,
+                        onBeginBulkSelection: { onBeginBulkSelection?() }
                     )
                 }
             }
@@ -575,9 +603,11 @@ private struct CardMenuButton: View {
     let hasAudio: Bool
     let hasAIEdit: Bool
     let isShowingRaw: Bool
+    let showsBulkSelectionEntry: Bool
     let onDownloadAudio: () -> Void
     let onDelete: () -> Void
     let onToggleAIEdit: (() -> Void)?
+    let onBeginBulkSelection: () -> Void
 
     var body: some View {
         CardActionButton(icon: "ellipsis", color: .secondary) {
@@ -600,6 +630,13 @@ private struct CardMenuButton: View {
             let title = isShowingRaw ? "Re-apply AI edit" : "Undo AI edit"
             let icon = isShowingRaw ? "wand.and.stars" : "arrow.uturn.backward"
             menu.addItem(CallbackMenuItem(title: title, icon: icon, action: onToggleAIEdit))
+        }
+
+        // Neutral entry into bulk-selection mode. Hidden once the user is
+        // already in bulk mode (it would be redundant). Named to read as a
+        // non-destructive selection gesture, not a delete.
+        if showsBulkSelectionEntry {
+            menu.addItem(CallbackMenuItem(title: "Select Multiple…", icon: "checklist", action: onBeginBulkSelection))
         }
 
         if !menu.items.isEmpty {
