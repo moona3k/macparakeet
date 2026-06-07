@@ -46,13 +46,13 @@ extension AudioCaptureDiagnostics {
     /// Returns the slice of a raw diagnostic log that should be attached to a
     /// feedback upload for the given `scope`.
     ///
-    /// - `.recent` keeps the tail within `recentUploadWindow`, bounded by
+    /// - `.recent` keeps the lines within `recentUploadWindow`, bounded by
     ///   `recentUploadMaxBytes` / `recentUploadMaxLines`. If the window is empty
     ///   it falls back to the last `recentUploadMinTailLines` lines.
     /// - `.full` keeps everything, tail-capped at `diagnosticLogMaxBytes`.
     ///
     /// Lines whose leading token is not a parseable ISO-8601 timestamp never
-    /// trip the time cutoff — they ride the size/line caps. A log with no
+    /// count as out-of-window — they ride the size/line caps. A log with no
     /// parseable timestamps at all therefore degrades cleanly to "the last
     /// `recentUploadMaxBytes` / `recentUploadMaxLines`".
     ///
@@ -63,7 +63,13 @@ extension AudioCaptureDiagnostics {
         scope: DiagnosticLogScope,
         now: Date = Date()
     ) -> String {
-        var lines = rawLog.split(separator: "\n", omittingEmptySubsequences: false)
+        // Split on LF, treating CRLF as one separator too: in Swift "\r\n" is a
+        // single Character, so a plain "\n" split would miss it and collapse a
+        // CRLF log into one line. The output is rejoined with LF.
+        var lines = rawLog.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: { $0 == "\n" || $0 == "\r\n" }
+        )
         // A trailing newline yields a final empty element; it is not a line.
         if lines.last == "" {
             lines.removeLast()
@@ -92,8 +98,9 @@ extension AudioCaptureDiagnostics {
         plain.formatOptions = [.withInternetDateTime]
 
         // Phase 1 — the recent window (for `.full`, the whole log up to the
-        // ceiling). Stop at the first line older than the cutoff; lines without
-        // a parseable timestamp ride along and never stop the walk.
+        // ceiling). Lines older than the cutoff are skipped, not used to stop
+        // the walk, so a non-monotonic log (e.g. a backward clock correction)
+        // still keeps every in-window line. Lines without a timestamp ride along.
         var kept = tail(of: lines, maxBytes: maxBytes, maxLines: maxLines) { line in
             guard let cutoff,
                   let timestamp = parseLogLineTimestamp(line, fractional: fractional, plain: plain)
@@ -119,29 +126,37 @@ extension AudioCaptureDiagnostics {
         // unconditionally, so only a single pathologically long line can push
         // past `maxBytes`. Real entries are short and newline-terminated, so
         // this trim never fires in practice — it just keeps the contract
-        // ("recent uploads stay within the cap") true for any input.
+        // ("recent uploads stay within the cap") true for any input. Cut on a
+        // UTF-8 scalar boundary so we never emit replacement characters or
+        // overshoot the cap when a multi-byte sequence straddles the boundary.
         if result.utf8.count > maxBytes {
-            result = String(decoding: Data(result.utf8).suffix(maxBytes), as: UTF8.self)
+            let utf8 = result.utf8
+            var start = utf8.index(utf8.endIndex, offsetBy: -maxBytes)
+            while start < utf8.endIndex, utf8[start] & 0xC0 == 0x80 {
+                start = utf8.index(after: start)
+            }
+            result = String(decoding: utf8[start...], as: UTF8.self)
         }
         return result
     }
 
-    /// Walks `lines` newest-first, keeping lines until a hard cap or `stopBefore`
-    /// halts it, and returns them in chronological order. The newest line is
+    /// Walks `lines` newest-first, keeping lines until a hard cap halts it, and
+    /// returns them in chronological order. Lines for which `skip` returns true
+    /// are passed over without stopping the walk. The newest kept line is
     /// always admitted (so the byte cap can be exceeded only by a single line).
     private static func tail(
         of lines: [Substring],
         maxBytes: Int,
         maxLines: Int,
-        stopBefore: (Substring) -> Bool
+        skip: (Substring) -> Bool
     ) -> [Substring] {
         var kept: [Substring] = []
         var byteCount = 0
         for line in lines.reversed() {
             if kept.count >= maxLines { break }
+            if skip(line) { continue }
             let lineBytes = line.utf8.count + 1 // +1 for the rejoined newline
             if !kept.isEmpty, byteCount + lineBytes > maxBytes { break }
-            if stopBefore(line) { break }
             kept.append(line)
             byteCount += lineBytes
         }

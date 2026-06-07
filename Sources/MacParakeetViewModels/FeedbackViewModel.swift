@@ -29,11 +29,21 @@ public final class FeedbackViewModel {
     public var message: String = ""
     public var email: String = ""
     public var screenshotAttachments: [FeedbackScreenshotAttachment] = []
-    public var includeDiagnosticLog: Bool = false
+    public var includeDiagnosticLog: Bool = false {
+        didSet {
+            // Turning diagnostics off clears the advanced full-history opt-in,
+            // so re-enabling always starts from the privacy-preferring recent
+            // window rather than silently re-attaching the entire log.
+            if !includeDiagnosticLog {
+                includeFullDiagnosticHistory = false
+            }
+        }
+    }
     /// Advanced opt-in: attach the entire local diagnostics history instead of
     /// just the recent window. Off by default — uploads scope to the last week
     /// (see `DiagnosticLogScope.recent`). Only meaningful while
-    /// `includeDiagnosticLog` is on.
+    /// `includeDiagnosticLog` is on; cleared whenever `includeDiagnosticLog`
+    /// flips off.
     public var includeFullDiagnosticHistory: Bool = false
     public var showSystemInfo: Bool = false
     public private(set) var diagnosticLogIsAvailable: Bool = false

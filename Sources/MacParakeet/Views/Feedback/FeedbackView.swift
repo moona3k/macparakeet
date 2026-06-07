@@ -466,6 +466,9 @@ struct FeedbackView: View {
         }
         .toggleStyle(.checkbox)
         .tint(DesignSystem.Colors.accent)
+        // Indent to align with the main toggle's text column (icon width +
+        // the row's HStack spacing) so it reads as a sub-option.
+        .padding(.leading, 28 + DesignSystem.Spacing.sm)
         .padding(.top, 2)
         .accessibilityHint("Attaches your entire local diagnostics history instead of only the last seven days")
     }

@@ -74,6 +74,16 @@ final class FeedbackViewModelTests: XCTestCase {
         return formatter.string(from: Date().addingTimeInterval(-secondsAgo))
     }
 
+    /// Polls until `condition` holds or `timeout` elapses, so async submission
+    /// assertions wait for the detached submit task deterministically instead
+    /// of racing a fixed delay on a loaded runner.
+    private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now + timeout
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     // MARK: - Initial State
 
     func testDefaultState() {
@@ -421,7 +431,7 @@ final class FeedbackViewModelTests: XCTestCase {
         viewModel.includeDiagnosticLog = true
 
         viewModel.submit()
-        try await Task.sleep(for: .milliseconds(150))
+        await waitUntil { mockService.submitCallCount == 1 }
 
         // The oversized log is trimmed to the recent window, not rejected.
         XCTAssertEqual(mockService.submitCallCount, 1)
@@ -449,7 +459,7 @@ final class FeedbackViewModelTests: XCTestCase {
         viewModel.includeDiagnosticLog = true
 
         viewModel.submit()
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil { mockService.submitCallCount == 1 }
 
         let base64 = try XCTUnwrap(mockService.lastPayload?.diagnosticLog?.base64)
         let text = String(decoding: try XCTUnwrap(Data(base64Encoded: base64)), as: UTF8.self)
@@ -474,7 +484,7 @@ final class FeedbackViewModelTests: XCTestCase {
         viewModel.includeFullDiagnosticHistory = true
 
         viewModel.submit()
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil { mockService.submitCallCount == 1 }
 
         let base64 = try XCTUnwrap(mockService.lastPayload?.diagnosticLog?.base64)
         let text = String(decoding: try XCTUnwrap(Data(base64Encoded: base64)), as: UTF8.self)
@@ -494,7 +504,10 @@ final class FeedbackViewModelTests: XCTestCase {
         viewModel.includeDiagnosticLog = true
 
         viewModel.submit()
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil {
+            if case .error = viewModel.submissionState { return true }
+            return false
+        }
 
         XCTAssertEqual(mockService.submitCallCount, 0)
         if case .error(let message) = viewModel.submissionState {
@@ -502,6 +515,17 @@ final class FeedbackViewModelTests: XCTestCase {
         } else {
             XCTFail("Expected empty diagnostic log error, got \(viewModel.submissionState)")
         }
+    }
+
+    func testTurningDiagnosticsOffResetsFullHistoryOptIn() {
+        viewModel.includeDiagnosticLog = true
+        viewModel.includeFullDiagnosticHistory = true
+
+        // Disabling diagnostics must clear the advanced full-history opt-in so
+        // re-enabling later starts from the privacy-preferring recent window.
+        viewModel.includeDiagnosticLog = false
+
+        XCTAssertFalse(viewModel.includeFullDiagnosticHistory)
     }
 
     // MARK: - System Info

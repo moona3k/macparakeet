@@ -2,7 +2,7 @@ import XCTest
 @testable import MacParakeetCore
 
 final class DiagnosticLogScopeTests: XCTestCase {
-    // Fixed reference time so the 72 h window is deterministic.
+    // Fixed reference time so the 7-day (168 h) window is deterministic.
     private let now = Date(timeIntervalSince1970: 1_780_000_000)
 
     private func iso(_ date: Date) -> String {
@@ -57,6 +57,40 @@ final class DiagnosticLogScopeTests: XCTestCase {
         let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
 
         XCTAssertTrue(scoped.hasSuffix("\n"))
+    }
+
+    func testRecentHandlesCRLFLineEndings() {
+        // CRLF must split into lines (not collapse into one) so the window
+        // filter still works. Output is normalized to LF.
+        let raw = [
+            line(hoursAgo: 400, "old_crlf_event"),
+            line(hoursAgo: 1, "recent_crlf_event"),
+        ].joined(separator: "\r\n") + "\r\n"
+
+        let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
+
+        XCTAssertTrue(scoped.contains("recent_crlf_event"))
+        XCTAssertFalse(scoped.contains("old_crlf_event"))
+        XCTAssertFalse(scoped.contains("\r"), "CRLF should be normalized to LF in the output")
+    }
+
+    func testRecentKeepsInWindowLinesDespiteOutOfOrderTimestamps() {
+        // A backward clock correction can place an old line physically after a
+        // recent one. The in-window line must survive rather than being cut off
+        // when the walk meets the stale line.
+        let raw = joined([
+            line(hoursAgo: 6, "recent_old_but_in_window"),
+            line(hoursAgo: 300, "stale_middle"),
+            line(hoursAgo: 2, "recent_new"),
+            line(hoursAgo: 1, "recent_newest"),
+        ])
+
+        let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
+
+        XCTAssertTrue(scoped.contains("recent_newest"))
+        XCTAssertTrue(scoped.contains("recent_new"))
+        XCTAssertTrue(scoped.contains("recent_old_but_in_window"))
+        XCTAssertFalse(scoped.contains("stale_middle"))
     }
 
     // MARK: - Idle-user fallback
@@ -131,6 +165,21 @@ final class DiagnosticLogScopeTests: XCTestCase {
         let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
 
         XCTAssertLessThanOrEqual(scoped.utf8.count, AudioCaptureDiagnostics.recentUploadMaxBytes)
+    }
+
+    func testByteCeilingHoldsForMultiByteSingleLine() {
+        // A single line of 3-byte characters whose byte length exceeds the cap:
+        // the boundary trim must stay within the cap AND not emit replacement
+        // characters from a mid-sequence cut.
+        let euros = String(
+            repeating: "€",
+            count: AudioCaptureDiagnostics.recentUploadMaxBytes / 3 + 100
+        )
+
+        let scoped = AudioCaptureDiagnostics.scopedLogForUpload(euros, scope: .recent, now: now)
+
+        XCTAssertLessThanOrEqual(scoped.utf8.count, AudioCaptureDiagnostics.recentUploadMaxBytes)
+        XCTAssertFalse(scoped.contains("\u{FFFD}"), "trim must cut on a UTF-8 boundary")
     }
 
     // MARK: - No parseable timestamps

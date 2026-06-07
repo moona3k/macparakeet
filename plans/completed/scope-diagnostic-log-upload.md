@@ -45,7 +45,7 @@ Scope by *recency of whole lines*, never by redacting line contents.
 
 ### View (`FeedbackView`)
 
-- Light copy: the attach sentence reads "last 3 days" by default, "your full
+- Light copy: the attach sentence reads "last 7 days" by default, "your full
   local history" when full is on. Keep the existing privacy framing + preview.
 - Add a compact advanced **"Include full history"** checkbox, shown only when
   the user has opted into attaching diagnostics.
