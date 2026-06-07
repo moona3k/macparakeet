@@ -317,7 +317,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             sttTranscriber: stt,
             dictationRepo: repo,
             processingMode: { processingMode },
-            dictationInsertionStyle: { dictationInsertionStyle },
+            dictationInsertionStyle: { preferences.dictationInsertionStyle },
             markFirstDictationCompleted: {
                 preferences.markFirstDictationCompleted()
             }
