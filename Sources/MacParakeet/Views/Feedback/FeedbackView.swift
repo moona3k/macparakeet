@@ -11,6 +11,7 @@ struct FeedbackView: View {
     @State private var isDraggingScreenshot = false
     @State private var isCommunityHovered = false
     @State private var showsDiagnosticLogSample = false
+    @State private var isLogRowHovered = false
     @FocusState private var messageFocused: Bool
 
     var body: some View {
@@ -339,17 +340,19 @@ struct FeedbackView: View {
                     Text("Attach capture diagnostics")
                         .font(DesignSystem.Typography.body.weight(.semibold))
 
-                    Text(viewModel.diagnosticLogFilename)
+                    Text(diagnosticLogDisplayPath)
                         .font(DesignSystem.Typography.micro.monospaced())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .textSelection(.enabled)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
                                 .fill(DesignSystem.Colors.surfaceElevated)
                         )
+                        .help(viewModel.diagnosticLogURL.path)
 
                     Text("Use this for dictation or meeting recording issues. It attaches the log to the public report so we can inspect capture timing, buffers, silence, and device errors.")
                         .font(DesignSystem.Typography.caption)
@@ -361,15 +364,37 @@ struct FeedbackView: View {
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: isAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(isAvailable ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
-                        Text(viewModel.diagnosticLogAvailabilityDescription)
-                            .font(DesignSystem.Typography.micro)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                    Button {
+                        guard isAvailable else { return }
+                        NSWorkspace.shared.activateFileViewerSelecting([viewModel.diagnosticLogURL])
+                    } label: {
+                        HStack(spacing: DesignSystem.Spacing.xs) {
+                            Image(systemName: isAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(isAvailable ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+                            Text(viewModel.diagnosticLogAvailabilityDescription)
+                                .font(DesignSystem.Typography.micro)
+                                .foregroundStyle(isAvailable && isLogRowHovered ? DesignSystem.Colors.accent : .secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if isAvailable {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(DesignSystem.Colors.accent)
+                                    .opacity(isLogRowHovered ? 1 : 0)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!isAvailable)
+                    .help(isAvailable ? "Reveal \(viewModel.diagnosticLogFilename) in Finder" : "")
+                    .accessibilityLabel(isAvailable ? "Reveal \(viewModel.diagnosticLogFilename) in Finder" : viewModel.diagnosticLogAvailabilityDescription)
+                    .onHover { hovering in
+                        guard isAvailable else { return }
+                        withAnimation(DesignSystem.Animation.hoverTransition) {
+                            isLogRowHovered = hovering
+                        }
                     }
                     .padding(.top, 2)
                 }
@@ -406,32 +431,52 @@ struct FeedbackView: View {
         )
     }
 
-    // Real, representative lines from `dictation-audio.log`. Kept verbatim so the
-    // Feedback form can show users exactly what they share — counts and device
-    // state, never audio or transcript text.
+    /// The full local path of the diagnostics log, home-folder-abbreviated so
+    /// it stays readable (and screenshot-safe) while still being the real
+    /// `~/Library/Logs/MacParakeet/dictation-audio.log` location on disk.
+    private var diagnosticLogDisplayPath: String {
+        (viewModel.diagnosticLogURL.path as NSString).abbreviatingWithTildeInPath
+    }
+
+    // A real, representative slice of `dictation-audio.log` — a full capture
+    // session from launch through dictation, a meeting, and a device error.
+    // Kept verbatim (just illustrative values) so the Feedback form can show
+    // users exactly what they share: counts and device state, never audio or
+    // transcript text.
     private static let diagnosticLogExampleLines = [
-        "dictation_transcribe_complete chars=49 words=9 engine=parakeet",
-        "dictation_capture_heartbeat input_buffers=100 isRunning=true",
-        "dictation_capture_insufficient sample_count=3200 required=4800",
-        "meeting_mic_capture_started effective_mode=vpio sr=16000 ch=1",
+        "2026-06-06T09:14:02.118Z dictation_diagnostics_session_start pid=42317 version=0.6.21 build=20260607023821 source=stable-dmg commit=3c7f3d8f82ce",
+        "2026-06-06T09:14:48.512Z dictation_capture_start permission_status=3",
+        "2026-06-06T09:14:48.560Z dictation_capture_first_buffer sr=16000.0 ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true",
+        "2026-06-06T09:14:53.121Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in",
+        "2026-06-06T09:14:54.004Z dictation_capture_stop sample_count=78000 duration_s=4.875 input_buffers=98 output_buffers=98 max_rms=0.071234 non_silent_buffers=95",
+        "2026-06-06T09:14:54.330Z dictation_transcribe_complete chars=49 words=9 engine=parakeet variant=none",
+        "2026-06-06T10:02:11.806Z dictation_capture_insufficient sample_count=3200 required=4800",
+        "2026-06-06T11:25:27.341Z meeting_recording_started session=40B8536B-… requested_mic_mode=vpioPreferred effective_mic_mode=vpio",
+        "2026-06-06T11:25:27.574Z meeting_mic_capture_started effective_mode=vpio sr=16000.0 ch=1 default_input=present default_input_transport=built-in",
+        "2026-06-06T11:25:27.902Z system_audio_stream_first_buffer sr=48000.0 ch=2 frames=1024",
+        "2026-06-06T11:48:03.190Z meeting_mic_capture_start_failed mode=raw reason=\"permission_denied\"",
     ]
 
     private var diagnosticLogSample: some View {
         DisclosureGroup(isExpanded: $showsDiagnosticLogSample) {
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(Self.diagnosticLogExampleLines, id: \.self) { line in
-                    Text(line)
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                // One selectable Text inside a horizontal scroller: lines never
+                // wrap (so they read like the real log), and a single click-drag
+                // highlights the whole excerpt.
+                ScrollView(.horizontal, showsIndicators: true) {
+                    Text(Self.diagnosticLogExampleLines.joined(separator: "\n"))
                         .font(DesignSystem.Typography.micro.monospaced())
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: true, vertical: true)
                         .textSelection(.enabled)
                 }
 
-                Text("The first line logs a finished dictation — that you spoke 9 words, never which words. Every entry is capture timing, buffers, and device state like this.")
+                Text("Every entry is a count or a device state. `words=9` means you spoke nine words — never which words. No audio and no transcript text is ever written to this file.")
                     .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
+                    .textSelection(.enabled)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DesignSystem.Spacing.sm)
