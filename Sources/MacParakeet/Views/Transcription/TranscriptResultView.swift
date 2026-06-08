@@ -1117,7 +1117,12 @@ struct TranscriptResultView: View {
 
             Spacer()
 
-            if !editingTranscript, hasCleanTranscriptText, hasTimestamps {
+            // Show whenever word timestamps exist: the Timed view renders from
+            // `wordTimestamps` and the Text view falls back to the raw transcript,
+            // so a clean (processed) transcript is not required. Gating on clean
+            // text hid the Timed view for Raw-mode transcripts despite the timing
+            // data being present.
+            if !editingTranscript, hasTimestamps {
                 Picker("Transcript view", selection: $transcriptDisplayMode) {
                     ForEach(TranscriptDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
