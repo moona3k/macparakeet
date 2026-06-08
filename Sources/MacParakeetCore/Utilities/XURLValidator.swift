@@ -33,17 +33,18 @@ public enum XURLValidator {
             return false
         }
 
-        // Require a `status` path segment followed by a numeric tweet id,
-        // e.g. /{user}/status/{id} or /i/status/{id}.
+        // Require a `status` path segment immediately followed by a numeric tweet
+        // id, e.g. /{user}/status/{id} or /i/status/{id}. Scan ALL segments (not
+        // just the first "status") so a username literally named "status"
+        // (https://x.com/status/status/123) still validates. Tweet ids are always
+        // ASCII digits, so reject the Unicode numerics that Character.isNumber
+        // would otherwise accept (e.g. Arabic-Indic ٠١٢٣).
         let segments = components.path.split(separator: "/").map(String.init)
-        guard let statusIndex = segments.firstIndex(where: { $0.lowercased() == "status" }),
-              statusIndex + 1 < segments.count
-        else {
-            return false
+        return segments.indices.contains { index in
+            segments[index].lowercased() == "status"
+                && index + 1 < segments.count
+                && !segments[index + 1].isEmpty
+                && segments[index + 1].allSatisfy { $0.isASCII && $0.isNumber }
         }
-
-        let tweetID = segments[statusIndex + 1]
-        guard !tweetID.isEmpty, tweetID.allSatisfy(\.isNumber) else { return false }
-        return true
     }
 }

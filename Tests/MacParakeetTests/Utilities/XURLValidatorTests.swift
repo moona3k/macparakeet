@@ -51,6 +51,11 @@ final class XURLValidatorTests: XCTestCase {
         XCTAssertTrue(XURLValidator.isXURL("  https://x.com/user/status/123  "))
     }
 
+    func testStatusUsername() {
+        // Username literally "status" must still validate (the real @status account).
+        XCTAssertTrue(XURLValidator.isXURL("https://x.com/status/status/123456"))
+    }
+
     // MARK: - Invalid URLs
 
     func testEmptyString() {
@@ -75,6 +80,11 @@ final class XURLValidatorTests: XCTestCase {
 
     func testNonNumericID() {
         XCTAssertFalse(XURLValidator.isXURL("https://x.com/user/status/abc"))
+    }
+
+    func testNonASCIIDigitTweetIDRejected() {
+        // Real tweet ids are ASCII digits; Arabic-Indic digits must not pass.
+        XCTAssertFalse(XURLValidator.isXURL("https://x.com/user/status/١٢٣"))
     }
 
     func testYouTubeURLIsRejected() {
