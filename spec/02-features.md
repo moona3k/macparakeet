@@ -448,6 +448,17 @@ YouTube and Apple Podcasts links. Implemented in `PodcastURLValidator`,
 `PodcastEpisodeResolver`, and the `TranscriptionService.transcribeURL` podcast
 branch.
 
+**Podcast search (freetext discovery):** Beyond pasting a URL, a freetext
+query — `"Lex Fridman episode 400"` — resolves to an episode by searching the
+iTunes podcast directory (`PodcastDirectoryService`), parsing the matched
+show's RSS feed (`PodcastFeedParser`), and selecting the episode by number /
+title hints or latest (`PodcastEpisodeMatcher`, ported from the
+`podcast-transcribe` tool). The chosen enclosure is fetched with a native
+streaming downloader (`PodcastAudioDownloader`, no `yt-dlp` needed for
+podcasts) and transcribed locally. Exposed today via the CLI
+(`macparakeet-cli transcribe --podcast "<query>"`,
+`TranscriptionService.transcribePodcastQuery`); the GUI surfaces URL paste.
+
 **Completion notification (v0.6 — REQ-UI-006):**
 
 When a file, YouTube, or batch transcription finishes, MacParakeet plays a

@@ -197,6 +197,7 @@ struct ItunesResult: Decodable {
     let kind: String?
     let trackName: String?
     let collectionName: String?
+    let collectionId: Int?
     let feedUrl: String?
     let episodeUrl: String?
     let artworkUrl600: String?

@@ -89,6 +89,51 @@ private actor StubPodcastResolver: PodcastResolving {
     }
 }
 
+private actor StubPodcastSearchResolver: PodcastSearchResolving {
+    var lastQuery: String?
+    private let episode: ResolvedPodcastEpisode?
+    private let error: Error?
+
+    init(episode: ResolvedPodcastEpisode) {
+        self.episode = episode
+        self.error = nil
+    }
+
+    init(error: Error) {
+        self.episode = nil
+        self.error = error
+    }
+
+    func resolve(query: String) async throws -> ResolvedPodcastEpisode {
+        lastQuery = query
+        if let error { throw error }
+        return episode!
+    }
+}
+
+private actor StubPodcastAudioFetcher: PodcastAudioFetching {
+    var fetchCallCount = 0
+    var lastAudioURL: String?
+    private let fileURL: URL
+    private let progressUpdates: [Int]
+
+    init(fileURL: URL, progressUpdates: [Int] = []) {
+        self.fileURL = fileURL
+        self.progressUpdates = progressUpdates
+    }
+
+    func fetch(
+        audioURL: String,
+        suggestedName: String?,
+        onProgress: (@Sendable (Int) -> Void)?
+    ) async throws -> URL {
+        fetchCallCount += 1
+        lastAudioURL = audioURL
+        for pct in progressUpdates { onProgress?(pct) }
+        return fileURL
+    }
+}
+
 private final class SaveFailingTranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
     private let error: Error
 
@@ -910,19 +955,12 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(fetched.sourceType, .youtube)
     }
 
-    func testTranscribeURLResolvesApplePodcastsLinkAndPersistsPodcastSource() async throws {
+    func testTranscribeURLResolvesApplePodcastsLinkAndFetchesNatively() async throws {
         let downloadedURL = try makeTempDownloadedAudio(fileExtension: "mp3")
         defer { try? FileManager.default.removeItem(at: downloadedURL) }
         let applePodcastsURL = "https://podcasts.apple.com/us/podcast/the-daily/id1200361736?i=1000654321987"
         let enclosureURL = "https://cdn.example.com/audio/42.mp3"
 
-        // yt-dlp only sees a raw CDN URL, so its title is generic; the resolver's
-        // rich episode metadata must win in the persisted record.
-        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
-            audioFileURL: downloadedURL,
-            title: "42",
-            durationSeconds: nil
-        ))
         let resolver = StubPodcastResolver(episode: ResolvedPodcastEpisode(
             audioURL: enclosureURL,
             episodeTitle: "Episode 42: On Patience",
@@ -932,6 +970,8 @@ final class TranscriptionServiceTests: XCTestCase {
             durationSeconds: 1830,
             releaseDate: "2024-06-01"
         ))
+        // Podcasts fetch the enclosure with the native downloader, not yt-dlp.
+        let fetcher = StubPodcastAudioFetcher(fileURL: downloadedURL)
 
         await mockSTT.configure(result: STTResult(text: "Podcast transcript"))
 
@@ -940,18 +980,18 @@ final class TranscriptionServiceTests: XCTestCase {
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             shouldKeepDownloadedAudio: { false },
-            youtubeDownloader: downloader,
-            podcastResolver: resolver
+            podcastResolver: resolver,
+            podcastAudioFetcher: fetcher
         )
 
         let result = try await service.transcribeURL(urlString: "  \(applePodcastsURL)\n")
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
 
-        // The downloader receives the resolved enclosure, not the page URL.
+        // The native fetcher receives the resolved enclosure, not the page URL.
         let lastResolveURL = await resolver.lastURL
-        let lastDownloadURL = await downloader.lastURL
+        let lastFetchURL = await fetcher.lastAudioURL
         XCTAssertEqual(lastResolveURL, applePodcastsURL)
-        XCTAssertEqual(lastDownloadURL, enclosureURL)
+        XCTAssertEqual(lastFetchURL, enclosureURL)
 
         XCTAssertEqual(result.sourceType, .podcast)
         XCTAssertEqual(fetched.sourceType, .podcast)
@@ -964,24 +1004,62 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.rawTranscript, "Podcast transcript")
     }
 
+    func testTranscribePodcastQueryResolvesSearchAndPersistsPodcastSource() async throws {
+        let downloadedURL = try makeTempDownloadedAudio(fileExtension: "mp3")
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+        let enclosureURL = "https://cdn.example.com/705.mp3"
+
+        let searchResolver = StubPodcastSearchResolver(episode: ResolvedPodcastEpisode(
+            audioURL: enclosureURL,
+            episodeTitle: "Episode 705: Train Your AI Team",
+            showName: "Everyday AI",
+            artworkURL: "https://art.example.com/eai.jpg",
+            episodeDescription: "Training your team.",
+            durationSeconds: 2700,
+            releaseDate: "2024-07-01"
+        ))
+        let fetcher = StubPodcastAudioFetcher(fileURL: downloadedURL)
+        await mockSTT.configure(result: STTResult(text: "Search transcript"))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldKeepDownloadedAudio: { false },
+            podcastSearchResolver: searchResolver,
+            podcastAudioFetcher: fetcher
+        )
+
+        let result = try await service.transcribePodcastQuery(query: "Everyday AI episode 705 train your team")
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+
+        let lastQuery = await searchResolver.lastQuery
+        let lastFetchURL = await fetcher.lastAudioURL
+        XCTAssertEqual(lastQuery, "Everyday AI episode 705 train your team")
+        XCTAssertEqual(lastFetchURL, enclosureURL)
+
+        XCTAssertEqual(result.sourceType, .podcast)
+        XCTAssertEqual(fetched.sourceType, .podcast)
+        XCTAssertEqual(result.fileName, "Episode 705: Train Your AI Team")
+        XCTAssertEqual(result.channelName, "Everyday AI")
+        XCTAssertEqual(result.durationMs, 2_700_000)
+        XCTAssertEqual(result.rawTranscript, "Search transcript")
+    }
+
     func testTranscribeURLEmitsPodcastSourceTelemetryOnResolveFailure() async throws {
         let telemetry = TelemetrySpy()
         Telemetry.configure(telemetry)
         defer { Telemetry.configure(NoOpTelemetryService()) }
 
-        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
-            audioFileURL: URL(fileURLWithPath: "/tmp/unused.mp3"),
-            title: "unused",
-            durationSeconds: nil
-        ))
+        let fetcher = StubPodcastAudioFetcher(fileURL: URL(fileURLWithPath: "/tmp/unused.mp3"))
         let resolver = StubPodcastResolver(error: PodcastResolveError.episodeNotFound)
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
-            youtubeDownloader: downloader,
-            podcastResolver: resolver
+            podcastResolver: resolver,
+            podcastAudioFetcher: fetcher
         )
 
         do {
@@ -991,8 +1069,8 @@ final class TranscriptionServiceTests: XCTestCase {
             XCTAssertEqual(error, .episodeNotFound)
         }
 
-        let downloadCount = await downloader.downloadCallCount
-        XCTAssertEqual(downloadCount, 0, "Download must not run when resolution fails")
+        let fetchCount = await fetcher.fetchCallCount
+        XCTAssertEqual(fetchCount, 0, "Audio fetch must not run when resolution fails")
 
         let failedEvent = telemetry.snapshot().reversed().first {
             if case .transcriptionFailed = $0 { return true }

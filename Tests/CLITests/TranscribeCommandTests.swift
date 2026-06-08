@@ -320,6 +320,15 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.effectiveMediaAudioQuality, .bestAvailable)
     }
 
+    func testParsesPodcastSearchQueryWithoutPositionalInputs() throws {
+        let command = try TranscribeCommand.parse([
+            "--podcast", "Lex Fridman episode 400",
+        ])
+
+        XCTAssertEqual(command.podcast, "Lex Fridman episode 400")
+        XCTAssertTrue(command.inputs.isEmpty, "podcast search needs no positional inputs")
+    }
+
     func testParsesLegacyYouTubeAudioQualityAlias() throws {
         let command = try TranscribeCommand.parse([
             "https://www.youtube.com/watch?v=abc",

@@ -277,6 +277,8 @@ final class AppEnvironment {
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             youtubeDownloader: youtubeDownloader,
             podcastResolver: PodcastEpisodeResolver(),
+            podcastSearchResolver: PodcastQueryResolver(),
+            podcastAudioFetcher: PodcastAudioDownloader(),
             diarizationService: diarizationService
         )
 

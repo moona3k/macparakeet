@@ -85,11 +85,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `transcribe` now accepts **Apple Podcasts** links (e.g.
   `https://podcasts.apple.com/us/podcast/<slug>/id<id>?i=<episode>`). The
   episode is resolved through the public iTunes lookup API to its audio
-  enclosure, then downloaded and transcribed through the existing local
-  pipeline. Episode links transcribe that episode; show links transcribe the
-  latest episode. Saved transcripts carry a new `podcast` source type, and
-  `transcribe` telemetry classifies the input as `podcast` (additive — no
-  schema break).
+  enclosure, then downloaded with a native streaming downloader and transcribed
+  through the existing local pipeline. Episode links transcribe that episode;
+  show links transcribe the latest episode. Saved transcripts carry a new
+  `podcast` source type, and `transcribe` telemetry classifies the input as
+  `podcast` (additive — no schema break).
+- `transcribe --podcast "<query>"` runs a **freetext podcast search**: it
+  searches the iTunes podcast directory for the show, parses the show's RSS
+  feed, selects the episode by number/title hints (or the latest when none are
+  given), then fetches and transcribes it. Example:
+  `transcribe --podcast "Lex Fridman episode 400"`. With `--podcast`, positional
+  inputs are ignored; pass `--output-dir` to write a transcript file instead of
+  printing. Ported from the standalone `podcast-transcribe` tool's discovery
+  pipeline.
 
 ## [2.7.0] -- 2026-06-06
 

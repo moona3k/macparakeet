@@ -66,8 +66,11 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         """
     )
 
-    @Argument(help: "One or more audio/video file paths, folders, YouTube URLs, or HTTP(S) media URLs supported by yt-dlp. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
-    var inputs: [String]
+    @Argument(help: "One or more audio/video file paths, folders, YouTube URLs, Apple Podcasts URLs, or HTTP(S) media URLs supported by yt-dlp. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
+    var inputs: [String] = []
+
+    @Option(name: .long, help: "Freetext podcast search: find a show + episode on Apple Podcasts and transcribe it. Example: --podcast \"Lex Fridman episode 400\". Episode number/title hints select the episode; otherwise the latest is used. Ignores positional inputs.")
+    var podcast: String?
 
     @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
     var outputDir: String?
@@ -356,17 +359,22 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         // Expand folder arguments and de-duplicate. Single resolved input with
         // no --output-dir keeps the original stdout behavior; anything else is
         // batch/file-output mode.
+        let podcastQuery: String? = {
+            guard let trimmed = podcast?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty else { return nil }
+            return trimmed
+        }()
         let resolvedInputs = Self.expandInputs(
             inputs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         )
-        let writeToFiles = resolvedInputs.count > 1 || outputDir != nil
+        let writeToFiles = podcastQuery == nil && (resolvedInputs.count > 1 || outputDir != nil)
 
         var sttClient: STTClient?
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
-            guard !resolvedInputs.isEmpty else {
-                throw ValidationError("No transcribable inputs found — folders contained no supported audio/video files.")
+            guard podcastQuery != nil || !resolvedInputs.isEmpty else {
+                throw ValidationError("No transcribable inputs found — pass a file/URL, or use --podcast \"<search query>\".")
             }
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
@@ -448,10 +456,28 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 shouldDiarize: { resolvedSpeakerDetection.enabled },
                 youtubeDownloader: youtubeDownloader,
                 podcastResolver: PodcastEpisodeResolver(),
+                podcastSearchResolver: PodcastQueryResolver(),
+                podcastAudioFetcher: PodcastAudioDownloader(),
                 diarizationService: diarizationService
             )
 
-            if writeToFiles {
+            if let podcastQuery {
+                let result = try await transcribePodcastQuery(
+                    query: podcastQuery,
+                    service: service
+                )
+                if let outputDir {
+                    let dir = try Self.prepareOutputDir(outputDir)
+                    let url = try Self.writeOutput(result, to: dir, format: format)
+                    printErr("  \u{2192} \(url.path)")
+                } else {
+                    switch format {
+                    case .json: try printJSON(result)
+                    case .transcript: printTranscript(result)
+                    case .text: printText(result)
+                    }
+                }
+            } else if writeToFiles {
                 try await runBatch(
                     inputs: resolvedInputs,
                     service: service,
@@ -570,6 +596,36 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return try await service.transcribeTransient(fileURL: url)
         }
         return try await service.transcribe(fileURL: url)
+    }
+
+    /// Resolve a freetext podcast query (iTunes search → RSS feed → episode
+    /// select) and transcribe the chosen episode. Progress is reported on stderr.
+    private func transcribePodcastQuery(
+        query: String,
+        service: TranscriptionService
+    ) async throws -> Transcription {
+        let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
+        let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
+            let line: String
+            switch progress {
+            case .converting: line = "Converting audio..."
+            case .downloading(let pct): line = "Fetching episode... \(pct)%"
+            case .transcribing(let pct): line = "Transcribing... \(pct)%"
+            case .identifyingSpeakers: line = "Identifying speakers..."
+            case .finalizing: line = "Finalizing..."
+            }
+            let shouldPrint = lastProgressLine.withLock { last in
+                guard last != line else { return false }
+                last = line
+                return true
+            }
+            if shouldPrint { printErr(line) }
+        }
+        printErr("Searching Apple Podcasts for: \(query)")
+        if noHistory {
+            return try await service.transcribePodcastQueryTransient(query: query, onProgress: progressHandler)
+        }
+        return try await service.transcribePodcastQuery(query: query, onProgress: progressHandler)
     }
 
     /// Expand folder arguments into their supported audio files and
