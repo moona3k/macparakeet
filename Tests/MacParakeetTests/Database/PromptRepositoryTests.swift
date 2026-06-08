@@ -75,7 +75,8 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(decide.runningLabel, "Deciding…")
         let decideShortcut = try XCTUnwrap(decide.shortcut)
         XCTAssertEqual(decideShortcut.keyLabel, "3")
-        XCTAssertEqual(decideShortcut.modifierFlags, [.option])
+        XCTAssertEqual(decideShortcut.modifierFlags, [.control, .option])
+        XCTAssertEqual(decideShortcut.displayString, "⌃⌥3")
     }
 
     func testDefaultRunningLabelFallsBackForAwkwardNames() {
@@ -312,6 +313,129 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(reloaded.shortcut?.keyLabel, "P", "Reconciler must not overwrite user-set Transform shortcuts.")
         XCTAssertEqual(reloaded.shortcut?.modifierFlags, [.option, .shift])
         XCTAssertEqual(reloaded.runningLabel, "Refining…", "Reconciler must not overwrite user-set running labels.")
+    }
+
+    func testReconcilerMigratesLegacyDecideDefaultShortcut() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-decide-default-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        let legacyShortcut = try XCTUnwrap(KeyboardShortcut.parse("opt+3"))
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var decide = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Decide" })
+            )
+            decide.keyboardShortcut = legacyShortcut.encodedString()
+            try promptRepo.save(decide)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Decide" })
+        )
+
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌃⌥3")
+    }
+
+    func testReconcilerPreservesCustomDecideShortcut() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-decide-custom-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var decide = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Decide" })
+            )
+            decide.keyboardShortcut = KeyboardShortcut.parse("opt+4")!.encodedString()
+            try promptRepo.save(decide)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Decide" })
+        )
+
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌥4")
+    }
+
+    func testReconcilerPreservesClearedDecideShortcut() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-decide-cleared-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var decide = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Decide" })
+            )
+            decide.keyboardShortcut = nil
+            try promptRepo.save(decide)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Decide" })
+        )
+
+        XCTAssertNil(reloaded.shortcut)
+    }
+
+    func testReconcilerClearsLegacyDecideShortcutWhenNewDefaultIsAlreadyUsed() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-decide-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var decide = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Decide" })
+            )
+            decide.keyboardShortcut = KeyboardShortcut.parse("opt+3")!.encodedString()
+            try promptRepo.save(decide)
+
+            try promptRepo.save(Prompt(
+                name: "Personal Decide",
+                content: "Use my decision template.",
+                category: .transform,
+                isBuiltIn: false,
+                sortOrder: 200,
+                keyboardShortcut: KeyboardShortcut.parse("ctrl+opt+3")!.encodedString()
+            ))
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let transforms = try reopenedRepo.fetchVisible(category: .transform)
+        let decide = try XCTUnwrap(transforms.first(where: { $0.name == "Decide" }))
+        let custom = try XCTUnwrap(transforms.first(where: { $0.name == "Personal Decide" }))
+
+        XCTAssertNil(decide.shortcut)
+        XCTAssertEqual(custom.shortcut?.displayString, "⌃⌥3")
     }
 
     func testSaveAndFetchCustomPrompt() throws {

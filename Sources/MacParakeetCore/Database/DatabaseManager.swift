@@ -1039,15 +1039,26 @@ public final class DatabaseManager: Sendable {
             for prompt in builtInPrompts {
                 if let existing = try Prompt.fetchOne(db, key: prompt.id) {
                     if prompt.category == .transform {
+                        let reconciledShortcut = try Self.reconciledBuiltInTransformShortcut(
+                            existing: existing,
+                            canonical: prompt,
+                            db: db
+                        )
                         try db.execute(
                             sql: """
                                 UPDATE prompts
-                                SET category = ?, isBuiltIn = 1, isVisible = 1, isAutoRun = 0, sortOrder = ?
+                                SET category = ?,
+                                    isBuiltIn = 1,
+                                    isVisible = 1,
+                                    isAutoRun = 0,
+                                    sortOrder = ?,
+                                    keyboardShortcut = ?
                                 WHERE id = ?
                                 """,
                             arguments: [
                                 prompt.category.rawValue,
                                 prompt.sortOrder,
+                                reconciledShortcut,
                                 existing.id,
                             ]
                         )
@@ -1138,5 +1149,40 @@ public final class DatabaseManager: Sendable {
                 arguments: StatementArguments(canonicalIDs)
             )
         }
+    }
+
+    private static func reconciledBuiltInTransformShortcut(
+        existing: Prompt,
+        canonical: Prompt,
+        db: Database
+    ) throws -> String? {
+        guard canonical.name == "Decide",
+              existing.shortcut == legacyDecideOptionThreeShortcut
+        else {
+            return existing.keyboardShortcut
+        }
+
+        guard let canonicalShortcut = canonical.shortcut else { return nil }
+        if try transformShortcutIsUsed(canonicalShortcut, excluding: existing.id, db: db) {
+            return nil
+        }
+        return canonical.keyboardShortcut
+    }
+
+    private static let legacyDecideOptionThreeShortcut = KeyboardShortcut(
+        modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+        keyCode: 0x14,
+        keyLabel: "3"
+    )
+
+    private static func transformShortcutIsUsed(
+        _ shortcut: KeyboardShortcut,
+        excluding id: UUID,
+        db: Database
+    ) throws -> Bool {
+        let transforms = try Prompt
+            .filter(Prompt.Columns.category == Prompt.Category.transform.rawValue)
+            .fetchAll(db)
+        return transforms.contains { $0.id != id && $0.shortcut == shortcut }
     }
 }

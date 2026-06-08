@@ -327,7 +327,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
     ///   intact. The everyday driver.
     /// - *Distill* (⌥2) — compress to signal, raise information density.
     ///   The "I have a rambling braindump" tool.
-    /// - *Decide* (⌥3) — turn discussion into a decision-ready note with
+    /// - *Decide* (⌃⌥3) — turn discussion into a decision-ready note with
     ///   tradeoffs + recommended next step. The forward-motion tool.
     ///
     /// Together: **Improve → Re-shape → Re-direct**. Three slots; ⌥4–9
@@ -404,7 +404,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     """.replacingOccurrences(of: "                    ", with: ""),
                 sortOrder: 102,
                 defaultShortcut: KeyboardShortcut(
-                    modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                    modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
+                        | KeyboardShortcut.ModifierFlag.option.rawValue,
                     keyCode: 0x14, // kVK_ANSI_3
                     keyLabel: "3"
                 ),
