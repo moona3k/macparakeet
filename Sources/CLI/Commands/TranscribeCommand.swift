@@ -30,6 +30,7 @@ enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendab
 enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendable {
     case appDefault = "app-default"
     case parakeet
+    case nemotron
     case whisper
 }
 
@@ -78,10 +79,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, whisper. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper. Default: parakeet; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper, as a Whisper code such as ko or en. Parakeet ignores this flag.")
+    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet ignores this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only). app-default follows the saved preference; ignored for Whisper.")
@@ -185,6 +186,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         _ engine: TranscribeSpeechEngine,
         storedEngine: String?,
         storedLanguage: String?,
+        storedNemotronLanguage: String? = nil,
         explicitLanguage: String?
     ) -> SpeechEngineSelection {
         let preference: SpeechEnginePreference
@@ -192,10 +194,20 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         switch engine {
         case .appDefault:
             preference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
-            language = preference == .whisper ? explicitLanguage ?? storedLanguage : nil
+            language = switch preference {
+            case .parakeet:
+                nil
+            case .nemotron:
+                explicitLanguage ?? storedNemotronLanguage
+            case .whisper:
+                explicitLanguage ?? storedLanguage
+            }
         case .parakeet:
             preference = .parakeet
             language = nil
+        case .nemotron:
+            preference = .nemotron
+            language = explicitLanguage
         case .whisper:
             preference = .whisper
             language = explicitLanguage
@@ -359,6 +371,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let writeToFiles = resolvedInputs.count > 1 || outputDir != nil
 
         var sttClient: STTClient?
+        var nemotronEngine: NemotronEngine?
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
@@ -375,6 +388,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 self.engine,
                 storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
                 storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
+                storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
                 explicitLanguage: self.language
             )
             let resolvedSpeakerDetection = Self.resolveSpeakerDetection(
@@ -412,6 +426,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let createdSTTClient = STTClient(modelVersion: parakeetVariant.asrModelVersion)
                 sttClient = createdSTTClient
                 sttTranscriber = createdSTTClient
+            case .nemotron:
+                let createdNemotronEngine = NemotronEngine(language: speechEngine.language)
+                nemotronEngine = createdNemotronEngine
+                sttTranscriber = createdNemotronEngine
             case .whisper:
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
@@ -474,6 +492,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
 
         await sttClient?.shutdown()
+        await nemotronEngine?.unload()
         await whisperEngine?.unload()
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
@@ -563,9 +582,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
         printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
         if noHistory {
-            return try await service.transcribeTransient(fileURL: url)
+            return try await service.transcribeTransient(fileURL: url, onProgress: progressHandler)
         }
-        return try await service.transcribe(fileURL: url)
+        return try await service.transcribe(fileURL: url, onProgress: progressHandler)
     }
 
     /// Expand folder arguments into their supported audio files and

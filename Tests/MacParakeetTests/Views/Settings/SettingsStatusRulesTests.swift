@@ -7,6 +7,7 @@ final class SettingsStatusRulesTests: XCTestCase {
     func testLocalModelsDoesNotShowReadyWhenInactiveWhisperIsMissing() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .ready,
+            nemotron: .notLoaded,
             whisper: .notDownloaded,
             activeEngine: .parakeet
         )
@@ -14,9 +15,10 @@ final class SettingsStatusRulesTests: XCTestCase {
         XCTAssertNil(status)
     }
 
-    func testLocalModelsShowsReadyOnlyWhenBothEnginesAreAvailable() {
+    func testLocalModelsShowsReadyOnlyWhenAllEnginesAreAvailable() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .notLoaded,
+            nemotron: .notLoaded,
             whisper: .notLoaded,
             activeEngine: .parakeet
         )
@@ -27,6 +29,7 @@ final class SettingsStatusRulesTests: XCTestCase {
     func testLocalModelsRecommendsDownloadWhenActiveEngineIsMissing() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .notLoaded,
+            nemotron: .notLoaded,
             whisper: .notDownloaded,
             activeEngine: .whisper
         )
@@ -37,6 +40,7 @@ final class SettingsStatusRulesTests: XCTestCase {
     func testLocalModelsShowsPreparingWhenActiveEngineIsPreparing() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .notLoaded,
+            nemotron: .notLoaded,
             whisper: .preparing,
             activeEngine: .whisper
         )
@@ -47,11 +51,23 @@ final class SettingsStatusRulesTests: XCTestCase {
     func testLocalModelsRequiresActionWhenEitherEngineFailed() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .ready,
+            nemotron: .notLoaded,
             whisper: .failed,
             activeEngine: .parakeet
         )
 
         XCTAssertEqual(status, SettingsCardStatus(.required, label: "Action needed"))
+    }
+
+    func testLocalModelsRecommendsDownloadWhenActiveNemotronIsMissing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notDownloaded,
+            whisper: .notLoaded,
+            activeEngine: .nemotron
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Download recommended"))
     }
 
     func testMeetingRecordingRequiresScreenRecordingPermission() {

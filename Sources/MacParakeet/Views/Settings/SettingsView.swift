@@ -499,11 +499,13 @@ struct SettingsView: View {
     /// variant-agnostic here.
     private enum PendingModelDeletion: Identifiable, Equatable {
         case parakeet(ParakeetModelVariant)
+        case nemotron
         case whisper
 
         var id: String {
             switch self {
             case .parakeet(let variant): "parakeet-\(variant.rawValue)"
+            case .nemotron: "nemotron"
             case .whisper: "whisper"
             }
         }
@@ -514,6 +516,7 @@ struct SettingsView: View {
     private var modelDeletionAlertTitle: String {
         switch pendingModelDeletion {
         case .parakeet(let variant): "Delete \(variant.modelName)?"
+        case .nemotron: "Delete the Nemotron model?"
         case .whisper: "Delete the Whisper model?"
         case nil: "Delete this model?"
         }
@@ -522,6 +525,9 @@ struct SettingsView: View {
     private func modelDeletionMessage(for deletion: PendingModelDeletion) -> String {
         switch deletion {
         case .parakeet(let variant):
+            return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
+        case .nemotron:
+            let variant = SpeechEnginePreference.defaultNemotronModelVariant
             return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
         case .whisper:
             return "This removes the configured Whisper model download from this Mac. You can download it again at any time."
@@ -532,6 +538,8 @@ struct SettingsView: View {
         switch deletion {
         case .parakeet(let variant):
             viewModel.deleteParakeetVariant(variant)
+        case .nemotron:
+            viewModel.deleteNemotronModel()
         case .whisper:
             viewModel.deleteWhisperModel()
         }
@@ -547,6 +555,8 @@ struct SettingsView: View {
 
     private func speechEngineSwitchConfirmationMessage(for engine: SpeechEnginePreference) -> String {
         switch engine {
+        case .nemotron:
+            return "Nemotron 3.5 is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
         case .whisper:
             if viewModel.whisperHasBeenOptimized {
                 return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
@@ -1951,7 +1961,7 @@ struct SettingsView: View {
                     speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
                 }
 
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                LazyVGrid(columns: engineOptionColumns, alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     EngineOptionTile(
                         icon: "bolt.fill",
                         name: "Parakeet",
@@ -1967,6 +1977,23 @@ struct SettingsView: View {
                         isBusy: viewModel.speechEngineSwitching,
                         unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
                         onSelect: { selectEngine(.parakeet) }
+                    )
+
+                    EngineOptionTile(
+                        icon: "sparkles",
+                        name: "Nemotron",
+                        tagline: "Frontier multilingual Beta",
+                        strengths: [
+                            "Nemotron 3.5 ASR Streaming",
+                            "Multilingual auto detection",
+                            "Runs locally on Apple Silicon"
+                        ],
+                        helpText: "Beta engine for trying Nemotron 3.5 locally. Best for users who want to compare the newest multilingual model while MacParakeet benchmarks quality and edge cases.",
+                        modelStatus: displayedNemotronModelStatus,
+                        isSelected: viewModel.speechEnginePreference == .nemotron,
+                        isBusy: viewModel.speechEngineSwitching,
+                        unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
+                        onSelect: { handleNemotronTileTap() }
                     )
 
                     EngineOptionTile(
@@ -1989,6 +2016,15 @@ struct SettingsView: View {
                     )
                 }
 
+                if let banner = nemotronDownloadBannerState {
+                    EngineDownloadBanner(
+                        title: "Nemotron 3.5 Beta",
+                        subtitle: banner.subtitle,
+                        mode: banner.mode,
+                        action: { viewModel.downloadNemotronModel() }
+                    )
+                }
+
                 if let banner = whisperDownloadBannerState {
                     EngineDownloadBanner(
                         title: "Whisper Large v3 Turbo",
@@ -2005,6 +2041,10 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var engineOptionColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 260), spacing: DesignSystem.Spacing.md, alignment: .top)]
     }
 
     /// Parakeet build picker (multilingual `v3` vs English-only `v2`). Only
@@ -2177,6 +2217,18 @@ struct SettingsView: View {
                 Divider()
 
                 modelStatusRow(
+                    title: "Nemotron",
+                    detail: displayedNemotronModelStatusDetail,
+                    status: displayedNemotronModelStatus,
+                    isWorking: viewModel.nemotronDownloading,
+                    actionsDisabled: viewModel.speechEngineSwitching,
+                    primaryAction: displayedNemotronModelStatus == .preparing ? nil : nemotronPrimaryAction,
+                    overflowActions: displayedNemotronModelStatus == .preparing ? [] : nemotronOverflowActions
+                )
+
+                Divider()
+
+                modelStatusRow(
                     title: "Whisper",
                     detail: displayedWhisperModelStatusDetail,
                     status: displayedWhisperModelStatus,
@@ -2216,12 +2268,20 @@ struct SettingsView: View {
             return "Updating Parakeet model"
         }
         let target = currentSpeechEngineSwitchTarget
-        return target == .whisper ? "Preparing Whisper" : "Switching to \(target.displayName)"
+        switch target {
+        case .parakeet:
+            return "Switching to Parakeet"
+        case .nemotron:
+            return "Preparing Nemotron"
+        case .whisper:
+            return "Preparing Whisper"
+        }
     }
 
     private var enginesModelsCardStatus: SettingsCardStatus? {
         SettingsStatusRules.localModelsCardStatus(
             parakeet: displayedParakeetModelStatus,
+            nemotron: displayedNemotronModelStatus,
             whisper: displayedWhisperModelStatus,
             activeEngine: viewModel.speechEnginePreference
         )
@@ -2266,6 +2326,22 @@ struct SettingsView: View {
             return viewModel.whisperModelStatusDetail
         }
         return viewModel.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
+    }
+
+    private var displayedNemotronModelStatus: SettingsViewModel.LocalModelStatus {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .nemotron else {
+            return viewModel.nemotronModelStatus
+        }
+        return .preparing
+    }
+
+    private var displayedNemotronModelStatusDetail: String {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .nemotron else {
+            return viewModel.nemotronModelStatusDetail
+        }
+        return viewModel.speechEngineSwitchDetail ?? "Loading Nemotron 3.5 Beta on Neural Engine..."
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
@@ -2346,6 +2422,23 @@ struct SettingsView: View {
         }
     }
 
+    private var nemotronDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
+        guard viewModel.speechEnginePreference == .nemotron else { return nil }
+        if viewModel.nemotronDownloading {
+            return (.downloading, viewModel.nemotronModelStatusDetail)
+        }
+        switch viewModel.nemotronModelStatus {
+        case .notDownloaded:
+            return (.download, "\(SpeechEnginePreference.defaultNemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
+        case .repairing:
+            return (.downloading, viewModel.nemotronModelStatusDetail)
+        case .failed:
+            return (.retry, viewModel.nemotronModelStatusDetail)
+        case .ready, .notLoaded, .preparing, .checking, .unknown:
+            return nil
+        }
+    }
+
     /// Pre-empts every "Whisper isn't ready" state so the user never sees
     /// a briefly-selected-then-reverted tile. Mirrors the VM's
     /// `isWhisperModelAvailable` (`ready` or `notLoaded`); for everything
@@ -2368,6 +2461,10 @@ struct SettingsView: View {
         case .checking, .unknown:
             selectEngine(.whisper)
         }
+    }
+
+    private func handleNemotronTileTap() {
+        selectEngine(.nemotron)
     }
 
     private var parakeetPrimaryAction: ModelRowAction? {
@@ -2432,6 +2529,55 @@ struct SettingsView: View {
             }
         default:
             return nil
+        }
+    }
+
+    private var nemotronPrimaryAction: ModelRowAction? {
+        switch viewModel.nemotronModelStatus {
+        case .notDownloaded:
+            return ModelRowAction(
+                label: "Download",
+                isProminent: true,
+                help: "Download Nemotron 3.5 Beta for local multilingual speech recognition."
+            ) {
+                viewModel.downloadNemotronModel()
+            }
+        case .failed:
+            return ModelRowAction(
+                label: "Retry",
+                isProminent: true,
+                help: "Try downloading the Nemotron model again."
+            ) {
+                viewModel.downloadNemotronModel()
+            }
+        default:
+            return nil
+        }
+    }
+
+    private var nemotronOverflowActions: [ModelRowAction] {
+        switch viewModel.nemotronModelStatus {
+        case .ready, .notLoaded:
+            var actions = [ModelRowAction(
+                label: "Repair…",
+                isProminent: false,
+                help: "Re-check the Nemotron files and re-download any missing model assets."
+            ) {
+                viewModel.downloadNemotronModel()
+            }]
+            if viewModel.speechEnginePreference != .nemotron {
+                actions.append(ModelRowAction(
+                    label: "Delete download…",
+                    isProminent: false,
+                    isDestructive: true,
+                    help: "Remove the Nemotron model download from this Mac."
+                ) {
+                    pendingModelDeletion = .nemotron
+                })
+            }
+            return actions
+        default:
+            return []
         }
     }
 

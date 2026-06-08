@@ -31,6 +31,7 @@ final class ConfigCommandTests: XCTestCase {
             "processing-mode",
             "speech-engine",
             "parakeet-model",
+            "nemotron-language",
             "whisper-language",
             "speaker-detection",
             "save-transcription-audio",
@@ -58,6 +59,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v3")
+        XCTAssertEqual(try ConfigCommand.read(key: "nemotron-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
@@ -107,6 +109,12 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "whisper", defaults: defaults), "whisper")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.whisper.rawValue)
 
+        XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "nemotron", defaults: defaults), "nemotron")
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.nemotron.rawValue)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-language", value: "en_US", defaults: defaults), "en-US")
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey), "en-US")
+
         XCTAssertEqual(try ConfigCommand.write(key: "whisper-language", value: "ko", defaults: defaults), "ko")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.whisperDefaultLanguageKey), "ko")
 
@@ -153,6 +161,13 @@ final class ConfigCommandTests: XCTestCase {
 
         XCTAssertEqual(try ConfigCommand.write(key: "whisper-language", value: "auto", defaults: defaults), "auto")
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.whisperDefaultLanguageKey))
+    }
+
+    func testWriteNemotronLanguageAutoClearsStoredDefault() throws {
+        defaults.set("en-US", forKey: SpeechEnginePreference.nemotronDefaultLanguageKey)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-language", value: "auto", defaults: defaults), "auto")
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey))
     }
 
     func testWriteAcceptsAllBoolSynonyms() throws {

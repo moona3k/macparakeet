@@ -1154,6 +1154,38 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.parakeetStatusDetail, "Parakeet TDT 0.6B v3 · Installed locally, loads when selected.")
     }
 
+    func testRefreshModelStatusChecksNemotronCacheWithStoredLanguage() async throws {
+        SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: testDefaults)
+        let recorder = NemotronCacheCheckRecorder()
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
+                youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            },
+            parakeetModelVariantCached: { _ in true },
+            nemotronModelVariantCached: { variant, language in
+                recorder.record(variant, language)
+                return true
+            }
+        )
+        let stt = MockSTTClient()
+        await stt.setReady(false)
+
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sttClient: stt
+        )
+
+        try await waitUntil { vm.nemotronModelStatus == .notLoaded }
+        let capturedChecks = recorder.calls
+        XCTAssertEqual(capturedChecks.first?.0, .multilingual1120)
+        XCTAssertEqual(capturedChecks.first?.1, "en-US")
+        XCTAssertEqual(vm.nemotronModelStatusDetail, "Nemotron 3.5 ASR Streaming 0.6B · Installed locally, loads when selected.")
+    }
+
     func testRepairParakeetModelUsesRetryAndEndsReady() async throws {
         let vm = SettingsViewModel(
             defaults: testDefaults,
@@ -1303,6 +1335,37 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
         XCTAssertFalse(viewModel.speechEngineSwitching)
         XCTAssertNil(viewModel.speechEngineError)
+    }
+
+    func testSpeechEngineChangeBlocksMissingNemotronModel() async throws {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.nemotronModelStatus = .notDownloaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.speechEnginePreference = .nemotron
+
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        XCTAssertEqual(viewModel.speechEngineError, "Download the Nemotron model before switching engines.")
+        XCTAssertFalse(viewModel.speechEngineSwitching)
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+
+        let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
+        XCTAssertEqual(event.fromEngine, .parakeet)
+        XCTAssertEqual(event.toEngine, .nemotron)
+        XCTAssertEqual(event.outcome, .unavailable)
+        XCTAssertEqual(event.blockedReason, .modelNotDownloaded)
+        XCTAssertEqual(event.errorType, "model_not_downloaded")
+        XCTAssertEqual(event.wasCold, false)
     }
 
     func testParakeetModelVariantChangeCallsSwitcherAndPersistsOnSuccess() async throws {
@@ -1908,6 +1971,7 @@ final class SettingsViewModelTests: XCTestCase {
             defaults: testDefaults,
             parakeetModelVariantCached: { _ in true },
             deleteParakeetModelOnDisk: { variant in recorder.recordParakeet(variant); return true },
+            deleteNemotronModelOnDisk: { variant, language in recorder.recordNemotron(variant, language); return true },
             deleteWhisperModelOnDisk: { variant in recorder.recordWhisper(variant); return true }
         )
     }
@@ -1983,6 +2047,46 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.whisperModelStatus, .notLoaded)
         XCTAssertTrue(recorder.whisperCalls.isEmpty)
     }
+
+    func testDeleteNemotronModelUsesStoredLanguageWhenParakeetActive() async throws {
+        SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: testDefaults)
+        let recorder = ModelDeleteRecorder()
+        let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
+        vm.nemotronModelStatus = .notLoaded
+
+        vm.deleteNemotronModel()
+
+        XCTAssertEqual(vm.nemotronModelStatus, .notDownloaded)
+        try await waitUntil {
+            recorder.nemotronCalls.count == 1
+                && recorder.nemotronCalls.first?.0 == .multilingual1120
+                && recorder.nemotronCalls.first?.1 == "en-US"
+        }
+    }
+
+    func testDeleteNemotronModelRefusedWhenNemotronActive() {
+        let recorder = ModelDeleteRecorder()
+        let vm = makeDeletionViewModel(engine: .nemotron, parakeetVariant: .v3, recorder: recorder)
+        vm.nemotronModelStatus = .notLoaded
+
+        vm.deleteNemotronModel()
+
+        XCTAssertEqual(vm.nemotronModelStatus, .notLoaded)
+        XCTAssertTrue(recorder.nemotronCalls.isEmpty)
+    }
+}
+
+private final class NemotronCacheCheckRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedCalls: [(NemotronModelVariant, String?)] = []
+
+    func record(_ variant: NemotronModelVariant, _ language: String?) {
+        lock.lock(); recordedCalls.append((variant, language)); lock.unlock()
+    }
+
+    var calls: [(NemotronModelVariant, String?)] {
+        lock.lock(); defer { lock.unlock() }; return recordedCalls
+    }
 }
 
 /// Thread-safe capture for the injected on-disk deleter closures (they fire on
@@ -1990,10 +2094,15 @@ final class SettingsViewModelTests: XCTestCase {
 private final class ModelDeleteRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var parakeet: [ParakeetModelVariant] = []
+    private var nemotron: [(NemotronModelVariant, String?)] = []
     private var whisper: [String] = []
 
     func recordParakeet(_ variant: ParakeetModelVariant) {
         lock.lock(); parakeet.append(variant); lock.unlock()
+    }
+
+    func recordNemotron(_ variant: NemotronModelVariant, _ language: String?) {
+        lock.lock(); nemotron.append((variant, language)); lock.unlock()
     }
 
     func recordWhisper(_ variant: String) {
@@ -2002,6 +2111,10 @@ private final class ModelDeleteRecorder: @unchecked Sendable {
 
     var parakeetCalls: [ParakeetModelVariant] {
         lock.lock(); defer { lock.unlock() }; return parakeet
+    }
+
+    var nemotronCalls: [(NemotronModelVariant, String?)] {
+        lock.lock(); defer { lock.unlock() }; return nemotron
     }
 
     var whisperCalls: [String] {

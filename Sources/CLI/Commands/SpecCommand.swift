@@ -164,8 +164,8 @@ private extension CLISpecCommand {
             jsonMode: "--format json",
             arguments: [.argument("input", summary: "File path, folder path, YouTube URL, or HTTP(S) media URL supported by yt-dlp.")],
             options: [
-                CLISpecParameter.option("--engine", valueName: "parakeet|whisper|app-default", summary: "Speech engine for this run."),
-                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Whisper."),
+                CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|app-default", summary: "Speech engine for this run."),
+                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper."),
                 CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection behavior for this run."),
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),

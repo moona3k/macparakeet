@@ -165,10 +165,32 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         SpeechEnginePreference.saveWhisperModelVariant("small", defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .parakeet, defaults: defaults))
+        XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .nemotron, defaults: defaults))
         XCTAssertTrue(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
 
         SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
+    }
+
+    func testNemotronDefaultLanguageRoundTripsAndNormalizes() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertNil(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults))
+
+        SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults), "en-US")
+
+        SpeechEnginePreference.saveNemotronDefaultLanguage("auto", defaults: defaults)
+        XCTAssertNil(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults))
+    }
+
+    func testSpeechEngineSelectionCarriesNemotronLanguage() {
+        XCTAssertEqual(
+            SpeechEngineSelection(engine: .nemotron, language: "zh_CN"),
+            SpeechEngineSelection(engine: .nemotron, language: "zh-CN")
+        )
+        XCTAssertNil(SpeechEngineSelection(engine: .parakeet, language: "ko").language)
     }
 }

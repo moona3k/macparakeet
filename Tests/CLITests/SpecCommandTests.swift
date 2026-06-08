@@ -71,6 +71,11 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--media-audio-quality"))
+
+        let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
+        XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|app-default")
+        let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
+        XCTAssertEqual(language["summary"] as? String, "Language hint for Nemotron or Whisper.")
     }
 
     private func specPayload() throws -> [String: Any] {

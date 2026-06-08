@@ -2,10 +2,12 @@ import Foundation
 
 public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
+    case nemotron
     case whisper
 
     public static let defaultsKey = "speechRecognitionEngine"
     public static let parakeetModelVariantKey = "parakeetModelVariant"
+    public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
 
@@ -22,11 +24,14 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public static let whisperOptimizedVariantsKey = "whisperOptimizedVariants"
 
     public static let defaultWhisperModelVariant = "large-v3-v20240930_turbo_632MB"
+    public static let defaultNemotronModelVariant: NemotronModelVariant = .multilingual1120
 
     public var displayName: String {
         switch self {
         case .parakeet:
             "Parakeet"
+        case .nemotron:
+            "Nemotron"
         case .whisper:
             "Whisper"
         }
@@ -35,6 +40,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public var alternative: SpeechEnginePreference {
         switch self {
         case .parakeet:
+            .nemotron
+        case .nemotron:
             .whisper
         case .whisper:
             .parakeet
@@ -63,6 +70,18 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return
         }
         defaults.set(normalized, forKey: whisperDefaultLanguageKey)
+    }
+
+    public static func nemotronDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
+        normalizeNemotronLanguage(defaults.string(forKey: nemotronDefaultLanguageKey))
+    }
+
+    public static func saveNemotronDefaultLanguage(_ language: String?, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeNemotronLanguage(language) else {
+            defaults.removeObject(forKey: nemotronDefaultLanguageKey)
+            return
+        }
+        defaults.set(normalized, forKey: nemotronDefaultLanguageKey)
     }
 
     public static func whisperModelVariant(defaults: UserDefaults = .standard) -> String {
@@ -141,6 +160,13 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return nil
         }
         return normalized
+    }
+
+    public static func normalizeNemotronLanguage(_ language: String?) -> String? {
+        guard let language else { return nil }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.lowercased() != "auto" else { return nil }
+        return trimmed.replacingOccurrences(of: "_", with: "-")
     }
 
     public static func normalizeModelVariant(_ variant: String?) -> String? {
@@ -271,21 +297,73 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// The Nemotron 3.5 CoreML build surfaced by MacParakeet.
+///
+/// FluidAudio exposes several chunk-size tiers. MacParakeet starts with the
+/// multilingual 1120 ms tier because it keeps the Beta product surface simple
+/// while preserving the balanced quality/latency posture expected for
+/// dictation, meetings, and file transcription.
+public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
+    case multilingual1120 = "multilingual-1120ms"
+
+    public var displayName: String {
+        switch self {
+        case .multilingual1120:
+            "Multilingual Beta"
+        }
+    }
+
+    public var modelName: String {
+        switch self {
+        case .multilingual1120:
+            "Nemotron 3.5 ASR Streaming 0.6B"
+        }
+    }
+
+    public var coverageSummary: String {
+        switch self {
+        case .multilingual1120:
+            "Fast multilingual streaming model. Beta while MacParakeet benchmarks quality and edge cases."
+        }
+    }
+
+    public var approximateDownloadSize: String { "~1.5 GB" }
+
+    public var chunkMilliseconds: Int {
+        switch self {
+        case .multilingual1120:
+            1120
+        }
+    }
+}
+
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     public let engine: SpeechEnginePreference
     public let language: String?
 
     public init(engine: SpeechEnginePreference, language: String? = nil) {
         self.engine = engine
-        self.language = engine == .whisper ? SpeechEnginePreference.normalizeLanguage(language) : nil
+        self.language = switch engine {
+        case .parakeet:
+            nil
+        case .nemotron:
+            SpeechEnginePreference.normalizeNemotronLanguage(language)
+        case .whisper:
+            SpeechEnginePreference.normalizeLanguage(language)
+        }
     }
 
     public static func current(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
         let engine = SpeechEnginePreference.current(defaults: defaults)
-        return SpeechEngineSelection(
-            engine: engine,
-            language: engine == .whisper ? SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) : nil
-        )
+        let language: String? = switch engine {
+        case .parakeet:
+            nil
+        case .nemotron:
+            SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        case .whisper:
+            SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        }
+        return SpeechEngineSelection(engine: engine, language: language)
     }
 }
 

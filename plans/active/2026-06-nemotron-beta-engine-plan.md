@@ -7,6 +7,53 @@
 > ADRs: `spec/adr/001-parakeet-stt.md`, `spec/adr/016-centralized-stt-runtime-scheduler.md`, `spec/adr/021-whisperkit-multilingual-stt.md`
 > Scope: add Nemotron 3.5 as a clean opt-in Beta speech engine, backed by side-by-side benchmarks against MacParakeet's current Parakeet v3/v2 and Whisper paths.
 
+## Current Branch Status
+
+As of 2026-06-08 on `plan/nemotron-benchmark`:
+
+- FluidAudio is bumped to `0.15.2`; the existing Parakeet v3/v2 code path
+  builds against it.
+- `NemotronEngine` is wired through `STTRuntime` and therefore through the
+  existing `STTScheduler` lanes for dictation, file transcription, meeting live
+  chunks, and meeting finalization.
+- Settings exposes Nemotron as a separate Beta speech engine card and includes
+  model download/delete/status controls.
+- CLI support covers `transcribe --engine nemotron`, `config set
+  speech-engine nemotron`, `config set nemotron-language`, `models list`,
+  `models select`, `models download`, `models delete`, `models status`,
+  `models warm-up`, and `health --repair-models`. `models select` validates
+  that local Nemotron/Whisper artifacts are downloaded before persisting either
+  engine as the shared default.
+- Telemetry attribution uses the existing safe dimensions:
+  `speech_engine=nemotron`, `engine_variant=multilingual-1120ms`, and
+  `model_kind=nemotron_stt`. Audio, transcript text, file paths, URLs, and
+  language text remain excluded from telemetry payloads.
+- The first reproducible side-by-side harness is
+  `scripts/dev/benchmark_stt_engines.sh`. It exercises the production CLI path
+  and writes TSV, JSON, stderr timing logs, and transcripts under
+  `output/benchmarks/stt/`.
+- The first smoke benchmark report is
+  `docs/planning/2026-06-nemotron-stt-benchmark-report.md`. It compares
+  Parakeet v3, Nemotron, and Whisper on five synthetic samples and records why
+  Nemotron should remain opt-in Beta rather than replacing Parakeet.
+
+Validated so far:
+
+```bash
+swift build
+swift test --filter 'SpeechEnginePreferenceTests|TranscribeCommandTests|ConfigCommandTests|ModelLifecycleCommandTests|SettingsViewModelTests|STTSchedulerTests|SettingsStatusRulesTests'
+swift test
+bash -n scripts/dev/benchmark_stt_engines.sh
+git diff --check
+```
+
+The focused test slice passed 393 tests with 0 failures after the core,
+Settings, and CLI wiring. The full suite passed 3362 tests with 10 expected
+skips and 0 failures after the retranscription and Settings model-status
+coverage landed; the final full-suite rerun after CLI spec/docs polish and the
+missing-Nemotron Settings guard passed 3365 tests with 10 expected skips and 0
+failures.
+
 ## 1. Intent
 
 MacParakeet's default STT path is already strong: Parakeet TDT v3/v2 through
@@ -200,19 +247,29 @@ Expected decision point:
 - inventory Nemotron APIs and decide which model path maps to dictation,
   meeting live preview, meeting finalization, and file transcription
 
-### Phase 3: Standalone Nemotron Harness
+### Phase 3: Production-Path Benchmark Harness
 
-Add or generate a narrow benchmark harness that imports FluidAudio directly and
-does not alter production STT routing yet.
+The first harness should exercise the same path users exercise: the
+`macparakeet-cli transcribe` command backed by the production STT wrappers.
+This keeps the benchmark honest about model routing, audio conversion,
+progress, engine attribution, cancellation/error mapping, and CLI privacy
+defaults.
 
-The harness should exercise:
+Run shape:
 
-- streaming Nemotron partials on incremental audio buffers
-- finalization via the model's finish/final API
-- a batch-like transcription path for complete files
-- manual language and auto language modes where supported
+```bash
+swift build -c release --product macparakeet-cli
+MACPARAKEET_TELEMETRY=0 DO_NOT_TRACK=1 \
+  scripts/dev/benchmark_stt_engines.sh output/benchmarks/stt/corpus.tsv
+```
 
-Output should be machine-readable TSV or JSONL with:
+Corpus TSV columns:
+
+```text
+sample_id<TAB>path<TAB>language<TAB>sample_type<TAB>reference_path<TAB>notes
+```
+
+Output includes:
 
 ```text
 engine
@@ -220,14 +277,24 @@ variant
 language_hint
 sample_id
 audio_duration_s
+first_progress_s
 first_partial_s
 final_wall_s
 realtime_factor
 peak_memory_bytes
-partial_count
+wer
+punctuation_per_100_words
+prefix_ref_words_matched
+suffix_ref_words_matched
 final_text_path
 error
 ```
+
+The production CLI path currently emits final transcripts plus coarse progress,
+not streaming partial transcript text. Therefore this harness records
+`first_progress_s` automatically and reserves `first_partial_s` for a direct
+FluidAudio streaming probe or app live-preview instrumentation pass. Do not
+overstate `first_progress_s` as true first partial latency in the report.
 
 ### Phase 4: Production Integration
 
@@ -242,6 +309,10 @@ Implement the Beta engine in the real app:
 - update model status, download progress, and storage-management surfaces
 - add privacy-safe telemetry attribution for engine, variant, duration, and
   coarse failure type only
+
+Current branch state: complete enough for build/test validation and PR review;
+remaining work is benchmark evidence beyond the synthetic smoke corpus, final
+polish, PR review, and merge-readiness cleanup.
 
 ### Phase 5: Side-by-Side Benchmark Report
 
@@ -344,10 +415,11 @@ model-details tooltip.
 
 ## 14. Immediate Next Steps
 
-1. Build a small benchmark corpus under `output/benchmarks/nemotron/`.
-2. Record Parakeet v3/v2 baseline numbers on current `main`.
-3. Bump FluidAudio in this worktree and verify the existing STT tests.
-4. Add the standalone Nemotron benchmark harness.
-5. Implement the Nemotron engine behind the existing STT runtime/scheduler.
-6. Add Settings and CLI surfaces with a concise Beta tag.
-7. Produce the side-by-side benchmark report and tune the Beta copy if needed.
+1. Add a direct streaming/meeting-live probe if we need true first-partial and
+   segment-cadence numbers before PR merge.
+2. Run the product-corpus benchmark with real speech before making any
+   post-Beta quality claims.
+3. Tune the Beta copy if the product-corpus measurements expose a user-facing
+   caveat beyond "Beta".
+4. Open the PR with implementation/data-flow details and an ASCII diagram, then
+   drive review/CI to merge readiness.

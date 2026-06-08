@@ -10,8 +10,18 @@ import Foundation
 public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
     private let scheduler: STTScheduler
 
-    public init(modelVersion: AsrModelVersion = .v3) {
-        let runtime = STTRuntime(modelVersion: modelVersion)
+    public init(
+        modelVersion: AsrModelVersion = .v3,
+        speechEngine: SpeechEnginePreference = .parakeet,
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+    ) {
+        let runtime = STTRuntime(
+            modelVersion: modelVersion,
+            speechEngine: speechEngine,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant
+        )
         self.scheduler = STTScheduler(runtime: runtime)
     }
 
@@ -97,5 +107,12 @@ public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngin
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
         STTRuntime.isModelCached(version: version)
+    }
+
+    public nonisolated static func isNemotronModelCached(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil
+    ) -> Bool {
+        STTRuntime.isNemotronModelCached(modelVariant: modelVariant, language: language)
     }
 }
