@@ -45,7 +45,8 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// summary generation (ADR-020 §3). `nil` for non-meeting transcripts
     /// and for meetings where the user took no notes.
     public var userNotes: String?
-    /// STT engine that produced this transcript (`"parakeet"` / `"whisper"`).
+    /// STT engine that produced this transcript (`"parakeet"` / `"nemotron"` /
+    /// `"whisper"`).
     /// `nil` for rows created before the v0.8 engine-attribution migration.
     public var engine: String?
     /// Engine-specific model variant id (e.g. the Whisper model id).

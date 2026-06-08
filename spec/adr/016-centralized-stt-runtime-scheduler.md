@@ -2,8 +2,9 @@
 
 > Status: ACCEPTED
 > Date: 2026-04-06
-> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
+> Related: ADR-001 (Parakeet STT + Nemotron Beta amendment), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
 > Amendment 2026-04-28: The scheduler is now engine-routed. Parakeet remains default; WhisperKit can be selected globally or per routed job. Meeting sessions hold a speech-engine lease so engine changes cannot split a meeting across engines.
+> Amendment 2026-06-08: Nemotron 3.5 joins the same routed scheduler/runtime as an opt-in Beta engine. The one-control-plane rule still holds; Nemotron does not create feature-owned STT runtimes.
 
 ## Context
 
@@ -45,11 +46,12 @@ Feature services submit jobs to the control plane; they do not own their own STT
 
 ### 2. One shared STT runtime owner
 
-The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
+The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Nemotron's FluidAudio managers, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
 
 That runtime is the sole owner of:
 
-- slot-scoped `AsrManager` instances
+- slot-scoped Parakeet `AsrManager` instances
+- the optional Beta `NemotronEngine` instance
 - the optional `WhisperEngine` instance
 - model download / initialization / readiness
 - warm-up progress
@@ -197,7 +199,7 @@ The control plane supports both unrouted and routed transcription calls:
 - `beginSpeechEngineSession()` returns a lease containing the current selection; `endSpeechEngineSession(_:)` releases it.
 - Engine switching is rejected while any lease is active.
 
-Meeting recording uses this lease at start. This prevents a long recording from starting with Parakeet live preview and finishing with Whisper, or vice versa. The captured engine/language is also persisted to meeting metadata and recovery lock files so interrupted sessions recover through the same engine.
+Meeting recording uses this lease at start. This prevents a long recording from starting with one engine for live preview and finishing with another. The captured engine/language is also persisted to meeting metadata and recovery lock files so interrupted sessions recover through the same engine.
 
 ## Consequences
 
@@ -223,7 +225,7 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 
 ### Core types
 
-- `STTRuntime` — owns slot-scoped Parakeet `AsrManager` instances, optional `WhisperEngine`, engine dispatch, and model lifecycle
+- `STTRuntime` — owns slot-scoped Parakeet `AsrManager` instances, optional `NemotronEngine` / `WhisperEngine` instances, engine dispatch, and model lifecycle
 - `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, speech-engine sessions, and job execution against the runtime
 
 ### Service boundaries

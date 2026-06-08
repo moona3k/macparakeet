@@ -116,11 +116,22 @@ public actor PodcastEpisodeResolver: PodcastResolving {
         }
 
         // The lookup returns the show collection plus episodes (newest first).
-        // The first result carrying an `episodeUrl` is the requested episode for
-        // an episode lookup, or the latest episode for a show lookup.
-        guard let episode = response.results.first(where: { ($0.episodeUrl?.isEmpty == false) }) else {
-            throw PodcastResolveError.noPlayableAudio
+        // Apple does not resolve podcast episode track ids directly through
+        // `/lookup?id=<episodeID>`, so episode URLs use the show lookup and then
+        // filter rows by `trackId`.
+        let episode: ItunesResult
+        if let episodeID {
+            guard let match = response.results.first(where: { $0.trackId.map(String.init) == episodeID }) else {
+                throw PodcastResolveError.episodeNotFound
+            }
+            episode = match
+        } else {
+            guard let latest = response.results.first(where: { ($0.episodeUrl?.isEmpty == false) }) else {
+                throw PodcastResolveError.noPlayableAudio
+            }
+            episode = latest
         }
+
         guard let audioURL = episode.episodeUrl, !audioURL.isEmpty else {
             throw PodcastResolveError.noPlayableAudio
         }
@@ -145,17 +156,14 @@ public actor PodcastEpisodeResolver: PodcastResolving {
 
     static func lookupURL(collectionID: String, episodeID: String?) throws -> URL {
         var components = URLComponents(string: lookupBase)
-        var items = [URLQueryItem(name: "entity", value: "podcastEpisode")]
-        if let episodeID {
-            // Looking up the episode's own track id returns just that episode.
-            items.insert(URLQueryItem(name: "id", value: episodeID), at: 0)
-        } else {
-            // Looking up the show id returns the show plus its recent episodes,
-            // newest first — we only need the collection header + the latest
-            // episode, so cap the response (the API defaults to 200 otherwise).
-            items.insert(URLQueryItem(name: "id", value: collectionID), at: 0)
-            items.append(URLQueryItem(name: "limit", value: "2"))
-        }
+        var items = [
+            URLQueryItem(name: "id", value: collectionID),
+            URLQueryItem(name: "entity", value: "podcastEpisode"),
+        ]
+        // Looking up the show id returns the collection header plus recent
+        // episode rows. For a show URL we only need the latest row; for an
+        // episode URL we need enough rows to find the `?i=` track id.
+        items.append(URLQueryItem(name: "limit", value: episodeID == nil ? "2" : "200"))
         components?.queryItems = items
         guard let url = components?.url else {
             throw PodcastResolveError.invalidURL
@@ -201,6 +209,7 @@ struct ItunesResult: Decodable {
     let kind: String?
     let trackName: String?
     let collectionName: String?
+    let trackId: Int?
     let collectionId: Int?
     let feedUrl: String?
     let episodeUrl: String?

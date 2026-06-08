@@ -344,9 +344,9 @@ struct EngineDownloadBanner: View {
                 strengths: [
                     "English + 24 European languages",
                     "155× realtime on Apple Silicon",
-                    "Runs on the Neural Engine"
+                    "Best default for everyday dictation"
                 ],
-                helpText: "Best for English and other European languages including Spanish, French, German, and Italian. Runs on the Neural Engine for the lowest latency on Apple Silicon.",
+                helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
                 modelStatus: .ready,
                 isSelected: true,
                 isBusy: false,
@@ -357,13 +357,13 @@ struct EngineDownloadBanner: View {
             EngineOptionTile(
                 icon: "globe",
                 name: "Whisper",
-                tagline: "Multilingual coverage",
+                tagline: "Broad language fallback",
                 strengths: [
                     "Korean, Japanese, Chinese, Thai +95 more",
-                    "Auto language detection",
-                    "Whisper Large v3 Turbo (632 MB)"
+                    "Mature mixed-language recognition",
+                    "Local Whisper Large v3 Turbo"
                 ],
-                helpText: "Best for languages outside Parakeet's coverage. Adds Korean, Japanese, Chinese, Thai, Hindi, Arabic, Vietnamese, and 80+ more — any language Whisper supports.",
+                helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
                 modelStatus: .notDownloaded,
                 isSelected: false,
                 isBusy: false,

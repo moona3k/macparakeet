@@ -817,7 +817,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 │  ┌─ Distill ───────────────────────────────  ⌥2  [Edit] │
 │  │ Compress to signal and remove noise.                  │
 │  └───────────────────────────────────────────────────────┘
-│  ┌─ Decide ────────────────────────────────  ⌥3  [Edit] │
+│  ┌─ Decide ───────────────────────────────  ⌃⌥3  [Edit] │
 │  │ Turn discussion into a decision-ready note.            │
 │  └───────────────────────────────────────────────────────┘
 │                                                           │
@@ -826,7 +826,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 └───────────────────────────────────────────────────────────┘
 ```
 
-- Built-ins are `Polish`, `Distill`, and `Decide` with default `Option-1/2/3` bindings.
+- Built-ins are `Polish`, `Distill`, and `Decide` with default `Option-1`, `Option-2`, and `Control-Option-3` bindings.
 - A Transform is active when it has a shortcut; there is no second user-facing global enable toggle.
 - The editor validates shortcuts against dictation, meeting, duplicate Transform bindings, bare keys, and hostile Option-letter dead-key combos.
 - The floating Transform progress pill owns running/cancel/error state. The target app remains focused; MacParakeet does not show an inline preview before replacement.
@@ -930,7 +930,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
 │  Engine                                                   │
-│  [ Parakeet ] [ Whisper ]                                 │
+│  [ Parakeet ] [ Nemotron Beta ] [ Whisper ]                │
 │                                                           │
 │  Whisper language                                         │
 │  [ Auto-detect                         ▾ ]                │
@@ -945,7 +945,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 └───────────────────────────────────────────────────────────┘
 ```
 
-- Engine picker options: Parakeet (default) and Whisper.
+- Engine picker options: Parakeet (default), Nemotron Beta, and Whisper.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
 - Status pill states: `Unknown`, `Checking`, `Ready`, `Not Loaded`, `Not Downloaded`, `Downloading`, `Repairing`, `Failed`.
 - `Repair` retries Parakeet model download/initialization with bounded backoff.

@@ -679,6 +679,8 @@ struct TranscriptResultView: View {
         switch preference {
         case .parakeet:
             return "Parakeet TDT"
+        case .nemotron:
+            return "Nemotron 3.5 Beta"
         case .whisper:
             guard let variant = activeTranscription.engineVariant else {
                 return "Whisper"
@@ -1125,7 +1127,9 @@ struct TranscriptResultView: View {
 
             Spacer()
 
-            if !editingTranscript, hasCleanTranscriptText, hasTimestamps {
+            // Show whenever word timestamps exist: Timed renders from word data,
+            // and Text falls back to the raw transcript when clean text is absent.
+            if !editingTranscript, hasTimestamps {
                 Picker("Transcript view", selection: $transcriptDisplayMode) {
                     ForEach(TranscriptDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -2506,7 +2510,7 @@ struct TranscriptResultView: View {
     }
 
     private func syncTranscriptDisplayMode() {
-        transcriptDisplayMode = hasCleanTranscriptText ? .text : .timed
+        transcriptDisplayMode = (hasCleanTranscriptText || !hasTimestamps) ? .text : .timed
     }
 
     private func beginTranscriptEdit() {
@@ -2874,6 +2878,7 @@ private struct EngineOptionCard: View {
     private var iconName: String {
         switch selection.engine {
         case .parakeet: "bolt.fill"
+        case .nemotron: "sparkles"
         case .whisper: "globe"
         }
     }
@@ -2882,13 +2887,15 @@ private struct EngineOptionCard: View {
         switch selection.engine {
         case .parakeet:
             "Fast • 25 European languages, including English"
+        case .nemotron:
+            "Beta • Nemotron 3.5 multilingual streaming"
         case .whisper:
             "Broader languages • Korean, Chinese, Japanese, and more"
         }
     }
 
     private var languageDetail: String? {
-        guard selection.engine == .whisper else { return nil }
+        guard selection.engine == .whisper || selection.engine == .nemotron else { return nil }
         let language = selection.language ?? "auto-detect"
         return "Language: \(language)"
     }

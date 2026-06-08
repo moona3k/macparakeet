@@ -119,7 +119,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
-        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Neural Engine"
+        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
         await mockService.configureProgress(phases: [.transcribing(percent: 42)])
         await mockService.configureDelay(milliseconds: 250)
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
@@ -1353,7 +1353,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
-        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Neural Engine"
+        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
 
         let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-progress-\(UUID().uuidString).mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
@@ -1437,13 +1437,70 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
     }
 
-    func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {
+    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsMissing() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
         )
         defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
 
-        viewModel = TranscriptionViewModel(isWhisperModelDownloaded: { false })
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { false }
+        )
+        let original = Transcription(
+            id: UUID(),
+            fileName: "English Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
+        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertNil(option.unavailableReason)
+    }
+
+    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsDownloaded() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .parakeet)
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
+        let original = Transcription(
+            id: UUID(),
+            fileName: "English Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
+        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertNil(option.unavailableReason)
+    }
+
+    func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .nemotron)
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { false },
+            isNemotronModelDownloaded: { true }
+        )
         let original = Transcription(
             id: UUID(),
             fileName: "English Meeting",
@@ -1466,7 +1523,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
-        viewModel = TranscriptionViewModel(defaults: defaults, isWhisperModelDownloaded: { true })
+        SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
 
         let tmpFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("retranscribe-engine-youtube-\(UUID().uuidString).mp3")
@@ -1486,7 +1548,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertEqual(option.alternativeEngine.engine, .whisper)
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
         XCTAssertTrue(option.isAlternativeAvailable)
         XCTAssertNil(option.unavailableReason)
     }

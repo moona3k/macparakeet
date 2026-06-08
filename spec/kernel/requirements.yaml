@@ -269,22 +269,22 @@ REQ-MEET-013:
 # --- v0.6 Multilingual Speech Recognition ---
 
 REQ-STT-002:
-  description: WhisperKit is available as a second speech recognition engine while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary
+  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary
   version: v0.6
   status: implemented
 
 REQ-STT-003:
-  description: GUI speech recognition settings persist the selected engine, Parakeet model variant, and Whisper default language, and refuse unsafe switches while speech work or a meeting session is active
+  description: GUI speech recognition settings persist the selected engine, Parakeet model variant, Nemotron language, and Whisper default language, and refuse unsafe switches while speech work or a meeting session is active
   version: v0.6
   status: implemented
 
 REQ-TRANS-002:
-  description: CLI file and URL transcription support per-invocation Parakeet or Whisper engine selection, per-invocation Parakeet model overrides, persisted Parakeet model defaults via config/models, optional Whisper language hints, and additive detected-language output
+  description: CLI file and URL transcription support per-invocation Parakeet, Nemotron, or Whisper engine selection, per-invocation Parakeet model overrides, persisted Parakeet/Nemotron/Whisper defaults via config/models, optional Nemotron/Whisper language hints, and additive detected-language output
   version: cli-2.5.0
   status: implemented
 
 REQ-MEET-007:
-  description: Meeting recordings capture the active speech engine and Whisper language at recording start for live preview, metadata, crash recovery, and final transcription
+  description: Meeting recordings capture the active speech engine and Nemotron/Whisper language at recording start for live preview, metadata, crash recovery, and final transcription
   version: v0.6
   status: implemented
 

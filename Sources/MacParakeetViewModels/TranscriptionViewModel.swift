@@ -156,16 +156,23 @@ public final class TranscriptionViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
     private let defaults: UserDefaults
     private let isWhisperModelDownloaded: () -> Bool
+    private let isNemotronModelDownloaded: () -> Bool
     public var promptResultsViewModel: PromptResultsViewModel?
 
     public init(
         defaults: UserDefaults = .standard,
-        isWhisperModelDownloaded: (() -> Bool)? = nil
+        isWhisperModelDownloaded: (() -> Bool)? = nil,
+        isNemotronModelDownloaded: (() -> Bool)? = nil
     ) {
         self.defaults = defaults
         self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
             WhisperEngine.isModelDownloaded(
                 model: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+            )
+        }
+        self.isNemotronModelDownloaded = isNemotronModelDownloaded ?? {
+            STTClient.isNemotronModelCached(
+                language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
             )
         }
     }
@@ -389,15 +396,15 @@ public final class TranscriptionViewModel {
             primaryEngine = SpeechEngineSelection.current(defaults: defaults)
         }
 
-        let alternativePreference = primaryEngine.engine.alternative
+        let alternativePreference = retranscriptionAlternativePreference(for: primaryEngine.engine)
         let alternativeEngine = SpeechEngineSelection(
             engine: alternativePreference,
-            language: alternativePreference == .whisper
-                ? SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
-                : nil
+            language: Self.retranscriptionLanguage(for: alternativePreference, defaults: defaults)
         )
         let unavailableReason: String?
-        if alternativePreference == .whisper && !isWhisperModelDownloaded() {
+        if alternativePreference == .nemotron && !isNemotronModelDownloaded() {
+            unavailableReason = "Download the Nemotron model in Settings before trying Nemotron."
+        } else if alternativePreference == .whisper && !isWhisperModelDownloaded() {
             unavailableReason = "Download the Whisper model in Settings before trying Whisper."
         } else {
             unavailableReason = nil
@@ -409,6 +416,26 @@ public final class TranscriptionViewModel {
             isAlternativeAvailable: unavailableReason == nil,
             unavailableReason: unavailableReason
         )
+    }
+
+    private func retranscriptionAlternativePreference(
+        for primaryEngine: SpeechEnginePreference
+    ) -> SpeechEnginePreference {
+        return primaryEngine.alternative
+    }
+
+    private static func retranscriptionLanguage(
+        for engine: SpeechEnginePreference,
+        defaults: UserDefaults
+    ) -> String? {
+        switch engine {
+        case .parakeet:
+            return nil
+        case .nemotron:
+            return SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        case .whisper:
+            return SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        }
     }
 
     public func retranscribe(_ original: Transcription, speechEngineOverride: SpeechEngineSelection? = nil) {
@@ -891,10 +918,12 @@ public final class TranscriptionViewModel {
         case .transcribing:
             switch engine {
             case .parakeet:
-                return "Parakeet TDT \u{00B7} Neural Engine"
+                return "Parakeet TDT \u{00B7} Local Core ML"
+            case .nemotron:
+                return "Nemotron 3.5 Beta \u{00B7} Local Core ML"
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
-                return "Whisper \(friendly) \u{00B7} Neural Engine"
+                return "Whisper \(friendly) \u{00B7} Local Core ML"
             }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."

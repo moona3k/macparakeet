@@ -194,17 +194,12 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        guard let onProgress, totalBytesExpectedToWrite > 0 else { return }
+        guard totalBytesExpectedToWrite > 0 else { return }
         let percent = PodcastAudioDownloader.progressPercent(
             downloaded: totalBytesWritten,
             total: totalBytesExpectedToWrite
         )
-        let shouldEmit = state.withLock { st -> Bool in
-            guard st.lastPercent != percent else { return false }
-            st.lastPercent = percent
-            return true
-        }
-        if shouldEmit { onProgress(percent) }
+        emitProgress(percent)
     }
 
     func urlSession(
@@ -217,6 +212,9 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
             .appendingPathComponent("mpk-podcast-\(UUID().uuidString)")
         do {
             try FileManager.default.moveItem(at: location, to: stableURL)
+            if (response as? HTTPURLResponse).map({ (200...299).contains($0.statusCode) }) ?? true {
+                emitProgress(100)
+            }
             resume(.success((stableURL, response)))
         } catch {
             resume(.failure(PodcastAudioFetchError.writeFailed(error.localizedDescription)))
@@ -245,5 +243,16 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
             return cont
         }
         continuation?.resume(with: result)
+    }
+
+    private func emitProgress(_ percent: Int) {
+        guard let onProgress else { return }
+        let bounded = max(0, min(percent, 100))
+        let shouldEmit = state.withLock { st -> Bool in
+            guard st.lastPercent != bounded else { return false }
+            st.lastPercent = bounded
+            return true
+        }
+        if shouldEmit { onProgress(bounded) }
     }
 }

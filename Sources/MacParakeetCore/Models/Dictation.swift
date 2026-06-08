@@ -15,11 +15,12 @@ public struct Dictation: Codable, Identifiable, Sendable {
     public var updatedAt: Date
     public var hidden: Bool
     public var wordCount: Int
-    /// STT engine that produced this dictation (`"parakeet"` / `"whisper"`).
+    /// STT engine that produced this dictation (`"parakeet"` / `"nemotron"` /
+    /// `"whisper"`).
     /// `nil` for rows created before the v0.8 engine-attribution migration.
     public var engine: String?
-    /// Engine-specific model variant id (e.g. the Whisper model id).
-    /// `nil` for engines without variants and for legacy rows.
+    /// Engine-specific model variant id (e.g. `v3`, `multilingual-1120ms`,
+    /// or the Whisper model id). `nil` for legacy rows.
     public var engineVariant: String?
     /// Normalized detected STT language code (for example `"en"`, `"ko"`,
     /// `"ja"`, or `"zh"`). `nil` when unknown or for legacy rows.

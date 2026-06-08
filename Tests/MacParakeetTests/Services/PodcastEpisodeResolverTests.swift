@@ -8,11 +8,21 @@ final class PodcastEpisodeResolverTests: XCTestCase {
     func testResolvesEpisodeURLToEnclosureAndMetadata() async throws {
         let json = """
         {
-          "resultCount": 1,
+          "resultCount": 3,
           "results": [
+            { "wrapperType": "track", "kind": "podcast", "collectionName": "The Daily", "feedUrl": "https://feeds.example.com/thedaily.rss" },
             {
               "wrapperType": "podcastEpisode",
               "kind": "podcast-episode",
+              "trackId": 1000654321000,
+              "trackName": "Wrong episode",
+              "collectionName": "The Daily",
+              "episodeUrl": "https://cdn.example.com/audio/wrong.mp3"
+            },
+            {
+              "wrapperType": "podcastEpisode",
+              "kind": "podcast-episode",
+              "trackId": 1000654321987,
               "trackName": "Episode 42: On Patience",
               "collectionName": "The Daily",
               "feedUrl": "https://feeds.example.com/thedaily.rss",
@@ -68,7 +78,7 @@ final class PodcastEpisodeResolverTests: XCTestCase {
     func testInvalidURLThrows() async {
         let resolver = PodcastEpisodeResolver(dataFetcher: Self.fixtureFetcher("{}"))
         await assertThrows(PodcastResolveError.invalidURL) {
-            try await resolver.resolve(url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            _ = try await resolver.resolve(url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         }
     }
 
@@ -77,15 +87,15 @@ final class PodcastEpisodeResolverTests: XCTestCase {
             dataFetcher: Self.fixtureFetcher(#"{ "resultCount": 0, "results": [] }"#)
         )
         await assertThrows(PodcastResolveError.episodeNotFound) {
-            try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
+            _ = try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
         }
     }
 
     func testResultsWithoutEnclosureThrowsNoPlayableAudio() async {
-        let json = #"{ "resultCount": 1, "results": [ { "wrapperType": "track", "kind": "podcast", "collectionName": "X" } ] }"#
+        let json = #"{ "resultCount": 1, "results": [ { "wrapperType": "podcastEpisode", "kind": "podcast-episode", "trackId": 2, "collectionName": "X" } ] }"#
         let resolver = PodcastEpisodeResolver(dataFetcher: Self.fixtureFetcher(json))
         await assertThrows(PodcastResolveError.noPlayableAudio) {
-            try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
+            _ = try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
         }
     }
 
@@ -94,18 +104,19 @@ final class PodcastEpisodeResolverTests: XCTestCase {
             throw PodcastResolveError.lookupFailed("HTTP 503")
         })
         await assertThrows(PodcastResolveError.lookupFailed("HTTP 503")) {
-            try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
+            _ = try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=2")
         }
     }
 
     // MARK: - Lookup URL + helpers
 
-    func testLookupURLUsesEpisodeIDWhenPresent() throws {
+    func testLookupURLUsesCollectionIDAndLargeLimitWhenEpisodeIDPresent() throws {
         let url = try PodcastEpisodeResolver.lookupURL(collectionID: "111", episodeID: "222")
         let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
-        XCTAssertEqual(items["id"], "222")
+        XCTAssertEqual(items["id"], "111")
         XCTAssertEqual(items["entity"], "podcastEpisode")
+        XCTAssertEqual(items["limit"], "200")
     }
 
     func testLookupURLUsesCollectionIDWhenNoEpisode() throws {
@@ -116,11 +127,20 @@ final class PodcastEpisodeResolverTests: XCTestCase {
         XCTAssertEqual(items["limit"], "2", "show lookup caps the response instead of fetching up to 200")
     }
 
-    func testLookupURLOmitsLimitForEpisode() throws {
-        let url = try PodcastEpisodeResolver.lookupURL(collectionID: "111", episodeID: "222")
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
-        let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
-        XCTAssertNil(items["limit"], "episode lookup returns a single record; no limit needed")
+    func testEpisodeURLThrowsWhenTrackIDIsNotInLookupResults() async {
+        let json = """
+        {
+          "resultCount": 2,
+          "results": [
+            { "wrapperType": "track", "kind": "podcast", "collectionName": "The Show" },
+            { "wrapperType": "podcastEpisode", "trackId": 111, "trackName": "Latest", "episodeUrl": "https://cdn.example.com/latest.mp3" }
+          ]
+        }
+        """
+        let resolver = PodcastEpisodeResolver(dataFetcher: Self.fixtureFetcher(json))
+        await assertThrows(PodcastResolveError.episodeNotFound) {
+            _ = try await resolver.resolve(url: "https://podcasts.apple.com/us/podcast/x/id1?i=222")
+        }
     }
 
     func testNormalizedReleaseDateTrimsISOTimestamp() {

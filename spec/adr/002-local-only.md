@@ -22,7 +22,7 @@ LLM-powered features (summarization, chat, transforms) use external providers co
 
 ### What is always local (non-negotiable)
 
-- **STT**: Parakeet TDT 0.6B runs locally via FluidAudio CoreML on ANE (v3 default, v2 English-only opt-in), with optional local WhisperKit for broader language coverage (ADR-001, ADR-007, ADR-021)
+- **STT**: Parakeet TDT 0.6B runs locally via FluidAudio CoreML on ANE (v3 default, v2 English-only opt-in), with optional local Nemotron Beta and WhisperKit engines for broader language coverage (ADR-001, ADR-007, ADR-021)
 - **Audio capture**: All microphone and file audio stays on-device
 - **Text processing**: Deterministic pipeline runs locally (ADR-004)
 - **Database**: All dictations, transcriptions, history stored locally (SQLite/GRDB)

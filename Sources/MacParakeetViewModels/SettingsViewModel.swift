@@ -345,6 +345,12 @@ public final class SettingsViewModel {
     public var whisperModelStatus: LocalModelStatus = .unknown
     public var whisperModelStatusDetail: String = "Not checked yet."
     public var whisperDownloading = false
+    public var nemotronModelStatus: LocalModelStatus = .unknown
+    public var nemotronModelStatusDetail: String = "Not checked yet."
+    public var nemotronDownloading = false
+    public var isNemotronModelAvailable: Bool {
+        nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded
+    }
     public var isWhisperModelDownloaded: Bool {
         whisperModelStatus == .ready || whisperModelStatus == .notLoaded
     }
@@ -515,7 +521,9 @@ public final class SettingsViewModel {
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let parakeetModelVariantCached: @Sendable (ParakeetModelVariant) -> Bool
+    private let nemotronModelVariantCached: @Sendable (NemotronModelVariant, String?) -> Bool
     private let deleteParakeetModelOnDisk: @Sendable (ParakeetModelVariant) -> Bool
+    private let deleteNemotronModelOnDisk: @Sendable (NemotronModelVariant, String?) -> Bool
     private let deleteWhisperModelOnDisk: @Sendable (String) -> Bool
     private let inputDevicesProvider: @Sendable () -> [AudioDeviceManager.InputDevice]
     private let defaultInputDeviceUIDProvider: @Sendable () -> String?
@@ -541,8 +549,14 @@ public final class SettingsViewModel {
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             STTRuntime.isModelCached(version: $0.asrModelVersion)
         },
+        nemotronModelVariantCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
+            STTRuntime.isNemotronModelCached(modelVariant: $0, language: $1)
+        },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             STTRuntime.deleteParakeetModel(version: $0.asrModelVersion)
+        },
+        deleteNemotronModelOnDisk: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
+            STTRuntime.deleteNemotronModel(modelVariant: $0, language: $1)
         },
         deleteWhisperModelOnDisk: @escaping @Sendable (String) -> Bool = {
             STTRuntime.deleteWhisperModel(variant: $0)
@@ -559,7 +573,9 @@ public final class SettingsViewModel {
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath
         self.parakeetModelVariantCached = parakeetModelVariantCached
+        self.nemotronModelVariantCached = nemotronModelVariantCached
         self.deleteParakeetModelOnDisk = deleteParakeetModelOnDisk
+        self.deleteNemotronModelOnDisk = deleteNemotronModelOnDisk
         self.deleteWhisperModelOnDisk = deleteWhisperModelOnDisk
         self.inputDevicesProvider = inputDevicesProvider
         self.defaultInputDeviceUIDProvider = defaultInputDeviceUIDProvider
@@ -1213,18 +1229,24 @@ public final class SettingsViewModel {
         let activeEngine = speechEnginePreference
         let activeVariant = parakeetModelVariant
         let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        let nemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant
+        let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
 
         let parakeetModelVariantCached = self.parakeetModelVariantCached
+        let nemotronModelVariantCached = self.nemotronModelVariantCached
 
         guard let sttClient else {
             parakeetStatus = .unknown
             parakeetStatusDetail = "Unavailable in this runtime."
+            nemotronModelStatus = .checking
+            nemotronModelStatusDetail = "Checking model state..."
             whisperModelStatus = .checking
             whisperModelStatusDetail = "Checking model state..."
             Task { @MainActor [weak self] in
                 let disk = await Task.detached(priority: .userInitiated) {
                     (
                         parakeetDownloaded: Set(ParakeetModelVariant.allCases.filter(parakeetModelVariantCached)),
+                        nemotronDownloaded: nemotronModelVariantCached(nemotronModelVariant, nemotronLanguage),
                         whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
                     )
                 }.value
@@ -1235,6 +1257,7 @@ public final class SettingsViewModel {
                     return
                 }
                 self.downloadedParakeetVariants = disk.parakeetDownloaded
+                self.applyNemotronDownloadedStatus(disk.nemotronDownloaded)
                 self.applyWhisperDownloadedStatus(disk.whisperDownloaded)
             }
             return
@@ -1242,6 +1265,8 @@ public final class SettingsViewModel {
 
         parakeetStatus = .checking
         parakeetStatusDetail = "Checking model state..."
+        nemotronModelStatus = .checking
+        nemotronModelStatusDetail = "Checking model state..."
         whisperModelStatus = .checking
         whisperModelStatusDetail = "Checking model state..."
 
@@ -1260,6 +1285,7 @@ public final class SettingsViewModel {
             async let diskState = Task.detached(priority: .userInitiated) {
                 (
                     parakeetDownloaded: Set(ParakeetModelVariant.allCases.filter(parakeetModelVariantCached)),
+                    nemotronDownloaded: nemotronModelVariantCached(nemotronModelVariant, nemotronLanguage),
                     whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
                 )
             }.value
@@ -1275,13 +1301,20 @@ public final class SettingsViewModel {
             let parakeetName = activeVariant.modelName
             if activeEngine == .parakeet, activeEngineIsLoaded {
                 self.parakeetStatus = .ready
-                self.parakeetStatusDetail = "\(parakeetName) · Loaded on Neural Engine."
+                self.parakeetStatusDetail = "\(parakeetName) · Loaded locally with Core ML."
             } else if modelDiskState.parakeetDownloaded.contains(activeVariant) {
                 self.parakeetStatus = .notLoaded
                 self.parakeetStatusDetail = "\(parakeetName) · Installed locally, loads when selected."
             } else {
                 self.parakeetStatus = .notDownloaded
                 self.parakeetStatusDetail = "\(parakeetName) · Needs model setup before use."
+            }
+
+            if activeEngine == .nemotron, activeEngineIsLoaded {
+                self.nemotronModelStatus = .ready
+                self.nemotronModelStatusDetail = "\(nemotronModelVariant.modelName) · Loaded in memory."
+            } else {
+                self.applyNemotronDownloadedStatus(modelDiskState.nemotronDownloaded)
             }
 
             if activeEngine == .whisper, activeEngineIsLoaded {
@@ -1297,6 +1330,26 @@ public final class SettingsViewModel {
         applyWhisperDownloadedStatus(
             WhisperEngine.isModelDownloaded(model: SpeechEnginePreference.whisperModelVariant(defaults: defaults))
         )
+    }
+
+    public func refreshNemotronModelStatus() {
+        applyNemotronDownloadedStatus(
+            nemotronModelVariantCached(
+                SpeechEnginePreference.defaultNemotronModelVariant,
+                SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+            )
+        )
+    }
+
+    private func applyNemotronDownloadedStatus(_ isDownloaded: Bool) {
+        let variant = SpeechEnginePreference.defaultNemotronModelVariant
+        if isDownloaded {
+            nemotronModelStatus = .notLoaded
+            nemotronModelStatusDetail = "\(variant.modelName) · Installed locally, loads when selected."
+        } else {
+            nemotronModelStatus = .notDownloaded
+            nemotronModelStatusDetail = "\(variant.modelName) · Needs download before use."
+        }
     }
 
     private func applyWhisperDownloadedStatus(_ isDownloaded: Bool) {
@@ -1321,6 +1374,105 @@ public final class SettingsViewModel {
         SpeechEnginePreference.friendlyVariantName(
             SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         )
+    }
+
+    public func downloadNemotronModel() {
+        guard !speechEngineSwitching else { return }
+        guard !nemotronDownloading else { return }
+        speechEngineError = nil
+        nemotronDownloading = true
+        nemotronModelStatus = .repairing
+        let modelVariant = SpeechEnginePreference.defaultNemotronModelVariant
+        let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        let operationContext = Observability.childOperationContext()
+        nemotronModelStatusDetail = "Downloading \(modelVariant.modelName)..."
+        Telemetry.send(.modelDownloadStarted(
+            modelKind: .nemotronSTT,
+            speechEngine: .nemotron,
+            engineVariant: modelVariant.rawValue
+        ))
+
+        Task {
+            do {
+                try await STTRuntime.downloadNemotronModel(
+                    modelVariant: modelVariant,
+                    language: language,
+                    emitTelemetry: false
+                ) { message in
+                    Task { @MainActor [weak self] in
+                        self?.nemotronModelStatusDetail = message
+                    }
+                }
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                Telemetry.send(.modelDownloadCompleted(
+                    durationSeconds: durationSeconds,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .success,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: durationSeconds,
+                    errorType: nil
+                ))
+                await MainActor.run {
+                    self.nemotronDownloading = false
+                    self.refreshNemotronModelStatus()
+                }
+            } catch is CancellationError {
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .cancelled,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: durationSeconds,
+                    errorType: "CancellationError"
+                ))
+                await MainActor.run {
+                    self.nemotronDownloading = false
+                    self.refreshNemotronModelStatus()
+                }
+            } catch {
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                let errorType = TelemetryErrorClassifier.classify(error)
+                Telemetry.send(.modelDownloadFailed(
+                    errorType: errorType,
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .failure,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: durationSeconds,
+                    errorType: errorType
+                ))
+                await MainActor.run {
+                    self.nemotronDownloading = false
+                    self.nemotronModelStatus = .failed
+                    self.nemotronModelStatusDetail = error.localizedDescription
+                }
+            }
+        }
     }
 
     public func downloadWhisperModel() {
@@ -1433,6 +1585,25 @@ public final class SettingsViewModel {
         let operationContext = Observability.childOperationContext()
         let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)
 
+        if preference == .nemotron && !isNemotronModelAvailable {
+            speechEngineError = "Download the Nemotron model before switching engines."
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: preference,
+                outcome: .unavailable,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: .modelNotDownloaded,
+                errorType: "model_not_downloaded",
+                wasCold: switchWasCold
+            ))
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = previousPreference
+            isApplyingSpeechEngineState = false
+            return
+        }
+
         if preference == .whisper && !isWhisperModelDownloaded {
             speechEngineError = "Download the Whisper model before switching engines."
             Telemetry.send(.speechEngineSwitchOperation(
@@ -1447,7 +1618,7 @@ public final class SettingsViewModel {
                 wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true
-            speechEnginePreference = .parakeet
+            speechEnginePreference = previousPreference
             isApplyingSpeechEngineState = false
             return
         }
@@ -1727,6 +1898,27 @@ public final class SettingsViewModel {
         }
     }
 
+    /// Removes the downloaded Nemotron Beta model. Only offered while
+    /// Nemotron is not the active engine so the next active use has an explicit
+    /// download/setup moment instead of a surprise re-fetch.
+    public func deleteNemotronModel() {
+        guard !speechEngineSwitching, !nemotronDownloading else { return }
+        guard speechEnginePreference != .nemotron else { return }
+        guard nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded else { return }
+
+        let variant = SpeechEnginePreference.defaultNemotronModelVariant
+        let deleter = deleteNemotronModelOnDisk
+        modelStatusRefreshGeneration += 1
+        applyNemotronDownloadedStatus(false)
+        Task { @MainActor [weak self] in
+            await Task.detached(priority: .userInitiated) {
+                _ = deleter(variant, nil)
+            }.value
+            guard let self else { return }
+            self.refreshModelStatus()
+        }
+    }
+
     /// Removes the downloaded Whisper variant, freeing ~632 MB. Only callable
     /// while Parakeet is the active engine — deleting the model behind the
     /// active engine would force a silent re-download. State flips to
@@ -1796,7 +1988,9 @@ public final class SettingsViewModel {
     ) -> String {
         switch preference {
         case .parakeet:
-            "Loading Parakeet model on Neural Engine..."
+            "Loading Parakeet with Core ML..."
+        case .nemotron:
+            "Loading Nemotron 3.5 Beta with Core ML..."
         case .whisper:
             "Optimizing Whisper for this Mac..."
         }

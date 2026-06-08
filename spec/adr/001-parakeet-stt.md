@@ -6,6 +6,7 @@
 > Note: GPU/LLM references (Qwen3-8B, "three-chip") are historical — the old on-device mlx-swift-lm path was removed 2026-02-23. Current LLM features use external providers or local CLI, while the speech runtime remains a two-chip architecture (CPU + ANE).
 > Amendment (2026-04-28): Parakeet remains the **primary/default** STT engine. It is no longer the only engine. ADR-021 adds WhisperKit as an optional local multilingual engine for languages outside Parakeet's coverage.
 > Amendment (2026-05-30): The Parakeet family now exposes both FluidAudio builds. Multilingual v3 remains the default/primary model chosen by this ADR; English-only v2 is an opt-in Parakeet model for users who want a faster no-auto-detect English path.
+> Amendment (2026-06-08): Nemotron 3.5 is added as an opt-in Beta local multilingual engine through FluidAudio/CoreML. Parakeet v3 remains the primary/default STT engine; Nemotron is not a default replacement until real MacParakeet corpus benchmarks justify promotion.
 
 ## Context
 
@@ -24,7 +25,7 @@ Whisper has broader ecosystem support and language coverage (100+ languages incl
 
 Use **Parakeet TDT 0.6B-v3** as the primary/default STT engine.
 
-The original runtime described here used a Python daemon. ADR-007 superseded that runtime with FluidAudio CoreML/ANE. ADR-021 later added WhisperKit as an optional secondary engine. A 2026-05 update exposed FluidAudio's v2 English-only Parakeet build as an opt-in variant. The durable decision in this ADR is v3's default/primary status.
+The original runtime described here used a Python daemon. ADR-007 superseded that runtime with FluidAudio CoreML/ANE. ADR-021 later added WhisperKit as an optional secondary engine. A 2026-05 update exposed FluidAudio's v2 English-only Parakeet build as an opt-in variant. A 2026-06 amendment adds Nemotron 3.5 as an opt-in Beta local engine. The durable decision in this ADR is v3's default/primary status.
 
 ## Rationale
 
@@ -115,10 +116,19 @@ Parakeet remains the default engine for dictation, file transcription, and meeti
 
 See ADR-021 for the full decision.
 
+## Addendum: Optional Nemotron Beta Engine (June 2026)
+
+> Date: 2026-06-08
+
+Parakeet remains the default engine for dictation, file transcription, and meeting recording. Nemotron 3.5 ASR Streaming 0.6B is available as an explicit Beta local engine through FluidAudio/CoreML. It can be selected in Settings or per CLI invocation, and active meeting recordings capture the engine/language at start so live preview, final transcription, and crash recovery stay deterministic.
+
+Nemotron is labeled Beta because the first MacParakeet smoke benchmark showed strong warm-path speed but weaker English-heavy transcript quality than Parakeet on the synthetic corpus. It should not replace Parakeet as the default without a larger real-world dictation/meeting benchmark.
+
 ## References
 
 - [NVIDIA Parakeet TDT 0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
 - [FluidAudio](https://github.com/FluidInference/FluidAudio) -- CoreML/ANE runtime for Apple Silicon
 - [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port (original runtime, superseded)
 - [ADR-021: WhisperKit as Optional Multilingual STT Engine](021-whisperkit-multilingual-stt.md)
+- [Nemotron 3.5 ASR Streaming 0.6B](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b)
 - Oatmeal project ADR-011 (prior art for Parakeet selection)

@@ -2,8 +2,9 @@
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
 > CoreML) is default, with v3 multilingual as the default build and v2
-> English-only as an opt-in Parakeet variant; WhisperKit is optional for
-> languages outside Parakeet's coverage.
+> English-only as an opt-in Parakeet variant; Nemotron 3.5 is an opt-in
+> Beta local multilingual engine; WhisperKit is optional for languages
+> outside Parakeet/Nemotron coverage.
 
 ## Entry point
 
@@ -18,9 +19,9 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 **Speech control plane**
 - `STTScheduler.swift` — public broker. Job admission, slot scheduling,
   engine routing, session leases for active meetings.
-- `STTRuntime.swift` — sole owner of the Parakeet `AsrManager`s and
-  the optional `WhisperEngine`. Handles warm-up, model init, cache
-  clearing, shutdown.
+- `STTRuntime.swift` — sole owner of the Parakeet `AsrManager`s, the
+  optional Beta `NemotronEngine`, and the optional `WhisperEngine`.
+  Handles warm-up, model init, cache clearing, shutdown.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -31,6 +32,9 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   variant).
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.
+- `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the
+  Beta local multilingual engine. Uses separate interactive/background
+  managers backed by shared model weights so it fits the scheduler lanes.
 
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined
@@ -83,10 +87,11 @@ shared slot drops the lowest-priority pending work.
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI
 (`config set parakeet-model`, `models select parakeet-v2`, or
-`transcribe --parakeet-model v2`). A subscriber can request WhisperKit globally
-(Settings) or per call (CLI `--engine whisper --language ko`). When set
-globally, dictation also routes there; when set per-job, only that job uses
-Whisper.
+`transcribe --parakeet-model v2`). A subscriber can request Nemotron or
+WhisperKit globally (Settings / `models select`) or per call (CLI
+`--engine nemotron --language ko`, `--engine whisper --language ko`). When set
+globally, dictation also routes there; when set per-job, only that job uses the
+requested engine.
 
 **Active meetings hold an engine lease.** Once a meeting recording
 starts, its engine selection is captured for the session's duration.
@@ -119,5 +124,7 @@ real events into the controller's input shape.
   dictation), start a meeting and dictate during it, kick off a
   long file transcription and confirm cancellation works mid-job.
 - For engine routing: run the CLI
+  `swift run macparakeet-cli transcribe --engine nemotron --language ja
+  /path/to/japanese.m4a` and
   `swift run macparakeet-cli transcribe --engine whisper --language ja
-  /path/to/japanese.m4a` and confirm Whisper is used.
+  /path/to/japanese.m4a`, then confirm the requested engine is used.

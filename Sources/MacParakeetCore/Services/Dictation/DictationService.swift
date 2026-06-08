@@ -654,8 +654,11 @@ public actor DictationService: DictationServiceProtocol {
         )
         let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
         logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
+        let transcriptWordCount = result.words.isEmpty
+            ? Observability.wordCount(result.text)
+            : result.words.count
         AudioCaptureDiagnostics.append(
-            "dictation_transcribe_complete chars=\(result.text.count) words=\(result.words.count) engine=\(result.engine.rawValue) variant=\(result.engineVariant ?? "none")"
+            "dictation_transcribe_complete chars=\(result.text.count) words=\(transcriptWordCount) engine=\(result.engine.rawValue) variant=\(result.engineVariant ?? "none")"
         )
 
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)

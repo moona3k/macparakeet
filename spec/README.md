@@ -15,7 +15,7 @@
 | 03 | [Architecture](03-architecture.md) | System architecture, component diagram | Active |
 | 04 | [UI Patterns](04-ui-patterns.md) | UI components, overlay, settings | Active |
 | 05 | [Audio Pipeline](05-audio-pipeline.md) | Audio capture, processing, storage | Active |
-| 06 | [STT Engine](06-stt-engine.md) | Parakeet default engine, WhisperKit secondary engine, scheduler | Active |
+| 06 | [STT Engine](06-stt-engine.md) | Parakeet default engine, optional Nemotron/WhisperKit engines, scheduler | Active |
 | 07 | [Text Processing](07-text-processing.md) | Clean pipeline, custom words, snippets | Active |
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
@@ -43,7 +43,7 @@ These decisions are final. Do not second-guess them.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); WhisperKit optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Whisper adds broad multilingual coverage locally |
+| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta and WhisperKit optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta multilingual path; Whisper adds mature broad multilingual coverage locally |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6.0 |
 | Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
@@ -86,7 +86,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
-| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional WhisperKit engine, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
+| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
 | v0.7 | Post-v0.6 polish | Follow-up scope TBD after v0.6 ships | **Planned** |
 
 ## Version Progress
@@ -228,20 +228,21 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
 
-### v0.6 Optional WhisperKit STT
+### v0.6 Optional Local STT Engines
 
 - [x] WhisperKit dependency and `WhisperEngine` wrapper with local model cache at `~/Library/Application Support/MacParakeet/models/stt/whisper/`
-- [x] `SpeechEnginePreference`, `SpeechEngineSelection`, and `ParakeetModelVariant` persisted through `UserDefaults`
-- [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model and Whisper Language cards
+- [x] Nemotron 3.5 Beta engine via FluidAudio CoreML, surfaced as opt-in local multilingual ASR with explicit model download/delete/status controls
+- [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
+- [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, and Whisper Language cards/controls
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
-- [x] CLI `transcribe --engine parakeet|whisper --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, and `models download parakeet-v2|parakeet-v3|whisper-large-v3-v20240930-turbo-632MB`
+- [x] CLI `transcribe --engine parakeet|nemotron|whisper --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|whisper-large-v3-v20240930-turbo-632MB`
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ### v0.6 Productized Transforms
 
 - [x] `Prompt.Category.transform` rows for saved Transforms, with built-in `Polish`, `Distill`, and `Decide`
 - [x] `keyboardShortcut` and `runningLabel` prompt columns for global hotkeys and floating progress copy
-- [x] `TransformsHotkeyRegistry` single event tap, collision detection, and reserved `Option-1/2/3` built-in bindings
+- [x] `TransformsHotkeyRegistry` single event tap, collision detection, and default `Option-1`, `Option-2`, and `Control-Option-3` built-in bindings
 - [x] AX-first selection capture with clipboard fallback, in-place replacement, cancel/error clipboard restoration, and progress pill
 - [x] Transforms sidebar tab and management UI enabled on `main` by `AppFeatures.transformsEnabled = true`
 - [x] Local Transform history with input/output/source-app/timing stored in `transform_history`

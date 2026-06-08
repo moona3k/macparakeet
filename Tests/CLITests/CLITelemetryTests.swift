@@ -230,6 +230,20 @@ final class CLITelemetryTests: XCTestCase {
         XCTAssertFalse(metadata.suppressEvent)
     }
 
+    func testTranscribeMetadataClassifiesPodcastSearchInputKind() throws {
+        let command = try CLI.parseAsRoot([
+            "transcribe",
+            "--podcast",
+            "Lex Fridman episode 400",
+        ])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "transcribe")
+        XCTAssertEqual(metadata.inputKind, .podcast)
+        XCTAssertFalse(metadata.suppressEvent)
+    }
+
     func testTelemetryOutcomeTreatsSuccessfulExitCodeAsSuccess() {
         let result = Result<Void, Error>.failure(ExitCode.success)
 

@@ -78,9 +78,9 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  • Screen Recording permission flow                               │
 │  • Headphones guidance copy for cleanest speaker separation       │
 │  • VAD-guided live-preview chunking with fixed fallback           │
-│  • WhisperKit engine option for non-Parakeet languages           │
-│  • Settings engine picker + Whisper language picker              │
-│  • CLI --engine parakeet|whisper --language                      │
+│  • Nemotron Beta + WhisperKit engine options                     │
+│  • Settings engine picker + Nemotron/Whisper controls            │
+│  • CLI --engine parakeet|nemotron|whisper --language             │
 │  • Meeting engine/language pinning for live + recovery + final   │
 │  • Transforms: Polish / Distill / Decide selected text anywhere  │
 │  • CLI transforms + local Transform history                      │
@@ -110,7 +110,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 **Goals:**
 - Reduce first-run friction (no mysterious permission failures).
 - Teach the core interaction model in under 60 seconds.
-- Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese.
+- Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese. Nemotron is opt-in after onboarding.
 
 **Flow:**
 1. Welcome
@@ -119,7 +119,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 4. Meeting recording permission (optional Screen & System Audio Recording)
 5. Calendar meetings (optional EventKit access, when `AppFeatures.calendarEnabled`)
 6. Hotkey instructions (configurable trigger + Esc)
-7. Speech stack setup (Parakeet + speaker detection by default; locale-aware Whisper setup for CJK macOS languages)
+7. Speech stack setup (Parakeet + speaker detection by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup)
 8. Ready
 
 **Model failure recovery:**
@@ -360,7 +360,7 @@ User drops file(s) onto window or menu bar icon
          ▼
 ┌──────────────────┐
 │  Local STT       │ ── Transcribe with word-level timestamps
-│                  │    Parakeet default, Whisper optional
+│                  │    Parakeet default, Nemotron/Whisper optional
 └────────┬─────────┘
          │
          ▼
@@ -438,9 +438,9 @@ transcribe` and the CLI CHANGELOG (REQ-CLI-002).
 **Apple Podcasts URL transcription:** Pasting an Apple Podcasts link
 (`podcasts.apple.com/.../id<show>?i=<episode>`) resolves the episode through
 the public iTunes lookup API to its audio enclosure URL plus episode title,
-show name, artwork, description, and duration — no HTML scraping. The enclosure
-then flows through the same download → local STT path as YouTube (`yt-dlp`
-fetches the direct audio URL). An episode link transcribes that episode; a show
+show name, artwork, description, and duration — no HTML scraping. A native
+streaming downloader fetches the enclosure before it flows through the same
+local STT path as YouTube. An episode link transcribes that episode; a show
 link transcribes the latest episode. Saved transcripts use a dedicated
 `podcast` source type with its own Library filter and source chip, and the
 Transcribe-tab link field plus the Spotlight-style URL panel both accept
@@ -695,9 +695,10 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │                                                                  │
 │ SPEECH RECOGNITION                                               │
 │ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Engine: [ Parakeet ] [ Whisper ]                             │ │
+│ │ Engine: [ Parakeet ] [ Nemotron Beta ] [ Whisper ]           │ │
 │ │ Whisper language: [ Auto-detect ▾ ]                          │ │
 │ │ Parakeet        Ready                         [Repair]       │ │
+│ │ Nemotron        Not Downloaded                [Download]     │ │
 │ │ Whisper         Not Downloaded                [Download]     │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
@@ -721,9 +722,9 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
-| Speech recognition engine | Parakeet / Whisper | Parakeet |
+| Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
 | Whisper language | Auto-detect or language code | Auto-detect |
-| Speech model controls | Parakeet repair / Whisper download | Available |
+| Speech model controls | Parakeet repair, Nemotron download/delete, Whisper download/delete | Available |
 
 **Acceptance criteria:**
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
@@ -733,7 +734,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
-- [x] Speech Recognition panel shows Parakeet status/repair plus Whisper download/language controls
+- [x] Speech Recognition panel shows Parakeet status/repair plus Nemotron and Whisper download/language controls
 
 ---
 
@@ -1592,9 +1593,9 @@ exposes a terminal provider/model/token metadata envelope.
 
 ## v0.6 — Meeting Recording + Multilingual STT
 
-The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional WhisperKit multilingual STT (ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
+The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
 
-Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; WhisperKit can be selected before starting a meeting for languages outside Parakeet coverage.
+Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; Nemotron Beta or WhisperKit can be selected before starting a meeting for broader local multilingual coverage.
 
 ### F36: Live Meeting Notepad
 
@@ -1730,7 +1731,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 > Status: **IMPLEMENTED ON MAIN** — Productized ADR-022 surface enabled by `AppFeatures.transformsEnabled = true`.
 
-**What:** System-wide selected-text rewrites through the user's configured LLM provider. The user selects text in any app, presses a bound Transform hotkey, and MacParakeet captures the selection, runs the saved prompt, and pastes the result into the currently focused target. Editable selections are replaced by normal `Cmd+V` semantics; read-only selections still produce a pasteable result and a local history row. The default built-ins are `Polish` (`Option-1`), `Distill` (`Option-2`), and `Decide` (`Option-3`).
+**What:** System-wide selected-text rewrites through the user's configured LLM provider. The user selects text in any app, presses a bound Transform hotkey, and MacParakeet captures the selection, runs the saved prompt, and pastes the result into the currently focused target. Editable selections are replaced by normal `Cmd+V` semantics; read-only selections still produce a pasteable result and a local history row. The default built-ins are `Polish` (`Option-1`), `Distill` (`Option-2`), and `Decide` (`Control-Option-3`).
 
 **Implementation:**
 - Transforms are `Prompt` rows with `category == .transform`; they reuse Prompt Library persistence but have their own sidebar surface and never appear in summary prompt pickers.
@@ -1743,7 +1744,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 - `macparakeet-cli transforms` manages and runs saved Transforms headlessly; `macparakeet-cli transforms history` reads and manages local Transform history.
 
 **Acceptance criteria:**
-- [x] Built-ins seed as `Polish`, `Distill`, and `Decide` with default `Option-1/2/3` shortcuts and resettable prompt bodies
+- [x] Built-ins seed as `Polish`, `Distill`, and `Decide` with default `Option-1`, `Option-2`, and `Control-Option-3` shortcuts and resettable prompt bodies
 - [x] Users can create, edit, delete custom Transforms and clear/rebind shortcuts
 - [x] Shortcut validation blocks bare keys, duplicate Transform bindings, dictation/meeting hotkey collisions, and hostile Option-letter dead-key combos
 - [x] Transforms tab appears in the main sidebar when `AppFeatures.transformsEnabled` is true
@@ -1781,12 +1782,12 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 
 | Metric | Target | Notes |
 |--------|--------|-------|
-| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML); WhisperKit is for coverage, not this latency target |
+| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML); Nemotron is Beta and WhisperKit is for coverage, not this default latency target |
 | Dictation latency | <500ms end-to-end | From Fn release to text appearing |
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
-| Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Whisper depends on selected model |
-| App size | <100MB | Plus ~465 MB per Parakeet build and optional Whisper download |
+| Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Nemotron and Whisper depend on selected model/runtime |
+| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB optional Nemotron download, and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 
@@ -1801,12 +1802,12 @@ MacParakeet's brand is privacy. These are non-negotiable.
 | Core offline operation | Dictation, file transcription, and meeting recording work fully offline after local model setup |
 | Opt-out telemetry | Self-hosted usage analytics and crash reporting can be disabled in Settings |
 | No accounts | No email, no login, no registration |
-| No cloud STT | All speech recognition runs locally on Apple Silicon; Parakeet is default and WhisperKit is optional |
+| No cloud STT | All speech recognition runs locally on Apple Silicon; Parakeet is default and Nemotron/WhisperKit are optional |
 | User-controlled storage | File/YouTube/meeting audio is retained for playback/recovery unless deleted; dictation audio is opt-in |
 | Explicit network surfaces | Model download, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and YouTube download |
 
 **What "supports a fully local setup" means:**
-- Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML; WhisperKit also runs locally when selected
+- Parakeet and Nemotron STT run locally via FluidAudio CoreML; WhisperKit also runs locally when selected
 - Audio never leaves the device
 - Transcripts stay local unless the user explicitly enables external AI features
 - Users can remain fully local by sticking to offline/core features and local providers such as Ollama

@@ -195,8 +195,11 @@ actor LiveChunkTranscriber {
         sessionID: UUID
     ) async {
         guard sessionContext?.id == sessionID else { return }
+        let transcriptWordCount = result.words.isEmpty
+            ? Observability.wordCount(result.text)
+            : result.words.count
         logger.info(
-            "meeting_live_chunk_transcribed source=\(source.rawValue, privacy: .public) seq=\(sequence) words=\(result.words.count) range=\(chunk.startMs)-\(chunk.endMs)"
+            "meeting_live_chunk_transcribed source=\(source.rawValue, privacy: .public) seq=\(sequence) words=\(transcriptWordCount) range=\(chunk.startMs)-\(chunk.endMs)"
         )
 
         let readyResults = chunkResultBuffer.receiveSuccess(

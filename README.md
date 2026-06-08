@@ -55,7 +55,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording, meeting calendar support, Parakeet v3/v2 model selection, optional local WhisperKit recognition for languages Parakeet does not cover, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording, meeting calendar support, Parakeet v3/v2 model selection, optional local Nemotron Beta and WhisperKit recognition, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
 
 ## Release status
 
@@ -63,7 +63,7 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional WhisperKit, exports, vocabulary, AI features |
+| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
 | `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
@@ -143,10 +143,12 @@ The dev script creates a signed `.app` bundle so macOS grants mic and accessibil
 macparakeet-cli transcribe /path/to/audio.mp3
 macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history
 macparakeet-cli transcribe lecture1.m4a lecture2.m4a --output-dir Transcripts --format transcript
+macparakeet-cli models download nemotron-multilingual-1120ms
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 macparakeet-cli models list
 macparakeet-cli models select parakeet-v3
 macparakeet-cli config set parakeet-model v2
+macparakeet-cli transcribe /path/to/meeting.m4a --engine nemotron --language auto --format json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 macparakeet-cli models status
 macparakeet-cli history
@@ -157,21 +159,23 @@ Use `--format transcript` for transcript-only stdout in shell pipelines. Add
 row to MacParakeet history. Multiple inputs or `--output-dir` write one transcript
 file per input. `models list` and `models select` inspect or update the shared
 speech default used by the app and `--engine app-default`; Parakeet rows are
-`parakeet-v3` and `parakeet-v2`. The Whisper CLI commands above require a
-downloaded local WhisperKit model. When developing from source, prefix the same
-commands with `swift run`.
+`parakeet-v3` and `parakeet-v2`, Nemotron is
+`nemotron-multilingual-1120ms`, and Whisper rows use the configured
+`whisper-*` model id. The Nemotron and Whisper CLI commands above require their
+local models to be downloaded first. When developing from source, prefix the
+same commands with `swift run`.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| STT | Parakeet TDT 0.6B via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in) + optional local WhisperKit engine |
+| STT | Parakeet TDT 0.6B via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in) + optional local Nemotron Beta and WhisperKit engines |
 | STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared meeting/file slot; speech-engine routing and meeting-session pinning |
 | Language | Swift 6.0 + SwiftUI |
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
 | YouTube | yt-dlp |
-| Podcasts | Apple Podcasts via iTunes lookup API + yt-dlp |
+| Podcasts | Apple Podcasts via iTunes lookup API + native enclosure downloader |
 | Platform | macOS 14.2+, Apple Silicon |
 
 ## Vocabulary
@@ -217,7 +221,7 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 
 ## Privacy
 
-All speech recognition runs locally. Parakeet uses the Neural Engine; the optional WhisperKit engine also runs on-device. Your audio never leaves your Mac.
+All speech recognition runs locally. Parakeet uses the Neural Engine; optional Nemotron Beta and WhisperKit engines also run on-device. Your audio never leaves your Mac.
 
 - **No cloud STT.** The model runs on-device. No audio is transmitted.
 - **No accounts.** No login, no email, no registration.

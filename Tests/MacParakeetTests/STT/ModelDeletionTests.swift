@@ -47,6 +47,110 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: v3Dir.path))
     }
 
+    // MARK: - Nemotron repo file removal
+
+    func testRemoveNemotronModelFilesDeletesWholeRepoRoot() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoDir = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let japaneseDir = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        for dir in [autoDir, japaneseDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "weights".write(to: dir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertTrue(STTRuntime.removeNemotronModelFiles(at: repoRoot))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoRoot.path))
+    }
+
+    func testRemoveNemotronModelFilesIsNoOpWhenAbsent() {
+        let missing = tempRoot.appendingPathComponent("missing-nemotron", isDirectory: true)
+        XCTAssertFalse(STTRuntime.removeNemotronModelFiles(at: missing))
+    }
+
+    func testDeleteNemotronModelCachesRemovesEveryLanguageForVariant() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoVariant = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let japaneseVariant = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let siblingVariant = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("80ms", isDirectory: true)
+        for dir in [autoVariant, japaneseVariant, siblingVariant] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "weights".write(to: dir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertTrue(NemotronEngine.deleteModelCaches(modelVariant: .multilingual1120, cacheRoot: repoRoot))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: autoVariant.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: japaneseVariant.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: siblingVariant.path))
+    }
+
+    func testDeleteNemotronModelWithInvalidLanguageDoesNotDeleteAllCaches() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoVariant = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        try FileManager.default.createDirectory(at: autoVariant, withIntermediateDirectories: true)
+        try "weights".write(to: autoVariant.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+
+        XCTAssertFalse(
+            NemotronEngine.deleteModel(
+                modelVariant: .multilingual1120,
+                language: "definitely-not-a-language",
+                cacheRoot: repoRoot
+            )
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: autoVariant.path))
+    }
+
+    func testDownloadNemotronModelEmitsRuntimeTelemetryOnSuccess() async throws {
+        let telemetry = ModelDeletionTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+        let modelURL = tempRoot!
+
+        try await STTRuntime.downloadNemotronModel(
+            modelVariant: .multilingual1120,
+            language: "ja",
+            emitTelemetry: true,
+            downloader: { _, _, _ in
+                modelURL
+            }
+        )
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.containsNemotronDownloadStarted)
+        XCTAssertTrue(events.containsNemotronDownloadCompleted)
+        XCTAssertTrue(events.containsNemotronDownloadOperation(outcome: .success))
+    }
+
+    func testDownloadNemotronModelCanSuppressRuntimeTelemetryForUIOwnedFlows() async throws {
+        let telemetry = ModelDeletionTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+        let modelURL = tempRoot!
+
+        try await STTRuntime.downloadNemotronModel(
+            modelVariant: .multilingual1120,
+            language: "ja",
+            emitTelemetry: false,
+            downloader: { _, _, _ in
+                modelURL
+            }
+        )
+
+        XCTAssertTrue(telemetry.snapshot().isEmpty)
+    }
+
     // MARK: - Whisper variant file removal
 
     func testDeleteWhisperModelRemovesFolderAndClearsOptimizedFlag() throws {
@@ -78,5 +182,86 @@ final class ModelDeletionTests: XCTestCase {
             defaults: defaults
         )
         XCTAssertFalse(removed)
+    }
+}
+
+private final class ModelDeletionTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
+private extension Array where Element == TelemetryEventSpec {
+    var containsNemotronDownloadStarted: Bool {
+        contains {
+            if case .modelDownloadStarted(let modelKind, let speechEngine, let engineVariant) = $0 {
+                return modelKind == .nemotronSTT
+                    && speechEngine == .nemotron
+                    && engineVariant == NemotronModelVariant.multilingual1120.rawValue
+            }
+            return false
+        }
+    }
+
+    var containsNemotronDownloadCompleted: Bool {
+        contains {
+            if case .modelDownloadCompleted(_, let modelKind, let speechEngine, let engineVariant) = $0 {
+                return modelKind == .nemotronSTT
+                    && speechEngine == .nemotron
+                    && engineVariant == NemotronModelVariant.multilingual1120.rawValue
+            }
+            return false
+        }
+    }
+
+    func containsNemotronDownloadOperation(outcome expectedOutcome: ObservabilityOutcome) -> Bool {
+        contains {
+            if case .modelOperation(
+                _,
+                _,
+                let action,
+                let outcome,
+                let stage,
+                let modelKind,
+                let speechEngine,
+                let engineVariant,
+                _,
+                let errorType
+            ) = $0 {
+                return action == .download
+                    && outcome == expectedOutcome
+                    && stage == .download
+                    && modelKind == .nemotronSTT
+                    && speechEngine == .nemotron
+                    && engineVariant == NemotronModelVariant.multilingual1120.rawValue
+                    && errorType == nil
+            }
+            return false
+        }
     }
 }

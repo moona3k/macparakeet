@@ -168,6 +168,7 @@ public enum TelemetryTranscriptionStage: String, Sendable, Equatable {
 
 public enum TelemetryModelKind: String, Sendable, Equatable {
     case parakeetSTT = "parakeet_stt"
+    case nemotronSTT = "nemotron_stt"
     case whisperSTT = "whisper_stt"
     case speakerDiarization = "speaker_diarization"
     case localSpeechStack = "local_speech_stack"
@@ -178,7 +179,7 @@ public enum TelemetryModelOperationAction: String, Sendable, Equatable {
     case warmUp = "warm_up"
     case repair
     case clearCache = "clear_cache"
-    /// Removing a single model from disk (one Parakeet build or the Whisper
+    /// Removing a single model from disk (one Parakeet build, Nemotron, or the Whisper
     /// variant), as opposed to `clearCache` which wipes the whole local stack.
     case deleteModel = "delete_model"
 }

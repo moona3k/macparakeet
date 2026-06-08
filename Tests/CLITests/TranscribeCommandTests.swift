@@ -135,6 +135,31 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertNil(selection.language)
     }
 
+    func testResolveSpeechEngineUsesStoredNemotronLanguageForAppDefault() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.nemotron.rawValue,
+            storedLanguage: "ko",
+            storedNemotronLanguage: "en_US",
+            explicitLanguage: nil
+        )
+
+        XCTAssertEqual(selection.engine, .nemotron)
+        XCTAssertEqual(selection.language, "en-US")
+    }
+
+    func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .nemotron,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            explicitLanguage: "zh_CN"
+        )
+
+        XCTAssertEqual(selection.engine, .nemotron)
+        XCTAssertEqual(selection.language, "zh-CN")
+    }
+
     func testResolveSpeechEngineExplicitParakeetDropsLanguage() {
         let selection = TranscribeCommand.resolveSpeechEngine(
             .parakeet,
@@ -223,6 +248,17 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertEqual(command.engine, .whisper)
         XCTAssertEqual(command.language, "ko")
+    }
+
+    func testParsesNemotronEngineAndLanguage() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--engine", "nemotron",
+            "--language", "en-US",
+        ])
+
+        XCTAssertEqual(command.engine, .nemotron)
+        XCTAssertEqual(command.language, "en-US")
     }
 
     func testParsesAppDefaultEngineAndSpeakerDetection() throws {

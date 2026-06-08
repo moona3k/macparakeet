@@ -327,16 +327,15 @@ public struct Prompt: Codable, Identifiable, Sendable {
     ///   intact. The everyday driver.
     /// - *Distill* (⌥2) — compress to signal, raise information density.
     ///   The "I have a rambling braindump" tool.
-    /// - *Decide* (⌥3) — turn discussion into a decision-ready note with
+    /// - *Decide* (⌃⌥3) — turn discussion into a decision-ready note with
     ///   tradeoffs + recommended next step. The forward-motion tool.
     ///
     /// Together: **Improve → Re-shape → Re-direct**. Three slots; ⌥4–9
     /// reserved for user customization.
     ///
     /// Each row is seeded by the reconciler at app launch if missing; user
-    /// edits to the row are preserved — the reconciler never overwrites
-    /// content, shortcut, or runningLabel on existing built-in transform
-    /// rows.
+    /// edits to the row are preserved. Existing shortcuts are preserved except
+    /// for narrow legacy-default migrations such as Decide's ⌥3 → ⌃⌥3 move.
     ///
     /// UUIDs are reserved — never reuse for a different prompt.
     private static func builtInTransformPrompts(now: Date) -> [Prompt] {
@@ -404,7 +403,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     """.replacingOccurrences(of: "                    ", with: ""),
                 sortOrder: 102,
                 defaultShortcut: KeyboardShortcut(
-                    modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                    modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
+                        | KeyboardShortcut.ModifierFlag.option.rawValue,
                     keyCode: 0x14, // kVK_ANSI_3
                     keyLabel: "3"
                 ),

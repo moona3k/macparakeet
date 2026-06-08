@@ -73,7 +73,7 @@ CREATE TABLE dictations (
     updatedAt TEXT NOT NULL,                          -- ISO 8601 timestamp
     hidden INTEGER NOT NULL DEFAULT 0,                -- v0.5: Private dictation mode (excluded from history)
     wordCount INTEGER NOT NULL DEFAULT 0,             -- v0.5: Cached word count for voice stats
-    engine TEXT,                                      -- v0.8: STT engine (`parakeet` / `whisper`)
+    engine TEXT,                                      -- v0.8: STT engine (`parakeet` / `nemotron` / `whisper`)
     engineVariant TEXT,                               -- v0.8: Engine-specific model variant
     language TEXT,                                    -- v0.19: Normalized detected STT language code
     displayRawTranscript INTEGER NOT NULL DEFAULT 0,  -- v0.12: Show raw transcript instead of cleaned text
@@ -133,7 +133,7 @@ CREATE TABLE transcriptions (
     recoveredFromCrash INTEGER NOT NULL DEFAULT 0,       -- v0.7.5: recovered interrupted meeting flag
     isTranscriptEdited INTEGER NOT NULL DEFAULT 0,       -- v0.7.7: user-edited transcript flag
     userNotes TEXT,                                      -- v0.8: meeting notes used to steer prompt results
-    engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `whisper`)
+    engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `nemotron` / `whisper`)
     engineVariant TEXT,                                  -- v0.8: Engine-specific model variant
     derivedTitle TEXT,                                   -- v0.9: Display title derived from transcript content
     derivedSnippet TEXT,                                 -- v0.9: Display preview snippet derived from transcript content
@@ -160,7 +160,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `recoveredFromCrash` marks meeting recordings recovered from an interrupted session. Added in v0.7.5.
 - `isTranscriptEdited` marks transcript text changed by the user after automatic processing. Added in v0.7.7.
 - `userNotes` stores free-form meeting notes typed during recording; prompt generation snapshots this value on `summaries.userNotesSnapshot`. Added in v0.8.
-- `engine` / `engineVariant` record the STT engine attribution for Parakeet and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
+- `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `derivedTitle` / `derivedSnippet` cache display copy derived from the completed transcript. Added in v0.9 so Library cards do not need to recompute preview text on every render.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
@@ -545,7 +545,7 @@ struct Dictation: Codable, Identifiable {
     var wordCount: Int                      // v0.5 — Cached word count for voice stats dashboard
     var errorMessage: String?
     var updatedAt: Date
-    var engine: String?                     // v0.8 — STT engine (`parakeet` / `whisper`)
+    var engine: String?                     // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?              // v0.8 — Engine-specific model variant
 
     enum ProcessingMode: String, Codable {
@@ -605,7 +605,7 @@ struct Transcription: Codable, Identifiable {
     var recoveredFromCrash: Bool        // v0.7.5 — Recovered interrupted meeting
     var isTranscriptEdited: Bool        // v0.7.7 — User edited transcript text
     var userNotes: String?              // v0.8 — Free-form meeting notes
-    var engine: String?                 // v0.8 — STT engine (`parakeet` / `whisper`)
+    var engine: String?                 // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?          // v0.8 — Engine-specific model variant
     var derivedTitle: String?           // v0.9 — Display title derived from transcript text
     var derivedSnippet: String?         // v0.9 — Display preview snippet derived from transcript text

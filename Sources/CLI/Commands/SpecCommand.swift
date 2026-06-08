@@ -164,8 +164,8 @@ private extension CLISpecCommand {
             jsonMode: "--format json",
             arguments: [.argument("input", summary: "File path, folder path, YouTube URL, or HTTP(S) media URL supported by yt-dlp.")],
             options: [
-                CLISpecParameter.option("--engine", valueName: "parakeet|whisper|app-default", summary: "Speech engine for this run."),
-                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Whisper."),
+                CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|app-default", summary: "Speech engine for this run."),
+                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper."),
                 CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection behavior for this run."),
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
@@ -174,6 +174,84 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--no-history", summary: "Do not persist the completed transcription."),
             ],
             output: "Transcription result object."
+        ),
+        CLISpecCommand(
+            ["config", "list"],
+            summary: "List shared app/CLI configuration values.",
+            output: "Dictionary of canonical configuration keys to values."
+        ),
+        CLISpecCommand(
+            ["config", "get"],
+            summary: "Read one shared app/CLI configuration value.",
+            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-language, or whisper-language.")],
+            output: "Configuration value."
+        ),
+        CLISpecCommand(
+            ["config", "set"],
+            summary: "Write one shared app/CLI configuration value.",
+            readOnly: false,
+            arguments: [
+                .argument("key", summary: "Configuration key."),
+                .argument("value", summary: "Configuration value."),
+            ],
+            output: "Written canonical configuration value."
+        ),
+        CLISpecCommand(
+            ["models", "list"],
+            summary: "List selectable local speech models.",
+            output: "Array of selectable speech model objects."
+        ),
+        CLISpecCommand(
+            ["models", "select"],
+            summary: "Set the shared app/CLI default speech model.",
+            readOnly: false,
+            arguments: [.argument("model-id", summary: "Model ID from models list.")],
+            output: "Selected speech model object."
+        ),
+        CLISpecCommand(
+            ["models", "status"],
+            summary: "Show local speech and speaker model status without forcing downloads.",
+            output: "SpeechStackPayload object."
+        ),
+        CLISpecCommand(
+            ["models", "download"],
+            summary: "Download a local speech model without selecting it.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("model-id", summary: "Model ID from models list.")],
+            output: "Human-readable progress and completion lines."
+        ),
+        CLISpecCommand(
+            ["models", "delete"],
+            summary: "Delete one downloaded speech model.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("model-id", summary: "Model ID from models list.")],
+            options: [CLISpecParameter.flag("--force", summary: "Delete even when the model is currently in use.")],
+            output: "Human-readable deletion confirmation or no-op line."
+        ),
+        CLISpecCommand(
+            ["models", "warm-up"],
+            summary: "Warm up the selected local speech stack.",
+            readOnly: false,
+            jsonMode: "none",
+            options: [CLISpecParameter.option("--attempts", valueName: "N", summary: "Maximum attempts.")],
+            output: "Human-readable warm-up progress."
+        ),
+        CLISpecCommand(
+            ["models", "repair"],
+            summary: "Best-effort retry for the selected local speech stack.",
+            readOnly: false,
+            jsonMode: "none",
+            options: [CLISpecParameter.option("--attempts", valueName: "N", summary: "Maximum attempts.")],
+            output: "Human-readable repair progress."
+        ),
+        CLISpecCommand(
+            ["models", "clear"],
+            summary: "Delete cached speech and speaker models.",
+            readOnly: false,
+            jsonMode: "none",
+            output: "Human-readable cache clear confirmation."
         ),
         CLISpecCommand(
             ["history", "transcriptions"],

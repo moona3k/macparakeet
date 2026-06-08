@@ -157,4 +157,11 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(space?.keyCode, 0x31)
         XCTAssertEqual(space?.keyLabel, "Space")
     }
+
+    func testParseControlOptionDigit() {
+        let parsed = try? XCTUnwrap(KeyboardShortcut.parse("ctrl+opt+3"))
+        XCTAssertEqual(parsed?.modifierFlags, [.control, .option])
+        XCTAssertEqual(parsed?.keyCode, 0x14)
+        XCTAssertEqual(parsed?.displayString, "⌃⌥3")
+    }
 }

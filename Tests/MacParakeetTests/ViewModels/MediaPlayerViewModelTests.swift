@@ -10,7 +10,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
     func testDetectPlaybackModeForYouTube() {
         let t = Transcription(
             fileName: "YouTube Video",
-            sourceURL: "https://www.youtube.com/watch?v=abc123"
+            sourceURL: "https://www.youtube.com/watch?v=abc123",
+            sourceType: .youtube
         )
         XCTAssertEqual(MediaPlayerViewModel.detectPlaybackMode(for: t), .video)
     }
@@ -33,6 +34,30 @@ final class MediaPlayerViewModelTests: XCTestCase {
 
         let t = Transcription(fileName: "audio.mp3", filePath: tempFile.path)
         XCTAssertEqual(MediaPlayerViewModel.detectPlaybackMode(for: t), .audio)
+    }
+
+    func testDetectPlaybackModeForPodcastWithSavedAudio() throws {
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("podcast-\(UUID().uuidString).mp3")
+        try Data([0x00]).write(to: tempFile)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let t = Transcription(
+            fileName: "Podcast Episode",
+            filePath: tempFile.path,
+            sourceURL: "https://podcasts.apple.com/us/podcast/show/id1?i=2",
+            sourceType: .podcast
+        )
+        XCTAssertEqual(MediaPlayerViewModel.detectPlaybackMode(for: t), .audio)
+    }
+
+    func testDetectPlaybackModeForPodcastWithoutSavedAudio() {
+        let t = Transcription(
+            fileName: "Podcast Episode",
+            sourceURL: "https://podcasts.apple.com/us/podcast/show/id1?i=2",
+            sourceType: .podcast
+        )
+        XCTAssertEqual(MediaPlayerViewModel.detectPlaybackMode(for: t), .none)
     }
 
     func testDetectPlaybackModeForMissingFile() {
@@ -115,6 +140,27 @@ final class MediaPlayerViewModelTests: XCTestCase {
         await vm.load(for: t)
         XCTAssertEqual(vm.playbackMode, .none)
         XCTAssertEqual(vm.playerState, .idle)
+    }
+
+    @MainActor
+    func testPreparePodcastSavedAudioDoesNotEnableVideoFallback() async throws {
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("podcast-\(UUID().uuidString).mp3")
+        try Data([0x00]).write(to: tempFile)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let vm = MediaPlayerViewModel()
+        let t = Transcription(
+            fileName: "Podcast Episode",
+            filePath: tempFile.path,
+            sourceURL: "https://podcasts.apple.com/us/podcast/show/id1?i=2",
+            sourceType: .podcast
+        )
+
+        await vm.prepare(for: t)
+
+        XCTAssertEqual(vm.playbackMode, .audio)
+        XCTAssertFalse(vm.needsVideoStreamLoad)
     }
 
     // MARK: - Playback Rate
@@ -232,7 +278,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
             sourceURL: "https://www.youtube.com/watch?v=abc",
             thumbnailURL: "https://img.example/thumb.jpg",
             channelName: "Talk Channel",
-            videoDescription: "Talk description"
+            videoDescription: "Talk description",
+            sourceType: .youtube
         )
         await vm.prepare(for: transcription)
 
@@ -271,7 +318,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
         let transcription = Transcription(
             fileName: "Talk",
             filePath: webm.path,
-            sourceURL: "https://www.youtube.com/watch?v=abc"
+            sourceURL: "https://www.youtube.com/watch?v=abc",
+            sourceType: .youtube
         )
         await vm.prepare(for: transcription)
 
@@ -314,7 +362,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
             fileName: "Talk",
             filePath: webm.path,
             durationMs: 45_000,
-            sourceURL: "https://www.youtube.com/watch?v=abc"
+            sourceURL: "https://www.youtube.com/watch?v=abc",
+            sourceType: .youtube
         )
         await vm.prepare(for: transcription)
 
@@ -354,7 +403,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
         let webmTranscription = Transcription(
             fileName: "Webm Talk",
             filePath: webm.path,
-            sourceURL: "https://www.youtube.com/watch?v=abc"
+            sourceURL: "https://www.youtube.com/watch?v=abc",
+            sourceType: .youtube
         )
         await vm.prepare(for: webmTranscription)
         XCTAssertEqual(vm.playerState, .loading)

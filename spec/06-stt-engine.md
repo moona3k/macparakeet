@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path. WhisperKit is available as an optional local secondary engine for languages Parakeet does not cover. Both engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path. Nemotron 3.5 is available as an opt-in Beta local multilingual engine, and WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough. All speech engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -37,6 +37,20 @@ FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
 - **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card).
 - **CLI:** `config set parakeet-model v3|v2` (aliases `multilingual`/`english`), `transcribe --parakeet-model app-default|v3|v2`, and the `parakeet-v3` / `parakeet-v2` ids in `models list` / `models select`.
 
+### Nemotron Beta Engine
+
+| Property | Value |
+|----------|-------|
+| Model | Nemotron 3.5 ASR Streaming 0.6B (`multilingual-1120ms`) |
+| Runtime | FluidAudio streaming Nemotron CoreML path |
+| Model cache | FluidAudio model cache under `~/Library/Application Support/FluidAudio/Models/` |
+| Output | Text and detected/specified language when reported; word timestamps are not currently surfaced through MacParakeet |
+| Languages | 40 language-locales upstream; exposed as opt-in Beta while MacParakeet benchmarks quality on real product audio |
+| Selection | Explicit in Settings or CLI (`--engine nemotron --language <code>`); no automatic fallback |
+| Download | ~1.5 GB, explicit Settings/CLI download before selecting as the shared default |
+
+Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as Parakeet and Whisper rather than creating a feature-owned ASR stack.
+
 ### WhisperKit Optional Engine
 
 | Property | Value |
@@ -48,7 +62,7 @@ FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
 | Languages | Broad Whisper language coverage, including Korean, Japanese, Chinese, Hindi, Arabic, and others outside Parakeet v3 coverage |
 | Selection | Explicit in Settings or CLI (`--engine whisper --language <code>`); no automatic fallback |
 
-Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. WhisperKit solves language coverage while preserving the local-first speech boundary.
+Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. Nemotron is the faster experimental multilingual path; WhisperKit solves mature broad coverage while preserving the local-first speech boundary.
 
 ### Three-Chip Architecture
 
@@ -56,11 +70,11 @@ Each ML workload runs on the chip it was designed for:
 
 ```
 CPU:  MacParakeet app (UI, shortcuts, clipboard, history)
-ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
+ANE/CoreML: Parakeet STT and Nemotron Beta (via FluidAudio/CoreML)
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
-The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
+The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. Nemotron uses FluidAudio's CoreML path with separate interactive/background managers backed by shared model weights. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
 
 ---
 
@@ -236,7 +250,7 @@ struct TimestampedWord: Sendable {
 
 ADR-016 defines MacParakeet's STT architecture as:
 
-- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet and optional WhisperKit
+- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet, Nemotron Beta, and optional WhisperKit
 - **Two STT execution slots by default**
   - an **interactive slot** reserved for `dictation`
   - a **background slot** shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
@@ -285,7 +299,7 @@ Backpressure and queueing rules:
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
 - Speaker diarization remains a separate service and is not part of the two-slot speech scheduler
-- Switching Parakeet/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
+- Switching Parakeet/Nemotron/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
 
 ### Data Flow
 
@@ -352,6 +366,16 @@ The `parakeet-tdt-0.6b-*-coreml` HuggingFace repos host several precision/encode
 - CoreML compilation: ~3.4s cold (first load), ~162ms warm (subsequent loads)
 - After first run, models load from local cache
 
+### Nemotron Model Download
+
+Nemotron is downloaded from an explicit Settings/CLI action. It is not part of first-run onboarding and is not selected automatically from locale.
+
+```bash
+swift run macparakeet-cli models download nemotron-multilingual-1120ms
+```
+
+The single surfaced variant is `NemotronModelVariant.multilingual1120` (`multilingual-1120ms`). The optional language hint is stored separately as `nemotron-language`; `auto` clears the stored hint.
+
 ### Whisper Model Download
 
 Whisper models are downloaded from an explicit Settings/CLI action, or during first-run onboarding when the local macOS language is Korean, Japanese, Chinese, or Cantonese. That first-run branch is an initial setup choice, not automatic fallback during transcription.
@@ -387,7 +411,7 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - Support retry on network failure
 - Resume partial downloads where possible (HuggingFace supports range requests)
 - Verify model integrity after download where the provider exposes enough metadata
-- If the Whisper model is missing, keep Parakeet usable and direct the user to the explicit Whisper download action
+- If the Nemotron or Whisper model is missing, keep Parakeet usable and direct the user to the explicit model download action
 
 ### CoreML Errors
 

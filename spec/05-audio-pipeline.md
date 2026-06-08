@@ -74,7 +74,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
-- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default and v2 is an English-only opt-in; WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
+- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default and v2 is an English-only opt-in; Nemotron Beta and WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
 
 ### Conversion Flow
 
@@ -246,7 +246,7 @@ Meeting recording and dictation share one process-wide microphone engine. Both f
 
 `SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while an active non-VPIO capture subscriber is already in flight, so dictation or raw meeting capture does not get a mid-session format flip. Passive warm subscribers do not count as blockers. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
 
-All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only opt-in); WhisperKit can be selected explicitly. That keeps:
+All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only opt-in); Nemotron Beta and WhisperKit can be selected explicitly. That keeps:
 
 - dictation on its own reserved interactive slot
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot
@@ -258,7 +258,7 @@ The primary concurrency use case remains meeting recording + dictation. File tra
 
 ### Live Preview
 
-`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
+`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper sessions currently use the fixed cadence. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
 - Live transcript preview in the recording pill
 - Source-aware labels: mic chunks → "Me", system chunks → "Them"
 - Raw mic capture plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows

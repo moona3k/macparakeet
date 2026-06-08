@@ -1,3 +1,5 @@
+import Foundation
+import os
 import XCTest
 @testable import MacParakeetCore
 
@@ -52,4 +54,48 @@ final class PodcastAudioDownloaderTests: XCTestCase {
         let second = PodcastAudioDownloader.uniqueOutputURL(in: dir, suggestedName: "Episode 1", fileExtension: "mp3")
         XCTAssertEqual(second.lastPathComponent, "Episode 1 (1).mp3", "dedupes with counter suffix")
     }
+
+    func testFetchEmitsFinalProgressWhenContentLengthIsMissing() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [NoContentLengthAudioURLProtocol.self]
+        let downloader = PodcastAudioDownloader(configuration: configuration)
+        let progress = OSAllocatedUnfairLock(initialState: [Int]())
+
+        let output = try await downloader.fetch(
+            audioURL: "https://example.com/podcast/episode",
+            suggestedName: "No Length Episode"
+        ) { percent in
+            progress.withLock { $0.append(percent) }
+        }
+        defer { try? FileManager.default.removeItem(at: output) }
+
+        XCTAssertEqual(progress.withLock { $0.last }, 100)
+        XCTAssertEqual(try Data(contentsOf: output), NoContentLengthAudioURLProtocol.body)
+    }
+}
+
+private final class NoContentLengthAudioURLProtocol: URLProtocol {
+    static let body = Data([0x01, 0x02, 0x03, 0x04])
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "audio/mpeg"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
