@@ -152,9 +152,15 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
         ZStack {
             DesignSystem.Colors.surfaceElevated
 
-            Image(systemName: sourceIcon)
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
+            if let symbolText = sourceDisplay.symbolText {
+                Text(symbolText)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(sourceDisplay.tint)
+            } else {
+                Image(systemName: sourceIcon)
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
         }
     }
 
@@ -180,11 +186,15 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
 
     private var sourceIcon: String {
         if transcription.sourceURL != nil {
-            return "play.rectangle.fill"
+            return sourceDisplay.systemImage
         }
         let ext = transcription.filePath.map { URL(fileURLWithPath: $0).pathExtension.lowercased() } ?? ""
         let videoExts: Set = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]
         return videoExts.contains(ext) ? "film" : "waveform"
+    }
+
+    private var sourceDisplay: TranscriptionSourceDisplay {
+        TranscriptionSourceDisplay.resolve(for: transcription)
     }
 
     // MARK: - Info

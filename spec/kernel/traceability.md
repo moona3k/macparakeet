@@ -31,7 +31,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
-| REQ-YT-001 | `MacParakeetCore/Services/YouTubeDownloader.swift`, `MacParakeetCore/Utilities/YouTubeURLValidator.swift` | `YouTubeDownloaderTests.swift`, `YouTubeURLValidatorTests.swift` |
+| REQ-YT-001 | `MacParakeetCore/Services/YouTubeDownloader.swift`, `MacParakeetCore/Utilities/YouTubeURLValidator.swift`, `MacParakeetCore/Utilities/XURLValidator.swift` | `YouTubeDownloaderTests.swift`, `YouTubeURLValidatorTests.swift`, `XURLValidatorTests.swift` |
 | REQ-EXP-002 | `MacParakeetCore/Services/ExportService.swift` | `ExportServiceTests.swift` |
 
 ## v0.4 Polish & Launch

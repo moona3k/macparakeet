@@ -112,6 +112,7 @@ public final class TranscriptionViewModel {
     public var isValidURL: Bool {
         YouTubeURLValidator.isYouTubeURL(urlInput)
             || PodcastURLValidator.isApplePodcastsURL(urlInput)
+            || XURLValidator.isXURL(urlInput)
     }
 
     public var hasConversations: Bool = false
@@ -297,7 +298,7 @@ public final class TranscriptionViewModel {
             // (the enclosure is resolved server-side), so each request runs.
             source = .podcastURL
             placeholderName = "Podcast episode"
-        } else {
+        } else if YouTubeURLValidator.isYouTubeURL(url) {
             guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
             // Check for existing transcription of the same video
             if let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
@@ -307,6 +308,11 @@ public final class TranscriptionViewModel {
             }
             source = .youtubeURL
             placeholderName = "YouTube video"
+        } else if XURLValidator.isXURL(url) {
+            source = .youtubeURL
+            placeholderName = "Video"
+        } else {
+            return
         }
 
         let taskID = beginNewTranscription(source: source, fileName: placeholderName)

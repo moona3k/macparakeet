@@ -4,7 +4,7 @@ import os
 
 public enum LibraryFilter: String, CaseIterable, Sendable {
     case all = "All"
-    case youtube = "YouTube"
+    case youtube = "Video"
     case podcast = "Podcasts"
     case local = "Local"
     case meeting = "Meetings"

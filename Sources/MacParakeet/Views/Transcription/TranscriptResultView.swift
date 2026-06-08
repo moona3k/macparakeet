@@ -722,7 +722,8 @@ struct TranscriptResultView: View {
                             metadataChip(
                                 icon: sourceChipIcon,
                                 text: sourceChipText,
-                                tint: sourceChipTint
+                                tint: sourceChipTint,
+                                symbolText: sourceChipSymbolText
                             )
 
                             if let durationMs = transcription.durationMs {
@@ -764,7 +765,8 @@ struct TranscriptResultView: View {
                         metadataChip(
                             icon: sourceChipIcon,
                             text: expandedSourceChipText,
-                            tint: sourceChipTint
+                            tint: sourceChipTint,
+                            symbolText: sourceChipSymbolText
                         )
 
                         if let durationMs = transcription.durationMs {
@@ -890,56 +892,28 @@ struct TranscriptResultView: View {
         }
     }
 
+    private var sourceDisplay: TranscriptionSourceDisplay {
+        TranscriptionSourceDisplay.resolve(for: transcription)
+    }
+
     private var sourceChipIcon: String {
-        switch transcription.sourceType {
-        case .meeting:
-            return "record.circle.fill"
-        case .youtube:
-            return "play.rectangle.fill"
-        case .podcast:
-            return "mic.fill"
-        case .file:
-            return "waveform"
-        }
+        sourceDisplay.systemImage
+    }
+
+    private var sourceChipSymbolText: String? {
+        sourceDisplay.symbolText
     }
 
     private var sourceChipText: String {
-        switch transcription.sourceType {
-        case .meeting:
-            return "Meeting"
-        case .youtube:
-            return "YouTube"
-        case .podcast:
-            return "Podcast"
-        case .file:
-            return "Local"
-        }
+        sourceDisplay.collapsedText
     }
 
     private var expandedSourceChipText: String {
-        switch transcription.sourceType {
-        case .meeting:
-            return "Meeting recording"
-        case .youtube:
-            return "YouTube source"
-        case .podcast:
-            return "Podcast episode"
-        case .file:
-            return "Local file"
-        }
+        sourceDisplay.expandedText
     }
 
     private var sourceChipTint: Color {
-        switch transcription.sourceType {
-        case .meeting:
-            return DesignSystem.Colors.accent
-        case .youtube:
-            return DesignSystem.Colors.youtubeRed
-        case .podcast:
-            return DesignSystem.Colors.podcastPurple
-        case .file:
-            return DesignSystem.Colors.accent
-        }
+        sourceDisplay.tint
     }
 
     private var displayedMeetingTitle: String {
@@ -964,10 +938,15 @@ struct TranscriptResultView: View {
         editingMeetingTitle = false
     }
 
-    private func metadataChip(icon: String, text: String, tint: Color) -> some View {
+    private func metadataChip(icon: String, text: String, tint: Color, symbolText: String? = nil) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
+            if let symbolText {
+                Text(symbolText)
+                    .font(.system(size: 10, weight: .bold))
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+            }
             Text(text)
                 .font(DesignSystem.Typography.caption.weight(.medium))
         }

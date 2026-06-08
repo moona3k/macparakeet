@@ -1161,18 +1161,18 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 
 ---
 
-### F11: YouTube URL Transcription
+### F11: YouTube & X URL Transcription
 
-**What:** Paste a YouTube URL to download and transcribe the video's audio locally.
+**What:** Paste a YouTube or X (Twitter) URL to download and transcribe the video's audio locally.
 
 **Flow:**
 
 ```
-User pastes YouTube URL
+User pastes YouTube or X URL
        │
        ▼
 ┌──────────────────────┐
-│  URL validation      │ ── Verify URL format, extract video ID
+│  URL validation      │ ── Verify supported URL format
 └──────────┬───────────┘
            │
            ▼
@@ -1196,7 +1196,7 @@ User pastes YouTube URL
 Display result (same view as file transcription)
 ```
 
-**YouTube UI integration:**
+**Video URL UI integration:**
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -1208,18 +1208,19 @@ Display result (same view as file transcription)
 │                                                      │
 │  ────────────────── or ──────────────────            │
 │                                                      │
-│  YouTube: [https://youtube.com/watch?v=...] [Go]     │
+│  Video URL: [https://x.com/... or youtube.com/...] [Go] │
 │                                                      │
 └─────────────────────────────────────────────────────┘
 ```
 
 **Technical requirements:**
-- yt-dlp standalone managed binary for YouTube audio download (weekly non-blocking `--update`)
+- yt-dlp standalone managed binary for video audio download (weekly non-blocking `--update`)
 - Bundled FFmpeg binary for media demux/conversion (no system dependency)
-- Supports standard YouTube URL forms (`youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/embed`, `youtube.com/v`)
+- Supports standard YouTube URL forms (`youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/embed`, `youtube.com/v`) and X/Twitter status URLs (`x.com/<user>/status/<id>`, `twitter.com/...`, incl. `www`/`mobile` hosts)
+- Front-end validation gates the button to YouTube + X (`YouTubeURLValidator` / `XURLValidator`); the downloader itself accepts any `yt-dlp`-supported media URL
 - Playlist pages are processed in single-video mode (`--no-playlist`); full playlist batch transcription is deferred
 - Audio-only download (no video, saves bandwidth and time)
-- Downloaded YouTube audio is retained by default and can be auto-deleted via Settings > Storage
+- Downloaded video audio is retained by default and can be auto-deleted via Settings > Storage
 
 **Limitations:**
 - Age-restricted videos may fail (requires auth cookies)
@@ -1228,13 +1229,13 @@ Display result (same view as file transcription)
 - Download for personal use only (noted in UI)
 
 **Acceptance criteria:**
-- [x] Paste YouTube URL into text field and click "Transcribe" to start
+- [x] Paste a YouTube or X URL into text field and click "Transcribe" to start
 - [x] Download phase emits determinate percent progress (`Downloading audio... X%`)
 - [x] Transcription phase emits chunk progress updates (`Transcribing... X%`)
 - [x] Result displayed same as file transcription
 - [x] Handles invalid URLs gracefully (error message)
 - [x] Handles private/restricted videos with clear error
-- [x] Downloaded YouTube audio is kept by default, with a Settings toggle to auto-delete after transcription
+- [x] Downloaded video audio is kept by default, with a Settings toggle to auto-delete after transcription
 - [ ] Playlist URLs supported (batch transcription) — deferred to v0.4
 
 ---

@@ -16,7 +16,7 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 
 | Channel | Agent Assumption | Features |
 |---------|------------------|----------|
-| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, optional WhisperKit, exports, vocabulary, AI features |
+| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video URL transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, optional WhisperKit, exports, vocabulary, AI features |
 | `main` | Development | Latest stable release plus untagged in-progress fixes. No feature flag differs from the latest release tag — the `AppFeatures` feature flags carry the same values on `main` and the shipping build |
 
 When editing public-facing docs, keep the channel framing accurate: the Stable
@@ -150,7 +150,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 MacParakeet has three primary capture modes plus a system-wide text-rewrite surface (ADR-022):
 
 1. **System-wide dictation** -- Press hotkey anywhere on macOS, speak, text is pasted (WisprFlow-style)
-2. **File transcription** -- Drag-drop audio/video files (multi-file and folder drops, plus a multi-select/folder Browse picker, fan out into a sequential local batch — `AudioFileEnumerator` expands + caps at 200, `TranscriptionViewModel` drains one at a time, results stream into Library, "Cancel all" stops it) or paste a YouTube link (single-URL; MacWhisper-style). A finished file/URL/batch plays a chime + (backgrounded) banner behind one opt-out Settings toggle (`notifyOnTranscriptionComplete`, default on).
+2. **File transcription** -- Drag-drop audio/video files (multi-file and folder drops, plus a multi-select/folder Browse picker, fan out into a sequential local batch — `AudioFileEnumerator` expands + caps at 200, `TranscriptionViewModel` drains one at a time, results stream into Library, "Cancel all" stops it) or paste a YouTube or X link (single-URL; MacWhisper-style). A finished file/URL/batch plays a chime + (backgrounded) banner behind one opt-out Settings toggle (`notifyOnTranscriptionComplete`, default on).
 3. **Meeting recording** -- Capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 4. **Transforms** -- Select text anywhere on macOS, press a bound hotkey (⌥1 / ⌥2 / ⌃⌥3 by default), and the selection is rewritten in place through the user's LLM provider. ADR-022. Productized Transforms are enabled via `AppFeatures.transformsEnabled = true` (shipping since v0.6.7). Ships with three built-in Transforms: *Polish*, *Distill*, *Decide* — synthesized by a paired creative-director + staff-PM review on 2026-05-12 (Improve → Re-shape → Re-direct pedagogy). Reuses the spike's brand-finished floating pill (ADR-022 §4); user-bound shortcuts dispatch through a single process-wide `TransformsHotkeyRegistry`.
 
@@ -160,7 +160,7 @@ The Transcribe tab is the unified capture surface — one place for all three mo
 
 ```
 +--------------------------------------------------+
-|  Transcribe a YouTube video |  Drop a file       |
+|  Transcribe video (YT / X)  |  Drop a file       |
 |  [link field] [Transcribe]  |  [Browse Files]    |
 |                             |                    |
 +--------------------------------------------------+
@@ -233,8 +233,8 @@ MacParakeet is a **menu bar app** with these UI surfaces:
 Menu Bar Icon (always visible)
     |
     +-- Main Window (capture hub + library)
-    |   +-- Transcribe tab: YouTube card, file drop card, Meeting Recording tile
-    |   +-- Library tab: file/YouTube/meeting transcript browse
+    |   +-- Transcribe tab: video URL card, file drop card, Meeting Recording tile
+    |   +-- Library tab: file/video URL/meeting transcript browse
     |   +-- Dictations, Vocabulary, Feedback, Settings, Discover
     |   +-- Global transcription progress bar outside Transcribe
     |
@@ -266,7 +266,7 @@ Menu Bar Icon (always visible)
     |   +-- Auto-update preferences
     |
     +-- Transcribe Tab (capture hub for all three modes)
-    |   +-- YouTube card (paste link)
+    |   +-- Video URL card (paste link)
     |   +-- File drop card
     |   +-- Meeting Recording tile (reflects live state)
     |
@@ -277,8 +277,8 @@ Menu Bar Icon (always visible)
     |   +-- Shares state with the Transcribe tile
     |
     +-- Library Panel
-    |   +-- Filter bar: All/YouTube/Local/Meetings/Favorites
-    |   +-- Thumbnail grid for All/YouTube/Local/Favorites
+    |   +-- Filter bar: All/Video/Local/Meetings/Favorites
+    |   +-- Thumbnail grid for All/Video/Local/Favorites
     |   +-- Date-grouped list (Today/Yesterday/...) for Meetings filter
     |   +-- Search and sort
     |
@@ -289,7 +289,7 @@ Menu Bar Icon (always visible)
 ```
 
 View files organized by feature in `Sources/MacParakeet/Views/`:
-- `Transcription/` -- Transcribe tab, drop zone, YouTube card, **Meeting Recording tile**, transcript display, export, library grid + meetings list
+- `Transcription/` -- Transcribe tab, drop zone, video URL card, **Meeting Recording tile**, transcript display, export, library grid + meetings list
 - `Dictation/` -- Overlay, waveform, recording state
 - `MeetingRecording/` -- Floating pill, dual audio levels, live notes/transcript/Ask panel, row card + date headers (consumed by Library Meetings filter)
 - `Meetings/` -- Library Meetings browse list (`MeetingsView`)
