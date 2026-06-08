@@ -210,7 +210,7 @@ print("\t".join(fields))
 PY
 }
 
-echo -e "engine_selector\trun_index\tphase\tsample_id\tsample_type\tlanguage_hint\taudio_duration_s\ttranscript_duration_ms\tjson_engine\tjson_engine_variant\tjson_language\ttranscript_words\ttranscript_chars\twer\tpunctuation_per_100_words\tprefix_ref_words_matched\tsuffix_ref_words_matched\tfinal_wall_s\trealtime_factor\tfirst_progress_s\tfirst_partial_s\tmax_rss_bytes\tpeak_memory_bytes\texit_code\ttranscript_file\tjson_file\tstderr_file\terror" > "$RESULTS_TSV"
+echo -e "engine_selector\trun_index\tphase\tsample_id\tsample_type\tlanguage_hint\taudio_duration_s\ttranscript_duration_ms\tjson_engine\tjson_engine_variant\tjson_language\ttranscript_words\ttranscript_chars\twer\tpunctuation_per_100_words\tprefix_ref_words_matched\tsuffix_ref_words_matched\tfinal_wall_s\trealtime_factor\tfirst_progress_s\tfirst_partial_s\tmax_rss_kb\tpeak_memory_bytes\texit_code\ttranscript_file\tjson_file\tstderr_file\terror" > "$RESULTS_TSV"
 
 run_case() {
   local engine="$1"
@@ -262,14 +262,14 @@ run_case() {
     sleep 0.05
   done
 
-  local final_wall_s max_rss_bytes peak_memory_bytes first_progress_s
+  local final_wall_s max_rss_kb peak_memory_bytes first_progress_s
   final_wall_s="$(awk -F '\t' '$2 ~ /^real / {if (match($2, /[0-9.]+/)) print substr($2, RSTART, RLENGTH); exit}' "$stderr_file")"
-  max_rss_bytes="$(awk -F '\t' '$2 ~ /maximum resident set size/ {if (match($2, /[0-9.]+/)) print substr($2, RSTART, RLENGTH); exit}' "$stderr_file")"
+  max_rss_kb="$(awk -F '\t' '$2 ~ /maximum resident set size/ {if (match($2, /[0-9.]+/)) print substr($2, RSTART, RLENGTH); exit}' "$stderr_file")"
   peak_memory_bytes="$(awk -F '\t' '$2 ~ /peak memory footprint/ {if (match($2, /[0-9.]+/)) print substr($2, RSTART, RLENGTH); exit}' "$stderr_file")"
   first_progress_s="$(awk -v start="$start_s" -F '\t' '$2 ~ /^(Converting audio|Downloading audio|Transcribing\.\.\.|Identifying speakers|Finalizing)/ {printf "%.3f", $1 - start; exit}' "$stderr_file")"
 
   [[ -n "$final_wall_s" ]] || final_wall_s="NA"
-  [[ -n "$max_rss_bytes" ]] || max_rss_bytes="NA"
+  [[ -n "$max_rss_kb" ]] || max_rss_kb="NA"
   [[ -n "$peak_memory_bytes" ]] || peak_memory_bytes="NA"
   [[ -n "$first_progress_s" ]] || first_progress_s="NA"
 
@@ -295,7 +295,7 @@ PY
     [[ -n "$error" ]] || error="command_failed"
   fi
 
-  echo -e "$engine\t$run_index\t$phase\t$sample_id\t$sample_type\t$language\t$duration\t$transcript_duration_ms\t$json_engine\t$json_engine_variant\t$json_language\t$transcript_words\t$transcript_chars\t$wer\t$punct\t$prefix\t$suffix\t$final_wall_s\t$realtime_factor\t$first_progress_s\tNA\t$max_rss_bytes\t$peak_memory_bytes\t$ec\t$transcript_file\t$json_file\t$stderr_file\t$error" >> "$RESULTS_TSV"
+  echo -e "$engine\t$run_index\t$phase\t$sample_id\t$sample_type\t$language\t$duration\t$transcript_duration_ms\t$json_engine\t$json_engine_variant\t$json_language\t$transcript_words\t$transcript_chars\t$wer\t$punct\t$prefix\t$suffix\t$final_wall_s\t$realtime_factor\t$first_progress_s\tNA\t$max_rss_kb\t$peak_memory_bytes\t$ec\t$transcript_file\t$json_file\t$stderr_file\t$error" >> "$RESULTS_TSV"
 }
 
 while IFS=$'\t' read -r sample_id raw_path language sample_type reference_path notes; do

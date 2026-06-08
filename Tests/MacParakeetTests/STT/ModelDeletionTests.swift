@@ -47,6 +47,30 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: v3Dir.path))
     }
 
+    // MARK: - Nemotron repo file removal
+
+    func testRemoveNemotronModelFilesDeletesWholeRepoRoot() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoDir = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let japaneseDir = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        for dir in [autoDir, japaneseDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "weights".write(to: dir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertTrue(STTRuntime.removeNemotronModelFiles(at: repoRoot))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoRoot.path))
+    }
+
+    func testRemoveNemotronModelFilesIsNoOpWhenAbsent() {
+        let missing = tempRoot.appendingPathComponent("missing-nemotron", isDirectory: true)
+        XCTAssertFalse(STTRuntime.removeNemotronModelFiles(at: missing))
+    }
+
     // MARK: - Whisper variant file removal
 
     func testDeleteWhisperModelRemovesFolderAndClearsOptimizedFlag() throws {
