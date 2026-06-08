@@ -54,6 +54,17 @@ private struct FormatterOutcome: Sendable {
     static let skipped = FormatterOutcome(text: nil, run: nil)
 }
 
+/// Metadata that pre-resolution (e.g. an Apple Podcasts iTunes lookup) supplies
+/// for a downloaded media URL. When present, these fields win over the generic
+/// metadata yt-dlp infers from a raw enclosure URL.
+private struct ResolvedMediaMetadata: Sendable {
+    let title: String?
+    let channelName: String?
+    let thumbnailURL: String?
+    let description: String?
+    let durationSeconds: Int?
+}
+
 extension TranscriptionServiceProtocol {
     public func transcribe(fileURL: URL) async throws -> Transcription {
         try await transcribe(fileURL: fileURL, source: .file, onProgress: nil)
@@ -201,6 +212,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
+    private let podcastResolver: PodcastResolving?
     private let diarizationService: DiarizationServiceProtocol?
     private let mediaMetadataExtractor: MediaMetadataExtracting
     private let thumbnailCache: ThumbnailCaching
@@ -221,6 +233,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
+        podcastResolver: PodcastResolving? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
         mediaMetadataExtractor: MediaMetadataExtracting = AVMediaMetadataExtractor(),
         thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
@@ -241,6 +254,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
         self.youtubeDownloader = youtubeDownloader
+        self.podcastResolver = podcastResolver
         self.diarizationService = diarizationService
         self.mediaMetadataExtractor = mediaMetadataExtractor
         self.thumbnailCache = thumbnailCache
@@ -282,6 +296,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         let sourceType: Transcription.SourceType = switch source {
         case .youtube:
             .youtube
+        case .podcast:
+            .podcast
         case .meeting:
             .meeting
         case .file, .dragDrop:
@@ -564,10 +580,21 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         persistResult: Bool,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        let mediaURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let inputURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Apple Podcasts links are a first-class source: they resolve through
+        // the iTunes Lookup API to a direct enclosure URL + rich episode
+        // metadata, then flow through the same media-download path as YouTube.
+        // Every other http(s) media URL keeps the existing `.youtube` lineage
+        // (single-video download + generic-media fallback).
+        let isPodcast = PodcastURLValidator.isApplePodcastsURL(inputURL)
+        let telemetrySource: TelemetryTranscriptionSource = isPodcast ? .podcast : .youtube
+        let sourceType: Transcription.SourceType = isPodcast ? .podcast : .youtube
+        let inputKind: ObservabilityInputKind = isPodcast
+            ? .podcast
+            : (YouTubeURLValidator.isYouTubeURL(inputURL) ? .youtube : .media)
         let operation = TranscriptionOperationContext(
-            source: .youtube,
-            inputKind: YouTubeURLValidator.isYouTubeURL(mediaURL) ? .youtube : .media,
+            source: telemetrySource,
+            inputKind: inputKind,
             mediaExtension: nil,
             fileSizeBucket: nil
         )
@@ -585,6 +612,58 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
             try await assertCanTranscribeOrEmitPreflight(operation)
 
+            // Resolve podcasts to a playable enclosure + metadata before the
+            // shared download/transcribe body runs. yt-dlp downloads the
+            // resolved CDN audio URL just like any other direct media URL; the
+            // resolver's metadata wins over yt-dlp's generic filename info.
+            var downloadURL = inputURL
+            var metadataOverride: ResolvedMediaMetadata?
+            if isPodcast {
+                guard let resolver = podcastResolver else {
+                    sendTranscriptionOperation(
+                        operation,
+                        outcome: .unavailable,
+                        stage: .download,
+                        errorType: Self.errorType(for: PodcastResolveError.lookupFailed("resolver unavailable"))
+                    )
+                    throw PodcastResolveError.lookupFailed("Podcast resolver unavailable")
+                }
+                do {
+                    let episode = try await resolver.resolve(url: inputURL)
+                    downloadURL = episode.audioURL
+                    metadataOverride = ResolvedMediaMetadata(
+                        title: episode.episodeTitle,
+                        channelName: episode.showName,
+                        thumbnailURL: episode.artworkURL,
+                        description: episode.episodeDescription,
+                        durationSeconds: episode.durationSeconds
+                    )
+                } catch {
+                    if error is CancellationError {
+                        Telemetry.send(.transcriptionCancelled(
+                            source: telemetrySource,
+                            audioDurationSeconds: nil,
+                            stage: .download
+                        ))
+                        sendTranscriptionOperation(operation, outcome: .cancelled, stage: .download)
+                    } else {
+                        Telemetry.send(.transcriptionFailed(
+                            source: telemetrySource,
+                            stage: .download,
+                            errorType: Self.errorType(for: error),
+                            errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                        ))
+                        sendTranscriptionOperation(
+                            operation,
+                            outcome: .failure,
+                            stage: .download,
+                            errorType: Self.errorType(for: error)
+                        )
+                    }
+                    throw error
+                }
+            }
+
             var unownedDownloadedAudioURL: URL?
             defer {
                 if let unownedDownloadedAudioURL {
@@ -595,13 +674,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             let downloadResult: YouTubeDownloader.DownloadResult
             do {
                 onProgress?(.downloading(percent: 0))
-                downloadResult = try await downloader.download(url: mediaURL) { percent in
+                downloadResult = try await downloader.download(url: downloadURL) { percent in
                     onProgress?(.downloading(percent: percent))
                 }
             } catch {
                 if error is CancellationError {
                     Telemetry.send(.transcriptionCancelled(
-                        source: .youtube,
+                        source: telemetrySource,
                         audioDurationSeconds: nil,
                         stage: .download
                     ))
@@ -612,7 +691,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     )
                 } else {
                     Telemetry.send(.transcriptionFailed(
-                        source: .youtube,
+                        source: telemetrySource,
                         stage: .download,
                         errorType: Self.errorType(for: error),
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
@@ -628,19 +707,25 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
             unownedDownloadedAudioURL = downloadResult.audioFileURL
             onProgress?(.downloading(percent: 100))
+            // Prefer the resolver/yt-dlp duration whichever is positive; the
+            // resolver wins for podcasts (yt-dlp rarely knows a raw URL's length).
+            let resolvedDurationSeconds = [metadataOverride?.durationSeconds, downloadResult.durationSeconds]
+                .compactMap { $0 }
+                .first { $0 > 0 }
+            let audioDurationSeconds = resolvedDurationSeconds.map(Double.init)
             do {
                 try Task.checkCancellation()
             } catch {
                 Telemetry.send(.transcriptionCancelled(
-                    source: .youtube,
-                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
+                    source: telemetrySource,
+                    audioDurationSeconds: audioDurationSeconds,
                     stage: .download
                 ))
                 sendTranscriptionOperation(
                     operation,
                     outcome: .cancelled,
                     stage: .download,
-                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
+                    audioDurationSeconds: audioDurationSeconds
                 )
                 throw error
             }
@@ -648,20 +733,21 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 && persistResult
             let embeddedMetadata = await mediaMetadataExtractor.metadata(for: downloadResult.audioFileURL)
             let title = Self.firstNonEmpty(
+                metadataOverride?.title,
                 downloadResult.title == "Untitled" ? nil : downloadResult.title,
                 embeddedMetadata.title,
                 downloadResult.title
             ) ?? "Untitled"
-            let durationMs = downloadResult.durationSeconds
-                .flatMap { $0 > 0 ? $0 * 1000 : nil }
+            let durationMs = resolvedDurationSeconds.map { $0 * 1000 }
                 ?? embeddedMetadata.durationMs
-            let channelName = Self.firstNonEmpty(downloadResult.channelName, embeddedMetadata.author)
-            let videoDescription = Self.firstNonEmpty(downloadResult.videoDescription, embeddedMetadata.description)
+            let channelName = Self.firstNonEmpty(metadataOverride?.channelName, downloadResult.channelName, embeddedMetadata.author)
+            let videoDescription = Self.firstNonEmpty(metadataOverride?.description, downloadResult.videoDescription, embeddedMetadata.description)
+            let thumbnailURL = Self.firstNonEmpty(metadataOverride?.thumbnailURL, downloadResult.thumbnailURL)
             let artifactMetadata = YouTubeAudioArtifactMetadata(
                 title: title,
                 artist: channelName,
                 description: videoDescription,
-                thumbnailURL: downloadResult.thumbnailURL
+                thumbnailURL: thumbnailURL
             )
 
             var transcription = Transcription(
@@ -670,11 +756,11 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 durationMs: durationMs,
                 language: nil,
                 status: .processing,
-                sourceURL: mediaURL,
-                thumbnailURL: downloadResult.thumbnailURL,
+                sourceURL: inputURL,
+                thumbnailURL: thumbnailURL,
                 channelName: channelName,
                 videoDescription: videoDescription,
-                sourceType: .youtube
+                sourceType: sourceType
             )
             if persistResult {
                 do {
@@ -684,25 +770,26 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                         operation,
                         outcome: .failure,
                         stage: .persistence,
-                        audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
+                        audioDurationSeconds: audioDurationSeconds,
                         errorType: Self.errorType(for: error)
                     )
                     throw error
                 }
             }
-            if persistResult, downloadResult.thumbnailURL == nil {
+            if persistResult, thumbnailURL == nil {
                 await cacheEmbeddedArtworkIfPresent(embeddedMetadata, for: transcription.id)
             }
             if keepDownloadedAudio {
                 unownedDownloadedAudioURL = nil
             }
             Telemetry.send(.transcriptionStarted(
-                source: .youtube,
-                audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
+                source: telemetrySource,
+                audioDurationSeconds: audioDurationSeconds
             ))
 
-            // Cache YouTube thumbnail locally (non-blocking)
-            if persistResult, let thumbURL = downloadResult.thumbnailURL {
+            // Cache remote artwork locally (non-blocking) — YouTube thumbnail or
+            // Apple Podcasts episode artwork.
+            if persistResult, let thumbURL = thumbnailURL {
                 let transcriptionId = transcription.id
                 let logger = self.logger
                 let thumbnailCache = self.thumbnailCache
@@ -721,7 +808,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
             let completed = try await transcribeAudio(
                 fileURL: downloadResult.audioFileURL,
-                source: .youtube,
+                source: telemetrySource,
                 sttJob: .fileTranscription,
                 transcription: &transcription,
                 operation: operation,

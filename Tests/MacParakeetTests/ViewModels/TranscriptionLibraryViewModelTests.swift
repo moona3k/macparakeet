@@ -82,6 +82,22 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.filteredTranscriptions.first?.fileName, "youtube.mp3")
     }
 
+    func testFilterPodcast() async throws {
+        try repo.save(Transcription(fileName: "local.mp3", status: .completed, sourceType: .file))
+        try repo.save(Transcription(fileName: "youtube.mp3", status: .completed, sourceURL: "https://youtube.com/watch?v=abc", sourceType: .youtube))
+        try repo.save(Transcription(
+            fileName: "episode.mp3",
+            status: .completed,
+            sourceURL: "https://podcasts.apple.com/us/podcast/x/id1?i=2",
+            sourceType: .podcast
+        ))
+
+        vm.filter = .podcast
+        await load()
+        XCTAssertEqual(vm.filteredTranscriptions.count, 1)
+        XCTAssertEqual(vm.filteredTranscriptions.first?.fileName, "episode.mp3")
+    }
+
     func testFilterLocal() async throws {
         try repo.save(Transcription(fileName: "local.mp3", status: .completed, sourceType: .file))
         try repo.save(Transcription(fileName: "meeting.mp3", status: .completed, sourceType: .meeting))

@@ -894,6 +894,8 @@ struct TranscriptResultView: View {
             return "record.circle.fill"
         case .youtube:
             return "play.rectangle.fill"
+        case .podcast:
+            return "mic.fill"
         case .file:
             return "waveform"
         }
@@ -905,6 +907,8 @@ struct TranscriptResultView: View {
             return "Meeting"
         case .youtube:
             return "YouTube"
+        case .podcast:
+            return "Podcast"
         case .file:
             return "Local"
         }
@@ -916,6 +920,8 @@ struct TranscriptResultView: View {
             return "Meeting recording"
         case .youtube:
             return "YouTube source"
+        case .podcast:
+            return "Podcast episode"
         case .file:
             return "Local file"
         }
@@ -927,6 +933,8 @@ struct TranscriptResultView: View {
             return DesignSystem.Colors.accent
         case .youtube:
             return DesignSystem.Colors.youtubeRed
+        case .podcast:
+            return DesignSystem.Colors.podcastPurple
         case .file:
             return DesignSystem.Colors.accent
         }

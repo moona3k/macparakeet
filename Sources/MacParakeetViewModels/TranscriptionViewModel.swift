@@ -20,6 +20,7 @@ public final class TranscriptionViewModel {
     public enum SourceKind: Sendable {
         case localFile
         case youtubeURL
+        case podcastURL
     }
 
     public enum ProgressPhase: Int, CaseIterable, Sendable {
@@ -110,6 +111,7 @@ public final class TranscriptionViewModel {
 
     public var isValidURL: Bool {
         YouTubeURLValidator.isYouTubeURL(urlInput)
+            || PodcastURLValidator.isApplePodcastsURL(urlInput)
     }
 
     public var hasConversations: Bool = false
@@ -280,16 +282,27 @@ public final class TranscriptionViewModel {
             return
         }
         let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
 
-        // Check for existing transcription of the same video
-        if let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
-            currentTranscription = existing
-            urlInput = ""
-            return
+        let source: SourceKind
+        let placeholderName: String
+        if PodcastURLValidator.isApplePodcastsURL(url) {
+            // Apple Podcasts episodes carry no stable client-side id to dedup on
+            // (the enclosure is resolved server-side), so each request runs.
+            source = .podcastURL
+            placeholderName = "Podcast episode"
+        } else {
+            guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
+            // Check for existing transcription of the same video
+            if let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
+                currentTranscription = existing
+                urlInput = ""
+                return
+            }
+            source = .youtubeURL
+            placeholderName = "YouTube video"
         }
 
-        let taskID = beginNewTranscription(source: .youtubeURL, fileName: "YouTube video")
+        let taskID = beginNewTranscription(source: source, fileName: placeholderName)
         urlInput = ""
 
         transcriptionTask = Task { @MainActor [weak self] in
@@ -418,6 +431,8 @@ public final class TranscriptionViewModel {
             .file
         case .youtube:
             .youtube
+        case .podcast:
+            .podcast
         case .meeting:
             .meeting
         }
@@ -865,9 +880,14 @@ public final class TranscriptionViewModel {
     ) -> String? {
         switch phase {
         case .downloading:
-            return sourceKind == .youtubeURL
-                ? "Longer videos take more time to fetch"
-                : nil
+            switch sourceKind {
+            case .youtubeURL:
+                return "Longer videos take more time to fetch"
+            case .podcastURL:
+                return "Longer episodes take more time to fetch"
+            case .localFile:
+                return nil
+            }
         case .transcribing:
             switch engine {
             case .parakeet:

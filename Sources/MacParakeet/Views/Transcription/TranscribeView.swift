@@ -170,18 +170,22 @@ struct TranscribeView: View {
                 .cardShadow(DesignSystem.Shadows.cardRest)
 
             VStack(spacing: DesignSystem.Spacing.md) {
-                // YouTube icon
+                // Video + podcast source glyphs
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(DesignSystem.Colors.youtubeRed.opacity(0.1))
+                        .fill(DesignSystem.Colors.accent.opacity(0.1))
                         .frame(width: 56, height: 56)
 
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.rectangle.fill")
+                            .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                        Image(systemName: "mic.fill")
+                            .foregroundStyle(DesignSystem.Colors.podcastPurple.opacity(0.85))
+                    }
+                    .font(.system(size: 20, weight: .medium))
                 }
 
-                Text("Transcribe a YouTube video")
+                Text("Transcribe a video or podcast")
                     .font(DesignSystem.Typography.pageTitle)
 
                 // URL input row
@@ -192,7 +196,7 @@ struct TranscribeView: View {
                             .foregroundStyle(viewModel.isValidURL ? DesignSystem.Colors.successGreen : .secondary)
                             .contentTransition(.symbolEffect(.replace))
 
-                        TextField("Paste a YouTube link", text: $viewModel.urlInput)
+                        TextField("Paste a YouTube or Apple Podcasts link", text: $viewModel.urlInput)
                             .textFieldStyle(.plain)
                             .font(DesignSystem.Typography.body)
                             .onSubmit {
@@ -221,7 +225,7 @@ struct TranscribeView: View {
                         .buttonStyle(.plain)
                         .help("Paste from clipboard")
                         .accessibilityLabel("Paste URL from clipboard")
-                        .accessibilityHint("Pastes clipboard text into the YouTube link field")
+                        .accessibilityHint("Pastes clipboard text into the link field")
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -255,11 +259,11 @@ struct TranscribeView: View {
                     .buttonStyle(.plain)
                     .disabled(!viewModel.isValidURL)
                     .accessibilityLabel("Start transcription")
-                    .accessibilityHint("Starts transcribing the YouTube link")
+                    .accessibilityHint("Starts transcribing the YouTube or Apple Podcasts link")
                 }
                 .padding(.horizontal, DesignSystem.Spacing.md)
 
-                Text("Downloads from YouTube, then transcribes entirely on your Mac.")
+                Text("Downloads from YouTube or Apple Podcasts, then transcribes entirely on your Mac.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -482,7 +486,7 @@ struct TranscribeView: View {
 
     private var pipelineSteps: [PipelineStep] {
         switch viewModel.sourceKind {
-        case .youtubeURL:
+        case .youtubeURL, .podcastURL:
             return [.download, .convert, .transcribe]
         case .localFile:
             return [.convert, .transcribe]

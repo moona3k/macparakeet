@@ -26,6 +26,7 @@ struct YouTubeInputPanelView: View {
 
     private var isValidDraft: Bool {
         YouTubeURLValidator.isYouTubeURL(draft)
+            || PodcastURLValidator.isApplePodcastsURL(draft)
     }
 
     var body: some View {
@@ -34,16 +35,20 @@ struct YouTubeInputPanelView: View {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(DesignSystem.Colors.youtubeRed.opacity(0.1))
+                        .fill(DesignSystem.Colors.accent.opacity(0.1))
                         .frame(width: 36, height: 36)
 
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.rectangle.fill")
+                            .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                        Image(systemName: "mic.fill")
+                            .foregroundStyle(DesignSystem.Colors.podcastPurple.opacity(0.85))
+                    }
+                    .font(.system(size: 13, weight: .medium))
                 }
                 .accessibilityHidden(true)
 
-                Text("Transcribe a YouTube video")
+                Text("Transcribe a video or podcast")
                     .font(DesignSystem.Typography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
 
@@ -58,12 +63,12 @@ struct YouTubeInputPanelView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
 
-                TextField("Paste a YouTube link", text: $draft)
+                TextField("Paste a YouTube or Apple Podcasts link", text: $draft)
                     .textFieldStyle(.plain)
                     .font(DesignSystem.Typography.body)
                     .focused($isTextFieldFocused)
-                    .accessibilityLabel("YouTube URL")
-                    .accessibilityValue(isValidDraft ? "Valid YouTube URL" : "")
+                    .accessibilityLabel("YouTube or Apple Podcasts URL")
+                    .accessibilityValue(isValidDraft ? "Valid link" : "")
                     .onSubmit {
                         if isValidDraft && !viewModel.isTranscribing {
                             onTranscribe(draft)
@@ -129,7 +134,7 @@ struct YouTubeInputPanelView: View {
             .buttonStyle(.plain)
             .disabled(!isValidDraft || viewModel.isTranscribing)
             .accessibilityLabel("Start transcription")
-            .accessibilityHint("Starts transcribing the YouTube link")
+            .accessibilityHint("Starts transcribing the YouTube or Apple Podcasts link")
 
             // Footer text
             if viewModel.isTranscribing {
@@ -142,7 +147,7 @@ struct YouTubeInputPanelView: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
             } else {
-                Text("Downloads from YouTube, then transcribes entirely on your Mac.")
+                Text("Downloads from YouTube or Apple Podcasts, then transcribes entirely on your Mac.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
             }

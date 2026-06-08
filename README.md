@@ -72,7 +72,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 
 **Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, or tap the hands-free shortcut to start and stop longer dictations. Works system-wide. A beta setting can pause supported Now Playing media while you dictate and resume it when capture stops.
 
-**File transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste a YouTube URL. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript with word-level timestamps, speaker labels, a completion chime/banner, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
+**File transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste a YouTube or Apple Podcasts link. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript with word-level timestamps, speaker labels, a completion chime/banner, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
 
 **Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
 
@@ -171,6 +171,7 @@ commands with `swift run`.
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
 | YouTube | yt-dlp |
+| Podcasts | Apple Podcasts via iTunes lookup API + yt-dlp |
 | Platform | macOS 14.2+, Apple Silicon |
 
 ## Vocabulary
@@ -223,7 +224,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; the option
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift) — verify it yourself.
 - **Temp files cleaned up.** Audio deleted after transcription unless you save it.
 
-**What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
+**What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp; Apple Podcasts links query the public iTunes lookup API to find the episode audio, then download it. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 

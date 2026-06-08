@@ -11,6 +11,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public enum SourceType: String, Codable, Sendable, CaseIterable {
         case file
         case youtube
+        case podcast
         case meeting
     }
 

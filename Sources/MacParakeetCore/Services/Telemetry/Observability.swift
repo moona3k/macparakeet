@@ -13,6 +13,7 @@ public enum ObservabilityInputKind: String, Sendable {
     case video
     case media
     case youtube
+    case podcast
     case meeting
     case unknown
 }

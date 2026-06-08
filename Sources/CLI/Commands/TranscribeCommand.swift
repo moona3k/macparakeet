@@ -325,6 +325,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func telemetryInputKind(for input: String) -> ObservabilityInputKind {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if PodcastURLValidator.isApplePodcastsURL(trimmedInput) {
+            return .podcast
+        }
         if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
             return .youtube
         }
@@ -444,6 +447,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 },
                 shouldDiarize: { resolvedSpeakerDetection.enabled },
                 youtubeDownloader: youtubeDownloader,
+                podcastResolver: PodcastEpisodeResolver(),
                 diarizationService: diarizationService
             )
 
