@@ -334,9 +334,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
     /// reserved for user customization.
     ///
     /// Each row is seeded by the reconciler at app launch if missing; user
-    /// edits to the row are preserved — the reconciler never overwrites
-    /// content, shortcut, or runningLabel on existing built-in transform
-    /// rows.
+    /// edits to the row are preserved. Existing shortcuts are preserved except
+    /// for narrow legacy-default migrations such as Decide's ⌥3 → ⌃⌥3 move.
     ///
     /// UUIDs are reserved — never reuse for a different prompt.
     private static func builtInTransformPrompts(now: Date) -> [Prompt] {
