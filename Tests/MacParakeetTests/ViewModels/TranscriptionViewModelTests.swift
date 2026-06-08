@@ -342,6 +342,29 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.progressHeadline, "Running speech recognition")
     }
 
+    func testApplePodcastsLinkIsValidAndRoutesToPodcastSourceKind() async throws {
+        let expectedResult = Transcription(
+            fileName: "Episode 42",
+            rawTranscript: "Podcast transcript",
+            status: .completed,
+            sourceURL: "https://podcasts.apple.com/us/podcast/the-daily/id1200361736?i=1000654321987",
+            sourceType: .podcast
+        )
+        await mockService.configure(result: expectedResult)
+        await mockService.configureURLProgress(phases: [.downloading(percent: 10), .transcribing(percent: 30)])
+        await mockService.configureURLDelay(milliseconds: 200)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://podcasts.apple.com/us/podcast/the-daily/id1200361736?i=1000654321987"
+        XCTAssertTrue(viewModel.isValidURL)
+        viewModel.transcribeURL()
+
+        XCTAssertEqual(viewModel.sourceKind, .podcastURL)
+
+        try await waitUntil { self.viewModel.progressPhase == .transcribing }
+        XCTAssertEqual(viewModel.sourceKind, .podcastURL)
+    }
+
     // MARK: - Duplicate URL Detection
 
     func testTranscribeURLShowsExistingWhenAlreadyTranscribed() async {

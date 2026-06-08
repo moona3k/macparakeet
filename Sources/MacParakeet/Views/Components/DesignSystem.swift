@@ -84,6 +84,9 @@ enum DesignSystem {
         // YouTube badge
         static let youtubeRed = Color.red
 
+        // Apple Podcasts badge
+        static let podcastPurple = Color(red: 0.55, green: 0.34, blue: 0.86)
+
         // Pill / overlay
         static let pillBackground = Color.black.opacity(0.7)
         static let pillBorder = Color.white.opacity(0.15)

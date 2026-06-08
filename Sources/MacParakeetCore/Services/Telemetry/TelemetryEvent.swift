@@ -151,6 +151,7 @@ public enum TelemetryDictationCancelReason: String, Sendable, Equatable {
 public enum TelemetryTranscriptionSource: String, Sendable, Equatable {
     case file
     case youtube
+    case podcast
     case meeting
     case dragDrop = "drag_drop"
 }

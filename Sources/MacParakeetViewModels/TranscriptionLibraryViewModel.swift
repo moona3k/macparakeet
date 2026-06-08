@@ -5,6 +5,7 @@ import os
 public enum LibraryFilter: String, CaseIterable, Sendable {
     case all = "All"
     case youtube = "YouTube"
+    case podcast = "Podcasts"
     case local = "Local"
     case meeting = "Meetings"
     case favorites = "Favorites"
@@ -234,6 +235,9 @@ public final class TranscriptionLibraryViewModel {
         case (.all, .youtube):
             sourceType = .youtube
             favoritesOnly = false
+        case (.all, .podcast):
+            sourceType = .podcast
+            favoritesOnly = false
         case (.all, .local):
             sourceType = .file
             favoritesOnly = false
@@ -249,7 +253,7 @@ public final class TranscriptionLibraryViewModel {
         case (.meetings, .favorites):
             sourceType = .meeting
             favoritesOnly = true
-        case (.meetings, .youtube), (.meetings, .local):
+        case (.meetings, .youtube), (.meetings, .podcast), (.meetings, .local):
             return nil
         }
 
