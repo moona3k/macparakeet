@@ -1441,13 +1441,16 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(option.unavailableReason)
     }
 
-    func testRetranscriptionEngineOptionUsesNemotronForParakeetWhenDownloaded() throws {
+    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsDownloaded() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
         )
         defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
 
-        viewModel = TranscriptionViewModel(isNemotronModelDownloaded: { true })
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
         let original = Transcription(
             id: UUID(),
             fileName: "English Meeting",
@@ -1460,7 +1463,7 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .nemotron))
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
         XCTAssertTrue(option.isAlternativeAvailable)
         XCTAssertNil(option.unavailableReason)
     }
@@ -1498,7 +1501,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
-        viewModel = TranscriptionViewModel(defaults: defaults, isNemotronModelDownloaded: { true })
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
 
         let tmpFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("retranscribe-engine-youtube-\(UUID().uuidString).mp3")
@@ -1518,7 +1525,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .nemotron, language: "en-US"))
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
         XCTAssertTrue(option.isAlternativeAvailable)
         XCTAssertNil(option.unavailableReason)
     }

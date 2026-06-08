@@ -408,9 +408,6 @@ public final class TranscriptionViewModel {
     private func retranscriptionAlternativePreference(
         for primaryEngine: SpeechEnginePreference
     ) -> SpeechEnginePreference {
-        if primaryEngine == .parakeet, isNemotronModelDownloaded() {
-            return .nemotron
-        }
         return primaryEngine.alternative
     }
 
