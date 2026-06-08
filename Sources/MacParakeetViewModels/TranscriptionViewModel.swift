@@ -383,7 +383,7 @@ public final class TranscriptionViewModel {
             primaryEngine = SpeechEngineSelection.current(defaults: defaults)
         }
 
-        let alternativePreference = primaryEngine.engine.alternative
+        let alternativePreference = retranscriptionAlternativePreference(for: primaryEngine.engine)
         let alternativeEngine = SpeechEngineSelection(
             engine: alternativePreference,
             language: Self.retranscriptionLanguage(for: alternativePreference, defaults: defaults)
@@ -403,6 +403,15 @@ public final class TranscriptionViewModel {
             isAlternativeAvailable: unavailableReason == nil,
             unavailableReason: unavailableReason
         )
+    }
+
+    private func retranscriptionAlternativePreference(
+        for primaryEngine: SpeechEnginePreference
+    ) -> SpeechEnginePreference {
+        if primaryEngine == .parakeet, isNemotronModelDownloaded() {
+            return .nemotron
+        }
+        return primaryEngine.alternative
     }
 
     private static func retranscriptionLanguage(

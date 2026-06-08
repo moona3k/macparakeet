@@ -444,14 +444,16 @@ func makeConfiguredSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) 
         modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
         speechEngine: SpeechEnginePreference.current(defaults: defaults),
         nemotronModelVariant: SpeechEnginePreference.defaultNemotronModelVariant,
-        whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
+        defaults: defaults
     )
 }
 
 func makeParakeetSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) -> STTClient {
     STTClient(
         modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
-        speechEngine: .parakeet
+        speechEngine: .parakeet,
+        defaults: defaults
     )
 }
 

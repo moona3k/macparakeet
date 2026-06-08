@@ -1414,13 +1414,40 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
     }
 
-    func testRetranscriptionEngineOptionDisablesMissingNemotronModel() throws {
+    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsMissing() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
         )
         defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
 
-        viewModel = TranscriptionViewModel(isNemotronModelDownloaded: { false })
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { false }
+        )
+        let original = Transcription(
+            id: UUID(),
+            fileName: "English Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
+        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertNil(option.unavailableReason)
+    }
+
+    func testRetranscriptionEngineOptionUsesNemotronForParakeetWhenDownloaded() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .parakeet)
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(isNemotronModelDownloaded: { true })
         let original = Transcription(
             id: UUID(),
             fileName: "English Meeting",
@@ -1434,8 +1461,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .nemotron))
-        XCTAssertFalse(option.isAlternativeAvailable)
-        XCTAssertEqual(option.unavailableReason, "Download the Nemotron model in Settings before trying Nemotron.")
+        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertNil(option.unavailableReason)
     }
 
     func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {

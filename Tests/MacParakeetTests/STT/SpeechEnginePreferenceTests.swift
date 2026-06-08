@@ -14,6 +14,27 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         )
     }
 
+    func testEngineAlternativesPreserveStableParakeetToWhisperPath() {
+        XCTAssertEqual(SpeechEnginePreference.parakeet.alternative, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.nemotron.alternative, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.whisper.alternative, .parakeet)
+    }
+
+    func testSTTRuntimeUsesInjectedDefaultsForSpeechEngineLanguages() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
+        let nemotronRuntime = STTRuntime(speechEngine: .nemotron, defaults: defaults)
+        let nemotronSelection = await nemotronRuntime.currentSpeechEngineSelection()
+        XCTAssertEqual(nemotronSelection, SpeechEngineSelection(engine: .nemotron, language: "en-US"))
+
+        SpeechEnginePreference.saveWhisperDefaultLanguage("KO_kr", defaults: defaults)
+        let whisperRuntime = STTRuntime(speechEngine: .whisper, defaults: defaults)
+        let whisperSelection = await whisperRuntime.currentSpeechEngineSelection()
+        XCTAssertEqual(whisperSelection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
     // MARK: - Whisper optimized-variant tracking
 
     private func makeIsolatedDefaults() -> (UserDefaults, String) {

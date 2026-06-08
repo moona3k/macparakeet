@@ -251,7 +251,7 @@ run_case() {
       --database "$DB_PATH" \
       "${args[@]}" \
       >"$json_file" \
-      2> >(while IFS= read -r line; do printf '%s\t%s\n' "$(now_seconds)" "$line"; done > "$stderr_file")
+      2> >(while IFS= read -r line || [[ -n "$line" ]]; do printf '%s\t%s\n' "$(now_seconds)" "$line"; done > "$stderr_file")
   local ec=$?
   set -e
 

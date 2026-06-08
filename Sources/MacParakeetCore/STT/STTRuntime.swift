@@ -67,6 +67,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private let nemotronModelVariant: NemotronModelVariant
     private var whisperEngine: WhisperEngine?
     private let whisperModelVariant: String
+    private let defaults: UserDefaults
     private var activeTranscriptionCount = 0
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
@@ -78,12 +79,14 @@ public actor STTRuntime: STTRuntimeProtocol {
         modelVersion: AsrModelVersion = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
-        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
+        defaults: UserDefaults = .standard
     ) {
         self.modelVersion = modelVersion
         self.speechEngine = speechEngine
         self.nemotronModelVariant = nemotronModelVariant
         self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
+        self.defaults = defaults
     }
 
     func transcribe(
@@ -134,7 +137,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     ) async throws -> STTResult {
         let engine = nemotronEngine ?? NemotronEngine(
             modelVariant: nemotronModelVariant,
-            language: SpeechEnginePreference.nemotronDefaultLanguage()
+            language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         )
         nemotronEngine = engine
         return try await engine.transcribe(
@@ -249,7 +252,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             case .nemotron:
                 let engine = nemotronEngine ?? NemotronEngine(
                     modelVariant: nemotronModelVariant,
-                    language: SpeechEnginePreference.nemotronDefaultLanguage()
+                    language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
                 )
                 nemotronEngine = engine
                 try await engine.prepare(onProgress: onProgress)
@@ -427,7 +430,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         guard preference != speechEngine else {
-            preference.save()
+            preference.save(to: defaults)
             return
         }
 
@@ -482,14 +485,14 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .nemotron:
             let engine = nemotronEngine ?? NemotronEngine(
                 modelVariant: nemotronModelVariant,
-                language: SpeechEnginePreference.nemotronDefaultLanguage()
+                language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
             )
             try await engine.prepare(onProgress: onProgress)
             preparedNemotron = engine
         case .whisper:
             let engine = whisperEngine ?? WhisperEngine(
                 model: whisperModelVariant,
-                language: SpeechEnginePreference.whisperDefaultLanguage()
+                language: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
             )
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
@@ -502,7 +505,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             nemotronEngine = preparedNemotron
         }
         speechEngine = preference
-        preference.save()
+        preference.save(to: defaults)
 
         switch previous {
         case .parakeet where preference != .parakeet:
@@ -971,9 +974,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .parakeet:
             nil
         case .nemotron:
-            SpeechEnginePreference.nemotronDefaultLanguage()
+            SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
-            SpeechEnginePreference.whisperDefaultLanguage()
+            SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         }
     }
 

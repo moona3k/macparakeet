@@ -40,7 +40,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public var alternative: SpeechEnginePreference {
         switch self {
         case .parakeet:
-            .nemotron
+            .whisper
         case .nemotron:
             .whisper
         case .whisper:

@@ -26,6 +26,17 @@ final class SettingsStatusRulesTests: XCTestCase {
         XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
     }
 
+    func testLocalModelsShowsReadyWhenOptionalNemotronIsMissing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notDownloaded,
+            whisper: .notLoaded,
+            activeEngine: .parakeet
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
+    }
+
     func testLocalModelsRecommendsDownloadWhenActiveEngineIsMissing() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .notLoaded,

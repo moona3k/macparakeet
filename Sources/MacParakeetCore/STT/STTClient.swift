@@ -14,13 +14,15 @@ public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngin
         modelVersion: AsrModelVersion = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
-        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
+        defaults: UserDefaults = .standard
     ) {
         let runtime = STTRuntime(
             modelVersion: modelVersion,
             speechEngine: speechEngine,
             nemotronModelVariant: nemotronModelVariant,
-            whisperModelVariant: whisperModelVariant
+            whisperModelVariant: whisperModelVariant,
+            defaults: defaults
         )
         self.scheduler = STTScheduler(runtime: runtime)
     }

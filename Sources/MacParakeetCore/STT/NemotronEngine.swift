@@ -9,12 +9,12 @@ public actor NemotronEngine: STTTranscribing {
 
     private let modelVariant: NemotronModelVariant
     private let defaultLanguage: String?
-    private let audioConverter = AudioConverter()
 
     private var sharedModels: SharedNemotronMultilingualModels?
     private var interactiveManager: StreamingNemotronMultilingualAsrManager?
     private var backgroundManager: StreamingNemotronMultilingualAsrManager?
     private var initializationTask: Task<Void, Error>?
+    private var activeLanes: Set<NemotronRuntimeLane> = []
 
     public init(
         modelVariant: NemotronModelVariant = NemotronEngine.defaultModelVariant,
@@ -43,9 +43,14 @@ public actor NemotronEngine: STTTranscribing {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
+        let lane = route(for: job)
+        guard beginTranscription(on: lane) else {
+            throw STTError.engineBusy
+        }
+        defer { endTranscription(on: lane) }
+
         do {
             try await prepare(onProgress: nil)
-            let lane = route(for: job)
             guard let manager = manager(for: lane) else {
                 throw STTError.modelNotLoaded
             }
@@ -54,7 +59,9 @@ public actor NemotronEngine: STTTranscribing {
 
             onProgress?(0, 100)
             try Task.checkCancellation()
-            let samples = try audioConverter.resampleAudioFile(audioURL)
+            let samples = try await Task.detached(priority: .userInitiated) {
+                try AudioConverter().resampleAudioFile(audioURL)
+            }.value
             onProgress?(25, 100)
             try Task.checkCancellation()
             _ = try await manager.process(samples: samples)
@@ -117,10 +124,13 @@ public actor NemotronEngine: STTTranscribing {
     }
 
     public nonisolated static func defaultCacheRoot() -> URL {
-        FileManager.default.urls(
+        let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first!
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        return appSupport
             .appendingPathComponent("FluidAudio", isDirectory: true)
             .appendingPathComponent("Models", isDirectory: true)
             .appendingPathComponent(Repo.nemotronMultilingual.folderName, isDirectory: true)
@@ -222,6 +232,16 @@ public actor NemotronEngine: STTTranscribing {
         }
     }
 
+    private func beginTranscription(on lane: NemotronRuntimeLane) -> Bool {
+        guard !activeLanes.contains(lane) else { return false }
+        activeLanes.insert(lane)
+        return true
+    }
+
+    private func endTranscription(on lane: NemotronRuntimeLane) {
+        activeLanes.remove(lane)
+    }
+
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
     ) -> DownloadUtils.ProgressHandler? {
@@ -316,7 +336,7 @@ public actor NemotronEngine: STTTranscribing {
     }
 }
 
-private enum NemotronRuntimeLane: Sendable {
+private enum NemotronRuntimeLane: Hashable, Sendable {
     case interactive
     case background
 }

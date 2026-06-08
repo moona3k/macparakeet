@@ -37,7 +37,8 @@ enum SettingsStatusRules {
             return SettingsCardStatus(.recommended, label: "Preparing")
         }
 
-        if isAvailable(parakeet), isAvailable(nemotron), isAvailable(whisper) {
+        let optionalNemotronReady = nemotron == .notDownloaded || isAvailable(nemotron)
+        if isAvailable(parakeet), isAvailable(whisper), optionalNemotronReady {
             return SettingsCardStatus(.ok, label: "Ready")
         }
 

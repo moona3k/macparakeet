@@ -423,7 +423,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     self.parakeetModel,
                     storedVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
                 )
-                let createdSTTClient = STTClient(modelVersion: parakeetVariant.asrModelVersion)
+                let createdSTTClient = STTClient(
+                    modelVersion: parakeetVariant.asrModelVersion,
+                    defaults: defaults
+                )
                 sttClient = createdSTTClient
                 sttTranscriber = createdSTTClient
             case .nemotron:
