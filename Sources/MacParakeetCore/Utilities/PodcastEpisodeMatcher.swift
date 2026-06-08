@@ -20,7 +20,10 @@ public enum PodcastEpisodeMatcher {
         var inEpisodeSection = false
 
         for word in words {
-            let lower = word.lowercased()
+            // Strip surrounding punctuation so "400.", "#705", or "AI," still
+            // register as numbers / markers / clean hints.
+            let cleanWord = word.trimmingCharacters(in: .punctuationCharacters)
+            let lower = cleanWord.lowercased()
 
             if episodeMarkers.contains(where: { lower == $0 || lower.hasPrefix($0) }) {
                 inEpisodeSection = true
@@ -31,16 +34,16 @@ public enum PodcastEpisodeMatcher {
                 continue
             }
 
-            if !word.isEmpty, word.allSatisfy(\.isNumber) {
-                episodeHints.append(word)
+            if !cleanWord.isEmpty, cleanWord.allSatisfy(\.isNumber) {
+                episodeHints.append(cleanWord)
                 inEpisodeSection = true
                 continue
             }
 
             if inEpisodeSection {
-                episodeHints.append(word)
+                if !cleanWord.isEmpty { episodeHints.append(cleanWord) }
             } else {
-                podcastWords.append(word)
+                podcastWords.append(cleanWord.isEmpty ? word : cleanWord)
             }
         }
 

@@ -68,6 +68,26 @@ final class PodcastFeedParserTests: XCTestCase {
         XCTAssertEqual(episodes[0].audioURL, "https://cdn/x/ep.mp3")
     }
 
+    func testParseFeedKeepsTextAroundNestedTags() throws {
+        // A single "current element" tracker would drop "Two" / "beta..." after
+        // the inner tag closes; the element stack must keep the whole field.
+        let rss = """
+        <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+          <item>
+            <title>Ep <b>One</b> Two</title>
+            <description>alpha <b>bold</b> beta <i>ital</i> gamma</description>
+            <enclosure url="https://cdn/1.mp3" type="audio/mpeg"/>
+            <itunes:duration>10:00</itunes:duration>
+          </item>
+        </channel></rss>
+        """
+        let episodes = try PodcastFeedParser.parse(Data(rss.utf8))
+        XCTAssertEqual(episodes.count, 1)
+        XCTAssertEqual(episodes[0].title, "Ep One Two")
+        XCTAssertEqual(episodes[0].description, "alpha bold beta ital gamma")
+        XCTAssertEqual(episodes[0].durationSeconds, 600, "field after a nested-tag field still parses")
+    }
+
     func testParseMalformedXMLThrows() {
         XCTAssertThrowsError(try PodcastFeedParser.parse(Data("<rss><channel>".utf8)))
     }

@@ -97,7 +97,12 @@ public enum PodcastFeedParser {
         private(set) var episodes: [PodcastFeedEpisode] = []
 
         private var inItem = false
-        private var currentElement = ""
+        // Stack of open element names within the current <item>. Using a stack
+        // rather than a single "current element" means text inside a field that
+        // contains nested tags (e.g. `<description>a <b>b</b> c</description>`)
+        // is still attributed to the field, instead of being dropped once the
+        // inner tag closes.
+        private var elementStack: [String] = []
         private var title = ""
         private var itemDescription = ""
         private var itunesSummary = ""
@@ -114,10 +119,10 @@ public enum PodcastFeedParser {
             attributes attributeDict: [String: String]
         ) {
             let name = elementName.lowercased()
-            currentElement = name
 
             if name == "item" {
                 inItem = true
+                elementStack = []
                 title = ""
                 itemDescription = ""
                 itunesSummary = ""
@@ -129,6 +134,7 @@ public enum PodcastFeedParser {
             }
 
             guard inItem else { return }
+            elementStack.append(name)
             if name == "enclosure" {
                 // Accept lowercase or original-cased attribute keys.
                 let url = attributeDict["url"] ?? attributeDict["URL"]
@@ -145,26 +151,28 @@ public enum PodcastFeedParser {
             }
         }
 
-        func parser(_ parser: XMLParser, foundCharacters string: String) {
+        private func appendText(_ text: String) {
             guard inItem else { return }
-            switch currentElement {
-            case "title": title += string
-            case "description": itemDescription += string
-            case "itunes:summary", "summary": itunesSummary += string
-            case "itunes:duration", "duration": duration += string
-            case "pubdate": pubDate += string
-            default: break
+            if elementStack.contains("title") {
+                title += text
+            } else if elementStack.contains("description") {
+                itemDescription += text
+            } else if elementStack.contains("itunes:summary") || elementStack.contains("summary") {
+                itunesSummary += text
+            } else if elementStack.contains("itunes:duration") || elementStack.contains("duration") {
+                duration += text
+            } else if elementStack.contains("pubdate") {
+                pubDate += text
             }
         }
 
+        func parser(_ parser: XMLParser, foundCharacters string: String) {
+            appendText(string)
+        }
+
         func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
-            guard inItem, let text = String(data: CDATABlock, encoding: .utf8) else { return }
-            switch currentElement {
-            case "title": title += text
-            case "description": itemDescription += text
-            case "itunes:summary", "summary": itunesSummary += text
-            default: break
-            }
+            guard let text = String(data: CDATABlock, encoding: .utf8) else { return }
+            appendText(text)
         }
 
         func parser(
@@ -175,7 +183,12 @@ public enum PodcastFeedParser {
         ) {
             let name = elementName.lowercased()
             guard name == "item" else {
-                if inItem { currentElement = "" }
+                if inItem, let last = elementStack.last, last == name {
+                    elementStack.removeLast()
+                } else if inItem, let idx = elementStack.lastIndex(of: name) {
+                    // Tolerate minor nesting irregularities without losing the stack.
+                    elementStack.remove(at: idx)
+                }
                 return
             }
             inItem = false

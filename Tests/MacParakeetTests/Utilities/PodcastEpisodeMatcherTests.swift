@@ -44,6 +44,15 @@ final class PodcastEpisodeMatcherTests: XCTestCase {
         XCTAssertEqual(hints, ["team"])
     }
 
+    func testFreetextTrimsPunctuation() {
+        let (show1, hints1) = PodcastEpisodeMatcher.parseFreetextQuery("Lex Fridman 400.")
+        XCTAssertEqual(show1, "Lex Fridman")
+        XCTAssertEqual(hints1, ["400"], "trailing period stripped from the number")
+
+        let (_, hints2) = PodcastEpisodeMatcher.parseFreetextQuery("Everyday AI, episode #705!")
+        XCTAssertTrue(hints2.contains("705"), "comma + #705! still yields a 705 hint")
+    }
+
     // MARK: - find / select
 
     func testFindByTitleExactThenSubstring() {

@@ -61,6 +61,18 @@ public actor PodcastQueryResolver: PodcastSearchResolving {
         )
     }
 
+    /// RFC-822 `pubDate` variants seen in the wild: with/without weekday,
+    /// single- or double-digit day, numeric (`+0000`) or named (`GMT`) zone,
+    /// and with or without seconds.
+    private static let pubDateFormats = [
+        "EEE, d MMM yyyy HH:mm:ss Z",
+        "EEE, d MMM yyyy HH:mm:ss z",
+        "EEE, d MMM yyyy HH:mm Z",
+        "EEE, d MMM yyyy HH:mm z",
+        "d MMM yyyy HH:mm:ss Z",
+        "d MMM yyyy HH:mm:ss z",
+    ]
+
     /// Convert an RSS RFC-822 `pubDate` to `YYYY-MM-DD`, or nil if unparseable.
     static func normalizedReleaseDate(_ raw: String?) -> String? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
@@ -68,8 +80,18 @@ public actor PodcastQueryResolver: PodcastSearchResolving {
         }
         let inFormatter = DateFormatter()
         inFormatter.locale = Locale(identifier: "en_US_POSIX")
-        inFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
-        guard let date = inFormatter.date(from: raw) else { return nil }
+        inFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+
+        var parsed: Date?
+        for format in pubDateFormats {
+            inFormatter.dateFormat = format
+            if let date = inFormatter.date(from: raw) {
+                parsed = date
+                break
+            }
+        }
+        guard let date = parsed else { return nil }
+
         let outFormatter = DateFormatter()
         outFormatter.locale = Locale(identifier: "en_US_POSIX")
         outFormatter.timeZone = TimeZone(identifier: "UTC")

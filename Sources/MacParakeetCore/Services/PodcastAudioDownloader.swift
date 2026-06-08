@@ -32,19 +32,20 @@ extension PodcastAudioFetching {
 }
 
 /// Streams a podcast episode enclosure to disk with byte-progress reporting.
-/// Swift port of `podcast-fetch`'s `download_episode` — a plain HTTP(S)
-/// streaming download (URLSession follows the tracking-prefix redirects podcast
-/// CDNs use). No `yt-dlp` needed; the file lands in the shared app downloads
-/// directory so the existing retention + cleanup paths apply.
+/// Swift port of `podcast-fetch`'s `download_episode`, backed by
+/// `URLSessionDownloadTask` so the body streams to disk at native speed (no
+/// per-byte async iteration) while `didWriteData` drives progress. URLSession
+/// follows the tracking-prefix redirects podcast CDNs use; the file lands in the
+/// shared app downloads directory so the existing retention + cleanup paths apply.
 public actor PodcastAudioDownloader: PodcastAudioFetching {
     private static let knownAudioExtensions: Set<String> = [
         "mp3", "m4a", "mp4", "aac", "ogg", "oga", "opus", "wav", "flac", "wma", "webm", "aiff",
     ]
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "PodcastAudioDownloader")
-    private let session: URLSession
+    private let configuration: URLSessionConfiguration
 
-    public init(session: URLSession = .shared) {
-        self.session = session
+    public init(configuration: URLSessionConfiguration = .default) {
+        self.configuration = configuration
     }
 
     public func fetch(
@@ -68,79 +69,49 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
         var request = URLRequest(url: url)
         request.setValue("MacParakeet/1.0 (podcast-fetch)", forHTTPHeaderField: "User-Agent")
 
-        let outputURL: URL
-        let bytes: URLSession.AsyncBytes
-        let expectedLength: Int64
+        // Download to a temporary file with native streaming; the delegate
+        // reports progress and hands back the temp file + final response.
+        let delegate = DownloadDelegate(onProgress: onProgress)
+        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+
+        let taskBox = OSAllocatedUnfairLock<URLSessionDownloadTask?>(initialState: nil)
+        let (tempURL, response): (URL, URLResponse)
         do {
-            let (asyncBytes, response) = try await session.bytes(for: request)
-            bytes = asyncBytes
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                throw PodcastAudioFetchError.requestFailed("HTTP \(http.statusCode)")
+            (tempURL, response) = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    delegate.attach(continuation)
+                    let task = session.downloadTask(with: request)
+                    taskBox.withLock { $0 = task }
+                    task.resume()
+                }
+            } onCancel: {
+                taskBox.withLock { $0?.cancel() }
             }
-            expectedLength = response.expectedContentLength
-            let ext = Self.fileExtension(for: url, response: response)
-            outputURL = Self.uniqueOutputURL(
-                in: URL(fileURLWithPath: downloadsDir, isDirectory: true),
-                suggestedName: suggestedName,
-                fileExtension: ext
-            )
-        } catch let error as PodcastAudioFetchError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw PodcastAudioFetchError.requestFailed(error.localizedDescription)
         }
 
-        guard fm.createFile(atPath: outputURL.path, contents: nil) else {
-            throw PodcastAudioFetchError.writeFailed("could not create file")
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            try? fm.removeItem(at: tempURL)
+            throw PodcastAudioFetchError.requestFailed("HTTP \(http.statusCode)")
         }
-        let handle: FileHandle
+
+        let ext = Self.fileExtension(for: url, response: response)
+        let outputURL = Self.uniqueOutputURL(
+            in: URL(fileURLWithPath: downloadsDir, isDirectory: true),
+            suggestedName: suggestedName,
+            fileExtension: ext
+        )
         do {
-            handle = try FileHandle(forWritingTo: outputURL)
+            if fm.fileExists(atPath: outputURL.path) {
+                try fm.removeItem(at: outputURL)
+            }
+            try fm.moveItem(at: tempURL, to: outputURL)
         } catch {
+            try? fm.removeItem(at: tempURL)
             throw PodcastAudioFetchError.writeFailed(error.localizedDescription)
         }
 
-        var succeeded = false
-        defer {
-            try? handle.close()
-            if !succeeded {
-                try? fm.removeItem(at: outputURL)
-            }
-        }
-
-        var buffer = Data()
-        buffer.reserveCapacity(64 * 1024)
-        var downloaded: Int64 = 0
-        var lastPercent = -1
-
-        do {
-            for try await byte in bytes {
-                buffer.append(byte)
-                if buffer.count >= 64 * 1024 {
-                    try handle.write(contentsOf: buffer)
-                    downloaded += Int64(buffer.count)
-                    buffer.removeAll(keepingCapacity: true)
-                    Self.emitProgress(downloaded: downloaded, total: expectedLength, last: &lastPercent, onProgress: onProgress)
-                    try Task.checkCancellation()
-                }
-            }
-            if !buffer.isEmpty {
-                try handle.write(contentsOf: buffer)
-                downloaded += Int64(buffer.count)
-            }
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as PodcastAudioFetchError {
-            throw error
-        } catch {
-            throw PodcastAudioFetchError.requestFailed(error.localizedDescription)
-        }
-
-        Self.emitProgress(downloaded: downloaded, total: expectedLength, last: &lastPercent, onProgress: onProgress, forceComplete: true)
-        succeeded = true
-        logger.info("podcast_audio_fetched bytes=\(downloaded, privacy: .public)")
+        logger.info("podcast_audio_fetched")
         return outputURL
     }
 
@@ -150,21 +121,6 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
         guard total > 0 else { return 0 }
         let pct = (Double(downloaded) / Double(total)) * 100.0
         return max(0, min(Int(pct), 100))
-    }
-
-    private static func emitProgress(
-        downloaded: Int64,
-        total: Int64,
-        last: inout Int,
-        onProgress: (@Sendable (Int) -> Void)?,
-        forceComplete: Bool = false
-    ) {
-        guard let onProgress else { return }
-        let percent = forceComplete && total > 0 ? 100 : progressPercent(downloaded: downloaded, total: total)
-        if percent != last {
-            last = percent
-            onProgress(percent)
-        }
     }
 
     static func fileExtension(for url: URL, response: URLResponse) -> String {
@@ -206,5 +162,88 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
             .joined(separator: " ")
         let capped = String(cleaned.prefix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
         return capped.isEmpty ? "Podcast Episode" : capped
+    }
+}
+
+/// Bridges `URLSessionDownloadTask` callbacks to an async continuation. All
+/// mutable state is guarded by an `OSAllocatedUnfairLock`, so `@unchecked
+/// Sendable` is sound. The temp file from `didFinishDownloadingTo` is moved to a
+/// stable location synchronously (it is deleted once the delegate returns).
+private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private struct State {
+        var continuation: CheckedContinuation<(URL, URLResponse), Error>?
+        var lastPercent = -1
+        var resumed = false
+    }
+
+    private let onProgress: (@Sendable (Int) -> Void)?
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    init(onProgress: (@Sendable (Int) -> Void)?) {
+        self.onProgress = onProgress
+    }
+
+    func attach(_ continuation: CheckedContinuation<(URL, URLResponse), Error>) {
+        state.withLock { $0.continuation = continuation }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard let onProgress, totalBytesExpectedToWrite > 0 else { return }
+        let percent = PodcastAudioDownloader.progressPercent(
+            downloaded: totalBytesWritten,
+            total: totalBytesExpectedToWrite
+        )
+        let shouldEmit = state.withLock { st -> Bool in
+            guard st.lastPercent != percent else { return false }
+            st.lastPercent = percent
+            return true
+        }
+        if shouldEmit { onProgress(percent) }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        let response = downloadTask.response ?? URLResponse()
+        let stableURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("mpk-podcast-\(UUID().uuidString)")
+        do {
+            try FileManager.default.moveItem(at: location, to: stableURL)
+            resume(.success((stableURL, response)))
+        } catch {
+            resume(.failure(PodcastAudioFetchError.writeFailed(error.localizedDescription)))
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error else { return } // success already resumed in didFinishDownloadingTo
+        if (error as NSError).code == NSURLErrorCancelled {
+            resume(.failure(CancellationError()))
+        } else {
+            resume(.failure(PodcastAudioFetchError.requestFailed(error.localizedDescription)))
+        }
+    }
+
+    private func resume(_ result: Result<(URL, URLResponse), Error>) {
+        let continuation: CheckedContinuation<(URL, URLResponse), Error>? = state.withLock { st in
+            guard !st.resumed else { return nil }
+            st.resumed = true
+            let cont = st.continuation
+            st.continuation = nil
+            return cont
+        }
+        continuation?.resume(with: result)
     }
 }

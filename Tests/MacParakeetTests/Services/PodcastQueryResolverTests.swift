@@ -70,8 +70,11 @@ final class PodcastQueryResolverTests: XCTestCase {
         }
     }
 
-    func testNormalizedReleaseDate() {
+    func testNormalizedReleaseDateAcceptsRFC822Variants() {
         XCTAssertEqual(PodcastQueryResolver.normalizedReleaseDate("Mon, 01 Jul 2024 07:00:00 GMT"), "2024-07-01")
+        XCTAssertEqual(PodcastQueryResolver.normalizedReleaseDate("Mon, 1 Jul 2024 07:00:00 +0000"), "2024-07-01", "single-digit day")
+        XCTAssertEqual(PodcastQueryResolver.normalizedReleaseDate("1 Jul 2024 07:00:00 +0000"), "2024-07-01", "no weekday")
+        XCTAssertEqual(PodcastQueryResolver.normalizedReleaseDate("Mon, 01 Jul 2024 07:00 GMT"), "2024-07-01", "no seconds")
         XCTAssertNil(PodcastQueryResolver.normalizedReleaseDate("not a date"))
         XCTAssertNil(PodcastQueryResolver.normalizedReleaseDate(nil))
     }
