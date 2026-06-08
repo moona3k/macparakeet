@@ -129,7 +129,9 @@ public actor PodcastEpisodeResolver: PodcastResolving {
 
         return ResolvedPodcastEpisode(
             audioURL: audioURL,
-            episodeTitle: Self.firstNonEmpty(episode.trackName, episode.collectionName) ?? "Podcast episode",
+            // Don't fall back to the show name — a missing track name should read
+            // as a clear placeholder, not silently mislabel the episode as the show.
+            episodeTitle: Self.firstNonEmpty(episode.trackName) ?? "Podcast episode",
             showName: Self.firstNonEmpty(episode.collectionName),
             artworkURL: Self.firstNonEmpty(episode.artworkUrl600, episode.artworkUrl160, episode.artworkUrl100),
             episodeDescription: Self.firstNonEmpty(episode.description, episode.shortDescription),
@@ -149,8 +151,10 @@ public actor PodcastEpisodeResolver: PodcastResolving {
             items.insert(URLQueryItem(name: "id", value: episodeID), at: 0)
         } else {
             // Looking up the show id returns the show plus its recent episodes,
-            // newest first — we take the latest.
+            // newest first — we only need the collection header + the latest
+            // episode, so cap the response (the API defaults to 200 otherwise).
             items.insert(URLQueryItem(name: "id", value: collectionID), at: 0)
+            items.append(URLQueryItem(name: "limit", value: "2"))
         }
         components?.queryItems = items
         guard let url = components?.url else {
@@ -167,9 +171,9 @@ public actor PodcastEpisodeResolver: PodcastResolving {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), raw.count >= 10 else {
             return nil
         }
+        // `raw.count >= 10` is guaranteed above, so `prefix(10)` is exactly 10 chars.
         let datePart = String(raw.prefix(10))
-        let isYYYYMMDD = datePart.count == 10
-            && datePart[datePart.index(datePart.startIndex, offsetBy: 4)] == "-"
+        let isYYYYMMDD = datePart[datePart.index(datePart.startIndex, offsetBy: 4)] == "-"
             && datePart[datePart.index(datePart.startIndex, offsetBy: 7)] == "-"
         return isYYYYMMDD ? datePart : nil
     }

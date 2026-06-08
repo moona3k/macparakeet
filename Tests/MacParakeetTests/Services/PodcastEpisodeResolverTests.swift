@@ -113,6 +113,14 @@ final class PodcastEpisodeResolverTests: XCTestCase {
         let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
         XCTAssertEqual(items["id"], "111")
+        XCTAssertEqual(items["limit"], "2", "show lookup caps the response instead of fetching up to 200")
+    }
+
+    func testLookupURLOmitsLimitForEpisode() throws {
+        let url = try PodcastEpisodeResolver.lookupURL(collectionID: "111", episodeID: "222")
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertNil(items["limit"], "episode lookup returns a single record; no limit needed")
     }
 
     func testNormalizedReleaseDateTrimsISOTimestamp() {

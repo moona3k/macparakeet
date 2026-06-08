@@ -30,7 +30,10 @@ public enum PodcastURLValidator {
     /// path segment, or `nil` when the URL is not a recognized Apple Podcasts URL.
     public static func extractCollectionID(_ string: String) -> String? {
         guard let components = normalizedComponents(string) else { return nil }
-        for rawSegment in components.path.split(separator: "/") {
+        // Search from the end: the `id<digits>` collection segment is always the
+        // last path component, so a slug that happens to start with "id" + digits
+        // (e.g. a show literally named "ID12345") can't be mistaken for it.
+        for rawSegment in components.path.split(separator: "/").reversed() {
             let segment = rawSegment.lowercased()
             guard segment.hasPrefix("id") else { continue }
             let digits = segment.dropFirst(2)
