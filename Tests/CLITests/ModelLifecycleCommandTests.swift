@@ -228,6 +228,30 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertNil(nemotronDownloadVariant(from: "whisper-large-v3"))
     }
 
+    func testNemotronModelLifecycleSubcommandsParseCanonicalModelID() throws {
+        let modelID = "nemotron-multilingual-1120ms"
+
+        let download = try ModelsCommand.Download.parse([modelID])
+        XCTAssertEqual(download.variant, modelID)
+        XCTAssertEqual(nemotronDownloadVariant(from: download.variant), .multilingual1120)
+
+        let select = try ModelsCommand.Select.parse([modelID])
+        XCTAssertEqual(select.id, modelID)
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel(select.id),
+            SelectableSpeechModelSelection(
+                engine: .nemotron,
+                whisperVariant: nil,
+                nemotronVariant: .multilingual1120
+            )
+        )
+
+        let delete = try ModelsCommand.Delete.parse([modelID, "--force"])
+        XCTAssertEqual(delete.id, modelID)
+        XCTAssertTrue(delete.force)
+        XCTAssertEqual(try resolveModelDeletionTarget(delete.id).kind, .nemotron(.multilingual1120))
+    }
+
     func testResolveSelectableSpeechModelRejectsUnknownID() {
         XCTAssertThrowsError(try resolveSelectableSpeechModel("tiny")) { error in
             XCTAssertTrue(error is ValidationError)
