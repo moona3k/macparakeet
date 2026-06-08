@@ -415,6 +415,72 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.id, existing.id)
     }
 
+    // MARK: - X (Twitter) URL support
+
+    func testIsValidURLAcceptsXStatusURL() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://x.com/user/status/1234567890"
+        XCTAssertTrue(viewModel.isValidURL)
+    }
+
+    func testTranscribeXURLStartsTranscription() async throws {
+        let expectedResult = Transcription(
+            fileName: "Video",
+            rawTranscript: "X transcript",
+            status: .completed,
+            sourceURL: "https://x.com/user/status/1234567890"
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://x.com/user/status/1234567890"
+
+        viewModel.transcribeURL()
+
+        XCTAssertTrue(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.urlInput, "")
+        // URL downloads reuse the .youtubeURL SourceKind (shared yt-dlp path).
+        XCTAssertEqual(viewModel.sourceKind, .youtubeURL)
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "X transcript")
+        let callCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testTranscribeXURLSkipsVideoIDDedup() async throws {
+        // An unrelated completed YouTube transcription must not block an X URL —
+        // X URLs have no YouTube videoID, so the dedup lookup is skipped entirely.
+        let existing = Transcription(
+            fileName: "Already Done",
+            rawTranscript: "Existing transcript",
+            status: .completed,
+            sourceURL: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+        mockRepo.transcriptions = [existing]
+
+        let expectedResult = Transcription(
+            fileName: "Video",
+            rawTranscript: "Fresh X transcript",
+            status: .completed,
+            sourceURL: "https://x.com/user/status/1234567890"
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://x.com/user/status/1234567890"
+
+        viewModel.transcribeURL()
+
+        XCTAssertTrue(viewModel.isTranscribing)
+
+        try await Task.sleep(for: .milliseconds(200))
+        let callCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(callCount, 1, "X URL should transcribe fresh, not dedup against YouTube entries")
+    }
+
     // MARK: - Delete
 
     func testDeleteTranscription() {

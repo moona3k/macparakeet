@@ -109,7 +109,7 @@ public final class TranscriptionViewModel {
     }
 
     public var isValidURL: Bool {
-        YouTubeURLValidator.isYouTubeURL(urlInput)
+        YouTubeURLValidator.isYouTubeURL(urlInput) || XURLValidator.isXURL(urlInput)
     }
 
     public var hasConversations: Bool = false
@@ -280,16 +280,17 @@ public final class TranscriptionViewModel {
             return
         }
         let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
+        guard YouTubeURLValidator.isYouTubeURL(url) || XURLValidator.isXURL(url) else { return }
 
-        // Check for existing transcription of the same video
-        if let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
+        // Dedup is YouTube-only (videoID-based); X URLs have no videoID and skip it.
+        if let videoID = YouTubeURLValidator.extractVideoID(url),
+           let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
             currentTranscription = existing
             urlInput = ""
             return
         }
 
-        let taskID = beginNewTranscription(source: .youtubeURL, fileName: "YouTube video")
+        let taskID = beginNewTranscription(source: .youtubeURL, fileName: "Video")
         urlInput = ""
 
         transcriptionTask = Task { @MainActor [weak self] in

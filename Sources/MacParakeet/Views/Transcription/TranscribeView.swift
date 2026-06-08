@@ -170,18 +170,31 @@ struct TranscribeView: View {
                 .cardShadow(DesignSystem.Shadows.cardRest)
 
             VStack(spacing: DesignSystem.Spacing.md) {
-                // YouTube icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(DesignSystem.Colors.youtubeRed.opacity(0.1))
-                        .frame(width: 56, height: 56)
+                // Source icons: YouTube + X
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(DesignSystem.Colors.youtubeRed.opacity(0.1))
+                            .frame(width: 56, height: 56)
 
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                        Image(systemName: "play.rectangle.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
+                    }
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(DesignSystem.Colors.xMark.opacity(0.1))
+                            .frame(width: 56, height: 56)
+
+                        Text("𝕏")
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundStyle(DesignSystem.Colors.xMark.opacity(0.85))
+                    }
                 }
+                .accessibilityHidden(true)
 
-                Text("Transcribe a YouTube video")
+                Text("Transcribe video")
                     .font(DesignSystem.Typography.pageTitle)
 
                 // URL input row
@@ -192,7 +205,7 @@ struct TranscribeView: View {
                             .foregroundStyle(viewModel.isValidURL ? DesignSystem.Colors.successGreen : .secondary)
                             .contentTransition(.symbolEffect(.replace))
 
-                        TextField("Paste a YouTube link", text: $viewModel.urlInput)
+                        TextField("Paste a YouTube or X link", text: $viewModel.urlInput)
                             .textFieldStyle(.plain)
                             .font(DesignSystem.Typography.body)
                             .onSubmit {
@@ -221,7 +234,7 @@ struct TranscribeView: View {
                         .buttonStyle(.plain)
                         .help("Paste from clipboard")
                         .accessibilityLabel("Paste URL from clipboard")
-                        .accessibilityHint("Pastes clipboard text into the YouTube link field")
+                        .accessibilityHint("Pastes clipboard text into the video link field")
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -255,11 +268,11 @@ struct TranscribeView: View {
                     .buttonStyle(.plain)
                     .disabled(!viewModel.isValidURL)
                     .accessibilityLabel("Start transcription")
-                    .accessibilityHint("Starts transcribing the YouTube link")
+                    .accessibilityHint("Starts transcribing the video link")
                 }
                 .padding(.horizontal, DesignSystem.Spacing.md)
 
-                Text("Downloads from YouTube, then transcribes entirely on your Mac.")
+                Text("Downloads from YouTube or X, then transcribes entirely on your Mac.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
             }

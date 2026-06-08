@@ -84,6 +84,11 @@ enum DesignSystem {
         // YouTube badge
         static let youtubeRed = Color.red
 
+        // X badge — adaptive mark (near-black on light, near-white on dark),
+        // matching X's appearance-aware branding.
+        static let xMark = Color(light: .init(red: 0.09, green: 0.09, blue: 0.11),
+                                 dark: .init(red: 0.93, green: 0.93, blue: 0.95))
+
         // Pill / overlay
         static let pillBackground = Color.black.opacity(0.7)
         static let pillBorder = Color.white.opacity(0.15)
