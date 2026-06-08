@@ -80,6 +80,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `transcribe --engine` now accepts `nemotron` as an opt-in Beta local ASR
+  engine. `--engine app-default` also follows the saved Nemotron default and
+  Nemotron language hint when the GUI/CLI default is set to Nemotron.
+- `config get|set|list` now includes `nemotron-language`, with `auto`
+  clearing the stored language hint.
+- `models list`, `models select`, `models download`, `models delete`,
+  `models status`, `models warm-up`, `models repair`, and `health
+  --repair-models` understand the Nemotron model id
+  `nemotron-multilingual-1120ms`. `models select` requires the local Nemotron
+  artifact to be downloaded before persisting Nemotron as the shared default.
+
 ## [2.7.0] -- 2026-06-06
 
 ### Added

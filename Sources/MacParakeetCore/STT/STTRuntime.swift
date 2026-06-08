@@ -63,8 +63,12 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// (`setParakeetModelVariant`); `ensureInitialized()` reads it when loading.
     private var modelVersion: AsrModelVersion
     private var speechEngine: SpeechEnginePreference
+    private var nemotronEngine: NemotronEngine?
+    private var nemotronEngineLanguage: String?
+    private let nemotronModelVariant: NemotronModelVariant
     private var whisperEngine: WhisperEngine?
     private let whisperModelVariant: String
+    private let defaults: UserDefaults
     private var activeTranscriptionCount = 0
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
@@ -75,11 +79,15 @@ public actor STTRuntime: STTRuntimeProtocol {
     public init(
         modelVersion: AsrModelVersion = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
-        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
+        defaults: UserDefaults = .standard
     ) {
         self.modelVersion = modelVersion
         self.speechEngine = speechEngine
+        self.nemotronModelVariant = nemotronModelVariant
         self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
+        self.defaults = defaults
     }
 
     func transcribe(
@@ -92,7 +100,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             job: job,
             speechEngine: SpeechEngineSelection(
                 engine: speechEngine,
-                language: speechEngine == .whisper ? SpeechEnginePreference.whisperDefaultLanguage() : nil
+                language: defaultLanguage(for: speechEngine)
             ),
             onProgress: onProgress
         )
@@ -110,9 +118,32 @@ public actor STTRuntime: STTRuntimeProtocol {
         switch selection.engine {
         case .parakeet:
             return try await transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
+        case .nemotron:
+            return try await transcribeWithNemotron(
+                audioPath: audioPath,
+                job: job,
+                language: selection.language,
+                onProgress: onProgress
+            )
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         }
+    }
+
+    private func transcribeWithNemotron(
+        audioPath: String,
+        job: STTJobKind,
+        language: String?,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let language = SpeechEnginePreference.normalizeNemotronLanguage(language)
+        let engine = try await ensureNemotronEngine(language: language)
+        return try await engine.transcribe(
+            audioURL: URL(fileURLWithPath: audioPath),
+            job: job,
+            language: language,
+            onProgress: onProgress
+        )
     }
 
     private func transcribeWithWhisper(
@@ -216,6 +247,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             switch activeSpeechEngine {
             case .parakeet:
                 try await ensureInitialized()
+            case .nemotron:
+                let engine = try await ensureNemotronEngine(
+                    language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+                )
+                try await engine.prepare(onProgress: onProgress)
             case .whisper:
                 let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
                 whisperEngine = engine
@@ -337,6 +373,9 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func isReady() async -> Bool {
+        if speechEngine == .nemotron {
+            return await nemotronEngine?.isReady() ?? false
+        }
         if speechEngine == .whisper {
             return await whisperEngine?.isReady() ?? false
         }
@@ -350,6 +389,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     public func shutdown() async {
         invalidateBackgroundWarmUp()
         await unloadWhisper()
+        await unloadNemotron()
         await unloadParakeet()
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
@@ -362,6 +402,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         await shutdown()
         DownloadUtils.clearAllModelCaches()
         try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+        _ = Self.removeNemotronModelFiles(at: NemotronEngine.defaultCacheRoot())
         setBackgroundWarmUpState(.idle)
         Telemetry.send(.modelOperation(
             operationID: operationContext.operationID,
@@ -386,7 +427,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         guard preference != speechEngine else {
-            preference.save()
+            preference.save(to: defaults)
             return
         }
 
@@ -432,15 +473,22 @@ public actor STTRuntime: STTRuntimeProtocol {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         var preparedWhisper: WhisperEngine?
+        var preparedNemotron: NemotronEngine?
 
         switch preference {
         case .parakeet:
             onProgress?("Loading Parakeet model on Neural Engine...")
             try await ensureInitialized()
+        case .nemotron:
+            let engine = try await ensureNemotronEngine(
+                language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+            )
+            try await engine.prepare(onProgress: onProgress)
+            preparedNemotron = engine
         case .whisper:
             let engine = whisperEngine ?? WhisperEngine(
                 model: whisperModelVariant,
-                language: SpeechEnginePreference.whisperDefaultLanguage()
+                language: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
             )
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
@@ -449,13 +497,19 @@ public actor STTRuntime: STTRuntimeProtocol {
         if let preparedWhisper {
             whisperEngine = preparedWhisper
         }
+        if let preparedNemotron {
+            nemotronEngine = preparedNemotron
+        }
         speechEngine = preference
-        preference.save()
+        preference.save(to: defaults)
 
         switch previous {
         case .parakeet where preference != .parakeet:
             onProgress?("Releasing Parakeet model...")
             await unloadParakeet()
+        case .nemotron where preference != .nemotron:
+            onProgress?("Releasing Nemotron model...")
+            await unloadNemotron()
         case .whisper where preference != .whisper:
             onProgress?("Releasing Whisper model...")
             await unloadWhisper()
@@ -567,13 +621,20 @@ public actor STTRuntime: STTRuntimeProtocol {
     public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
         SpeechEngineSelection(
             engine: speechEngine,
-            language: speechEngine == .whisper ? SpeechEnginePreference.whisperDefaultLanguage() : nil
+            language: defaultLanguage(for: speechEngine)
         )
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
         let cacheDir = AsrModels.defaultCacheDirectory(for: version)
         return AsrModels.modelsExist(at: cacheDir, version: version)
+    }
+
+    public nonisolated static func isNemotronModelCached(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil
+    ) -> Bool {
+        NemotronEngine.isModelCached(modelVariant: modelVariant, language: language)
     }
 
     /// Deletes a single Parakeet build's files from disk, leaving the sibling
@@ -621,6 +682,21 @@ public actor STTRuntime: STTRuntimeProtocol {
         return !fileManager.fileExists(atPath: directory.path)
     }
 
+    /// File-removal core for the full-stack `models clear` path. Nemotron keeps
+    /// language-scoped directories under one repo root, so a full clear removes
+    /// the root rather than the currently configured language leaf only.
+    @discardableResult
+    nonisolated static func removeNemotronModelFiles(at directory: URL) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directory.path) else { return false }
+        do {
+            try fileManager.removeItem(at: directory)
+        } catch {
+            return false
+        }
+        return !fileManager.fileExists(atPath: directory.path)
+    }
+
     /// Deletes a downloaded Whisper variant from disk, leaving Parakeet and the
     /// speaker models untouched. Thin telemetry-emitting wrapper over
     /// ``WhisperEngine/deleteModel(model:downloadBase:defaults:)`` so model
@@ -648,6 +724,134 @@ public actor STTRuntime: STTRuntimeProtocol {
         return removed
     }
 
+    public nonisolated static func downloadNemotronModel(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil,
+        emitTelemetry: Bool = true,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws {
+        try await downloadNemotronModel(
+            modelVariant: modelVariant,
+            language: language,
+            emitTelemetry: emitTelemetry,
+            onProgress: onProgress,
+            downloader: { modelVariant, language, onProgress in
+                try await NemotronEngine.downloadModel(
+                    modelVariant: modelVariant,
+                    language: language,
+                    onProgress: onProgress
+                )
+            }
+        )
+    }
+
+    nonisolated static func downloadNemotronModel(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil,
+        emitTelemetry: Bool,
+        onProgress: (@Sendable (String) -> Void)? = nil,
+        downloader: @escaping @Sendable (
+            NemotronModelVariant,
+            String?,
+            (@Sendable (String) -> Void)?
+        ) async throws -> URL
+    ) async throws {
+        let operationContext = Observability.childOperationContext()
+        if emitTelemetry {
+            Telemetry.send(.modelDownloadStarted(
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue
+            ))
+        }
+
+        do {
+            _ = try await downloader(modelVariant, language, onProgress)
+            guard emitTelemetry else { return }
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            Telemetry.send(.modelDownloadCompleted(
+                durationSeconds: durationSeconds,
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue
+            ))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .download,
+                outcome: .success,
+                stage: .download,
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue,
+                durationSeconds: durationSeconds,
+                errorType: nil
+            ))
+        } catch is CancellationError {
+            if emitTelemetry {
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .cancelled,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    errorType: "CancellationError"
+                ))
+            }
+            throw CancellationError()
+        } catch {
+            let errorType = TelemetryErrorClassifier.classify(error)
+            if emitTelemetry {
+                Telemetry.send(.modelDownloadFailed(
+                    errorType: errorType,
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .failure,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    errorType: errorType
+                ))
+            }
+            throw error
+        }
+    }
+
+    @discardableResult
+    public nonisolated static func deleteNemotronModel(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil
+    ) -> Bool {
+        let operationContext = Observability.childOperationContext()
+        let removed = NemotronEngine.deleteModel(modelVariant: modelVariant, language: language)
+        Telemetry.send(.modelOperation(
+            operationID: operationContext.operationID,
+            operationContext: operationContext,
+            action: .deleteModel,
+            outcome: removed ? .success : .failure,
+            stage: .delete,
+            modelKind: .nemotronSTT,
+            speechEngine: .nemotron,
+            engineVariant: modelVariant.rawValue,
+            durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+            errorType: nil
+        ))
+        return removed
+    }
+
     private func unloadParakeet() async {
         let inFlightInitialization = cancelInitialization()
         inFlightInitialization?.cancel()
@@ -669,6 +873,31 @@ public actor STTRuntime: STTRuntimeProtocol {
         let engine = whisperEngine
         whisperEngine = nil
         await engine?.unload()
+    }
+
+    private func unloadNemotron() async {
+        let engine = nemotronEngine
+        nemotronEngine = nil
+        nemotronEngineLanguage = nil
+        await engine?.unload()
+    }
+
+    private func ensureNemotronEngine(language: String?) async throws -> NemotronEngine {
+        let language = SpeechEnginePreference.normalizeNemotronLanguage(language)
+        if let nemotronEngine, nemotronEngineLanguage == language {
+            return nemotronEngine
+        }
+
+        guard activeTranscriptionCount <= 1 else {
+            throw STTError.engineBusy
+        }
+
+        let previousEngine = nemotronEngine
+        let engine = NemotronEngine(modelVariant: nemotronModelVariant, language: language)
+        nemotronEngine = engine
+        nemotronEngineLanguage = language
+        await previousEngine?.unload()
+        return engine
     }
 
     private func beginBackgroundWarmUp() -> UInt64 {
@@ -844,6 +1073,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         switch engine {
         case .parakeet:
             .parakeetSTT
+        case .nemotron:
+            .nemotronSTT
         case .whisper:
             .whisperSTT
         }
@@ -855,8 +1086,21 @@ public actor STTRuntime: STTRuntimeProtocol {
             // Surface the active Parakeet build (v2/v3) so model-load telemetry
             // can measure variant adoption and impact (issues #311, #398).
             ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+        case .nemotron:
+            nemotronModelVariant.rawValue
         case .whisper:
             whisperModelVariant
+        }
+    }
+
+    private func defaultLanguage(for engine: SpeechEnginePreference) -> String? {
+        switch engine {
+        case .parakeet:
+            nil
+        case .nemotron:
+            SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        case .whisper:
+            SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         }
     }
 

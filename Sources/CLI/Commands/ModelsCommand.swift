@@ -58,12 +58,7 @@ extension ModelsCommand {
             try emitJSONOrRethrow(json: json) {
                 let defaults = macParakeetAppDefaults()
                 let selection = try resolveSelectableSpeechModel(id, defaults: defaults)
-                if let whisperVariant = selection.whisperVariant,
-                   !WhisperEngine.isModelDownloaded(model: whisperVariant) {
-                    throw ValidationError(
-                        "Whisper model is not downloaded. Run `macparakeet-cli models download \(whisperModelID(for: whisperVariant))` first."
-                    )
-                }
+                try validateSelectableSpeechModelDownload(selection, defaults: defaults)
 
                 selection.engine.save(to: defaults)
                 if let whisperVariant = selection.whisperVariant {
@@ -78,7 +73,7 @@ extension ModelsCommand {
                         id: selection.engine.rawValue,
                         name: selection.engine.displayName,
                         engine: selection.engine.rawValue,
-                        variant: selection.whisperVariant,
+                        variant: selection.whisperVariant ?? selection.nemotronVariant?.rawValue,
                         size: nil,
                         installed: true,
                         selected: true,
@@ -104,7 +99,8 @@ extension ModelsCommand {
 
         func run() async throws {
             try await emitJSONOrRethrow(json: json) {
-                let sttClient = makeParakeetSTTClient()
+                let defaults = macParakeetAppDefaults()
+                let sttClient = makeConfiguredSTTClient(defaults: defaults)
                 var sttClientNeedsShutdown = true
                 defer {
                     if sttClientNeedsShutdown {
@@ -114,7 +110,8 @@ extension ModelsCommand {
                 let diarizationService = DiarizationService()
                 let status = await loadSpeechStackStatus(
                     sttClient: sttClient,
-                    diarizationService: diarizationService
+                    diarizationService: diarizationService,
+                    defaults: defaults
                 )
                 await sttClient.shutdown()
                 sttClientNeedsShutdown = false
@@ -133,7 +130,7 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var variant: String
 
         func run() async throws {
@@ -150,6 +147,22 @@ extension ModelsCommand {
                     if shouldPrint { print("Parakeet: \(message)") }
                 }
                 print("Parakeet: ready (\(parakeetVariant.modelName))")
+                return
+            }
+
+            if let nemotronVariant = nemotronDownloadVariant(from: lowered) {
+                let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: macParakeetAppDefaults())
+                print("Nemotron: downloading \(nemotronVariant.modelName)...")
+                let lastMessage = OSAllocatedUnfairLock(initialState: "")
+                try await STTRuntime.downloadNemotronModel(modelVariant: nemotronVariant, language: language) { message in
+                    let shouldPrint = lastMessage.withLock { last in
+                        guard last != message else { return false }
+                        last = message
+                        return true
+                    }
+                    if shouldPrint { print("Nemotron: \(message)") }
+                }
+                print("Nemotron: ready (\(nemotronVariant.modelName))")
                 return
             }
 
@@ -183,7 +196,8 @@ extension ModelsCommand {
 
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
-            let sttClient = makeParakeetSTTClient()
+            let defaults = macParakeetAppDefaults()
+            let sttClient = makeConfiguredSTTClient(defaults: defaults)
             var sttClientNeedsShutdown = true
             defer {
                 if sttClientNeedsShutdown {
@@ -195,6 +209,7 @@ extension ModelsCommand {
                 attempts: attempts,
                 sttClient: sttClient,
                 diarizationService: diarizationService,
+                defaults: defaults,
                 log: { print($0) }
             )
             await sttClient.shutdown()
@@ -213,7 +228,8 @@ extension ModelsCommand {
 
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
-            let sttClient = makeParakeetSTTClient()
+            let defaults = macParakeetAppDefaults()
+            let sttClient = makeConfiguredSTTClient(defaults: defaults)
             var sttClientNeedsShutdown = true
             defer {
                 if sttClientNeedsShutdown {
@@ -225,6 +241,7 @@ extension ModelsCommand {
                 attempts: attempts,
                 sttClient: sttClient,
                 diarizationService: diarizationService,
+                defaults: defaults,
                 log: { print($0) }
             )
             await sttClient.shutdown()
@@ -237,7 +254,7 @@ extension ModelsCommand {
             commandName: "delete",
             abstract: "Delete one downloaded speech model, freeing its disk space.",
             discussion: """
-                Removes a single model (one Parakeet build or the Whisper variant) \
+                Removes a single model (one Parakeet build, Nemotron, or the Whisper variant) \
                 while leaving every other model in place — unlike `models clear`, \
                 which wipes the whole local stack.
 
@@ -247,7 +264,7 @@ extension ModelsCommand {
                 """
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var id: String
 
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
@@ -278,6 +295,13 @@ extension ModelsCommand {
                 let removed = STTRuntime.deleteParakeetModel(version: variant.asrModelVersion)
                 guard removed else {
                     throw ModelDeletionError.deleteFailed("Could not delete \(variant.modelName). It may be missing or in use by another process.")
+                }
+                print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
+            case .nemotron(let variant):
+                let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: nil)
+                guard removed else {
+                    print("\(variant.modelName) is not downloaded — nothing to delete.")
+                    return
                 }
                 print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
             case .whisper(let variant):
@@ -324,31 +348,48 @@ func parakeetDownloadVariant(
     return parseParakeetSelectionVariant(lowered)
 }
 
+func nemotronDownloadVariant(from lowered: String) -> NemotronModelVariant? {
+    if lowered == SpeechEnginePreference.nemotron.rawValue {
+        return SpeechEnginePreference.defaultNemotronModelVariant
+    }
+    return parseNemotronSelectionVariant(lowered)
+}
+
 func resolveWhisperDownloadModel(_ variant: String) throws -> String {
     let normalizedInput = variant.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedInput.isEmpty else {
         throw ValidationError("Model variant cannot be empty.")
     }
     guard normalizedInput.hasPrefix("whisper-") else {
-        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2 / parakeet-v3 or whisper-* id from `models list`.")
+        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-* id from `models list`.")
     }
     return WhisperEngine.normalizeModelVariant(normalizedInput)
 }
 
 struct SpeechStackPayload: Encodable {
+    let speechEngine: String
     let speechModelCached: Bool
     let speechRuntimeReady: Bool
     let speakerModelsCached: Bool
     let speakerModelsPrepared: Bool
+    let parakeetModelVariant: String
+    let parakeetModelDownloaded: Bool
+    let nemotronModelVariant: String
+    let nemotronModelDownloaded: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
     let summary: String
 
     init(status: SpeechStackStatus) {
+        self.speechEngine = status.speechEngine.rawValue
         self.speechModelCached = status.speechModelCached
         self.speechRuntimeReady = status.speechRuntimeReady
         self.speakerModelsCached = status.speakerModelsCached
         self.speakerModelsPrepared = status.speakerModelsPrepared
+        self.parakeetModelVariant = status.parakeetModelVariant.rawValue
+        self.parakeetModelDownloaded = status.parakeetModelDownloaded
+        self.nemotronModelVariant = status.nemotronModelVariant.rawValue
+        self.nemotronModelDownloaded = status.nemotronModelDownloaded
         self.whisperModelVariant = status.whisperModelVariant
         self.whisperModelDownloaded = status.whisperModelDownloaded
         self.summary = status.summary
@@ -356,10 +397,15 @@ struct SpeechStackPayload: Encodable {
 }
 
 struct SpeechStackStatus: Sendable, Equatable {
+    let speechEngine: SpeechEnginePreference
     let speechModelCached: Bool
     let speechRuntimeReady: Bool
     let speakerModelsCached: Bool
     let speakerModelsPrepared: Bool
+    let parakeetModelVariant: ParakeetModelVariant
+    let parakeetModelDownloaded: Bool
+    let nemotronModelVariant: NemotronModelVariant
+    let nemotronModelDownloaded: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
 
@@ -387,35 +433,74 @@ func validatedAttempts(_ attempts: Int) throws -> Int {
     return attempts
 }
 
-/// Builds the CLI's Parakeet-engine STT client honoring the persisted variant
-/// (`config set parakeet-model v2`), so `warm-up`/`repair`/`status` operate on
-/// the build the user selected rather than always defaulting to v3.
+/// Builds the CLI's standalone STT client from the persisted app/CLI defaults,
+/// so `warm-up`/`repair`/`status` exercise the engine the user selected.
+func makeConfiguredSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) -> STTClient {
+    STTClient(
+        modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
+        speechEngine: SpeechEnginePreference.current(defaults: defaults),
+        nemotronModelVariant: SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
+        defaults: defaults
+    )
+}
+
 func makeParakeetSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) -> STTClient {
-    STTClient(modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion)
+    STTClient(
+        modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
+        speechEngine: .parakeet,
+        defaults: defaults
+    )
 }
 
 func loadSpeechStackStatus(
     sttClient: STTClientProtocol,
     diarizationService: DiarizationServiceProtocol,
-    isSpeechModelCached: @escaping @Sendable () -> Bool = {
-        STTClient.isModelCached(
-            version: SpeechEnginePreference.parakeetModelVariant(defaults: macParakeetAppDefaults()).asrModelVersion
-        )
-    },
-    whisperModelVariant: String = SpeechEnginePreference.whisperModelVariant(defaults: macParakeetAppDefaults()),
-    isWhisperModelDownloaded: @escaping @Sendable (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) }
+    defaults: UserDefaults = macParakeetAppDefaults(),
+    isParakeetModelCached: (@Sendable (ParakeetModelVariant) -> Bool)? = nil,
+    nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+    isNemotronModelDownloaded: (@Sendable (NemotronModelVariant) -> Bool)? = nil,
+    whisperModelVariant: String? = nil,
+    isWhisperModelDownloaded: (@Sendable (String) -> Bool)? = nil
 ) async -> SpeechStackStatus {
+    let speechEngine = SpeechEnginePreference.current(defaults: defaults)
+    let parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+    let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+    let whisperModelVariant = whisperModelVariant ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+    let parakeetDownloaded = (isParakeetModelCached ?? { variant in
+        STTClient.isModelCached(version: variant.asrModelVersion)
+    })(parakeetModelVariant)
+    let nemotronDownloaded = (isNemotronModelDownloaded ?? { variant in
+        STTClient.isNemotronModelCached(modelVariant: variant, language: nemotronLanguage)
+    })(nemotronModelVariant)
+    let whisperDownloaded = (isWhisperModelDownloaded ?? { variant in
+        WhisperEngine.isModelDownloaded(model: variant)
+    })(whisperModelVariant)
+    let activeSpeechModelCached = switch speechEngine {
+    case .parakeet:
+        parakeetDownloaded
+    case .nemotron:
+        nemotronDownloaded
+    case .whisper:
+        whisperDownloaded
+    }
+
     async let speechRuntimeReady = sttClient.isReady()
     async let speakerModelsCached = diarizationService.hasCachedModels()
     async let speakerModelsPrepared = diarizationService.isReady()
 
     return await SpeechStackStatus(
-        speechModelCached: isSpeechModelCached(),
+        speechEngine: speechEngine,
+        speechModelCached: activeSpeechModelCached,
         speechRuntimeReady: speechRuntimeReady,
         speakerModelsCached: speakerModelsCached,
         speakerModelsPrepared: speakerModelsPrepared,
+        parakeetModelVariant: parakeetModelVariant,
+        parakeetModelDownloaded: parakeetDownloaded,
+        nemotronModelVariant: nemotronModelVariant,
+        nemotronModelDownloaded: nemotronDownloaded,
         whisperModelVariant: whisperModelVariant,
-        whisperModelDownloaded: isWhisperModelDownloaded(whisperModelVariant)
+        whisperModelDownloaded: whisperDownloaded
     )
 }
 
@@ -423,10 +508,15 @@ func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = t
     if includeHeader {
         print("Local speech stack:")
     }
-    print("  Speech model cached:   \(status.speechModelCached ? "Yes" : "No")")
+    print("  Active speech engine: \(status.speechEngine.displayName)")
+    print("  Active speech model cached: \(status.speechModelCached ? "Yes" : "No")")
     print("  Speech runtime loaded: \(status.speechRuntimeReady ? "Yes" : "No")")
     print("  Speaker models cached: \(status.speakerModelsCached ? "Yes" : "No")")
     print("  Speaker models prepared: \(status.speakerModelsPrepared ? "Yes" : "No")")
+    print("  Parakeet model variant: \(status.parakeetModelVariant.rawValue)")
+    print("  Parakeet model downloaded: \(status.parakeetModelDownloaded ? "Yes" : "No")")
+    print("  Nemotron model variant: \(status.nemotronModelVariant.rawValue)")
+    print("  Nemotron model downloaded: \(status.nemotronModelDownloaded ? "Yes" : "No")")
     print("  Whisper model variant: \(status.whisperModelVariant)")
     print("  Whisper model downloaded: \(status.whisperModelDownloaded ? "Yes" : "No")")
     print("  Status: \(status.summary)")
@@ -446,6 +536,7 @@ struct SelectableSpeechModel: Encodable, Equatable {
 struct SelectableSpeechModelSelection: Equatable {
     let engine: SpeechEnginePreference
     let whisperVariant: String?
+    var nemotronVariant: NemotronModelVariant? = nil
     /// Set when the selection targets a specific Parakeet build; `nil` leaves
     /// the persisted Parakeet variant untouched (e.g. a Whisper selection).
     var parakeetVariant: ParakeetModelVariant? = nil
@@ -453,13 +544,20 @@ struct SelectableSpeechModelSelection: Equatable {
 
 func loadSelectableSpeechModels(
     defaults: UserDefaults = macParakeetAppDefaults(),
-    isParakeetModelCached: @escaping (ParakeetModelVariant) -> Bool = {
-        STTClient.isModelCached(version: $0.asrModelVersion)
-    },
-    isWhisperModelDownloaded: @escaping (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) }
+    isParakeetModelCached: ((ParakeetModelVariant) -> Bool)? = nil,
+    isNemotronModelDownloaded: ((NemotronModelVariant) -> Bool)? = nil,
+    isWhisperModelDownloaded: ((String) -> Bool)? = nil
 ) -> [SelectableSpeechModel] {
+    let checkParakeetModelCached = isParakeetModelCached ?? {
+        STTClient.isModelCached(version: $0.asrModelVersion)
+    }
     let currentEngine = SpeechEnginePreference.current(defaults: defaults)
     let currentParakeetVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+    let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+    let checkNemotronModelDownloaded = isNemotronModelDownloaded ?? {
+        STTClient.isNemotronModelCached(modelVariant: $0, language: nemotronLanguage)
+    }
+    let checkWhisperModelDownloaded = isWhisperModelDownloaded ?? { WhisperEngine.isModelDownloaded(model: $0) }
     let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
     let whisperLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
 
@@ -470,20 +568,33 @@ func loadSelectableSpeechModels(
             engine: SpeechEnginePreference.parakeet.rawValue,
             variant: variant.rawValue,
             size: variant.approximateDownloadSize,
-            installed: isParakeetModelCached(variant),
+            installed: checkParakeetModelCached(variant),
             selected: currentEngine == .parakeet && currentParakeetVariant == variant,
             language: variant.isEnglishOnly ? "en" : nil
         )
     }
 
-    return parakeetModels + [
+    let nemotronModels = NemotronModelVariant.allCases.map { variant in
+        SelectableSpeechModel(
+            id: nemotronModelID(for: variant),
+            name: "\(variant.modelName) (\(variant.displayName))",
+            engine: SpeechEnginePreference.nemotron.rawValue,
+            variant: variant.rawValue,
+            size: variant.approximateDownloadSize,
+            installed: checkNemotronModelDownloaded(variant),
+            selected: currentEngine == .nemotron,
+            language: nemotronLanguage ?? "auto"
+        )
+    }
+
+    return parakeetModels + nemotronModels + [
         SelectableSpeechModel(
             id: whisperModelID(for: whisperVariant),
             name: "Whisper \(SpeechEnginePreference.friendlyVariantName(whisperVariant))",
             engine: SpeechEnginePreference.whisper.rawValue,
             variant: whisperVariant,
             size: whisperModelSizeLabel(for: whisperVariant),
-            installed: isWhisperModelDownloaded(whisperVariant),
+            installed: checkWhisperModelDownloaded(whisperVariant),
             selected: currentEngine == .whisper,
             language: whisperLanguage ?? WhisperLanguageCatalog.autoCode
         ),
@@ -514,7 +625,24 @@ func resolveSelectableSpeechModel(
         return SelectableSpeechModelSelection(
             engine: .parakeet,
             whisperVariant: nil,
+            nemotronVariant: nil,
             parakeetVariant: parakeetVariant
+        )
+    }
+
+    if lowered == "nemotron" {
+        return SelectableSpeechModelSelection(
+            engine: .nemotron,
+            whisperVariant: nil,
+            nemotronVariant: SpeechEnginePreference.defaultNemotronModelVariant
+        )
+    }
+
+    if let nemotronVariant = parseNemotronSelectionVariant(lowered) {
+        return SelectableSpeechModelSelection(
+            engine: .nemotron,
+            whisperVariant: nil,
+            nemotronVariant: nemotronVariant
         )
     }
 
@@ -545,11 +673,40 @@ func resolveSelectableSpeechModel(
     )
 }
 
+func validateSelectableSpeechModelDownload(
+    _ selection: SelectableSpeechModelSelection,
+    defaults: UserDefaults = macParakeetAppDefaults(),
+    isNemotronModelDownloaded: ((NemotronModelVariant, String?) -> Bool)? = nil,
+    isWhisperModelDownloaded: ((String) -> Bool)? = nil
+) throws {
+    if let nemotronVariant = selection.nemotronVariant {
+        let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        let downloaded = (isNemotronModelDownloaded ?? { variant, language in
+            STTClient.isNemotronModelCached(modelVariant: variant, language: language)
+        })(nemotronVariant, language)
+        guard downloaded else {
+            throw ValidationError(
+                "Nemotron model is not downloaded. Run `macparakeet-cli models download \(nemotronModelID(for: nemotronVariant))` first."
+            )
+        }
+    }
+
+    if let whisperVariant = selection.whisperVariant {
+        let downloaded = (isWhisperModelDownloaded ?? { WhisperEngine.isModelDownloaded(model: $0) })(whisperVariant)
+        guard downloaded else {
+            throw ValidationError(
+                "Whisper model is not downloaded. Run `macparakeet-cli models download \(whisperModelID(for: whisperVariant))` first."
+            )
+        }
+    }
+}
+
 /// One concrete model that `models delete` can target, resolved from a
 /// `models list` id. Carries a user-facing `displayName` for messages.
 struct ModelDeletionTarget: Equatable {
     enum Kind: Equatable {
         case parakeet(ParakeetModelVariant)
+        case nemotron(NemotronModelVariant)
         /// Normalized Whisper variant id (matches the stored preference).
         case whisper(String)
     }
@@ -584,6 +741,12 @@ func resolveModelDeletionTarget(
             displayName: "\(parakeetVariant.modelName) (\(parakeetVariant.displayName))"
         )
     }
+    if let nemotronVariant = selection.nemotronVariant {
+        return ModelDeletionTarget(
+            kind: .nemotron(nemotronVariant),
+            displayName: "\(nemotronVariant.modelName) (\(nemotronVariant.displayName))"
+        )
+    }
     if let whisperVariant = selection.whisperVariant {
         return ModelDeletionTarget(
             kind: .whisper(whisperVariant),
@@ -605,6 +768,9 @@ func isModelInUse(
     switch target.kind {
     case .parakeet(let variant):
         return SpeechEnginePreference.parakeetModelVariant(defaults: defaults) == variant
+    case .nemotron(let variant):
+        return currentEngine == .nemotron
+            && variant == SpeechEnginePreference.defaultNemotronModelVariant
     case .whisper(let variant):
         return currentEngine == .whisper
             && SpeechEnginePreference.whisperModelVariant(defaults: defaults) == variant
@@ -638,8 +804,33 @@ private func parseParakeetSelectionVariant(_ lowered: String) -> ParakeetModelVa
     }
 }
 
+/// Recognizes `nemotron-multilingual-1120ms`, `nemotron:multilingual-1120ms`,
+/// and a few intent aliases. Returns nil for non-Nemotron ids.
+private func parseNemotronSelectionVariant(_ lowered: String) -> NemotronModelVariant? {
+    let normalized = lowered.replacingOccurrences(of: "_", with: "-")
+    let prefix = SpeechEnginePreference.nemotron.rawValue
+    let suffix: String
+    if normalized.hasPrefix("\(prefix):") {
+        suffix = String(normalized.dropFirst(prefix.count + 1))
+    } else if normalized.hasPrefix("\(prefix)-") {
+        suffix = String(normalized.dropFirst(prefix.count + 1))
+    } else {
+        return nil
+    }
+    switch suffix {
+    case "multilingual-1120ms", "multilingual", "multi", "beta":
+        return .multilingual1120
+    default:
+        return nil
+    }
+}
+
 func parakeetModelID(for variant: ParakeetModelVariant) -> String {
     "\(SpeechEnginePreference.parakeet.rawValue)-\(variant.rawValue)"
+}
+
+func nemotronModelID(for variant: NemotronModelVariant) -> String {
+    "\(SpeechEnginePreference.nemotron.rawValue)-\(variant.rawValue)"
 }
 
 func whisperModelID(for variant: String) -> String {
@@ -679,13 +870,15 @@ func prepareSpeechStack(
     attempts: Int,
     sttClient: STTClientProtocol,
     diarizationService: DiarizationServiceProtocol,
+    defaults: UserDefaults = macParakeetAppDefaults(),
     log: @escaping @Sendable (String) -> Void
 ) async throws {
-    log("Parakeet (STT): preparing...")
-    try await runWithRetry(attempts: attempts, label: "Parakeet (STT)", log: log) { attempt in
+    let speechLabel = "\(SpeechEnginePreference.current(defaults: defaults).displayName) (STT)"
+    log("\(speechLabel): preparing...")
+    try await runWithRetry(attempts: attempts, label: speechLabel, log: log) { attempt in
         try await sttClient.warmUp { message in
             if attempt == 1 || message.contains("%") || message == "Ready" || message.contains("Loading model") {
-                log("Parakeet (STT): \(message)")
+                log("\(speechLabel): \(message)")
             }
         }
     }
@@ -699,7 +892,8 @@ func prepareSpeechStack(
 
     let status = await loadSpeechStackStatus(
         sttClient: sttClient,
-        diarizationService: diarizationService
+        diarizationService: diarizationService,
+        defaults: defaults
     )
     log("Speech stack: \(status.summary)")
 }

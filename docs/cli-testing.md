@@ -26,7 +26,7 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 macparakeet-cli
 ├── transcribe <input...> [options]      Transcribe files, folders, or media URLs
 │   ├── --format text|transcript|json [--no-history]
-│   └── --engine app-default|parakeet|whisper [--language <code>]
+│   └── --engine app-default|parakeet|nemotron|whisper [--language <code>]
 │       --parakeet-model app-default|v3|v2 [--output-dir DIR]
 │       --speaker-detection app-default|on|off
 │       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
@@ -53,7 +53,8 @@ macparakeet-cli
 │   ├── list [--json]                    List selectable speech models
 │   ├── select <model-id> [--json]       Set shared app/CLI speech default
 │   ├── status [--json]                  Show model status
-│   ├── download <model-id>              Download explicit model (Whisper)
+│   ├── download <model-id>              Download explicit speech model
+│   ├── delete <model-id> [--force]      Delete one downloaded speech model
 │   ├── warm-up [--attempts]             Warm up speech model
 │   ├── repair [--attempts]              Best-effort model repair
 │   └── clear                            Delete cached models
@@ -181,9 +182,20 @@ Parakeet remains the no-flag default for semver stability and ignores
 English-only opt-in. Use `--parakeet-model app-default|v3|v2` for a single run,
 or `config set parakeet-model v2` / `models select parakeet-v2` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
-speech engine, Parakeet model, and Whisper language defaults. Use Whisper
-explicitly for languages outside Parakeet coverage after downloading the local
-Whisper model:
+speech engine, Parakeet model, and Nemotron/Whisper language defaults.
+Nemotron is an opt-in Beta engine for multilingual local ASR. Download it
+explicitly before selecting or running it:
+
+```bash
+swift run macparakeet-cli models download nemotron-multilingual-1120ms
+
+swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+  --engine nemotron \
+  --language auto
+```
+
+Use Whisper explicitly for languages outside Parakeet/Nemotron coverage after
+downloading the local Whisper model:
 
 ```bash
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
@@ -193,11 +205,12 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
   --language ko
 ```
 
-`--language auto` or omitting `--language` lets Whisper detect the language.
-When `--engine app-default` resolves to Whisper, an explicit `--language`
-overrides the saved Whisper language for that invocation. When `--engine
-whisper` is explicit, pass `--language` explicitly if you do not want
-auto-detect; the saved Whisper language is only used by `--engine app-default`.
+`--language auto` or omitting `--language` lets Nemotron or Whisper detect the
+language. When `--engine app-default` resolves to Nemotron or Whisper, an
+explicit `--language` overrides the saved language for that invocation. When
+`--engine nemotron` or `--engine whisper` is explicit, pass `--language`
+explicitly if you do not want auto-detect; saved Nemotron/Whisper languages are
+only used by `--engine app-default`.
 
 ### Speaker Diarization
 
@@ -235,6 +248,7 @@ swift run macparakeet-cli config list
 swift run macparakeet-cli config set processing-mode raw
 swift run macparakeet-cli config set speech-engine whisper
 swift run macparakeet-cli config set parakeet-model v3
+swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set save-transcription-audio off
@@ -242,7 +256,7 @@ swift run macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
-`parakeet-model`, `whisper-language`, `speaker-detection`,
+`parakeet-model`, `nemotron-language`, `whisper-language`, `speaker-detection`,
 `save-transcription-audio`, `youtube-audio-quality`. Underscore aliases such as
 `youtube_audio_quality` are accepted on input; JSON output uses canonical
 hyphenated keys.
@@ -284,14 +298,16 @@ swift run macparakeet-cli models list --json
 swift run macparakeet-cli models select parakeet-v3
 swift run macparakeet-cli models select parakeet-v2
 swift run macparakeet-cli models download parakeet-v2
+swift run macparakeet-cli models download nemotron-multilingual-1120ms
+swift run macparakeet-cli models select nemotron-multilingual-1120ms
 swift run macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB
 ```
 
 `models list` reports the selectable speech engines MacParakeet exposes today:
-Parakeet v3, Parakeet v2, and the configured WhisperKit variant. `models select`
-writes the same shared default used by the GUI and `transcribe --engine
-app-default`; Whisper selection requires the local Whisper model to be
-downloaded first.
+Parakeet v3, Parakeet v2, Nemotron 3.5 ASR Beta, and the configured WhisperKit
+variant. `models select` writes the same shared default used by the GUI and
+`transcribe --engine app-default`; Nemotron and Whisper selection require the
+local model to be downloaded first.
 
 ## Retained Entitlements Parity
 
@@ -410,9 +426,10 @@ swift run macparakeet-cli calendar upcoming --days 7 --filter all --json
 # Non-invasive status (does not force downloads)
 swift run macparakeet-cli models status
 
-# Explicit Parakeet / Whisper downloads
+# Explicit Parakeet / Nemotron / Whisper downloads
 swift run macparakeet-cli models download parakeet-v3
 swift run macparakeet-cli models download parakeet-v2
+swift run macparakeet-cli models download nemotron-multilingual-1120ms
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 
 # Warm-up (single attempt by default)
@@ -424,6 +441,7 @@ swift run macparakeet-cli models repair --attempts 5
 
 # Delete one downloaded model (frees its disk space; leaves the rest)
 swift run macparakeet-cli models delete parakeet-v2
+swift run macparakeet-cli models delete nemotron-multilingual-1120ms
 swift run macparakeet-cli models delete whisper-large-v3-v20240930-turbo-632MB
 swift run macparakeet-cli models delete parakeet-v3 --force   # override the in-use guard
 
@@ -431,12 +449,12 @@ swift run macparakeet-cli models delete parakeet-v3 --force   # override the in-
 swift run macparakeet-cli models clear
 ```
 
-`models warm-up` and `models repair` prepare the selected Parakeet build plus
-the diarization speech stack. Whisper is downloaded explicitly with
-`models download`. `models delete <id>` removes a single model — one Parakeet
-build or the Whisper variant — and protects the active model plus Parakeet's
-configured build unless `--force` is passed; `models clear` still wipes
-everything.
+`models warm-up` and `models repair` prepare the selected speech engine plus
+the diarization speech stack. Nemotron and Whisper are downloaded explicitly
+with `models download`. `models delete <id>` removes a single model - one
+Parakeet build, the Nemotron Beta model, or the Whisper variant - and protects
+the active model plus Parakeet's configured build unless `--force` is passed;
+`models clear` still wipes everything.
 
 ## Text Pipeline
 

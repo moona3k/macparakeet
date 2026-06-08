@@ -125,7 +125,8 @@ struct HealthCommand: AsyncParsableCommand {
         }
 
         // 5. Local speech stack
-        let sttClient = makeParakeetSTTClient()
+        let defaults = macParakeetAppDefaults()
+        let sttClient = makeConfiguredSTTClient(defaults: defaults)
         var sttClientNeedsShutdown = true
         defer {
             if sttClientNeedsShutdown {
@@ -135,7 +136,8 @@ struct HealthCommand: AsyncParsableCommand {
         let diarizationService = DiarizationService()
         let status = await loadSpeechStackStatus(
             sttClient: sttClient,
-            diarizationService: diarizationService
+            diarizationService: diarizationService,
+            defaults: defaults
         )
         report.speechStack = SpeechStackPayload(status: status)
         if !json {
@@ -150,6 +152,7 @@ struct HealthCommand: AsyncParsableCommand {
                     attempts: repairAttempts,
                     sttClient: sttClient,
                     diarizationService: diarizationService,
+                    defaults: defaults,
                     log: { message in if !self.json { print("  \(message)") } }
                 )
                 report.repair = HealthReport.Repair(attempted: true, completed: true, error: nil)

@@ -679,6 +679,8 @@ struct TranscriptResultView: View {
         switch preference {
         case .parakeet:
             return "Parakeet TDT"
+        case .nemotron:
+            return "Nemotron 3.5 Beta"
         case .whisper:
             guard let variant = activeTranscription.engineVariant else {
                 return "Whisper"
@@ -2866,6 +2868,7 @@ private struct EngineOptionCard: View {
     private var iconName: String {
         switch selection.engine {
         case .parakeet: "bolt.fill"
+        case .nemotron: "sparkles"
         case .whisper: "globe"
         }
     }
@@ -2874,13 +2877,15 @@ private struct EngineOptionCard: View {
         switch selection.engine {
         case .parakeet:
             "Fast • 25 European languages, including English"
+        case .nemotron:
+            "Beta • Nemotron 3.5 multilingual streaming"
         case .whisper:
             "Broader languages • Korean, Chinese, Japanese, and more"
         }
     }
 
     private var languageDetail: String? {
-        guard selection.engine == .whisper else { return nil }
+        guard selection.engine == .whisper || selection.engine == .nemotron else { return nil }
         let language = selection.language ?? "auto-detect"
         return "Language: \(language)"
     }

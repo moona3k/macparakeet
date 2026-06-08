@@ -167,6 +167,7 @@ public enum TelemetryTranscriptionStage: String, Sendable, Equatable {
 
 public enum TelemetryModelKind: String, Sendable, Equatable {
     case parakeetSTT = "parakeet_stt"
+    case nemotronSTT = "nemotron_stt"
     case whisperSTT = "whisper_stt"
     case speakerDiarization = "speaker_diarization"
     case localSpeechStack = "local_speech_stack"

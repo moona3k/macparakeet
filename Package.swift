@@ -8,8 +8,8 @@ let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISP
 let packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
-    // FluidAudio for Parakeet STT on CoreML/ANE
-    .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.14.5")),
+    // FluidAudio for Parakeet and Nemotron STT on CoreML/ANE
+    .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.15.2")),
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)

@@ -121,6 +121,30 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(counts.shutdown, 1)
     }
 
+    func testClearModelCacheRejectsNewJobsUntilRuntimeClearCompletes() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let clearTask = Task { await scheduler.clearModelCache() }
+        try await waitForClearModelCacheCall(runtime: runtime, count: 1)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "during-clear", job: .dictation)
+            XCTFail("Expected new STT work to be rejected while cache clear is still running.")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        } catch {
+            XCTFail("Expected STTSchedulerError.unavailable, got \(error)")
+        }
+
+        await runtime.releaseClearModelCache()
+        _ = await clearTask.value
+
+        let result = try await scheduler.transcribe(audioPath: "after-clear", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-clear")
+    }
+
     func testSetSpeechEngineForwardsWhenIdle() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -613,6 +637,21 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
+    private func waitForClearModelCacheCall(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let start = ContinuousClock.now
+        while await runtime.lifecycleCounts().clearModelCache < count {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for \(count) cache clears")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func value<T>(
         _ task: Task<T, any Error>,
         timeout: Duration = .seconds(1)
@@ -787,8 +826,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var selection = SpeechEngineSelection(engine: .parakeet)
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
+    private var shouldBlockNextClearModelCache = false
     private var ignoreCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
+    private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
 
     func transcribe(
         audioPath: String,
@@ -856,6 +897,12 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func clearModelCache() async {
         clearModelCacheCallCount += 1
+        if shouldBlockNextClearModelCache {
+            shouldBlockNextClearModelCache = false
+            await withCheckedContinuation { continuation in
+                clearModelCacheContinuation = continuation
+            }
+        }
         ready = false
     }
 
@@ -924,6 +971,15 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         speechEngineSwitchContinuation = nil
     }
 
+    func blockNextClearModelCache() {
+        shouldBlockNextClearModelCache = true
+    }
+
+    func releaseClearModelCache() {
+        clearModelCacheContinuation?.resume()
+        clearModelCacheContinuation = nil
+    }
+
     func block(path: String) {
         blockedPaths.insert(path)
     }
@@ -948,6 +1004,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             continuation.resume(throwing: CancellationError())
         }
         waitingContinuations.removeAll()
+        releaseClearModelCache()
     }
 
     private func cancelBlocked(path: String) {
