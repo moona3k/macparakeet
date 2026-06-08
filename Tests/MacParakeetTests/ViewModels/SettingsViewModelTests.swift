@@ -2098,7 +2098,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.whisperCalls.isEmpty)
     }
 
-    func testDeleteNemotronModelUsesStoredLanguageWhenParakeetActive() async throws {
+    func testDeleteNemotronModelDeletesAllLanguageCachesWhenParakeetActive() async throws {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: testDefaults)
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
@@ -2110,7 +2110,7 @@ final class SettingsViewModelTests: XCTestCase {
         try await waitUntil {
             recorder.nemotronCalls.count == 1
                 && recorder.nemotronCalls.first?.0 == .multilingual1120
-                && recorder.nemotronCalls.first?.1 == "en-US"
+                && recorder.nemotronCalls.first?.1 == nil
         }
     }
 

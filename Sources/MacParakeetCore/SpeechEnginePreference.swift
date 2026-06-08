@@ -166,7 +166,36 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         guard let language else { return nil }
         let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.lowercased() != "auto" else { return nil }
-        return trimmed.replacingOccurrences(of: "_", with: "-")
+        let parts = trimmed.replacingOccurrences(of: "_", with: "-").split(separator: "-").map(String.init)
+        guard let primary = parts.first,
+              (2...3).contains(primary.count),
+              primary.allSatisfy(\.isLetter) else {
+            return nil
+        }
+
+        var canonicalParts = [primary.lowercased()]
+        var index = 1
+        if parts.indices.contains(index),
+           parts[index].count == 4,
+           parts[index].allSatisfy(\.isLetter) {
+            let script = parts[index].lowercased()
+            canonicalParts.append(script.prefix(1).uppercased() + String(script.dropFirst()))
+            index += 1
+        }
+        if parts.indices.contains(index) {
+            let region = parts[index]
+            if region.count == 2, region.allSatisfy(\.isLetter) {
+                canonicalParts.append(region.uppercased())
+                index += 1
+            } else if region.count == 3, region.allSatisfy(\.isNumber) {
+                canonicalParts.append(region)
+                index += 1
+            } else {
+                return nil
+            }
+        }
+        guard index == parts.count else { return nil }
+        return canonicalParts.joined(separator: "-")
     }
 
     public static func normalizeModelVariant(_ variant: String?) -> String? {

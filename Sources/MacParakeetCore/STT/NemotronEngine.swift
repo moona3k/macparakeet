@@ -161,15 +161,95 @@ public actor NemotronEngine: STTTranscribing {
         modelVariant: NemotronModelVariant = defaultModelVariant,
         language: String? = nil
     ) -> Bool {
-        let directory = defaultVariantDirectory(modelVariant: modelVariant, language: language)
+        deleteModel(
+            modelVariant: modelVariant,
+            language: language,
+            cacheRoot: defaultCacheRoot()
+        )
+    }
+
+    @discardableResult
+    nonisolated static func deleteModel(
+        modelVariant: NemotronModelVariant = defaultModelVariant,
+        language: String? = nil,
+        cacheRoot: URL
+    ) -> Bool {
+        let trimmedLanguage = language?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmedLanguage,
+              !trimmedLanguage.isEmpty,
+              trimmedLanguage.lowercased() != "auto" else {
+            return deleteModelCaches(modelVariant: modelVariant, cacheRoot: cacheRoot)
+        }
+        guard let language = SpeechEnginePreference.normalizeNemotronLanguage(trimmedLanguage) else {
+            return false
+        }
+
+        return deleteModelCache(
+            modelVariant: modelVariant,
+            language: language,
+            cacheRoot: cacheRoot
+        )
+    }
+
+    @discardableResult
+    nonisolated static func deleteModelCaches(
+        modelVariant: NemotronModelVariant = defaultModelVariant,
+        cacheRoot: URL = defaultCacheRoot()
+    ) -> Bool {
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: directory.path) else { return false }
+        guard fileManager.fileExists(atPath: cacheRoot.path) else { return false }
+
+        let languageDirectories = (try? fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        var removedAny = false
+        for languageDirectory in languageDirectories {
+            let variantDirectory = languageDirectory
+                .appendingPathComponent("\(modelVariant.chunkMilliseconds)ms", isDirectory: true)
+            guard fileManager.fileExists(atPath: variantDirectory.path) else { continue }
+            do {
+                try fileManager.removeItem(at: variantDirectory)
+                removedAny = true
+            } catch {
+                return false
+            }
+            removeIfEmpty(languageDirectory, fileManager: fileManager)
+        }
+
+        removeIfEmpty(cacheRoot, fileManager: fileManager)
+        return removedAny
+    }
+
+    private nonisolated static func deleteModelCache(
+        modelVariant: NemotronModelVariant,
+        language: String,
+        cacheRoot: URL
+    ) -> Bool {
+        let languageDirectory = StreamingNemotronMultilingualAsrManager.languageDirectory(for: language)
+        let fileManager = FileManager.default
+        let targetDirectory = cacheRoot
+            .appendingPathComponent(languageDirectory, isDirectory: true)
+            .appendingPathComponent("\(modelVariant.chunkMilliseconds)ms", isDirectory: true)
+        guard fileManager.fileExists(atPath: targetDirectory.path) else { return false }
         do {
-            try fileManager.removeItem(at: directory)
+            try fileManager.removeItem(at: targetDirectory)
         } catch {
             return false
         }
-        return !fileManager.fileExists(atPath: directory.path)
+        removeIfEmpty(targetDirectory.deletingLastPathComponent(), fileManager: fileManager)
+        removeIfEmpty(cacheRoot, fileManager: fileManager)
+        return !fileManager.fileExists(atPath: targetDirectory.path)
+    }
+
+    private nonisolated static func removeIfEmpty(_ directory: URL, fileManager: FileManager) {
+        guard let children = try? fileManager.contentsOfDirectory(atPath: directory.path),
+              children.isEmpty else {
+            return
+        }
+        try? fileManager.removeItem(at: directory)
     }
 
     public nonisolated static func downloadModel(

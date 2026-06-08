@@ -71,6 +71,47 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertFalse(STTRuntime.removeNemotronModelFiles(at: missing))
     }
 
+    func testDeleteNemotronModelCachesRemovesEveryLanguageForVariant() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoVariant = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let japaneseVariant = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        let siblingVariant = repoRoot
+            .appendingPathComponent("ja", isDirectory: true)
+            .appendingPathComponent("80ms", isDirectory: true)
+        for dir in [autoVariant, japaneseVariant, siblingVariant] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "weights".write(to: dir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertTrue(NemotronEngine.deleteModelCaches(modelVariant: .multilingual1120, cacheRoot: repoRoot))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: autoVariant.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: japaneseVariant.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: siblingVariant.path))
+    }
+
+    func testDeleteNemotronModelWithInvalidLanguageDoesNotDeleteAllCaches() throws {
+        let repoRoot = tempRoot.appendingPathComponent("NemotronMultilingual", isDirectory: true)
+        let autoVariant = repoRoot
+            .appendingPathComponent("auto", isDirectory: true)
+            .appendingPathComponent("1120ms", isDirectory: true)
+        try FileManager.default.createDirectory(at: autoVariant, withIntermediateDirectories: true)
+        try "weights".write(to: autoVariant.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+
+        XCTAssertFalse(
+            NemotronEngine.deleteModel(
+                modelVariant: .multilingual1120,
+                language: "definitely-not-a-language",
+                cacheRoot: repoRoot
+            )
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: autoVariant.path))
+    }
+
     // MARK: - Whisper variant file removal
 
     func testDeleteWhisperModelRemovesFolderAndClearsOptimizedFlag() throws {

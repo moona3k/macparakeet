@@ -170,6 +170,23 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey))
     }
 
+    func testWriteNemotronLanguageCanonicalizesScriptAndRegion() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "nemotron-language", value: "zh_hant_tw", defaults: defaults),
+            "zh-Hant-TW"
+        )
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey), "zh-Hant-TW")
+    }
+
+    func testWriteNemotronLanguageRejectsInvalidValue() {
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "nemotron-language", value: "definitely-not-a-language", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey))
+    }
+
     func testWriteAcceptsAllBoolSynonyms() throws {
         for (synonym, expectedBool) in [
             ("on", true), ("ON", true), ("true", true), ("yes", true),

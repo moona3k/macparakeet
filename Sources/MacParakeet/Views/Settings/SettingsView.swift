@@ -2464,7 +2464,20 @@ struct SettingsView: View {
     }
 
     private func handleNemotronTileTap() {
-        selectEngine(.nemotron)
+        switch viewModel.nemotronModelStatus {
+        case .ready, .notLoaded:
+            selectEngine(.nemotron)
+        case .notDownloaded:
+            viewModel.speechEngineError = "Download the Nemotron model from Local Models below before switching engines."
+        case .repairing:
+            viewModel.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
+        case .preparing:
+            viewModel.speechEngineError = "Nemotron is preparing for this Mac — switch engines once it finishes."
+        case .failed:
+            viewModel.speechEngineError = "Nemotron model failed to load — retry below."
+        case .checking, .unknown:
+            selectEngine(.nemotron)
+        }
     }
 
     private var parakeetPrimaryAction: ModelRowAction? {

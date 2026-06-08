@@ -46,8 +46,12 @@ Artifacts:
 - Warm summary TSV:
   `output/benchmarks/stt/stt-engine-benchmark-20260608-010344-summary.tsv`
 - First-run setup sample:
-  `output/benchmarks/stt/stt-engine-benchmark-20260608-005353.tsv`
+  `output/benchmarks/stt/logs/20260608-005353-*-english-short-1.stderr.tsv`
 - Corpus: `output/benchmarks/stt/smoke-corpus-20260608/corpus.tsv`
+
+The `output/benchmarks/...` files are local run artifacts, not tracked source
+files. The source rows and log-derived setup values used below are reproduced in
+this report so the PR carries the benchmark evidence.
 
 Machine:
 
@@ -62,7 +66,8 @@ Metrics:
 - `final_wall_s`: `/usr/bin/time -lp` real time for one CLI process
 - `realtime_factor`: `final_wall_s / audio_duration_s`; lower is faster
 - `first_progress_s`: first CLI progress event, not first transcript partial
-- `peak_memory_gb`: `/usr/bin/time -lp` peak memory footprint
+- `max_rss_bytes`: `/usr/bin/time -lp` maximum resident set size, byte-scale on macOS
+- `peak_memory_gb`: `/usr/bin/time -lp` peak memory footprint converted from bytes
 - `wer`: normalized word error rate against synthetic references
 - punctuation and boundary columns are in the raw TSV
 
@@ -111,6 +116,27 @@ Per-sample:
 | nemotron | english-long | 1.65 | 0.0131 | 0.0744 | 0.086 |
 | whisper | english-long | 8.13 | 0.0648 | 0.0565 | 0.205 |
 
+Warm summary source excerpt:
+
+```tsv
+engine_selector	sample_type	phase	n	avg_final_wall_s	avg_realtime_factor	avg_first_progress_s	avg_peak_memory_gb	avg_wer	avg_punctuation_per_100_words
+nemotron	dictation	warm	1	0.7000	0.1140	0.0750	0.0732	0.0455	4.5500
+nemotron	long-file	warm	1	1.6500	0.0131	0.0500	0.0856	0.0744	15.4100
+nemotron	meeting	warm	1	0.5300	0.0537	0.0540	0.0727	0.1852	7.6900
+nemotron	mixed-language	warm	1	0.6000	0.0795	0.0520	0.0741	0.2500	20.0000
+nemotron	quiet	warm	1	0.4300	0.0700	0.0500	0.0732	0.0455	4.5500
+parakeet-v3	dictation	warm	1	0.6800	0.1108	0.3440	0.0418	0.0000	13.6400
+parakeet-v3	long-file	warm	1	0.7300	0.0058	0.0520	0.0704	0.0625	16.0200
+parakeet-v3	meeting	warm	1	0.3200	0.0324	0.0500	0.0411	0.0370	11.1100
+parakeet-v3	mixed-language	warm	1	0.3200	0.0424	0.0510	0.0415	0.1000	15.0000
+parakeet-v3	quiet	warm	1	0.3700	0.0603	0.0750	0.0439	0.0000	13.6400
+whisper	dictation	warm	1	2.5700	0.4186	0.0650	0.1831	0.0000	13.6400
+whisper	long-file	warm	1	8.1300	0.0648	0.0490	0.2047	0.0565	13.6600
+whisper	meeting	warm	1	2.3400	0.2373	0.0500	0.1841	0.1111	11.1100
+whisper	mixed-language	warm	1	2.3300	0.3086	0.0520	0.1842	0.1000	15.0000
+whisper	quiet	warm	1	2.2600	0.3681	0.0500	0.1854	0.0000	13.6400
+```
+
 ## First-Run Setup Sample
 
 First run on `english-short` after release build and model download:
@@ -124,6 +150,25 @@ First run on `english-short` after release build and model download:
 Interpretation: these numbers include CLI process start plus model load and any
 remaining CoreML compile/optimization cost. They are useful as first-use setup
 signals, not steady-state latency.
+
+Source stderr excerpts:
+
+```text
+20260608-005353-parakeet-v3-english-short-1.stderr.tsv:
+real 19.40
+539246592 maximum resident set size
+69534728 peak memory footprint
+
+20260608-005353-nemotron-english-short-1.stderr.tsv:
+real 33.67
+651902976 maximum resident set size
+83313480 peak memory footprint
+
+20260608-005353-whisper-english-short-1.stderr.tsv:
+real 212.70
+784023552 maximum resident set size
+263537696 peak memory footprint
+```
 
 ## Quality Notes
 

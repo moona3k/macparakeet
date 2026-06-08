@@ -161,7 +161,8 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     public func clearModelCache() async {
-        await quiesce(restoreAcceptsNewJobs: true)
+        await quiesce(restoreAcceptsNewJobs: false)
+        defer { acceptsNewJobs = true }
         await observingRuntimeTimeout(reason: "clear_model_cache") {
             await runtime.clearModelCache()
         }

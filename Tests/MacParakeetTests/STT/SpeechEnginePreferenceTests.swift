@@ -203,6 +203,15 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
         XCTAssertEqual(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults), "en-US")
 
+        SpeechEnginePreference.saveNemotronDefaultLanguage("zh_hant_tw", defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults), "zh-Hant-TW")
+
+        SpeechEnginePreference.saveNemotronDefaultLanguage("es_419", defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults), "es-419")
+
+        SpeechEnginePreference.saveNemotronDefaultLanguage("definitely-not-a-language", defaults: defaults)
+        XCTAssertNil(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults))
+
         SpeechEnginePreference.saveNemotronDefaultLanguage("auto", defaults: defaults)
         XCTAssertNil(SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults))
     }

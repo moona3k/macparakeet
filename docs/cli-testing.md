@@ -54,6 +54,7 @@ macparakeet-cli
 │   ├── select <model-id> [--json]       Set shared app/CLI speech default
 │   ├── status [--json]                  Show model status
 │   ├── download <model-id>              Download explicit speech model
+│   ├── delete <model-id> [--force]      Delete one downloaded speech model
 │   ├── warm-up [--attempts]             Warm up speech model
 │   ├── repair [--attempts]              Best-effort model repair
 │   └── clear                            Delete cached models
@@ -247,6 +248,7 @@ swift run macparakeet-cli config list
 swift run macparakeet-cli config set processing-mode raw
 swift run macparakeet-cli config set speech-engine whisper
 swift run macparakeet-cli config set parakeet-model v3
+swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set save-transcription-audio off
@@ -254,7 +256,7 @@ swift run macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
-`parakeet-model`, `whisper-language`, `speaker-detection`,
+`parakeet-model`, `nemotron-language`, `whisper-language`, `speaker-detection`,
 `save-transcription-audio`, `youtube-audio-quality`. Underscore aliases such as
 `youtube_audio_quality` are accepted on input; JSON output uses canonical
 hyphenated keys.

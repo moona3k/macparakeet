@@ -298,14 +298,10 @@ extension ModelsCommand {
                 }
                 print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
             case .nemotron(let variant):
-                let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
-                guard STTClient.isNemotronModelCached(modelVariant: variant, language: language) else {
+                let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: nil)
+                guard removed else {
                     print("\(variant.modelName) is not downloaded — nothing to delete.")
                     return
-                }
-                let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: language)
-                guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete \(variant.modelName). It may be missing or in use by another process.")
                 }
                 print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
             case .whisper(let variant):

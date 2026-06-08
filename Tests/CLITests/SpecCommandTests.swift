@@ -18,6 +18,8 @@ final class SpecCommandTests: XCTestCase {
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
         let paths = commands.compactMap { $0["path"] as? [String] }
         XCTAssertTrue(paths.contains(["meetings", "results", "add"]))
+        XCTAssertTrue(paths.contains(["config", "set"]))
+        XCTAssertTrue(paths.contains(["models", "delete"]))
         XCTAssertTrue(paths.contains(["spec"]))
 
         let writeback = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "results", "add"] })
@@ -38,7 +40,7 @@ final class SpecCommandTests: XCTestCase {
 
         XCTAssertEqual(
             documentedTopLevelCommands,
-            ["spec", "health", "transcribe", "history", "prompts", "meetings"],
+            ["spec", "health", "transcribe", "config", "models", "history", "prompts", "meetings"],
             "The spec catalog is a curated agent-facing surface; update this expectation when that surface changes."
         )
         for path in paths {
@@ -76,6 +78,19 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|app-default")
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
         XCTAssertEqual(language["summary"] as? String, "Language hint for Nemotron or Whisper.")
+    }
+
+    func testSpecDocumentsConfigAndModelsCommands() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+
+        let configSet = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["config", "set"] })
+        XCTAssertEqual(configSet["readOnly"] as? Bool, false)
+
+        let modelsDelete = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["models", "delete"] })
+        XCTAssertEqual(modelsDelete["readOnly"] as? Bool, false)
+        let options = try XCTUnwrap(modelsDelete["options"] as? [[String: Any]])
+        XCTAssertTrue(options.contains { ($0["name"] as? String) == "--force" })
     }
 
     private func specPayload() throws -> [String: Any] {

@@ -1903,13 +1903,12 @@ public final class SettingsViewModel {
         guard nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded else { return }
 
         let variant = SpeechEnginePreference.defaultNemotronModelVariant
-        let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         let deleter = deleteNemotronModelOnDisk
         modelStatusRefreshGeneration += 1
         applyNemotronDownloadedStatus(false)
         Task { @MainActor [weak self] in
             await Task.detached(priority: .userInitiated) {
-                _ = deleter(variant, language)
+                _ = deleter(variant, nil)
             }.value
             guard let self else { return }
             self.refreshModelStatus()
