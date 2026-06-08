@@ -817,7 +817,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 │  ┌─ Distill ───────────────────────────────  ⌥2  [Edit] │
 │  │ Compress to signal and remove noise.                  │
 │  └───────────────────────────────────────────────────────┘
-│  ┌─ Decide ────────────────────────────────  ⌥3  [Edit] │
+│  ┌─ Decide ───────────────────────────────  ⌃⌥3  [Edit] │
 │  │ Turn discussion into a decision-ready note.            │
 │  └───────────────────────────────────────────────────────┘
 │                                                           │
@@ -826,7 +826,7 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 └───────────────────────────────────────────────────────────┘
 ```
 
-- Built-ins are `Polish`, `Distill`, and `Decide` with default `Option-1/2/3` bindings.
+- Built-ins are `Polish`, `Distill`, and `Decide` with default `Option-1`, `Option-2`, and `Control-Option-3` bindings.
 - A Transform is active when it has a shortcut; there is no second user-facing global enable toggle.
 - The editor validates shortcuts against dictation, meeting, duplicate Transform bindings, bare keys, and hostile Option-letter dead-key combos.
 - The floating Transform progress pill owns running/cancel/error state. The target app remains focused; MacParakeet does not show an inline preview before replacement.

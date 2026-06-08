@@ -62,7 +62,7 @@ final class TransformsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.heroShortcutInstruction,
-            "Press a Transform's hotkey (⇧⌘1, ⌥2, ⌥3)."
+            "Press a Transform's hotkey (⇧⌘1, ⌥2, ⌃⌥3)."
         )
     }
 
