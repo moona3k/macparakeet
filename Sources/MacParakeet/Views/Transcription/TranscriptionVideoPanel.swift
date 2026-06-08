@@ -97,7 +97,7 @@ struct TranscriptionVideoPanel: View {
         if elapsed < 3 {
             return "Loading video..."
         } else {
-            return "Fetching stream from YouTube..."
+            return "Fetching video stream..."
         }
     }
 

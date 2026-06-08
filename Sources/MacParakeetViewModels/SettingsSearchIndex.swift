@@ -156,8 +156,8 @@ public enum SettingsSearchIndex {
             id: "transcription",
             tab: .capture,
             title: "Transcription",
-            subtitle: "How file and YouTube transcription behaves.",
-            keywords: ["file", "youtube", "drag drop", "audio file", "video file", "transcribe"],
+            subtitle: "How file and video URL transcription behaves.",
+            keywords: ["file", "youtube", "x", "twitter", "url", "drag drop", "audio file", "video file", "transcribe"],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
@@ -171,17 +171,17 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "transcription.hotkey.youtube",
             tab: .capture,
-            title: "YouTube transcription hotkey",
+            title: "Video URL transcription hotkey",
             subtitle: "in Transcription",
-            keywords: ["hotkey", "shortcut", "youtube", "url", "video"],
+            keywords: ["hotkey", "shortcut", "youtube", "x", "twitter", "url", "video"],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
             id: "transcription.youtube.audio.quality",
             tab: .capture,
-            title: "YouTube audio quality",
+            title: "Video download audio quality",
             subtitle: "in Transcription",
-            keywords: ["youtube", "audio", "quality", "m4a", "best available", "opus", "webm"],
+            keywords: ["youtube", "x", "twitter", "video", "audio", "quality", "m4a", "best available", "opus", "webm"],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(

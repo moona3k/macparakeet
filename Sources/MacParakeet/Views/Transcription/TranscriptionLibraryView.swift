@@ -9,7 +9,7 @@ struct TranscriptionLibraryView: View {
     var primaryActionTitle: String? = nil
     var onPrimaryAction: (() -> Void)? = nil
     var emptyTitle: String = "No transcriptions yet"
-    var emptyMessage: String = "Transcribe a file or YouTube video to get started."
+    var emptyMessage: String = "Transcribe a file or video link to get started."
     var onSelect: (Transcription) -> Void
 
     @State private var pendingDelete: Transcription?
@@ -318,7 +318,7 @@ struct TranscriptionLibraryView: View {
 
 // MARK: - Library filter chip
 
-/// One pill in the Library filter bar (All / YouTube / Local / Meetings /
+/// One pill in the Library filter bar (All / Video / Local / Meetings /
 /// Favorites). Three-tier visual hierarchy keeps "hovered" clearly subordinate
 /// to "selected": idle is plain text, hover adds a faint *neutral* wash and
 /// brightens the label toward primary, and only the selected chip wears the

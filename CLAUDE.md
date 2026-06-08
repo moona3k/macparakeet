@@ -16,7 +16,7 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 
 | Channel | Agent Assumption | Features |
 |---------|------------------|----------|
-| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, optional WhisperKit, exports, vocabulary, AI features |
+| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video URL transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, optional WhisperKit, exports, vocabulary, AI features |
 | `main` | Development | Latest stable release plus untagged in-progress fixes. No feature flag differs from the latest release tag — the `AppFeatures` feature flags carry the same values on `main` and the shipping build |
 
 When editing public-facing docs, keep the channel framing accurate: the Stable
@@ -233,8 +233,8 @@ MacParakeet is a **menu bar app** with these UI surfaces:
 Menu Bar Icon (always visible)
     |
     +-- Main Window (capture hub + library)
-    |   +-- Transcribe tab: YouTube card, file drop card, Meeting Recording tile
-    |   +-- Library tab: file/YouTube/meeting transcript browse
+    |   +-- Transcribe tab: video URL card, file drop card, Meeting Recording tile
+    |   +-- Library tab: file/video URL/meeting transcript browse
     |   +-- Dictations, Vocabulary, Feedback, Settings, Discover
     |   +-- Global transcription progress bar outside Transcribe
     |
@@ -266,7 +266,7 @@ Menu Bar Icon (always visible)
     |   +-- Auto-update preferences
     |
     +-- Transcribe Tab (capture hub for all three modes)
-    |   +-- YouTube card (paste link)
+    |   +-- Video URL card (paste link)
     |   +-- File drop card
     |   +-- Meeting Recording tile (reflects live state)
     |
@@ -277,8 +277,8 @@ Menu Bar Icon (always visible)
     |   +-- Shares state with the Transcribe tile
     |
     +-- Library Panel
-    |   +-- Filter bar: All/YouTube/Local/Meetings/Favorites
-    |   +-- Thumbnail grid for All/YouTube/Local/Favorites
+    |   +-- Filter bar: All/Video/Local/Meetings/Favorites
+    |   +-- Thumbnail grid for All/Video/Local/Favorites
     |   +-- Date-grouped list (Today/Yesterday/...) for Meetings filter
     |   +-- Search and sort
     |
@@ -289,7 +289,7 @@ Menu Bar Icon (always visible)
 ```
 
 View files organized by feature in `Sources/MacParakeet/Views/`:
-- `Transcription/` -- Transcribe tab, drop zone, YouTube card, **Meeting Recording tile**, transcript display, export, library grid + meetings list
+- `Transcription/` -- Transcribe tab, drop zone, video URL card, **Meeting Recording tile**, transcript display, export, library grid + meetings list
 - `Dictation/` -- Overlay, waveform, recording state
 - `MeetingRecording/` -- Floating pill, dual audio levels, live notes/transcript/Ask panel, row card + date headers (consumed by Library Meetings filter)
 - `Meetings/` -- Library Meetings browse list (`MeetingsView`)

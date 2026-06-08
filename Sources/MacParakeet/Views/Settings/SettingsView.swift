@@ -1184,7 +1184,7 @@ struct SettingsView: View {
     private var transcriptionCard: some View {
         settingsCard(
             title: "Transcription",
-            subtitle: "Options for file and YouTube transcription.",
+            subtitle: "Options for file and video URL transcription.",
             icon: "doc.text"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
@@ -1193,14 +1193,14 @@ struct SettingsView: View {
                     detail: "Opens the file picker from anywhere on macOS.",
                     trigger: $viewModel.fileTranscriptionHotkeyTrigger,
                     otherTranscriptionTrigger: viewModel.youtubeTranscriptionHotkeyTrigger,
-                    otherTranscriptionName: "YouTube transcription"
+                    otherTranscriptionName: "video URL transcription"
                 )
 
                 Divider()
 
                 transcriptionHotkeyRow(
-                    title: "YouTube transcription hotkey",
-                    detail: "Opens the YouTube URL panel from anywhere on macOS.",
+                    title: "Video URL transcription hotkey",
+                    detail: "Opens the video URL panel from anywhere on macOS.",
                     trigger: $viewModel.youtubeTranscriptionHotkeyTrigger,
                     otherTranscriptionTrigger: viewModel.fileTranscriptionHotkeyTrigger,
                     otherTranscriptionName: "file transcription"
@@ -1210,11 +1210,11 @@ struct SettingsView: View {
 
                 HStack(alignment: .center) {
                     rowText(
-                        title: "YouTube audio quality",
+                        title: "Video download audio quality",
                         detail: viewModel.youtubeAudioQuality.detail
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
-                    Picker("YouTube audio quality", selection: $viewModel.youtubeAudioQuality) {
+                    Picker("Video download audio quality", selection: $viewModel.youtubeAudioQuality) {
                         ForEach(YouTubeAudioQuality.allCases, id: \.self) { quality in
                             Text(quality.displayTitle).tag(quality)
                         }
@@ -1387,7 +1387,7 @@ struct SettingsView: View {
         }
         if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
@@ -1424,7 +1424,7 @@ struct SettingsView: View {
         }
         if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
@@ -1462,7 +1462,7 @@ struct SettingsView: View {
         }
         if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
@@ -1500,7 +1500,7 @@ struct SettingsView: View {
         }
         if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
@@ -1538,7 +1538,7 @@ struct SettingsView: View {
         }
         if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
@@ -1573,7 +1573,7 @@ struct SettingsView: View {
         }
         if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
             return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "YouTube transcription",
+                conflictingWith: "video URL transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
@@ -1761,7 +1761,7 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Keep downloaded YouTube audio",
+                    title: "Keep downloaded video audio",
                     detail: "Turn off to auto-delete downloaded audio after transcription.",
                     isOn: $viewModel.saveTranscriptionAudio
                 )
@@ -1779,7 +1779,7 @@ struct SettingsView: View {
                     )
 
                     metricTile(
-                        title: "YouTube Downloads",
+                        title: "Video Downloads",
                         value: "\(viewModel.youtubeDownloadCount)",
                         detail: viewModel.formattedYouTubeStorage
                     )
@@ -1844,13 +1844,13 @@ struct SettingsView: View {
                     Divider()
 
                     resetActionRow(
-                        title: "Downloaded YouTube audio",
+                        title: "Downloaded video audio",
                         detail: "Saved audio files only. Transcriptions stay; audio detaches.",
                         action: ResetDestructiveAction(
                             buttonTitle: "Clear…",
-                            accessibilityLabel: "Clear downloaded YouTube audio",
-                            confirmationTitle: "Clear Downloaded YouTube Audio?",
-                            confirmationMessage: "This will delete all downloaded YouTube audio files and detach them from existing transcriptions. This cannot be undone.",
+                            accessibilityLabel: "Clear downloaded video audio",
+                            confirmationTitle: "Clear Downloaded Video Audio?",
+                            confirmationMessage: "This will delete all downloaded video audio files and detach them from existing transcriptions. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearDownloadedYouTubeAudio
                         )

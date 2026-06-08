@@ -3,7 +3,7 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// Manages a lightweight floating panel for YouTube URL input (Spotlight-style).
+/// Manages a lightweight floating panel for video URL input (Spotlight-style).
 /// Unlike DictationOverlayController which uses `.nonactivatingPanel`,
 /// this panel needs keyboard focus for the text field, so it uses
 /// `canBecomeKey = true` with `canBecomeMain = false`.
