@@ -206,6 +206,7 @@ public actor NemotronEngine: STTTranscribing {
         )) ?? []
 
         var removedAny = false
+        var removalFailed = false
         for languageDirectory in languageDirectories {
             let variantDirectory = languageDirectory
                 .appendingPathComponent("\(modelVariant.chunkMilliseconds)ms", isDirectory: true)
@@ -214,13 +215,14 @@ public actor NemotronEngine: STTTranscribing {
                 try fileManager.removeItem(at: variantDirectory)
                 removedAny = true
             } catch {
-                return false
+                removalFailed = true
+                continue
             }
             removeIfEmpty(languageDirectory, fileManager: fileManager)
         }
 
         removeIfEmpty(cacheRoot, fileManager: fileManager)
-        return removedAny
+        return removedAny && !removalFailed
     }
 
     private nonisolated static func deleteModelCache(

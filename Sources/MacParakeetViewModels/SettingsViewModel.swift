@@ -1394,7 +1394,11 @@ public final class SettingsViewModel {
 
         Task {
             do {
-                try await STTRuntime.downloadNemotronModel(modelVariant: modelVariant, language: language) { message in
+                try await STTRuntime.downloadNemotronModel(
+                    modelVariant: modelVariant,
+                    language: language,
+                    emitTelemetry: false
+                ) { message in
                     Task { @MainActor [weak self] in
                         self?.nemotronModelStatusDetail = message
                     }

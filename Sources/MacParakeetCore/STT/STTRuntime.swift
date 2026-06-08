@@ -727,13 +727,107 @@ public actor STTRuntime: STTRuntimeProtocol {
     public nonisolated static func downloadNemotronModel(
         modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         language: String? = nil,
+        emitTelemetry: Bool = true,
         onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws {
-        _ = try await NemotronEngine.downloadModel(
+        try await downloadNemotronModel(
             modelVariant: modelVariant,
             language: language,
-            onProgress: onProgress
+            emitTelemetry: emitTelemetry,
+            onProgress: onProgress,
+            downloader: { modelVariant, language, onProgress in
+                try await NemotronEngine.downloadModel(
+                    modelVariant: modelVariant,
+                    language: language,
+                    onProgress: onProgress
+                )
+            }
         )
+    }
+
+    nonisolated static func downloadNemotronModel(
+        modelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        language: String? = nil,
+        emitTelemetry: Bool,
+        onProgress: (@Sendable (String) -> Void)? = nil,
+        downloader: @escaping @Sendable (
+            NemotronModelVariant,
+            String?,
+            (@Sendable (String) -> Void)?
+        ) async throws -> URL
+    ) async throws {
+        let operationContext = Observability.childOperationContext()
+        if emitTelemetry {
+            Telemetry.send(.modelDownloadStarted(
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue
+            ))
+        }
+
+        do {
+            _ = try await downloader(modelVariant, language, onProgress)
+            guard emitTelemetry else { return }
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            Telemetry.send(.modelDownloadCompleted(
+                durationSeconds: durationSeconds,
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue
+            ))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .download,
+                outcome: .success,
+                stage: .download,
+                modelKind: .nemotronSTT,
+                speechEngine: .nemotron,
+                engineVariant: modelVariant.rawValue,
+                durationSeconds: durationSeconds,
+                errorType: nil
+            ))
+        } catch is CancellationError {
+            if emitTelemetry {
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .cancelled,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    errorType: "CancellationError"
+                ))
+            }
+            throw CancellationError()
+        } catch {
+            let errorType = TelemetryErrorClassifier.classify(error)
+            if emitTelemetry {
+                Telemetry.send(.modelDownloadFailed(
+                    errorType: errorType,
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .failure,
+                    stage: .download,
+                    modelKind: .nemotronSTT,
+                    speechEngine: .nemotron,
+                    engineVariant: modelVariant.rawValue,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    errorType: errorType
+                ))
+            }
+            throw error
+        }
     }
 
     @discardableResult
