@@ -1595,7 +1595,7 @@ public final class SettingsViewModel {
                 wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true
-            speechEnginePreference = .parakeet
+            speechEnginePreference = previousPreference
             isApplyingSpeechEngineState = false
             return
         }
@@ -1614,7 +1614,7 @@ public final class SettingsViewModel {
                 wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true
-            speechEnginePreference = .parakeet
+            speechEnginePreference = previousPreference
             isApplyingSpeechEngineState = false
             return
         }

@@ -1368,6 +1368,56 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(event.wasCold, false)
     }
 
+    func testSpeechEngineChangeBlocksMissingNemotronModelAndRestoresPreviousEngine() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        SpeechEnginePreference.whisper.save(to: testDefaults)
+        let vm = SettingsViewModel(defaults: testDefaults)
+        vm.whisperModelStatus = .notLoaded
+        vm.nemotronModelStatus = .notDownloaded
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+
+        vm.speechEnginePreference = .nemotron
+
+        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
+        XCTAssertEqual(vm.speechEngineError, "Download the Nemotron model before switching engines.")
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+    }
+
+    func testSpeechEngineChangeBlocksMissingWhisperModelAndRestoresPreviousEngine() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        SpeechEnginePreference.nemotron.save(to: testDefaults)
+        let vm = SettingsViewModel(defaults: testDefaults)
+        vm.nemotronModelStatus = .notLoaded
+        vm.whisperModelStatus = .notDownloaded
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        XCTAssertEqual(vm.speechEnginePreference, .nemotron)
+
+        vm.speechEnginePreference = .whisper
+
+        XCTAssertEqual(vm.speechEnginePreference, .nemotron)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .nemotron)
+        XCTAssertEqual(vm.speechEngineError, "Download the Whisper model before switching engines.")
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+    }
+
     func testParakeetModelVariantChangeCallsSwitcherAndPersistsOnSuccess() async throws {
         let switcher = MockSpeechEngineSwitcher()
         viewModel.configure(
