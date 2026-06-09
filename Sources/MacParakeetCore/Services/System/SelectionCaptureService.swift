@@ -36,6 +36,14 @@ public enum SelectionCaptureResult: @unchecked Sendable {
         }
     }
 
+    /// True when this result came from the pre-existing clipboard fallback
+    /// (Cmd+C produced no new selection, but there was already text on the
+    /// clipboard). Used in logging / diagnostics.
+    public var isPreExistingClipboardFallback: Bool {
+        guard case .clipboard(_, let snapshot, _) = self else { return false }
+        return snapshot.temporaryChangeCount == snapshot.originalChangeCount
+    }
+
     public var target: SelectionCaptureTarget? {
         switch self {
         case .ax(_, _, let target), .clipboard(_, _, let target):
@@ -287,8 +295,33 @@ public actor SelectionCaptureService {
             try? await Task.sleep(nanoseconds: pollIntervalNanos)
         }
 
-        // No change count delta — selection was empty. Pasteboard wasn't
-        // touched (Cmd+C with no selection is a no-op) so nothing to restore.
+        // No change count delta — Cmd+C with no selection is a no-op in the
+        // target app. Common in terminals running interactive TUI apps (e.g.
+        // Claude Code) where the application intercepts mouse events, leaving
+        // the terminal with no text selection even after a click-drag.
+        //
+        // Fall back to whatever text is already on the clipboard: the user may
+        // have manually Cmd+C'd from a read-only surface (terminal scrollback,
+        // PDF, browser) before pressing the transform hotkey. Use the snapshot's
+        // own originalChangeCount as the temporaryChangeCount so that
+        // `restoreClipboardCaptureIfCurrent` correctly skips restoration if the
+        // user copies something new during the LLM phase.
+        if let preExistingText = snapshot.items?
+            .compactMap({ $0.string(forType: .string) })
+            .first(where: { !$0.isEmpty }) {
+            logger.notice(
+                "transforms: clipboard-hijack timed out; using pre-existing clipboard text len=\(preExistingText.count, privacy: .public) target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
+            )
+            return .clipboard(
+                text: preExistingText,
+                savedClipboard: snapshot.withTemporaryChangeCount(snapshot.originalChangeCount),
+                target: target
+            )
+        }
+
+        logger.notice(
+            "transforms: clipboard-hijack timed out with no selection and empty clipboard target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
+        )
         return .empty
     }
 

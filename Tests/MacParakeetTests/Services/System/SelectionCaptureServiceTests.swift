@@ -69,14 +69,16 @@ final class SelectionCaptureServiceTests: XCTestCase {
         }
     }
 
-    func testCaptureReturnsEmptyWhenClipboardDidNotChange() async {
+    func testCaptureReturnsEmptyWhenClipboardDidNotChangeAndNoPriorContent() async {
+        // No change count AND no pre-existing clipboard text → still .empty.
         let backend = FakeSelectionCaptureBackend(
             isTrusted: true,
             focusedElement: AXUIElementCreateSystemWide(),
             selectedText: nil,
             initialChangeCount: 5,
+            snapshotItems: nil,         // nothing on clipboard
             pasteboardAfterCmdC: "ignored",
-            changeCountAfterCmdC: 5  // No change
+            changeCountAfterCmdC: 5     // No change
         )
         let service = SelectionCaptureService(
             backend: backend,
@@ -92,6 +94,71 @@ final class SelectionCaptureServiceTests: XCTestCase {
         default:
             XCTFail("Expected .empty, got \(result.pathTag)")
         }
+    }
+
+    /// Terminal / read-only surface workflow: the user manually Cmd+C'd text
+    /// before triggering the transform. The synthesized Cmd+C produces no new
+    /// clipboard write (nothing selected in the terminal), so the hijack times
+    /// out — but pre-existing clipboard text should be used as a fallback.
+    func testCaptureFallsBackToPreExistingClipboardWhenHijackTimesOut() async {
+        let existingItem = NSPasteboardItem()
+        existingItem.setString("pre-existing clipboard text", forType: .string)
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            initialChangeCount: 7,
+            snapshotItems: [existingItem],
+            pasteboardAfterCmdC: nil,
+            changeCountAfterCmdC: 7     // No change — nothing was selected
+        )
+        let service = SelectionCaptureService(
+            backend: backend,
+            clipboardPollTimeout: .milliseconds(60),
+            pollIntervalNanos: 1_000_000
+        )
+
+        let result = await service.captureSelection()
+
+        switch result {
+        case .clipboard(let text, let snapshot, _):
+            XCTAssertEqual(text, "pre-existing clipboard text")
+            XCTAssertEqual(snapshot.originalChangeCount, 7)
+            // temporaryChangeCount equals originalChangeCount for the pre-existing
+            // fallback — this tells restoreClipboardCaptureIfCurrent to skip
+            // restoration if the user copied something new during the LLM phase.
+            XCTAssertEqual(snapshot.temporaryChangeCount, 7)
+        default:
+            XCTFail("Expected .clipboard with pre-existing text, got \(result.pathTag)")
+        }
+    }
+
+    /// Abandoning a pre-existing clipboard capture should not clobber a
+    /// subsequent user copy (changeCount moved while LLM was running).
+    func testAbandonedPreExistingCapturePreservesSubsequentUserCopy() async {
+        let existingItem = NSPasteboardItem()
+        existingItem.setString("old clipboard text", forType: .string)
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            initialChangeCount: 3,
+            snapshotItems: [existingItem],
+            pasteboardAfterCmdC: nil,
+            changeCountAfterCmdC: 3
+        )
+        let service = SelectionCaptureService(
+            backend: backend,
+            clipboardPollTimeout: .milliseconds(60),
+            pollIntervalNanos: 1_000_000
+        )
+
+        let result = await service.captureSelection()
+        // Simulate the user copying something new during the LLM phase.
+        backend.setChangeCountForTesting(4)
+        await service.restoreClipboardCaptureIfCurrent(result)
+
+        XCTAssertEqual(backend.restoreCount(), 0, "User clipboard write after capture must not be clobbered")
     }
 
     func testCaptureSnapshotIsCarriedForRestore() async {
