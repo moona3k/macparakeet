@@ -92,7 +92,7 @@ REQ-PIPE-002:
 # --- v0.3 YouTube & Export ---
 
 REQ-YT-001:
-  description: YouTube URL transcription via yt-dlp
+  description: Video/podcast URL transcription via yt-dlp (any media URL — YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and other yt-dlp sites; no platform allowlist; host recognition drives the platform glyph/label only)
   version: v0.3
   status: implemented
 

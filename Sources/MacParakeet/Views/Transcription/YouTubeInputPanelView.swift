@@ -25,42 +25,51 @@ struct YouTubeInputPanelView: View {
     }
 
     private var isValidDraft: Bool {
-        YouTubeURLValidator.isYouTubeURL(draft)
-            || PodcastURLValidator.isApplePodcastsURL(draft)
-            || XURLValidator.isXURL(draft)
+        MediaPlatform.isTranscribable(draft)
+    }
+
+    /// The platform recognized from the current draft, if any — drives the
+    /// live matched-glyph reaction in the header.
+    private var draftPlatform: MediaPlatform? {
+        MediaPlatform.recognize(draft)
+    }
+
+    /// Reactive footer copy: confirms a recognized link, acknowledges any other
+    /// link, or invites a paste while idle.
+    private var footerCaption: String {
+        if let platform = draftPlatform {
+            let kind = platform.isAudioFirst ? "audio" : "video"
+            return "Ready to transcribe this \(platform.displayName) \(kind), on your Mac."
+        }
+        if isValidDraft {
+            return "Ready to transcribe this link, entirely on your Mac."
+        }
+        return "Works with YouTube, X, Vimeo, TikTok, Instagram, podcasts, and more — on your Mac."
     }
 
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            // Header
+            // Header — a single badge that morphs from a neutral globe to the
+            // matched platform's brand glyph as a link is recognized.
             HStack(spacing: DesignSystem.Spacing.sm) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(DesignSystem.Colors.accent.opacity(0.1))
-                        .frame(width: 36, height: 36)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill((draftPlatform?.brandTint ?? DesignSystem.Colors.accent).opacity(0.12))
+                        .frame(width: 38, height: 38)
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.rectangle.fill")
-                            .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
-                        Image(systemName: "mic.fill")
-                            .foregroundStyle(DesignSystem.Colors.podcastPurple.opacity(0.85))
-                    }
-                    .font(.system(size: 13, weight: .medium))
+                    // No `.id` here: PlatformGlyph re-renders its Canvas when the
+                    // platform changes, so the mark updates in place (the tint
+                    // springs via the ZStack animation) instead of hard-cutting.
+                    PlatformGlyph(
+                        platform: draftPlatform,
+                        color: draftPlatform?.brandTint ?? DesignSystem.Colors.textSecondary
+                    )
+                    .frame(width: 21, height: 21)
                 }
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: draftPlatform)
                 .accessibilityHidden(true)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(DesignSystem.Colors.xMark.opacity(0.1))
-                        .frame(width: 36, height: 36)
-
-                    Text("𝕏")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(DesignSystem.Colors.xMark.opacity(0.85))
-                }
-                .accessibilityHidden(true)
-
-                Text("Transcribe a video or podcast")
+                Text("Transcribe YouTube & more")
                     .font(DesignSystem.Typography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
 
@@ -75,7 +84,7 @@ struct YouTubeInputPanelView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
 
-                TextField("Paste a YouTube, X, or Apple Podcasts link", text: $draft)
+                TextField("Paste any video or podcast link", text: $draft)
                     .textFieldStyle(.plain)
                     .font(DesignSystem.Typography.body)
                     .focused($isTextFieldFocused)
@@ -159,9 +168,10 @@ struct YouTubeInputPanelView: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
             } else {
-                Text("Downloads from YouTube, X, or Apple Podcasts, then transcribes entirely on your Mac.")
+                Text(footerCaption)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
+                    .animation(.easeInOut(duration: 0.2), value: footerCaption)
             }
         }
         .padding(DesignSystem.Spacing.lg)

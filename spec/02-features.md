@@ -1161,14 +1161,20 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 
 ---
 
-### F11: YouTube & X URL Transcription
+### F11: Video & Podcast URL Transcription
 
-**What:** Paste a YouTube or X (Twitter) URL to download and transcribe the video's audio locally.
+**What:** Paste any video or podcast URL — YouTube, X (Twitter), Vimeo, TikTok,
+Instagram, Facebook, Apple Podcasts, and any other site `yt-dlp` supports — to
+download and transcribe its audio locally. There is no platform allowlist: the
+button lights up for any plausible media URL and `yt-dlp` decides what actually
+downloads (failures surface in the error banner). The UI *recognizes* the platform
+from the URL host purely for display — the right brand glyph blooms to focus in the
+orbiting platform hero and the helper copy names the source.
 
 **Flow:**
 
 ```
-User pastes YouTube or X URL
+User pastes any media URL
        │
        ▼
 ┌──────────────────────┐
@@ -1216,8 +1222,8 @@ Display result (same view as file transcription)
 **Technical requirements:**
 - yt-dlp standalone managed binary for video audio download (weekly non-blocking `--update`)
 - Bundled FFmpeg binary for media demux/conversion (no system dependency)
-- Supports standard YouTube URL forms (`youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/embed`, `youtube.com/v`) and X/Twitter status URLs (`x.com/<user>/status/<id>`, `twitter.com/...`, incl. `www`/`mobile` hosts)
-- Front-end validation gates the button to YouTube + X (`YouTubeURLValidator` / `XURLValidator`); the downloader itself accepts any `yt-dlp`-supported media URL
+- Accepts any plausible media URL — the front-end gate (`MediaPlatform.isTranscribable`) requires only an `http(s)` URL with a host (or a scheme-less recognized host); the downloader hands it to `yt-dlp`, which supports YouTube, X, Vimeo, TikTok, Instagram, Facebook, and hundreds of other sites
+- Host-based **recognition** (`MediaPlatform.recognize`) labels the source and selects the brand glyph for display only; it is not an allowlist and unrecognized URLs still transcribe (shown with a generic globe). YouTube keeps client-side videoID dedup (`YouTubeURLValidator`) and Apple Podcasts routes through the iTunes resolver (`PodcastURLValidator`)
 - Playlist pages are processed in single-video mode (`--no-playlist`); full playlist batch transcription is deferred
 - Audio-only download (no video, saves bandwidth and time)
 - Downloaded video audio is retained by default and can be auto-deleted via Settings > Storage
@@ -1229,7 +1235,8 @@ Display result (same view as file transcription)
 - Download for personal use only (noted in UI)
 
 **Acceptance criteria:**
-- [x] Paste a YouTube or X URL into text field and click "Transcribe" to start
+- [x] Paste any media URL (YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, or other yt-dlp site) and click "Transcribe" to start
+- [x] The recognized platform's glyph blooms to focus in the orbit hero and the helper copy names the source ("Ready to transcribe this Vimeo video")
 - [x] Download phase emits determinate percent progress (`Downloading audio... X%`)
 - [x] Transcription phase emits chunk progress updates (`Transcribing... X%`)
 - [x] Result displayed same as file transcription

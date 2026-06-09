@@ -92,6 +92,20 @@ enum DesignSystem {
         static let xMark = Color(light: .init(red: 0.09, green: 0.09, blue: 0.11),
                                  dark: .init(red: 0.93, green: 0.93, blue: 0.95))
 
+        // Vimeo badge — "Vimeo Blue" #1AB7EA
+        static let vimeoBlue = Color(red: 0.102, green: 0.718, blue: 0.918)
+
+        // Facebook badge — current Facebook Blue #1877F2
+        static let facebookBlue = Color(red: 0.094, green: 0.467, blue: 0.949)
+
+        // TikTok badge — the cyan accent reads most "TikTok"; deepened on light
+        // backgrounds for contrast, full #25F4EE on dark.
+        static let tiktokTeal = Color(light: .init(red: 0.0, green: 0.70, blue: 0.73),
+                                      dark: .init(red: 0.145, green: 0.957, blue: 0.933))
+
+        // Instagram badge — representative magenta from the brand gradient #E1306C
+        static let instagramPink = Color(red: 0.882, green: 0.188, blue: 0.424)
+
         // Pill / overlay
         static let pillBackground = Color.black.opacity(0.7)
         static let pillBorder = Color.white.opacity(0.15)

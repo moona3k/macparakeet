@@ -248,13 +248,79 @@ final class TranscriptionViewModelTests: XCTestCase {
 
     func testTranscribeURLInvalidInputNoOp() async {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
-        viewModel.urlInput = "https://notyoutube.com/watch?v=dQw4w9WgXcQ"
+        // Plain text (not a URL) must be a no-op. Any real http(s) URL is now
+        // accepted and handed to yt-dlp — there is no platform allowlist — so the
+        // no-op path only triggers on genuinely non-URL input.
+        viewModel.urlInput = "just some notes, not a link"
 
         viewModel.transcribeURL()
 
         XCTAssertFalse(viewModel.isTranscribing)
         let callCount = await mockService.transcribeURLCallCount
         XCTAssertEqual(callCount, 0)
+    }
+
+    func testTranscribeGenericMediaURLStartsTranscription() async throws {
+        // A non-YouTube/X/Podcast URL (e.g. Vimeo) is accepted and flows through
+        // the generic yt-dlp download lane — there is no platform allowlist.
+        let expectedResult = Transcription(
+            fileName: "Vimeo video",
+            rawTranscript: "Vimeo transcript",
+            status: .completed,
+            sourceURL: "https://vimeo.com/76979871"
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://vimeo.com/76979871"
+        XCTAssertTrue(viewModel.isValidURL)
+
+        viewModel.transcribeURL()
+
+        XCTAssertTrue(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.urlInput, "")
+        XCTAssertEqual(viewModel.sourceKind, .youtubeURL)
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Vimeo transcript")
+        let callCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testTranscribeSchemelessRecognizedURLReachesServiceWithScheme() async throws {
+        // Regression: a scheme-less recognized host (typed `vimeo.com/...`) passes
+        // the GUI gate; it must reach the download layer normalized to https://,
+        // otherwise the downloader's scheme-requiring guard rejects it mid-run.
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "vimeo.com/76979871"
+        XCTAssertTrue(viewModel.isValidURL)
+
+        viewModel.transcribeURL()
+        // Placeholder is labelled from the recognized platform.
+        XCTAssertEqual(viewModel.transcribingFileName, "Vimeo video")
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        let lastURL = await mockService.lastURLString
+        XCTAssertEqual(lastURL, "https://vimeo.com/76979871")
+    }
+
+    func testTranscribeAudioFirstAndUnknownPlaceholders() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        // Audio-first recognized host → "<Platform> audio".
+        viewModel.urlInput = "https://soundcloud.com/artist/track"
+        viewModel.transcribeURL()
+        XCTAssertEqual(viewModel.transcribingFileName, "SoundCloud audio")
+        viewModel.cancelTranscription()
+
+        // Unrecognized but downloadable URL → generic "Video".
+        viewModel.urlInput = "https://example.com/talk.mp4"
+        viewModel.transcribeURL()
+        XCTAssertEqual(viewModel.transcribingFileName, "Video")
+        viewModel.cancelTranscription()
     }
 
     func testTranscribeURLProgressParsesDownloadPercent() async throws {

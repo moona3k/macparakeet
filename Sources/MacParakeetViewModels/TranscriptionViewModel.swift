@@ -110,9 +110,7 @@ public final class TranscriptionViewModel {
     }
 
     public var isValidURL: Bool {
-        YouTubeURLValidator.isYouTubeURL(urlInput)
-            || PodcastURLValidator.isApplePodcastsURL(urlInput)
-            || XURLValidator.isXURL(urlInput)
+        MediaPlatform.isTranscribable(urlInput)
     }
 
     public var hasConversations: Bool = false
@@ -289,7 +287,10 @@ public final class TranscriptionViewModel {
             reportMissingConfiguration("transcriptionService", action: "transcribeURL")
             return
         }
-        let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Normalize so a scheme-less but recognized host (e.g. typed
+        // `vimeo.com/123`) reaches the download layer with an explicit scheme,
+        // which it requires — otherwise the button would light up and then fail.
+        let url = MediaPlatform.normalizedURLString(urlInput)
 
         let source: SourceKind
         let placeholderName: String
@@ -308,11 +309,17 @@ public final class TranscriptionViewModel {
             }
             source = .youtubeURL
             placeholderName = "YouTube video"
-        } else if XURLValidator.isXURL(url) {
-            source = .youtubeURL
-            placeholderName = "Video"
         } else {
-            return
+            // Any other media URL flows through the generic yt-dlp download lane
+            // (`.youtubeURL` is the shared "download a URL" path, not YouTube-only).
+            // Label it with the recognized platform when we know it.
+            guard MediaPlatform.isTranscribable(url) else { return }
+            source = .youtubeURL
+            if let platform = MediaPlatform.recognize(url) {
+                placeholderName = platform.isAudioFirst ? "\(platform.displayName) audio" : "\(platform.displayName) video"
+            } else {
+                placeholderName = "Video"
+            }
         }
 
         let taskID = beginNewTranscription(source: source, fileName: placeholderName)

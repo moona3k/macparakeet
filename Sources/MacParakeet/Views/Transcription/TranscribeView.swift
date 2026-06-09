@@ -170,41 +170,13 @@ struct TranscribeView: View {
                 .cardShadow(DesignSystem.Shadows.cardRest)
 
             VStack(spacing: DesignSystem.Spacing.md) {
-                // Source icons: YouTube + X + Apple Podcasts
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(DesignSystem.Colors.youtubeRed.opacity(0.1))
-                            .frame(width: 56, height: 56)
+                // Platform orbit hero — slowly rotating constellation that blooms
+                // the matched platform to focus as a link is pasted.
+                MediaPlatformOrbitView(matched: recognizedURLPlatform)
+                    .frame(width: 118, height: 118)
+                    .accessibilityHidden(true)
 
-                        Image(systemName: "play.rectangle.fill")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
-                    }
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(DesignSystem.Colors.xMark.opacity(0.1))
-                            .frame(width: 56, height: 56)
-
-                        Text("𝕏")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundStyle(DesignSystem.Colors.xMark.opacity(0.85))
-                    }
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(DesignSystem.Colors.podcastPurple.opacity(0.1))
-                            .frame(width: 56, height: 56)
-
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 23, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.podcastPurple.opacity(0.85))
-                    }
-                }
-                .accessibilityHidden(true)
-
-                Text("Transcribe a video or podcast")
+                Text("Transcribe YouTube & more")
                     .font(DesignSystem.Typography.pageTitle)
 
                 // URL input row
@@ -215,7 +187,7 @@ struct TranscribeView: View {
                             .foregroundStyle(viewModel.isValidURL ? DesignSystem.Colors.successGreen : .secondary)
                             .contentTransition(.symbolEffect(.replace))
 
-                        TextField("Paste a YouTube, X, or Apple Podcasts link", text: $viewModel.urlInput)
+                        TextField("Paste any video or podcast link", text: $viewModel.urlInput)
                             .textFieldStyle(.plain)
                             .font(DesignSystem.Typography.body)
                             .onSubmit {
@@ -282,13 +254,34 @@ struct TranscribeView: View {
                 }
                 .padding(.horizontal, DesignSystem.Spacing.md)
 
-                Text("Downloads from YouTube, X, or Apple Podcasts, then transcribes entirely on your Mac.")
+                Text(urlCardCaption)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    .animation(.easeInOut(duration: 0.2), value: urlCardCaption)
             }
             .padding(.vertical, DesignSystem.Spacing.xl)
         }
         .frame(minHeight: 220)
+    }
+
+    /// The platform recognized from the current URL draft (drives the orbit hero).
+    private var recognizedURLPlatform: MediaPlatform? {
+        MediaPlatform.recognize(viewModel.urlInput)
+    }
+
+    /// Reactive helper copy beneath the link field: confirms a recognized link,
+    /// acknowledges any other link, or lists what's supported while idle.
+    private var urlCardCaption: String {
+        if let platform = recognizedURLPlatform {
+            let kind = platform.isAudioFirst ? "audio" : "video"
+            return "Ready to transcribe this \(platform.displayName) \(kind), on your Mac."
+        }
+        if viewModel.isValidURL {
+            return "Ready to transcribe this link, entirely on your Mac."
+        }
+        return "YouTube, X, Vimeo, TikTok, Instagram, Facebook, podcasts, and more — transcribed on your Mac."
     }
 
     // MARK: - Error Banner

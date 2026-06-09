@@ -30,9 +30,7 @@ final class YouTubeInputPanelController {
         var initialURL = ""
         if let clip = NSPasteboard.general.string(forType: .string)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
-           YouTubeURLValidator.isYouTubeURL(clip)
-            || XURLValidator.isXURL(clip)
-            || PodcastURLValidator.isApplePodcastsURL(clip) {
+           MediaPlatform.isTranscribable(clip) {
             initialURL = clip
         }
 

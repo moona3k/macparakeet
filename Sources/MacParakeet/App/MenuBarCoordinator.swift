@@ -198,7 +198,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         transcribeFileMenuItems.append(fileTranscriptionItem)
         captureMenu.addItem(fileTranscriptionItem)
         let youtubeItem = makeMenuItem(
-            title: "Transcribe Video...",
+            title: "Transcribe YouTube & More...",
             action: #selector(transcribeFromYouTubeMenu),
             key: ""
         )
@@ -380,7 +380,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         transcribeFileMenuItems.append(transcribeFileItem)
 
         let transcribeYouTubeItem = NSMenuItem(
-            title: "Transcribe Video...",
+            title: "Transcribe YouTube & More...",
             action: #selector(transcribeFromYouTubeMenu),
             keyEquivalent: ""
         )
