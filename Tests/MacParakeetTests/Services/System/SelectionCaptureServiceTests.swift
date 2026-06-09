@@ -133,6 +133,37 @@ final class SelectionCaptureServiceTests: XCTestCase {
         }
     }
 
+    /// Regression: abandoning a pre-existing clipboard fallback when the user
+    /// has NOT copied anything new must not touch the pasteboard. The capture
+    /// never hijacked the clipboard (it read text the user already had), so a
+    /// restore would be a spurious `clearContents()` + `writeObjects()` that
+    /// bumps the change count and fires clipboard-manager "new item" events for
+    /// a duplicate of the user's own text.
+    func testAbandonedPreExistingCaptureSkipsRestoreWhenClipboardUnchanged() async {
+        let existingItem = NSPasteboardItem()
+        existingItem.setString("pre-existing text", forType: .string)
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            initialChangeCount: 9,
+            snapshotItems: [existingItem],
+            pasteboardAfterCmdC: nil,
+            changeCountAfterCmdC: 9     // No change — pre-existing fallback
+        )
+        let service = SelectionCaptureService(
+            backend: backend,
+            clipboardPollTimeout: .milliseconds(60),
+            pollIntervalNanos: 1_000_000
+        )
+
+        let result = await service.captureSelection()
+        // Abandon with NO subsequent user copy (change count still 9).
+        await service.restoreClipboardCaptureIfCurrent(result)
+
+        XCTAssertEqual(backend.restoreCount(), 0, "Pre-existing fallback never hijacked the clipboard — restoring would spuriously bump the change count")
+    }
+
     /// Abandoning a pre-existing clipboard capture should not clobber a
     /// subsequent user copy (changeCount moved while LLM was running).
     func testAbandonedPreExistingCapturePreservesSubsequentUserCopy() async {

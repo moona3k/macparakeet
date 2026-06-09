@@ -38,7 +38,9 @@ public enum SelectionCaptureResult: @unchecked Sendable {
 
     /// True when this result came from the pre-existing clipboard fallback
     /// (Cmd+C produced no new selection, but there was already text on the
-    /// clipboard). Used in logging / diagnostics.
+    /// clipboard). The capture never wrote to the pasteboard in this case, so
+    /// the abandoned-restore path uses this to skip an otherwise-spurious
+    /// clipboard write. Also surfaced in logging / diagnostics.
     public var isPreExistingClipboardFallback: Bool {
         guard case .clipboard(_, let snapshot, _) = self else { return false }
         return snapshot.temporaryChangeCount == snapshot.originalChangeCount
@@ -243,6 +245,13 @@ public actor SelectionCaptureService {
     func restoreClipboardCaptureIfCurrent(_ result: SelectionCaptureResult) async {
         guard case .clipboard(_, let snapshot, _) = result else { return }
 
+        // A pre-existing clipboard fallback never hijacked the pasteboard — it
+        // read text the user had already copied. There is nothing to restore,
+        // and writing the same content back would bump the change count and
+        // fire spurious clipboard-manager "new item" events for a duplicate of
+        // the user's own text. Skip it entirely.
+        if result.isPreExistingClipboardFallback { return }
+
         guard let temporaryChangeCount = snapshot.temporaryChangeCount else {
             await restoreSnapshotOnMain(snapshot)
             return
@@ -302,15 +311,15 @@ public actor SelectionCaptureService {
         //
         // Fall back to whatever text is already on the clipboard: the user may
         // have manually Cmd+C'd from a read-only surface (terminal scrollback,
-        // PDF, browser) before pressing the transform hotkey. Use the snapshot's
-        // own originalChangeCount as the temporaryChangeCount so that
-        // `restoreClipboardCaptureIfCurrent` correctly skips restoration if the
-        // user copies something new during the LLM phase.
-        if let preExistingText = snapshot.items?
-            .compactMap({ $0.string(forType: .string) })
-            .first(where: { !$0.isEmpty }) {
+        // PDF, browser) before pressing the transform hotkey. Tag the snapshot
+        // with `temporaryChangeCount == originalChangeCount` so downstream code
+        // knows this capture never hijacked the clipboard: the abandoned-restore
+        // path skips it (`isPreExistingClipboardFallback`), and the success-path
+        // restore treats the saved snapshot as the user's own pre-existing
+        // content to put back after the paste.
+        if let preExistingText = await preExistingClipboardTextOnMain(snapshot) {
             logger.notice(
-                "transforms: clipboard-hijack timed out; using pre-existing clipboard text len=\(preExistingText.count, privacy: .public) target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
+                "transforms-spike: clipboard-hijack timed out; using pre-existing clipboard text len=\(preExistingText.count, privacy: .public) target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
             )
             return .clipboard(
                 text: preExistingText,
@@ -320,7 +329,7 @@ public actor SelectionCaptureService {
         }
 
         logger.notice(
-            "transforms: clipboard-hijack timed out with no selection and empty clipboard target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
+            "transforms-spike: clipboard-hijack timed out with no selection and empty clipboard target=\(target?.bundleIdentifier ?? "none", privacy: .public)"
         )
         return .empty
     }
@@ -343,6 +352,17 @@ public actor SelectionCaptureService {
     @MainActor
     private func currentStringOnMain() -> String? {
         backend.currentPasteboardString()
+    }
+
+    /// Read the first non-empty string from a captured snapshot's items.
+    /// `NSPasteboardItem` is an AppKit type and is not thread-safe, so this
+    /// access must happen on the main actor — never from the service's own
+    /// cooperative executor.
+    @MainActor
+    private func preExistingClipboardTextOnMain(_ snapshot: PasteboardSnapshot) -> String? {
+        snapshot.items?
+            .compactMap { $0.string(forType: .string) }
+            .first { !$0.isEmpty }
     }
 
     @MainActor
