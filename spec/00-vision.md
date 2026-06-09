@@ -216,7 +216,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 |  Rewrite selected text anywhere without leaving the current app.       |
 |                                                                       |
 |  1. Select text in Slack, Mail, Linear, a browser, or an editor         |
-|  2. Press a bound Transform hotkey (Option-1/2 or Control-Option-3)    |
+|  2. Press a bound Transform hotkey (Control-Option-1/2/3)              |
 |  3. MacParakeet captures the selection and runs the saved prompt        |
 |  4. The result replaces the selection in place                         |
 |                                                                       |

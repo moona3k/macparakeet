@@ -1739,7 +1739,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 > Status: **IMPLEMENTED ON MAIN** — Productized ADR-022 surface enabled by `AppFeatures.transformsEnabled = true`.
 
-**What:** System-wide selected-text rewrites through the user's configured LLM provider. The user selects text in any app, presses a bound Transform hotkey, and MacParakeet captures the selection, runs the saved prompt, and pastes the result into the currently focused target. Editable selections are replaced by normal `Cmd+V` semantics; read-only selections still produce a pasteable result and a local history row. The default built-ins are `Polish` (`Option-1`), `Distill` (`Option-2`), and `Decide` (`Control-Option-3`).
+**What:** System-wide selected-text rewrites through the user's configured LLM provider. The user selects text in any app, presses a bound Transform hotkey, and MacParakeet captures the selection, runs the saved prompt, and pastes the result into the currently focused target. Editable selections are replaced by normal `Cmd+V` semantics; read-only selections still produce a pasteable result and a local history row. The default built-ins are `Polish` (`Control-Option-1`), `Distill` (`Control-Option-2`), and `Decide` (`Control-Option-3`).
 
 **Implementation:**
 - Transforms are `Prompt` rows with `category == .transform`; they reuse Prompt Library persistence but have their own sidebar surface and never appear in summary prompt pickers.
@@ -1752,7 +1752,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 - `macparakeet-cli transforms` manages and runs saved Transforms headlessly; `macparakeet-cli transforms history` reads and manages local Transform history.
 
 **Acceptance criteria:**
-- [x] Built-ins seed as `Polish`, `Distill`, and `Decide` with default `Option-1`, `Option-2`, and `Control-Option-3` shortcuts and resettable prompt bodies
+- [x] Built-ins seed as `Polish`, `Distill`, and `Decide` with default `Control-Option-1`, `Control-Option-2`, and `Control-Option-3` shortcuts and resettable prompt bodies
 - [x] Users can create, edit, delete custom Transforms and clear/rebind shortcuts
 - [x] Shortcut validation blocks bare keys, duplicate Transform bindings, dictation/meeting hotkey collisions, and hostile Option-letter dead-key combos
 - [x] Transforms tab appears in the main sidebar when `AppFeatures.transformsEnabled` is true

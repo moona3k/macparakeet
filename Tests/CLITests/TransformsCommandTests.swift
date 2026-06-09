@@ -429,7 +429,7 @@ final class TransformsCommandTests: XCTestCase {
         let create = try TransformsCommand.CreateSubcommand.parse([
             "--name", "Duplicate Hotkey",
             "--prompt", "Body",
-            "--shortcut", "opt+1",
+            "--shortcut", "ctrl+opt+1",
             "--database", dbPath,
         ])
         try create.validate()

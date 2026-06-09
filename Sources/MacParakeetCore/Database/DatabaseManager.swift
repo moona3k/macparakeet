@@ -1151,13 +1151,19 @@ public final class DatabaseManager: Sendable {
         }
     }
 
+    /// The Phase-2 built-in Transforms moved from bare Option+digit to
+    /// Control-Option+digit defaults so they stop stealing the Option-only
+    /// symbols some Mac layouts type (⌥1 = ¡, ⌥2 = ™, ⌥3 = # / £, …). Migrate a
+    /// built-in row that still carries the exact legacy Option+digit default to
+    /// the new chord; leave custom or cleared bindings untouched, and clear
+    /// rather than duplicate when the new chord is already claimed.
     private static func reconciledBuiltInTransformShortcut(
         existing: Prompt,
         canonical: Prompt,
         db: Database
     ) throws -> String? {
-        guard canonical.name == "Decide",
-              existing.shortcut == legacyDecideOptionThreeShortcut
+        guard let legacyShortcut = legacyTransformOptionDefaults[canonical.name],
+              existing.shortcut == legacyShortcut
         else {
             return existing.keyboardShortcut
         }
@@ -1169,11 +1175,26 @@ public final class DatabaseManager: Sendable {
         return canonical.keyboardShortcut
     }
 
-    private static let legacyDecideOptionThreeShortcut = KeyboardShortcut(
-        modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
-        keyCode: 0x14,
-        keyLabel: "3"
-    )
+    /// Legacy Option+digit defaults that predate the Control-Option+digit move,
+    /// keyed by built-in Transform name. A row still carrying exactly this
+    /// shortcut migrates to its canonical Control-Option+digit default.
+    private static let legacyTransformOptionDefaults: [String: KeyboardShortcut] = [
+        "Polish": KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+            keyCode: 0x12, // kVK_ANSI_1
+            keyLabel: "1"
+        ),
+        "Distill": KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+            keyCode: 0x13, // kVK_ANSI_2
+            keyLabel: "2"
+        ),
+        "Decide": KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+            keyCode: 0x14, // kVK_ANSI_3
+            keyLabel: "3"
+        ),
+    ]
 
     private static func transformShortcutIsUsed(
         _ shortcut: KeyboardShortcut,

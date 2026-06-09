@@ -62,7 +62,7 @@ final class TransformsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.heroShortcutInstruction,
-            "Press a Transform's hotkey (⇧⌘1, ⌥2, ⌃⌥3)."
+            "Press a Transform's hotkey (⇧⌘1, ⌃⌥2, ⌃⌥3)."
         )
     }
 
@@ -157,12 +157,12 @@ final class TransformsViewModelTests: XCTestCase {
 
         let custom = Prompt(
             id: UUID(),
-            name: "Custom Opt One",
+            name: "Custom Ctrl-Opt One",
             content: "Body.",
             category: .transform,
             isBuiltIn: false,
             sortOrder: 200,
-            keyboardShortcut: KeyboardShortcut.parse("opt+1")!.encodedString()
+            keyboardShortcut: KeyboardShortcut.parse("ctrl+opt+1")!.encodedString()
         )
         let savedCustom = await viewModel.save(custom)
         XCTAssertTrue(savedCustom)
@@ -176,7 +176,7 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥4")
 
         let reloadedCustom = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == custom.id }))
-        XCTAssertEqual(reloadedCustom.shortcut?.displayString, "⌥1")
+        XCTAssertEqual(reloadedCustom.shortcut?.displayString, "⌃⌥1")
     }
 
     func testResetBuiltInRejectsDefaultShortcutWhenReservedByAppHotkey() async throws {
@@ -254,7 +254,7 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertTrue(reset)
 
         let reloadedPolish = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == polish.id }))
-        XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥1")
+        XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌃⌥1")
     }
 
     func testReseedMissingBuiltInsRecreatesDeletedDefault() async throws {
@@ -314,12 +314,12 @@ final class TransformsViewModelTests: XCTestCase {
 
         let custom = Prompt(
             id: UUID(),
-            name: "Custom Opt One",
+            name: "Custom Ctrl-Opt One",
             content: "Body.",
             category: .transform,
             isBuiltIn: false,
             sortOrder: 200,
-            keyboardShortcut: KeyboardShortcut.parse("opt+1")!.encodedString()
+            keyboardShortcut: KeyboardShortcut.parse("ctrl+opt+1")!.encodedString()
         )
         let savedCustom = await viewModel.save(custom)
         XCTAssertTrue(savedCustom)
@@ -330,7 +330,7 @@ final class TransformsViewModelTests: XCTestCase {
         let restoredPolish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
         XCTAssertNil(restoredPolish.shortcut)
         let reloadedCustom = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == custom.id }))
-        XCTAssertEqual(reloadedCustom.shortcut?.displayString, "⌥1")
+        XCTAssertEqual(reloadedCustom.shortcut?.displayString, "⌃⌥1")
         XCTAssertTrue(viewModel.errorMessage?.contains("without conflicting shortcuts") ?? false)
     }
 
