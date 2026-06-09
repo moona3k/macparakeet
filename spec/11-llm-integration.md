@@ -313,7 +313,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 > Superseded design note: the original dedicated custom-transform concept used UserDefaults and transcript-view actions. The current implementation is ADR-022: system-wide selected-text rewrites stored as `Prompt` rows with `category == .transform`.
 
-**Trigger:** User selects text in any app and presses a bound Transform hotkey, such as `Option-1` for `Polish`.
+**Trigger:** User selects text in any app and presses a bound Transform hotkey, such as `Control-Option-1` for `Polish`.
 
 **Built-ins:** `Polish`, `Distill`, and `Decide`, seeded from `Prompt.builtInPrompts()`.
 

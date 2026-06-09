@@ -242,7 +242,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 
 - [x] `Prompt.Category.transform` rows for saved Transforms, with built-in `Polish`, `Distill`, and `Decide`
 - [x] `keyboardShortcut` and `runningLabel` prompt columns for global hotkeys and floating progress copy
-- [x] `TransformsHotkeyRegistry` single event tap, collision detection, and default `Option-1`, `Option-2`, and `Control-Option-3` built-in bindings
+- [x] `TransformsHotkeyRegistry` single event tap, collision detection, and default `Control-Option-1`, `Control-Option-2`, and `Control-Option-3` built-in bindings
 - [x] AX-first selection capture with clipboard fallback, in-place replacement, cancel/error clipboard restoration, and progress pill
 - [x] Transforms sidebar tab and management UI enabled on `main` by `AppFeatures.transformsEnabled = true`
 - [x] Local Transform history with input/output/source-app/timing stored in `transform_history`

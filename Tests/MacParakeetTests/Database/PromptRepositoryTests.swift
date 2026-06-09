@@ -63,13 +63,15 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(polish.runningLabel, "Polishing…")
         let polishShortcut = try XCTUnwrap(polish.shortcut)
         XCTAssertEqual(polishShortcut.keyLabel, "1")
-        XCTAssertEqual(polishShortcut.modifierFlags, [.option])
+        XCTAssertEqual(polishShortcut.modifierFlags, [.control, .option])
+        XCTAssertEqual(polishShortcut.displayString, "⌃⌥1")
 
         let distill = transforms[1]
         XCTAssertEqual(distill.runningLabel, "Distilling…")
         let distillShortcut = try XCTUnwrap(distill.shortcut)
         XCTAssertEqual(distillShortcut.keyLabel, "2")
-        XCTAssertEqual(distillShortcut.modifierFlags, [.option])
+        XCTAssertEqual(distillShortcut.modifierFlags, [.control, .option])
+        XCTAssertEqual(distillShortcut.displayString, "⌃⌥2")
 
         let decide = transforms[2]
         XCTAssertEqual(decide.runningLabel, "Deciding…")
@@ -457,6 +459,97 @@ final class PromptRepositoryTests: XCTestCase {
 
         XCTAssertNil(decide.shortcut)
         XCTAssertEqual(custom.shortcut?.displayString, "⌃⌥3")
+    }
+
+    func testReconcilerMigratesLegacyPolishDefaultShortcut() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-polish-default-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        let legacyShortcut = try XCTUnwrap(KeyboardShortcut.parse("opt+1"))
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var polish = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Polish" })
+            )
+            polish.keyboardShortcut = legacyShortcut.encodedString()
+            try promptRepo.save(polish)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌃⌥1")
+    }
+
+    func testReconcilerMigratesLegacyDistillDefaultShortcut() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-distill-default-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        let legacyShortcut = try XCTUnwrap(KeyboardShortcut.parse("opt+2"))
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var distill = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Distill" })
+            )
+            distill.keyboardShortcut = legacyShortcut.encodedString()
+            try promptRepo.save(distill)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Distill" })
+        )
+
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌃⌥2")
+    }
+
+    func testReconcilerPreservesCustomPolishShortcut() throws {
+        // A user who rebound Polish to ⌘D (a non-legacy binding) must keep it
+        // across launches — the migration only rewrites the exact legacy
+        // Option+digit default, never a custom chord.
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reconciler-polish-custom-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+        do {
+            let manager = try DatabaseManager(path: dbPath)
+            let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+            var polish = try XCTUnwrap(
+                (try promptRepo.fetchVisible(category: .transform))
+                    .first(where: { $0.name == "Polish" })
+            )
+            polish.keyboardShortcut = KeyboardShortcut.parse("cmd+d")!.encodedString()
+            try promptRepo.save(polish)
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbPath)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let reloaded = try XCTUnwrap(
+            (try reopenedRepo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌘D")
     }
 
     func testSaveAndFetchCustomPrompt() throws {

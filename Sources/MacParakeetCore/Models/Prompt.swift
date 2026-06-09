@@ -323,19 +323,22 @@ public struct Prompt: Codable, Identifiable, Sendable {
     /// each pedagogically distinct so the lineup itself teaches what
     /// Transforms is for:
     ///
-    /// - *Polish* (⌥1) — make text read like the writer's best version, voice
+    /// - *Polish* (⌃⌥1) — make text read like the writer's best version, voice
     ///   intact. The everyday driver.
-    /// - *Distill* (⌥2) — compress to signal, raise information density.
+    /// - *Distill* (⌃⌥2) — compress to signal, raise information density.
     ///   The "I have a rambling braindump" tool.
     /// - *Decide* (⌃⌥3) — turn discussion into a decision-ready note with
     ///   tradeoffs + recommended next step. The forward-motion tool.
     ///
-    /// Together: **Improve → Re-shape → Re-direct**. Three slots; ⌥4–9
-    /// reserved for user customization.
+    /// Together: **Improve → Re-shape → Re-direct**. Three slots; ⌃⌥4–9
+    /// reserved for user customization. The built-ins use the Control-Option
+    /// prefix rather than bare Option so they don't steal the Option-only
+    /// symbols some Mac layouts type (⌥1 = ¡, ⌥2 = ™, ⌥3 = # / £, …).
     ///
     /// Each row is seeded by the reconciler at app launch if missing; user
     /// edits to the row are preserved. Existing shortcuts are preserved except
-    /// for narrow legacy-default migrations such as Decide's ⌥3 → ⌃⌥3 move.
+    /// for the legacy Option+digit → Control-Option+digit default migrations
+    /// (⌥1→⌃⌥1, ⌥2→⌃⌥2, ⌥3→⌃⌥3).
     ///
     /// UUIDs are reserved — never reuse for a different prompt.
     private static func builtInTransformPrompts(now: Date) -> [Prompt] {
@@ -354,7 +357,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     """.replacingOccurrences(of: "                    ", with: ""),
                 sortOrder: 100,
                 defaultShortcut: KeyboardShortcut(
-                    modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                    modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
+                        | KeyboardShortcut.ModifierFlag.option.rawValue,
                     keyCode: 0x12, // kVK_ANSI_1
                     keyLabel: "1"
                 ),
@@ -377,7 +381,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     """.replacingOccurrences(of: "                    ", with: ""),
                 sortOrder: 101,
                 defaultShortcut: KeyboardShortcut(
-                    modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                    modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
+                        | KeyboardShortcut.ModifierFlag.option.rawValue,
                     keyCode: 0x13, // kVK_ANSI_2
                     keyLabel: "2"
                 ),

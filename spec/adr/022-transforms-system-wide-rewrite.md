@@ -72,7 +72,7 @@ Collision rules (rejected at bind time in `TransformEditorViewModel`):
 - **No collision with the meeting-toggle hotkey.**
 - **No duplicate Transform binding.**
 - **macOS Opt+letter dead-key combos blocked** (`Opt+e`, `Opt+u`, `Opt+i`, `Opt+n`, ``Opt+` `` — these produce alt-characters and stealing them is hostile).
-- **Reserved space:** `Opt+digit` (1–9) is the recommended customization range, but avoid stealing Option-only symbols users type on MacBook layouts. The Phase 2 built-ins use `⌥+1` (Polish), `⌥+2` (Distill), and `⌃⌥+3` (Decide). The lineup was synthesized from independent creative-director and staff-PM reviews (2026-05-12); the *Improve → Re-shape → Re-direct* pedagogy is intentional, and the shipped set avoids AI-insider naming in favor of verbs that generalize across the user's full surface (Slack, Linear, email, design docs, tickets).
+- **Reserved space:** `Ctrl+Opt+digit` (1–9) is the recommended customization range. Bare `Opt+digit` is avoided as a default because it steals the Option-only symbols some Mac layouts type (⌥1 = ¡, ⌥2 = ™, ⌥3 = # / £, …). The Phase 2 built-ins use `⌃⌥+1` (Polish), `⌃⌥+2` (Distill), and `⌃⌥+3` (Decide) — originally `⌥+1`/`⌥+2`/`⌥+3`, migrated to the Control-Option prefix (Decide first in #465, then Polish and Distill) with a launch-time reconciler that preserves custom or cleared bindings. The lineup was synthesized from independent creative-director and staff-PM reviews (2026-05-12); the *Improve → Re-shape → Re-direct* pedagogy is intentional, and the shipped set avoids AI-insider naming in favor of verbs that generalize across the user's full surface (Slack, Linear, email, design docs, tickets).
 
 ### 5. No global "Opt in" toggle
 
