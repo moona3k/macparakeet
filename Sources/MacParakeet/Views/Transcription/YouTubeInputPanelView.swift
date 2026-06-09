@@ -83,7 +83,10 @@ struct YouTubeInputPanelView: View {
                     .font(DesignSystem.Typography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
                     .contentTransition(.opacity)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: headerTitle)
+                    // Key on the platform enum, not the LocalizedStringKey title:
+                    // a reliable Equatable change-signal, and it stays in sync with
+                    // the glyph (which keys on the same value).
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: draftPlatform)
 
                 Spacer()
             }

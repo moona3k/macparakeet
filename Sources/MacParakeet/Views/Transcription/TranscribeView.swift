@@ -179,7 +179,10 @@ struct TranscribeView: View {
                 Text(urlCardTitle)
                     .font(DesignSystem.Typography.pageTitle)
                     .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.2), value: urlCardTitle)
+                    // Key on the platform enum, not the LocalizedStringKey title:
+                    // it changes in lockstep with the title but is a reliable
+                    // Equatable change-signal (LSK equality is opaque/interpolated).
+                    .animation(.easeInOut(duration: 0.2), value: recognizedURLPlatform)
 
                 // URL input row
                 HStack(spacing: DesignSystem.Spacing.sm) {
