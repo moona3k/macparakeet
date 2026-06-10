@@ -159,6 +159,18 @@ public actor STTRuntime: STTRuntimeProtocol {
         )
     }
 
+    /// Transcription-path engine access. `warmUp()` and
+    /// `performSpeechEngineSwitch()` intentionally construct `WhisperEngine`
+    /// inline instead. Warm-up is NOT gated on `activeTranscriptionCount`
+    /// (background warm-up fires from launch/meeting/onboarding flows while
+    /// jobs may be in flight); it stays safe because its reuse-or-construct
+    /// (`whisperEngine ?? WhisperEngine(...)`) is synchronous on this actor,
+    /// so it can never double-construct or orphan an engine mid-job. The
+    /// switch path runs under `setSpeechEngine`'s
+    /// `activeTranscriptionCount == 0` guard and stages into
+    /// `preparedWhisper` (prepare-then-commit, with a `language:` argument)
+    /// rather than committing to `whisperEngine` up front. Routing either
+    /// through this guard would change those semantics for no safety gain.
     private func ensureWhisperEngine() throws -> WhisperEngine {
         if let whisperEngine {
             return whisperEngine
