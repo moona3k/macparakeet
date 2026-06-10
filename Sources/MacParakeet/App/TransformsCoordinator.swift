@@ -34,7 +34,7 @@ final class TransformsCoordinator {
     private var registry: TransformsHotkeyRegistry?
     private var panelController: TransformSpikeProgressPanelController?
     private var executor: TransformExecutor?
-    private var inFlightTask: Task<Void, Never>?
+    private let runSerializer = TransformRunSerializer()
     private var bindingsChangedObserver: NSObjectProtocol?
 
     /// Per-run identity for stale-event guarding: if the user re-triggers a
@@ -101,8 +101,7 @@ final class TransformsCoordinator {
 
     /// Tear down event tap + in-flight work. Called from `applicationWillTerminate`.
     func stop() {
-        inFlightTask?.cancel()
-        inFlightTask = nil
+        runSerializer.cancel()
         registry?.stop()
         registry = nil
         panelController?.close()
@@ -193,13 +192,6 @@ final class TransformsCoordinator {
             return
         }
 
-        // Cancel any in-flight Transform if the user re-triggers a hotkey
-        // before the previous one finishes. ADR-022 §4 / spike pattern.
-        if let inFlightTask {
-            inFlightTask.cancel()
-            self.inFlightTask = nil
-        }
-
         let executor = TransformExecutor(llmService: llmService)
         self.executor = executor
 
@@ -211,13 +203,15 @@ final class TransformsCoordinator {
         let promptBody = prompt.content
         let runningTransformName = prompt.name
 
-        inFlightTask = Task { @MainActor [weak self] in
+        // Cancel any in-flight Transform if the user re-triggers a hotkey
+        // before the previous one finishes, and only start this run once the
+        // old one has fully wound down. The executor's replace phase ignores
+        // cancellation by design (clipboard write → target re-activation →
+        // ⌘V → restore must not abort half-pasted), so an immediate restart
+        // could capture the old run's payload off the pasteboard or read
+        // from the wrong app after a focus yank. ADR-022 §4; AUDIT-072.
+        runSerializer.replace { @MainActor [weak self] in
             guard let self else { return }
-            defer {
-                if self.activeRunID == runID {
-                    self.inFlightTask = nil
-                }
-            }
             do {
                 let result = try await Observability.withOperationContext(operationContext) {
                     try await executor.run(
