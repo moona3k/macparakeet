@@ -208,6 +208,70 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    /// AUDIT-071 regression: `beginSpeechEngineSession` suspends while
+    /// reading the runtime selection, *before* it used to insert the lease
+    /// ID. An engine switch arriving during that window passed the
+    /// `activeSpeechEngineSessionIDs.isEmpty` guard, so the lease could pin
+    /// a different engine than the runtime ended up on. The session slot
+    /// must now be reserved before the first suspension point.
+    func testSetSpeechEngineFailsWhileSessionBeginIsInFlight() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSelectionRead()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let leaseTask = Task {
+            await scheduler.beginSpeechEngineSession()
+        }
+        try await waitForHeldSelectionRead(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setSpeechEngine(.whisper)
+            XCTFail("Expected engine switch to fail while a session begin is in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseSelectionRead()
+        let lease = await leaseTask.value
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .parakeet))
+        let switches = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(switches, 0, "No switch may reach the runtime mid-begin")
+
+        await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setSpeechEngine(.whisper)
+    }
+
+    /// Same AUDIT-071 window, via the Parakeet variant-swap path that shares
+    /// the engine-switch guard.
+    func testSetParakeetModelVariantFailsWhileSessionBeginIsInFlight() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSelectionRead()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let leaseTask = Task {
+            await scheduler.beginSpeechEngineSession()
+        }
+        try await waitForHeldSelectionRead(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setParakeetModelVariant(.v2, onProgress: nil)
+            XCTFail("Expected variant swap to fail while a session begin is in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseSelectionRead()
+        let lease = await leaseTask.value
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .parakeet))
+        let swaps = await runtime.parakeetModelVariantSwitches
+        XCTAssertTrue(swaps.isEmpty, "No variant swap may reach the runtime mid-begin")
+
+        await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setParakeetModelVariant(.v2, onProgress: nil)
+        let swapsAfterEnd = await runtime.parakeetModelVariantSwitches
+        XCTAssertEqual(swapsAfterEnd, [.v2], "Variant swap must succeed once the session is released")
+    }
+
     func testSetParakeetModelVariantForwardsWhenIdle() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -622,6 +686,21 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
+    private func waitForHeldSelectionRead(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let start = ContinuousClock.now
+        while await runtime.heldSelectionReadCount < count {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for \(count) held selection reads")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func waitForSpeechEngineSwitch(
         runtime: MockSTTRuntime,
         count: Int,
@@ -829,6 +908,9 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var shouldBlockNextClearModelCache = false
     private var ignoreCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
+    private var shouldBlockNextSelectionRead = false
+    private var selectionReadContinuation: CheckedContinuation<Void, Never>?
+    private(set) var heldSelectionReadCount = 0
     private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
 
     func transcribe(
@@ -955,11 +1037,27 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {
-        selection
+        if shouldBlockNextSelectionRead {
+            shouldBlockNextSelectionRead = false
+            heldSelectionReadCount += 1
+            await withCheckedContinuation { continuation in
+                selectionReadContinuation = continuation
+            }
+        }
+        return selection
     }
 
     func setCurrentSelection(_ selection: SpeechEngineSelection) {
         self.selection = selection
+    }
+
+    func blockNextSelectionRead() {
+        shouldBlockNextSelectionRead = true
+    }
+
+    func releaseSelectionRead() {
+        selectionReadContinuation?.resume()
+        selectionReadContinuation = nil
     }
 
     func blockNextSpeechEngineSwitch() {
