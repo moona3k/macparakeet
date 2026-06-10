@@ -177,7 +177,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - Batch mode is **continue-on-error**: a failed input prints a `✗` line to
   stderr and is counted; the run proceeds. The process exits non-zero with a
   one-line summary (`N input(s) failed to transcribe (M succeeded).`) if any
-  input failed, and `0` when all succeed.
+  input failed, and `0` when all succeed. With `--format json`, a batch run
+  that ends with failures also emits the standard `--json` failure envelope
+  on stdout once the run completes — per-input results still go to the
+  output directory, and stdout is otherwise unused in batch mode (this
+  follows the general failure-envelope rule above; clarified per AUDIT-080).
 
 ### Unchanged (back-compat)
 
