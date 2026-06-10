@@ -1137,17 +1137,19 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             // (No `%` here: the sk- alphabet never needs URL encoding.)
             (#"\bsk-[A-Za-z0-9_\-]{8,}"#, "<api-key>"),
             // Bearer tokens (Authorization header echoes). `%` covers
-            // URL-encoded token echoes (`%2B`, `%3D`, ...) — AUDIT-076.
-            (#"\bBearer\s+[A-Za-z0-9._%\-]{8,}"#, "Bearer <token>"),
+            // URL-encoded token echoes (`%2B`, `%3D`, ...); `+/=` covers raw
+            // Base64 tokens, whose pre-`+` prefix could otherwise dodge the
+            // length floor or leak a suffix — AUDIT-076 + PR #477 review.
+            (#"\bBearer\s+[A-Za-z0-9._%\-+=/]{8,}"#, "Bearer <token>"),
             // x-api-key header echoes (case-insensitive).
-            (#"(?i)\bx-api-key:\s*[A-Za-z0-9._%\-]{8,}"#, "x-api-key: <token>"),
+            (#"(?i)\bx-api-key:\s*[A-Za-z0-9._%\-+=/]{8,}"#, "x-api-key: <token>"),
             // Generic api-key / api_key / apikey query params (case-insensitive).
-            (#"(?i)\bapi[_-]?key=[A-Za-z0-9._%\-]{8,}"#, "api-key=<token>"),
+            (#"(?i)\bapi[_-]?key=[A-Za-z0-9._%\-+=/]{8,}"#, "api-key=<token>"),
             // Generic key= query param (must come last so the more specific
             // api-key= rule wins). 16+ chars: long enough to skip innocent
             // `key=<word>` params, short enough to catch real keys the old
             // 20-char floor let through (AUDIT-076).
-            (#"(?i)\bkey=[A-Za-z0-9._%\-]{16,}"#, "key=<token>"),
+            (#"(?i)\bkey=[A-Za-z0-9._%\-+=/]{16,}"#, "key=<token>"),
         ]
 
         var out = message

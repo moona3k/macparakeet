@@ -1514,6 +1514,26 @@ final class LLMClientTests: XCTestCase {
         XCTAssertTrue(scrubbed.contains("Bearer <token>"))
     }
 
+    func testScrubReplacesRawBase64BearerTokens() {
+        // PR #477 review: raw Base64 tokens contain `+`, `/`, `=`. A short
+        // pre-`+` prefix must not dodge the length floor, and no suffix may
+        // leak past the first special character.
+        let scrubbed = LLMClient.scrubAPIKeyArtifacts(
+            from: "Forwarded: 'Authorization: Bearer ab+cdef/g=hijklmnop'"
+        )
+        XCTAssertFalse(scrubbed.contains("ab+cdef/g=hijklmnop"))
+        XCTAssertTrue(scrubbed.contains("Bearer <token>"))
+    }
+
+    func testScrubReplacesRawBase64KeyParams() {
+        let scrubbed = LLMClient.scrubAPIKeyArtifacts(
+            from: "Bad URL: ?key=AAAbbbCCC+ddd/EE==&retry=1"
+        )
+        XCTAssertFalse(scrubbed.contains("AAAbbbCCC+ddd/EE=="))
+        XCTAssertTrue(scrubbed.contains("key=<token>"))
+        XCTAssertTrue(scrubbed.contains("&retry=1"), "scrub must stop at the next query separator")
+    }
+
     func testScrubReplacesSixteenCharGenericKeyParams() {
         // AUDIT-076: the old 20-char floor let shorter real keys through.
         let scrubbed = LLMClient.scrubAPIKeyArtifacts(
