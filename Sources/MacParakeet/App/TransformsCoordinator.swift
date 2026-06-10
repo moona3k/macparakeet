@@ -33,7 +33,6 @@ final class TransformsCoordinator {
 
     private var registry: TransformsHotkeyRegistry?
     private var panelController: TransformSpikeProgressPanelController?
-    private var executor: TransformExecutor?
     private let runSerializer = TransformRunSerializer()
     private var bindingsChangedObserver: NSObjectProtocol?
 
@@ -193,7 +192,6 @@ final class TransformsCoordinator {
         }
 
         let executor = TransformExecutor(llmService: llmService)
-        self.executor = executor
 
         let runID = UUID()
         activeRunID = runID

@@ -47,9 +47,12 @@ public final class TransformRunSerializer {
     }
 
     /// Cancel the in-flight run without starting a new one. The cancelled
-    /// body still winds down cooperatively on its own task.
+    /// body still winds down cooperatively on its own task, and `current`
+    /// deliberately keeps referencing it: a `replace(with:)` that follows a
+    /// `cancel()` must still wait for the cancelled run to wind down, or the
+    /// AUDIT-072 overlap returns through the cancel-then-retrigger path.
+    /// The finished task clears `current` itself via the generation guard.
     public func cancel() {
         current?.cancel()
-        current = nil
     }
 }

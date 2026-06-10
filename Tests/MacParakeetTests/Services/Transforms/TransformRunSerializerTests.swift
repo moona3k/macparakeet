@@ -120,6 +120,39 @@ final class TransformRunSerializerTests: XCTestCase {
         )
     }
 
+    /// Gemini review (PR #475): a `replace(with:)` arriving after `cancel()`
+    /// must still wait for the cancelled run to wind down — `cancel()` must
+    /// not drop the `current` reference, or the AUDIT-072 overlap returns
+    /// through the cancel-then-retrigger path.
+    @MainActor
+    func testReplaceAfterCancelWaitsForCancelledBody() async {
+        let serializer = TransformRunSerializer()
+        let log = RunLog()
+
+        let first = serializer.replace {
+            log.append("first:start")
+            while !log.gateOpen { await Task.yield() }
+            log.append("first:end")
+        }
+        let started = await yieldUntil { log.entries.contains("first:start") }
+        XCTAssertTrue(started, "first body never started")
+
+        serializer.cancel()
+
+        let second = serializer.replace { log.append("second:start") }
+
+        for _ in 0..<200 { await Task.yield() }
+        XCTAssertEqual(
+            log.entries, ["first:start"],
+            "second body must not start while the cancelled first run winds down"
+        )
+
+        log.gateOpen = true
+        await first.value
+        await second.value
+        XCTAssertEqual(log.entries, ["first:start", "first:end", "second:start"])
+    }
+
     @MainActor
     func testCancelPreventsQueuedBodyFromRunning() async {
         let serializer = TransformRunSerializer()
