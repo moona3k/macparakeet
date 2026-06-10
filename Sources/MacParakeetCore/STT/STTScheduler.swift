@@ -256,15 +256,25 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     public func beginSpeechEngineSession() async -> SpeechEngineLease {
+        // Reserve the session slot before the first suspension point. From
+        // here on, the `activeSpeechEngineSessionIDs.isEmpty` guard in
+        // setSpeechEngine / setParakeetModelVariant fails, so no engine
+        // switch can start while this method is suspended below. Inserting
+        // the ID only after reading the selection left a TOCTOU window: a
+        // switch could interleave at either await and the lease would pin a
+        // different engine than the runtime ends up on (AUDIT-071).
+        let sessionID = UUID()
+        activeSpeechEngineSessionIDs.insert(sessionID)
+
+        // Drain a switch that was already in flight when we entered; the
+        // reservation above guarantees no new one starts behind it.
         if let speechEngineSwitchTask {
             let result = await speechEngineSwitchTask.result
             if case .failure(let error) = result {
                 logger.warning("Proceeding with speech engine session after failed engine switch: \(error.localizedDescription, privacy: .public)")
             }
         }
-        let lease = SpeechEngineLease(selection: await runtime.currentSpeechEngineSelection())
-        activeSpeechEngineSessionIDs.insert(lease.id)
-        return lease
+        return SpeechEngineLease(id: sessionID, selection: await runtime.currentSpeechEngineSelection())
     }
 
     public func endSpeechEngineSession(_ lease: SpeechEngineLease) async {
