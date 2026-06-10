@@ -1504,6 +1504,31 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(LLMClient.scrubAPIKeyArtifacts(from: original), original)
     }
 
+    func testScrubReplacesURLEncodedBearerTokens() {
+        // AUDIT-076: URL-encoded echoes (`%2B`, `%3D`, ...) must not escape
+        // the Bearer pattern.
+        let scrubbed = LLMClient.scrubAPIKeyArtifacts(
+            from: "Forwarded: 'Authorization: Bearer abc123%2Bdef%3D456ghi789'"
+        )
+        XCTAssertFalse(scrubbed.contains("abc123%2Bdef%3D456ghi789"))
+        XCTAssertTrue(scrubbed.contains("Bearer <token>"))
+    }
+
+    func testScrubReplacesSixteenCharGenericKeyParams() {
+        // AUDIT-076: the old 20-char floor let shorter real keys through.
+        let scrubbed = LLMClient.scrubAPIKeyArtifacts(
+            from: "Bad URL: ?key=AIzaSyD4x8Q2hP0a"
+        )
+        XCTAssertFalse(scrubbed.contains("AIzaSyD4x8Q2hP0a"))
+        XCTAssertTrue(scrubbed.contains("key=<token>"))
+    }
+
+    func testScrubLeavesInnocentShortKeyParamsAlone() {
+        // Conservative floor: ordinary `key=<word>` params stay readable.
+        let original = "Lookup failed for key=transcription."
+        XCTAssertEqual(LLMClient.scrubAPIKeyArtifacts(from: original), original)
+    }
+
     func testScrubIsIdempotent() {
         let once = LLMClient.scrubAPIKeyArtifacts(from: "key: sk-abcdefghij1234567890")
         let twice = LLMClient.scrubAPIKeyArtifacts(from: once)
