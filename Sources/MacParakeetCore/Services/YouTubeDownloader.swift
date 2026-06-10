@@ -194,12 +194,7 @@ public actor YouTubeDownloader {
     private func fetchMetadata(ytDlpPath: String, url: String) async throws -> VideoMetadata {
         let result = try await runYtDlp(
             ytDlpPath: ytDlpPath,
-            arguments: [
-                "--skip-download",
-                "--dump-json",
-                "--no-playlist",
-                url,
-            ],
+            arguments: Self.fetchMetadataArguments(url: url),
             captureStdout: true
         )
 
@@ -393,6 +388,20 @@ public actor YouTubeDownloader {
         for file in files where file.lastPathComponent.hasPrefix(uuid) {
             try? fm.removeItem(at: file)
         }
+    }
+
+    /// Metadata-probe invocation. Like every yt-dlp call site, options are
+    /// terminated with `--` before the URL so a (hypothetical) leading-dash
+    /// input can never be parsed as a flag — upstream URL validators already
+    /// reject such strings, but argv discipline shouldn't depend on the
+    /// caller (AUDIT-074).
+    nonisolated static func fetchMetadataArguments(url: String) -> [String] {
+        [
+            "--skip-download",
+            "--dump-json",
+            "--no-playlist",
+            "--", url,
+        ]
     }
 
     nonisolated static func downloadAudioArguments(

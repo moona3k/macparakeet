@@ -65,6 +65,21 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertNil(YouTubeDownloader.parseDownloadProgressPercent(from: "some random log line"))
     }
 
+    func testFetchMetadataArgumentsTerminateOptionsBeforeURL() {
+        // AUDIT-074: every yt-dlp call site must end options with `--` so a
+        // leading-dash input can never be parsed as a flag.
+        let args = YouTubeDownloader.fetchMetadataArguments(
+            url: "https://www.youtube.com/watch?v=abc"
+        )
+
+        XCTAssertEqual(args, [
+            "--skip-download",
+            "--dump-json",
+            "--no-playlist",
+            "--", "https://www.youtube.com/watch?v=abc",
+        ])
+    }
+
     func testDownloadAudioArgumentsUseM4ASelector() {
         let args = YouTubeDownloader.downloadAudioArguments(
             ffmpegDir: "/opt/macparakeet/bin",
