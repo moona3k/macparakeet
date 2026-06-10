@@ -151,13 +151,28 @@ public actor STTRuntime: STTRuntimeProtocol {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
-        let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
-        whisperEngine = engine
+        let engine = try ensureWhisperEngine()
         return try await engine.transcribe(
             audioURL: URL(fileURLWithPath: audioPath),
             language: language,
             onProgress: onProgress
         )
+    }
+
+    private func ensureWhisperEngine() throws -> WhisperEngine {
+        if let whisperEngine {
+            return whisperEngine
+        }
+        // Mirrors ensureNemotronEngine: never construct a fresh engine while
+        // another transcription may be mid-flight on the existing one. The
+        // scheduler's single background slot already serializes Whisper jobs,
+        // but the invariant shouldn't depend on the caller (AUDIT-075).
+        guard activeTranscriptionCount <= 1 else {
+            throw STTError.engineBusy
+        }
+        let engine = WhisperEngine(model: whisperModelVariant)
+        whisperEngine = engine
+        return engine
     }
 
     private func transcribeWithParakeet(
