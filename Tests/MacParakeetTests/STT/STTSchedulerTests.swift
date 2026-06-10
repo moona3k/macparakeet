@@ -262,9 +262,14 @@ final class STTSchedulerTests: XCTestCase {
 
         await runtime.releaseSelectionRead()
         let lease = await leaseTask.value
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .parakeet))
         let swaps = await runtime.parakeetModelVariantSwitches
         XCTAssertTrue(swaps.isEmpty, "No variant swap may reach the runtime mid-begin")
+
         await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setParakeetModelVariant(.v2, onProgress: nil)
+        let swapsAfterEnd = await runtime.parakeetModelVariantSwitches
+        XCTAssertEqual(swapsAfterEnd, [.v2], "Variant swap must succeed once the session is released")
     }
 
     func testSetParakeetModelVariantForwardsWhenIdle() async throws {
