@@ -53,11 +53,19 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
     private var activeSpeechEngineSessionIDs: Set<UUID> = []
-    /// True while `clearModelCache` is tearing the runtime down, and
-    /// permanently after `shutdown()`. Distinct from `acceptsNewJobs`, which
-    /// is also false during an ordinary engine switch — a switch must keep
-    /// admitting session leases (they drain it), while a quiesce must not.
-    private var quiescing = false
+    /// Quiesce state. Distinct from `acceptsNewJobs`, which is also false
+    /// during an ordinary engine switch — a switch must keep admitting
+    /// session leases (they drain it), while a quiesce must not.
+    ///
+    /// Two pieces of state rather than one Bool because actor methods are
+    /// reentrant across `await`: a single flag reset in a `defer` would let
+    /// one overlapping `clearModelCache` call clobber another's (or
+    /// `shutdown()`'s terminal) quiesce — the PR #192 defer-clobber class.
+    /// The count only reaches zero when *every* in-flight clear has wound
+    /// down, and `isShutDown` is never reset.
+    private var isShutDown = false
+    private var activeQuiesceCount = 0
+    private var quiescing: Bool { isShutDown || activeQuiesceCount > 0 }
     private var speechEngineSwitchTask: Task<Void, Error>?
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
@@ -172,23 +180,30 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         // The CLI's `models clear` runs in its own process and never holds
         // leases, so this only refuses a same-process caller — exactly the
         // case it must.
-        guard activeSpeechEngineSessionIDs.isEmpty else {
+        guard activeSpeechEngineSessionIDs.isEmpty, !isShutDown else {
             throw STTError.engineBusy
         }
-        quiescing = true
-        defer { quiescing = false }
+        activeQuiesceCount += 1
+        defer { activeQuiesceCount -= 1 }
         await quiesce(restoreAcceptsNewJobs: false)
-        defer { acceptsNewJobs = true }
+        // Restore job admission unless a shutdown landed while this clear
+        // was suspended — its terminal state must survive our wind-down.
+        defer {
+            if !isShutDown {
+                acceptsNewJobs = true
+            }
+        }
         await observingRuntimeTimeout(reason: "clear_model_cache") {
             await runtime.clearModelCache()
         }
     }
 
     public func shutdown() async {
-        // Terminal: refuse new leases from here on (quiescing is never
-        // reset). Shutdown itself must always proceed — unwinding an active
-        // meeting at quit is the app layer's job (meetingQuitTask).
-        quiescing = true
+        // Terminal: refuse new leases from here on (isShutDown is never
+        // reset, and a concurrent clear's defer cannot undo it). Shutdown
+        // itself must always proceed — unwinding an active meeting at quit
+        // is the app layer's job (meetingQuitTask).
+        isShutDown = true
         await quiesce(restoreAcceptsNewJobs: false)
         await observingRuntimeTimeout(reason: "shutdown") {
             await runtime.shutdown()

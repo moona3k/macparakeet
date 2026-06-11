@@ -335,6 +335,61 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
+    /// PR #495 review finding (PR #192 defer-clobber class): a cache clear
+    /// overlapping `shutdown()` must not resurrect the scheduler when its
+    /// wind-down defer runs — shutdown's quiesce state is terminal.
+    func testShutdownDuringClearModelCacheStaysTerminal() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let clearTask = Task { try await scheduler.clearModelCache() }
+        try await waitForClearModelCacheCall(runtime: runtime, count: 1)
+
+        // Shutdown lands while the clear is suspended in the runtime call.
+        await scheduler.shutdown()
+
+        await runtime.releaseClearModelCache()
+        _ = try await clearTask.value
+
+        do {
+            _ = try await scheduler.beginSpeechEngineSession()
+            XCTFail("Expected leases to keep failing after shutdown, even once an overlapping cache clear wound down")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+    }
+
+    /// Same defer-clobber class for two overlapping clears: the quiesce
+    /// state is refcounted, so the first clear to finish must not re-admit
+    /// leases while the other is still tearing the runtime down.
+    func testOverlappingClearModelCacheKeepsRefusingLeasesUntilLastClearWindsDown() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let heldClear = Task { try await scheduler.clearModelCache() }
+        try await waitForClearModelCacheCall(runtime: runtime, count: 1)
+
+        // A second clear overlaps and winds down first (only the first
+        // runtime call is gated by the mock).
+        try await scheduler.clearModelCache()
+
+        do {
+            _ = try await scheduler.beginSpeechEngineSession()
+            XCTFail("Expected leases to fail while the first clear is still in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseClearModelCache()
+        _ = try await heldClear.value
+
+        // Every clear has wound down — leases are admitted again.
+        let lease = try await scheduler.beginSpeechEngineSession()
+        await scheduler.endSpeechEngineSession(lease)
+    }
+
     func testSetParakeetModelVariantForwardsWhenIdle() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
