@@ -420,7 +420,7 @@ public final class LLMSettingsViewModel {
     }
 
     public func isAIFormatterSmartDefaultEnabled(_ category: TelemetryAppCategory) -> Bool {
-        !aiFormatterSmartDefaultsPolicy.disabledCategories.contains(category)
+        aiFormatterSmartDefaultsPolicy.allowsCategory(category)
     }
 
     public func setAIFormatterSmartDefault(_ category: TelemetryAppCategory, enabled: Bool) {

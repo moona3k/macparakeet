@@ -28,9 +28,12 @@ VAD-guided meeting live-preview chunking is enabled
 launch-time prep fetches the Silero VAD model in the background, Parakeet
 meetings cut live-preview chunks at speech boundaries when the model is cached,
 and missing/erroring VAD falls back to the fixed 5s / 1s-overlap chunker without
-affecting the final post-stop transcript. The Stable DMG and `main` ship the
-same feature set — the `AppFeatures` feature flags carry the same values on
-`main` and the latest release tag; `main` differs only by untagged in-progress fixes.
+affecting the final post-stop transcript. `main` currently carries one feature
+flag ahead of the latest release tag: `AppFeatures.aiFormatterProfilesEnabled =
+true` (app-aware AI Formatter profiles with readable/toggleable smart defaults,
+enabled 2026-06-10 ahead of the next release). All other `AppFeatures` flags
+match the shipping build, and `main` otherwise differs only by untagged
+in-progress fixes.
 
 Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
 

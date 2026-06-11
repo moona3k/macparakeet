@@ -24,6 +24,7 @@ struct LLMSettingsView: View {
     @State private var isLoadingAIFormatterInstalledApps = false
     @State private var selectedSmartDefaultCategory: TelemetryAppCategory?
     @State private var aiFormatterAppIcons: [String: NSImage] = [:]
+    @State private var aiFormatterAppIconLoadingIDs: Set<String> = []
 
     private static let providerOrder: [LLMProviderID] = [
         .lmstudio,
@@ -497,6 +498,7 @@ struct LLMSettingsView: View {
 
             if viewModel.aiFormatterSmartDefaultsEnabled,
                let selected = selectedSmartDefaultCategory,
+               viewModel.isAIFormatterSmartDefaultEnabled(selected),
                let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: selected) {
                 smartDefaultPromptPreview(categoryDefault)
             }
@@ -1037,9 +1039,6 @@ struct LLMSettingsView: View {
                                 selectAIFormatterInstalledApp(app)
                             } label: {
                                 HStack(spacing: DesignSystem.Spacing.sm) {
-                                    // Icons are fetched once per bundle ID on first
-                                    // row appearance and cached — `icon(forFile:)`
-                                    // on every render makes search filtering janky.
                                     Group {
                                         if let icon = aiFormatterAppIcons[app.bundleIdentifier] {
                                             Image(nsImage: icon)
@@ -1051,9 +1050,7 @@ struct LLMSettingsView: View {
                                     }
                                     .frame(width: 22, height: 22)
                                     .onAppear {
-                                        guard aiFormatterAppIcons[app.bundleIdentifier] == nil else { return }
-                                        aiFormatterAppIcons[app.bundleIdentifier] =
-                                            NSWorkspace.shared.icon(forFile: app.path)
+                                        loadAIFormatterAppIconIfNeeded(for: app)
                                     }
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(app.displayName)
@@ -1191,6 +1188,25 @@ struct LLMSettingsView: View {
             }.value
             aiFormatterInstalledApps = apps
             isLoadingAIFormatterInstalledApps = false
+        }
+    }
+
+    private func loadAIFormatterAppIconIfNeeded(for app: AIFormatterInstalledApp) {
+        let bundleIdentifier = app.bundleIdentifier
+        guard aiFormatterAppIcons[bundleIdentifier] == nil,
+              !aiFormatterAppIconLoadingIDs.contains(bundleIdentifier)
+        else { return }
+
+        aiFormatterAppIconLoadingIDs.insert(bundleIdentifier)
+        let path = app.path
+        Task { @MainActor in
+            let iconData = await Task.detached(priority: .utility) {
+                NSWorkspace.shared.icon(forFile: path).tiffRepresentation
+            }.value
+            if let iconData, let icon = NSImage(data: iconData) {
+                aiFormatterAppIcons[bundleIdentifier] = icon
+            }
+            aiFormatterAppIconLoadingIDs.remove(bundleIdentifier)
         }
     }
 

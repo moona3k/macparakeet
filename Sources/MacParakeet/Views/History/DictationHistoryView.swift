@@ -391,7 +391,7 @@ struct DictationCardRow: View {
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
                             }
-                            .help(formatterProvenanceHelp)
+                            .help(formatterProvenanceHelp(for: provenance))
                             .accessibilityLabel("AI Formatter: \(provenance)")
                         }
                     }
@@ -554,6 +554,7 @@ struct DictationCardRow: View {
     /// the stored answer to "why did this come out formatted that way?".
     /// Global-fallback formatting shows nothing: it's the unremarkable case.
     private var formatterProvenanceText: String? {
+        guard AppFeatures.aiFormatterProfilesEnabled else { return nil }
         guard let matchKind = dictation.aiFormatterProfileMatchKind else { return nil }
         let name = dictation.aiFormatterProfileName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -567,8 +568,7 @@ struct DictationCardRow: View {
         }
     }
 
-    private var formatterProvenanceHelp: String {
-        guard let provenance = formatterProvenanceText else { return "" }
+    private func formatterProvenanceHelp(for provenance: String) -> String {
         switch dictation.aiFormatterProfileMatchKind {
         case .exactApp:
             return "Formatted with the “\(provenance)” app profile."
