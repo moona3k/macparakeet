@@ -80,11 +80,19 @@ public enum PodcastFeedParser {
         return seconds
     }
 
+    /// Retention cap for parsed episodes. Feed URLs are user-pasted (and thus
+    /// attacker-choosable); XMLParser streams, but every accepted `<item>` was
+    /// retained, so a maliciously huge feed could grow memory without bound
+    /// (AUDIT-078). Real feeds top out in the low thousands of episodes.
+    static let maxEpisodes = 10_000
+
     public static func parse(_ data: Data) throws -> [PodcastFeedEpisode] {
         let parser = XMLParser(data: data)
         let delegate = FeedDelegate()
         parser.delegate = delegate
-        guard parser.parse() else {
+        // `abortParsing()` at the episode cap makes `parse()` return false;
+        // a capped feed is a successful parse, not an error.
+        guard parser.parse() || delegate.hitEpisodeCap else {
             let reason = parser.parserError?.localizedDescription ?? "malformed XML"
             throw PodcastFeedError.parseFailed(reason)
         }
@@ -95,6 +103,7 @@ public enum PodcastFeedParser {
 
     private final class FeedDelegate: NSObject, XMLParserDelegate {
         private(set) var episodes: [PodcastFeedEpisode] = []
+        private(set) var hitEpisodeCap = false
 
         private var inItem = false
         // Stack of open element names within the current <item>. Using a stack
@@ -206,6 +215,10 @@ public enum PodcastFeedParser {
                 durationSeconds: PodcastFeedParser.parseDuration(duration),
                 published: PodcastFeedParser.firstNonEmpty(pubDate)
             ))
+            if episodes.count >= PodcastFeedParser.maxEpisodes {
+                hitEpisodeCap = true
+                parser.abortParsing()
+            }
         }
     }
 

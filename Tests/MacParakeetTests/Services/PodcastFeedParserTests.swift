@@ -91,4 +91,24 @@ final class PodcastFeedParserTests: XCTestCase {
     func testParseMalformedXMLThrows() {
         XCTAssertThrowsError(try PodcastFeedParser.parse(Data("<rss><channel>".utf8)))
     }
+
+    func testParseCapsEpisodeRetentionForHugeFeeds() throws {
+        // AUDIT-078: feed URLs are user-pasted, so episode retention must be
+        // bounded. Build a feed one item past the cap and verify the parser
+        // stops at the cap and still returns a successful (capped) result.
+        let overCap = PodcastFeedParser.maxEpisodes + 1
+        var rss = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+        <channel>
+        """
+        for index in 0..<overCap {
+            rss += "<item><title>e\(index)</title><enclosure url=\"https://x/e\(index).mp3\" type=\"audio/mpeg\"/></item>"
+        }
+        rss += "</channel></rss>"
+
+        let episodes = try PodcastFeedParser.parse(Data(rss.utf8))
+        XCTAssertEqual(episodes.count, PodcastFeedParser.maxEpisodes)
+        XCTAssertEqual(episodes.first?.title, "e0", "Cap keeps the earliest items")
+    }
 }
