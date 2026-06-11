@@ -439,6 +439,27 @@ public actor DictationService: DictationServiceProtocol {
         }
     }
 
+    /// Discard the instant-dictation pre-roll from the active capture because
+    /// system media was confirmed playing at press time — the pre-roll is
+    /// pre-press media audio that no pause can silence (issue #474).
+    /// Best-effort: a stale session ID or a capture that already stopped
+    /// keeps its pre-roll, which only re-opens the original bleed window.
+    public func discardPreRollForActiveCapture(sessionID: Int?) async {
+        if let sessionID, sessionID != activeSessionID {
+            logger.notice(
+                "discardPreRoll ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
+            )
+            return
+        }
+        guard case .recording = _state else {
+            logger.notice(
+                "discardPreRoll ignored state=\(self.debugStateLabel(self._state), privacy: .public)"
+            )
+            return
+        }
+        await audioProcessor.discardPreRollForActiveCapture()
+    }
+
     public func cancelRecording(reason: TelemetryDictationCancelReason? = nil) async {
         await cancelRecording(reason: reason, sessionID: nil)
     }

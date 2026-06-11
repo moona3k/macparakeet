@@ -77,6 +77,31 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    func testDiscardPreRollForwardsToAudioProcessorWhileRecording() async throws {
+        try await service.startRecording()
+
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+
+        let callCount = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testDiscardPreRollIgnoresStaleSession() async throws {
+        try await service.startRecording(context: DictationTelemetryContext(), sessionID: 7)
+
+        await service.discardPreRollForActiveCapture(sessionID: 6)
+
+        let callCount = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(callCount, 0)
+    }
+
+    func testDiscardPreRollIgnoredWhenNotRecording() async {
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+
+        let callCount = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(callCount, 0)
+    }
+
     func testStartFailureUsesRequestedTelemetryContextForOperation() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

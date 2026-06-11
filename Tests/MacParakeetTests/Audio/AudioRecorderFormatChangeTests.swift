@@ -491,6 +491,150 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         _ = try? await recorder.stop()
     }
 
+    // MARK: - Pre-roll discard (issue #474)
+
+    func testDiscardPreRollRemovesPrependedSamplesFromFinalWAV() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        await recorder.discardPreRollForActiveRecording()
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 4_800)
+        XCTAssertEqual(try XCTUnwrap(samples.first), 0.2, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(samples.last), 0.2, accuracy: 0.0001)
+        XCTAssertFalse(samples.contains { abs($0 - 0.6) < 0.0001 })
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testDiscardPreRollMakesMediaOnlyCaptureInsufficient() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Total = 7,200 pre-roll + 3,200 live ≥ the 4,800 floor, but the
+        // post-discard remainder (3,200) is below it: without the discard
+        // this capture would transcribe nothing but the paused media audio.
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 3_200, sampleValue: 0.2))
+        await recorder.discardPreRollForActiveRecording()
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should report insufficient samples once the pre-roll is discarded")
+        } catch AudioProcessorError.insufficientSamples {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected stop error: \(error)")
+        }
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testDiscardPreRollRequestIgnoredWhenIdle() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Idle request must be dropped, not pre-armed for the next session.
+        await recorder.discardPreRollForActiveRecording()
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 12_000)
+        XCTAssertEqual(samples[0], 0.6, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_200], 0.2, accuracy: 0.0001)
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testDiscardPreRollStateDoesNotLeakIntoNextRecording() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        await recorder.setInstantDictationEnabled(true)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        await recorder.discardPreRollForActiveRecording()
+        let firstURL = try await recorder.stop()
+        try? FileManager.default.removeItem(at: firstURL)
+
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.7))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        let secondURL = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: secondURL) }
+
+        let samples = try readFloatSamples(from: secondURL)
+        XCTAssertEqual(samples.count, 12_000)
+        XCTAssertEqual(samples[0], 0.7, accuracy: 0.0001)
+        XCTAssertEqual(samples[7_200], 0.2, accuracy: 0.0001)
+
+        await recorder.setInstantDictationEnabled(false)
+    }
+
+    func testDiscardPreRollWithoutInstantDictationIsNoOp() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        try await recorder.start()
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+        await recorder.discardPreRollForActiveRecording()
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        XCTAssertEqual(samples.count, 4_800)
+        XCTAssertEqual(try XCTUnwrap(samples.first), 0.3, accuracy: 0.0001)
+    }
+
     private func pollUntil(
         timeout: Duration,
         condition: @Sendable () -> Bool

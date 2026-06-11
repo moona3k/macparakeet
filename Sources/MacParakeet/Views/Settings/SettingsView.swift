@@ -1004,7 +1004,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Pause media while dictating",
-                    detail: "Pauses playing media during dictation and resumes it when capture stops.",
+                    detail: "Pauses playing media during dictation and resumes it when capture stops. On speakers, a moment of media sound can reach the mic before the pause lands — speak as you press, or use headphones.",
                     isBeta: true,
                     isOn: $viewModel.pauseMediaDuringDictation
                 )

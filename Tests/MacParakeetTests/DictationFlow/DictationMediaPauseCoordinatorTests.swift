@@ -222,6 +222,63 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.resumeTokens, [token])
     }
 
+    func testOnMediaPausedFiresOnceWhenTokenAcquired() async {
+        settings.pauseMediaDuringDictation = true
+        let token = MediaPauseToken(processIdentifier: 11)
+        let media = FakeSystemMediaController(pauseBehavior: .immediate(token))
+        let coordinator = makeCoordinator(media: media)
+
+        var mediaPausedCallbacks = 0
+        coordinator.requestPauseBeforeDictationCapture(onMediaPaused: {
+            mediaPausedCallbacks += 1
+        })
+        await coordinator.pauseTask?.value
+
+        XCTAssertEqual(mediaPausedCallbacks, 1)
+        await coordinator.resumeAfterDictationCapture()
+    }
+
+    func testOnMediaPausedNotFiredWhenNothingPlaying() async {
+        settings.pauseMediaDuringDictation = true
+        let media = FakeSystemMediaController(pauseBehavior: .immediate(nil))
+        let coordinator = makeCoordinator(media: media)
+
+        var mediaPausedCallbacks = 0
+        coordinator.requestPauseBeforeDictationCapture(onMediaPaused: {
+            mediaPausedCallbacks += 1
+        })
+        await coordinator.pauseTask?.value
+
+        XCTAssertEqual(mediaPausedCallbacks, 0)
+    }
+
+    /// A late-arriving token from a capture that already ended must be
+    /// released without firing `onMediaPaused` — a discard fired here could
+    /// hit a newer session this request knows nothing about.
+    func testOnMediaPausedNotFiredWhenCaptureEndsBeforePauseCompletes() async {
+        settings.pauseMediaDuringDictation = true
+        let token = MediaPauseToken(processIdentifier: 22)
+        let media = FakeSystemMediaController(pauseBehavior: .deferred)
+        let coordinator = makeCoordinator(media: media)
+        let pauseStarted = expectation(description: "pause request started")
+        media.setPauseStartedHandler {
+            pauseStarted.fulfill()
+        }
+
+        var mediaPausedCallbacks = 0
+        coordinator.requestPauseBeforeDictationCapture(onMediaPaused: {
+            mediaPausedCallbacks += 1
+        })
+        await fulfillment(of: [pauseStarted], timeout: 1)
+
+        await coordinator.resumeAfterDictationCapture()
+        media.completeDeferredPause(with: token)
+        await coordinator.pauseTask?.value
+
+        XCTAssertEqual(mediaPausedCallbacks, 0)
+        XCTAssertEqual(media.snapshot().resumeTokens, [token])
+    }
+
     func testTerminationResumesActiveToken() async throws {
         settings.pauseMediaDuringDictation = true
         let token = MediaPauseToken(processIdentifier: 303)

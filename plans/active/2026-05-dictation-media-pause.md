@@ -2,8 +2,14 @@
 
 Status: **ACTIVE**
 Owner: Core app team
-Updated: 2026-05-24
+Updated: 2026-06-10
 Related: [GitHub issue #351](https://github.com/moona3k/macparakeet/issues/351)
+
+> **Interaction with Instant Dictation (issue #474):** with both features on
+> and media playing through speakers, the pre-roll plus the pause-IPC latency
+> put media audio at the head of the transcript. Mechanism, fix tiers, and the
+> implemented mitigation (diagnostics + pre-roll discard on confirmed pause)
+> live in `2026-06-issue-474-instant-dictation-media-pause-bleed.md`.
 
 ## Decision
 

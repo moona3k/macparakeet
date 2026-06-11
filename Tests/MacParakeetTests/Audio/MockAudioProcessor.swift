@@ -78,4 +78,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
         if let error = captureError { throw error }
         return captureResult ?? URL(fileURLWithPath: "/tmp/recording.wav")
     }
+
+    public var discardPreRollCallCount = 0
+
+    public func discardPreRollForActiveCapture() async {
+        discardPreRollCallCount += 1
+    }
 }

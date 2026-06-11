@@ -51,27 +51,52 @@ public final class SystemMediaController: SystemMediaControlling, @unchecked Sen
     }
 
     public func pauseIfPlaying() async -> MediaPauseToken? {
-        guard let snapshot = await snapshotProvider() else {
+        // Mirrored into dictation-audio.log (issue #474): the delta between
+        // `dictation_capture_start` and `media_pause_sent` line timestamps is
+        // the window where playing media bleeds into the capture, and
+        // `snapshot_ms` shows how much of it the now-playing helper costs.
+        // Identity fields (pid/bundle) stay out — the log is user-shareable.
+        let clock = ContinuousClock()
+        let snapshotStart = clock.now
+        let snapshot = await snapshotProvider()
+        let snapshotMs = Int(((clock.now - snapshotStart) / .milliseconds(1)).rounded())
+
+        guard let snapshot else {
             Self.logger.notice("media_pause_skipped reason=snapshot_unavailable")
+            AudioCaptureDiagnostics.append(
+                "media_pause_skipped reason=snapshot_unavailable snapshot_ms=\(snapshotMs)"
+            )
             return nil
         }
 
         guard snapshot.isPlaying else {
             Self.logger.notice("media_pause_skipped reason=no_playing_session")
+            AudioCaptureDiagnostics.append(
+                "media_pause_skipped reason=no_playing_session snapshot_ms=\(snapshotMs)"
+            )
             return nil
         }
 
         guard snapshot.hasIdentity else {
             Self.logger.notice("media_pause_skipped reason=session_identity_unavailable")
+            AudioCaptureDiagnostics.append(
+                "media_pause_skipped reason=session_identity_unavailable snapshot_ms=\(snapshotMs)"
+            )
             return nil
         }
 
         guard commandSender(Command.pause) else {
             Self.logger.error("media_pause_failed bucket=send_command_failed")
+            AudioCaptureDiagnostics.append(
+                "media_pause_failed bucket=send_command_failed snapshot_ms=\(snapshotMs)"
+            )
             return nil
         }
 
         Self.logger.notice("media_pause_sent source=now_playing_helper")
+        AudioCaptureDiagnostics.append(
+            "media_pause_sent snapshot_ms=\(snapshotMs)"
+        )
         return MediaPauseToken(
             processIdentifier: snapshot.processIdentifier,
             bundleIdentifier: snapshot.bundleIdentifier
@@ -81,25 +106,30 @@ public final class SystemMediaController: SystemMediaControlling, @unchecked Sen
     public func resume(_ token: MediaPauseToken) async {
         guard let snapshot = await snapshotProvider() else {
             Self.logger.notice("media_resume_skipped reason=snapshot_unavailable")
+            AudioCaptureDiagnostics.append("media_resume_skipped reason=snapshot_unavailable")
             return
         }
 
         if snapshot.isPlaying {
             Self.logger.notice("media_resume_skipped reason=already_playing")
+            AudioCaptureDiagnostics.append("media_resume_skipped reason=already_playing")
             return
         }
 
         guard snapshot.matches(token) else {
             Self.logger.notice("media_resume_skipped reason=now_playing_changed")
+            AudioCaptureDiagnostics.append("media_resume_skipped reason=now_playing_changed")
             return
         }
 
         guard commandSender(Command.play) else {
             Self.logger.error("media_resume_failed bucket=send_command_failed")
+            AudioCaptureDiagnostics.append("media_resume_failed bucket=send_command_failed")
             return
         }
 
         Self.logger.notice("media_resume_sent source=now_playing_helper")
+        AudioCaptureDiagnostics.append("media_resume_sent")
     }
 }
 

@@ -20,6 +20,7 @@ Mic Input → SharedMicrophoneStream tap → temp WAV → selected local STT eng
 - **Minimum sample threshold**: 4,800 samples (0.3 seconds at 16kHz) required before sending to STT, mirroring FluidAudio's ASR guard. Header-only and near-empty recordings are rejected before they reach the speech engine.
 - Dictation always extracts channel 0 before conversion so VPIO duplex layouts produce the post-AEC mono stream instead of channel-mixed reference audio.
 - **Instant Dictation**: default-off setting that keeps a passive shared-stream subscriber attached while idle, stores a bounded 1-second RAM-only ring at 16kHz mono, and prepends up to 0.45 seconds to the next dictation WAV. macOS shows the microphone indicator while this is enabled. No STT or transcript processing runs while idle.
+- **Pre-roll discard on confirmed media pause (issue #474)**: when the Pause Media round-trip confirms system media was playing at press time, `stop()` trims the prepended pre-roll from the WAV before transcription — it is pre-press audio that no pause can silence, so on speakers it would put the media's speech at the head of the transcript. The minimum-sample threshold then applies to the post-trim count, so an effectively media-only capture dismisses silently. Best-effort: a pause confirmation that settles after capture stops keeps the pre-roll.
 - Dictation does not use the meeting crash-recovery lock-file pipeline. The current implementation writes a temp WAV and either moves it into retained storage or deletes it after processing.
 
 ### Storage

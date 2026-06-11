@@ -5,9 +5,20 @@ import OSLog
 
 @MainActor
 protocol DictationMediaPauseCoordinating: AnyObject {
-    func requestPauseBeforeDictationCapture()
+    /// `onMediaPaused` fires (on the MainActor) when the now-playing
+    /// round-trip confirms media was playing and the pause command was sent —
+    /// and only while this capture's pause request is still current. Callers
+    /// use it to discard the instant-dictation pre-roll, which by then is
+    /// known to contain pre-press media audio (issue #474).
+    func requestPauseBeforeDictationCapture(onMediaPaused: (@MainActor () -> Void)?)
     func resumeAfterDictationCapture() async
     func resumeForTermination()
+}
+
+extension DictationMediaPauseCoordinating {
+    func requestPauseBeforeDictationCapture() {
+        requestPauseBeforeDictationCapture(onMediaPaused: nil)
+    }
 }
 
 @MainActor
@@ -50,7 +61,7 @@ final class DictationMediaPauseCoordinator: DictationMediaPauseCoordinating {
     /// round-trip that previously front-loaded hundreds of milliseconds onto
     /// every dictation press and clipped the first words — runs in the
     /// detached child task, concurrently with audio capture start.
-    func requestPauseBeforeDictationCapture() {
+    func requestPauseBeforeDictationCapture(onMediaPaused: (@MainActor () -> Void)?) {
         generation += 1
         let pauseGeneration = generation
 
@@ -69,6 +80,7 @@ final class DictationMediaPauseCoordinator: DictationMediaPauseCoordinating {
 
         guard !isMeetingRecordingActive() else {
             Self.logger.notice("media_pause_skipped reason=meeting_active")
+            AudioCaptureDiagnostics.append("media_pause_skipped reason=meeting_active")
             return
         }
 
@@ -82,12 +94,15 @@ final class DictationMediaPauseCoordinator: DictationMediaPauseCoordinating {
             // cancelled) while the round-trip was in flight: release the token
             // instead of arming a pause nobody will resume. The generation
             // check is the authoritative guard; the cancellation check is a
-            // best-effort fast path.
+            // best-effort fast path. `onMediaPaused` must not fire here: this
+            // capture is over, and discarding pre-roll now could hit a newer
+            // session that this request knows nothing about.
             guard !Task.isCancelled, self.generation == pauseGeneration else {
                 await self.mediaController.resume(token)
                 return
             }
             self.activeToken = token
+            onMediaPaused?()
         }
     }
 
@@ -116,7 +131,7 @@ final class DictationMediaPauseCoordinator: DictationMediaPauseCoordinating {
 
 @MainActor
 final class NoOpDictationMediaPauseCoordinator: DictationMediaPauseCoordinating {
-    func requestPauseBeforeDictationCapture() {}
+    func requestPauseBeforeDictationCapture(onMediaPaused: (@MainActor () -> Void)?) {}
     func resumeAfterDictationCapture() async {}
     func resumeForTermination() {}
 }

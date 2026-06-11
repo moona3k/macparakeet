@@ -32,7 +32,10 @@ owned by `AppEnvironment`.
   Dictation keeps a passive warm subscriber attached while idle,
   stores a 1-second RAM-only 16 kHz mono ring buffer, and prepends up
   to 0.45 seconds when the user starts dictation. It does not run STT
-  while idle.
+  while idle. When the Pause Media round-trip confirms media was
+  playing at press time, `discardPreRollForActiveRecording()` marks
+  the session and `stop()` trims the prepended pre-roll from the WAV —
+  pre-press media audio that no pause can silence (issue #474).
 - `MicrophoneCapture.swift` — meeting microphone capture. Subscribes
   with `wantsVPIO: false` by default via `MeetingMicProcessingMode.raw`.
   VPIO modes remain available for explicit experiments, with raw fallback
@@ -54,7 +57,11 @@ owned by `AppEnvironment`.
 - `AudioCaptureDiagnostics.swift` — public `append(_:)` to
   `~/Library/Logs/MacParakeet/dictation-audio.log`. 5 MB cap;
   delete-on-overflow (not rotated). Used by every file in this
-  folder and by `AppDelegate`'s boot marker.
+  folder, by `AppDelegate`'s boot marker, and by the dictation
+  media-pause path (`SystemMediaController` +
+  `DictationMediaPauseCoordinator` mirror their `media_pause_*` /
+  `media_resume_*` outcomes here so uploaded logs show the
+  press→pause window next to the capture timeline; issue #474).
 - `DiagnosticLogScope.swift` — `AudioCaptureDiagnostics.scopedLogForUpload`
   trims the log to a recent window (`.recent`, the feedback default:
   last 7 days, 2 MB / 20k-line safety ceilings, min-tail fallback) or

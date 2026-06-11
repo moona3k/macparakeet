@@ -68,6 +68,13 @@ public final class DictationServiceSession {
         await service.cancelRecording(reason: reason, sessionID: sessionID)
     }
 
+    /// Discard the instant-dictation pre-roll from the named session's capture
+    /// because system media was confirmed playing at press time (issue #474).
+    /// Best-effort: stale session IDs and non-recording states are ignored.
+    public func discardPreRollForActiveCapture(sessionID: Int) async {
+        await service.discardPreRollForActiveCapture(sessionID: sessionID)
+    }
+
     public func confirmCancel(sessionID: Int) async {
         await service.confirmCancel(sessionID: sessionID)
     }

@@ -889,8 +889,21 @@ final class DictationFlowCoordinator {
                 // capture start, or its out-of-process now-playing lookup
                 // clips the first words of the dictation. The coordinator's
                 // generation guard keeps resume correct if capture ends before
-                // the pause settles.
-                self.mediaPauseCoordinator.requestPauseBeforeDictationCapture()
+                // the pause settles. When the round-trip confirms media was
+                // playing, the instant-dictation pre-roll is pre-press media
+                // audio that no pause can silence — discard it (issue #474).
+                // Best-effort by design: if the round-trip settles after the
+                // capture stopped, the session guard drops the request.
+                self.mediaPauseCoordinator.requestPauseBeforeDictationCapture(
+                    onMediaPaused: { [weak self] in
+                        guard let self else { return }
+                        Task {
+                            await self.serviceSession.discardPreRollForActiveCapture(
+                                sessionID: sessionID
+                            )
+                        }
+                    }
+                )
                 try Task.checkCancellation()
                 try await self.serviceSession.startRecording(
                     sessionID: sessionID,

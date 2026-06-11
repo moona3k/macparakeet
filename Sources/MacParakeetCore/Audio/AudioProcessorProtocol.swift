@@ -18,6 +18,18 @@ public protocol AudioProcessorProtocol: Sendable {
 
     /// Device info from the most recent recording (name, transport, format, fallback status).
     var recordingDeviceInfo: RecordingDeviceInfo? { get async }
+
+    /// Discard the instant-dictation pre-roll from the active capture (no-op
+    /// when idle or when no pre-roll was prepended). Called when system media
+    /// was confirmed playing at dictation start, so the pre-roll is known to
+    /// be pre-press media audio (issue #474).
+    func discardPreRollForActiveCapture() async
+}
+
+public extension AudioProcessorProtocol {
+    /// Capture-only implementations (file converters, test doubles) have no
+    /// pre-roll; discarding is a no-op unless a conformer opts in.
+    func discardPreRollForActiveCapture() async {}
 }
 
 public enum AudioProcessorError: Error, LocalizedError {

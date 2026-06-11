@@ -174,6 +174,17 @@ public actor AudioRecorder {
     private var outputURL: URL?
     private var recording = false
     private var starting = false
+    /// Frames of instant-dictation pre-roll prepended to the current
+    /// recording's WAV. Reset at every `start()` entry; read by `stop()` to
+    /// trim the file head when `discardPreRollRequested` is set.
+    private var preRollFramesWritten = 0
+    /// Set via `discardPreRollForActiveRecording()` when system media was
+    /// confirmed playing at dictation start — the pre-roll is then known to
+    /// be pre-press media audio that no media pause can silence (issue #474).
+    /// Best-effort: requests that arrive outside an active/starting session
+    /// are dropped, and `start()` resets the flag so a stale request can
+    /// never trim a later session's pre-roll.
+    private var discardPreRollRequested = false
     /// Bumped on every `start()` entry that passes the entry guard. Each call
     /// captures its value as `myStartCallGeneration`; the `defer` only clears
     /// `starting` if no newer call has claimed the slot. Without this, an
@@ -333,6 +344,11 @@ public actor AudioRecorder {
         self.firstBufferLogged.withLock { $0 = false }
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
+        // This synchronous section has no suspension points, so a discard
+        // request for *this* session cannot interleave before the reset; one
+        // arriving for a previous aborted session is correctly cleared here.
+        self.preRollFramesWritten = 0
+        self.discardPreRollRequested = false
         self.preRollAcceptingSamples.withLock { $0 = false }
         self.sharedProcessingQueue.sync {}
         self.preRollCaptureGeneration.withLock { $0 += 1 }
@@ -573,9 +589,22 @@ public actor AudioRecorder {
         armCaptureDiagnostics(generation: tapGeneration)
     }
 
+    /// Discard the instant-dictation pre-roll from the in-flight recording.
+    /// Called when system media was confirmed playing at dictation start: the
+    /// pre-roll is then pre-press media audio that no media pause can silence,
+    /// and `stop()` trims it from the WAV before transcription (issue #474).
+    /// Requests outside an active/starting session are dropped — best-effort
+    /// by design; a missed request only keeps the original bleed window.
+    public func discardPreRollForActiveRecording() {
+        guard recording || starting else { return }
+        discardPreRollRequested = true
+    }
+
     /// Stop recording and return the path to the recorded WAV file.
-    /// Throws `insufficientSamples` if the recording is shorter than the STT minimum.
-    public func stop() throws -> URL {
+    /// Throws `insufficientSamples` if the recording is shorter than the STT
+    /// minimum — measured after any pre-roll discard, so a capture that is
+    /// effectively media-only dismisses silently instead of transcribing it.
+    public func stop() async throws -> URL {
         if starting, !recording {
             // `start()` awaits the stream subscription. A stop/cancel during
             // that await must invalidate the pending tap generation so the
@@ -591,12 +620,15 @@ public actor AudioRecorder {
             throw AudioProcessorError.recordingFailed("Not recording")
         }
 
+        var unsubscribeTask: Task<Void, Never>?
         if let token = sharedSubscriberToken {
-            // Fire-and-forget so stop() stays synchronous. The stream's
-            // engine queue serializes the unsubscribe behind any pending
-            // operations.
+            // Fire-and-forget on the happy path so stop() never waits on the
+            // stream's engine queue, which serializes the unsubscribe behind
+            // any pending operations. The pre-roll discard path below awaits
+            // this task — that is what releases the tap's retain on the
+            // writer AVAudioFile, finalizing the WAV before it is re-read.
             let stream = sharedStream
-            Task { await stream.unsubscribe(token) }
+            unsubscribeTask = Task { await stream.unsubscribe(token) }
             sharedSubscriberToken = nil
             // Conversion and file writes run on this serial queue instead of
             // the shared audio tap. Drain already-enqueued work so stop()
@@ -612,6 +644,14 @@ public actor AudioRecorder {
         preRollCaptureGeneration.withLock { $0 += 1 }
         preRollConverterCache.reset()
         preRollBuffer.withLock { $0.clear() }
+        // Snapshot + reset the discard state while still in the synchronous
+        // section: the trim below suspends, and a reentrant start() must see
+        // clean per-session state.
+        let discardFrames = (discardPreRollRequested && preRollFramesWritten > 0)
+            ? preRollFramesWritten
+            : 0
+        preRollFramesWritten = 0
+        discardPreRollRequested = false
         if instantDictationEnabled {
             let hasWarmSubscriber = warmSubscriberToken != nil
             preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
@@ -635,16 +675,98 @@ public actor AudioRecorder {
         AudioCaptureDiagnostics.append(
             "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount)"
         )
-        guard sampleCount >= Self.minimumSamples else {
+        // Length gate uses the post-discard count: a capture whose remainder
+        // is below the STT floor would otherwise transcribe nothing but the
+        // discarded media audio.
+        let effectiveSampleCount = sampleCount - discardFrames
+        guard effectiveSampleCount >= Self.minimumSamples else {
             // Clean up the too-short file
             try? FileManager.default.removeItem(at: url)
+            let discardField = discardFrames > 0 ? " discarded_preroll_frames=\(discardFrames)" : ""
             AudioCaptureDiagnostics.append(
-                "dictation_capture_insufficient sample_count=\(sampleCount) required=\(Self.minimumSamples)"
+                "dictation_capture_insufficient sample_count=\(effectiveSampleCount) required=\(Self.minimumSamples)\(discardField)"
             )
             throw AudioProcessorError.insufficientSamples
         }
 
+        if discardFrames > 0 {
+            // Releasing the subscriber drops the tap's retain on the writer
+            // AVAudioFile (the handler closure holds it); draining the
+            // processing queue afterwards releases the copies held by any
+            // already-enqueued blocks. Only then is the WAV finalized on disk
+            // and safe to re-read. Suspending here is safe: every piece of
+            // per-session actor state was reset above, and this path touches
+            // only locals — a reentrant start() begins a fresh session
+            // against a different file.
+            await unsubscribeTask?.value
+            sharedProcessingQueue.sync {}
+            do {
+                try Self.removeLeadingFrames(discardFrames, fromWAVAt: url)
+                let duration = Double(discardFrames) / Double(Self.outputSampleRate)
+                AudioCaptureDiagnostics.append(
+                    "dictation_capture_preroll_discarded reason=media_paused sample_count=\(discardFrames) duration_s=\(String(format: "%.3f", duration))"
+                )
+            } catch {
+                // Degrade to the pre-fix behavior (pre-roll bleed) rather
+                // than lose the user's dictation.
+                AudioCaptureDiagnostics.append(
+                    "dictation_capture_preroll_discard_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                )
+            }
+        }
+
         return url
+    }
+
+    /// Rewrite the WAV at `url` without its first `frames` frames. Used by
+    /// `stop()` to drop a media-contaminated instant-dictation pre-roll. The
+    /// rewrite goes through a sibling temp file plus an atomic replace so a
+    /// failure at any point leaves the original file intact.
+    private static func removeLeadingFrames(_ frames: Int, fromWAVAt url: URL) throws {
+        let tempURL = url.deletingLastPathComponent()
+            .appendingPathComponent("\(UUID().uuidString).wav")
+        do {
+            try writeCopy(of: url, skippingLeadingFrames: frames, to: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
+    }
+
+    /// Separate function so the writer `AVAudioFile`'s last strong reference
+    /// is provably gone when it returns — dealloc finalizes the WAV header,
+    /// which must happen before `removeLeadingFrames` swaps the file in.
+    private static func writeCopy(
+        of sourceURL: URL,
+        skippingLeadingFrames frames: Int,
+        to destinationURL: URL
+    ) throws {
+        let source = try AVAudioFile(forReading: sourceURL)
+        // fileFormat, not processingFormat: the copy must preserve the
+        // on-disk format. Identical for today's Float32 mono WAVs, but
+        // processingFormat would silently reformat the copy if the recording
+        // format ever changed (e.g. Int16).
+        let writer = try AVAudioFile(
+            forWriting: destinationURL,
+            settings: source.fileFormat.settings
+        )
+        source.framePosition = AVAudioFramePosition(frames)
+        var remaining = max(0, source.length - AVAudioFramePosition(frames))
+        let chunkFrames: AVAudioFrameCount = 16_384
+        while remaining > 0 {
+            let count = AVAudioFrameCount(min(AVAudioFramePosition(chunkFrames), remaining))
+            guard let buffer = AVAudioPCMBuffer(
+                pcmFormat: source.processingFormat,
+                frameCapacity: count
+            ) else {
+                throw AudioProcessorError.recordingFailed("Failed to allocate pre-roll trim buffer")
+            }
+            try source.read(into: buffer, frameCount: count)
+            guard buffer.frameLength > 0 else { break }
+            try writer.write(from: buffer)
+            remaining -= AVAudioFramePosition(buffer.frameLength)
+        }
     }
 
     private func logTapError(_ message: String) {
@@ -673,6 +795,7 @@ public actor AudioRecorder {
             }
         }
         try file.write(from: buffer)
+        preRollFramesWritten = samples.count
         sampleCounter.withLock { $0 += samples.count }
         runtimeMetrics.withLock { $0.outputBufferCount += 1 }
         let duration = Double(samples.count) / Double(Self.outputSampleRate)

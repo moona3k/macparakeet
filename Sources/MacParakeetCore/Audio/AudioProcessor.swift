@@ -45,6 +45,10 @@ public actor AudioProcessor: AudioProcessorProtocol {
         try await recorder.stop()
     }
 
+    public func discardPreRollForActiveCapture() async {
+        await recorder.discardPreRollForActiveRecording()
+    }
+
     public func setInstantDictationEnabled(_ enabled: Bool) async {
         await recorder.setInstantDictationEnabled(enabled)
     }
