@@ -48,7 +48,8 @@ struct MeetingLiveChunkingDiagnostics: Sendable {
 /// one at a time. `configureChunkers`/`reset` (start) and `flush*` (stop) run
 /// outside that task's active window. If capture is ever parallelized per source
 /// (e.g. a `TaskGroup` or per-source tasks), this invariant breaks and the
-/// chunker needs its own serialization.
+/// chunker needs its own serialization. A debug-only assertion
+/// (`ingestInFlight`) trips loudly if that ever happens (AUDIT-079).
 ///
 /// This type does not depend on FluidAudio — it round-trips the opaque
 /// `MeetingVADStreamState` through a `MeetingVoiceActivityDetecting`.
@@ -85,6 +86,12 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     private var consecutiveVADErrors = 0
     private var fellBackToFixed = false
     private var diag = MeetingLiveChunkingDiagnostics()
+    /// Debug tripwire for the single-caller contract (see the concurrency
+    /// note above): actors are reentrant across `await`, so an overlapping
+    /// `addSamples`/`flush`/`reset` caller would interleave at the VAD hop
+    /// and corrupt `buffer`/`pendingVAD` accounting. Costs nothing in
+    /// release builds.
+    private var ingestInFlight = false
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "SpeechBoundaryChunker")
 
@@ -96,6 +103,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     var diagnostics: MeetingLiveChunkingDiagnostics { diag }
 
     func reset() async {
+        assert(!ingestInFlight, "Chunker reset() overlapped an in-flight ingest; the single-caller contract is broken (AUDIT-079)")
         buffer = []
         pendingVAD = []
         lastEmittedSample = 0
@@ -107,6 +115,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     }
 
     func addSamples(_ samples: [Float]) async -> [AudioChunker.AudioChunk] {
+        assert(!ingestInFlight, "Chunker addSamples() overlapped another ingest; the single-caller contract is broken (AUDIT-079)")
+        ingestInFlight = true
+        defer { ingestInFlight = false }
+
         guard !samples.isEmpty else { return [] }
 
         if fellBackToFixed {
@@ -145,6 +157,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     }
 
     func flush() async -> AudioChunker.AudioChunk? {
+        assert(!ingestInFlight, "Chunker flush() overlapped an in-flight ingest; the single-caller contract is broken (AUDIT-079)")
+        ingestInFlight = true
+        defer { ingestInFlight = false }
+
         if fellBackToFixed {
             return flushFixed()
         }
