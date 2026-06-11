@@ -2,6 +2,16 @@ import Foundation
 
 public enum AIFormatter {
     public static let transcriptPlaceholder = "{{TRANSCRIPT}}"
+
+    /// Upper bound on input length for the file/meeting transcript formatter
+    /// pass. The prompt requires reproducing the full text, so output length
+    /// tracks input length; past this size the call cannot finish inside
+    /// realistic provider timeouts (hour-long meeting transcripts burned the
+    /// entire 300s Local CLI timeout and fell back every time — issue #493).
+    /// ~20k chars ≈ 5k output tokens, which completes with headroom even on
+    /// slow CLI providers. Longer transcripts skip straight to standard
+    /// cleanup. Dictation input is orders of magnitude shorter and not gated.
+    public static let maxTranscriptionInputChars = 20_000
     static let legacyDefaultPromptTemplateV1 = """
         You are a transcription cleanup assistant.
 

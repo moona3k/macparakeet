@@ -130,6 +130,18 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
     }
 
+    func testAIFormatterEnabledForTranscriptionsDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForTranscriptions)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForTranscriptions)
+    }
+
     func testTranscriptAIContextModeDefaultsToRichAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -168,5 +180,29 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertFalse(dictationGate(global: true, dictation: false))
         XCTAssertFalse(dictationGate(global: false, dictation: true))
         XCTAssertFalse(dictationGate(global: false, dictation: false))
+    }
+
+    /// Models the gate the composition root installs on the file/meeting
+    /// transcription path: the AI Formatter runs only when the global switch
+    /// AND the transcripts-specific switch are both on. With the transcripts
+    /// key unset the gate follows the global switch alone (pre-#493 behavior).
+    func testTranscriptionFormatterGateIsConjunctionOfGlobalAndTranscriptsFlags() {
+        func transcriptionGate(global: Bool, transcripts: Bool?) -> Bool {
+            let suite = "app-runtime-prefs-\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set(global, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+            if let transcripts {
+                defaults.set(transcripts, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+            }
+            let prefs = UserDefaultsAppRuntimePreferences(defaults: defaults)
+            return prefs.aiFormatterEnabled && prefs.aiFormatterEnabledForTranscriptions
+        }
+
+        XCTAssertTrue(transcriptionGate(global: true, transcripts: nil))
+        XCTAssertTrue(transcriptionGate(global: true, transcripts: true))
+        XCTAssertFalse(transcriptionGate(global: true, transcripts: false))
+        XCTAssertFalse(transcriptionGate(global: false, transcripts: nil))
+        XCTAssertFalse(transcriptionGate(global: false, transcripts: true))
     }
 }

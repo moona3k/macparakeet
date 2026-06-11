@@ -300,11 +300,13 @@ public enum SettingsSearchIndex {
             keywords: AppFeatures.aiFormatterProfilesEnabled
                 ? [
                     "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
-                    "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish"
+                    "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish",
+                    "use for transcripts", "use for dictation", "meeting transcripts"
                 ]
                 : [
                     "formatter", "formatting", "cleanup", "dictation prompt",
-                    "fallback prompt", "rewrite", "polish"
+                    "fallback prompt", "rewrite", "polish",
+                    "use for transcripts", "use for dictation", "meeting transcripts"
                 ],
             cardAnchor: "ai.formatter"
         ),

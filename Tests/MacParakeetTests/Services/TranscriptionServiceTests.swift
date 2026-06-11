@@ -659,6 +659,38 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testTranscribeSkipsAIFormatterWhenTranscriptExceedsInputCap() async throws {
+        // One char over the cap: the formatter must reproduce the full text,
+        // so past this size it cannot finish inside realistic provider
+        // timeouts and would stall finalization for the entire timeout (#493).
+        let longTranscript = String(
+            repeating: "a",
+            count: AIFormatter.maxTranscriptionInputChars + 1
+        )
+        await mockSTT.configure(result: STTResult(text: longTranscript))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "should never be requested"
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, longTranscript)
+        XCTAssertNil(result.cleanTranscript)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+
+        let runs = try llmRunRepo.fetchForTranscription(id: result.id)
+        XCTAssertTrue(runs.isEmpty)
+    }
+
     func testTranscribeFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()

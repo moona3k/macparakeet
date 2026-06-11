@@ -404,10 +404,13 @@ UI ownership. Focus drift is handled by preferring a valid stop/undo-time
 context and falling back to the start-time context when the finish context is
 missing or points at MacParakeet itself.
 
-Profiles apply only to Dictation AI Formatter in V1. File/URL transcription
-formatting continues to use the fallback formatter prompt, and meeting
-transcripts still bypass AI Formatter unless their finalization path is
-explicitly wired in later.
+Profiles apply only to Dictation AI Formatter in V1. File/URL and meeting
+transcription formatting continues to use the fallback formatter prompt
+(all transcription finalization paths share `completeTranscription`, which
+invokes the formatter). The transcripts-side formatter has its own
+"Use for transcripts" toggle (default on) and an input-length cap that
+skips formatting for transcripts too long to rewrite inside realistic
+provider timeouts (#493).
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but

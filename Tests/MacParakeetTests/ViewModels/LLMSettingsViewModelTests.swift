@@ -66,6 +66,44 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(reloaded.aiFormatterEnabledForDictation)
     }
 
+    // MARK: - AI Formatter: transcripts routing toggle (#493)
+
+    func testAIFormatterEnabledForTranscriptionsDefaultsToTrue() {
+        XCTAssertTrue(viewModel.aiFormatterEnabledForTranscriptions)
+    }
+
+    func testAIFormatterEnabledForTranscriptionsPersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
+
+        viewModel.aiFormatterEnabledForTranscriptions = false
+
+        XCTAssertEqual(defaults.object(forKey: key) as? Bool, false)
+        XCTAssertFalse(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
+    }
+
+    func testAIFormatterEnabledForTranscriptionsLoadsStoredValueOnInit() {
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+        let reloaded = LLMSettingsViewModel(defaults: defaults)
+        XCTAssertFalse(reloaded.aiFormatterEnabledForTranscriptions)
+    }
+
+    func testSaveConfigurationPreservesTranscriptsOptOut() throws {
+        mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.aiFormatterEnabledForTranscriptions = false
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
+            ) as? Bool,
+            false
+        )
+        XCTAssertFalse(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
+    }
+
     func testTranscriptAIContextModePersistsThroughInjectedDefaults() {
         let key = UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey
 
@@ -88,6 +126,22 @@ final class LLMSettingsViewModelTests: XCTestCase {
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
             ) as? Bool,
             false
+        )
+    }
+
+    func testClearConfigurationRestoresTranscriptsRoutingDefault() {
+        mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.aiFormatterEnabledForTranscriptions = false
+
+        viewModel.clearConfiguration()
+
+        XCTAssertTrue(viewModel.aiFormatterEnabledForTranscriptions)
+        XCTAssertEqual(
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
+            ) as? Bool,
+            true
         )
     }
 
