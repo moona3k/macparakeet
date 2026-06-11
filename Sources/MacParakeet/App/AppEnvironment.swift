@@ -1,6 +1,7 @@
 import Foundation
 import MacParakeetCore
 import MacParakeetViewModels
+import OSLog
 
 /// Service container: creates and wires up all dependencies.
 @MainActor
@@ -204,7 +205,15 @@ final class AppEnvironment {
         if AppFeatures.aiFormatterProfilesEnabled {
             aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
                 profileRepository: aiFormatterProfileRepo,
-                globalPromptTemplate: aiFormatterPromptClosure
+                globalPromptTemplate: aiFormatterPromptClosure,
+                smartDefaultsPolicy: { AIFormatterSmartDefaultsPolicy.current() },
+                onFetchError: { error in
+                    // A failed profile fetch degrades to the fallback prompt by
+                    // design; log it so a corrupted DB doesn't silently route
+                    // every dictation past the user's profiles.
+                    Logger(subsystem: "com.macparakeet.app", category: "AIFormatter")
+                        .error("Formatter profile fetch failed; using fallback prompt error=\(error.localizedDescription, privacy: .public)")
+                }
             )
         } else {
             aiFormatterPromptResolver = AIFormatterGlobalPromptResolver(

@@ -41,7 +41,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
-        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Default prompt")
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Built-in default")
         XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
@@ -558,6 +558,201 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(resolution.promptTemplate, "Formal mail prompt \(AIFormatter.transcriptPlaceholder)")
     }
 
+    func testEditingSavedAppProfileDerivesCategoryFromBundleIdentifier() {
+        // Bundle profiles persist appCategory = nil; rehydrating an iTerm
+        // profile must show Terminal, not the .messaging fallback.
+        let profile = AIFormatterProfile.exactApp(
+            name: "iTerm Commands",
+            bundleIdentifier: "com.googlecode.iterm2",
+            appDisplayName: "iTerm2",
+            promptTemplate: "Preserve commands \(AIFormatter.transcriptPlaceholder)"
+        )
+
+        viewModel.editAIFormatterProfile(profile)
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .terminal)
+    }
+
+    func testEditingSavedAppProfileWithSmartDefaultPromptFollowsRetarget() throws {
+        // A saved iTerm profile holding the terminal smart default is an
+        // auto prompt; retargeting the draft to Slack must follow to the
+        // messaging smart default instead of carrying the terminal text.
+        let terminalDefault = try XCTUnwrap(AIFormatterSmartDefaults.categoryDefault(for: .terminal))
+        let profile = AIFormatterProfile.exactApp(
+            name: "iTerm2",
+            bundleIdentifier: "com.googlecode.iterm2",
+            appDisplayName: "iTerm2",
+            promptTemplate: terminalDefault.promptTemplate
+        )
+        viewModel.editAIFormatterProfile(profile)
+
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+
+        let messagingDefault = AIFormatterSmartDefaults.categoryDefault(for: .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .messaging)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, messagingDefault?.promptTemplate)
+    }
+
+    func testManualBundleIdentifierEntryDerivesCategoryNameAndPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .bundle)
+
+        viewModel.applyAIFormatterProfileDraftManualBundleIdentifier("com.apple.mail")
+
+        let emailDefault = AIFormatterSmartDefaults.categoryDefault(for: .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.apple.mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "com.apple.mail")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, emailDefault?.promptTemplate)
+    }
+
+    func testManualBundleIdentifierEntryPreservesCustomNameAndPrompt() {
+        viewModel.startCreatingAIFormatterProfile(targetKind: .bundle)
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "My Mail")
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate,
+            to: "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+
+        viewModel.applyAIFormatterProfileDraftManualBundleIdentifier("com.apple.mail")
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "My Mail")
+        XCTAssertEqual(
+            viewModel.aiFormatterProfileDraft?.promptTemplate,
+            "Custom prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testManualBundleIdentifierEntryClearsStaleDisplayName() {
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+
+        viewModel.applyAIFormatterProfileDraftManualBundleIdentifier("com.apple.mail")
+
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appDisplayName, "")
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .email)
+    }
+
+    func testSmartDefaultsPolicyPersistsAcrossViewModelInstances() {
+        viewModel.aiFormatterSmartDefaultsEnabled = false
+        viewModel.setAIFormatterSmartDefault(.browser, enabled: false)
+
+        let reloaded = LLMSettingsViewModel(defaults: defaults)
+
+        XCTAssertFalse(reloaded.aiFormatterSmartDefaultsEnabled)
+        XCTAssertFalse(reloaded.isAIFormatterSmartDefaultEnabled(.browser))
+        XCTAssertTrue(reloaded.isAIFormatterSmartDefaultEnabled(.email))
+    }
+
+    func testDisabledSmartDefaultCategoryAffectsPreview() {
+        let context = AppPromptContext(bundleIdentifier: "com.tinyspeck.slackmacgap")
+
+        viewModel.setAIFormatterSmartDefault(.messaging, enabled: false)
+        let disabled = viewModel.aiFormatterPromptPreview(for: context)
+        XCTAssertEqual(disabled.matchKind, .global)
+
+        viewModel.setAIFormatterSmartDefault(.messaging, enabled: true)
+        let enabled = viewModel.aiFormatterPromptPreview(for: context)
+        XCTAssertEqual(enabled.matchKind, .category)
+        XCTAssertEqual(enabled.profileOrigin, .template)
+    }
+
+    func testDisabledSmartDefaultsMasterSwitchAffectsPreview() {
+        let context = AppPromptContext(bundleIdentifier: "com.apple.mail")
+
+        viewModel.aiFormatterSmartDefaultsEnabled = false
+        XCTAssertEqual(viewModel.aiFormatterPromptPreview(for: context).matchKind, .global)
+
+        viewModel.aiFormatterSmartDefaultsEnabled = true
+        XCTAssertEqual(viewModel.aiFormatterPromptPreview(for: context).matchKind, .category)
+    }
+
+    func testAIFormatterPromptPreviewIncludesDraftBeforeItIsSaveable() throws {
+        // A draft with a concrete target but no name yet should already win
+        // the preview — otherwise clearing the name mid-edit flips the
+        // preview back to "Smart default".
+        viewModel.applyAIFormatterProfileDraftApp(
+            bundleIdentifier: "com.apple.mail",
+            displayName: "Mail"
+        )
+        viewModel.updateAIFormatterProfileDraft(\.name, to: "")
+        let draft = try XCTUnwrap(viewModel.aiFormatterProfileDraft)
+        XCTAssertFalse(draft.canSave)
+
+        let resolution = viewModel.aiFormatterPromptPreview(
+            for: AppPromptContext(bundleIdentifier: "com.apple.mail"),
+            including: draft
+        )
+
+        XCTAssertEqual(resolution.matchKind, .exactApp)
+    }
+
+    func testAIFormatterProfileBadgeTextDistinguishesPromptProvenance() {
+        viewModel.aiFormatterPrompt = "My custom fallback \(AIFormatter.transcriptPlaceholder)"
+
+        let fallback = AIFormatterProfile.exactApp(
+            name: "Mail",
+            bundleIdentifier: "com.apple.mail",
+            promptTemplate: "My custom fallback \(AIFormatter.transcriptPlaceholder)"
+        )
+        XCTAssertEqual(viewModel.aiFormatterProfileBadgeText(fallback), "Fallback prompt")
+
+        let smartDefault = AIFormatterProfile.exactApp(
+            name: "Mail",
+            bundleIdentifier: "com.apple.mail",
+            promptTemplate: AIFormatterSmartDefaults.categoryDefault(for: .email)?.promptTemplate ?? ""
+        )
+        XCTAssertEqual(viewModel.aiFormatterProfileBadgeText(smartDefault), "Smart default")
+
+        let custom = AIFormatterProfile.exactApp(
+            name: "Mail",
+            bundleIdentifier: "com.apple.mail",
+            promptTemplate: "Something else entirely \(AIFormatter.transcriptPlaceholder)"
+        )
+        XCTAssertEqual(viewModel.aiFormatterProfileBadgeText(custom), "Custom prompt")
+    }
+
+    func testProfilesAreListedInMatchPrecedenceOrder() throws {
+        let dbManager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
+        try repo.save(AIFormatterProfile.exactApp(
+            name: "zoom",
+            bundleIdentifier: "us.zoom.xos",
+            promptTemplate: "p",
+            sortOrder: 1
+        ))
+        try repo.save(AIFormatterProfile.exactApp(
+            name: "Apple Mail",
+            bundleIdentifier: "com.apple.mail",
+            promptTemplate: "p",
+            sortOrder: 1
+        ))
+        try repo.save(AIFormatterProfile.category(
+            name: "browser",
+            appCategory: .browser,
+            promptTemplate: "p",
+            sortOrder: 0
+        ))
+
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            aiFormatterProfileRepo: repo
+        )
+
+        // sortOrder first, then case-insensitive name — the same ordering the
+        // matcher uses to break ties, so the list reads as match priority.
+        XCTAssertEqual(
+            viewModel.aiFormatterProfiles.map(\.name),
+            ["browser", "Apple Mail", "zoom"]
+        )
+    }
+
     func testBlankAIFormatterProfilePromptIsRejected() throws {
         let dbManager = try DatabaseManager()
         let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
@@ -597,7 +792,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.updateAIFormatterProfileDraft(\.appCategory, to: TelemetryAppCategory.email)
 
         XCTAssertFalse(viewModel.saveAIFormatterProfileDraft())
-        XCTAssertEqual(viewModel.aiFormatterProfileError, "A profile already exists for email.")
+        XCTAssertEqual(viewModel.aiFormatterProfileError, "A profile already exists for Email.")
         XCTAssertNotNil(viewModel.aiFormatterProfileDraft)
         XCTAssertEqual(try repo.fetchAll().count, 1)
     }
@@ -1071,7 +1266,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
-        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Custom prompt")
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Customized")
     }
 
     func testLoadsLegacyDefaultAIFormatterPromptAsUpdatedDefault() {

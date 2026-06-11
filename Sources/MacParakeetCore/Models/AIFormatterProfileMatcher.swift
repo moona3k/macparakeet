@@ -48,15 +48,18 @@ public struct AIFormatterGlobalPromptResolver: AIFormatterPromptResolving {
 public final class AIFormatterProfilePromptResolver: AIFormatterPromptResolving {
     private let profileRepository: AIFormatterProfileRepositoryProtocol
     private let globalPromptTemplate: @Sendable () -> String
+    private let smartDefaultsPolicy: @Sendable () -> AIFormatterSmartDefaultsPolicy
     private let onFetchError: (@Sendable (Error) -> Void)?
 
     public init(
         profileRepository: AIFormatterProfileRepositoryProtocol,
         globalPromptTemplate: @escaping @Sendable () -> String,
+        smartDefaultsPolicy: @escaping @Sendable () -> AIFormatterSmartDefaultsPolicy = { .allEnabled },
         onFetchError: (@Sendable (Error) -> Void)? = nil
     ) {
         self.profileRepository = profileRepository
         self.globalPromptTemplate = globalPromptTemplate
+        self.smartDefaultsPolicy = smartDefaultsPolicy
         self.onFetchError = onFetchError
     }
 
@@ -70,7 +73,8 @@ public final class AIFormatterProfilePromptResolver: AIFormatterPromptResolving 
             return AIFormatterProfileMatcher.resolve(
                 profiles: try profileRepository.fetchEnabled(),
                 context: context,
-                globalPromptTemplate: globalPromptTemplate
+                globalPromptTemplate: globalPromptTemplate,
+                smartDefaultsPolicy: smartDefaultsPolicy()
             )
         } catch {
             onFetchError?(error)
@@ -80,21 +84,25 @@ public final class AIFormatterProfilePromptResolver: AIFormatterPromptResolving 
 }
 
 public enum AIFormatterProfileMatcher {
+    /// The single ordering used for both match precedence and the Settings
+    /// list, so what users see is the order in which profiles win ties.
+    public static func sortedByPrecedence(_ profiles: [AIFormatterProfile]) -> [AIFormatterProfile] {
+        profiles.sorted { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
     public static func match(
         profiles: [AIFormatterProfile],
         context: AppPromptContext?
     ) -> AIFormatterProfile? {
         guard let context else { return nil }
-        let ordered = profiles
-            .filter(\.isEnabled)
-            .sorted { lhs, rhs in
-                if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
-                let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
-                if nameOrder != .orderedSame {
-                    return nameOrder == .orderedAscending
-                }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
+        let ordered = sortedByPrecedence(profiles.filter(\.isEnabled))
 
         if let bundleIdentifier = context.bundleIdentifier,
            let exactMatch = ordered.first(where: { profile in
@@ -113,7 +121,8 @@ public enum AIFormatterProfileMatcher {
     public static func resolve(
         profiles: [AIFormatterProfile],
         context: AppPromptContext?,
-        globalPromptTemplate: String
+        globalPromptTemplate: String,
+        smartDefaultsPolicy: AIFormatterSmartDefaultsPolicy = .allEnabled
     ) -> AIFormatterPromptResolution {
         if let profile = match(profiles: profiles, context: context) {
             return AIFormatterPromptResolution(
@@ -126,6 +135,7 @@ public enum AIFormatterProfileMatcher {
         }
 
         if let context,
+           smartDefaultsPolicy.allowsCategory(context.category),
            let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: context.category) {
             return AIFormatterPromptResolution(
                 promptTemplate: categoryDefault.promptTemplate,

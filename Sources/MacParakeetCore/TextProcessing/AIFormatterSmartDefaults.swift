@@ -1,5 +1,76 @@
 import Foundation
 
+/// User control over the built-in smart-default tier. Smart defaults sit
+/// between custom profiles and the global fallback prompt in the resolution
+/// chain, so without an off switch they would silently shadow a customized
+/// fallback prompt in every recognized app category. The policy is plain
+/// `UserDefaults` state (no schema change): a master switch plus a
+/// per-category disable set.
+///
+/// `isEnabled == false`, or a disabled category, makes prompt selection
+/// byte-for-byte equivalent to the pre-profiles behavior for that dictation
+/// (custom profiles still win when they match).
+public struct AIFormatterSmartDefaultsPolicy: Sendable, Equatable {
+    public var isEnabled: Bool
+    public var disabledCategories: Set<TelemetryAppCategory>
+
+    public init(
+        isEnabled: Bool = true,
+        disabledCategories: Set<TelemetryAppCategory> = []
+    ) {
+        self.isEnabled = isEnabled
+        self.disabledCategories = disabledCategories
+    }
+
+    public static let allEnabled = AIFormatterSmartDefaultsPolicy()
+
+    public func allowsCategory(_ category: TelemetryAppCategory) -> Bool {
+        isEnabled && !disabledCategories.contains(category)
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> AIFormatterSmartDefaultsPolicy {
+        let isEnabled = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterSmartDefaultsEnabledKey
+        ) as? Bool ?? true
+        let rawDisabled = defaults.stringArray(
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterDisabledSmartDefaultCategoriesKey
+        ) ?? []
+        return AIFormatterSmartDefaultsPolicy(
+            isEnabled: isEnabled,
+            disabledCategories: Set(rawDisabled.compactMap(TelemetryAppCategory.init(rawValue:)))
+        )
+    }
+
+    public func save(to defaults: UserDefaults = .standard) {
+        defaults.set(
+            isEnabled,
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterSmartDefaultsEnabledKey
+        )
+        defaults.set(
+            disabledCategories.map(\.rawValue).sorted(),
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterDisabledSmartDefaultCategoriesKey
+        )
+    }
+}
+
+extension TelemetryAppCategory {
+    /// User-facing name for formatter UI and error copy. Lives next to the
+    /// smart defaults (not in the telemetry layer) because it exists for the
+    /// formatter surfaces; telemetry only ever transmits the raw bucket.
+    public var formatterDisplayName: String {
+        switch self {
+        case .messaging: return "Messaging"
+        case .email: return "Email"
+        case .browser: return "Browser"
+        case .notes: return "Notes"
+        case .docs: return "Documents"
+        case .code: return "Code"
+        case .terminal: return "Terminal"
+        case .other: return "Other"
+        }
+    }
+}
+
 public enum AIFormatterSmartDefaults {
     public struct CategoryDefault: Sendable, Equatable, Identifiable {
         public var id: TelemetryAppCategory { category }
@@ -64,7 +135,7 @@ public enum AIFormatterSmartDefaults {
 
                 Instructions:
                 1. Add punctuation and capitalization.
-                2. Keep the result concise and natural.
+                2. Keep the wording natural, with readable sentences and paragraphs for longer passages.
                 3. Preserve names, URLs, search terms, quoted text, numbers, and product terms.
                 4. Fix obvious speech-to-text errors.
                 5. Remove repeated words and filler sounds when unnecessary.

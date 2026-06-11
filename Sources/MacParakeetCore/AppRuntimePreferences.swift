@@ -191,6 +191,13 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    /// Master switch for the built-in smart-default formatter prompts
+    /// (default on). Off means the resolution chain skips the smart-default
+    /// tier entirely — custom profiles, then the fallback prompt.
+    public static let aiFormatterSmartDefaultsEnabledKey = "aiFormatterSmartDefaultsEnabled"
+    /// Raw `TelemetryAppCategory` values whose built-in smart default the user
+    /// turned off individually (default empty).
+    public static let aiFormatterDisabledSmartDefaultCategoriesKey = "aiFormatterDisabledSmartDefaultCategories"
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"

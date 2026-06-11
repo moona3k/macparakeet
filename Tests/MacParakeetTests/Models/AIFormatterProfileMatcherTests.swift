@@ -205,4 +205,223 @@ final class AIFormatterProfileMatcherTests: XCTestCase {
         XCTAssertNil(resolution.profileName)
         XCTAssertNil(resolution.profileOrigin)
     }
+
+    // MARK: - Smart defaults policy
+
+    func testDisabledSmartDefaultsMasterSwitchRestoresGlobalPrompt() {
+        let context = AppPromptContext(bundleIdentifier: "com.apple.mail")
+
+        let resolution = AIFormatterProfileMatcher.resolve(
+            profiles: [],
+            context: context,
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: AIFormatterSmartDefaultsPolicy(isEnabled: false)
+        )
+
+        XCTAssertEqual(resolution.promptTemplate, "Global prompt")
+        XCTAssertEqual(resolution.matchKind, .global)
+    }
+
+    func testDisabledCategorySkipsItsSmartDefaultOnly() {
+        let policy = AIFormatterSmartDefaultsPolicy(disabledCategories: [.email])
+
+        let email = AIFormatterProfileMatcher.resolve(
+            profiles: [],
+            context: AppPromptContext(bundleIdentifier: "com.apple.mail"),
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: policy
+        )
+        XCTAssertEqual(email.matchKind, .global)
+        XCTAssertEqual(email.promptTemplate, "Global prompt")
+
+        let messaging = AIFormatterProfileMatcher.resolve(
+            profiles: [],
+            context: AppPromptContext(bundleIdentifier: "com.tinyspeck.slackmacgap"),
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: policy
+        )
+        XCTAssertEqual(messaging.matchKind, .category)
+        XCTAssertEqual(messaging.profileOrigin, .template)
+        XCTAssertEqual(messaging.profileName, "Messaging")
+    }
+
+    func testCustomProfilesStillWinWhenSmartDefaultsAreDisabled() {
+        let slack = AIFormatterProfile.exactApp(
+            name: "Slack Casual",
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            promptTemplate: "Slack prompt"
+        )
+
+        let resolution = AIFormatterProfileMatcher.resolve(
+            profiles: [slack],
+            context: AppPromptContext(bundleIdentifier: "com.tinyspeck.slackmacgap"),
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: AIFormatterSmartDefaultsPolicy(isEnabled: false)
+        )
+
+        XCTAssertEqual(resolution.matchKind, .exactApp)
+        XCTAssertEqual(resolution.promptTemplate, "Slack prompt")
+    }
+
+    func testDisabledCustomCategoryProfileFallsBackToSmartDefaultThenPolicy() {
+        let disabledCustom = AIFormatterProfile.category(
+            name: "My Email",
+            appCategory: .email,
+            promptTemplate: "My custom email prompt",
+            isEnabled: false
+        )
+        let context = AppPromptContext(bundleIdentifier: "com.apple.mail")
+
+        let withDefaults = AIFormatterProfileMatcher.resolve(
+            profiles: [disabledCustom],
+            context: context,
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: .allEnabled
+        )
+        XCTAssertEqual(withDefaults.matchKind, .category)
+        XCTAssertEqual(withDefaults.profileOrigin, .template)
+
+        let withoutDefaults = AIFormatterProfileMatcher.resolve(
+            profiles: [disabledCustom],
+            context: context,
+            globalPromptTemplate: "Global prompt",
+            smartDefaultsPolicy: AIFormatterSmartDefaultsPolicy(disabledCategories: [.email])
+        )
+        XCTAssertEqual(withoutDefaults.matchKind, .global)
+        XCTAssertEqual(withoutDefaults.promptTemplate, "Global prompt")
+    }
+
+    func testSmartDefaultsPolicyRoundTripsThroughUserDefaults() throws {
+        let suiteName = "matcher-policy-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(AIFormatterSmartDefaultsPolicy.current(defaults: defaults), .allEnabled)
+
+        let policy = AIFormatterSmartDefaultsPolicy(
+            isEnabled: false,
+            disabledCategories: [.browser, .terminal]
+        )
+        policy.save(to: defaults)
+
+        XCTAssertEqual(AIFormatterSmartDefaultsPolicy.current(defaults: defaults), policy)
+    }
+
+    func testSortedByPrecedenceOrdersBySortOrderThenNameThenID() {
+        let first = AIFormatterProfile.exactApp(
+            name: "zebra",
+            bundleIdentifier: "com.example.zebra",
+            promptTemplate: "p",
+            sortOrder: 0
+        )
+        let second = AIFormatterProfile.exactApp(
+            name: "Apple",
+            bundleIdentifier: "com.example.apple",
+            promptTemplate: "p",
+            sortOrder: 1
+        )
+        let third = AIFormatterProfile.exactApp(
+            name: "zoom",
+            bundleIdentifier: "com.example.zoom",
+            promptTemplate: "p",
+            sortOrder: 1
+        )
+
+        let sorted = AIFormatterProfileMatcher.sortedByPrecedence([third, second, first])
+        XCTAssertEqual(sorted.map(\.name), ["zebra", "Apple", "zoom"])
+    }
+
+    // MARK: - Profile prompt resolver
+
+    func testResolverFallsBackToGlobalAndReportsFetchErrors() async {
+        struct FetchError: Error {}
+        final class ThrowingRepo: AIFormatterProfileRepositoryProtocol, @unchecked Sendable {
+            func save(_ profile: AIFormatterProfile) throws {}
+            func fetch(id: UUID) throws -> AIFormatterProfile? { nil }
+            func fetchAll() throws -> [AIFormatterProfile] { throw FetchError() }
+            func fetchEnabled() throws -> [AIFormatterProfile] { throw FetchError() }
+            func delete(id: UUID) throws -> Bool { false }
+        }
+
+        let reportedErrors = LockedErrorCollector()
+        let resolver = AIFormatterProfilePromptResolver(
+            profileRepository: ThrowingRepo(),
+            globalPromptTemplate: { "Global prompt" },
+            onFetchError: { reportedErrors.append($0) }
+        )
+
+        let resolution = await resolver.resolvePrompt(
+            for: AppPromptContext(bundleIdentifier: "com.apple.mail")
+        )
+
+        XCTAssertEqual(resolution.matchKind, .global)
+        XCTAssertEqual(resolution.promptTemplate, "Global prompt")
+        XCTAssertEqual(reportedErrors.count, 1)
+    }
+
+    func testResolverUsesGlobalPromptForNilContextWithoutTouchingRepository() async {
+        final class CountingRepo: AIFormatterProfileRepositoryProtocol, @unchecked Sendable {
+            let fetches = LockedErrorCollector()
+            func save(_ profile: AIFormatterProfile) throws {}
+            func fetch(id: UUID) throws -> AIFormatterProfile? { nil }
+            func fetchAll() throws -> [AIFormatterProfile] { [] }
+            func fetchEnabled() throws -> [AIFormatterProfile] {
+                fetches.append(NSError(domain: "fetch", code: 0))
+                return []
+            }
+            func delete(id: UUID) throws -> Bool { false }
+        }
+
+        let repo = CountingRepo()
+        let resolver = AIFormatterProfilePromptResolver(
+            profileRepository: repo,
+            globalPromptTemplate: { "Global prompt" }
+        )
+
+        let resolution = await resolver.resolvePrompt(for: nil)
+
+        XCTAssertEqual(resolution.matchKind, .global)
+        XCTAssertEqual(repo.fetches.count, 0)
+    }
+
+    func testResolverRespectsSmartDefaultsPolicyClosure() async {
+        final class EmptyRepo: AIFormatterProfileRepositoryProtocol, @unchecked Sendable {
+            func save(_ profile: AIFormatterProfile) throws {}
+            func fetch(id: UUID) throws -> AIFormatterProfile? { nil }
+            func fetchAll() throws -> [AIFormatterProfile] { [] }
+            func fetchEnabled() throws -> [AIFormatterProfile] { [] }
+            func delete(id: UUID) throws -> Bool { false }
+        }
+
+        let resolver = AIFormatterProfilePromptResolver(
+            profileRepository: EmptyRepo(),
+            globalPromptTemplate: { "Global prompt" },
+            smartDefaultsPolicy: { AIFormatterSmartDefaultsPolicy(isEnabled: false) }
+        )
+
+        let resolution = await resolver.resolvePrompt(
+            for: AppPromptContext(bundleIdentifier: "com.apple.mail")
+        )
+
+        XCTAssertEqual(resolution.matchKind, .global)
+        XCTAssertEqual(resolution.promptTemplate, "Global prompt")
+    }
+}
+
+/// Minimal thread-safe error collector for resolver callback assertions.
+private final class LockedErrorCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var errors: [Error] = []
+
+    func append(_ error: Error) {
+        lock.lock()
+        defer { lock.unlock() }
+        errors.append(error)
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return errors.count
+    }
 }

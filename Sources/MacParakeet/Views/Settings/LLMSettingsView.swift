@@ -22,6 +22,8 @@ struct LLMSettingsView: View {
     @State private var aiFormatterAppSearch = ""
     @State private var aiFormatterInstalledApps: [AIFormatterInstalledApp] = []
     @State private var isLoadingAIFormatterInstalledApps = false
+    @State private var selectedSmartDefaultCategory: TelemetryAppCategory?
+    @State private var aiFormatterAppIcons: [String: NSImage] = [:]
 
     private static let providerOrder: [LLMProviderID] = [
         .lmstudio,
@@ -35,7 +37,7 @@ struct LLMSettingsView: View {
     ]
 
     private static let smartDefaultGridColumns = [
-        GridItem(.adaptive(minimum: 112), spacing: DesignSystem.Spacing.sm)
+        GridItem(.adaptive(minimum: 168), spacing: DesignSystem.Spacing.sm)
     ]
 
     var body: some View {
@@ -441,61 +443,165 @@ struct LLMSettingsView: View {
             if AppFeatures.aiFormatterProfilesEnabled {
                 Divider()
 
-                if viewModel.aiFormatterProfiles.isEmpty, viewModel.aiFormatterProfileDraft == nil {
-                    DisclosureGroup("Advanced custom profiles", isExpanded: $showAIFormatterCustomProfiles) {
-                        aiFormatterProfilesSection
-                            .padding(.top, DesignSystem.Spacing.sm)
-                    }
-                    .font(DesignSystem.Typography.caption)
-                    .id("ai.formatter")
-                } else {
+                // Stable structure: the profiles area always lives in this
+                // disclosure so opening an editor or saving the first profile
+                // never restructures the section mid-interaction.
+                DisclosureGroup("Custom profiles", isExpanded: $showAIFormatterCustomProfiles) {
                     aiFormatterProfilesSection
-                        .id("ai.formatter")
+                        .padding(.top, DesignSystem.Spacing.sm)
+                }
+                .font(DesignSystem.Typography.caption)
+                .onAppear {
+                    if !viewModel.aiFormatterProfiles.isEmpty || viewModel.aiFormatterProfileDraft != nil {
+                        showAIFormatterCustomProfiles = true
+                    }
                 }
             }
         }
+        .id("ai.formatter")
     }
 
     private var aiFormatterSmartDefaultsSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            HStack(spacing: 7) {
-                Text("Smart defaults")
-                    .font(DesignSystem.Typography.body)
-                Text("On")
-                    .font(DesignSystem.Typography.micro.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.successGreen)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(DesignSystem.Colors.successGreen.opacity(0.10)))
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Smart defaults")
+                        .font(DesignSystem.Typography.body)
+                    Text(
+                        viewModel.aiFormatterSmartDefaultsEnabled
+                            ? "Dictation picks a tuned prompt for the kind of app you're in. Click a type to read its prompt."
+                            : "Off — dictation uses your fallback prompt wherever no custom profile matches."
+                    )
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Toggle("", isOn: $viewModel.aiFormatterSmartDefaultsEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .accessibilityLabel("Enable smart defaults")
+                    .accessibilityValue(viewModel.aiFormatterSmartDefaultsEnabled ? "Enabled" : "Disabled")
             }
-            Text("Custom app profiles override custom category profiles; unknown apps use the fallback prompt.")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             LazyVGrid(columns: Self.smartDefaultGridColumns, alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 ForEach(AIFormatterSmartDefaults.categoryDefaults) { categoryDefault in
-                    HStack(spacing: 6) {
-                        Image(systemName: smartDefaultIcon(for: categoryDefault.category))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.accent)
-                            .frame(width: 16, height: 16)
-                        Text(categoryDefault.name)
-                            .font(DesignSystem.Typography.caption.weight(.medium))
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated)
-                    )
+                    smartDefaultCard(categoryDefault)
                 }
+            }
+            .disabled(!viewModel.aiFormatterSmartDefaultsEnabled)
+            .opacity(viewModel.aiFormatterSmartDefaultsEnabled ? 1 : 0.55)
+
+            if viewModel.aiFormatterSmartDefaultsEnabled,
+               let selected = selectedSmartDefaultCategory,
+               let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: selected) {
+                smartDefaultPromptPreview(categoryDefault)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func smartDefaultCard(_ categoryDefault: AIFormatterSmartDefaults.CategoryDefault) -> some View {
+        let isEnabled = viewModel.isAIFormatterSmartDefaultEnabled(categoryDefault.category)
+        let isSelected = selectedSmartDefaultCategory == categoryDefault.category
+
+        return HStack(spacing: 6) {
+            Button {
+                selectedSmartDefaultCategory = isSelected ? nil : categoryDefault.category
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: smartDefaultIcon(for: categoryDefault.category))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(isEnabled ? DesignSystem.Colors.accent : Color.secondary)
+                        .frame(width: 16, height: 16)
+                    Text(categoryDefault.name)
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                        .foregroundStyle(isEnabled ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Read the \(categoryDefault.name) prompt")
+            .accessibilityLabel("Read the \(categoryDefault.name) prompt")
+
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { viewModel.isAIFormatterSmartDefaultEnabled(categoryDefault.category) },
+                    set: { viewModel.setAIFormatterSmartDefault(categoryDefault.category, enabled: $0) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .accessibilityLabel("Enable the \(categoryDefault.name) smart default")
+            .accessibilityValue(isEnabled ? "Enabled" : "Disabled")
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(
+                    isSelected ? DesignSystem.Colors.accent.opacity(0.45) : Color.clear,
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private func smartDefaultPromptPreview(
+        _ categoryDefault: AIFormatterSmartDefaults.CategoryDefault
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack {
+                Text("\(categoryDefault.name) prompt")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Spacer()
+                Button {
+                    selectedSmartDefaultCategory = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Close prompt preview")
+                .accessibilityLabel("Close prompt preview")
+            }
+
+            ScrollView {
+                Text(categoryDefault.promptTemplate)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DesignSystem.Spacing.sm)
+            }
+            .frame(maxHeight: 170)
+            .background(DesignSystem.Colors.background)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+
+            Text("To format \(categoryDefault.name) apps differently, turn this type off or add a custom profile below — custom profiles always win.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
     }
 
     @ViewBuilder
@@ -572,11 +678,7 @@ struct LLMSettingsView: View {
                                 )
                         }
                     }
-                    Text("Override smart defaults for specific app bundle IDs or broad app categories.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Precedence: app profile, category profile, smart default, fallback prompt.")
+                    Text("Set your own prompt for a specific app or an app type. When you finish dictating, the first match wins: app profile, category profile, smart default, then your fallback prompt.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -603,7 +705,10 @@ struct LLMSettingsView: View {
                 }
             }
 
-            if let error = viewModel.aiFormatterProfileError {
+            // Save errors render inside the editor (next to the Save button);
+            // this section-level slot only carries errors with no editor open,
+            // e.g. a failed delete or load.
+            if let error = viewModel.aiFormatterProfileError, viewModel.aiFormatterProfileDraft == nil {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11, weight: .semibold))
@@ -619,7 +724,7 @@ struct LLMSettingsView: View {
             }
 
             if viewModel.aiFormatterProfiles.isEmpty {
-                Text("No profiles yet.")
+                Text("No custom profiles yet.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -630,6 +735,10 @@ struct LLMSettingsView: View {
                         aiFormatterProfileRow(profile)
                     }
                 }
+                Text("Disabling a profile falls back to the smart default for its app type, then to your fallback prompt.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -652,7 +761,7 @@ struct LLMSettingsView: View {
                     Text(profile.name)
                         .font(DesignSystem.Typography.body.weight(.medium))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text(profilePromptModeText(profile))
+                    Text(viewModel.aiFormatterProfileBadgeText(profile))
                         .font(DesignSystem.Typography.micro.weight(.semibold))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                         .padding(.horizontal, 7)
@@ -794,6 +903,19 @@ struct LLMSettingsView: View {
                     .foregroundStyle(DesignSystem.Colors.errorRed)
             }
 
+            // Save failures (duplicate profile, repository errors) belong next
+            // to the Save button the user just clicked, not at the section top.
+            if let error = viewModel.aiFormatterProfileError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    Text(error)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                }
+            }
+
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Button("Save Profile") {
                     _ = viewModel.saveAIFormatterProfileDraft()
@@ -841,7 +963,10 @@ struct LLMSettingsView: View {
                             .font(DesignSystem.Typography.caption.weight(.medium))
                         TextField(
                             "com.example.app",
-                            text: profileDraftBinding(\.bundleIdentifier, fallback: "")
+                            text: Binding(
+                                get: { viewModel.aiFormatterProfileDraft?.bundleIdentifier ?? "" },
+                                set: { viewModel.applyAIFormatterProfileDraftManualBundleIdentifier($0) }
+                            )
                         )
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 260)
@@ -912,9 +1037,24 @@ struct LLMSettingsView: View {
                                 selectAIFormatterInstalledApp(app)
                             } label: {
                                 HStack(spacing: DesignSystem.Spacing.sm) {
-                                    Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
-                                        .resizable()
-                                        .frame(width: 22, height: 22)
+                                    // Icons are fetched once per bundle ID on first
+                                    // row appearance and cached — `icon(forFile:)`
+                                    // on every render makes search filtering janky.
+                                    Group {
+                                        if let icon = aiFormatterAppIcons[app.bundleIdentifier] {
+                                            Image(nsImage: icon)
+                                                .resizable()
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(DesignSystem.Colors.surfaceElevated)
+                                        }
+                                    }
+                                    .frame(width: 22, height: 22)
+                                    .onAppear {
+                                        guard aiFormatterAppIcons[app.bundleIdentifier] == nil else { return }
+                                        aiFormatterAppIcons[app.bundleIdentifier] =
+                                            NSWorkspace.shared.icon(forFile: app.path)
+                                    }
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(app.displayName)
                                             .font(DesignSystem.Typography.caption.weight(.medium))
@@ -1027,9 +1167,27 @@ struct LLMSettingsView: View {
     private func loadAIFormatterInstalledAppsIfNeeded() {
         guard aiFormatterInstalledApps.isEmpty, !isLoadingAIFormatterInstalledApps else { return }
         isLoadingAIFormatterInstalledApps = true
+        // Running apps are the most likely profile targets and may live outside
+        // the scanned directories. Snapshot them on the main actor (NSWorkspace
+        // KVO state), then merge with the disk scan off-main.
+        let selfBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(Bundle.main.bundleIdentifier)
+        let runningApps: [AIFormatterInstalledApp] = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { app in
+                guard
+                    let bundleIdentifier = AppPromptContext.normalizedBundleIdentifier(app.bundleIdentifier),
+                    bundleIdentifier != selfBundleIdentifier,
+                    let path = app.bundleURL?.path
+                else { return nil }
+                return AIFormatterInstalledApp(
+                    bundleIdentifier: bundleIdentifier,
+                    displayName: AppPromptContext.normalizedDisplayName(app.localizedName) ?? bundleIdentifier,
+                    path: path
+                )
+            }
         Task { @MainActor in
             let apps = await Task.detached(priority: .userInitiated) {
-                Self.discoverInstalledApps()
+                Self.discoverInstalledApps(merging: runningApps)
             }.value
             aiFormatterInstalledApps = apps
             isLoadingAIFormatterInstalledApps = false
@@ -1078,34 +1236,51 @@ struct LLMSettingsView: View {
     }
 
     private func aiFormatterResolutionSourceText(_ resolution: AIFormatterPromptResolution) -> String {
+        // An in-progress draft can resolve with an empty name; show the role
+        // placeholder rather than a dangling colon.
+        let profileName = resolution.profileName.flatMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+        }
         switch (resolution.matchKind, resolution.profileOrigin) {
         case (.exactApp, .some(.custom)):
-            return "Custom app profile: \(resolution.profileName ?? "App")"
+            return "Custom app profile: \(profileName ?? "this app")"
         case (.category, .some(.custom)):
-            return "Custom category profile: \(resolution.profileName ?? "Category")"
+            return "Custom category profile: \(profileName ?? "this category")"
         case (.category, .some(.template)):
-            return "Smart default: \(resolution.profileName ?? "Category")"
+            return "Smart default: \(profileName ?? "this category")"
         case (.global, _):
             return "Fallback prompt"
         default:
-            return resolution.profileName ?? "Custom profile"
+            return profileName ?? "Custom profile"
         }
     }
 
-    nonisolated private static func discoverInstalledApps() -> [AIFormatterInstalledApp] {
+    nonisolated private static func discoverInstalledApps(
+        merging runningApps: [AIFormatterInstalledApp]
+    ) -> [AIFormatterInstalledApp] {
         let fileManager = FileManager.default
         let userApplications = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications", isDirectory: true)
+        // Shallow scans of the standard locations plus the JetBrains Toolbox
+        // install dir (code-category apps this feature explicitly targets).
+        // Direct Info.plist reads, never Bundle(url:) — loading every bundle
+        // recursively froze the picker in an earlier revision.
         let directories = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: "/Applications/Utilities", isDirectory: true),
             userApplications,
             userApplications.appendingPathComponent("Utilities", isDirectory: true),
+            userApplications.appendingPathComponent("JetBrains Toolbox", isDirectory: true),
             URL(fileURLWithPath: "/System/Applications", isDirectory: true),
             URL(fileURLWithPath: "/System/Applications/Utilities", isDirectory: true),
         ]
         let selfBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(Bundle.main.bundleIdentifier)
         var appsByBundleIdentifier: [String: AIFormatterInstalledApp] = [:]
+        // Seed with running apps so the frontmost candidates always appear,
+        // with their live localized names winning over plist values.
+        for app in runningApps where appsByBundleIdentifier[app.bundleIdentifier] == nil {
+            appsByBundleIdentifier[app.bundleIdentifier] = app
+        }
 
         for directory in directories {
             guard let urls = try? fileManager.contentsOfDirectory(
@@ -1132,7 +1307,8 @@ struct LLMSettingsView: View {
                 else { continue }
 
                 let displayName = AppPromptContext.normalizedDisplayName(
-                    plist["CFBundleDisplayName"] as? String
+                    Self.localizedAppName(at: url)
+                        ?? plist["CFBundleDisplayName"] as? String
                         ?? plist["CFBundleName"] as? String
                         ?? url.deletingPathExtension().lastPathComponent
                 ) ?? bundleIdentifier
@@ -1153,6 +1329,18 @@ struct LLMSettingsView: View {
         }
     }
 
+    /// Localized Finder-style name for an app bundle, without loading the
+    /// bundle. Returns nil when the result is just the raw folder name so the
+    /// plist fallbacks can take over.
+    nonisolated private static func localizedAppName(at url: URL) -> String? {
+        var name = FileManager.default.displayName(atPath: url.path)
+        if name.hasSuffix(".app") {
+            name = String(name.dropLast(4))
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private func profileTargetText(_ profile: AIFormatterProfile) -> String {
         switch profile.targetKind {
         case .bundle:
@@ -1166,34 +1354,8 @@ struct LLMSettingsView: View {
         }
     }
 
-    private func profilePromptModeText(_ profile: AIFormatterProfile) -> String {
-        let promptTemplate = AIFormatter.normalizedPromptTemplate(profile.promptTemplate)
-        if promptTemplate == AIFormatter.defaultPromptTemplate {
-            return "Fallback prompt"
-        }
-
-        let category = profile.appCategory
-            ?? profile.bundleIdentifier.map { TelemetryAppCategory(bundleIdentifier: $0) }
-        if let category,
-           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: category),
-           promptTemplate == AIFormatter.normalizedPromptTemplate(categoryDefault.promptTemplate) {
-            return "Smart default"
-        }
-
-        return "Custom prompt"
-    }
-
     private func categoryTitle(_ category: TelemetryAppCategory) -> String {
-        switch category {
-        case .messaging: return "Messaging"
-        case .email: return "Email"
-        case .browser: return "Browser"
-        case .notes: return "Notes"
-        case .docs: return "Documents"
-        case .code: return "Code"
-        case .terminal: return "Terminal"
-        case .other: return "Other"
-        }
+        category.formatterDisplayName
     }
 
     private func smartDefaultIcon(for category: TelemetryAppCategory) -> String {

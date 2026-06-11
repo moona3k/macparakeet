@@ -372,8 +372,23 @@ defaults before calling `LLMService`:
 2. Capture the focused target app again at stop/undo time.
 3. Resolve an enabled exact-bundle profile first.
 4. Resolve an enabled coarse-category profile second.
-5. Resolve a built-in coarse-category smart default third.
+5. Resolve a built-in coarse-category smart default third, subject to the
+   user's smart-defaults policy.
 6. Fall back to the user-editable AI Formatter fallback prompt.
+
+The smart-default tier is user-controllable through
+`AIFormatterSmartDefaultsPolicy` (UserDefaults-backed, no schema change): a
+master "Smart defaults" switch plus per-category switches in Settings, where
+each built-in prompt is also readable before it ever runs. With the master
+switch off (or a category switched off), resolution skips that tier entirely,
+so a user who tuned the fallback prompt gets byte-for-byte pre-profiles
+behavior wherever no custom profile matches. Profile-fetch failures degrade to
+the fallback prompt and are logged via OSLog (`AIFormatter` category).
+
+Saved dictation rows surface their routing provenance in History: rows
+formatted by an app or category profile (custom or smart default) show a small
+labeled chip, answering "why did this dictation come out formatted that way?"
+locally without telemetry.
 
 `AppPromptContext` contains the local bundle identifier, display name, and
 `TelemetryAppCategory`. The exact app fields are used only for local profile
