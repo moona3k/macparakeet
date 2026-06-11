@@ -421,4 +421,23 @@ final class DictationRepositoryTests: XCTestCase {
         )
     }
 
+    func testClearMissingAudioPathsClearsMoreRowsThanOneUpdateBatch() throws {
+        // The batched UPDATE chunks at 500 IDs; 501 dangling rows crosses
+        // the boundary and exercises the multi-batch path.
+        var ids: [UUID] = []
+        for index in 0..<501 {
+            let dictation = Dictation(
+                durationMs: 100,
+                rawTranscript: "row \(index)",
+                audioPath: "/nonexistent/batch-\(index)-\(UUID().uuidString).wav"
+            )
+            ids.append(dictation.id)
+            try repo.save(dictation)
+        }
+
+        try repo.clearMissingAudioPaths()
+
+        XCTAssertNil(try repo.fetch(id: ids.first!)?.audioPath)
+        XCTAssertNil(try repo.fetch(id: ids.last!)?.audioPath)
+    }
 }

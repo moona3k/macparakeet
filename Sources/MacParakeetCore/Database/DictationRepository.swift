@@ -273,10 +273,19 @@ public final class DictationRepository: DictationRepositoryProtocol {
             .map(\.id)
         guard !missingIDs.isEmpty else { return }
 
+        // SQLite caps bound variables per statement (32,766 on modern
+        // builds, 999 historically); chunk to stay far below any
+        // deployment's limit.
+        let batchSize = 500
         try dbQueue.write { db in
-            _ = try Dictation
-                .filter(missingIDs.contains(Dictation.Columns.id))
-                .updateAll(db, Dictation.Columns.audioPath.set(to: nil))
+            var index = 0
+            while index < missingIDs.count {
+                let batch = Array(missingIDs[index..<min(index + batchSize, missingIDs.count)])
+                _ = try Dictation
+                    .filter(batch.contains(Dictation.Columns.id))
+                    .updateAll(db, Dictation.Columns.audioPath.set(to: nil))
+                index += batchSize
+            }
         }
     }
 
