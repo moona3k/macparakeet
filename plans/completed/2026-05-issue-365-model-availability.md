@@ -1,6 +1,6 @@
 # Issue 365 Model Availability Plan
 
-> Status: PR READY
+> Status: **IMPLEMENTED** — shipped on `main` (`9510f53a3` + follow-ups). Archived 2026-06-11.
 > Started: 2026-05-26
 > Issue: https://github.com/moona3k/macparakeet/issues/365
 > Scope: AI provider model lists in Settings, transcript chat, and prompt results.

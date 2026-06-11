@@ -1,6 +1,6 @@
 # Dictation Media Pause
 
-Status: **ACTIVE**
+Status: **IMPLEMENTED** — issue #351 closed 2026-05-24; Pause Media shipped (see Audio/README). Archived 2026-06-11.
 Owner: Core app team
 Updated: 2026-06-10
 Related: [GitHub issue #351](https://github.com/moona3k/macparakeet/issues/351)

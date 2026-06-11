@@ -2,6 +2,8 @@
 
 Date: 2026-05-29
 
+> Status: **IMPLEMENTED** — PR #396 merged; superseded by the HANDOFF doc. Archived 2026-06-11.
+
 > **Owner correction (2026-05-29):** this is **not a v0.6.14 regression.** The
 > meeting-recording animations (and their CPU cost) have existed since the
 > feature shipped — the cost was *surfaced/noticed* around the v0.6.14 Meetings

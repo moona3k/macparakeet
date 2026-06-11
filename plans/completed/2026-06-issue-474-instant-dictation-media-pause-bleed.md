@@ -1,6 +1,6 @@
 # Issue #474 — Instant Dictation × Pause Media: media audio bleeds into transcript head
 
-> Status: **ACTIVE** (Tiers 0 + 1 implemented 2026-06-10; Tier 2 deferred)
+> Status: **IMPLEMENTED** — Tiers 0 + 1 shipped via PR #482; Tier 2 deferred. Archived 2026-06-11.
 > Date: 2026-06-09 (tiering 2026-06-10; implementation 2026-06-10)
 > Issue: https://github.com/moona3k/macparakeet/issues/474
 > Investigated by: Claude (full code + diagnostic-log review, 2026-06-09)

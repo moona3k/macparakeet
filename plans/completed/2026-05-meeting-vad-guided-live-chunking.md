@@ -1,6 +1,6 @@
 # Meeting VAD-Guided Live Chunking
 
-> Status: ACTIVE PLAN — Phases 1–4.5 IMPLEMENTED; flag-on release candidate under validation
+> Status: **IMPLEMENTED** — flag-on, shipping since v0.6.14. Archived 2026-06-11.
 > Date: 2026-05-29
 > Scope: meeting live transcript chunk boundaries only.
 

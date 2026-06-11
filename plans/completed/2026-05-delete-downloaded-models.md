@@ -1,6 +1,6 @@
 # Delete downloaded speech models
 
-> Status: **ACTIVE** — implemented on `feat/delete-downloaded-models`, pending PR merge.
+> Status: **IMPLEMENTED** — shipped via PR #405 (merged to `main`). Archived 2026-06-11.
 
 ## Why
 
