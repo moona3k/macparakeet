@@ -1053,6 +1053,183 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testAIFormatterCategoryCheckAcceptsEveryTelemetryAppCategory() throws {
+        // Drift guard: the v0.21 migration freezes the category list inside a
+        // table CHECK, while the Settings picker enumerates
+        // `TelemetryAppCategory.allCases`. If the enum grows without a
+        // follow-up migration, the picker offers a category whose save fails
+        // at the SQLite layer — this test fails first, with a clear message.
+        let manager = try DatabaseManager()
+        let repo = AIFormatterProfileRepository(dbQueue: manager.dbQueue)
+
+        for (index, category) in TelemetryAppCategory.allCases.enumerated() {
+            XCTAssertNoThrow(
+                try repo.save(
+                    AIFormatterProfile.category(
+                        name: "Profile \(category.rawValue)",
+                        appCategory: category,
+                        promptTemplate: "Prompt \(AIFormatter.transcriptPlaceholder)",
+                        sortOrder: index
+                    )
+                ),
+                "Category \(category.rawValue) is not in the frozen v0.21 CHECK list — add a follow-up migration extending it before exposing the new case."
+            )
+        }
+
+        let savedCategories = Set(try repo.fetchAll().compactMap(\.appCategory))
+        XCTAssertEqual(savedCategories, Set(TelemetryAppCategory.allCases))
+    }
+
+    func testAIFormatterProfilesMigrationToleratesExistingSchemaWhenMigrationMarkerIsMissing() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("ai_formatter_rerun_\(UUID().uuidString).db").path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let manager1 = try DatabaseManager(path: dbPath)
+        let repo1 = AIFormatterProfileRepository(dbQueue: manager1.dbQueue)
+        let profile = AIFormatterProfile.category(
+            name: "Email",
+            appCategory: .email,
+            promptTemplate: "Email prompt \(AIFormatter.transcriptPlaceholder)"
+        )
+        try repo1.save(profile)
+        try manager1.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.21-ai-formatter-profiles"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        try manager2.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("ai_formatter_profiles"))
+            let dictationColumns = try db.columns(in: "dictations").map(\.name)
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileID"))
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileName"))
+            XCTAssertTrue(dictationColumns.contains("aiFormatterProfileMatchKind"))
+
+            let migrationRecorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.21-ai-formatter-profiles"]
+            ) ?? false
+            XCTAssertTrue(migrationRecorded)
+        }
+        let survivingProfiles = try AIFormatterProfileRepository(dbQueue: manager2.dbQueue).fetchAll()
+        XCTAssertEqual(survivingProfiles.map(\.id), [profile.id])
+    }
+
+    func testAIFormatterProfilesMigrationScrubsHiddenDictationRows() throws {
+        // Upgrade-path coverage for the v0.21 privacy backfill: builds before
+        // the profiles PR leaked transcripts and the paste-target bundle ID
+        // into hidden private-mode rows via the post-paste metadata re-save.
+        // The migration must scrub hidden rows on existing DBs and leave
+        // visible rows untouched.
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("ai_formatter_scrub_\(UUID().uuidString).db").path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let hiddenID = UUID().uuidString
+        let visibleID = UUID().uuidString
+        let seedQueue = try DatabaseQueue(path: dbPath)
+        try seedQueue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE grdb_migrations (
+                    identifier TEXT NOT NULL PRIMARY KEY
+                )
+            """)
+            for migrationID in prePromptLibraryMigrationIDs.filter({ $0 != "v0.6-transcription-source-type" && $0 != "v0.7-snippet-key-action" }) {
+                try db.execute(
+                    sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
+                    arguments: [migrationID]
+                )
+            }
+
+            try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
+            try db.execute(sql: """
+                CREATE TABLE transcriptions (
+                    id TEXT PRIMARY KEY,
+                    createdAt TEXT NOT NULL,
+                    fileName TEXT NOT NULL,
+                    filePath TEXT,
+                    fileSizeBytes INTEGER,
+                    durationMs INTEGER,
+                    rawTranscript TEXT,
+                    cleanTranscript TEXT,
+                    wordTimestamps TEXT,
+                    language TEXT DEFAULT 'en',
+                    speakerCount INTEGER,
+                    speakers TEXT,
+                    status TEXT NOT NULL DEFAULT 'processing',
+                    errorMessage TEXT,
+                    exportPath TEXT,
+                    updatedAt TEXT NOT NULL,
+                    sourceURL TEXT,
+                    diarizationSegments TEXT,
+                    summary TEXT,
+                    chatMessages TEXT,
+                    thumbnailURL TEXT,
+                    channelName TEXT,
+                    videoDescription TEXT,
+                    isFavorite INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            try db.execute(sql: """
+                CREATE TABLE text_snippets (
+                    id TEXT PRIMARY KEY,
+                    trigger TEXT NOT NULL,
+                    expansion TEXT NOT NULL,
+                    isEnabled INTEGER NOT NULL DEFAULT 1,
+                    useCount INTEGER NOT NULL DEFAULT 0,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                )
+            """)
+
+            let now = Date()
+            try db.execute(
+                sql: """
+                    INSERT INTO dictations
+                        (id, createdAt, durationMs, rawTranscript, cleanTranscript, audioPath, pastedToApp, updatedAt, hidden)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [hiddenID, now, 1200, "leaked secret", "leaked clean", "/tmp/leaked.wav", "com.example.private", now, 1]
+            )
+            try db.execute(
+                sql: """
+                    INSERT INTO dictations
+                        (id, createdAt, durationMs, rawTranscript, cleanTranscript, audioPath, pastedToApp, updatedAt, hidden)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [visibleID, now, 900, "visible transcript", "visible clean", "/tmp/kept.wav", "com.example.app", now, 0]
+            )
+        }
+
+        let manager = try DatabaseManager(path: dbPath)
+        try manager.dbQueue.read { db in
+            let hidden = try Row.fetchOne(
+                db,
+                sql: "SELECT rawTranscript, cleanTranscript, audioPath, pastedToApp FROM dictations WHERE id = ?",
+                arguments: [hiddenID]
+            )
+            XCTAssertEqual(hidden?["rawTranscript"], "")
+            XCTAssertNil(hidden?["cleanTranscript"] as String?)
+            XCTAssertNil(hidden?["audioPath"] as String?)
+            XCTAssertNil(hidden?["pastedToApp"] as String?)
+
+            let visible = try Row.fetchOne(
+                db,
+                sql: "SELECT rawTranscript, cleanTranscript, audioPath, pastedToApp FROM dictations WHERE id = ?",
+                arguments: [visibleID]
+            )
+            XCTAssertEqual(visible?["rawTranscript"], "visible transcript")
+            XCTAssertEqual(visible?["cleanTranscript"] as String?, "visible clean")
+            XCTAssertEqual(visible?["audioPath"] as String?, "/tmp/kept.wav")
+            XCTAssertEqual(visible?["pastedToApp"] as String?, "com.example.app")
+        }
+    }
+
     /// Recreates the dictations table at its v0.5 shape (after `v0.5-private-dictation`
     /// added `hidden` and `wordCount`). Used by partial-migration test fixtures so the
     /// v0.7.4 lifetime-stats backfill has a real table to read from.

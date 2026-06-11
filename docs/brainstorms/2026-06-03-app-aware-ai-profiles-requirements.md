@@ -5,6 +5,19 @@ topic: app-aware-ai-profiles
 
 # App-Aware AI Profiles Requirements
 
+> **Amendment (2026-06-10):** PR #428 added a built-in smart-default tier
+> between custom profiles and the global prompt, which contradicted R1
+> ("zero profiles ⇒ byte-for-byte equivalent prompt selection") and R7
+> ("no new profile changes output until the user explicitly enables it") as
+> originally written. The ship-polish pass resolves the conflict by making
+> smart defaults **readable and toggleable** (master switch + per-category
+> switches, `AIFormatterSmartDefaultsPolicy`): they remain on by default —
+> the deliberate #428 product call — and turning the master switch off
+> restores the R1 byte-for-byte behavior wherever no custom profile matches.
+> R1/R7 are now satisfied through that escape hatch rather than through
+> default-off templates. `spec/11-llm-integration.md` is authoritative for
+> the current resolution chain.
+
 Generated in the style of `/ce-brainstorm` from:
 
 - GitHub issues `#117` and `#412`.

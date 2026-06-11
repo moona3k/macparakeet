@@ -94,13 +94,6 @@ public enum SettingsSearchIndex {
         "meeting.calendar"
     ]
 
-    /// Ids gated on `AppFeatures.aiFormatterProfilesEnabled`. The global AI
-    /// Formatter prompt remains visible via `ai.provider`; only app/category
-    /// profile management is hidden by this gate.
-    private static let aiFormatterProfileGatedIds: Set<String> = [
-        "ai.formatter"
-    ]
-
     public static let entries: [SettingsSearchEntry] = {
         var result = allEntries
         if !AppFeatures.meetingRecordingEnabled {
@@ -108,9 +101,6 @@ public enum SettingsSearchIndex {
         }
         if !AppFeatures.calendarEnabled {
             result = result.filter { !calendarGatedIds.contains($0.id) }
-        }
-        if !AppFeatures.aiFormatterProfilesEnabled {
-            result = result.filter { !aiFormatterProfileGatedIds.contains($0.id) }
         }
         return result
     }()
@@ -296,15 +286,26 @@ public enum SettingsSearchIndex {
             ],
             cardAnchor: "ai.transcriptContext"
         ),
+        // The AI Formatter card (header + fallback prompt) is always visible;
+        // only the smart defaults + profile management inside it are gated on
+        // `AppFeatures.aiFormatterProfilesEnabled`. The entry stays indexed in
+        // both states with flag-appropriate copy and keywords.
         SettingsSearchEntry(
             id: "ai.formatter",
             tab: .ai,
             title: "AI Formatter",
-            subtitle: "Smart defaults, fallback prompt, and app-specific formatter profiles.",
-            keywords: [
-                "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
-                "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish"
-            ],
+            subtitle: AppFeatures.aiFormatterProfilesEnabled
+                ? "Smart defaults, fallback prompt, and app-specific formatter profiles."
+                : "Formatting prompt for transcripts and dictation.",
+            keywords: AppFeatures.aiFormatterProfilesEnabled
+                ? [
+                    "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
+                    "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish"
+                ]
+                : [
+                    "formatter", "formatting", "cleanup", "dictation prompt",
+                    "fallback prompt", "rewrite", "polish"
+                ],
             cardAnchor: "ai.formatter"
         ),
 

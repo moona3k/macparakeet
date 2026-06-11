@@ -77,6 +77,10 @@ public final class LLMSettingsViewModel {
         }
 
         public init(profile: AIFormatterProfile) {
+            // Bundle profiles persist `appCategory = nil` (the category is
+            // derived from the bundle ID at match time), so rehydrate the
+            // draft's category the same way — otherwise the editor mislabels
+            // every saved app profile as the fallback `.messaging`.
             self.init(
                 profileID: profile.id,
                 name: profile.name,
@@ -84,7 +88,9 @@ public final class LLMSettingsViewModel {
                 targetKind: profile.targetKind,
                 bundleIdentifier: profile.bundleIdentifier ?? "",
                 appDisplayName: profile.appDisplayName ?? "",
-                appCategory: profile.appCategory ?? .messaging,
+                appCategory: profile.appCategory
+                    ?? profile.bundleIdentifier.map { TelemetryAppCategory(bundleIdentifier: $0) }
+                    ?? .messaging,
                 promptTemplate: profile.promptTemplate,
                 origin: profile.origin,
                 sortOrder: profile.sortOrder,
@@ -110,9 +116,20 @@ public final class LLMSettingsViewModel {
             validationMessage == nil
         }
 
+        /// Whether the draft's target is concrete enough to participate in a
+        /// match preview (a name or prompt can still be missing).
+        public var hasResolvableTarget: Bool {
+            switch targetKind {
+            case .bundle:
+                return AppPromptContext.normalizedBundleIdentifier(bundleIdentifier) != nil
+            case .category:
+                return true
+            }
+        }
+
         func makeProfile(now: Date = Date()) -> AIFormatterProfile {
             AIFormatterProfile(
-                id: profileID ?? UUID(),
+                id: id,
                 name: name,
                 isEnabled: isEnabled,
                 targetKind: targetKind,
@@ -135,6 +152,7 @@ public final class LLMSettingsViewModel {
     public private(set) var aiFormatterProfiles: [AIFormatterProfile] = []
     public var aiFormatterProfileDraft: AIFormatterProfileDraft?
     public var aiFormatterProfileError: String?
+    public private(set) var aiFormatterSmartDefaultsPolicy: AIFormatterSmartDefaultsPolicy
     private var discoveredModels: [String] = []
 
     public var selectedProviderID: LLMProviderID? {
@@ -385,8 +403,51 @@ public final class LLMSettingsViewModel {
 
     public var aiFormatterPromptModeText: String {
         draft.normalizedAIFormatterPrompt == AIFormatter.defaultPromptTemplate
-            ? "Default prompt"
-            : "Custom prompt"
+            ? "Built-in default"
+            : "Customized"
+    }
+
+    /// Master switch for the built-in smart-default prompts. Off restores the
+    /// pre-profiles behavior: the fallback prompt is used wherever no custom
+    /// profile matches.
+    public var aiFormatterSmartDefaultsEnabled: Bool {
+        get { aiFormatterSmartDefaultsPolicy.isEnabled }
+        set {
+            guard aiFormatterSmartDefaultsPolicy.isEnabled != newValue else { return }
+            aiFormatterSmartDefaultsPolicy.isEnabled = newValue
+            aiFormatterSmartDefaultsPolicy.save(to: defaults)
+        }
+    }
+
+    public func isAIFormatterSmartDefaultEnabled(_ category: TelemetryAppCategory) -> Bool {
+        aiFormatterSmartDefaultsPolicy.allowsCategory(category)
+    }
+
+    public func setAIFormatterSmartDefault(_ category: TelemetryAppCategory, enabled: Bool) {
+        if enabled {
+            aiFormatterSmartDefaultsPolicy.disabledCategories.remove(category)
+        } else {
+            aiFormatterSmartDefaultsPolicy.disabledCategories.insert(category)
+        }
+        aiFormatterSmartDefaultsPolicy.save(to: defaults)
+    }
+
+    /// Provenance badge for a saved profile row: does its prompt match the
+    /// category's built-in smart default, the user's current fallback prompt,
+    /// or neither (genuinely custom)?
+    public func aiFormatterProfileBadgeText(_ profile: AIFormatterProfile) -> String {
+        let promptTemplate = AIFormatter.normalizedPromptTemplate(profile.promptTemplate)
+        let category = profile.appCategory
+            ?? profile.bundleIdentifier.map { TelemetryAppCategory(bundleIdentifier: $0) }
+        if let category,
+           let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: category),
+           promptTemplate == AIFormatter.normalizedPromptTemplate(categoryDefault.promptTemplate) {
+            return "Smart default"
+        }
+        if promptTemplate == draft.normalizedAIFormatterPrompt {
+            return "Fallback prompt"
+        }
+        return "Custom prompt"
     }
 
     public var aiFormatterUnavailableReason: String? {
@@ -457,6 +518,7 @@ public final class LLMSettingsViewModel {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
+        self.aiFormatterSmartDefaultsPolicy = AIFormatterSmartDefaultsPolicy.current(defaults: defaults)
         self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
@@ -601,7 +663,11 @@ public final class LLMSettingsViewModel {
             return
         }
         do {
-            aiFormatterProfiles = try aiFormatterProfileRepo.fetchAll()
+            // Display in match-precedence order so the list reads as "first
+            // match wins" — the same ordering the matcher uses for ties.
+            aiFormatterProfiles = AIFormatterProfileMatcher.sortedByPrecedence(
+                try aiFormatterProfileRepo.fetchAll()
+            )
             aiFormatterProfileError = nil
         } catch {
             aiFormatterProfileError = error.localizedDescription
@@ -650,7 +716,6 @@ public final class LLMSettingsViewModel {
         let previousBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier)
         let shouldReplaceName = currentName.isEmpty
             || currentName == "New app profile"
-            || currentName == "New category profile"
             || currentName == Self.aiFormatterProfileCategoryName(previousCategory)
             || previousAppDisplayName.map { currentName == $0 } == true
             || previousBundleIdentifier.map { currentName == $0 } == true
@@ -692,7 +757,6 @@ public final class LLMSettingsViewModel {
             let normalizedPrompt = AIFormatter.normalizedPromptTemplate(draft.promptTemplate)
             let currentName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
             let shouldReplaceName = currentName.isEmpty
-                || currentName == "New category profile"
                 || currentName == Self.aiFormatterProfileCategoryName(previousCategory)
 
             draft.targetKind = .bundle
@@ -730,7 +794,6 @@ public final class LLMSettingsViewModel {
         let previousBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier)
         let shouldReplaceName = currentName.isEmpty
             || currentName == "New app profile"
-            || currentName == "New category profile"
             || currentName == Self.aiFormatterProfileCategoryName(draft.appCategory)
             || previousAppDisplayName.map { currentName == $0 } == true
             || previousBundleIdentifier.map { currentName == $0 } == true
@@ -761,7 +824,9 @@ public final class LLMSettingsViewModel {
         including draft: AIFormatterProfileDraft? = nil
     ) -> AIFormatterPromptResolution {
         var profiles = aiFormatterProfiles
-        if let draft, draft.canSave {
+        // Include the open draft whenever its target is concrete — a missing
+        // name shouldn't flip the preview back to "Smart default" mid-edit.
+        if let draft, draft.hasResolvableTarget {
             let draftProfile = draft.makeProfile()
             profiles.removeAll { $0.id == draftProfile.id }
             profiles.append(draftProfile)
@@ -770,12 +835,60 @@ public final class LLMSettingsViewModel {
         return AIFormatterProfileMatcher.resolve(
             profiles: profiles,
             context: context,
-            globalPromptTemplate: self.draft.normalizedAIFormatterPrompt
+            globalPromptTemplate: self.draft.normalizedAIFormatterPrompt,
+            smartDefaultsPolicy: aiFormatterSmartDefaultsPolicy
         )
     }
 
     public func editAIFormatterProfile(_ profile: AIFormatterProfile) {
         aiFormatterProfileDraft = AIFormatterProfileDraft(profile: profile)
+        aiFormatterProfileError = nil
+    }
+
+    /// Manual bundle-ID typing path. Mirrors the app-picker derivation
+    /// (`applyAIFormatterProfileDraftApp`) so both entry paths produce the same
+    /// draft: category tracks the typed ID, auto names/prompts follow, and a
+    /// genuinely custom prompt is never clobbered. Tolerates partial input —
+    /// an empty or malformed ID maps to `.other` without raising an error.
+    public func applyAIFormatterProfileDraftManualBundleIdentifier(_ rawValue: String) {
+        guard var draft = aiFormatterProfileDraft else { return }
+        let previousCategory = draft.appCategory
+        let previousSmartDefault = AIFormatterSmartDefaults.categoryDefault(for: previousCategory)
+        let normalizedPrompt = AIFormatter.normalizedPromptTemplate(draft.promptTemplate)
+        let shouldUseSmartDefaultPrompt = isAIFormatterAutoPrompt(
+            normalizedPrompt,
+            previousCategoryDefault: previousSmartDefault
+        )
+        let currentName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previousAppDisplayName = AppPromptContext.normalizedDisplayName(draft.appDisplayName)
+        let previousBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(draft.bundleIdentifier)
+        let shouldReplaceName = currentName.isEmpty
+            || currentName == "New app profile"
+            || currentName == Self.aiFormatterProfileCategoryName(previousCategory)
+            || previousAppDisplayName.map { currentName == $0 } == true
+            || previousBundleIdentifier.map { currentName == $0 } == true
+
+        let normalizedBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(rawValue)
+        let appCategory = TelemetryAppCategory(bundleIdentifier: normalizedBundleIdentifier)
+
+        draft.bundleIdentifier = rawValue
+        draft.appCategory = appCategory
+        if normalizedBundleIdentifier != previousBundleIdentifier {
+            // A display name carried over from a previous pick no longer
+            // describes the typed ID.
+            draft.appDisplayName = ""
+        }
+        if shouldReplaceName {
+            draft.name = normalizedBundleIdentifier ?? "New app profile"
+        }
+        if shouldUseSmartDefaultPrompt {
+            if let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: appCategory) {
+                draft.promptTemplate = categoryDefault.promptTemplate
+            } else {
+                draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+            }
+        }
+        aiFormatterProfileDraft = draft
         aiFormatterProfileError = nil
     }
 
@@ -1110,16 +1223,7 @@ public final class LLMSettingsViewModel {
     }
 
     private static func aiFormatterProfileCategoryName(_ category: TelemetryAppCategory) -> String {
-        switch category {
-        case .messaging: return "Messaging"
-        case .email: return "Email"
-        case .browser: return "Browser"
-        case .notes: return "Notes"
-        case .docs: return "Documents"
-        case .code: return "Code"
-        case .terminal: return "Terminal"
-        case .other: return "Other"
-        }
+        category.formatterDisplayName
     }
 
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {

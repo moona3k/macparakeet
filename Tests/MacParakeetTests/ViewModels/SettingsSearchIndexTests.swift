@@ -107,12 +107,16 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testAIFormatterSearchEntryUsesFormatterAnchor() throws {
-        let entry = SettingsSearchIndex.entries.first { $0.id == "ai.formatter" }
-        if AppFeatures.aiFormatterProfilesEnabled {
-            XCTAssertEqual(try XCTUnwrap(entry).cardAnchor, "ai.formatter")
-        } else {
-            XCTAssertNil(entry)
-        }
+        // The AI Formatter card (header + fallback prompt) is always visible,
+        // so the entry is indexed in both flag states; only the profile
+        // keywords are flag-conditional.
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.formatter" })
+        XCTAssertEqual(entry.cardAnchor, "ai.formatter")
+        XCTAssertEqual(
+            entry.keywords.contains("app profiles"),
+            AppFeatures.aiFormatterProfilesEnabled,
+            "Profile keywords should track the feature flag"
+        )
     }
 
     func testTranscriptAIContextQueriesFindTranscriptContextEntry() throws {
@@ -126,7 +130,14 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testAIFormatterSmartDefaultsQueriesFindFormatterEntry() {
-        for query in ["smart defaults", "fallback prompt"] {
+        // "formatter" must find the always-visible card in both flag states;
+        // profile-specific queries only resolve when profiles are enabled.
+        XCTAssertTrue(
+            Set(SettingsSearchIndex.matches("formatter").map(\.id)).contains("ai.formatter"),
+            "Query formatter should find the AI Formatter card"
+        )
+
+        for query in ["smart defaults", "app profiles"] {
             let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
 
             if AppFeatures.aiFormatterProfilesEnabled {

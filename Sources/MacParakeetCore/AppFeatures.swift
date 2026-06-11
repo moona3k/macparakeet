@@ -51,9 +51,19 @@ public enum AppFeatures {
     /// `vad_model_prep` allowlisted and deployed before shipping flag-on builds.
     public static let meetingVadLiveChunkingEnabled: Bool = true
 
-    /// App-aware AI Formatter profiles. When `false`, profile management is
-    /// hidden from Settings/search and dictation uses only the global formatter
-    /// prompt. The profile table and repository still migrate so enabling this
-    /// later does not require a data-model catch-up release.
-    public static let aiFormatterProfilesEnabled: Bool = false
+    /// App-aware AI Formatter profiles (REQ-LLM-004, issues #117/#412). When
+    /// `true`, dictation formatter prompts resolve through custom app
+    /// profiles, custom category profiles, built-in smart defaults (readable
+    /// and toggleable in Settings — master switch + per-category switches),
+    /// and then the fallback prompt; Settings shows profile management and
+    /// History shows routing provenance. When `false`, all of that is hidden
+    /// (profile keywords drop out of search; the formatter card itself stays
+    /// indexed) and dictation uses only the global formatter prompt. The
+    /// profile table and repository migrate either way, so flipping this flag
+    /// is a no-data operation.
+    ///
+    /// Enabled 2026-06-10 after the ship-polish pass (smart-defaults
+    /// visibility/toggles, edit-path category fix, manual-entry parity)
+    /// resolved the UX gaps that pulled the flag in `6cd4a7034`.
+    public static let aiFormatterProfilesEnabled: Bool = true
 }

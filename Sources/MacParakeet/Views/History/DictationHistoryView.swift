@@ -376,6 +376,24 @@ struct DictationCardRow: View {
                                 .font(.system(size: 8))
                                 .foregroundStyle(.tertiary)
                         }
+
+                        if let provenance = formatterProvenanceText {
+                            Text("\u{2009}\u{00B7}\u{2009}")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.quaternary)
+
+                            HStack(spacing: 3) {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.tertiary)
+                                Text(provenance)
+                                    .font(DesignSystem.Typography.caption)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                            .help(formatterProvenanceHelp(for: provenance))
+                            .accessibilityLabel("AI Formatter: \(provenance)")
+                        }
                     }
 
                     if isCopied {
@@ -530,6 +548,35 @@ struct DictationCardRow: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    /// Which AI Formatter profile (or smart default) routed this dictation —
+    /// the stored answer to "why did this come out formatted that way?".
+    /// Global-fallback formatting shows nothing: it's the unremarkable case.
+    private var formatterProvenanceText: String? {
+        guard AppFeatures.aiFormatterProfilesEnabled else { return nil }
+        guard let matchKind = dictation.aiFormatterProfileMatchKind else { return nil }
+        let name = dictation.aiFormatterProfileName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        switch matchKind {
+        case .exactApp:
+            return (name?.isEmpty == false ? name : nil) ?? "App profile"
+        case .category:
+            return (name?.isEmpty == false ? name : nil) ?? "Category profile"
+        case .global:
+            return nil
+        }
+    }
+
+    private func formatterProvenanceHelp(for provenance: String) -> String {
+        switch dictation.aiFormatterProfileMatchKind {
+        case .exactApp:
+            return "Formatted with the “\(provenance)” app profile."
+        case .category:
+            return "Formatted with the “\(provenance)” prompt for this kind of app."
+        case .global, nil:
+            return ""
+        }
     }
 }
 

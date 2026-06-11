@@ -19,7 +19,7 @@ public enum AIFormatterProfileRepositoryError: Error, LocalizedError, Equatable 
         case .duplicateExactApp(let bundleIdentifier):
             return "A profile already exists for \(bundleIdentifier)."
         case .duplicateCategory(let category):
-            return "A profile already exists for \(category.rawValue)."
+            return "A profile already exists for \(category.formatterDisplayName)."
         }
     }
 }

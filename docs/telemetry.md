@@ -321,6 +321,12 @@ default prompt usage from a custom prompt body, but it does not identify whether
 that custom prompt came from the global formatter preference or a local
 app/category profile.
 
+Expect a step change in `default_prompt_used` when builds with
+`AppFeatures.aiFormatterProfilesEnabled` reach users: smart-default prompts are
+not the global default prompt, so most dictations in recognized app categories
+will report `default_prompt_used = false`. This is the feature working, not a
+prompt-customization trend.
+
 ### 4b. Meeting Recovery — "Does crash resilience work?"
 
 | Event | Props | Question It Answers |
