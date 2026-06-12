@@ -40,6 +40,12 @@ enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Senda
     case v2
 }
 
+enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
+    case appDefault = "app-default"
+    case multilingual = "multilingual-1120ms"
+    case english = "english-1120ms"
+}
+
 enum SpeakerDetectionOption: String, ExpressibleByArgument, CaseIterable, Sendable {
     case appDefault = "app-default"
     case on
@@ -85,11 +91,14 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper. Default: parakeet; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet ignores this flag.")
+    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only). app-default follows the saved preference; ignored for Nemotron and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
+
+    @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms (English-only Beta). app-default follows the saved preference; ignored for Parakeet and Whisper. The English build ignores --language.")
+    var nemotronModel: TranscribeNemotronModel = .appDefault
 
     @Option(help: "Downloaded media retention: app-default, keep, delete.")
     var downloadedAudio: DownloadedAudioPolicy = .appDefault
@@ -235,6 +244,20 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .v3
         case .v2:
             return .v2
+        }
+    }
+
+    static func resolveNemotronModelVariant(
+        _ option: TranscribeNemotronModel,
+        storedVariant: NemotronModelVariant
+    ) -> NemotronModelVariant {
+        switch option {
+        case .appDefault:
+            return storedVariant
+        case .multilingual:
+            return .multilingual1120
+        case .english:
+            return .english1120
         }
     }
 
@@ -386,6 +409,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
         var sttClient: STTClient?
         var nemotronEngine: NemotronEngine?
+        var nemotronEnglishEngine: NemotronEnglishEngine?
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
@@ -444,9 +468,22 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 sttClient = createdSTTClient
                 sttTranscriber = createdSTTClient
             case .nemotron:
-                let createdNemotronEngine = NemotronEngine(language: speechEngine.language)
-                nemotronEngine = createdNemotronEngine
-                sttTranscriber = createdNemotronEngine
+                let nemotronVariant = Self.resolveNemotronModelVariant(
+                    self.nemotronModel,
+                    storedVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+                )
+                if nemotronVariant.isEnglishOnly {
+                    if language != nil {
+                        printErr("Note: --language is ignored by the English-only Nemotron build.")
+                    }
+                    let createdNemotronEnglishEngine = NemotronEnglishEngine()
+                    nemotronEnglishEngine = createdNemotronEnglishEngine
+                    sttTranscriber = createdNemotronEnglishEngine
+                } else {
+                    let createdNemotronEngine = NemotronEngine(language: speechEngine.language)
+                    nemotronEngine = createdNemotronEngine
+                    sttTranscriber = createdNemotronEngine
+                }
             case .whisper:
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
@@ -529,6 +566,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
         await sttClient?.shutdown()
         await nemotronEngine?.unload()
+        await nemotronEnglishEngine?.unload()
         await whisperEngine?.unload()
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()

@@ -227,6 +227,28 @@ final class TranscriptionViewModelTests: XCTestCase {
         try await waitUntil { !self.viewModel.isTranscribing }
     }
 
+    func testTranscribeFileProgressSublineUsesNemotronVariantSnapshot() async throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.nemotron.save(to: defaults)
+        SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        let expectedSubline = "Nemotron EN Beta · Local Core ML"
+        await mockService.configureProgress(phases: [.transcribing(percent: 42)])
+        await mockService.configureDelay(milliseconds: 250)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/myfile.wav"))
+
+        try await waitUntil {
+            self.viewModel.progressSubline == expectedSubline
+        }
+
+        viewModel.cancelTranscription()
+        try await waitUntil { !self.viewModel.isTranscribing }
+    }
+
     func testTranscribeFileClearsErrorMessage() async throws {
         await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
             NSLocalizedDescriptionKey: "First error"
@@ -1637,6 +1659,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ja", defaults: defaults)
+        SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults, isWhisperModelDownloaded: { true })
 
         let archivedMeeting = try makeArchivedMeetingRecording(speechEngine: nil)
@@ -1656,6 +1679,7 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
         XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertEqual(option.nemotronVariant, .english1120)
     }
 
     func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsMissing() throws {

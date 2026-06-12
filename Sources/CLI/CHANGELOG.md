@@ -78,7 +78,27 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
-## [Unreleased]
+## [2.9.0] -- 2026-06-11
+
+### Added
+
+- New Nemotron model id **`nemotron-english-1120ms`** (Nemotron Speech
+  Streaming EN 0.6B — English-only Beta build, ~600 MB). `models list`,
+  `models select`, `models download`, `models delete`, and `models status`
+  understand it alongside `nemotron-multilingual-1120ms`. `models select`
+  sets both `speech-engine=nemotron` and the persisted Nemotron build, and
+  still requires the model to be downloaded first. Alias spellings:
+  `nemotron:english-1120ms`, `nemotron-english`, `nemotron-en`.
+- `transcribe --nemotron-model app-default|multilingual-1120ms|english-1120ms`
+  selects the Nemotron build per run, mirroring `--parakeet-model`.
+  `app-default` follows the saved preference. The English build ignores
+  `--language` (a stderr note is printed when one is passed; stdout/JSON
+  output is unaffected).
+- `config get|set|list` now includes **`nemotron-model`**
+  (`multilingual-1120ms`, default | `english-1120ms`; aliases
+  `multilingual`/`english` accepted). `nemotron-language` applies to the
+  multilingual build only; setting it while the English build is selected
+  still persists the value and prints a stderr note.
 
 ### Changed
 
@@ -88,6 +108,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   mid-flight (#478). Stored configs still carrying the old 45 s default are
   migrated to 300 s once on first load; any value entered after that — 45
   included — is preserved. Connection tests remain capped at 45 s.
+- `models list` gains one additive row (and `--json` one additive array
+  element) for the new Nemotron build; per-build `selected` markers now
+  reflect the persisted Nemotron build. `models status` /
+  `--json` `nemotronModelVariant` reflects the persisted build and may be
+  `english-1120ms`. Bare `nemotron` ids resolve to the persisted build
+  (previously always multilingual — identical for unchanged configs).
+- `models warm-up`/`models repair` warm the persisted Nemotron build when
+  Nemotron is the active engine; `models status` and `health` report it;
+  `models clear` also removes the English build's `nemotron-streaming`
+  cache root.
 
 ## [2.8.0] -- 2026-06-09
 

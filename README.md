@@ -89,7 +89,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 - Optional English-only Parakeet v2 model (~2.1% WER) for users who do not want v3 language auto-detect
 - ~66 MB working memory per active Parakeet inference slot
 - 25 European languages with Parakeet auto-detection
-- Optional local Nemotron Beta engine for fast multilingual ASR, plus WhisperKit for Korean, Japanese, Chinese, and many other languages
+- Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), plus WhisperKit for Korean, Japanese, Chinese, and many other languages
 
 ### Limitations
 
@@ -160,8 +160,8 @@ Use `--format transcript` for transcript-only stdout in shell pipelines. Add
 row to MacParakeet history. Multiple inputs or `--output-dir` write one transcript
 file per input. `models list` and `models select` inspect or update the shared
 speech default used by the app and `--engine app-default`; Parakeet rows are
-`parakeet-v3` and `parakeet-v2`, Nemotron is
-`nemotron-multilingual-1120ms`, and Whisper rows use the configured
+`parakeet-v3` and `parakeet-v2`, Nemotron rows are `nemotron-multilingual-1120ms`
+and `nemotron-english-1120ms`, and Whisper rows use the configured
 `whisper-*` model id. The Nemotron and Whisper CLI commands above require their
 local models to be downloaded first. When developing from source, prefix the
 same commands with `swift run`.

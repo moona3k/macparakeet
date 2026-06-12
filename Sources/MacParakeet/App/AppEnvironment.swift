@@ -84,6 +84,7 @@ final class AppEnvironment {
         sttRuntime = STTRuntime(
             modelVersion: SpeechEnginePreference.parakeetModelVariant().asrModelVersion,
             speechEngine: SpeechEnginePreference.current(),
+            nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(),
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)

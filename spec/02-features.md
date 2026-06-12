@@ -696,6 +696,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │ SPEECH RECOGNITION                                               │
 │ ┌──────────────────────────────────────────────────────────────┐ │
 │ │ Engine: [ Parakeet ] [ Nemotron Beta ] [ Whisper ]           │ │
+│ │ Nemotron model: [ Multilingual Beta ] [ English Beta ]       │ │
 │ │ Whisper language: [ Auto-detect ▾ ]                          │ │
 │ │ Parakeet        Ready                         [Repair]       │ │
 │ │ Nemotron        Not Downloaded                [Download]     │ │
@@ -723,6 +724,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
 | Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
+| Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
 | Whisper language | Auto-detect or language code | Auto-detect |
 | Speech model controls | Parakeet repair, Nemotron download/delete, Whisper download/delete | Available |
 
@@ -735,6 +737,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
 - [x] Speech Recognition panel shows Parakeet status/repair plus Nemotron and Whisper download/language controls
+- [x] Nemotron Model card (Nemotron engine only) persists the selected build; Multilingual Beta is the default, English Beta is a smaller English-only download
 
 ---
 
@@ -1603,7 +1606,7 @@ exposes a terminal provider/model/token metadata envelope.
 
 ## v0.6 — Meeting Recording + Multilingual STT
 
-The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
+The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option) and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
 
 Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; Nemotron Beta or WhisperKit can be selected before starting a meeting for broader local multilingual coverage.
 
@@ -1797,7 +1800,7 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
 | Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Nemotron and Whisper depend on selected model/runtime |
-| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB optional Nemotron download, and optional Whisper download |
+| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 

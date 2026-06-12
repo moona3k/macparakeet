@@ -95,6 +95,13 @@ public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngin
         try await scheduler.setParakeetModelVariant(variant, onProgress: onProgress)
     }
 
+    public func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        try await scheduler.setNemotronModelVariant(variant, onProgress: onProgress)
+    }
+
     public func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
         await scheduler.engineSwitchAvailability()
     }

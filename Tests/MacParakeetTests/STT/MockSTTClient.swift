@@ -22,6 +22,8 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     public var speechEngineSwitchProgressMessages: [String] = []
     public var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     public var parakeetModelVariantSwitchError: Error?
+    public var nemotronModelVariantSwitches: [NemotronModelVariant] = []
+    public var nemotronModelVariantSwitchError: Error?
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -225,6 +227,18 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
         onProgress?("Preparing \(variant.modelName)...")
         if let parakeetModelVariantSwitchError {
             throw parakeetModelVariantSwitchError
+        }
+        ready = true
+    }
+
+    public func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        nemotronModelVariantSwitches.append(variant)
+        onProgress?("Preparing \(variant.modelName)...")
+        if let nemotronModelVariantSwitchError {
+            throw nemotronModelVariantSwitchError
         }
         ready = true
     }

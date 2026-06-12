@@ -653,6 +653,50 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertNil(props["language"])
     }
 
+    func testCanonicalOperationPassesFirstPartyEngineVariantsVerbatim() throws {
+        // First-party fixed build ids (Parakeet v2/v3, Nemotron multilingual/English)
+        // are privacy-safe enum raw values and must serialize verbatim so variant
+        // adoption can be measured; anything else still buckets to "custom".
+        let cases: [(input: String, expected: String)] = [
+            (ParakeetModelVariant.v2.rawValue, "v2"),
+            (ParakeetModelVariant.v3.rawValue, "v3"),
+            (NemotronModelVariant.multilingual1120.rawValue, "multilingual-1120ms"),
+            (NemotronModelVariant.english1120.rawValue, "english-1120ms"),
+            ("my-custom-model", "custom"),
+        ]
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        for (input, expected) in cases {
+            let event = TelemetryEvent(
+                spec: .dictationOperation(
+                    operationID: "op-dict",
+                    outcome: .success,
+                    trigger: .hotkey,
+                    mode: .persistent,
+                    durationSeconds: 3.2,
+                    wordCount: 10,
+                    errorType: nil,
+                    speechEngine: "parakeet",
+                    engineVariant: input,
+                    language: nil
+                ),
+                appVer: "0.4.2",
+                osVer: "15.3",
+                locale: "en-US",
+                chip: "Apple M1",
+                session: "test-session"
+            )
+
+            let data = try encoder.encode(event)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let props = try XCTUnwrap(json["props"] as? [String: String])
+
+            XCTAssertEqual(props["engine_variant"], expected, "engine_variant for input \(input)")
+        }
+    }
+
     func testDictationOperationSerializesCancelReason() throws {
         let event = TelemetryEvent(
             spec: .dictationOperation(

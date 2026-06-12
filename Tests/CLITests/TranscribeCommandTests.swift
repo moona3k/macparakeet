@@ -46,6 +46,28 @@ final class TranscribeCommandTests: XCTestCase {
         )
     }
 
+    func testResolveNemotronModelVariantFollowsStoredForAppDefault() {
+        XCTAssertEqual(
+            TranscribeCommand.resolveNemotronModelVariant(.appDefault, storedVariant: .english1120),
+            .english1120
+        )
+        XCTAssertEqual(
+            TranscribeCommand.resolveNemotronModelVariant(.appDefault, storedVariant: .multilingual1120),
+            .multilingual1120
+        )
+    }
+
+    func testResolveNemotronModelVariantRespectsExplicitOverride() {
+        XCTAssertEqual(
+            TranscribeCommand.resolveNemotronModelVariant(.english, storedVariant: .multilingual1120),
+            .english1120
+        )
+        XCTAssertEqual(
+            TranscribeCommand.resolveNemotronModelVariant(.multilingual, storedVariant: .english1120),
+            .multilingual1120
+        )
+    }
+
     func testResolveMediaAudioQualityUsesM4AForAppDefaultWhenUnset() {
         let quality = TranscribeCommand.resolveMediaAudioQuality(.appDefault, storedQuality: nil)
         XCTAssertEqual(quality, .m4a)
