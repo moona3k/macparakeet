@@ -440,8 +440,11 @@ struct DictationOverlayView: View {
 
     private var liveTranscriptPreview: String? {
         guard viewModel.sessionKind == .dictation else { return nil }
+        // Normalize only the visible tail: the transcript can reach thousands
+        // of characters in a long dictation and this recomputes per redraw.
+        // A leading partial word is fine — the head is truncated anyway.
         let compact = viewModel.liveTranscript
-            .replacingOccurrences(of: "\n", with: " ")
+            .suffix(360)
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
         guard !compact.isEmpty else { return nil }
