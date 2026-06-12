@@ -142,6 +142,28 @@ final class AppEnvironmentTests: XCTestCase {
         )
     }
 
+    func testSyncAIFormatterAvailabilityPreservesExistingTranscriptionPreference() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test")
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(
+            defaults: defaults,
+            configStore: configStore
+        )
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey) as? Bool,
+            false
+        )
+    }
+
     func testSyncAIFormatterAvailabilityRemovesPreferenceWithoutProvider() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

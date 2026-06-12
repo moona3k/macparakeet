@@ -372,11 +372,11 @@ public final class LLMSettingsViewModel {
         }
     }
 
-    /// Whether the AI Formatter also runs on live dictation. Transcript and
-    /// meeting formatter availability follows the saved provider config;
-    /// dictation is the latency-sensitive opt-in path. The value persists
-    /// immediately through the injected `defaults` store. Default `false` keeps
-    /// live dictation low-latency unless the user opts in. See issue #408.
+    /// Whether the AI Formatter also runs on live dictation. Transcript
+    /// formatting has its own routing toggle; dictation remains the
+    /// latency-sensitive opt-in path. The value persists immediately through
+    /// the injected `defaults` store. Default `false` keeps live dictation
+    /// low-latency unless the user opts in. See issue #408.
     public var aiFormatterEnabledForDictation: Bool {
         didSet {
             guard aiFormatterEnabledForDictation != oldValue else { return }

@@ -419,12 +419,11 @@ struct LLMSettingsView: View {
                             Toggle("Use for transcripts", isOn: $viewModel.aiFormatterEnabledForTranscriptions)
                                 .toggleStyle(.switch)
                                 .font(DesignSystem.Typography.caption.weight(.medium))
-                                .fixedSize()
                             Toggle("Use for dictation", isOn: $viewModel.aiFormatterEnabledForDictation)
                                 .toggleStyle(.switch)
                                 .font(DesignSystem.Typography.caption.weight(.medium))
-                                .fixedSize()
                         }
+                        .fixedSize()
                     }
                 }
 
