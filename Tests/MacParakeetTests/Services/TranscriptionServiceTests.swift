@@ -659,6 +659,43 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testTranscribeSkipsAIFormatterWhenCleanTranscriptExceedsInputCap() async throws {
+        // The formatter must reproduce the full text, so past the cap it
+        // can stall finalization until timeout before falling back. Clean mode
+        // should still keep deterministic cleanup as the fallback (#493).
+        let seed = "hello world "
+        let longTranscript = String(
+            repeating: seed,
+            count: (AIFormatter.maxTranscriptionInputChars / seed.count) + 1
+        )
+        XCTAssertGreaterThan(longTranscript.count, AIFormatter.maxTranscriptionInputChars)
+        await mockSTT.configure(result: STTResult(text: longTranscript))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "should never be requested"
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            processingMode: { .clean },
+            llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, longTranscript)
+        let cleanTranscript = try XCTUnwrap(result.cleanTranscript)
+        XCTAssertFalse(cleanTranscript.isEmpty)
+        XCTAssertNotEqual(cleanTranscript, longTranscript)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+
+        let runs = try llmRunRepo.fetchForTranscription(id: result.id)
+        XCTAssertTrue(runs.isEmpty)
+    }
+
     func testTranscribeFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()

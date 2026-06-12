@@ -133,6 +133,11 @@ REQ-LLM-004:
   version: v0.6
   status: implemented
 
+REQ-LLM-005:
+  description: AI Formatter routing is per-surface — independent "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) Settings toggles ANDed with provider availability — and the transcription formatter skips inputs over a length cap instead of stalling finalization for the full provider timeout
+  version: v0.6
+  status: implemented
+
 # --- v0.5 Data & Reliability ---
 
 REQ-DICT-005:

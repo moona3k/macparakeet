@@ -1602,6 +1602,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         guard shouldUseAIFormatter(), let llmService else {
             return .skipped
         }
+        // The formatter rewrites the full text, so output length tracks input
+        // length; past the cap slow providers can stall finalization until
+        // timeout before falling back anyway (issue #493).
+        guard text.count <= AIFormatter.maxTranscriptionInputChars else {
+            logger.info("transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(AIFormatter.maxTranscriptionInputChars, privacy: .public)")
+            return .skipped
+        }
 
         let promptTemplate = aiFormatterPromptTemplate()
         // Normalize before comparing: `AIFormatter.renderPrompt` passes the
