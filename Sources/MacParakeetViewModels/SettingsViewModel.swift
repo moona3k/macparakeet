@@ -434,7 +434,7 @@ public final class SettingsViewModel {
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
             // Enabling reminders requires notification authorization. The
-            // onboarding-grant flow asks for this in tandem with Calendar
+            // Calendar grant flow requests this in tandem with Calendar
             // access, but a user who granted Calendar earlier (or via
             // System Settings) and *now* flips the mode picker to non-`.off`
             // would otherwise hit the silent-drop path: coordinator marks
@@ -1115,11 +1115,10 @@ public final class SettingsViewModel {
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
         if granted {
             await CalendarNotificationAuthorization.requestIfNeeded()
-            // Match the onboarding grant flow (OnboardingViewModel applies
-            // .notify on grant): a user who explicitly grants Calendar access
-            // from Settings intends to use the feature, so default them into
-            // the safe .notify mode. Only when still .off — never clobber an
-            // existing .autoStart choice.
+            // A user who explicitly grants Calendar access from Settings
+            // intends to use the feature, so default them into the safe
+            // .notify mode. Only when still .off — never clobber an existing
+            // .autoStart choice.
             if calendarAutoStartMode == .off {
                 calendarAutoStartMode = .notify
             }

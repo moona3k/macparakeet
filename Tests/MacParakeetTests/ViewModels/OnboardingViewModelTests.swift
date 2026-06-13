@@ -402,6 +402,12 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called, "Speech model warm-up must still occur on the 6-step path")
+
+        // Once the engine is ready, the final .engine -> .done transition must
+        // complete the 6-step flow end-to-end (the last goNext() in the path).
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "engine should allow continue once ready")
+        vm.goNext()
+        XCTAssertEqual(vm.step, .done, "the .engine -> .done transition completes the 6-step flow")
     }
 
     func testEngineWarmUpUsesWhisperForCJKPreferredLanguageWhenModelIsCached() async throws {

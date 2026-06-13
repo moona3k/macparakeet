@@ -155,11 +155,11 @@ public final class OnboardingViewModel {
             let mic = await permissionService.checkMicrophonePermission()
             let ax = permissionService.checkAccessibilityPermission()
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.micStatus = mic
-                self.accessibilityGranted = ax
-                self.refreshTask = nil
-            }
+            // The class is @MainActor, so this Task already runs on the main
+            // actor — assign directly rather than hopping through MainActor.run.
+            self.micStatus = mic
+            self.accessibilityGranted = ax
+            self.refreshTask = nil
         }
     }
 
