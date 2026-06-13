@@ -163,9 +163,22 @@ PLIST
 
 # Re-sign the bundle so TCC can identify the dev build consistently. Use the
 # release app entitlements so permission smoke tests exercise the same TCC
-# capability surface as the signed distribution build.
+# capability surface as the signed distribution build. Ad-hoc signatures carry
+# no Team ID, so hardened-runtime library validation would reject the
+# bundle-local Sparkle.framework at load (dyld: "code signature … not valid
+# for use in process") — disable library validation for the ad-hoc fallback
+# only; real identities keep the release entitlement surface.
+SIGN_ENTITLEMENTS="$APP_ENTITLEMENTS"
+if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
+  echo "  note: no codesigning identity found; ad-hoc signing with library validation disabled"
+  SIGN_ENTITLEMENTS="$(mktemp -t macparakeet-dev-entitlements)"
+  cp "$APP_ENTITLEMENTS" "$SIGN_ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c \
+    "Add :com.apple.security.cs.disable-library-validation bool true" \
+    "$SIGN_ENTITLEMENTS"
+fi
 codesign --force --sign "$CODESIGN_IDENTITY" --options runtime \
-  --entitlements "$APP_ENTITLEMENTS" --deep "$APP_BUNDLE"
+  --entitlements "$SIGN_ENTITLEMENTS" --deep "$APP_BUNDLE"
 
 echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
