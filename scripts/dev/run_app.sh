@@ -172,10 +172,16 @@ SIGN_ENTITLEMENTS="$APP_ENTITLEMENTS"
 if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
   echo "  note: no codesigning identity found; ad-hoc signing with library validation disabled"
   SIGN_ENTITLEMENTS="$(mktemp -t macparakeet-dev-entitlements)"
+  trap 'rm -f "$SIGN_ENTITLEMENTS"' EXIT
   cp "$APP_ENTITLEMENTS" "$SIGN_ENTITLEMENTS"
+  # `Add` fails if the key ever lands in the release entitlements; fall back
+  # to `Set` so the merge stays idempotent.
   /usr/libexec/PlistBuddy -c \
     "Add :com.apple.security.cs.disable-library-validation bool true" \
-    "$SIGN_ENTITLEMENTS"
+    "$SIGN_ENTITLEMENTS" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c \
+      "Set :com.apple.security.cs.disable-library-validation true" \
+      "$SIGN_ENTITLEMENTS"
 fi
 codesign --force --sign "$CODESIGN_IDENTITY" --options runtime \
   --entitlements "$SIGN_ENTITLEMENTS" --deep "$APP_BUNDLE"
