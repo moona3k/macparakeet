@@ -5,6 +5,28 @@
 > Branch: `test/dictation-stall-integration`
 > Related: `journal/2026-05-03-dictation-silent-stall.md`, ADR-015, PR #189 (shared-mic-engine), PR #210 (diagnostic package)
 
+## Status (2026-06-12): root cause confirmed, recovery implemented
+
+Issue #499 (field report with an opt-in diagnostic log: 87 zero-sample
+captures, 380 `shared_mic_engine_configuration_changed` events across 480
+starts) confirmed hypothesis 1 from the list below: **HAL configuration
+change mid-session**. `AVAudioEngine` stops itself when the input chain
+reconfigures and posts `AVAudioEngineConfigurationChange`; the PR #210
+observer was log-only, so nothing restarted the engine and the platform's
+`running` flag stayed `true` over a dead graph.
+
+The fix (branch `fix/mic-config-change-recovery`) makes
+`AVAudioEngineMicrophonePlatform` self-heal: it replays the last successful
+start request when a configuration-change notification arrives for the
+current engine instance and the engine has actually stopped. The
+`shared_mic_engine_configuration_changed` log line now carries
+`engine_is_running=` (actual `AVAudioEngine.isRunning`) alongside the
+platform-flag `isRunning=`, closing the instrumentation gap called out
+below. Regression tests:
+`Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift`.
+The Tier-4 HAL-mutation test is now expected to pass *because of* recovery
+on machines where the default-input mutation is observable.
+
 ## Status (2026-05-04, amended 2026-05-27)
 
 - **Tier 1 shipped + expanded** — 9 tests in `Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift`. Run the normal hardware subset with `MACPARAKEET_HARDWARE_TESTS=1`.

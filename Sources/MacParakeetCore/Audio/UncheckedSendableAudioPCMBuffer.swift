@@ -46,4 +46,14 @@ final class UncheckedSendableAudioEngine: @unchecked Sendable {
             engine.inputNode.outputFormat(forBus: 0)
         }
     }
+
+    /// ObjC-exception-safe read of the engine's running state.
+    func isEngineRunning() -> Bool {
+        (try? catchingObjCException { engine.isRunning }) ?? false
+    }
+
+    /// Returns true if this box wraps the given engine instance (identity check).
+    func wraps(_ other: AVAudioEngine) -> Bool {
+        engine === other
+    }
 }
