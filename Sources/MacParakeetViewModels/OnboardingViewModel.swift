@@ -23,8 +23,6 @@ public final class OnboardingViewModel {
         case welcome
         case microphone
         case accessibility
-        case meetingRecording
-        case calendar
         case hotkey
         case engine
         case done
@@ -36,8 +34,6 @@ public final class OnboardingViewModel {
             case .welcome: return "Welcome"
             case .microphone: return "Microphone"
             case .accessibility: return "Accessibility"
-            case .meetingRecording: return "Meeting Recording"
-            case .calendar: return "Calendar"
             case .hotkey: return "Hotkey"
             case .engine: return "Speech Model"
             case .done: return "Ready"
@@ -60,9 +56,7 @@ public final class OnboardingViewModel {
     public private(set) var micStatus: PermissionStatus = .notDetermined
     public private(set) var accessibilityGranted: Bool = false
     public private(set) var screenRecordingGranted: Bool = false
-    public private(set) var meetingRecordingSkipped: Bool
     public private(set) var calendarPermissionGranted: Bool = false
-    public private(set) var calendarSkipped: Bool
     public private(set) var showRelaunchHint: Bool = false
     public private(set) var engineState: EngineState = .idle
     public private(set) var whisperRecommendation: WhisperOnboardingRecommendation?
@@ -105,8 +99,6 @@ public final class OnboardingViewModel {
     private let requiredWhisperSetupDiskBytes: Int64 = 2 * 1_024 * 1_024 * 1_024
 
     public nonisolated static let onboardingCompletedKey = "onboarding.completedAtISO"
-    public nonisolated static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
-    public nonisolated static let calendarSkippedKey = "onboarding.calendarSkipped"
 
     public init(
         permissionService: PermissionServiceProtocol,
@@ -143,8 +135,6 @@ public final class OnboardingViewModel {
         self.now = now
         self.permissionPollingInterval = permissionPollingInterval
         self.relaunchHintDelay = relaunchHintDelay
-        self.meetingRecordingSkipped = defaults.bool(forKey: Self.meetingRecordingSkippedKey)
-        self.calendarSkipped = defaults.bool(forKey: Self.calendarSkippedKey)
         self.calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
             preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
@@ -165,12 +155,8 @@ public final class OnboardingViewModel {
 
     public func resetOnboarding() {
         defaults.removeObject(forKey: Self.onboardingCompletedKey)
-        defaults.removeObject(forKey: Self.meetingRecordingSkippedKey)
-        defaults.removeObject(forKey: Self.calendarSkippedKey)
         step = .welcome
         engineState = .idle
-        meetingRecordingSkipped = false
-        calendarSkipped = false
         // Re-resolve from the live calendar permission so a previously-
         // granted user re-entering onboarding sees the correct "completed"
         // state, not the stale value carried over from VM init.
@@ -204,31 +190,15 @@ public final class OnboardingViewModel {
         }
     }
 
-    /// Steps the user actually sees. Hidden steps (gated by `AppFeatures`) are
-    /// filtered out so next/back/jump all walk the visible list — no flicker or
-    /// silent no-ops when flags are off. Calendar requires BOTH meeting
-    /// recording and calendar to be enabled; gating the inner flag alone lets
-    /// us hide the (untested) calendar flow without dropping meeting recording.
+    /// Steps the user actually sees in the dictation-first onboarding flow.
     public static var visibleSteps: [Step] {
-        Step.allCases.filter { step in
-            switch step {
-            case .meetingRecording:
-                return AppFeatures.meetingRecordingEnabled
-            case .calendar:
-                return AppFeatures.meetingRecordingEnabled && AppFeatures.calendarEnabled
-            default:
-                return true
-            }
-        }
+        [.welcome, .microphone, .accessibility, .hotkey, .engine, .done]
     }
 
     public func goNext() {
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let next = visible.first(where: { $0.rawValue > currentRaw }) else { return }
-        if step == .meetingRecording {
-            clearMeetingRecordingPendingState()
-        }
         step = next
         Telemetry.send(.onboardingStep(step: next.title.lowercased()))
         refresh()
@@ -238,17 +208,11 @@ public final class OnboardingViewModel {
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let prev = visible.last(where: { $0.rawValue < currentRaw }) else { return }
-        if step == .meetingRecording {
-            clearMeetingRecordingPendingState()
-        }
         step = prev
         refresh()
     }
 
     public func jump(to target: Step) {
-        if step == .meetingRecording, target != .meetingRecording {
-            clearMeetingRecordingPendingState()
-        }
         step = target
         refresh()
     }
@@ -261,10 +225,6 @@ public final class OnboardingViewModel {
             return micStatus == .granted
         case .accessibility:
             return accessibilityGranted
-        case .meetingRecording:
-            return true
-        case .calendar:
-            return true
         case .hotkey:
             return true
         case .engine:
@@ -321,13 +281,6 @@ public final class OnboardingViewModel {
         refresh()
     }
 
-    public func skipMeetingRecordingStep() {
-        meetingRecordingSkipped = true
-        defaults.set(true, forKey: Self.meetingRecordingSkippedKey)
-        clearMeetingRecordingPendingState()
-        goNext()
-    }
-
     /// Trigger the EventKit permission prompt. On grant, default the user
     /// into `.notify` mode so the feature works out of the box and request
     /// notification authorization in the same flow — without it, macOS
@@ -354,16 +307,6 @@ public final class OnboardingViewModel {
                 }
             }
         }
-    }
-
-    /// Skip the calendar onboarding step. Persists `.off` mode explicitly so
-    /// the SettingsViewModel default doesn't silently flip back to enabled
-    /// later. Symmetric to `skipMeetingRecordingStep()`.
-    public func skipCalendarStep() {
-        calendarSkipped = true
-        defaults.set(true, forKey: Self.calendarSkippedKey)
-        applyCalendarMode(.off)
-        goNext()
     }
 
     private func applyCalendarMode(_ mode: CalendarAutoStartMode) {
@@ -742,18 +685,13 @@ public final class OnboardingViewModel {
         showRelaunchHint = false
     }
 
-    private func updateMeetingRecordingRelaunchHint(now currentTime: Date) {
+    private func updateMeetingRecordingRelaunchHint(now _: Date) {
         guard !screenRecordingGranted else {
             clearMeetingRecordingPendingState()
             return
         }
 
-        guard step == .meetingRecording, let requestTime = screenRecordingGrantRequestedAt else {
-            showRelaunchHint = false
-            return
-        }
-
-        showRelaunchHint = currentTime.timeIntervalSince(requestTime) >= relaunchHintDelay
+        showRelaunchHint = false
     }
 
     private func cancelWarmUpObservation() {

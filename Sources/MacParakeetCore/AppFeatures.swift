@@ -6,21 +6,22 @@ import Foundation
 public enum AppFeatures {
     /// Meeting Recording (ADR-014). When `false`, all meeting recording entry
     /// points are hidden: Transcribe tile, menu-bar "Start Recording", global
-    /// meeting hotkey, settings card, library filter, onboarding step, and the
-    /// screen recording permission row. Data model, services, and tests remain
-    /// intact.
+    /// meeting hotkey, settings card, library filter, and the screen recording
+    /// permission row. Meeting recording sets itself up on first use via a
+    /// self-prompt (no onboarding step). Data model, services, and tests remain intact.
     public static let meetingRecordingEnabled: Bool = true
 
     /// Calendar auto-start (ADR-017). When `false`, all calendar entry points
-    /// are hidden: onboarding calendar step, Settings calendar subsection,
-    /// search-index calendar entry, and the auto-start coordinator never starts
-    /// polling. CalendarService, MeetingAutoStartCoordinator, models, and tests
-    /// remain intact — only the surfaces that would invoke them are gated.
+    /// are hidden: Settings calendar subsection, search-index calendar entry,
+    /// and the auto-start coordinator never starts polling. Calendar sets itself
+    /// up on first use from Settings (no onboarding step). CalendarService,
+    /// MeetingAutoStartCoordinator, models, and tests remain intact — only the
+    /// surfaces that would invoke them are gated.
     /// Enabled after the post-#318 reliability hardening (ADR-017 Phases 1+2):
     /// mid-flight teardown, RSVP/zero-duration guards, and reschedule re-fire.
     /// Calendar-driven auto-stop was removed by the 2026-05 amendment. Auto-
     /// start defaults to mode `.off`, so upgraders opt in explicitly via
-    /// onboarding or Settings; nothing changes for existing users until they do.
+    /// Settings; nothing changes for existing users until they do.
     public static let calendarEnabled: Bool = true
 
     /// Transforms — productized Phase 2 (ADR-022). When `true`:
