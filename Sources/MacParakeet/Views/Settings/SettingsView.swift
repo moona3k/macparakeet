@@ -1778,6 +1778,14 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Keep meeting audio",
+                    detail: "Turn off to remove meeting audio after the final transcript is saved.",
+                    isOn: $viewModel.saveMeetingAudio
+                )
+
+                Divider()
+
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 190), spacing: DesignSystem.Spacing.md)],
                     spacing: DesignSystem.Spacing.md
@@ -1792,6 +1800,12 @@ struct SettingsView: View {
                         title: "Video Downloads",
                         value: "\(viewModel.youtubeDownloadCount)",
                         detail: viewModel.formattedYouTubeStorage
+                    )
+
+                    metricTile(
+                        title: "Meeting Audio",
+                        value: "\(viewModel.meetingAudioRecordingCount)",
+                        detail: viewModel.formattedMeetingAudioStorage
                     )
                 }
             }
@@ -1863,6 +1877,21 @@ struct SettingsView: View {
                             confirmationMessage: "This will delete all downloaded video audio files and detach them from existing transcriptions. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearDownloadedYouTubeAudio
+                        )
+                    )
+
+                    Divider()
+
+                    resetActionRow(
+                        title: "Meeting audio",
+                        detail: "Saved meeting audio only. Transcripts stay; audio detaches.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Clear…",
+                            accessibilityLabel: "Clear meeting audio",
+                            confirmationTitle: "Clear Meeting Audio?",
+                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. This cannot be undone.",
+                            confirmButtonLabel: "Clear Audio",
+                            perform: viewModel.clearMeetingAudio
                         )
                     )
                 }

@@ -14,6 +14,7 @@ struct MeetingsView: View {
     var onSelectMeeting: (Transcription) -> Void
 
     @State private var audioSaveErrorMessage: String?
+    @State private var pendingDeleteAudio: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
 
@@ -68,6 +69,25 @@ struct MeetingsView: View {
             }
         } message: {
             Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
+        }
+        .alert(
+            "Delete Meeting Audio?",
+            isPresented: Binding(
+                get: { pendingDeleteAudio != nil },
+                set: { if !$0 { pendingDeleteAudio = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAudio = nil
+            }
+            Button("Delete Audio", role: .destructive) {
+                if let transcription = pendingDeleteAudio {
+                    viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
+                    pendingDeleteAudio = nil
+                }
+            }
+        } message: {
+            Text("The transcript stays in Meetings. Playback and retranscription will be unavailable unless you saved a copy.")
         }
         .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
             viewModel.quickPromptsViewModel.cancelCreating()
@@ -473,6 +493,13 @@ struct MeetingsView: View {
             saveMeetingAudio(transcription)
         } label: {
             Label("Save Audio As…", systemImage: "square.and.arrow.down")
+        }
+        .disabled(!audioAvailable)
+
+        Button(role: .destructive) {
+            pendingDeleteAudio = transcription
+        } label: {
+            Label("Delete Audio", systemImage: "waveform.slash")
         }
         .disabled(!audioAvailable)
     }

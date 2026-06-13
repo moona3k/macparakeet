@@ -13,6 +13,7 @@ struct TranscriptionLibraryView: View {
     var onSelect: (Transcription) -> Void
 
     @State private var pendingDelete: Transcription?
+    @State private var pendingDeleteAudio: Transcription?
     @State private var audioSaveErrorMessage: String?
 
     private var visibleLibraryFilters: [LibraryFilter] {
@@ -101,6 +102,25 @@ struct TranscriptionLibraryView: View {
             if let pending = pendingDelete {
                 Text("\"\(pending.fileName)\" will be permanently deleted.")
             }
+        }
+        .alert(
+            "Delete Meeting Audio?",
+            isPresented: Binding(
+                get: { pendingDeleteAudio != nil },
+                set: { if !$0 { pendingDeleteAudio = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAudio = nil
+            }
+            Button("Delete Audio", role: .destructive) {
+                if let transcription = pendingDeleteAudio {
+                    viewModel.deleteMeetingAudio(transcription)
+                    pendingDeleteAudio = nil
+                }
+            }
+        } message: {
+            Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
         }
         .alert(
             "Save Failed",
@@ -198,6 +218,16 @@ struct TranscriptionLibraryView: View {
             .disabled(!audioAvailable)
             .help(audioAvailable
                   ? "Save a copy of the meeting audio to a chosen location"
+                  : "Audio file is not available yet")
+
+            Button(role: .destructive) {
+                pendingDeleteAudio = transcription
+            } label: {
+                Label("Delete Audio", systemImage: "waveform.slash")
+            }
+            .disabled(!audioAvailable)
+            .help(audioAvailable
+                  ? "Delete the stored meeting audio while keeping the transcript"
                   : "Audio file is not available yet")
         }
 

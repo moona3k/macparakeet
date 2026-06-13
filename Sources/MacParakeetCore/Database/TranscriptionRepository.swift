@@ -18,6 +18,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
     func updateFilePath(id: UUID, filePath: String?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
+    func clearStoredAudioPathsForMeetingTranscriptions() throws
     func updateFavorite(id: UUID, isFavorite: Bool) throws
     func fetchFavorites() throws -> [Transcription]
 }
@@ -79,6 +80,7 @@ extension TranscriptionRepositoryProtocol {
         )
     }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
+    public func clearStoredAudioPathsForMeetingTranscriptions() throws {}
     public func updateFileName(id: UUID, fileName: String) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
@@ -434,6 +436,15 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         try dbQueue.write { db in
             try db.execute(
                 sql: "UPDATE transcriptions SET filePath = NULL WHERE sourceURL IS NOT NULL"
+            )
+        }
+    }
+
+    public func clearStoredAudioPathsForMeetingTranscriptions() throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE transcriptions SET filePath = NULL, updatedAt = ? WHERE sourceType = ?",
+                arguments: [Date(), Transcription.SourceType.meeting.rawValue]
             )
         }
     }

@@ -80,6 +80,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `history delete-meeting-audio <transcription>` deletes MacParakeet-managed
+  meeting audio for a single saved meeting while keeping the transcript row and
+  clearing its stored audio path.
+- `history clear-meeting-audio` deletes all stored meeting audio and detaches
+  audio paths from saved meeting transcripts.
+- `config get|set|list` now includes `save-meeting-audio`, matching the GUI's
+  default-on meeting audio retention preference.
+
 ### Fixed
 
 - `spec --json` now marks writing commands conservatively (`transcribe`,

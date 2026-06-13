@@ -322,6 +322,16 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         openItem.target = self
         menu.addItem(openItem)
 
+        if AppFeatures.meetingRecordingEnabled {
+            let meetingsItem = NSMenuItem(
+                title: "Go to Meetings",
+                action: #selector(showMeetings),
+                keyEquivalent: ""
+            )
+            meetingsItem.target = self
+            menu.addItem(meetingsItem)
+        }
+
         menu.addItem(NSMenuItem.separator())
 
         let pasteItem = NSMenuItem(

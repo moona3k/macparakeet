@@ -154,6 +154,89 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
+    func testDeleteMeetingAudioCommandKeepsTranscriptAndClearsFilePath() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("macparakeet-cli-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let transcription = Transcription(
+            fileName: "meeting.m4a",
+            filePath: audioURL.path,
+            rawTranscript: "Discuss retention",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        let command = try DeleteMeetingAudioSubcommand.parse([
+            transcription.id.uuidString,
+            "--database", dbURL.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertNil(fetched.filePath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(output.contains("Deleted meeting audio"))
+    }
+
+    func testClearMeetingAudioCommandRemovesConfiguredDirectoryAndClearsMeetingPaths() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meetingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: meetingRoot) }
+        let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+
+        let meeting = Transcription(
+            fileName: "meeting.m4a",
+            filePath: audioURL.path,
+            rawTranscript: "Discuss retention",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let local = Transcription(
+            fileName: "local.m4a",
+            filePath: "/tmp/local.m4a",
+            rawTranscript: "Local",
+            status: .completed,
+            sourceType: .file
+        )
+        try repo.save(meeting)
+        try repo.save(local)
+
+        let command = try ClearMeetingAudioSubcommand.parse([
+            "--database", dbURL.path,
+            "--meeting-recordings-directory", meetingRoot.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRoot.path))
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: meetingRoot.path)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertNil(try repo.fetch(id: meeting.id)?.filePath)
+        XCTAssertEqual(try repo.fetch(id: local.id)?.filePath, local.filePath)
+        XCTAssertTrue(output.contains("Deleted all stored meeting audio"))
+    }
+
     // MARK: - Favorites
 
     func testFavoriteAndUnfavoriteTranscription() throws {

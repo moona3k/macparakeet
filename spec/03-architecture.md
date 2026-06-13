@@ -299,7 +299,7 @@ protocol TranscriptionServiceProtocol: Sendable {
 }
 ```
 
-**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`)
+**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`, `saveMeetingAudio`)
 
 **Data Flow:**
 ```
@@ -1185,7 +1185,7 @@ Parakeet TDT 0.6B throughput varies by device class: v3 is approximately 155x re
 
 - **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. Budget ~66 MB working RAM per active inference slot on the ANE path. Real total memory depends on how many managers are loaded/active in the current implementation, whether the background capacity stays lazy in the final design, and whether diarization models are also resident.
 - **Whisper model:** Loaded only when selected; model size and runtime memory are variant-dependent. Default cache is `models/stt/whisper/`.
-- **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. No recording duration limit beyond disk space and practical UI constraints.
+- **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. Completed meeting audio is retained by default but can be detached from the transcript through GUI/CLI cleanup. No recording duration limit beyond disk space and practical UI constraints.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
 
 ### Background Model Pre-warming

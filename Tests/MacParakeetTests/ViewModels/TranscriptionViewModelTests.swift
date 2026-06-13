@@ -717,6 +717,38 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
+    func testPresentCompletedMeetingDeletesAudioWhenRetentionIsOff() throws {
+        let suite = "transcription-vm-meeting-audio-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("vm-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let t = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            rawTranscript: "Done",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [t]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.presentCompletedTranscription(t, autoSave: true)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertNil(viewModel.currentTranscription?.filePath)
+        XCTAssertNil(mockRepo.transcriptions.first?.filePath)
+    }
+
     func testRepositoryDeleteFailureKeepsExternalAudioFile() throws {
         let audioURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("yt-audio-\(UUID().uuidString).m4a")

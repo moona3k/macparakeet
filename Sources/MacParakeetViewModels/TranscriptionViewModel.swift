@@ -666,6 +666,36 @@ public final class TranscriptionViewModel {
         }
     }
 
+    public func deleteMeetingAudio(_ transcription: Transcription) {
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "deleteMeetingAudio")
+            return
+        }
+
+        do {
+            guard transcription.sourceType == .meeting else { return }
+            let removedOwnedAudio = try TranscriptionDeletionCleanup.removeOwnedMeetingAudio(for: transcription)
+            let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
+            guard removedOwnedAudio || !hasAudioPath else {
+                setError(message: "Meeting audio is not stored in MacParakeet's managed recordings folder.")
+                return
+            }
+            try repo.updateFilePath(id: transcription.id, filePath: nil)
+            if let current = currentTranscription, current.id == transcription.id {
+                var updated = current
+                updated.filePath = nil
+                currentTranscription = updated
+            }
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index].filePath = nil
+            }
+            clearError()
+        } catch {
+            logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
+            setError(message: "Failed to delete meeting audio: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Progress State
 
     private func beginNewTranscription(
@@ -718,11 +748,13 @@ public final class TranscriptionViewModel {
             // toggle, and Library refreshes live so results appear as they land.
             batchCompletedCount += 1
             autoSaveIfEnabled(result)
+            applyMeetingAudioRetentionIfNeeded(result)
             loadTranscriptions()
             advanceBatch()
         } else {
             presentCompletedTranscription(result, autoSave: false, runAutoPrompts: runAutoPrompts)
             autoSaveIfEnabled(result)
+            applyMeetingAudioRetentionIfNeeded(result)
             emitCompletionSignal(
                 TranscriptionCompletionNotifier.singleContent(
                     settingEnabled: notifyOnCompletionEnabled,
@@ -737,6 +769,15 @@ public final class TranscriptionViewModel {
         let service = AutoSaveService()
         let scope: AutoSaveScope = transcription.sourceType == .meeting ? .meeting : .transcription
         service.saveIfEnabled(transcription, scope: scope)
+    }
+
+    private func applyMeetingAudioRetentionIfNeeded(_ transcription: Transcription) {
+        guard transcription.sourceType == .meeting else { return }
+        let shouldSaveMeetingAudio = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey
+        ) as? Bool ?? true
+        guard !shouldSaveMeetingAudio else { return }
+        deleteMeetingAudio(transcription)
     }
 
     /// Persist a new playback-friendly file path produced by the background
@@ -789,6 +830,7 @@ public final class TranscriptionViewModel {
         loadTranscriptions()
         if autoSave {
             autoSaveIfEnabled(transcription)
+            applyMeetingAudioRetentionIfNeeded(transcription)
         }
         guard runAutoPrompts else { return }
         let text = aiContextText(for: transcription)

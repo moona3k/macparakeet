@@ -164,6 +164,27 @@ public final class TranscriptionLibraryViewModel {
         }
     }
 
+    public func deleteMeetingAudio(_ transcription: Transcription) {
+        do {
+            errorMessage = nil
+            guard transcription.sourceType == .meeting else { return }
+            let removedOwnedAudio = try TranscriptionDeletionCleanup.removeOwnedMeetingAudio(for: transcription)
+            let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
+            guard removedOwnedAudio || !hasAudioPath else {
+                errorMessage = "Meeting audio is not stored in MacParakeet's managed recordings folder."
+                return
+            }
+            try transcriptionRepo?.updateFilePath(id: transcription.id, filePath: nil)
+            if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[idx].filePath = nil
+                publishLoadedItems(transcriptions, hasMore: hasMore)
+            }
+        } catch {
+            logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to delete meeting audio: \(error.localizedDescription)"
+        }
+    }
+
     private func reloadAfterStateChange() {
         searchDebounceTask?.cancel()
         searchDebounceTask = nil

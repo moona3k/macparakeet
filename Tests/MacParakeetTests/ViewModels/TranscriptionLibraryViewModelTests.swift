@@ -295,4 +295,31 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertNotNil(vm.errorMessage)
     }
+
+    func testDeleteMeetingAudioKeepsTranscriptionAndClearsFilePath() async throws {
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("library-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let t = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(t)
+        await load()
+
+        vm.deleteMeetingAudio(t)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: t.id))
+        XCTAssertNil(fetched.filePath)
+        XCTAssertEqual(vm.transcriptions.first?.id, t.id)
+        XCTAssertNil(vm.transcriptions.first?.filePath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+    }
 }

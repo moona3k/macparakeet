@@ -234,6 +234,14 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
+    func clearStoredAudioPathsForMeetingTranscriptions() throws {
+        for i in transcriptions.indices {
+            if transcriptions[i].sourceType == .meeting {
+                transcriptions[i].filePath = nil
+            }
+        }
+    }
+
     func updateFavorite(id: UUID, isFavorite: Bool) throws {
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].isFavorite = isFavorite
