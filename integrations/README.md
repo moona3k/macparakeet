@@ -313,6 +313,7 @@ macparakeet-cli meetings list --json
 macparakeet-cli meetings show <id-or-prefix-or-title> --json
 macparakeet-cli meetings transcript <id> --format text
 macparakeet-cli meetings transcript <id> --format json
+macparakeet-cli meetings artifact <id> --json
 macparakeet-cli meetings notes get <id> --json
 macparakeet-cli meetings notes append <id> --text "Decision: ship the parser"
 macparakeet-cli meetings notes clear <id> --json
@@ -329,6 +330,48 @@ externally generated summaries, decisions, action items, or other agent output;
 those rows are stored as `PromptResult` records rather than overwriting
 `userNotes`.
 
+`meetings artifact` is the stable folder contract for local meeting sessions.
+It refreshes the session folder from SQLite and returns paths to:
+
+- `manifest.json` — schema, meeting metadata, and file index
+- `transcript.json` — transcript text, timestamps, speakers, diarization
+- `notes.md` — user-authored notes when present
+- `prompt-results.json` and `prompt-results/*.md` — saved generated outputs
+
+Future meeting sessions are stored under the configured artifact root:
+
+```bash
+macparakeet-cli config get meeting-artifacts-folder
+macparakeet-cli config set meeting-artifacts-folder ~/Documents/MacParakeet/Meetings
+macparakeet-cli config set meeting-artifacts-folder default
+```
+
+For post-meeting local automation, configure a disabled-by-default hook. The
+hook path must be an absolute executable path; MacParakeet runs it without a
+shell, sends a `meeting.completed` JSON event on stdin, times out, and writes
+`automation-hook-result.json` back into the meeting folder.
+
+```bash
+macparakeet-cli config set meeting-hook-path /absolute/path/to/hook
+macparakeet-cli config set meeting-hook-timeout 20
+macparakeet-cli config set meeting-hook-enabled on
+```
+
+Meeting commands that support `--envelope` return an opt-in success envelope:
+
+```json
+{
+  "ok": true,
+  "command": "meetings artifact",
+  "data": {},
+  "meta": {
+    "schemaVersion": 1,
+    "generatedAt": "2026-06-13T00:00:00Z",
+    "warnings": []
+  }
+}
+```
+
 Prompt and direct LLM JSON responses use an envelope with `output`, `provider`,
 `model`, optional `usage`, optional `stopReason`, and `latencyMs`.
 
@@ -340,14 +383,20 @@ structured failure envelope instead of the success shape:
 {
   "ok": false,
   "error": "Provider error: No models loaded.",
-  "errorType": "provider"
+  "errorType": "provider",
+  "fix": "Check provider configuration and retry.",
+  "meta": {
+    "schemaVersion": 1,
+    "generatedAt": "2026-06-13T00:00:00Z",
+    "warnings": []
+  }
 }
 ```
 
-`errorType` is a stable low-cardinality string. Branch on the exit code, then
-use `errorType` to differentiate retryable failures (`rate_limit`,
-`connection`, `streaming`) from permanent ones (`auth`, `model`,
-`input_empty`, `lookup`, `validation`). Full taxonomy in
+`errorType` is a stable low-cardinality string; `fix` and `meta` are optional
+fields. Branch on the exit code, then use `errorType` to differentiate
+retryable failures (`rate_limit`, `connection`, `streaming`) from permanent
+ones (`auth`, `model`, `input_empty`, `lookup`, `validation`). Full taxonomy in
 `Sources/CLI/CHANGELOG.md`.
 
 Parse-time failures (unknown flags, missing required flags,

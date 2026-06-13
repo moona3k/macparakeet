@@ -18,6 +18,7 @@ final class SpecCommandTests: XCTestCase {
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
         let paths = commands.compactMap { $0["path"] as? [String] }
         XCTAssertTrue(paths.contains(["meetings", "results", "add"]))
+        XCTAssertTrue(paths.contains(["meetings", "artifact"]))
         XCTAssertTrue(paths.contains(["config", "set"]))
         XCTAssertTrue(paths.contains(["models", "delete"]))
         XCTAssertTrue(paths.contains(["spec"]))
@@ -25,6 +26,11 @@ final class SpecCommandTests: XCTestCase {
         let writeback = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "results", "add"] })
         XCTAssertEqual(writeback["readOnly"] as? Bool, false)
         XCTAssertEqual(writeback["jsonMode"] as? String, "--json")
+
+        let artifact = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "artifact"] })
+        XCTAssertEqual(artifact["readOnly"] as? Bool, false)
+        let artifactOptions = try XCTUnwrap(artifact["options"] as? [[String: Any]])
+        XCTAssertTrue(artifactOptions.contains { ($0["name"] as? String) == "--envelope" })
 
         XCTAssertTrue(paths.contains(["meetings", "notes", "get"]))
         XCTAssertTrue(paths.contains(["meetings", "notes", "set"]))

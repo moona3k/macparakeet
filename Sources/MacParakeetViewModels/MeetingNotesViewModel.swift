@@ -15,8 +15,8 @@ import SwiftUI
 /// "insert AI response into notes" affordance) would require a new public
 /// mutator — visible in code review and a deliberate violation of the
 /// user-authored-notes invariant. This is what lets every consumer of
-/// `userNotes` (the transcription detail page, the `notes.md` sidecar, and
-/// the chat path's optional `userNotes` parameter) treat the value as a
+/// `userNotes` (the transcription detail page, the meeting artifact export,
+/// and the chat path's optional `userNotes` parameter) treat the value as a
 /// trustable signal of what the user actually cares about, rather than a
 /// blob that AI replies could recursively dilute.
 @MainActor

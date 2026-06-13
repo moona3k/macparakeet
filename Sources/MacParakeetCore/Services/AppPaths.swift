@@ -2,6 +2,9 @@ import Foundation
 
 /// Centralized path management for MacParakeet runtime files.
 public enum AppPaths {
+    public static let preferencesSuiteName = "com.macparakeet.MacParakeet"
+    public static let meetingArtifactsFolderKey = "meetingArtifactsFolder"
+
     /// Application Support directory
     public static var appSupportDir: String {
         let path = FileManager.default
@@ -27,9 +30,34 @@ public enum AppPaths {
         "\(appSupportDir)/youtube-downloads"
     }
 
-    /// Audio storage directory for meeting recordings
-    public static var meetingRecordingsDir: String {
+    /// Default audio/artifact storage directory for meeting recordings.
+    public static var defaultMeetingRecordingsDir: String {
         "\(appSupportDir)/meeting-recordings"
+    }
+
+    /// Audio/artifact storage directory for meeting recordings.
+    public static var meetingRecordingsDir: String {
+        configuredMeetingRecordingsDir()
+    }
+
+    public static func configuredMeetingRecordingsDir(defaults: UserDefaults = .standard) -> String {
+        if let raw = defaults.string(forKey: meetingArtifactsFolderKey),
+           let path = normalizedMeetingArtifactsFolder(raw) {
+            return path
+        }
+        return defaultMeetingRecordingsDir
+    }
+
+    public static func sharedAppDefaults() -> UserDefaults {
+        UserDefaults(suiteName: preferencesSuiteName) ?? .standard
+    }
+
+    public static func normalizedMeetingArtifactsFolder(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        guard (expanded as NSString).isAbsolutePath else { return nil }
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
     }
 
     /// Local diagnostic logs directory.

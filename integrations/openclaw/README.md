@@ -59,6 +59,7 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 | Search dictations | `macparakeet-cli history search "<query>" --json` |
 | List meetings | `macparakeet-cli meetings list --json` |
 | Read meeting transcript | `macparakeet-cli meetings transcript <id-or-title> --format json` |
+| Materialize meeting artifact folder | `macparakeet-cli meetings artifact <id-or-title> --json` |
 | Store generated meeting output | `macparakeet-cli meetings results add <id-or-title> --name "Agent Notes" --stdin --json` |
 | List prompts | `macparakeet-cli prompts list --json` |
 | Run a prompt on a transcription | `macparakeet-cli prompts run <prompt-name> --transcription <id-or-name> --provider <p> --api-key-env KEY_ENV --model <m> --json` |

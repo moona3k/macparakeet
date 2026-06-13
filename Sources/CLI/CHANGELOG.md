@@ -57,7 +57,13 @@ input, lookup miss, runtime exception, etc.:
 {
   "ok": false,
   "error": "human-readable message",
-  "errorType": "auth"
+  "errorType": "auth",
+  "fix": "optional actionable hint",
+  "meta": {
+    "schemaVersion": 1,
+    "generatedAt": "2026-06-13T00:00:00Z",
+    "warnings": []
+  }
 }
 ```
 
@@ -80,6 +86,25 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `meetings artifact <meeting> [--json|--envelope]` materializes the
+  first-class meeting session folder contract and returns a
+  `MeetingArtifactSnapshot`. The folder contains `manifest.json`,
+  `transcript.json`, `notes.md` when notes exist, `prompt-results.json`, and
+  per-result Markdown files under `prompt-results/`.
+- `config get|set|list` now includes `meeting-artifacts-folder`, which controls
+  the root for future meeting session folders. Use `default` to clear the
+  override and return to Application Support.
+- Safe post-meeting hooks are configurable with `meeting-hook-enabled`,
+  `meeting-hook-path`, and `meeting-hook-timeout`. Hooks are disabled by
+  default, must point at an absolute executable path, receive a JSON
+  `meeting.completed` event on stdin, and write result metadata back to the
+  meeting artifact folder.
+- Meeting JSON commands that matter to agent workflows accept opt-in
+  `--envelope` success output with `{ "ok": true, "command", "data", "meta" }`.
+  Existing `--json` success shapes are unchanged.
+
 ### Fixed
 
 - `spec --json` now marks writing commands conservatively (`transcribe`,
@@ -90,6 +115,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- `--json` failure envelopes may include optional `fix` and `meta` fields. The
+  existing `ok`, `error`, and `errorType` fields are unchanged.
 - The Local CLI provider's default timeout is now **300 seconds** (was 45).
   Long transcripts routed through CLI agents (`claude -p`, `codex exec`)
   regularly exceed 45 s, which killed `llm`/`prompts run` generations
