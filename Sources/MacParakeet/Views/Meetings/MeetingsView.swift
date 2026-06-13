@@ -77,13 +77,10 @@ struct MeetingsView: View {
                 set: { if !$0 { pendingDeleteAudio = nil } }
             )
         ) {
-            Button("Cancel", role: .cancel) {
-                pendingDeleteAudio = nil
-            }
+            Button("Cancel", role: .cancel) {}
             Button("Delete Audio", role: .destructive) {
                 if let transcription = pendingDeleteAudio {
                     viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
-                    pendingDeleteAudio = nil
                 }
             }
         } message: {

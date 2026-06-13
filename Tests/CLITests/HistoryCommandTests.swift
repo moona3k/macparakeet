@@ -188,7 +188,7 @@ final class HistoryCommandTests: XCTestCase {
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
         XCTAssertNil(fetched.filePath)
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
-        XCTAssertTrue(output.contains("Deleted meeting audio"))
+        XCTAssertTrue(output.contains("Detached managed meeting audio"))
     }
 
     func testClearMeetingAudioCommandRemovesConfiguredDirectoryAndClearsMeetingPaths() throws {

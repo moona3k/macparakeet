@@ -741,12 +741,14 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
         mockRepo.transcriptions = [t]
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.setError(message: "Prior load warning")
 
         viewModel.presentCompletedTranscription(t, autoSave: true)
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
         XCTAssertNil(viewModel.currentTranscription?.filePath)
         XCTAssertNil(mockRepo.transcriptions.first?.filePath)
+        XCTAssertEqual(viewModel.errorMessage, "Prior load warning")
     }
 
     func testRepositoryDeleteFailureKeepsExternalAudioFile() throws {

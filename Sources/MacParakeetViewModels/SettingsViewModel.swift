@@ -487,6 +487,7 @@ public final class SettingsViewModel {
     public var youtubeDownloadStorageMB: Double = 0
     public var meetingAudioRecordingCount = 0
     public var meetingAudioStorageMB: Double = 0
+    public var storageCleanupError: String?
     public var formattedYouTubeStorage: String {
         Self.formatStorageMB(youtubeDownloadStorageMB)
     }
@@ -2147,16 +2148,32 @@ public final class SettingsViewModel {
     public func clearDownloadedYouTubeAudio() {
         let dir = youtubeDownloadsDirPath()
         let fm = FileManager.default
+        storageCleanupError = nil
 
         if fm.fileExists(atPath: dir) {
-            try? fm.removeItem(atPath: dir)
+            do {
+                try fm.removeItem(atPath: dir)
+            } catch {
+                logger.error("Failed to remove downloaded audio directory error=\(error.localizedDescription, privacy: .public)")
+                storageCleanupError = "Could not clear downloaded video audio: \(error.localizedDescription)"
+                refreshStats()
+                return
+            }
         }
-        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to recreate downloaded audio directory error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not recreate the downloaded audio folder: \(error.localizedDescription)"
+            refreshStats()
+            return
+        }
 
         do {
             try transcriptionRepo?.clearStoredAudioPathsForURLTranscriptions()
         } catch {
             logger.error("Failed to clear stored audio paths error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not detach downloaded audio from transcriptions: \(error.localizedDescription)"
         }
         refreshStats()
     }
@@ -2164,16 +2181,34 @@ public final class SettingsViewModel {
     public func clearMeetingAudio() {
         let dir = meetingRecordingsDirPath()
         let fm = FileManager.default
+        storageCleanupError = nil
 
         if fm.fileExists(atPath: dir) {
-            try? fm.removeItem(atPath: dir)
+            do {
+                try fm.removeItem(atPath: dir)
+            } catch {
+                logger.error("Failed to remove meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
+                storageCleanupError = "Could not clear meeting audio: \(error.localizedDescription)"
+                refreshStats()
+                refreshPendingMeetingRecoveries()
+                return
+            }
         }
-        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to recreate meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not recreate the meeting recordings folder: \(error.localizedDescription)"
+            refreshStats()
+            refreshPendingMeetingRecoveries()
+            return
+        }
 
         do {
             try transcriptionRepo?.clearStoredAudioPathsForMeetingTranscriptions()
         } catch {
             logger.error("Failed to clear stored meeting audio paths error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not detach meeting audio from transcripts: \(error.localizedDescription)"
         }
         refreshStats()
         refreshPendingMeetingRecoveries()

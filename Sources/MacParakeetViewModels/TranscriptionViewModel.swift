@@ -666,7 +666,10 @@ public final class TranscriptionViewModel {
         }
     }
 
-    public func deleteMeetingAudio(_ transcription: Transcription) {
+    public func deleteMeetingAudio(
+        _ transcription: Transcription,
+        clearExistingErrorOnSuccess: Bool = true
+    ) {
         guard let repo = transcriptionRepo else {
             reportMissingConfiguration("transcriptionRepo", action: "deleteMeetingAudio")
             return
@@ -689,7 +692,9 @@ public final class TranscriptionViewModel {
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[index].filePath = nil
             }
-            clearError()
+            if clearExistingErrorOnSuccess {
+                clearError()
+            }
         } catch {
             logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
             setError(message: "Failed to delete meeting audio: \(error.localizedDescription)")
@@ -773,11 +778,9 @@ public final class TranscriptionViewModel {
 
     private func applyMeetingAudioRetentionIfNeeded(_ transcription: Transcription) {
         guard transcription.sourceType == .meeting else { return }
-        let shouldSaveMeetingAudio = defaults.object(
-            forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey
-        ) as? Bool ?? true
-        guard !shouldSaveMeetingAudio else { return }
-        deleteMeetingAudio(transcription)
+        let prefs = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        guard !prefs.shouldSaveMeetingAudio else { return }
+        deleteMeetingAudio(transcription, clearExistingErrorOnSuccess: false)
     }
 
     /// Persist a new playback-friendly file path produced by the background

@@ -1837,6 +1837,12 @@ struct SettingsView: View {
                     label: "Delete data",
                     caption: "Removes saved rows. Your lifetime stats stay."
                 ) {
+                    if let error = viewModel.storageCleanupError {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
+
                     resetActionRow(
                         title: "Dictation history",
                         detail: "All dictations and their audio files.",
