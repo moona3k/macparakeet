@@ -576,6 +576,7 @@ final class MeetingRecordingFlowCoordinator {
                     if let stoppedOutput {
                         await meetingRecordingService.finishTranscriptionAttempt(for: stoppedOutput)
                     }
+                    self.currentTranscribingOutput = nil
                     self.pillViewModel.canAbortTranscription = false
                     if error is CancellationError {
                         // Deliberate abort (issue #487) — the only path that
@@ -836,8 +837,17 @@ final class MeetingRecordingFlowCoordinator {
                 output.mixedAudioURL.path,
                 sourceType: .meeting
             )
+            // Best-effort per row: the folder is already gone, so a single
+            // failed delete must not strand its siblings as `.cancelled` rows
+            // pointing at deleted audio after the user chose Delete Recording.
             for row in rows {
-                _ = try transcriptionRepo.delete(id: row.id)
+                do {
+                    _ = try transcriptionRepo.delete(id: row.id)
+                } catch {
+                    logger.error(
+                        "meeting_abort_row_delete_failed session=\(output.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
             }
         } catch {
             logger.error(
