@@ -50,6 +50,56 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         try? FileManager.default.removeItem(at: folderURL)
     }
 
+    func testMeetingDeletionRemovesSessionFolderWithMetadataMarkerOutsideCurrentRoot() throws {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: nil,
+                system: nil
+            )),
+            folderURL: folderURL
+        )
+
+        let transcription = Transcription(
+            fileName: "Meeting.m4a",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
+    }
+
+    func testMeetingDeletionRemovesSessionFolderWithArtifactManifestOutsideCurrentRoot() throws {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
+        let manifestURL = folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName)
+        try Data(#"{"schema":"com.macparakeet.meeting-session"}"#.utf8).write(to: manifestURL)
+
+        let transcription = Transcription(
+            fileName: "Meeting.m4a",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
+    }
+
     func testYouTubeDeletionRemovesDownloadedFileInsideAppSupport() throws {
         let fileURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
             .appendingPathComponent("\(UUID().uuidString).m4a")
