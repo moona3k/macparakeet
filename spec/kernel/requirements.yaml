@@ -1,5 +1,8 @@
 # MacParakeet Requirements
-# Requirement IDs for traceability between specs, tests, and code.
+# Optional, compact feature/status index. Stable requirement IDs for
+# cross-referencing specs, commits, and ADRs. Not exhaustive and not required
+# on every change. (Tests and git are the authoritative coverage/history record;
+# the former manual source/test traceability map was retired.)
 # Format: REQ-{area}-{number}: {description}
 #
 # Areas:
@@ -130,6 +133,11 @@ REQ-LLM-003:
 
 REQ-LLM-004:
   description: Dictation AI Formatter supports local exact-app and app-category prompt profiles, built-in category smart defaults (readable in Settings, toggleable via a master switch and per-category switches), fallback prompt routing, and local-only routing provenance surfaced in dictation History
+  version: v0.6
+  status: implemented
+
+REQ-LLM-005:
+  description: AI Formatter routing is per-surface — independent "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) Settings toggles ANDed with provider availability — and the transcription formatter skips inputs over a length cap instead of stalling finalization for the full provider timeout
   version: v0.6
   status: implemented
 
@@ -266,10 +274,15 @@ REQ-MEET-013:
   version: v0.6
   status: implemented
 
+REQ-MEET-014:
+  description: An in-flight post-stop meeting transcription can be stopped from the Transcribe-tab tile and the floating pill menu, with a confirmation offering to keep the recorded audio (cancelled Library row plus recovery lock stay retryable) or delete the recording entirely (session folder, lock, and transcription rows removed)
+  version: v0.6
+  status: implemented
+
 # --- v0.6 Multilingual Speech Recognition ---
 
 REQ-STT-002:
-  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary
+  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary; Nemotron dictation streams live partial text to the overlay and uses the streamed final transcript, falling back to recorded-file transcription when the live session cannot start, fails, drops samples, or finishes empty
   version: v0.6
   status: implemented
 
@@ -327,7 +340,7 @@ REQ-TRANS-004:
   status: implemented
 
 REQ-UI-006:
-  description: A file, YouTube, or batch transcription completing plays a chime and, when MacParakeet is in the background, posts a notification banner; both are governed by one Settings toggle (default on) and the banner reuses the .alert-only authorization while the chime is delivered via SoundManager (backgrounded-safe, respects the system sound preference)
+  description: A file, media URL, podcast, or batch transcription completing plays a chime and, when MacParakeet is in the background, posts a notification banner; both are governed by one Settings toggle (default on) and the banner reuses the .alert-only authorization while the chime is delivered via SoundManager (backgrounded-safe, respects the system sound preference)
   version: v0.6
   status: implemented
 
@@ -339,6 +352,6 @@ REQ-CLI-001:
   status: implemented
 
 REQ-CLI-002:
-  description: CLI transcribe accepts multiple inputs (files, folders, YouTube URLs) and an --output-dir, writing one transcript file per input; single-input stdout behavior is preserved exactly, directories expand to their supported files, and the batch continues on per-file errors then exits non-zero with a summary if any failed
+  description: CLI transcribe accepts multiple inputs (files, folders, podcast links, and media URLs supported by yt-dlp) and an --output-dir, writing one transcript file per input; single-input stdout behavior is preserved exactly, directories expand to their supported files, and the batch continues on per-file errors then exits non-zero with a summary if any failed
   version: cli-2.5.0
   status: implemented

@@ -8,6 +8,7 @@
 > Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
 > Amended: 2026-05-14 (ship raw meeting mic capture by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants)
 > Amended: 2026-05-29 (permission timing clarification: Screen & System Audio Recording can be granted from the optional onboarding step or requested on first meeting use; denied/missing permission still blocks recording)
+> Amended: 2026-06-10 (echo hardening for [issue #480](https://github.com/moona3k/macparakeet/issues/480): confidence-independent simultaneous-echo rule in the final transcript filter, streaming AEC frame carry + reference-delay knob, VPIO experiments now disable AGC)
 
 ## Context
 
@@ -102,7 +103,7 @@ Keeping mic and system audio as separate streams enables source-aware attributio
 
 The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active.
 
-### 9. Meeting mic echo mitigation (v0.6 hardening)
+### 10. Meeting mic echo mitigation (v0.6 hardening)
 
 To reduce phantom "Me" fragments when users are on speakers:
 
@@ -111,6 +112,8 @@ To reduce phantom "Me" fragments when users are on speakers:
 - A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates mic energy.
 - The guard affects live mic chunk transcription only; mic audio is still stored and included in the finalized meeting artifact.
 - Joiner queue overflow and sync-lag telemetry are logged for long-session observability.
+- The final transcript filter (`MeetingTranscriptNoiseFilter`) drops mic runs of >=5 words whose tokens fuzzy-match the remote speaker's *simultaneous* system words (>=80% in-order match within a +/-600 ms window), regardless of confidence — a person cannot utter the same multi-word sequence at the same time as the far end, so such runs are acoustic echo by construction (2026-06-10, issue #480). Short runs keep the conservative confidence-gated rule.
+- The opt-in experimental `StreamingMeetingEchoSuppressor` carries partial frames across batches (contiguous frames for stateful processors, no raw-tail leak) and supports an env-configured reference delay (`MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS`) approximating the echo-path latency (2026-06-10).
 - Dictation capture remains raw and unchanged (ADR-015 isolation still applies).
 
 ## Rationale

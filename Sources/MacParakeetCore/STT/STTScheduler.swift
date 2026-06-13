@@ -19,7 +19,7 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 ///
 /// Jobs execute independently per slot so dictation can remain responsive while
 /// meeting and file work share an explicitly prioritized background path.
-public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
+public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
     private struct ScheduledJob: Sendable {
         let id: UUID
         let audioPath: String
@@ -40,6 +40,19 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         var currentWaitTask: Task<Void, Never>?
     }
 
+    private enum LiveDictationSessionState: Equatable {
+        case active(UUID)
+        case finishing(UUID)
+        case cancelling(UUID)
+
+        var id: UUID {
+            switch self {
+            case .active(let id), .finishing(let id), .cancelling(let id):
+                return id
+            }
+        }
+    }
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "STTScheduler")
     private let runtime: STTRuntimeProtocol
     private let meetingLiveChunkBacklogLimit: Int
@@ -54,6 +67,17 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     private var acceptsNewJobs = true
     private var activeSpeechEngineSessionIDs: Set<UUID> = []
     private var speechEngineSwitchTask: Task<Void, Error>?
+    private var liveDictationSession: LiveDictationSessionState? {
+        didSet {
+            guard liveDictationSession == nil, !liveDictationSessionWaiters.isEmpty else { return }
+            let waiters = liveDictationSessionWaiters
+            liveDictationSessionWaiters = []
+            for waiter in waiters {
+                waiter.resume()
+            }
+        }
+    }
+    private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
     ///   oldest is dropped. 120 ≈ 4 minutes of dual-source 5-second chunks emitted every ~4
@@ -137,6 +161,79 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
             Task { [weak self] in
                 await self?.cancel(jobID: id)
             }
+        }
+    }
+
+    public func beginLiveDictationTranscription(
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws -> UUID {
+        guard acceptsNewJobs else {
+            throw STTSchedulerError.unavailable
+        }
+        guard liveDictationSession == nil else {
+            throw STTError.engineBusy
+        }
+        let interactiveState = slotState(for: .interactive)
+        guard interactiveState.currentJob == nil,
+              interactiveState.pendingJobs.isEmpty else {
+            throw STTError.engineBusy
+        }
+
+        let id = UUID()
+        liveDictationSession = .active(id)
+        do {
+            let selection = await runtime.currentSpeechEngineSelection()
+            guard selection.engine == .nemotron else {
+                throw STTLiveDictationTranscriptionError.unsupportedEngine(selection.engine)
+            }
+            try await runtime.beginLiveDictationTranscription(
+                sessionID: id,
+                onPartial: onPartial
+            )
+            // A quiesce (engine switch, shutdown, cache clear) may have run
+            // while runtime.begin was in flight; its runtime-level cancel was
+            // a no-op because the runtime session did not exist yet. If our
+            // reservation is gone, unwind the runtime session we just created
+            // or it would be orphaned and block the interactive lane forever.
+            guard liveDictationSession == .active(id) else {
+                await runtime.cancelLiveDictationTranscription(sessionID: id)
+                throw STTSchedulerError.unavailable
+            }
+            return id
+        } catch {
+            if liveDictationSession?.id == id {
+                liveDictationSession = nil
+            }
+            throw error
+        }
+    }
+
+    public func appendLiveDictationSamples(_ samples: [Float], sessionID: UUID) async throws {
+        guard liveDictationSession == .active(sessionID) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        try await runtime.appendLiveDictationSamples(samples, sessionID: sessionID)
+    }
+
+    public func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
+        guard liveDictationSession == .active(sessionID) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        liveDictationSession = .finishing(sessionID)
+        defer {
+            if liveDictationSession == .finishing(sessionID) {
+                liveDictationSession = nil
+            }
+        }
+        return try await runtime.finishLiveDictationTranscription(sessionID: sessionID)
+    }
+
+    public func cancelLiveDictationTranscription(sessionID: UUID) async {
+        guard liveDictationSession == .active(sessionID) else { return }
+        liveDictationSession = .cancelling(sessionID)
+        await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+        if liveDictationSession == .cancelling(sessionID) {
+            liveDictationSession = nil
         }
     }
 
@@ -326,6 +423,11 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
             return
         }
 
+        guard !(job.slot == .interactive && liveDictationSession != nil) else {
+            continuation.resume(throwing: STTError.engineBusy)
+            return
+        }
+
         continuations[job.id] = continuation
         var currentSlotState = slotState(for: job.slot)
 
@@ -359,7 +461,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     private var hasQueuedOrRunningJobs: Bool {
-        slotStates.values.contains { state in
+        liveDictationSession != nil || slotStates.values.contains { state in
             state.currentJob != nil || !state.pendingJobs.isEmpty
         }
     }
@@ -495,9 +597,33 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     private func quiesce(restoreAcceptsNewJobs: Bool) async {
         acceptsNewJobs = false
         cancelAllPendingJobs()
+        await cancelLiveDictationSessionIfNeeded()
         await cancelAndDrainRunningJobs()
         if restoreAcceptsNewJobs {
             acceptsNewJobs = true
+        }
+    }
+
+    private func cancelLiveDictationSessionIfNeeded() async {
+        switch liveDictationSession {
+        case .active(let sessionID):
+            liveDictationSession = .cancelling(sessionID)
+            await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+            if liveDictationSession == .cancelling(sessionID) {
+                liveDictationSession = nil
+            }
+        case .finishing, .cancelling:
+            await waitForLiveDictationSessionToEnd()
+        case nil:
+            return
+        }
+    }
+
+    private func waitForLiveDictationSessionToEnd() async {
+        while liveDictationSession != nil {
+            await withCheckedContinuation { continuation in
+                liveDictationSessionWaiters.append(continuation)
+            }
         }
     }
 

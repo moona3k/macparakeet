@@ -10,6 +10,7 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
             MeetingEchoSuppressionConfiguration.modelSHA256EnvironmentKey: " ABC123 ",
             MeetingEchoSuppressionConfiguration.sampleRateEnvironmentKey: " 48000 ",
             MeetingEchoSuppressionConfiguration.frameSizeEnvironmentKey: " 256 ",
+            MeetingEchoSuppressionConfiguration.referenceDelayMsEnvironmentKey: " 120 ",
         ])
 
         XCTAssertEqual(configuration.mode, .dynamicLibrary)
@@ -18,6 +19,15 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertEqual(configuration.modelSHA256, "abc123")
         XCTAssertEqual(configuration.sampleRate, 48_000)
         XCTAssertEqual(configuration.frameSize, 256)
+        XCTAssertEqual(configuration.referenceDelayMs, 120)
+    }
+
+    func testReferenceDelayDefaultsToZeroAndClampsNegative() {
+        XCTAssertEqual(MeetingEchoSuppressionConfiguration().referenceDelayMs, 0)
+        XCTAssertEqual(
+            MeetingEchoSuppressionConfiguration(referenceDelayMs: -50).referenceDelayMs,
+            0
+        )
     }
 
     func testDefaultFrameSizeMatchesLocalVQEHopLengthFallback() {

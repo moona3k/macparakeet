@@ -56,7 +56,14 @@ actor CaptureOrchestrator {
         micConditioner: any MicConditioning
     ) async -> CaptureOrchestratorOutput {
         let pairs = pairJoiner.flushRemainingPairs()
-        return await processPairs(pairs, micConditioner: micConditioner)
+        var output = await processPairs(pairs, micConditioner: micConditioner)
+        let heldSamples = micConditioner.flush()
+        if !heldSamples.isEmpty {
+            for micChunk in await microphoneChunker.addSamples(heldSamples) {
+                output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
+            }
+        }
+        return output
     }
 
     func flushChunkers() async -> [CaptureOrchestratorChunk] {
@@ -94,7 +101,13 @@ actor CaptureOrchestrator {
                 processedMicrophoneRms = chunkRms(for: processedMic)
                 micSamples = processedMic
             } else {
-                micSamples = pair.microphoneSamples
+                // Synthetic silence bypasses the conditioner; drain any
+                // samples it is holding first so they cannot land behind
+                // this pair's zeros out of order.
+                let heldSamples = micConditioner.flush()
+                micSamples = heldSamples.isEmpty
+                    ? pair.microphoneSamples
+                    : heldSamples + pair.microphoneSamples
             }
 
             for micChunk in await microphoneChunker.addSamples(micSamples) {

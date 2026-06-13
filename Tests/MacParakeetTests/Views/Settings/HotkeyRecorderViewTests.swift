@@ -176,6 +176,7 @@ final class HotkeyRecorderViewTests: XCTestCase {
     func testKeyChordCaptureUsesPendingFnWhenKeyDownFlagsOmitFunction() {
         let modifiers = HotkeyRecorderView.chordModifierNames(
             flags: [],
+            keyCode: 49,
             pendingComponents: [.init(modifierName: "fn")]
         )
         let candidate = HotkeyRecorderView.keyChordTrigger(
@@ -185,6 +186,82 @@ final class HotkeyRecorderViewTests: XCTestCase {
         )
 
         XCTAssertEqual(candidate, .fnSpace)
+    }
+
+    func testChordCaptureIgnoresFunctionFlagForFunctionKeyChord() {
+        let modifiers = HotkeyRecorderView.chordModifierNames(
+            flags: [.control, .function],
+            keyCode: 80,
+            pendingComponents: []
+        )
+
+        XCTAssertEqual(modifiers, ["control"])
+
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: modifiers,
+            keyCode: 80,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(candidate, .chord(modifiers: ["control"], keyCode: 80))
+        XCTAssertEqual(candidate?.shortSymbol, "⌃F19")
+        XCTAssertEqual(candidate?.formattedLabel, "⌃F19")
+    }
+
+    func testBareFunctionKeyCaptureIgnoresFunctionFlag() {
+        let modifiers = HotkeyRecorderView.chordModifierNames(
+            flags: [.function],
+            keyCode: 80,
+            pendingComponents: []
+        )
+
+        // Empty → the keyDown handler takes the bare-key path.
+        XCTAssertTrue(modifiers.isEmpty)
+
+        let candidate = HotkeyTrigger.fromKeyCode(80)
+        XCTAssertEqual(candidate.formattedLabel, "F19")
+        XCTAssertEqual(candidate.validation, .allowed)
+    }
+
+    func testChordCaptureIgnoresFunctionFlagForArrowAndNavKeys() {
+        for keyCode: UInt16 in [126, 123, 115, 119, 116, 121, 117] {
+            let modifiers = HotkeyRecorderView.chordModifierNames(
+                flags: [.option, .function],
+                keyCode: keyCode,
+                pendingComponents: []
+            )
+
+            XCTAssertEqual(modifiers, ["option"], "keyCode \(keyCode)")
+        }
+    }
+
+    func testPhysicalFnPendingComponentIsPreservedForFunctionKeyChord() {
+        XCTAssertEqual(
+            HotkeyRecorderView.chordModifierNames(
+                flags: [.function],
+                keyCode: 80,
+                pendingComponents: [.init(modifierName: "fn")]
+            ),
+            ["fn"]
+        )
+        XCTAssertEqual(
+            HotkeyRecorderView.chordModifierNames(
+                flags: [.control, .function],
+                keyCode: 80,
+                pendingComponents: [.init(modifierName: "fn")]
+            ),
+            ["fn", "control"]
+        )
+    }
+
+    func testFunctionFlagStillDerivesFnForNonFunctionFamilyKey() {
+        let modifiers = HotkeyRecorderView.chordModifierNames(
+            flags: [.function],
+            keyCode: 7, // X
+            pendingComponents: []
+        )
+
+        XCTAssertEqual(modifiers, ["fn"])
     }
 
     func testBareFnCaptureRemainsSupported() {

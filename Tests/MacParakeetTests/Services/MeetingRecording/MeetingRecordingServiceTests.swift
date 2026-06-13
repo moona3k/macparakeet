@@ -300,6 +300,41 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(lockStore.deletes.isEmpty)
     }
 
+    func testDiscardStoppedRecordingDeletesFolderAndLockAndReleasesLease() async throws {
+        // Delete arm of the stop-transcription flow (issue #487): after an
+        // aborted final transcription, discarding must remove the session
+        // folder + recovery lock and release the retained engine lease so
+        // nothing resurrects the recording at next launch.
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
+        let sttClient = LeasingMeetingSTTClient(selection: speechEngine)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: sttClient,
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.folderURL.path))
+
+        await service.discardStoppedRecording(output)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.folderURL.path))
+        XCTAssertEqual(lockStore.deletes, [output.folderURL])
+        let activeLeaseCountAfterDiscard = await sttClient.activeLeaseCount
+        XCTAssertEqual(activeLeaseCountAfterDiscard, 0)
+    }
+
     func testLivePreviewUsesCapturedSpeechEngineSelection() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")

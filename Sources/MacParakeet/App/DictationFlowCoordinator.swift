@@ -442,6 +442,7 @@ final class DictationFlowCoordinator {
             vm.processingMessage = nil
             vm.busyProcessingMessage = nil
             vm.processingLoadCaption = nil
+            vm.liveTranscript = ""
             vm.state = .recording
             vm.startTimer()
 
@@ -450,6 +451,7 @@ final class DictationFlowCoordinator {
             overlayViewModel?.processingMessage = nil
             overlayViewModel?.busyProcessingMessage = nil
             overlayViewModel?.processingLoadCaption = nil
+            overlayViewModel?.liveTranscript = ""
             overlayViewModel?.state = .processing
             armProcessingLoadCaption()
 
@@ -1099,6 +1101,7 @@ final class DictationFlowCoordinator {
 
             let level = snapshot.audioLevel
             overlayViewModel?.audioLevel = level
+            overlayViewModel?.liveTranscript = snapshot.liveTranscript
 
             if autoStopEnabled {
                 let now = Date()

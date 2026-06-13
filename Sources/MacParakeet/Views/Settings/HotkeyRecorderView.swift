@@ -185,6 +185,7 @@ struct HotkeyRecorderView: View {
                 // Check if chord modifiers are held. Caps Lock remains excluded.
                 let heldModifiers = Self.chordModifierNames(
                     flags: event.modifierFlags,
+                    keyCode: keyCode,
                     pendingComponents: pendingModifierComponents
                 )
 
@@ -314,17 +315,28 @@ struct HotkeyRecorderView: View {
 
     /// Extract chord-eligible modifier names from NSEvent modifier flags.
     /// Caps Lock is intentionally excluded.
-    private func chordModifiersFromFlags(_ flags: NSEvent.ModifierFlags) -> [String] {
-        Self.chordModifierNames(flags: flags, pendingComponents: [])
+    private func chordModifiersFromFlags(_ flags: NSEvent.ModifierFlags, keyCode: UInt16) -> [String] {
+        Self.chordModifierNames(flags: flags, keyCode: keyCode, pendingComponents: [])
     }
 
     static func chordModifierNames(
         flags: NSEvent.ModifierFlags,
+        keyCode: UInt16,
         pendingComponents: [HotkeyTrigger.ModifierComponent]
     ) -> [String] {
         let order = ["fn", "control", "option", "shift", "command"]
         var names: Set<String> = []
-        if flags.contains(.function) { names.insert("fn") }
+        // macOS sets `.function` on every function-family key press (F-keys,
+        // arrows, nav cluster) even when the physical Fn key is not held, so
+        // deriving "fn" from flags there would pollute the chord (Ctrl+F19
+        // would record as fn+⌃F19, and bare F19 could never reach the
+        // bare-key path). A physically held Fn still arrives via
+        // `pendingComponents` (flagsChanged keyCode 63/179), unioned below;
+        // fn+letter chords keep flags-derived fn because letters are not
+        // function-family.
+        if flags.contains(.function), !KeyCodeNames.isFunctionFamilyKeyCode(keyCode) {
+            names.insert("fn")
+        }
         if flags.contains(.control) { names.insert("control") }
         if flags.contains(.option) { names.insert("option") }
         if flags.contains(.shift) { names.insert("shift") }
@@ -339,7 +351,7 @@ struct HotkeyRecorderView: View {
     ) -> [HotkeyTrigger.ModifierComponent] {
         switch modifierCaptureMode {
         case .generic:
-            return chordModifiersFromFlags(event.modifierFlags).map {
+            return chordModifiersFromFlags(event.modifierFlags, keyCode: event.keyCode).map {
                 HotkeyTrigger.ModifierComponent(modifierName: $0)
             }
         case .standard, .sideSpecific:

@@ -415,10 +415,15 @@ struct LLMSettingsView: View {
                     Spacer(minLength: DesignSystem.Spacing.md)
 
                     if viewModel.isAIFormatterAvailable {
-                        Toggle("Use for dictation", isOn: $viewModel.aiFormatterEnabledForDictation)
-                            .toggleStyle(.switch)
-                            .font(DesignSystem.Typography.caption.weight(.medium))
-                            .fixedSize()
+                        VStack(alignment: .trailing, spacing: DesignSystem.Spacing.xs) {
+                            Toggle("Use for transcripts", isOn: $viewModel.aiFormatterEnabledForTranscriptions)
+                                .toggleStyle(.switch)
+                                .font(DesignSystem.Typography.caption.weight(.medium))
+                            Toggle("Use for dictation", isOn: $viewModel.aiFormatterEnabledForDictation)
+                                .toggleStyle(.switch)
+                                .font(DesignSystem.Typography.caption.weight(.medium))
+                        }
+                        .fixedSize()
                     }
                 }
 

@@ -2,7 +2,39 @@
 
 > Status: ACTIVE PLAN
 > Date: 2026-05-22
+> Updated: 2026-06-10
 > Scope: meeting recording microphone cleanup, source separation, and release packaging.
+
+## Progress (2026-06-10, issue #480)
+
+Phase 1's streaming-coordinator defects are fixed and the transcript-layer
+safety net is hardened; the LocalVQE validation experiment is unblocked:
+
+- `StreamingMeetingEchoSuppressor` now carries partial frames across
+  `condition` calls (the pending-mic-frame queue this plan specified). Before,
+  every batch leaked an unprocessed raw tail (batches are not hop-size
+  multiples) and fed the stateful processor discontiguous frames — any live
+  test would have under-reported the model's real quality.
+- Reference delay is implemented: a reference-history ring serves the frame at
+  stream position `p` reference audio from `p - delay`, configured via
+  `MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS` (default 0). This is the
+  "configured reference offset" step; the cross-correlation estimator remains
+  future work if live tests show residual delay mismatch.
+- `MicConditioning.flush()` drains held samples; `CaptureOrchestrator` drains
+  before synthetic-silence pairs (ordering) and on pending-pair flush.
+- `MeetingTranscriptNoiseFilter` gained a confidence-independent
+  simultaneous-echo rule (>=5-word mic runs fuzzy-matching >=80% of the remote
+  speaker's simultaneous words are dropped) — the final-transcript fix for
+  high-confidence echo that the existing low-confidence rule missed.
+- VPIO experiment plumbing now sets `isVoiceProcessingAGCEnabled = false`
+  (macOS 14+): VPIO AGC can write the shared hardware input gain other apps
+  inherit, the likely mechanism behind the 2026-05-14 "muffled outgoing mic"
+  finding. Raw capture remains the shipped default; this only de-risks future
+  experiments.
+
+Next: obtain/build the LocalVQE assets, run the env-gated two-party
+speaker-call validation (Phase 5's "real two-party call validation"), then
+decide Phase 4 (cleaned final artifact) and release packaging.
 
 ## Problem
 

@@ -237,6 +237,21 @@ public struct HotkeyTrigger: Sendable {
         return Self.eventFlags(for: modifiers)
     }
 
+    /// Event-flag bits that exact-match chord consumers must ignore.
+    /// Hardware function-family keys (F-keys, arrows, nav cluster) carry
+    /// NX_SECONDARYFNMASK on their own events while synthetic events
+    /// (Karabiner/QMK) often don't. For chords on those keys that don't
+    /// themselves require fn, the bit is noise, not a held modifier.
+    public var ignoredChordEventFlags: UInt64 {
+        guard kind == .chord,
+              let code = keyCode,
+              KeyCodeNames.isFunctionFamilyKeyCode(code),
+              !(chordModifiers?.contains("fn") ?? false) else {
+            return 0
+        }
+        return Self.maskSecondaryFn
+    }
+
     public var modifierChordEventFlags: UInt64 {
         Self.eventFlags(for: normalizedModifierChordComponents.map(\.modifierName))
     }

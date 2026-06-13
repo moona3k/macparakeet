@@ -14,25 +14,31 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 
 ## Release Channels
 
+> **Canonical release-status block.** This section is the single source of
+> truth for channel framing and the `main`-vs-release `AppFeatures` flag
+> delta. AGENTS.md, README.md, and other docs point here rather than
+> restating it — when a release ships or a flag flips, update this section
+> and leave the pointers alone.
+
 | Channel | Agent Assumption | Features |
 |---------|------------------|----------|
 | Stable DMG | User-facing release, recommended for normal use | Dictation, file and multi-platform video/podcast URL transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, opt-in instant dictation, optional Nemotron Beta and WhisperKit engines, exports, vocabulary, AI features |
-| `main` | Development | Latest stable release plus untagged in-progress fixes. One feature flag differs from the latest release tag: `AppFeatures.aiFormatterProfilesEnabled = true` on `main` (app-aware AI Formatter profiles, enabled 2026-06-10 ahead of the next release) |
+| `main` | Development | Latest stable release plus untagged in-progress fixes, plus the flag delta below |
 
-When editing public-facing docs, keep the channel framing accurate: `main`
-currently carries one flag ahead of the latest release tag —
+**Flag delta — `main` vs the latest release tag (one flag):**
 `AppFeatures.aiFormatterProfilesEnabled = true` (app-aware AI Formatter
-profiles with readable/toggleable smart defaults, REQ-LLM-004) — plus untagged
-in-progress fixes; all other `AppFeatures` flags match the shipping build.
-Transforms shipped to stable in v0.6.7, calendar
-auto-start in v0.6.10, and VAD-guided meeting live-preview chunking in v0.6.14.
-Calendar auto-start defaults to mode `.off`, so it is strictly opt-in. Calendar-
-driven auto-stop was removed (ADR-017 amendment, 2026-05) — scheduled end times
-are unreliable, so recordings are stopped manually (activity/audio-based auto-stop
-is a future ADR). VAD-guided meeting live-preview chunking is flag-on: launch-time
-background prep fetches the Silero model, Parakeet meetings use speech-boundary
-live chunks when it is cached, and all missing/error paths fall back to the fixed
-5s / 1s chunker; final meeting transcription is unchanged.
+profiles with readable/toggleable smart defaults, REQ-LLM-004; enabled
+2026-06-10, not yet in a tagged release). All other `AppFeatures` flags match
+the shipping build.
+
+Ship history for flagged features: Transforms reached stable in v0.6.7;
+calendar auto-start in v0.6.10 (defaults to mode `.off`, strictly opt-in;
+calendar-driven auto-stop was removed per the ADR-017 amendment, 2026-05 —
+scheduled end times are unreliable, so recordings stop manually); VAD-guided
+meeting live-preview chunking in v0.6.14 (launch-time background prep fetches
+the Silero model, Parakeet meetings cut live chunks at speech boundaries when
+it is cached, and all missing/error paths fall back to the fixed 5s / 1s
+chunker — final meeting transcription is unchanged).
 
 ## Quick Navigation
 
@@ -140,11 +146,17 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**Current main branch** -- v0.6 release scope includes meeting recording, multi-platform video/podcast URL transcription (any `yt-dlp` site plus Apple Podcasts and freetext podcast search), Parakeet v3/v2 model selection, an optional Nemotron 3.5 Beta engine, optional WhisperKit multilingual STT, opt-in instant dictation (warm-mic pre-roll), and productized Transforms. Calendar auto-start/reminders are implemented and enabled (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening; auto-start defaults to mode `.off`, so it stays opt-in. VAD-guided meeting live-preview chunking is enabled (`AppFeatures.meetingVadLiveChunkingEnabled = true`, shipping since v0.6.14) with fixed-chunker fallback and unchanged final transcription. App-aware AI Formatter profiles are enabled on `main` (`AppFeatures.aiFormatterProfilesEnabled = true`, 2026-06-10, REQ-LLM-004): dictation formatter prompts route custom app profile → custom category profile → built-in smart default (readable + toggleable, master and per-category switches; defaults on) → fallback prompt, with routing provenance shown in dictation History; this flag has not shipped in a tagged release yet.
+**v0.6 series** — meeting recording (ADR-014/015/016/019/020), multi-platform
+video/podcast URL transcription (any `yt-dlp` site plus Apple Podcasts and
+freetext podcast search), Parakeet v3/v2 model selection, optional Nemotron
+3.5 Beta (ADR-001 amendment) and WhisperKit (ADR-021) engines, opt-in instant dictation (warm-mic
+pre-roll), app-aware AI Formatter profiles (REQ-LLM-004, `main`-only flag),
+and productized Transforms with `Polish`/`Distill`/`Decide` built-ins on
+Control-Option hotkeys (ADR-022). Calendar auto-start is ADR-017 Phases 1 + 2
+(enabled, default `.off`); Phase 3 (late-join/retro-link) remains proposed.
 
-- **v0.1–v0.5** MVP → Clean Pipeline → YouTube/Export → Polish/Launch → Data/UI/Prompts (open-source release). See the `spec/README.md` roadmap and git tags for the full per-version feature history.
-- **v0.6** Meeting Recording + Multilingual STT + Transforms -- ScreenCaptureKit system audio + raw AVAudioEngine mic capture by default, retained opt-in VPIO plumbing, fragmented MP4 source files + crash recovery (ADR-019), transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), VAD-guided meeting live-preview chunking with fixed fallback (flag-on, shipping since v0.6.14), sacred-geometry recording pill + Notes/Transcript/Ask meeting panel, customizable Ask quick prompts, library integration, prompt/result/chat support (ADR-014), live notepad + memo-steered summaries with `{{userNotes}}` template variable + slash commands (ADR-020), Parakeet model selection (`v3` multilingual default, `v2` English-only opt-in) across Settings/CLI, optional Nemotron 3.5 Beta and WhisperKit engine support for non-Parakeet languages, persisted speech-engine preference, Whisper/Nemotron language picker/default, CLI `transcribe --engine parakeet|nemotron|whisper --language --parakeet-model`, Whisper/Nemotron model download paths, engine pinning for active meeting sessions and crash recovery (ADR-021), multi-platform video/podcast URL transcription (any `yt-dlp` site plus Apple Podcasts iTunes resolution and freetext podcast search) with a platform-orbit hero and per-platform telemetry, opt-in instant dictation warm-mic pre-roll, and productized system-wide LLM Transforms with `Polish`, `Distill`, and `Decide` built-ins on Control-Option hotkeys (ADR-022).
-- **Calendar auto-start** -- ADR-017 Phases 1 + 2, enabled with `.off` default (see "Current main branch" above for live flag state); Phase 3 (late-join/retro-link) remains proposed.
+Live flag state and the `main`-vs-release delta: see "Release Channels" above.
+Per-version feature history: the `spec/README.md` roadmap and git tags.
 
 ## Key Patterns
 
@@ -213,7 +225,7 @@ code bypasses ADR-016's process-wide scheduler.
 **Two-chip architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-ANE:  Parakeet STT (via FluidAudio/CoreML) -- dedicated ML chip
+ANE:  Parakeet / Nemotron STT (via FluidAudio/CoreML) -- dedicated ML chip
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
@@ -232,66 +244,16 @@ CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 
 ### GUI Structure
 
-MacParakeet is a **menu bar app** with these UI surfaces:
-
-```
-Menu Bar Icon (always visible)
-    |
-    +-- Main Window (capture hub + library)
-    |   +-- Transcribe tab: video URL card, file drop card, Meeting Recording tile
-    |   +-- Library tab: file/video URL/meeting transcript browse
-    |   +-- Dictations, Vocabulary, Feedback, Settings, Discover
-    |   +-- Global transcription progress bar outside Transcribe
-    |
-    +-- Idle Pill (persistent floating indicator)
-    |   +-- Always visible when not dictating
-    |   +-- Click or hover to start dictating
-    |   +-- Hides during active dictation
-    |
-    +-- Dictation Overlay (compact dark pill)
-    |   +-- Recording state indicator
-    |   +-- Waveform visualization
-    |   +-- Cancel/stop controls
-    |
-    +-- Vocabulary Panel
-    |   +-- Processing mode (raw/clean)
-    |   +-- Pipeline guide + tips
-    |   +-- Custom words management (sheet)
-    |   +-- Text snippets management (sheet)
-    |
-    +-- Feedback Panel
-    |   +-- Category selection (bug report, feature request, other)
-    |   +-- Message form with optional email + screenshot
-    |
-    +-- Settings Window
-    |   +-- Hotkey configuration
-    |   +-- LLM provider settings
-    |   +-- Storage management
-    |   +-- Permissions
-    |   +-- Auto-update preferences
-    |
-    +-- Transcribe Tab (capture hub for all three modes)
-    |   +-- Video URL card (paste link)
-    |   +-- File drop card
-    |   +-- Meeting Recording tile (reflects live state)
-    |
-    +-- Meeting Recording Pill (floating indicator)
-    |   +-- Sacred-geometry rosette + stem
-    |   +-- Red dot + elapsed timer (on hover)
-    |   +-- Right-click: Stop / Open / Cancel
-    |   +-- Shares state with the Transcribe tile
-    |
-    +-- Library Panel
-    |   +-- Filter bar: All/Video/Local/Meetings/Favorites
-    |   +-- Thumbnail grid for All/Video/Local/Favorites
-    |   +-- Date-grouped list (Today/Yesterday/...) for Meetings filter
-    |   +-- Search and sort
-    |
-    +-- History Panel
-        +-- Dictation history with search
-        +-- Audio playback
-        +-- Re-copy / re-process
-```
+MacParakeet is a **menu bar app** (NSStatusItem, always visible). UI
+surfaces: the main window (Transcribe capture hub, Library, Dictations,
+Vocabulary, Feedback, Settings, Discover), a persistent idle pill (hidden
+during active dictation), the dictation overlay (compact dark pill with
+waveform + cancel/stop), the floating meeting-recording pill
+(sacred-geometry rosette; shares live state with the Transcribe tile via one
+long-lived `MeetingRecordingPillViewModel`), the Transforms floating
+result/progress pill, and the Settings window. Library's Meetings filter is
+a date-grouped list; the other filters (All/Video/Local/Favorites) use a
+thumbnail grid. Full surface-by-surface breakdown: `spec/04-ui-patterns.md`.
 
 View files organized by feature in `Sources/MacParakeet/Views/`:
 - `Transcription/` -- Transcribe tab, drop zone, video URL card, **Meeting Recording tile**, transcript display, export, library grid + meetings list
@@ -374,14 +336,14 @@ In-app feedback creates GitHub Issues via a Cloudflare Pages Function. User emai
 
 ## Implementation Guidelines
 
-1. **Specs are the source of truth** -- Follow `spec/10-ai-coding-method.md` precedence: ADRs first, then narrative specs, then active plans, with `spec/kernel/*` as supporting feature/status and traceability context. If code and spec disagree, update code to match the highest-precedence spec (or update the spec if it is wrong).
+1. **Specs are the source of truth** -- Follow `spec/10-ai-coding-method.md` precedence: ADRs first, then narrative specs, then active plans, with `spec/kernel/requirements.yaml` as an optional supporting feature/status index. If code and spec disagree, update code to match the highest-precedence spec (or update the spec if it is wrong).
 2. **ADRs are locked** -- Don't second-guess architectural decisions in `spec/adr/`.
 3. **Never lose user data** -- Graceful degradation for dictation history and transcriptions.
 4. **UI philosophy** -- Minimal during dictation, rich for transcription results.
 5. **Local-first** -- Speech recognition stays on-device by default. Optional provider and media-download flows are user-triggered; model/update flows and self-hosted telemetry/crash reporting are product-managed surfaces. Retained purchase activation endpoints remain in code but current public builds are free/GPL-3.0 and always unlocked. That licensing plumbing is intentionally retained as future-option code for GPL-compatible official paid distribution/support, not cleanup fodder. Telemetry is opt-out in Settings and never includes audio or transcript content.
 6. **Simplicity is the product** -- Resist feature creep. MacParakeet does three things well.
 7. **Fast feedback loops for agents** -- Design everything so the agent can verify its own work: tests for logic, CLI for headless smoke-testing, build errors that surface immediately.
-8. **Bounded agent discretion** -- Agents should choose the simplest process that preserves correctness, traceability, and ADR constraints. Kernel updates should be proportional to risk and user visibility.
+8. **Bounded agent discretion** -- Agents should choose the simplest process that preserves correctness, test coverage, and ADR constraints. Kernel updates should be proportional to risk and user visibility.
 9. **Protect the context zone** -- For behavior changes, explicitly define in-scope requirements, out-of-scope behavior, and invariants before coding.
 
 ## Documentation Hygiene
@@ -392,7 +354,7 @@ After completing work: update spec progress in `spec/README.md` and `spec/02-fea
 
 Document status headers: `**ACTIVE**` (authoritative), `**IMPLEMENTED**` (done, still accurate), `**HISTORICAL**` (superseded), `**PROPOSAL**` (under discussion).
 
-Source-of-truth precedence: ADR > narrative spec > active plan > kernel index/traceability > code/comments.
+Source-of-truth precedence: ADR > narrative spec > active plan > kernel feature/status index > code/comments.
 
 ## Working with Plans
 
@@ -407,9 +369,8 @@ Plans live in `plans/` and are version-controlled. Create a plan for multi-file 
 3. Create a plan in `plans/active/` if multi-file
 4. Implement in `Sources/MacParakeetCore/` (logic) and `Sources/MacParakeet/` (UI)
 5. Add/update tests in `Tests/MacParakeetTests/`
-6. Update `spec/kernel/traceability.md` if source/test mappings changed
-7. Run focused tests, then `swift test` before merge
-8. Update spec progress markers
+6. Run focused tests, then `swift test` before merge
+7. Update spec progress markers
 
 ### Add a new database table
 
@@ -429,21 +390,22 @@ Plans live in `plans/` and are version-controlled. Create a plan for multi-file 
 
 ### Release a new build
 
-Full guide: `docs/distribution.md`. Quick steps:
+Follow `docs/distribution.md` — it is the authoritative step-by-step guide
+(pre-flight tests, version bump, build, sign + notarize, R2 upload, Sparkle
+`sign_update`, appcast prepend, website deploy, verify).
 
-0. **Pre-flight:** Run `swift test` (all must pass). Check current version: `curl -s "https://macparakeet.com/appcast.xml" | grep sparkle:shortVersionString`. Decide version bump -- patch (0.1.x) for fixes, minor (0.x.0) for features.
-1. **Build:** `VERSION=X.Y.Z scripts/dist/build_app_bundle.sh`
-2. **Sign + notarize:** `scripts/dist/sign_notarize.sh`
-   - After signing, smoke-test bundled helpers: `dist/MacParakeet.app/Contents/Resources/yt-dlp --version`.
-   - `yt-dlp_macos` is a PyInstaller binary. If it is signed with hardened runtime, it must have `com.apple.security.cs.disable-library-validation=true`; otherwise fresh installs can fail on first YouTube use with `[PYI:ERROR] Failed to load Python shared library ... different Team IDs`.
-3. **Upload DMG to R2:** `npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg --file dist/MacParakeet.dmg --content-type "application/x-apple-diskimage" --remote`
-4. **Verify R2 file size matches local:** `curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep content-length` -- must equal `stat -f%z dist/MacParakeet.dmg`
-5. **Sign for Sparkle:** `.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg`
-6. **Update appcast:** Edit `~/code/macparakeet-website/public/appcast.xml` -- **prepend** new `<item>` (keep all previous items). Include build number, version, signature, length, `pubDate` (`date -R`), release notes.
-7. **Deploy website:** `cd ~/code/macparakeet-website && git add public/appcast.xml && git commit && git push && npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main`
-8. **Verify:** `curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version`
+Critical invariants (full context and commands in the guide):
 
-**Critical:** The DMG uploaded to R2 must be the **exact same file** you ran `sign_update` on. If sizes don't match, Sparkle rejects the update.
+- The DMG uploaded to R2 must be the **exact same file** you ran
+  `sign_update` on. Verify the served `content-length` equals the local
+  `stat -f%z dist/MacParakeet.dmg`; if they differ, Sparkle rejects the update.
+- Appcast enclosure URLs must include `?v={BUILD_NUMBER}` cache-busting —
+  Cloudflare CDN caches R2 objects (~4h), and a stale cached DMG fails
+  Sparkle as "improperly signed".
+- Bundled `yt-dlp_macos` (PyInstaller) signed with hardened runtime needs
+  `com.apple.security.cs.disable-library-validation=true`, or fresh installs
+  fail on first YouTube use with a `[PYI:ERROR]` Team ID mismatch. Smoke-test
+  after signing: `dist/MacParakeet.app/Contents/Resources/yt-dlp --version`.
 
 ## Testing
 
@@ -460,8 +422,9 @@ See `spec/09-testing.md` for full strategy. Key points:
 ### Running Tests
 
 ```bash
-swift test              # Full deterministic suite, usually ~1-2 minutes
-swift test --parallel   # Optional parallel run when chasing wall-clock time
+swift test                                       # Full deterministic suite, usually ~1-2 minutes
+swift test --filter TextProcessingPipelineTests  # Focused run of one test class while iterating
+swift test --parallel                            # Optional parallel run when chasing wall-clock time
 ```
 
 ### AI Agent Testing Loop
@@ -506,7 +469,7 @@ open Package.swift  # Select MacParakeet scheme
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet STT models | FluidAudio default cache (CoreML, ~465 MB per build) |
+| Parakeet / Nemotron STT models | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron: `nemotron-multilingual/`; CoreML; ~465 MB per Parakeet build, ~1.5 GB Nemotron) |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
@@ -569,9 +532,31 @@ Both audiences share the same command tree. Dev/auxiliary commands (e.g. `calend
 
 ---
 
-## Known Pitfalls (from OatFlow Experience)
+## Known Pitfalls (Hard-Won Lessons)
 
-These are hard-won lessons. Don't repeat them.
+These come from OatFlow experience and from working in this repo. Don't
+repeat them.
+
+### Git / Worktree Gotchas
+
+- **Base new branches/worktrees on `origin/main`, not local `main`** -- this
+  repo runs many parallel worktrees, so the local `main` ref is often stale.
+  `git fetch origin` first, then
+  `git worktree add -b my-branch ../macparakeet-worktrees/my-branch origin/main`.
+- **Build from the worktree the branch is checked out in** -- Xcode/SwiftPM
+  state under `.swiftpm/` pins source paths to the worktree that created it,
+  so `xcodebuild` invoked from another checkout can silently compile the
+  wrong tree. `swift build` / `swift test` run from inside the worktree are
+  always safe.
+- **`DictationFlowCoordinatorLoadCaptionTests` is known-flaky on CI** -- a
+  `waitUntil` races a ~60 ms transient state, so the same commit can pass and
+  fail seconds apart. Re-run the failed job; don't "fix" the test unless the
+  flake rate justifies a harness refactor.
+- **Mixed line endings flip whole files on edit** -- keep text files LF;
+  never commit CRLF. If the repo has `.git-blame-ignore-revs` (added with
+  the repo-wide LF renormalization), run
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs` once locally so
+  mechanical commits don't bury real history.
 
 ### Swift Language Gotchas
 
@@ -625,7 +610,6 @@ This project uses **rich commit messages** with `## What Changed`, `## Root Inte
 ### After Completing Work
 
 - [ ] Run required focused tests and `swift test` -- all tests should pass
-- [ ] Update `spec/kernel/traceability.md` when source/test mappings changed
 - [ ] Update docs if behavior changed (specs, README, this file)
 - [ ] Archive completed plans to `plans/completed/`
 - [ ] Commit with rich message (see `docs/commit-guidelines.md`)

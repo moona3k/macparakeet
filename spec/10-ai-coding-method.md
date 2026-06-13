@@ -13,7 +13,7 @@ Goal: reduce ambiguity, prevent drift, and make generated code maintainable over
 1. ADRs record locked decisions; do not second-guess them without a new ADR.
 2. Narrative specs explain product behavior, architecture, and rationale.
 3. Plans capture active implementation work and should be reconciled back into specs before merge.
-4. The kernel is a lightweight feature/status index plus a source/test map, not a parallel contract system.
+4. The kernel is a lightweight, optional feature/status index, not a parallel contract system or a coverage map.
 5. Determinism beats cleverness for core product flows.
 
 ## Context Zone (Probability Control)
@@ -25,7 +25,7 @@ The "context zone" is the bounded set of behavior allowed by current ADRs, specs
 For every behavior change, define zone boundaries up front:
 
 1. Governing ADRs and spec sections.
-2. Target requirement IDs in `spec/kernel/requirements.yaml`, if the change maps to an existing or new notable feature.
+2. Target requirement IDs in `spec/kernel/requirements.yaml` when the change maps to an existing notable feature (adding new IDs is optional).
 3. "Must not change" invariants for public interfaces, persistence formats, privacy boundaries, and stateful/concurrent flows.
 4. Focused tests that verify in-zone behavior and reject out-of-zone drift.
 
@@ -56,7 +56,7 @@ Adopt a pragmatic spec model:
 1. **Decision layer:** accepted ADRs in `spec/adr/` for locked architectural and product decisions.
 2. **Narrative layer:** `spec/00-*` docs for product behavior, architecture, data model, UI, testing, and release status.
 3. **Plan layer:** `plans/active/` for in-flight implementation details; completed plans are historical records.
-4. **Kernel support layer:** `spec/kernel/requirements.yaml` as a compact feature/status index and `spec/kernel/traceability.md` as a manual feature -> source -> test map.
+4. **Kernel support layer:** `spec/kernel/requirements.yaml` as an optional, compact feature/status index. (The former manual feature -> source -> test map, `traceability.md`, was retired: it was a write-only hand-index with no machine consumer, and tests plus `git` are the authoritative coverage and history record.)
 
 Optional contracts and state machines may be added for high-risk seams, but they are not required repo-wide.
 
@@ -67,7 +67,7 @@ When artifacts conflict, precedence is:
 1. Accepted ADRs in `spec/adr/`
 2. Narrative specs in `spec/00-*`
 3. Active implementation plans in `plans/active/`
-4. Kernel index and traceability files in `spec/kernel/`
+4. Kernel feature/status index (`spec/kernel/requirements.yaml`)
 5. Existing code/comments
 
 If conflict is found, update the lower-precedence artifact in the same change. If the higher-precedence artifact is wrong, update it deliberately and explain why.
@@ -76,8 +76,7 @@ If conflict is found, update the lower-precedence artifact in the same change. I
 
 Maintain the artifacts that currently provide value:
 
-- `spec/kernel/requirements.yaml`
-- `spec/kernel/traceability.md`
+- `spec/kernel/requirements.yaml` (optional feature/status index)
 
 ### Requirement Index
 
@@ -106,21 +105,9 @@ REQ-YT-001:
 
 Optional fields such as `source`, `priority`, and `acceptance` are allowed when they clarify active or high-risk work, but they are not required for every historical entry.
 
-### Traceability Map
+### Finding Source and Tests
 
-`spec/kernel/traceability.md` is a manual feature -> source -> test map. It should be updated when a behavior change adds, removes, or materially moves implementation or test coverage for a mapped requirement.
-
-Current table shape:
-
-| Requirement | Source Files | Test Files |
-|---|---|---|
-| `REQ-YT-001` | `MacParakeetCore/Services/YouTubeDownloader.swift` | `YouTubeDownloaderTests.swift` |
-
-Rules:
-
-1. One row per current requirement when practical.
-2. Source and test entries should be concrete file paths or clearly marked gaps.
-3. If a requirement is implemented and has no mapped tests, call that out instead of implying coverage.
+There is no manual requirement -> source -> test map. To find what implements or tests a feature, use `git grep`, test names, and `git log`/`git blame` — all always-accurate and free. An always-green suite is stronger evidence of coverage than a hand-maintained table that merely claims it.
 
 ### Optional Contracts
 
@@ -199,12 +186,11 @@ terminal_states: [success, error]
 For any behavior change:
 
 1. Read the governing ADRs, spec sections, and active plans.
-2. Identify existing requirement IDs, or add one if the change introduces a notable feature, public behavior, persistence format, or CLI surface.
+2. Identify existing requirement IDs to anchor the change; adding a new ID is optional and reserved for naming a genuinely new user-visible capability, persistence format, or CLI surface.
 3. Define must-not-change invariants before editing.
 4. Add/update tests for changed behavior.
-5. Update `traceability.md` if implementation or test mappings changed.
-6. Add/update optional contracts or state machines only if the change touches a high-risk seam listed above.
-7. Run tests per test-scope policy.
+5. Add/update optional contracts or state machines only if the change touches a high-risk seam listed above.
+6. Run tests per test-scope policy.
 
 Small bug fixes, copy changes, internal refactors, and straightforward UI polish may skip new requirement IDs when the existing specs and tests already bound the work.
 
@@ -226,11 +212,10 @@ Before merge:
 A change is PR-ready only when all are true:
 
 1. Governing ADR/spec/plan context was checked.
-2. Requirement entries are updated when the change adds or changes a notable feature/public behavior.
-3. Traceability is updated when source/test mappings changed.
-4. Optional contracts/state machines are updated when they exist for the touched seam.
-5. Focused tests pass for affected behavior.
-6. Precedence conflicts are reconciled.
+2. Requirement entries are updated when the change adds or changes a notable feature/public behavior (optional — see Kernel Artifacts).
+3. Optional contracts/state machines are updated when they exist for the touched seam.
+4. Focused tests pass for affected behavior.
+5. Precedence conflicts are reconciled.
 
 ### Merge Gate
 
@@ -255,14 +240,14 @@ Agents are expected to use judgment, but within explicit constraints:
 1. For behavior changes, documentation updates should be proportional to risk and user visibility.
 2. For non-behavioral changes (formatting, comments, renames, internal refactors with unchanged behavior), agents may use a lighter process.
 3. If a materially better third approach is identified, propose it and update this method before adopting it broadly.
-4. Prefer the simplest process that preserves correctness, traceability, and ADR constraints.
+4. Prefer the simplest process that preserves correctness, test coverage, and ADR constraints.
 
 ## Anti-Patterns
 
 Avoid:
 
 1. Treating optional contracts/state machines as if they already exist.
-2. Claiming CI enforces traceability unless a CI check actually does.
+2. Claiming CI enforces a process gate (coverage, requirement mapping) unless a CI check actually does.
 3. Requirement IDs that change over time.
 4. Silent behavior changes not reflected in the relevant ADR/spec/plan/kernel docs.
 5. Retrofitting heavy YAML artifacts for low-risk historical features just to satisfy process.
@@ -271,13 +256,12 @@ Avoid:
 
 ### Current Operating Mode
 
-1. Keep `requirements.yaml` accurate as a compact feature/status index.
-2. Keep `traceability.md` useful as a manual feature -> source -> test map.
-3. Add optional contracts/state machines only when they reduce ambiguity at high-risk seams.
+1. Keep `requirements.yaml` accurate as an optional, compact feature/status index.
+2. Add optional contracts/state machines only when they reduce ambiguity at high-risk seams.
 
 Success metric:
 
-- A new agent can quickly find the source and test surface for a shipped feature.
+- A new agent can quickly find the source and test surface for a shipped feature via `git grep`, test names, and history.
 - Kernel docs do not contradict ADRs, narrative specs, or current code.
 
 ### Targeted Investment
@@ -286,7 +270,6 @@ When repeatedly editing a high-risk flow, add the smallest durable artifact that
 
 - A contract for stable I/O/error schemas.
 - A state machine for tricky lifecycle/concurrency behavior.
-- A traceability row for source/test discovery.
 
 Non-goals:
 
@@ -303,6 +286,5 @@ Use each artifact for what it is good at:
 - ADRs: decisions and constraints.
 - Narrative specs: product behavior and architecture.
 - Plans: active implementation detail.
-- Kernel requirements: compact status/index.
-- Kernel traceability: source and test discovery.
+- Kernel requirements: compact, optional status/index.
 - Optional contracts/state machines: targeted clarity for high-risk seams.

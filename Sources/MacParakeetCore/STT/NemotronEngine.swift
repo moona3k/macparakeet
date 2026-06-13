@@ -15,6 +15,7 @@ public actor NemotronEngine: STTTranscribing {
     private var backgroundManager: StreamingNemotronMultilingualAsrManager?
     private var initializationTask: Task<Void, Error>?
     private var activeLanes: Set<NemotronRuntimeLane> = []
+    private var liveDictationLanguage: String?
 
     public init(
         modelVariant: NemotronModelVariant = NemotronEngine.defaultModelVariant,
@@ -80,6 +81,88 @@ public actor NemotronEngine: STTTranscribing {
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
+    }
+
+    public func beginLiveDictation(
+        language: String?,
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws {
+        let lane: NemotronRuntimeLane = .interactive
+        guard beginTranscription(on: lane) else {
+            throw STTError.engineBusy
+        }
+
+        do {
+            try await prepare(onProgress: nil)
+            guard let manager = manager(for: lane) else {
+                throw STTError.modelNotLoaded
+            }
+            let requestedLanguage = SpeechEnginePreference.normalizeNemotronLanguage(language)
+            await manager.configureForMacParakeet(language: requestedLanguage)
+            await manager.setPartialCallback { partial in
+                onPartial(partial)
+            }
+            liveDictationLanguage = requestedLanguage
+        } catch {
+            endTranscription(on: lane)
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func processLiveDictationSamples(_ samples: [Float]) async throws {
+        guard !samples.isEmpty else { return }
+        guard let manager = manager(for: .interactive),
+              activeLanes.contains(.interactive) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        do {
+            try Task.checkCancellation()
+            _ = try await manager.process(samples: samples)
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func finishLiveDictation() async throws -> STTResult {
+        let lane: NemotronRuntimeLane = .interactive
+        guard let manager = manager(for: lane),
+              activeLanes.contains(lane) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        let requestedLanguage = liveDictationLanguage
+        defer {
+            liveDictationLanguage = nil
+            endTranscription(on: lane)
+        }
+
+        do {
+            await manager.setPartialCallback { _ in }
+            let text = try await manager.finish()
+            let detectedLanguage = await manager.detectedLanguage()
+            return STTResult(
+                text: text,
+                words: [],
+                language: detectedLanguage ?? requestedLanguage,
+                engine: .nemotron,
+                engineVariant: modelVariant.rawValue
+            )
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func cancelLiveDictation() async {
+        let lane: NemotronRuntimeLane = .interactive
+        guard activeLanes.contains(lane) else { return }
+        // Release the lane even if unload() already dropped the manager —
+        // otherwise a cancel that races shutdown would leave the interactive
+        // lane claimed forever on this engine instance.
+        if let manager = manager(for: lane) {
+            await manager.setPartialCallback { _ in }
+            await manager.reset()
+        }
+        liveDictationLanguage = nil
+        endTranscription(on: lane)
     }
 
     public func prepare(onProgress: (@Sendable (String) -> Void)? = nil) async throws {

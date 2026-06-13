@@ -108,7 +108,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecoveryDiscarded = "meeting_recovery_discarded"
     case meetingRecoveryFailed = "meeting_recovery_failed"
     /// Universal launch-time Silero VAD model prep for VAD-guided meeting live
-    /// chunking (`plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6).
+    /// chunking (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6).
     /// Confirms the installed base actually acquires the model once the feature
     /// is enabled — see `TelemetryVADModelPrepOutcome`. Gated on
     /// `AppFeatures.meetingVadLiveChunkingEnabled`, so it never fires in a
@@ -384,7 +384,7 @@ public enum TelemetryMeetingRecoverySource: String, Sendable, Equatable {
 }
 
 /// Outcome of a launch-time Silero VAD model prep attempt (Phase 4.5,
-/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6). The full
+/// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6). The full
 /// vocabulary is modeled here, but the launch hook only transmits the
 /// *transitions* worth seeing: `prepared` (an install just acquired the model
 /// — the field-reach signal) and `failed` (a download problem). The

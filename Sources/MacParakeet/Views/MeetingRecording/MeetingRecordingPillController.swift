@@ -42,17 +42,20 @@ private class PillMenuDelegate: NSObject {
     let onOpen: () -> Void
     let onCancel: () -> Void
     let onPauseToggle: () -> Void
+    let onStopTranscription: () -> Void
 
     init(
         onStop: @escaping () -> Void,
         onOpen: @escaping () -> Void,
         onCancel: @escaping () -> Void,
-        onPauseToggle: @escaping () -> Void
+        onPauseToggle: @escaping () -> Void,
+        onStopTranscription: @escaping () -> Void = {}
     ) {
         self.onStop = onStop
         self.onOpen = onOpen
         self.onCancel = onCancel
         self.onPauseToggle = onPauseToggle
+        self.onStopTranscription = onStopTranscription
     }
 
     @objc func menuAction(_ sender: NSMenuItem) {
@@ -61,6 +64,7 @@ private class PillMenuDelegate: NSObject {
         case "open": onOpen()
         case "cancel": onCancel()
         case "pauseToggle": onPauseToggle()
+        case "stopTranscription": onStopTranscription()
         default: break
         }
     }
@@ -76,6 +80,9 @@ final class MeetingRecordingPillController {
     var onOpenApp: (() -> Void)?
     var onCancelRecording: (() -> Void)?
     var onPauseToggle: (() -> Void)?
+    /// Opens the stop-transcription confirmation (issue #487). Offered from
+    /// the context menu while the post-stop final transcription is running.
+    var onStopTranscription: (() -> Void)?
 
     init(viewModel: MeetingRecordingPillViewModel) {
         self.pillViewModel = viewModel
@@ -159,6 +166,21 @@ final class MeetingRecordingPillController {
 
     private func showContextMenu(with event: NSEvent) {
         guard let contentView = panel?.contentView else { return }
+
+        // The menu must read honestly in every pill face: the recording menu's
+        // items (pause, End & Transcribe, Discard) are silent no-ops once the
+        // flow has moved past recording, so post-stop states get their own
+        // menus (issue #487).
+        switch pillViewModel.state {
+        case .completing, .transcribing:
+            showTranscribingContextMenu(with: event, for: contentView)
+            return
+        case .completed, .error, .idle:
+            showInertContextMenu(with: event, for: contentView)
+            return
+        case .recording, .paused:
+            break
+        }
 
         let menu = NSMenu()
 
@@ -252,6 +274,107 @@ final class MeetingRecordingPillController {
         // Keep delegate alive while menu is open
         objc_setAssociatedObject(menu, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
 
+        NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+    }
+
+    /// Context menu while the final transcription is running (issue #487):
+    /// honest header, Open, and a gated "Stop Transcribing…" that opens the
+    /// keep/delete confirmation. The item stays visible-but-disabled during
+    /// the brief window where the recording is still being finalized so the
+    /// affordance is discoverable the moment it becomes safe.
+    private func showTranscribingContextMenu(with event: NSEvent, for contentView: NSView) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        let delegate = PillMenuDelegate(
+            onStop: {},
+            onOpen: { [weak self] in
+                Task { @MainActor [weak self] in self?.onOpenApp?() }
+            },
+            onCancel: {},
+            onPauseToggle: {},
+            onStopTranscription: { [weak self] in
+                Task { @MainActor [weak self] in self?.onStopTranscription?() }
+            }
+        )
+
+        let headerItem = NSMenuItem(title: "Transcribing meeting", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        if let headerImage = NSImage(systemSymbolName: "waveform", accessibilityDescription: nil) {
+            headerItem.image = headerImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+            headerItem.image?.isTemplate = true
+        }
+        menu.addItem(headerItem)
+
+        menu.addItem(.separator())
+
+        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        openItem.representedObject = "open"
+        openItem.target = delegate
+        openItem.isEnabled = true
+        if let openImage = NSImage(systemSymbolName: "bird", accessibilityDescription: nil) {
+            openItem.image = openImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+            openItem.image?.isTemplate = true
+        }
+        menu.addItem(openItem)
+
+        menu.addItem(.separator())
+
+        let stopItem = NSMenuItem(title: "Stop Transcribing…", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        stopItem.representedObject = "stopTranscription"
+        stopItem.target = delegate
+        stopItem.isEnabled = pillViewModel.canAbortTranscription
+        if let stopImage = NSImage(systemSymbolName: "stop.circle", accessibilityDescription: nil) {
+            stopItem.image = stopImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+            stopItem.image?.isTemplate = true
+        }
+        menu.addItem(stopItem)
+
+        objc_setAssociatedObject(menu, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+        NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+    }
+
+    /// Context menu for the settled faces (checkmark / error). Nothing is
+    /// actionable on the recording itself anymore — just offer the app.
+    private func showInertContextMenu(with event: NSEvent, for contentView: NSView) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        let delegate = PillMenuDelegate(
+            onStop: {},
+            onOpen: { [weak self] in
+                Task { @MainActor [weak self] in self?.onOpenApp?() }
+            },
+            onCancel: {},
+            onPauseToggle: {}
+        )
+
+        let headerTitle: String
+        switch pillViewModel.state {
+        case .completed:
+            headerTitle = "Saved to Library"
+        case .error:
+            headerTitle = "Recording interrupted"
+        default:
+            headerTitle = "MacParakeet"
+        }
+        let headerItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+
+        menu.addItem(.separator())
+
+        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        openItem.representedObject = "open"
+        openItem.target = delegate
+        openItem.isEnabled = true
+        if let openImage = NSImage(systemSymbolName: "bird", accessibilityDescription: nil) {
+            openItem.image = openImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+            openItem.image?.isTemplate = true
+        }
+        menu.addItem(openItem)
+
+        objc_setAssociatedObject(menu, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
         NSMenu.popUpContextMenu(menu, with: event, for: contentView)
     }
 }

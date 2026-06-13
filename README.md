@@ -25,7 +25,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
-  <img src="https://img.shields.io/badge/tests-passing-brightgreen.svg" alt="Tests passing">
+  <a href="https://github.com/moona3k/macparakeet/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/moona3k/macparakeet/ci.yml?branch=main&label=CI" alt="CI status"></a>
   <img src="https://img.shields.io/badge/Apple%20Silicon-only-333333.svg" alt="Apple Silicon only">
 </p>
 
@@ -63,7 +63,7 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
+| Stable DMG | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
 | `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
@@ -72,7 +72,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 
 **Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, or tap the hands-free shortcut to start and stop longer dictations. Works system-wide. A beta setting can pause supported Now Playing media while you dictate and resume it when capture stops.
 
-**File & URL transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste any video or podcast link. YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and any other site `yt-dlp` supports all work — there's no fixed list; the card recognizes the platform and shows its mark as you paste. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. The CLI also does **freetext podcast search** — `macparakeet-cli transcribe --podcast "Lex Fridman episode 400"` searches the iTunes directory, parses the show's RSS feed, picks the episode, and transcribes it. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript with word-level timestamps, speaker labels, a completion chime/banner, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
+**File & URL transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste any video or podcast link. YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and any other site `yt-dlp` supports all work — there's no fixed list; the card recognizes the platform and shows its mark as you paste. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. The CLI also does **freetext podcast search** — `macparakeet-cli transcribe --podcast "Lex Fridman episode 400"` searches the iTunes directory, parses the show's RSS feed, picks the episode, and transcribes it. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript with word-level timestamps, speaker labels, a completion chime/banner, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or URL transcription from anywhere.
 
 **Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
 
@@ -175,7 +175,7 @@ same commands with `swift run`.
 | Language | Swift 6.0 + SwiftUI |
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
-| YouTube | yt-dlp |
+| Media URLs | yt-dlp |
 | Podcasts | Apple Podcasts via iTunes lookup API + native enclosure downloader |
 | Platform | macOS 14.2+, Apple Silicon |
 
@@ -229,7 +229,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; optional N
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift) — verify it yourself.
 - **Temp files cleaned up.** Audio deleted after transcription unless you save it.
 
-**What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp; Apple Podcasts links query the public iTunes lookup API to find the episode audio, then download it. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
+**What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. Media URL transcription downloads via yt-dlp; Apple Podcasts links query the public iTunes lookup API to find the episode audio, then download it. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 
@@ -239,6 +239,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; optional N
 - **Discuss new work first** — For features or behavior changes, open an issue before starting a PR so we can agree on scope and product fit.
 - **Submit scoped PRs** — Once the issue direction is clear, fork, make the scoped changes, run `swift test`, and link the issue in the PR.
 - **Read the specs** — Architecture decisions and feature specs live in `spec/`
+- **Using a coding agent?** Point it at [`AGENTS.md`](AGENTS.md) — build/test commands, code style, and repo conventions for Claude Code, Codex, and friends. Deeper project context is in [`CLAUDE.md`](CLAUDE.md).
 
 ## Support
 

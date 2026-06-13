@@ -30,6 +30,9 @@ struct MeetingTranscriptNoiseFilter {
     private static let duplicateMaxWords = 10
     private static let duplicateLowConfidenceThreshold = 0.65
     private static let duplicateShortConfidenceThreshold = 0.80
+    private static let simultaneousEchoMinWords = 5
+    private static let simultaneousEchoSimilarity = 0.8
+    private static let fuzzyTokenMinLength = 4
     private static let allowedTokenCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "'"))
 
     static func cleanFinalMicrophoneWords(
@@ -49,6 +52,11 @@ struct MeetingTranscriptNoiseFilter {
             }
 
             if isObviousSystemDuplicate(microphoneRun: run.words, systemTokenWords: systemTokenWords) {
+                indexesToDrop.formUnion(run.indexes)
+                continue
+            }
+
+            if isSimultaneousSystemEcho(microphoneRun: run.words, systemTokenWords: systemTokenWords) {
                 indexesToDrop.formUnion(run.indexes)
             }
         }
@@ -122,6 +130,103 @@ struct MeetingTranscriptNoiseFilter {
         }
 
         return false
+    }
+
+    /// A microphone run that repeats the remote speaker's words *while the
+    /// remote speaker is saying them* is acoustic echo by construction — a
+    /// person cannot utter the same multi-word sequence simultaneously with
+    /// the far end. This rule is deliberately confidence-independent: loud
+    /// speaker playback transcribes confidently, which is exactly the echo
+    /// the confidence-gated duplicate rule misses. Precision comes from the
+    /// length floor, the simultaneity window, and the in-order match ratio.
+    private static func isSimultaneousSystemEcho(
+        microphoneRun: [WordTimestamp],
+        systemTokenWords: [(token: String, word: WordTimestamp)]
+    ) -> Bool {
+        let micTokens = normalizedTokens(microphoneRun)
+        guard micTokens.count >= simultaneousEchoMinWords,
+              let runStart = microphoneRun.first?.startMs,
+              let runEnd = microphoneRun.last?.endMs
+        else { return false }
+
+        let windowStart = runStart - duplicateTimingToleranceMs
+        let windowEnd = runEnd + duplicateTimingToleranceMs
+        let simultaneousTokens = systemTokenWords
+            .filter { $0.word.endMs >= windowStart && $0.word.startMs <= windowEnd }
+            .map(\.token)
+
+        let requiredMatches = Int((Double(micTokens.count) * simultaneousEchoSimilarity).rounded(.up))
+        guard simultaneousTokens.count >= requiredMatches else { return false }
+
+        return fuzzyLongestCommonSubsequence(micTokens, simultaneousTokens) >= requiredMatches
+    }
+
+    /// Length of the longest common subsequence under fuzzy token equality,
+    /// so a single inserted/dropped/respelled word ("number"/"numbers")
+    /// cannot defeat the match the way positional comparison would.
+    private static func fuzzyLongestCommonSubsequence(
+        _ micTokens: [String],
+        _ systemTokens: [String]
+    ) -> Int {
+        guard !micTokens.isEmpty, !systemTokens.isEmpty else { return 0 }
+
+        var previous = [Int](repeating: 0, count: systemTokens.count + 1)
+        var current = previous
+        for micToken in micTokens {
+            for (index, systemToken) in systemTokens.enumerated() {
+                if tokensRoughlyMatch(micToken, systemToken) {
+                    current[index + 1] = previous[index] + 1
+                } else {
+                    current[index + 1] = max(previous[index + 1], current[index])
+                }
+            }
+            previous = current
+        }
+        return previous[systemTokens.count]
+    }
+
+    private static func tokensRoughlyMatch(_ lhs: String, _ rhs: String) -> Bool {
+        if lhs == rhs { return true }
+        guard lhs.count >= fuzzyTokenMinLength, rhs.count >= fuzzyTokenMinLength else { return false }
+        return editDistanceIsAtMostOne(lhs, rhs)
+    }
+
+    private static func editDistanceIsAtMostOne(_ lhs: String, _ rhs: String) -> Bool {
+        let shorter: [Character]
+        let longer: [Character]
+        if lhs.count <= rhs.count {
+            shorter = Array(lhs)
+            longer = Array(rhs)
+        } else {
+            shorter = Array(rhs)
+            longer = Array(lhs)
+        }
+        guard longer.count - shorter.count <= 1 else { return false }
+
+        if shorter.count == longer.count {
+            var mismatches = 0
+            for index in shorter.indices where shorter[index] != longer[index] {
+                mismatches += 1
+                if mismatches > 1 { return false }
+            }
+            return true
+        }
+
+        var shortIndex = 0
+        var longIndex = 0
+        var skipped = false
+        while shortIndex < shorter.count {
+            if shorter[shortIndex] == longer[longIndex] {
+                shortIndex += 1
+                longIndex += 1
+            } else if skipped {
+                return false
+            } else {
+                skipped = true
+                longIndex += 1
+            }
+        }
+        return true
     }
 
     private static func rangesOverlapWithTolerance(

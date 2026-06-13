@@ -14,6 +14,13 @@ protocol STTRuntimeProtocol: Sendable {
         speechEngine: SpeechEngineSelection,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult
+    func beginLiveDictationTranscription(
+        sessionID: UUID,
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws
+    func appendLiveDictationSamples(_ samples: [Float], sessionID: UUID) async throws
+    func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult
+    func cancelLiveDictationTranscription(sessionID: UUID) async
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
     func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
@@ -53,6 +60,12 @@ extension STTRuntimeProtocol {
 /// one `AsrManager` per execution slot so dictation remains isolated from the
 /// shared background workload inside app-level scheduling.
 public actor STTRuntime: STTRuntimeProtocol {
+    private enum LiveDictationSessionState: Equatable {
+        case active(UUID)
+        case finishing(UUID)
+        case cancelling(UUID)
+    }
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "STTRuntime")
 
     private var interactiveManager: AsrManager?
@@ -78,6 +91,17 @@ public actor STTRuntime: STTRuntimeProtocol {
     private let whisperModelVariant: String
     private let defaults: UserDefaults
     private var activeTranscriptionCount = 0
+    private var liveDictationSession: LiveDictationSessionState? {
+        didSet {
+            guard liveDictationSession == nil, !liveDictationSessionWaiters.isEmpty else { return }
+            let waiters = liveDictationSessionWaiters
+            liveDictationSessionWaiters = []
+            for waiter in waiters {
+                waiter.resume()
+            }
+        }
+    }
+    private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -136,6 +160,74 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         }
+    }
+
+    func beginLiveDictationTranscription(
+        sessionID: UUID,
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws {
+        guard liveDictationSession == nil else {
+            throw STTError.engineBusy
+        }
+        guard speechEngine == .nemotron else {
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(speechEngine)
+        }
+        // The English-only build is batch-at-stop and routes through
+        // `nemotronEnglishEngine`, which exposes no live-partial path. Reject
+        // explicitly so callers fall back to batch instead of hitting the
+        // multilingual engine's nil slot.
+        guard !nemotronModelVariant.isEnglishOnly else {
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.nemotron)
+        }
+        guard let engine = nemotronEngine,
+              await engine.isReady() else {
+            throw STTLiveDictationTranscriptionError.modelNotReady
+        }
+
+        activeTranscriptionCount += 1
+        do {
+            try await engine.beginLiveDictation(
+                language: defaultLanguage(for: .nemotron),
+                onPartial: onPartial
+            )
+            liveDictationSession = .active(sessionID)
+        } catch {
+            activeTranscriptionCount -= 1
+            throw error
+        }
+    }
+
+    func appendLiveDictationSamples(_ samples: [Float], sessionID: UUID) async throws {
+        guard liveDictationSession == .active(sessionID),
+              let engine = nemotronEngine else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        try await engine.processLiveDictationSamples(samples)
+    }
+
+    func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
+        guard liveDictationSession == .active(sessionID),
+              let engine = nemotronEngine else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        liveDictationSession = .finishing(sessionID)
+        defer {
+            if liveDictationSession == .finishing(sessionID) {
+                liveDictationSession = nil
+            }
+            activeTranscriptionCount -= 1
+        }
+        return try await engine.finishLiveDictation()
+    }
+
+    func cancelLiveDictationTranscription(sessionID: UUID) async {
+        guard liveDictationSession == .active(sessionID) else { return }
+        liveDictationSession = .cancelling(sessionID)
+        await nemotronEngine?.cancelLiveDictation()
+        if liveDictationSession == .cancelling(sessionID) {
+            liveDictationSession = nil
+        }
+        activeTranscriptionCount -= 1
     }
 
     private func transcribeWithNemotron(
@@ -440,11 +532,31 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     public func shutdown() async {
         invalidateBackgroundWarmUp()
+        await cancelOrWaitForLiveDictationSession()
         await unloadWhisper()
         await unloadNemotron()
         await unloadParakeet()
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
+    }
+
+    private func cancelOrWaitForLiveDictationSession() async {
+        switch liveDictationSession {
+        case .active(let sessionID):
+            await cancelLiveDictationTranscription(sessionID: sessionID)
+        case .finishing, .cancelling:
+            await waitForLiveDictationSessionToEnd()
+        case nil:
+            return
+        }
+    }
+
+    private func waitForLiveDictationSessionToEnd() async {
+        while liveDictationSession != nil {
+            await withCheckedContinuation { continuation in
+                liveDictationSessionWaiters.append(continuation)
+            }
+        }
     }
 
     public func clearModelCache() async {

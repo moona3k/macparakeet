@@ -13,7 +13,7 @@ import Foundation
 /// decoupled onto its own task": if chunking runs at N×realtime offline, a live
 /// source producing at 1×realtime can never back up the inline path, so the
 /// inline coupling is safe. See
-/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md` (Phase 0).
+/// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md` (Phase 0).
 ///
 /// **What it does not measure.** Live ScreenCaptureKit/AVAudioEngine capture,
 /// the real-time backpressure *dynamics*, the SwiftUI layer, or VAD-while-

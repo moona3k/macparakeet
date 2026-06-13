@@ -21,7 +21,10 @@ owned by `AppEnvironment`.
 - `MicrophoneEnginePlatform.swift` — `AVAudioEngine` wrapper. Device
   fallback chain, VPIO toggle, tap install, engine recreation on
   every teardown (so coreaudiod releases the VPAU aggregate
-  device), `AVAudioEngineConfigurationChangeNotification` observer.
+  device), `AVAudioEngineConfigurationChangeNotification` observer,
+  configuration-change self-healing (four-gated restart on HAL
+  reconfiguration — the Apple-documented contract for
+  `AVAudioEngineConfigurationChange` clients).
 
 **Mic consumers (each subscribes to the shared stream)**
 - `AudioRecorder.swift` — dictation capture.
@@ -189,6 +192,25 @@ shipped this deliberately; converting any of those signals into a
 user-facing error would mask a regression as a fact of life.
 Telemetry counters can be added separately, but the log path stays
 non-disruptive.
+
+**The configuration-change observer self-heals (four-gated restart).** When
+`AVAudioEngine` stops itself after an `AVAudioEngineConfigurationChange`
+notification (default-input change, format change, sample-rate change), the
+observer in `MicrophoneEnginePlatform` attempts a self-healing restart — this
+is the Apple-documented client contract for that notification, not a
+diagnostic-turned-error. Recovery runs only when all four gates pass:
+(1) `running == true` (explicit stop wins), (2) the notification belongs to
+the current engine instance (stale events for replaced engines are discarded),
+(3) `AVAudioEngine.isRunning == false` (benign notifications around a healthy
+start are no-ops), and (4) the original start parameters are known. The
+watchdog and heartbeat in `AudioRecorder` remain log-only; only the
+configuration-change path self-heals. Three new log events mark the recovery
+flow: `shared_mic_engine_config_change_recovery_attempt`,
+`shared_mic_engine_config_change_recovery_succeeded`, and
+`shared_mic_engine_config_change_recovery_failed`. The
+`shared_mic_engine_configuration_changed` line now includes an
+`engine_is_running=` field (actual `AVAudioEngine.isRunning`) alongside the
+existing `isRunning=` (platform `running` flag).
 
 `MicrophoneEnginePlatform` also logs per-phase engine-start timings
 (`shared_mic_engine_start_timing`) so a slow first-buffer report can be split

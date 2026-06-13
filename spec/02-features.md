@@ -906,7 +906,9 @@ Important constraints:
 
 - formatter is a separate toggle, not a dictation mode
 - formatter uses the shared `LLMService`
-- formatter runs for dictation and file/YouTube transcription flows; meeting transcripts currently use deterministic cleanup only (see `TelemetryFormatterSource` — `.dictation` and `.transcription` are the only emitter sources wired today)
+- formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
+- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493)
+- transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
 - built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings; with the tier off, zero-profile prompt selection is byte-for-byte the legacy fallback-prompt behavior
 - file/YouTube transcription formatter prompts continue to use the fallback formatter prompt in V1
@@ -922,7 +924,9 @@ Important constraints:
 - [x] Formatter can be enabled or disabled independently of Raw/Clean mode
 - [x] Formatter runs only after deterministic cleanup
 - [x] Formatter supports dictation and file/YouTube transcription flows
-- [ ] Formatter supports meeting transcription (not yet wired — meeting path goes through `MeetingTranscriptFinalizer` without invoking `formatTranscript`)
+- [x] Formatter supports meeting transcription (meeting finalization shares `completeTranscription`)
+- [x] Transcripts and dictation have independent routing toggles in AI settings (#493)
+- [x] Transcription formatter skips inputs over the length cap instead of stalling finalization for the full provider timeout (#493)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
 - [x] Dictation formatter profiles support exact-app and category prompt routing

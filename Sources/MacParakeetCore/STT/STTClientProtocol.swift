@@ -22,6 +22,35 @@ public protocol STTTranscribing: Sendable {
     ) async throws -> STTResult
 }
 
+public enum STTLiveDictationTranscriptionError: Error, LocalizedError, Equatable {
+    case unsupportedEngine(SpeechEnginePreference)
+    case modelNotReady
+    case sessionNotActive
+
+    public var errorDescription: String? {
+        switch self {
+        case .unsupportedEngine(let engine):
+            return "\(engine.displayName) does not support live dictation partials."
+        case .modelNotReady:
+            return "Speech model is not ready for live dictation."
+        case .sessionNotActive:
+            return "Live dictation transcription is not active."
+        }
+    }
+}
+
+public protocol STTLiveDictationTranscribing: Sendable {
+    func beginLiveDictationTranscription(
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws -> UUID
+
+    func appendLiveDictationSamples(_ samples: [Float], sessionID: UUID) async throws
+
+    func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult
+
+    func cancelLiveDictationTranscription(sessionID: UUID) async
+}
+
 public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
     func transcribe(
         audioPath: String,

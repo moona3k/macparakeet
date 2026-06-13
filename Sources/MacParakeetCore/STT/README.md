@@ -52,7 +52,10 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   app's hotkey driver and scopes behavior to combined, hands-free-only,
   or push-to-talk-only roles.
 - `HotkeyTrigger.swift` — value types describing trigger kinds.
-- `KeyCodeNames.swift` — display strings for keys.
+- `KeyCodeNames.swift` — display strings for keys, plus the
+  function-family classification used to tell a genuinely held Fn
+  modifier from the phantom `.function` flag macOS sets on F-key,
+  arrow, and nav-cluster presses.
 - `OnboardingProgressParser.swift` — parses FluidAudio model-download
   progress lines for the onboarding UI.
 
@@ -92,6 +95,19 @@ interactive latency is preserved. The other three share a
 background slot, with explicit priority: meeting finalize
 > meeting live chunk > file transcription. Backpressure on the
 shared slot drops the lowest-priority pending work.
+
+**Live dictation sessions (Nemotron only).** When the selected engine
+is Nemotron, dictation can hold a live streaming session via
+`beginLiveDictationTranscription` / `appendLiveDictationSamples` /
+`finishLiveDictationTranscription` / `cancelLiveDictationTranscription`.
+The session owns the interactive slot for its duration: competing
+dictation transcribe jobs are rejected with `engineBusy`, engine-switch
+availability reports `transcribing`, and quiesce/shutdown cancels the
+session (or waits out an in-flight finish). Meeting live chunks and
+finalize are unaffected — they stay on the background slot.
+`DictationService` always records the WAV alongside the live stream and
+falls back to recorded-file transcription if the live session fails,
+drops samples, or finishes empty.
 
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI

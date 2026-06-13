@@ -155,28 +155,32 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["health"],
-            summary: "Check database, speech stack, helper binaries, and local runtime readiness.",
+            summary: "Check database, speech stack, helper binaries, and local runtime readiness; repair flags mutate local caches.",
+            readOnly: false,
             options: [
-                CLISpecParameter.flag("--repair-models", summary: "Attempt to prepare local speech models."),
-                CLISpecParameter.flag("--repair-binaries", summary: "Install or update helper binaries such as yt-dlp."),
+                CLISpecParameter.flag("--repair-models", summary: "Mutating: attempt to prepare local speech models."),
+                CLISpecParameter.option("--repair-attempts", valueName: "N", summary: "Maximum repair attempts when --repair-models is set."),
+                CLISpecParameter.flag("--repair-binaries", summary: "Mutating: install or update helper binaries such as yt-dlp."),
             ],
             output: "HealthReport object."
         ),
         CLISpecCommand(
             ["transcribe"],
             summary: "Transcribe audio/video files, folders, Apple Podcasts links/searches, or media URLs.",
+            readOnly: false,
             jsonMode: "--format json",
             arguments: [
                 .argument(
                     "input...",
                     required: false,
-                    summary: "Zero or more file paths, folders, YouTube URLs, Apple Podcasts URLs, or explicit HTTP(S) media URLs supported by yt-dlp. Omit when using --podcast."
+                    summary: "Zero or more file paths, folders, Apple Podcasts links, or HTTP(S) media URLs supported by yt-dlp. Omit when using --podcast."
                 ),
             ],
             options: [
                 CLISpecParameter.option("--podcast", valueName: "QUERY", summary: "Search Apple Podcasts by show/episode text and transcribe the selected episode."),
                 CLISpecParameter.option("--output-dir", valueName: "DIR", summary: "Write one transcript file per input to this directory; implies batch mode."),
                 CLISpecParameter.option("--format", valueName: "text|transcript|json", summary: "Output format for stdout or written transcript files."),
+                CLISpecParameter.option("--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this run."),
                 CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|app-default", summary: "Speech engine for this run."),
                 CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper; the English-only Nemotron build ignores it."),
                 CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2", summary: "Parakeet build for this run; ignored for Nemotron and Whisper."),
@@ -188,6 +192,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
                 CLISpecParameter.option("--media-audio-quality", valueName: "app-default|m4a|best-available", summary: "Downloaded media audio quality."),
                 CLISpecParameter.flag("--no-history", summary: "Do not persist the completed transcription."),
+                databaseOption,
             ],
             output: "Single Transcription object for stdout mode; one transcript file per input in batch/output-dir mode."
         ),
@@ -270,16 +275,41 @@ private extension CLISpecCommand {
             output: "Human-readable cache clear confirmation."
         ),
         CLISpecCommand(
+            ["history", "dictations"],
+            summary: "List saved dictations.",
+            options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of dictations."),
+                databaseOption,
+            ],
+            output: "Array of saved dictation objects."
+        ),
+        CLISpecCommand(
+            ["history", "search"],
+            summary: "Search saved dictations by transcript text.",
+            arguments: [.argument("query", summary: "Search query.")],
+            options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of matches."),
+                databaseOption,
+            ],
+            output: "Array of matching dictation objects."
+        ),
+        CLISpecCommand(
             ["history", "transcriptions"],
             summary: "List saved file, URL, and meeting transcriptions.",
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of transcriptions."),
+                databaseOption,
+            ],
             output: "Array of saved transcription objects."
         ),
         CLISpecCommand(
             ["history", "search-transcriptions"],
             summary: "Search saved transcriptions by title and transcript text.",
             arguments: [.argument("query", summary: "Search query.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of matches."),
+                databaseOption,
+            ],
             output: "Array of matching transcription objects."
         ),
         CLISpecCommand(
@@ -325,6 +355,25 @@ private extension CLISpecCommand {
             output: "MeetingTranscriptRecord object for --format json."
         ),
         CLISpecCommand(
+            ["meetings", "notes", "get"],
+            summary: "Read user-authored notes from a meeting.",
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [databaseOption],
+            output: "MeetingNotesRecord object."
+        ),
+        CLISpecCommand(
+            ["meetings", "notes", "set"],
+            summary: "Replace user-authored notes for a meeting.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option("--text", valueName: "TEXT", summary: "Notes text to store."),
+                CLISpecParameter.flag("--stdin", summary: "Read notes text from stdin."),
+                databaseOption,
+            ],
+            output: "MeetingNotesRecord object."
+        ),
+        CLISpecCommand(
             ["meetings", "notes", "append"],
             summary: "Append user-authored notes to a meeting.",
             readOnly: false,
@@ -334,6 +383,14 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--stdin", summary: "Read notes text from stdin."),
                 databaseOption,
             ],
+            output: "MeetingNotesRecord object."
+        ),
+        CLISpecCommand(
+            ["meetings", "notes", "clear"],
+            summary: "Clear user-authored notes from a meeting.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [databaseOption],
             output: "MeetingNotesRecord object."
         ),
         CLISpecCommand(
@@ -361,10 +418,12 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["meetings", "export"],
             summary: "Export a deterministic local meeting artifact.",
-            readOnly: true,
+            readOnly: false,
+            jsonMode: "--format json",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
             options: [
                 CLISpecParameter.option("--format", valueName: "md|json", summary: "Export format."),
+                CLISpecParameter.option("--output", valueName: "PATH", summary: "Output file path; defaults to an auto-generated file."),
                 CLISpecParameter.flag("--stdout", summary: "Print export content to stdout."),
                 databaseOption,
             ],

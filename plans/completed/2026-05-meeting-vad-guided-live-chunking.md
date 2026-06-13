@@ -1,6 +1,6 @@
 # Meeting VAD-Guided Live Chunking
 
-> Status: ACTIVE PLAN — Phases 1–4.5 IMPLEMENTED; flag-on release candidate under validation
+> Status: **IMPLEMENTED** — shipped flag-on in v0.6.14 (`AppFeatures.meetingVadLiveChunkingEnabled = true`); archived 2026-06-12
 > Date: 2026-05-29
 > Scope: meeting live transcript chunk boundaries only.
 

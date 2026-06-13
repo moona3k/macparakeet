@@ -207,14 +207,19 @@ final class AppEnvironment {
             runtimePreferences.voiceReturnTrigger
         }
 
-        let aiFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
-            runtimePreferences.aiFormatterEnabled
+        // File/meeting transcripts gate the AI Formatter on BOTH the
+        // availability switch and the transcripts-specific switch, mirroring
+        // the dictation gate below. Before #493 transcripts followed provider
+        // availability alone, with no way to opt out.
+        let transcriptionAIFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForTranscriptions
         }
 
         // Dictation gates the AI Formatter on BOTH the global switch and the
         // dictation-specific switch, so users can keep AI formatting for
-        // file/meeting transcripts (which use `aiFormatterEnabledClosure`) while
-        // keeping live dictation fast. See issue #408.
+        // file/meeting transcripts (which use
+        // `transcriptionAIFormatterEnabledClosure`) while keeping live
+        // dictation fast. See issue #408.
         let dictationAIFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
             runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForDictation
         }
@@ -268,6 +273,12 @@ final class AppEnvironment {
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
+            shouldAttemptLiveDictationTranscription: {
+                // The English-only Nemotron build is batch-at-stop; only the
+                // multilingual build streams live dictation partials.
+                SpeechEnginePreference.current() == .nemotron
+                    && !SpeechEnginePreference.nemotronModelVariant().isEnglishOnly
+            },
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a
                 // dictation ever completes on this install. `activation_window`
@@ -301,7 +312,7 @@ final class AppEnvironment {
             processingMode: processingModeClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
-            shouldUseAIFormatter: aiFormatterEnabledClosure,
+            shouldUseAIFormatter: transcriptionAIFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },

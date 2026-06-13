@@ -191,6 +191,7 @@ public actor AudioRecorder {
         qos: .utility
     )
     private var outputURL: URL?
+    private var liveSampleSink: DictationAudioSampleSink?
     private var recording = false
     private var starting = false
     /// Frames of instant-dictation pre-roll prepended to the current
@@ -342,6 +343,17 @@ public actor AudioRecorder {
     /// buffers to a temp WAV file. Returns once the subscription is owned and
     /// the watchdog is armed.
     public func start() async throws {
+        try await start(sampleSink: nil)
+    }
+
+    public func start(sampleSink: DictationAudioSampleSink?) async throws {
+        var didClaimSampleSink = false
+        defer {
+            if !didClaimSampleSink {
+                sampleSink?.onFinish()
+            }
+        }
+
         guard !recording, !starting else { return }
         starting = true
         startCallGeneration += 1
@@ -411,6 +423,11 @@ public actor AudioRecorder {
         do {
             if !preRollSamples.isEmpty {
                 try writePreRollSamples(preRollSamples, to: file, format: outputFormat)
+                // Mirror the pre-roll into the live STT stream so live text
+                // covers the same leading audio as the WAV. If the pre-roll
+                // is later discarded (media playing, issue #474), the
+                // dictation service degrades the live session instead.
+                sampleSink?.onSamples(preRollSamples)
             }
         } catch {
             try? FileManager.default.removeItem(at: url)
@@ -516,6 +533,13 @@ public actor AudioRecorder {
                     try fileBox.file.write(from: convertedBuffer)
                     self.sampleCounter.withLock { $0 += convertedFrameLength }
                     self.runtimeMetrics.withLock { $0.outputBufferCount += 1 }
+                    if let sampleSink,
+                       convertedFrameLength > 0,
+                       let samples = convertedBuffer.floatChannelData?[0] {
+                        sampleSink.onSamples(
+                            Array(UnsafeBufferPointer(start: samples, count: convertedFrameLength))
+                        )
+                    }
                 } catch {
                     let alreadyLogged = self.tapErrorLogged.withLock { logged in
                         let was = logged; logged = true; return was
@@ -617,6 +641,8 @@ public actor AudioRecorder {
         self.outputURL = url
         self.recording = true
         self.sharedSubscriberToken = token
+        self.liveSampleSink = sampleSink
+        didClaimSampleSink = true
 
         let liveFormat = sharedStream.inputFormat
         let liveSampleRate = liveFormat?.sampleRate ?? 0
@@ -688,6 +714,8 @@ public actor AudioRecorder {
         }
         audioFile = nil
         recording = false
+        let sampleSink = liveSampleSink
+        liveSampleSink = nil
         atomicAudioLevel.withLock { $0 = 0.0 }
         preRollCaptureGeneration.withLock { $0 += 1 }
         preRollConverterCache.reset()
@@ -736,6 +764,7 @@ public actor AudioRecorder {
             )
             throw AudioProcessorError.insufficientSamples
         }
+        sampleSink?.onFinish()
 
         if discardFrames > 0 {
             // Releasing the subscriber drops the tap's retain on the writer

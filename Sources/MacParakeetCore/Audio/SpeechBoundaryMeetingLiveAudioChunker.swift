@@ -15,7 +15,7 @@ struct MeetingLiveChunkingDiagnostics: Sendable {
 
 /// Live-preview chunker that cuts at VAD speech boundaries instead of fixed
 /// 5-second windows. See
-/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md`.
+/// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md`.
 ///
 /// **Contiguous sample accounting.** Chunks tile the recording with no gaps in
 /// the audio they emit, so `lastEmittedSample` always equals the absolute

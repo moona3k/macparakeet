@@ -11,6 +11,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterEnabledForDictation: Bool { get }
+    var aiFormatterEnabledForTranscriptions: Bool { get }
     var aiFormatterPrompt: String { get }
     var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
@@ -190,6 +191,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
+    public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
     /// Master switch for the built-in smart-default formatter prompts
     /// (default on). Off means the resolution chain skips the smart-default
@@ -262,6 +264,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// to `false`; the dictation gate is the logical AND of both flags.
     public var aiFormatterEnabledForDictation: Bool {
         defaults.object(forKey: Self.aiFormatterEnabledForDictationKey) as? Bool ?? false
+    }
+
+    /// Whether the AI Formatter runs on file/meeting transcripts. Defaults to
+    /// `true` to preserve the pre-#493 behavior where transcripts followed the
+    /// saved provider config alone; the transcription gate is the logical AND
+    /// of `aiFormatterEnabled` and this flag.
+    public var aiFormatterEnabledForTranscriptions: Bool {
+        defaults.object(forKey: Self.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? true
     }
 
     public var aiFormatterPrompt: String {

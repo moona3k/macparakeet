@@ -38,7 +38,7 @@ public enum AppFeatures {
     public static let transformsEnabled: Bool = true
 
     /// VAD-guided meeting live chunking
-    /// (`plans/active/2026-05-meeting-vad-guided-live-chunking.md`). When
+    /// (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md`). When
     /// `false`, meeting live-preview chunks use the fixed 5s / 1s-overlap
     /// `AudioChunker` path. When `true`, launch-time prep tries to cache the
     /// Silero VAD model, and cached-model Parakeet sessions cut live-preview

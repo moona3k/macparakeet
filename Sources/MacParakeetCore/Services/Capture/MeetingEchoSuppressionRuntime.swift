@@ -16,9 +16,11 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
     public static let modelSHA256EnvironmentKey = "MACPARAKEET_MEETING_ECHO_MODEL_SHA256"
     public static let frameSizeEnvironmentKey = "MACPARAKEET_MEETING_ECHO_FRAME_SIZE"
     public static let sampleRateEnvironmentKey = "MACPARAKEET_MEETING_ECHO_SAMPLE_RATE"
+    public static let referenceDelayMsEnvironmentKey = "MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS"
 
     public static let defaultSampleRate = 16_000
     public static let defaultFrameSize = 256
+    public static let defaultReferenceDelayMs = 0
 
     public var mode: MeetingEchoSuppressionMode
     public var libraryURL: URL?
@@ -26,6 +28,10 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
     public var modelSHA256: String?
     public var sampleRate: Int
     public var frameSize: Int
+    /// How far behind the microphone the system-audio reference is read, in
+    /// milliseconds, approximating the output + acoustic + input echo-path
+    /// latency. 0 reads the reference at the microphone's own position.
+    public var referenceDelayMs: Int
 
     public init(
         mode: MeetingEchoSuppressionMode = .automatic,
@@ -33,7 +39,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
         modelURL: URL? = nil,
         modelSHA256: String? = nil,
         sampleRate: Int = Self.defaultSampleRate,
-        frameSize: Int = Self.defaultFrameSize
+        frameSize: Int = Self.defaultFrameSize,
+        referenceDelayMs: Int = Self.defaultReferenceDelayMs
     ) {
         self.mode = mode
         self.libraryURL = libraryURL
@@ -41,6 +48,7 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
         self.modelSHA256 = modelSHA256
         self.sampleRate = max(1, sampleRate)
         self.frameSize = max(1, frameSize)
+        self.referenceDelayMs = max(0, referenceDelayMs)
     }
 
     public static func fromEnvironment(
@@ -61,6 +69,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
             .flatMap(Self.integerValue(from:)) ?? defaultSampleRate
         let frameSize = environment[frameSizeEnvironmentKey]
             .flatMap(Self.integerValue(from:)) ?? defaultFrameSize
+        let referenceDelayMs = environment[referenceDelayMsEnvironmentKey]
+            .flatMap(Self.integerValue(from:)) ?? defaultReferenceDelayMs
 
         return MeetingEchoSuppressionConfiguration(
             mode: mode,
@@ -68,7 +78,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
             modelURL: modelURL,
             modelSHA256: modelSHA256,
             sampleRate: sampleRate,
-            frameSize: frameSize
+            frameSize: frameSize,
+            referenceDelayMs: referenceDelayMs
         )
     }
 
@@ -232,7 +243,13 @@ enum MeetingEchoSuppressionFactory {
                 sampleRate: configuration.sampleRate,
                 frameSize: configuration.frameSize
             )
-            return StreamingMeetingEchoSuppressor(processor: processor)
+            // The processor may report its own sample rate, so the ms→samples
+            // conversion happens here rather than in the configuration.
+            let referenceDelaySamples = configuration.referenceDelayMs * processor.sampleRate / 1_000
+            return StreamingMeetingEchoSuppressor(
+                processor: processor,
+                referenceDelaySamples: referenceDelaySamples
+            )
         } catch {
             return unavailableDynamicConditioner(reason: "load_failed", error: error)
         }

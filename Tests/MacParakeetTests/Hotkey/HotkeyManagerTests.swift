@@ -359,6 +359,27 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertTrue(secondDown.shouldSwallow)
     }
 
+    func testControlFunctionKeyChordToleratesPhantomFnFlagBit() {
+        // Characterization: chord matching is superset-based, so a clean
+        // ⌃F19 trigger fires whether or not the event carries the phantom
+        // NX_SECONDARYFNMASK bit macOS sets on hardware F-key presses.
+        // The recorder relies on this to store F-key chords without "fn".
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+
+        for phantomFn in [CGEventFlags.maskSecondaryFn.rawValue, 0] {
+            let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+            let keyDown = manager.chordEventDecisionForTesting(
+                type: .keyDown,
+                keyCode: 80,
+                flags: trigger.chordEventFlags | phantomFn,
+                timestampMs: 1_000
+            )
+            XCTAssertEqual(keyDown.outputs, [.startRecording(mode: .persistent)])
+            XCTAssertTrue(keyDown.shouldSwallow)
+        }
+    }
+
     func testDefaultFnSpaceChordCancelsPendingPushToTalkBeforeHandsFreeStarts() {
         let pushToTalk = HotkeyManager(
             trigger: .defaultPushToTalk,

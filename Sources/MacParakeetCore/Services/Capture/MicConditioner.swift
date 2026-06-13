@@ -40,12 +40,19 @@ protocol MeetingEchoSuppressing: AnyObject, Sendable {
 protocol MicConditioning: AnyObject, Sendable {
     var diagnostics: MeetingEchoSuppressionDiagnostics { get }
     func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float]
+    /// Drain any microphone samples held back by internal framing, raw.
+    /// Stateless conditioners hold nothing and return `[]` (the default).
+    func flush() -> [Float]
     func reset()
 }
 
 extension MicConditioning {
     func condition(microphone: [Float], speaker: [Float]) -> [Float] {
         condition(microphone: microphone, speaker: speaker, hasSpeakerReference: !speaker.isEmpty)
+    }
+
+    func flush() -> [Float] {
+        []
     }
 }
 
@@ -87,10 +94,31 @@ final class PassthroughMicConditioner: MicConditioning, @unchecked Sendable {
     }
 }
 
+/// Streams microphone batches through a frame-based echo processor.
+///
+/// Incoming batches rarely align with the processor's hop size, so samples
+/// that do not yet fill a frame are carried across `condition` calls instead
+/// of leaking through raw — the processor's streaming state requires
+/// contiguous frames. Reference (speaker) samples are appended in lockstep
+/// with microphone samples and retained `referenceDelaySamples` longer, so a
+/// frame at stream position `p` is cancelled against reference audio from
+/// `p - referenceDelaySamples` (the echo path is causal: speaker audio leaks
+/// into the mic only after output + acoustic + input latency).
 final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable {
     private let processor: any MeetingEchoSuppressing
+    private let referenceDelaySamples: Int
     private let lock = NSLock()
     private var diagnosticsStorage: MeetingEchoSuppressionDiagnostics
+
+    // `pendingMicrophone[0]` sits at absolute stream position
+    // `microphonePosition`; `referenceHistory[0]` at `referencePosition`.
+    // Invariant: referencePosition + referenceHistory.count ==
+    // microphonePosition + pendingMicrophone.count.
+    private var pendingMicrophone: [Float] = []
+    private var referenceHistory: [Float] = []
+    private var referenceValidity: [Bool] = []
+    private var microphonePosition = 0
+    private var referencePosition = 0
 
     var diagnostics: MeetingEchoSuppressionDiagnostics {
         lock.lock()
@@ -98,8 +126,9 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         return diagnosticsStorage
     }
 
-    init(processor: any MeetingEchoSuppressing) {
+    init(processor: any MeetingEchoSuppressing, referenceDelaySamples: Int = 0) {
         self.processor = processor
+        self.referenceDelaySamples = max(0, referenceDelaySamples)
         self.diagnosticsStorage = MeetingEchoSuppressionDiagnostics(
             processorName: processor.name,
             loaded: true,
@@ -116,23 +145,76 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
     func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
         guard !microphone.isEmpty else { return [] }
 
+        lock.lock()
+        defer { lock.unlock() }
+
+        pendingMicrophone.append(contentsOf: microphone)
+        for index in 0..<microphone.count {
+            let hasSample = hasSpeakerReference && index < speaker.count
+            referenceHistory.append(hasSample ? speaker[index] : 0)
+            referenceValidity.append(hasSample)
+        }
+
+        return drainProcessableFramesLocked()
+    }
+
+    func flush() -> [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !pendingMicrophone.isEmpty else { return [] }
+        let tail = pendingMicrophone
+        diagnosticsStorage.rawFallbackFrames += 1
+        advanceConsumedLocked(by: tail.count)
+        return tail
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        processor.reset()
+        pendingMicrophone.removeAll()
+        referenceHistory.removeAll()
+        referenceValidity.removeAll()
+        microphonePosition = 0
+        referencePosition = 0
+        diagnosticsStorage = MeetingEchoSuppressionDiagnostics(
+            processorName: processor.name,
+            loaded: true,
+            micFrames: 0,
+            processedFrames: 0,
+            rawFallbackFrames: 0,
+            fullReferenceFrames: 0,
+            partialReferenceFrames: 0,
+            missingReferenceFrames: 0,
+            processingFailures: 0
+        )
+    }
+
+    private enum ReferenceQuality {
+        case full
+        case partial
+        case missing
+    }
+
+    private func drainProcessableFramesLocked() -> [Float] {
         let frameSize = max(processor.frameSize, 1)
+        guard pendingMicrophone.count >= frameSize else { return [] }
+
         var output: [Float] = []
-        output.reserveCapacity(microphone.count)
+        output.reserveCapacity(pendingMicrophone.count)
         var micFrame = [Float](repeating: 0, count: frameSize)
         var referenceFrame = [Float](repeating: 0, count: frameSize)
         var processedFrame = [Float](repeating: 0, count: frameSize)
+        var consumed = 0
 
-        lock.lock()
-        defer { lock.unlock() }
-        var cursor = 0
-        while cursor + frameSize <= microphone.count {
-            copyFrame(from: microphone, start: cursor, into: &micFrame)
-            let referenceQuality = fillReferenceFrame(
+        while consumed + frameSize <= pendingMicrophone.count {
+            for offset in 0..<frameSize {
+                micFrame[offset] = pendingMicrophone[consumed + offset]
+            }
+            let referenceQuality = fillReferenceFrameLocked(
                 &referenceFrame,
-                speaker: speaker,
-                start: cursor,
-                hasSpeakerReference: hasSpeakerReference
+                frameStartPosition: microphonePosition + consumed
             )
 
             diagnosticsStorage.micFrames += 1
@@ -165,79 +247,44 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
                 diagnosticsStorage.processingFailures += 1
             }
 
-            cursor += frameSize
+            consumed += frameSize
         }
 
-        if cursor < microphone.count {
-            output.append(contentsOf: microphone[cursor...])
-            diagnosticsStorage.rawFallbackFrames += 1
-        }
-
+        advanceConsumedLocked(by: consumed)
         return output
     }
 
-    func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        processor.reset()
-        diagnosticsStorage = MeetingEchoSuppressionDiagnostics(
-            processorName: processor.name,
-            loaded: true,
-            micFrames: 0,
-            processedFrames: 0,
-            rawFallbackFrames: 0,
-            fullReferenceFrames: 0,
-            partialReferenceFrames: 0,
-            missingReferenceFrames: 0,
-            processingFailures: 0
-        )
-    }
-
-    private enum ReferenceQuality {
-        case full
-        case partial
-        case missing
-    }
-
-    private func copyFrame(
-        from samples: [Float],
-        start: Int,
-        into frame: inout [Float]
-    ) {
-        for offset in frame.indices {
-            frame[offset] = samples[start + offset]
-        }
-    }
-
-    private func fillReferenceFrame(
+    private func fillReferenceFrameLocked(
         _ frame: inout [Float],
-        speaker: [Float],
-        start: Int,
-        hasSpeakerReference: Bool
+        frameStartPosition: Int
     ) -> ReferenceQuality {
-        for index in frame.indices {
-            frame[index] = 0
-        }
-
-        guard hasSpeakerReference, !speaker.isEmpty, start < speaker.count else {
-            return .missing
-        }
-
-        if start + frame.count <= speaker.count {
-            for offset in frame.indices {
-                frame[offset] = speaker[start + offset]
+        var validCount = 0
+        for offset in frame.indices {
+            let absolute = frameStartPosition + offset - referenceDelaySamples
+            let index = absolute - referencePosition
+            if index >= 0, index < referenceHistory.count, referenceValidity[index] {
+                frame[offset] = referenceHistory[index]
+                validCount += 1
+            } else {
+                frame[offset] = 0
             }
-            return .full
         }
 
-        let available = speaker.count - start
-        guard available > 0 else {
-            return .missing
-        }
+        if validCount == frame.count { return .full }
+        return validCount == 0 ? .missing : .partial
+    }
 
-        for offset in 0..<available {
-            frame[offset] = speaker[start + offset]
+    private func advanceConsumedLocked(by consumed: Int) {
+        guard consumed > 0 else { return }
+        pendingMicrophone.removeFirst(consumed)
+        microphonePosition += consumed
+
+        let keepFrom = microphonePosition - referenceDelaySamples
+        let dropCount = min(max(0, keepFrom - referencePosition), referenceHistory.count)
+        if dropCount > 0 {
+            referenceHistory.removeFirst(dropCount)
+            referenceValidity.removeFirst(dropCount)
+            referencePosition += dropCount
         }
-        return .partial
     }
 }

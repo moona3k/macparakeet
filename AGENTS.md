@@ -13,27 +13,16 @@ transcription, and meeting recording, plus productized Transforms
 for selected-text rewrites. Parakeet TDT 0.6B via FluidAudio CoreML on the
 Apple Neural Engine is the default STT family: multilingual v3 is the default,
 and English-only v2 is an opt-in Parakeet model for users who want the fastest
-English path without v3 auto-detect. WhisperKit is also available as an optional
-local multilingual engine for languages Parakeet does not cover.
+English path without v3 auto-detect. Two optional local engines extend
+coverage: Nemotron 3.5 (Beta), a fast multilingual FluidAudio streaming
+engine, and WhisperKit for languages Parakeet does not cover.
 
-**Release status:** v0.6 ships system-wide dictation, file/URL transcription
-including local-file batches, meeting recording, Parakeet v3/v2 model
-selection, optional WhisperKit multilingual STT, and productized Transforms
-(shipping to stable since v0.6.7). Calendar reminders and auto-start are
-enabled (`AppFeatures.calendarEnabled = true`, shipping since v0.6.10);
-calendar auto-start defaults to mode `.off`, so it is strictly opt-in. Calendar-
-driven auto-stop was removed (ADR-017 amendment) — recordings stop manually.
-VAD-guided meeting live-preview chunking is enabled
-(`AppFeatures.meetingVadLiveChunkingEnabled = true`, shipping since v0.6.14):
-launch-time prep fetches the Silero VAD model in the background, Parakeet
-meetings cut live-preview chunks at speech boundaries when the model is cached,
-and missing/erroring VAD falls back to the fixed 5s / 1s-overlap chunker without
-affecting the final post-stop transcript. `main` currently carries one feature
-flag ahead of the latest release tag: `AppFeatures.aiFormatterProfilesEnabled =
-true` (app-aware AI Formatter profiles with readable/toggleable smart defaults,
-enabled 2026-06-10 ahead of the next release). All other `AppFeatures` flags
-match the shipping build, and `main` otherwise differs only by untagged
-in-progress fixes.
+**Release status:** The notarized Stable DMG is the user-facing release
+channel; `main` is development. The canonical channel framing — including
+which `AppFeatures` flags differ between `main` and the latest release tag —
+lives in one place: [`CLAUDE.md`](./CLAUDE.md) → "Release Channels". Check
+there before describing release status anywhere; don't restate it in other
+docs.
 
 Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
 
@@ -54,6 +43,9 @@ swift build
 # Run the test suite (Swift 6 language mode)
 swift test
 
+# Focused run of one test class while iterating (full suite before merge)
+swift test --filter TextProcessingPipelineTests
+
 # Build, codesign, and launch the dev app
 scripts/dev/run_app.sh
 
@@ -65,6 +57,21 @@ swift run macparakeet-cli health
 The full test suite is deterministic and normally finishes in roughly one to
 two minutes depending on SwiftPM cache state. Run `swift test` before declaring
 code-change work complete.
+
+## Git & Worktrees
+
+This repo runs many parallel worktrees. Two rules that save real time:
+
+- **Base new branches/worktrees on `origin/main`, not local `main`** — the
+  local `main` ref is often stale here. `git fetch origin` first, then
+  `git worktree add -b my-branch ../macparakeet-worktrees/my-branch origin/main`.
+- **Build from the worktree the branch is checked out in.** Xcode/SwiftPM
+  state under `.swiftpm/` pins source paths to the worktree that created it,
+  so `xcodebuild` invoked from another checkout can silently compile the
+  wrong tree. `swift build` / `swift test` from inside the worktree are
+  always safe.
+
+More git/CI gotchas (flaky-test policy, line-ending rules): [`CLAUDE.md`](./CLAUDE.md) → "Known Pitfalls".
 
 ## Code Style
 
@@ -135,8 +142,9 @@ READMEs today: `Audio/`, `STT/`, `TextProcessing/`, `Database/`,
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet CoreML STT models (~465 MB per build) | FluidAudio default cache |
+| Parakeet / Nemotron CoreML STT models (~465 MB per Parakeet build, ~1.5 GB Nemotron) | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron: `nemotron-multilingual/`) |
 | WhisperKit STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
+| yt-dlp / FFmpeg helper binaries | `~/Library/Application Support/MacParakeet/bin/` |
 | Settings | `~/Library/Preferences/com.macparakeet.plist` |
 | Logs | `~/Library/Logs/MacParakeet/` |
 

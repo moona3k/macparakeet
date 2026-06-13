@@ -13,6 +13,27 @@ public enum KeyCodeNames {
         return (fallback, fallback)
     }
 
+    /// Key codes for which macOS sets the `.function` NSEvent modifier flag /
+    /// `NX_SECONDARYFNMASK` on the key's own events even when the physical
+    /// Fn/globe key is not held: F1–F20, arrows, and the navigation cluster.
+    /// Used to distinguish a genuinely held Fn modifier from this phantom bit.
+    public static func isFunctionFamilyKeyCode(_ keyCode: UInt16) -> Bool {
+        functionFamilyKeyCodes.contains(keyCode)
+    }
+
+    private static let functionFamilyKeyCodes: Set<UInt16> = [
+        // F1–F20 (matches the function-key rows of `table` below)
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,
+        105, 107, 113, 106, 64, 79, 80, 90,
+        // Arrows
+        123, 124, 125, 126,
+        // Navigation: Home, Page Up, Forward Delete, End, Page Down
+        115, 116, 117, 119, 121,
+        // Help/Insert — sets the function flag too; intentionally absent from
+        // the display-name table (falls back to "Key 114").
+        114,
+    ]
+
     // MARK: - Lookup Table
 
     private static let table: [UInt16: (displayName: String, shortSymbol: String)] = [

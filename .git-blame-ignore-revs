@@ -1,0 +1,10 @@
+# Commits to skip in git blame (mechanical, repo-wide changes).
+# Activate locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honors this file automatically.
+
+# 2026-06-11 line-ending renormalization on a side branch (CRLF/mixed -> LF, 96 files)
+4570d7b6b790223a4c9ad91caee8880ffcd288f6
+
+# 2026-06-13 line-ending renormalization applied to main (CRLF -> LF, 63 .swift files)
+f858bc873825d090480fe0ca94c2356777ea0f2f

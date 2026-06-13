@@ -1,11 +1,28 @@
 import Foundation
 
+public struct DictationAudioSampleSink: Sendable {
+    public let onSamples: @Sendable ([Float]) -> Void
+    public let onFinish: @Sendable () -> Void
+
+    public init(
+        onSamples: @escaping @Sendable ([Float]) -> Void,
+        onFinish: @escaping @Sendable () -> Void
+    ) {
+        self.onSamples = onSamples
+        self.onFinish = onFinish
+    }
+}
+
 public protocol AudioProcessorProtocol: Sendable {
     /// Convert an audio/video file to 16kHz mono WAV for STT processing
     func convert(fileURL: URL) async throws -> URL
 
     /// Start microphone capture
     func startCapture() async throws
+
+    /// Start microphone capture and mirror converted 16 kHz mono Float32
+    /// samples to `sampleSink` for engines that can consume live audio.
+    func startCapture(sampleSink: DictationAudioSampleSink?) async throws
 
     /// Stop microphone capture and return the path to the recorded WAV file
     func stopCapture() async throws -> URL
@@ -27,6 +44,10 @@ public protocol AudioProcessorProtocol: Sendable {
 }
 
 public extension AudioProcessorProtocol {
+    func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
+        try await startCapture()
+    }
+
     /// Capture-only implementations (file converters, test doubles) have no
     /// pre-roll; discarding is a no-op unless a conformer opts in.
     func discardPreRollForActiveCapture() async {}

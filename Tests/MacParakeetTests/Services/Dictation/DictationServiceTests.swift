@@ -287,6 +287,231 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "ko")
     }
 
+    func testStopRecordingUsesLiveNemotronResultWhenAvailable() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(
+            text: "live final",
+            words: [],
+            language: "en",
+            engine: .nemotron,
+            engineVariant: NemotronModelVariant.multilingual1120.rawValue
+        ))
+
+        try await service.startRecording()
+        await mockSTT.emitLivePartial(" live partial ")
+        let partialApplied = await waitForCondition { [service] in
+            await service?.liveTranscript == "live partial"
+        }
+        XCTAssertTrue(partialApplied, "Expected live partial to reach liveTranscript")
+
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "live final")
+        XCTAssertEqual(result.dictation.engine, "nemotron")
+        XCTAssertEqual(result.dictation.engineVariant, NemotronModelVariant.multilingual1120.rawValue)
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        XCTAssertEqual(transcribeCallCount, 0)
+        XCTAssertEqual(liveAppendCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 1)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileWhenLiveNemotronFails() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(appendError: STTError.transcriptionFailed("live failed"))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveAppendCallCount, 1)
+        XCTAssertEqual(liveCancelCallCount, 1)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileWhenLiveBeginFails() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(beginError: STTError.engineBusy)
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveBeginCallCount = await mockSTT.liveBeginCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveBeginCallCount, 1)
+        XCTAssertEqual(liveAppendCallCount, 0)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileWhenLiveFinishFails() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(finishError: STTError.transcriptionFailed("finish failed"))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 1)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileWhenLiveFinalIsEmpty() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(text: "  \n", words: [], engine: .nemotron))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 1)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileWhenLiveSamplesAreDropped() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(
+            text: "live final",
+            words: [],
+            engine: .nemotron
+        ))
+        await mockSTT.holdLiveAppends()
+
+        try await service.startRecording()
+        // The live sample stream buffers at most 120 chunks while the
+        // consumer is held inside the first append; everything beyond the
+        // buffer reports `.dropped`, which must disqualify the live result.
+        for _ in 0..<130 {
+            await mockAudio.emitLiveSamples([0.1])
+        }
+        await mockSTT.releaseLiveAppends()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 0)
+        XCTAssertEqual(liveCancelCallCount, 1)
+    }
+
+    func testStopRecordingFallsBackToRecordedFileAfterPreRollDiscard() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(
+            text: "live final",
+            words: [],
+            engine: .nemotron
+        ))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        let discardCallCount = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 0)
+        XCTAssertEqual(liveCancelCallCount, 1)
+        XCTAssertEqual(discardCallCount, 1)
+    }
+
+    func testStopRecordingCancelsLiveSessionWhenCaptureIsTooShort() async throws {
+        let shortCaptureAudio = StopFailingLiveAudioProcessor(error: AudioProcessorError.insufficientSamples)
+        service = DictationService(
+            audioProcessor: shortCaptureAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(
+            text: "live final",
+            words: [],
+            engine: .nemotron
+        ))
+
+        try await service.startRecording()
+        await shortCaptureAudio.emitLiveSamples([0.1, 0.2])
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected stopRecording to throw insufficientSamples")
+        } catch let error as AudioProcessorError {
+            if case .insufficientSamples = error {} else {
+                XCTFail("Expected insufficientSamples, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        XCTAssertEqual(transcribeCallCount, 0)
+        XCTAssertEqual(liveFinishCallCount, 0)
+        XCTAssertEqual(liveCancelCallCount, 1)
+    }
+
     func testStopRecordingUsesLatestAppCategoryForTelemetry() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)
@@ -294,7 +519,7 @@ final class DictationServiceTests: XCTestCase {
 
         try await service.startRecording(
             context: DictationTelemetryContext(
-                trigger: .hotkey,
+                trigger: .menuBar,
                 mode: .hold,
                 appCategory: .browser
             )
@@ -309,7 +534,11 @@ final class DictationServiceTests: XCTestCase {
         })
         XCTAssertEqual(completed.props?["app_category"], "email")
 
-        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        let operation = try XCTUnwrap(successfulDictationOperation(
+            in: events,
+            trigger: .menuBar,
+            mode: .hold
+        ))
         XCTAssertEqual(operation["app_category"], "email")
     }
 
@@ -320,7 +549,7 @@ final class DictationServiceTests: XCTestCase {
 
         try await service.startRecording(
             context: DictationTelemetryContext(
-                trigger: .hotkey,
+                trigger: .menuBar,
                 mode: .hold,
                 appCategory: .browser
             )
@@ -335,7 +564,11 @@ final class DictationServiceTests: XCTestCase {
         })
         XCTAssertEqual(completed.props?["app_category"], "other")
 
-        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        let operation = try XCTUnwrap(successfulDictationOperation(
+            in: events,
+            trigger: .menuBar,
+            mode: .hold
+        ))
         XCTAssertEqual(operation["app_category"], "other")
     }
 
@@ -780,6 +1013,31 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    private func successfulDictationOperation(
+        in events: [TelemetryEventSpec],
+        trigger: TelemetryDictationTrigger,
+        mode: TelemetryDictationMode
+    ) -> [String: String]? {
+        dictationOperationProps(in: events).last { props in
+            props["outcome"] == ObservabilityOutcome.success.rawValue
+                && props["trigger"] == trigger.rawValue
+                && props["mode"] == mode.rawValue
+        }
+    }
+
+    private func waitForCondition(
+        timeout: Duration = .seconds(2),
+        _ condition: @escaping @Sendable () async -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while clock.now < deadline {
+            if await condition() { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return await condition()
+    }
+
     private func allTelemetryProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
         events.compactMap(\.props)
     }
@@ -896,6 +1154,43 @@ private actor StartInterruptedAudioProcessor: AudioProcessorProtocol {
         await withCheckedContinuation { continuation in
             startWaiters.append(continuation)
         }
+    }
+}
+
+private actor StopFailingLiveAudioProcessor: AudioProcessorProtocol {
+    private let error: Error
+    private var liveSampleSink: DictationAudioSampleSink?
+    private var recording = false
+
+    init(error: Error) {
+        self.error = error
+    }
+
+    var audioLevel: Float { 0 }
+    var isRecording: Bool { recording }
+    var recordingDeviceInfo: RecordingDeviceInfo? { nil }
+
+    func convert(fileURL: URL) async throws -> URL {
+        fileURL
+    }
+
+    func startCapture() async throws {
+        try await startCapture(sampleSink: nil)
+    }
+
+    func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
+        liveSampleSink = sampleSink
+        recording = true
+    }
+
+    func stopCapture() async throws -> URL {
+        recording = false
+        liveSampleSink = nil
+        throw error
+    }
+
+    func emitLiveSamples(_ samples: [Float]) {
+        liveSampleSink?.onSamples(samples)
     }
 }
 

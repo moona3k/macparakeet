@@ -13,7 +13,7 @@
 
 Local speech-to-text, transcription, and prompt automation for a Hermes Agent
 running on Apple Silicon. Wraps `macparakeet-cli` so a Hermes skill can call
-the local Parakeet TDT pipeline without any cloud STT dependency, inspect
+MacParakeet's local speech engines without any cloud STT dependency, inspect
 meeting artifacts, and store externally generated meeting results.
 
 ## Install
@@ -26,8 +26,9 @@ macparakeet-cli health --json
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
 `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
-Parakeet's CoreML cache is managed by FluidAudio. WhisperKit model downloads
-live under `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+Parakeet and Nemotron CoreML caches are managed by FluidAudio. WhisperKit model
+downloads live under
+`~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 ## Suggested skill bindings (sketch)
 
@@ -35,10 +36,12 @@ live under `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 # Illustrative -- adapt to your Hermes skill manifest format.
 name: macparakeet
 description: Local speech-to-text, transcription, and prompt automation
-             on Apple Silicon. Powered by Parakeet TDT on the Neural Engine.
+             on Apple Silicon. Powered by local Parakeet/Nemotron/Whisper
+             speech engines.
 when_to_use:
   - User wants to transcribe a local audio/video file.
   - User wants to transcribe a media URL.
+  - User wants to transcribe a podcast link or podcast search.
   - User asks "what was said in <past meeting / dictation>?"
   - User asks for action items / summary from a recorded transcript.
 commands:
@@ -46,6 +49,7 @@ commands:
   health: macparakeet-cli health --json
   transcribe_file: macparakeet-cli transcribe "{path}" --format json
   transcribe_media_url: macparakeet-cli transcribe "{url}" --format json
+  transcribe_podcast_search: macparakeet-cli transcribe --podcast "{query}" --format json
   transcribe_app_defaults: |
     macparakeet-cli transcribe "{path}" \
       --engine app-default \
@@ -57,6 +61,7 @@ commands:
       --format json
   list_models: macparakeet-cli models list --json
   set_parakeet_model: macparakeet-cli config set parakeet-model "{v3_or_v2}" --json
+  set_speech_engine: macparakeet-cli config set speech-engine "{parakeet_nemotron_or_whisper}" --json
   set_speaker_detection: macparakeet-cli config set speaker-detection "{value}" --json
   list_transcriptions: macparakeet-cli history transcriptions --json
   search_transcriptions: macparakeet-cli history search-transcriptions "{query}" --json

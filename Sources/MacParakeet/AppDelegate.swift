@@ -527,7 +527,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await sttRuntime.backgroundWarmUp()
 
             // Universal VAD model availability (Phase 4.5,
-            // plans/active/2026-05-meeting-vad-guided-live-chunking.md §6).
+            // plans/completed/2026-05-meeting-vad-guided-live-chunking.md §6).
             // Runs every launch for every user so flipping the live-chunking
             // flag reaches the installed base, not just fresh installs. Kept
             // independent of the speech warm-up above: idempotent, silent-fail,

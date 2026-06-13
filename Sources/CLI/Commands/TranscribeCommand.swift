@@ -60,7 +60,7 @@ struct ResolvedSpeakerDetection: Equatable, Sendable {
 struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
-        abstract: "Transcribe an audio/video file or media URL.",
+        abstract: "Transcribe files, folders, Apple Podcasts, podcast searches, or media URLs.",
         discussion: """
         Telemetry: the root CLI runner emits one privacy-safe `cli_operation` \
         event per invocation; `transcribe` adds allowlisted input/output metadata \

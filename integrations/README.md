@@ -14,16 +14,18 @@ testing.
 
 ### In scope
 
-- **Local transcription** -- audio, video, and YouTube to text, with engine
-  selection (Parakeet / Whisper) and per-invocation language hints.
+- **Local transcription** -- audio/video files, folders, public media URLs,
+  Apple Podcasts links/searches, and YouTube to text, with engine selection
+  (Parakeet / Nemotron / Whisper) and per-invocation language hints.
 - **Scriptable shared defaults** -- `config get|set|list` over the same
   preference suite the GUI reads (`com.macparakeet.MacParakeet`). CLI-only
   installs work; a later GUI install picks up the same values.
 - **Stable JSON / read surfaces** -- every read-only command emits JSON with
   schemas pinned to the major CLI version. Failure envelopes carry a stable
   `errorType` so agents can branch deterministically.
-- **Model and binary health** -- `health` probes Parakeet / Whisper model
-  readiness, database accessibility, FFmpeg, and yt-dlp without mutating state.
+- **Model and binary health** -- `health --json` probes Parakeet / Nemotron /
+  Whisper model readiness, database accessibility, FFmpeg, and yt-dlp without
+  mutating state. Repair flags explicitly warm/download local caches.
 - **Persisted history** -- list, search, and inspect prior dictations and
   transcriptions via the shared SQLite database.
 - **Prompt and meeting inspection** -- list and run prompt library entries
@@ -39,7 +41,8 @@ testing.
   hotkey, and the dictation overlay are GUI surfaces. The CLI does not record
   from the microphone.
 - **Live meeting UI** -- the Notes / Transcript / Ask three-tab live panel,
-  the floating meeting pill, and live recording controls are GUI-only. The CLI
+  the floating meeting pill, live recording controls, and in-flight
+  post-stop transcription abort/delete confirmation are GUI-only. The CLI
   inspects meeting artifacts after the fact.
 - **Onboarding, settings UI, library grids, sounds, overlays** -- none of these
   have automation analogues; they remain in the .app.
@@ -55,11 +58,13 @@ sitting at a keyboard, it lives in the .app.
   with ~2.5% WER, running on the Neural Engine. No cloud, no API keys, no
   per-minute charges.
 - **Audio + video file transcription** -- accepts MP3 / WAV / MP4 / MOV /
-  WebM / etc. via the bundled FFmpeg.
-- **Media URL transcription** via yt-dlp, including YouTube and other public
-  media URLs supported by yt-dlp. The standalone Homebrew install uses
-  Homebrew's `yt-dlp`; the app bundle can seed a signed helper into
-  MacParakeet's Application Support folder before first media URL use.
+  WebM / etc. via the bundled FFmpeg, with sequential folder/multi-file batch
+  output.
+- **Media URL transcription** via yt-dlp for public media URLs, plus native
+  Apple Podcasts link resolution and freetext Apple Podcasts search through
+  `transcribe --podcast`. The standalone Homebrew install uses Homebrew's
+  `yt-dlp`; the app bundle can seed a signed helper into MacParakeet's
+  Application Support folder before first media URL use.
 - **Persistent SQLite memory layer** -- everything transcribed is queryable
   later: dictation history, transcriptions, prompt outputs.
 - **Shared app/CLI preferences** -- agents can set speech engine, processing
@@ -155,17 +160,18 @@ macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history |
 ```
 
 `--no-history` avoids retaining the completed transcription in the shared
-MacParakeet history. For YouTube inputs, downloaded audio is temporary when
-`--no-history` is set.
+MacParakeet history. For media URL and podcast inputs, downloaded audio is
+temporary when `--no-history` is set.
 
 Parakeet is the default engine for compatibility with existing scripts. Use
 `--parakeet-model v2` or `config set parakeet-model v2` for the English-only
-Parakeet build. Use Whisper per invocation for Korean or other non-Parakeet
-languages:
+Parakeet build. Use Nemotron Beta or Whisper per invocation for multilingual
+coverage outside the default Parakeet lane:
 
-Whisper requires a local model download before first use:
+Nemotron and Whisper require local model downloads before first use:
 
 ```bash
+macparakeet-cli models download nemotron-multilingual-1120ms
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 ```
 
@@ -175,10 +181,12 @@ Agents can inspect and switch the shared default speech model:
 macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli models select parakeet-v2 --json
+macparakeet-cli models select nemotron-multilingual-1120ms --json
 macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 ```
 
 ```bash
+macparakeet-cli transcribe /path/to/spanish.mp3 --engine nemotron --language auto --format json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 ```
 
@@ -219,6 +227,7 @@ in-app change.
 ```bash
 macparakeet-cli config set speech-engine whisper
 macparakeet-cli config set parakeet-model v3
+macparakeet-cli config set nemotron-language auto
 macparakeet-cli config set whisper-language ko
 macparakeet-cli config set processing-mode raw
 macparakeet-cli config set speaker-detection off
@@ -234,6 +243,13 @@ resolves to Whisper.
 
 ```bash
 macparakeet-cli transcribe "https://www.facebook.com/reel/..." --format json
+```
+
+### Transcribe a podcast
+
+```bash
+macparakeet-cli transcribe "https://podcasts.apple.com/us/podcast/example/id123456789?i=987654321" --format json
+macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json
 ```
 
 ### Look up past transcriptions

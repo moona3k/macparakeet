@@ -46,7 +46,11 @@ public actor AudioProcessor: AudioProcessorProtocol {
     }
 
     public func startCapture() async throws {
-        try await recorder.start()
+        try await startCapture(sampleSink: nil)
+    }
+
+    public func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
+        try await recorder.start(sampleSink: sampleSink)
     }
 
     public func stopCapture() async throws -> URL {

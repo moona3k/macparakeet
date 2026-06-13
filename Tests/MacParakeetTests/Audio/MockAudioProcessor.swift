@@ -14,6 +14,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var convertCallCount = 0
     public var lastConvertURL: URL?
     public var convertURLs: [URL] = []
+    public var liveSampleSink: DictationAudioSampleSink?
 
     public init() {}
 
@@ -64,19 +65,33 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     }
 
     public func startCapture() async throws {
+        try await startCapture(sampleSink: nil)
+    }
+
+    public func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
         startCaptureCalled = true
         if startCaptureDelayMs > 0 {
             try await Task.sleep(for: .milliseconds(Int(startCaptureDelayMs)))
         }
-        if let error = captureError { throw error }
+        if let error = captureError {
+            sampleSink?.onFinish()
+            throw error
+        }
         _isRecording = true
+        liveSampleSink = sampleSink
     }
 
     public func stopCapture() async throws -> URL {
         stopCaptureCalled = true
         _isRecording = false
+        liveSampleSink?.onFinish()
+        liveSampleSink = nil
         if let error = captureError { throw error }
         return captureResult ?? URL(fileURLWithPath: "/tmp/recording.wav")
+    }
+
+    public func emitLiveSamples(_ samples: [Float]) {
+        liveSampleSink?.onSamples(samples)
     }
 
     public var discardPreRollCallCount = 0

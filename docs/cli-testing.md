@@ -24,10 +24,12 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 
 ```
 macparakeet-cli
-├── transcribe <input...> [options]      Transcribe files, folders, or media URLs
-│   ├── --format text|transcript|json [--no-history]
+├── transcribe <input...> [--podcast QUERY] [options]
+│                                         Transcribe files, folders, podcasts, or media URLs
+│   ├── --format text|transcript|json [--no-history] [--database PATH]
 │   └── --engine app-default|parakeet|nemotron|whisper [--language <code>]
 │       --parakeet-model app-default|v3|v2 [--output-dir DIR]
+│       --mode raw|clean|app-default --downloaded-audio app-default|keep|delete
 │       --speaker-detection app-default|on|off
 │       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
 │       --media-audio-quality app-default|m4a|best-available
@@ -47,7 +49,7 @@ macparakeet-cli
 │   ├── list
 │   ├── get <key>
 │   └── set <key> <value>
-├── health [--repair-models] [--repair-binaries] [--json]
+├── health [--repair-models] [--repair-attempts N] [--repair-binaries] [--json]
 │                                         System health and model/helper status
 ├── models                               Speech model lifecycle
 │   ├── list [--json]                    List selectable speech models
@@ -62,8 +64,11 @@ macparakeet-cli
 │   ├── process <text> [--copy]          Run clean text processing
 │   ├── words {list,add,delete}          Manage custom words
 │   │   └── list [--source manual|learned|all] [--json]
-│   └── snippets {list,add,delete}       Manage text snippets
-│       └── list [--json]
+│   ├── snippets {list,add,delete}       Manage text snippets
+│   │   └── list [--json]
+│   ├── export [--output path]           Export words/snippets as a JSON bundle
+│   ├── import [--input path] [--policy skip|replace] [--dry-run] [--json]
+│   └── schema [--json]                  Print the vocabulary bundle schema
 ├── llm                                  LLM provider commands
 │   ├── test-connection                  Test provider connectivity
 │   ├── summarize <input>                Summarize text via LLM
@@ -98,7 +103,8 @@ macparakeet-cli
 │   ├── show <meeting> [--json]
 │   ├── transcript <meeting> [--format text|json|srt|vtt]
 │   ├── notes {get,set,append,clear} <meeting>
-│   └── export <meeting> [--format md|json] [--stdout]
+│   ├── results {list,add} <meeting>     Inspect/store saved meeting PromptResults
+│   └── export <meeting> [--format md|json] [--output path] [--stdout]
 ├── calendar
 │   └── upcoming [--days N] [--filter link|participants|all] [--json]
 ├── meeting-vad-sim <audio> [--mode fixed|vad|both] [--json]
@@ -194,7 +200,7 @@ selecting or running it:
 swift run macparakeet-cli models download nemotron-multilingual-1120ms
 swift run macparakeet-cli models download nemotron-english-1120ms
 
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine nemotron \
   --language auto
 ```
@@ -205,7 +211,7 @@ downloading the local Whisper model:
 ```bash
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine whisper \
   --language ko
 ```
@@ -322,7 +328,7 @@ Nemotron and Whisper selection require the local model to be downloaded first.
 Use this only when exercising the same entitlement check path the GUI uses:
 
 ```bash
-swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --enforce-entitlements
 ```
 
@@ -405,7 +411,11 @@ media URL transcription works without a first-use helper download.
 
 ## Meetings
 
-Meeting commands operate on `sourceType = meeting` transcriptions. `<meeting>` accepts a UUID, UUID prefix, or exact title.
+Meeting commands operate on persisted `sourceType = meeting` transcriptions.
+`<meeting>` accepts a UUID, UUID prefix, or exact title. The CLI inspects and
+edits saved meeting artifacts after recording; live recording controls and
+post-stop in-flight transcription abort/delete confirmations are GUI surfaces on
+the Transcribe tile and floating pill.
 
 ```bash
 swift run macparakeet-cli meetings list --limit 10
@@ -415,6 +425,10 @@ swift run macparakeet-cli meetings transcript <meeting> --format srt
 swift run macparakeet-cli meetings notes get <meeting>
 swift run macparakeet-cli meetings notes append <meeting> --text "**Action:** follow up"
 cat notes.md | swift run macparakeet-cli meetings notes set <meeting> --stdin --json
+
+swift run macparakeet-cli meetings results list <meeting> --json
+cat agent-notes.md | swift run macparakeet-cli meetings results add <meeting> \
+  --name "Agent Notes" --stdin --json
 
 swift run macparakeet-cli meetings export <meeting> --format md --stdout
 ```

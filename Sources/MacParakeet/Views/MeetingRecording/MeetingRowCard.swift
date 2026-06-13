@@ -109,6 +109,13 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.errorRed.opacity(0.85))
                 .lineLimit(1)
+        } else if transcription.status == .cancelled {
+            // Keep-Audio outcome of the stop-transcription flow (issue #487):
+            // the audio is intact and retranscribable from the detail view.
+            Text("Transcription stopped — audio saved")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .lineLimit(1)
         }
     }
 

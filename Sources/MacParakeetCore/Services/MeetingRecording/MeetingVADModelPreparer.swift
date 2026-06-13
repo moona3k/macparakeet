@@ -3,7 +3,7 @@ import OSLog
 
 /// Prepares the Silero VAD model used by VAD-guided meeting live chunking
 /// (`AppFeatures.meetingVadLiveChunkingEnabled`,
-/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md`).
+/// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md`).
 ///
 /// A deferred launch-time task fetches the model up front (see
 /// `MeetingVADLaunchPrep` + `AppDelegate.scheduleDeferredSpeechPreWarm`) so the
@@ -45,7 +45,7 @@ public struct MeetingVADModelPreparer: MeetingVADModelPreparing {
 }
 
 /// Universal launch-time VAD model availability (Phase 4.5,
-/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6).
+/// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6).
 ///
 /// The Silero model used to be fetched only during onboarding, so it reached
 /// *new installs only* — the entire installed base ran fixed chunking forever

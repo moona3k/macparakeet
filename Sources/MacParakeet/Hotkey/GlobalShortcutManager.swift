@@ -10,6 +10,7 @@ public final class GlobalShortcutManager {
 
     private let trigger: HotkeyTrigger
     private let requiredChordFlags: UInt64
+    private let ignoredChordEventFlags: UInt64
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var retainedSelf: Unmanaged<GlobalShortcutManager>?
@@ -23,6 +24,7 @@ public final class GlobalShortcutManager {
     public init(trigger: HotkeyTrigger) {
         self.trigger = trigger
         self.requiredChordFlags = trigger.chordEventFlags
+        self.ignoredChordEventFlags = trigger.ignoredChordEventFlags
     }
 
     deinit {
@@ -316,7 +318,7 @@ public final class GlobalShortcutManager {
         switch type {
         case .keyDown:
             guard keyCode == triggerCode else { return false }
-            guard flags == requiredChordFlags else { return false }
+            guard flags & ~ignoredChordEventFlags == requiredChordFlags else { return false }
             guard !triggerKeyIsPressed else { return true }
             triggerKeyIsPressed = true
             onTrigger?()

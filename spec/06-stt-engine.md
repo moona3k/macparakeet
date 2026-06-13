@@ -51,6 +51,8 @@ FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
 
 Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as Parakeet and Whisper rather than creating a feature-owned ASR stack.
 
+Because Nemotron is a streaming engine, dictation on Nemotron streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
+
 ### WhisperKit Optional Engine
 
 | Property | Value |

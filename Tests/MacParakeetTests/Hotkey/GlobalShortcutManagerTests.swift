@@ -135,6 +135,94 @@ final class GlobalShortcutManagerTests: XCTestCase {
         XCTAssertEqual(triggerCount, 1)
     }
 
+    func testFunctionKeyChordTriggersWithPhantomFnFlagBit() {
+        // Hardware F-key events carry NX_SECONDARYFNMASK even when the
+        // physical Fn key is not held. A ⌃F19 chord must still fire.
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        let swallowed = manager.handleChordEventForTesting(
+            type: .keyDown,
+            keyCode: 80,
+            flags: trigger.chordEventFlags | CGEventFlags.maskSecondaryFn.rawValue
+        )
+
+        XCTAssertTrue(swallowed)
+        XCTAssertEqual(triggerCount, 1)
+    }
+
+    func testFunctionKeyChordTriggersWithoutFnFlagBit() {
+        // Synthetic F-key events (Karabiner/QMK remaps) often omit the fn
+        // bit entirely; the clean chord must fire for those too.
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        let swallowed = manager.handleChordEventForTesting(
+            type: .keyDown,
+            keyCode: 80,
+            flags: trigger.chordEventFlags
+        )
+
+        XCTAssertTrue(swallowed)
+        XCTAssertEqual(triggerCount, 1)
+    }
+
+    func testFunctionKeyChordStillRequiresExactRealModifiers() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        XCTAssertFalse(
+            manager.handleChordEventForTesting(
+                type: .keyDown,
+                keyCode: 80,
+                flags: CGEventFlags.maskSecondaryFn.rawValue
+            )
+        )
+        XCTAssertFalse(
+            manager.handleChordEventForTesting(
+                type: .keyDown,
+                keyCode: 80,
+                flags: trigger.chordEventFlags
+                    | CGEventFlags.maskShift.rawValue
+                    | CGEventFlags.maskSecondaryFn.rawValue
+            )
+        )
+        XCTAssertEqual(triggerCount, 0)
+    }
+
+    func testFnRequiringFunctionKeyChordStillRequiresFnBit() {
+        // Chords that genuinely include fn (e.g. previously recorded
+        // fn+⌃F19 triggers) keep their exact requirement.
+        let trigger = HotkeyTrigger.chord(modifiers: ["fn", "control"], keyCode: 80)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        XCTAssertFalse(
+            manager.handleChordEventForTesting(
+                type: .keyDown,
+                keyCode: 80,
+                flags: CGEventFlags.maskControl.rawValue
+            )
+        )
+        XCTAssertEqual(triggerCount, 0)
+
+        XCTAssertTrue(
+            manager.handleChordEventForTesting(
+                type: .keyDown,
+                keyCode: 80,
+                flags: CGEventFlags.maskControl.rawValue | CGEventFlags.maskSecondaryFn.rawValue
+            )
+        )
+        XCTAssertEqual(triggerCount, 1)
+    }
+
     func testChordKeyUpPassesThroughWhenChordWasNotHandled() {
         let trigger = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 46)
         let manager = GlobalShortcutManager(trigger: trigger)

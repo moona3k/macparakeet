@@ -1234,7 +1234,6 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testSpeechEngineSwitchConfirmationDefersChangeUntilConfirm() async throws {
         let switcher = MockSpeechEngineSwitcher()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1243,6 +1242,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
 
@@ -1264,7 +1264,6 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testSpeechEngineSwitchConfirmationCancelLeavesEngineUnchanged() async throws {
         let switcher = MockSpeechEngineSwitcher()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1273,6 +1272,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
         viewModel.cancelPendingSpeechEngineSwitchConfirmation()
@@ -1317,7 +1317,6 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testSpeechEngineChangeCallsSwitcherAndPersistsOnSuccess() async throws {
         let switcher = MockSpeechEngineSwitcher()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1326,6 +1325,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
@@ -1341,7 +1341,6 @@ final class SettingsViewModelTests: XCTestCase {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
         let switcher = MockSpeechEngineSwitcher()
-        viewModel.nemotronModelStatus = .notDownloaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1350,6 +1349,8 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
+        viewModel.nemotronModelStatus = .notDownloaded
         viewModel.speechEnginePreference = .nemotron
 
         XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
@@ -1372,8 +1373,6 @@ final class SettingsViewModelTests: XCTestCase {
         let switcher = MockSpeechEngineSwitcher()
         SpeechEnginePreference.whisper.save(to: testDefaults)
         let vm = SettingsViewModel(defaults: testDefaults)
-        vm.whisperModelStatus = .notLoaded
-        vm.nemotronModelStatus = .notDownloaded
         vm.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1382,6 +1381,9 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh(vm)
+        vm.whisperModelStatus = .notLoaded
+        vm.nemotronModelStatus = .notDownloaded
         XCTAssertEqual(vm.speechEnginePreference, .whisper)
 
         vm.speechEnginePreference = .nemotron
@@ -1397,8 +1399,6 @@ final class SettingsViewModelTests: XCTestCase {
         let switcher = MockSpeechEngineSwitcher()
         SpeechEnginePreference.nemotron.save(to: testDefaults)
         let vm = SettingsViewModel(defaults: testDefaults)
-        vm.nemotronModelStatus = .notLoaded
-        vm.whisperModelStatus = .notDownloaded
         vm.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1407,6 +1407,9 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh(vm)
+        vm.nemotronModelStatus = .notLoaded
+        vm.whisperModelStatus = .notDownloaded
         XCTAssertEqual(vm.speechEnginePreference, .nemotron)
 
         vm.speechEnginePreference = .whisper
@@ -1577,7 +1580,6 @@ final class SettingsViewModelTests: XCTestCase {
         Telemetry.configure(telemetry)
         let switcher = MockSpeechEngineSwitcher()
         let provider = MockSpeechEngineSwitchAvailabilityProvider(.meetingActive)
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1587,6 +1589,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitchAvailabilityProvider: provider
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
@@ -1610,7 +1613,6 @@ final class SettingsViewModelTests: XCTestCase {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
         let switcher = MockSpeechEngineSwitcher()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1619,6 +1621,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
@@ -1635,7 +1638,6 @@ final class SettingsViewModelTests: XCTestCase {
     func testSpeechEngineChangeShowsProgressAndClearsWhenDone() async throws {
         let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
         await switcher.blockNextSwitch()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1644,6 +1646,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
 
@@ -1662,7 +1665,6 @@ final class SettingsViewModelTests: XCTestCase {
         let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
         await switcher.blockNextSwitch()
         let stt = MockSTTClient()
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1672,6 +1674,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
         try await waitUntil { viewModel.speechEngineSwitching }
@@ -1691,7 +1694,6 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testSpeechEngineChangeRevertsWhenSwitcherFails() async throws {
         let switcher = MockSpeechEngineSwitcher(error: STTError.engineBusy)
-        viewModel.whisperModelStatus = .notLoaded
         viewModel.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
@@ -1700,6 +1702,7 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
+        try await waitForInitialModelStatusRefresh()
         viewModel.whisperModelStatus = .notLoaded
         viewModel.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
@@ -1721,6 +1724,20 @@ final class SettingsViewModelTests: XCTestCase {
                 return
             }
             try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private func waitForInitialModelStatusRefresh(
+        _ vm: SettingsViewModel? = nil,
+        timeout: Duration = .seconds(2),
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let target = vm ?? viewModel!
+        try await waitUntil(timeout: timeout, file: file, line: line) {
+            target.parakeetStatus != .checking &&
+                target.whisperModelStatus != .checking &&
+                target.nemotronModelStatus != .checking
         }
     }
 

@@ -100,6 +100,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   multilingual build only; setting it while the English build is selected
   still persists the value and prints a stderr note.
 
+### Fixed
+
+- `spec --json` now marks writing commands conservatively (`transcribe`,
+  `meetings export`, and repair-capable `health`) and documents current options
+  that were missing from the machine-readable contract, including
+  `transcribe --mode`, `transcribe --database`, `health --repair-attempts`, and
+  the full `meetings notes` surface.
+
 ### Changed
 
 - The Local CLI provider's default timeout is now **300 seconds** (was 45).

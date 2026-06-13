@@ -80,4 +80,18 @@ final class KeyCodeNamesTests: XCTestCase {
         XCTAssertEqual(result.displayName, "Key 255")
         XCTAssertEqual(result.shortSymbol, "Key 255")
     }
+
+    // MARK: - Function-Family Classification
+
+    func testFunctionFamilyKeyCodesIncludeFKeysArrowsAndNavCluster() {
+        for keyCode: UInt16 in [122, 64, 80, 90, 126, 123, 115, 119, 117, 114] {
+            XCTAssertTrue(KeyCodeNames.isFunctionFamilyKeyCode(keyCode), "keyCode \(keyCode)")
+        }
+    }
+
+    func testFunctionFamilyKeyCodesExcludeTypingAndModifierKeys() {
+        for keyCode: UInt16 in [0, 49, 53, 36, 57, 55, 63] {
+            XCTAssertFalse(KeyCodeNames.isFunctionFamilyKeyCode(keyCode), "keyCode \(keyCode)")
+        }
+    }
 }

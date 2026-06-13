@@ -2,7 +2,7 @@ import XCTest
 @testable import MacParakeetCore
 
 /// Phase 4.5 — universal launch-time VAD model availability
-/// (`plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6).
+/// (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6).
 ///
 /// These cover the flag-and-cache gate that `AppDelegate.scheduleDeferredSpeechPreWarm`
 /// rides on every launch, without driving the deferred launch timer. The prep

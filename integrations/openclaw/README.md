@@ -18,6 +18,7 @@ Silicon. Wraps `macparakeet-cli` so an OpenClaw skill can:
 
 - Transcribe a local audio/video file.
 - Transcribe a media URL.
+- Transcribe an Apple Podcasts link or freetext podcast search.
 - Search the user's prior dictation/transcription history.
 - Inspect meeting recordings and store external meeting results.
 - Run a prompt against a transcription (action items, summary, etc.).
@@ -34,7 +35,8 @@ macparakeet-cli health --json
 
 Requires macOS 14.2+ on Apple Silicon. The Homebrew formula installs FFmpeg
 and yt-dlp as runtime dependencies. Parakeet's CoreML cache is managed by
-FluidAudio. WhisperKit model downloads live under
+FluidAudio, Nemotron uses FluidAudio's CoreML cache, and WhisperKit model
+downloads live under
 `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
@@ -48,9 +50,10 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 | Discover core contract | `macparakeet-cli spec --json` |
 | Transcribe a file | `macparakeet-cli transcribe <path> --format json` |
 | Transcribe a media URL | `macparakeet-cli transcribe <url> --format json` |
+| Transcribe a podcast | `macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json` |
 | Use GUI/default preferences | `macparakeet-cli transcribe <path> --engine app-default --parakeet-model app-default --speaker-detection app-default --mode app-default --downloaded-audio app-default --media-audio-quality app-default --format json` |
-| Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` |
-| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json` |
+| Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` / `macparakeet-cli models select nemotron-multilingual-1120ms --json` |
+| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json`; `macparakeet-cli config set speech-engine nemotron --json` |
 | List recent transcriptions | `macparakeet-cli history transcriptions --json` |
 | Search transcriptions | `macparakeet-cli history search-transcriptions "<query>" --json` |
 | Search dictations | `macparakeet-cli history search "<query>" --json` |

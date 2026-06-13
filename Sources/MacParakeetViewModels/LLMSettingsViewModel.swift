@@ -372,17 +372,32 @@ public final class LLMSettingsViewModel {
         }
     }
 
-    /// Whether the AI Formatter also runs on live dictation. Transcript and
-    /// meeting formatter availability follows the saved provider config;
-    /// dictation is the latency-sensitive opt-in path. The value persists
-    /// immediately through the injected `defaults` store. Default `false` keeps
-    /// live dictation low-latency unless the user opts in. See issue #408.
+    /// Whether the AI Formatter also runs on live dictation. Transcript
+    /// formatting has its own routing toggle; dictation remains the
+    /// latency-sensitive opt-in path. The value persists immediately through
+    /// the injected `defaults` store. Default `false` keeps live dictation
+    /// low-latency unless the user opts in. See issue #408.
     public var aiFormatterEnabledForDictation: Bool {
         didSet {
             guard aiFormatterEnabledForDictation != oldValue else { return }
             defaults.set(
                 aiFormatterEnabledForDictation,
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+            )
+        }
+    }
+
+    /// Whether the AI Formatter runs on file/meeting transcripts. Default
+    /// `true` preserves the pre-#493 behavior where transcripts followed the
+    /// saved provider config alone; the toggle gives users an opt-out (slow
+    /// providers can spend the entire timeout on long transcripts). The value
+    /// persists immediately through the injected `defaults` store.
+    public var aiFormatterEnabledForTranscriptions: Bool {
+        didSet {
+            guard aiFormatterEnabledForTranscriptions != oldValue else { return }
+            defaults.set(
+                aiFormatterEnabledForTranscriptions,
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
             )
         }
     }
@@ -518,6 +533,7 @@ public final class LLMSettingsViewModel {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
+        self.aiFormatterEnabledForTranscriptions = Self.loadStoredAIFormatterEnabledForTranscriptions(from: defaults)
         self.aiFormatterSmartDefaultsPolicy = AIFormatterSmartDefaultsPolicy.current(defaults: defaults)
         self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
@@ -630,9 +646,10 @@ public final class LLMSettingsViewModel {
         }
         defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
-        // Restore the dictation routing preference to its default so a config
+        // Restore the routing preferences to their defaults so a config
         // clear returns the formatter to a fully predictable state.
         aiFormatterEnabledForDictation = false
+        aiFormatterEnabledForTranscriptions = true
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
@@ -1199,6 +1216,12 @@ public final class LLMSettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
             )
         }
+        if defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey) == nil {
+            defaults.set(
+                aiFormatterEnabledForTranscriptions,
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
+            )
+        }
         return normalizedPrompt
     }
 
@@ -1214,6 +1237,10 @@ public final class LLMSettingsViewModel {
 
     private static func loadStoredAIFormatterEnabledForDictation(from defaults: UserDefaults) -> Bool {
         defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool ?? false
+    }
+
+    private static func loadStoredAIFormatterEnabledForTranscriptions(from defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? true
     }
 
     private static func loadStoredAIFormatterPrompt(from defaults: UserDefaults) -> String {
