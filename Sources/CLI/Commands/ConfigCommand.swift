@@ -26,7 +26,10 @@ struct ConfigCommand: ParsableCommand {
           speech-engine             parakeet|nemotron|whisper       default: parakeet
           parakeet-model            v3|v2 (v3=multilingual,         default: v3
                                     v2=English-only)
+          nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
+                                    english-1120ms (English-only)
           nemotron-language         auto|<Nemotron language code>   default: auto
+                                    (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
           speaker-detection         on|off                          default: off
           save-transcription-audio  on|off                          default: on
@@ -50,6 +53,7 @@ struct ConfigCommand: ParsableCommand {
         "processing-mode",
         "speech-engine",
         "parakeet-model",
+        "nemotron-model",
         "nemotron-language",
         "whisper-language",
         "speaker-detection",
@@ -165,6 +169,8 @@ struct ConfigCommand: ParsableCommand {
             return SpeechEnginePreference.current(defaults: store).rawValue
         case "parakeet-model":
             return SpeechEnginePreference.parakeetModelVariant(defaults: store).rawValue
+        case "nemotron-model":
+            return SpeechEnginePreference.nemotronModelVariant(defaults: store).rawValue
         case "nemotron-language":
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: store) ?? "auto"
         case "whisper-language":
@@ -204,9 +210,19 @@ struct ConfigCommand: ParsableCommand {
             let variant = try parseParakeetModelVariant(value)
             SpeechEnginePreference.saveParakeetModelVariant(variant, defaults: store)
             return variant.rawValue
+        case "nemotron-model":
+            let variant = try parseNemotronModelVariant(value)
+            SpeechEnginePreference.saveNemotronModelVariant(variant, defaults: store)
+            return variant.rawValue
         case "nemotron-language":
             let language = try parseNemotronLanguage(value)
             SpeechEnginePreference.saveNemotronDefaultLanguage(language, defaults: store)
+            // The value persists either way (it applies the moment the
+            // multilingual build is selected again); the note goes to stderr so
+            // stdout/--json output stays contract-stable.
+            if SpeechEnginePreference.nemotronModelVariant(defaults: store).isEnglishOnly {
+                printErr("Note: nemotron-model is english-1120ms; nemotron-language applies only to the multilingual build.")
+            }
             return language ?? "auto"
         case "whisper-language":
             let language = try parseWhisperLanguage(value)
@@ -280,6 +296,22 @@ struct ConfigCommand: ParsableCommand {
             return .v2
         default:
             throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual) or v2 (English-only).")
+        }
+    }
+
+    /// Accepts the canonical tier ids plus the friendlier
+    /// `multilingual`/`english` aliases, mirroring `parseParakeetModelVariant`.
+    static func parseNemotronModelVariant(_ value: String) throws -> NemotronModelVariant {
+        let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+        switch raw {
+        case "multilingual-1120ms", "multilingual", "multi":
+            return .multilingual1120
+        case "english-1120ms", "english", "english-only", "en":
+            return .english1120
+        default:
+            throw ValidationError("Invalid value for nemotron-model: '\(value)'. Use multilingual-1120ms or english-1120ms.")
         }
     }
 

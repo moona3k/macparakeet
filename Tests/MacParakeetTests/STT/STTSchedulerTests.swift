@@ -424,6 +424,90 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(variants, [.v2])
     }
 
+    /// Same AUDIT-071 window, via the Nemotron variant-swap path that shares
+    /// the engine-switch guard.
+    func testSetNemotronModelVariantFailsWhileSessionBeginIsInFlight() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSelectionRead()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let leaseTask = Task {
+            await scheduler.beginSpeechEngineSession()
+        }
+        try await waitForHeldSelectionRead(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setNemotronModelVariant(.english1120, onProgress: nil)
+            XCTFail("Expected variant swap to fail while a session begin is in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseSelectionRead()
+        let lease = await leaseTask.value
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .parakeet))
+        let swaps = await runtime.nemotronModelVariantSwitches
+        XCTAssertTrue(swaps.isEmpty, "No variant swap may reach the runtime mid-begin")
+
+        await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setNemotronModelVariant(.english1120, onProgress: nil)
+        let swapsAfterEnd = await runtime.nemotronModelVariantSwitches
+        XCTAssertEqual(swapsAfterEnd, [.english1120], "Variant swap must succeed once the session is released")
+    }
+
+    func testSetNemotronModelVariantForwardsWhenIdle() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+        let progressMessages = LockedStringRecorder()
+
+        try await scheduler.setNemotronModelVariant(.english1120) { message in
+            progressMessages.record(message)
+        }
+
+        let variants = await runtime.nemotronModelVariantSwitches
+        XCTAssertEqual(variants, [.english1120])
+        XCTAssertEqual(progressMessages.values, ["Mock loading Nemotron Speech Streaming EN 0.6B"])
+    }
+
+    func testSetNemotronModelVariantFailsWhileJobIsRunning() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "active")
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "active", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setNemotronModelVariant(.english1120, onProgress: nil)
+            XCTFail("Expected variant switch to fail while STT job is running")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.release(path: "active")
+        _ = try await activeTask.value
+    }
+
+    func testSetNemotronModelVariantFailsWhileSessionLeaseIsActive() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+        do {
+            try await scheduler.setNemotronModelVariant(.english1120, onProgress: nil)
+            XCTFail("Expected variant switch to fail while a speech engine session is active")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setNemotronModelVariant(.english1120, onProgress: nil)
+        let variants = await runtime.nemotronModelVariantSwitches
+        XCTAssertEqual(variants, [.english1120])
+    }
+
     func testEngineSwitchAvailabilityReportsAvailableWhenIdle() async {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -1001,6 +1085,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var setSpeechEngineCallCount = 0
     private(set) var usedSpeechEngineProgressOverload = false
     private(set) var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
+    private(set) var nemotronModelVariantSwitches: [NemotronModelVariant] = []
     private var selection = SpeechEngineSelection(engine: .parakeet)
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
@@ -1227,6 +1312,26 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
         }
         selection = SpeechEngineSelection(engine: .parakeet)
+    }
+
+    func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        nemotronModelVariantSwitches.append(variant)
+        onProgress?("Mock loading \(variant.modelName)")
+        if shouldBlockNextSpeechEngineSwitch {
+            shouldBlockNextSpeechEngineSwitch = false
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    speechEngineSwitchContinuation = continuation
+                }
+            } onCancel: {
+                Task { await self.releaseSpeechEngineSwitch() }
+            }
+            try Task.checkCancellation()
+        }
+        selection = SpeechEngineSelection(engine: .nemotron)
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {

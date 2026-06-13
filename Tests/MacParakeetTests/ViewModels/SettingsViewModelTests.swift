@@ -1488,6 +1488,73 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isParakeetVariantSwitch)
     }
 
+    func testNemotronModelVariantChangeCallsSwitcherAndPersistsOnSuccess() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
+        viewModel.nemotronModelVariant = .english1120
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        let variants = await switcher.nemotronVariants
+        XCTAssertEqual(variants, [.english1120])
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .english1120)
+        XCTAssertFalse(viewModel.speechEngineSwitching)
+        XCTAssertNil(viewModel.speechEngineError)
+    }
+
+    func testNemotronModelVariantChangeBlockedByAvailabilityRevertsWithoutPersisting() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        let provider = MockSpeechEngineSwitchAvailabilityProvider(.meetingActive)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher,
+            speechEngineSwitchAvailabilityProvider: provider
+        )
+
+        viewModel.nemotronModelVariant = .english1120
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .multilingual1120)
+        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        let variants = await switcher.nemotronVariants
+        XCTAssertTrue(variants.isEmpty)
+    }
+
+    func testNemotronModelVariantChangeRevertsWhenSwitcherFails() async throws {
+        let switcher = MockSpeechEngineSwitcher(error: STTError.engineBusy)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.nemotronModelVariant = .english1120
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        // The switch was attempted but failed, so the choice is NOT persisted
+        // and the published value snaps back to the previous build.
+        let variants = await switcher.nemotronVariants
+        XCTAssertEqual(variants, [.english1120])
+        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .multilingual1120)
+        XCTAssertEqual(viewModel.speechEngineError, STTError.engineBusy.localizedDescription)
+        XCTAssertFalse(viewModel.speechEngineSwitching)
+        XCTAssertFalse(viewModel.isNemotronVariantSwitch)
+    }
+
     func testRefreshSpeechEngineSwitchAvailabilityStoresProviderResult() async {
         let provider = MockSpeechEngineSwitchAvailabilityProvider(.transcribing)
         viewModel.configure(
@@ -2115,15 +2182,19 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.whisperCalls.isEmpty)
     }
 
-    func testDeleteNemotronModelDeletesAllLanguageCachesWhenParakeetActive() async throws {
+    func testDeleteNemotronVariantDeletesAllLanguageCachesWhenParakeetActive() async throws {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: testDefaults)
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
+        vm.downloadedNemotronVariants = [.multilingual1120]
         vm.nemotronModelStatus = .notLoaded
 
-        vm.deleteNemotronModel()
+        // The selected build is deletable while Nemotron is inactive; a nil
+        // language asks the deleter to drop every language cache for the build.
+        vm.deleteNemotronVariant(.multilingual1120)
 
         XCTAssertEqual(vm.nemotronModelStatus, .notDownloaded)
+        XCTAssertFalse(vm.downloadedNemotronVariants.contains(.multilingual1120))
         try await waitUntil {
             recorder.nemotronCalls.count == 1
                 && recorder.nemotronCalls.first?.0 == .multilingual1120
@@ -2131,15 +2202,39 @@ final class SettingsViewModelTests: XCTestCase {
         }
     }
 
-    func testDeleteNemotronModelRefusedWhenNemotronActive() {
+    func testDeleteNemotronVariantRefusesSelectedBuildWhenNemotronActive() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .nemotron, parakeetVariant: .v3, recorder: recorder)
+        vm.downloadedNemotronVariants = [.multilingual1120, .english1120]
         vm.nemotronModelStatus = .notLoaded
 
-        vm.deleteNemotronModel()
+        // The multilingual build is selected and Nemotron is the active
+        // engine — deleting it would force a re-download.
+        vm.deleteNemotronVariant(.multilingual1120)
 
         XCTAssertEqual(vm.nemotronModelStatus, .notLoaded)
+        XCTAssertTrue(vm.downloadedNemotronVariants.contains(.multilingual1120))
         XCTAssertTrue(recorder.nemotronCalls.isEmpty)
+    }
+
+    func testDeleteNemotronVariantRemovesNonSelectedBuildWhenNemotronActive() async throws {
+        let recorder = ModelDeleteRecorder()
+        let vm = makeDeletionViewModel(engine: .nemotron, parakeetVariant: .v3, recorder: recorder)
+        vm.downloadedNemotronVariants = [.multilingual1120, .english1120]
+        vm.nemotronModelStatus = .notLoaded
+
+        // The English build is downloaded but not selected — deletable even
+        // while Nemotron is the active engine.
+        vm.deleteNemotronVariant(.english1120)
+
+        // Badge drops synchronously; the disk delete lands on a detached task.
+        XCTAssertFalse(vm.downloadedNemotronVariants.contains(.english1120))
+        XCTAssertEqual(vm.nemotronModelStatus, .notLoaded)
+        try await waitUntil {
+            recorder.nemotronCalls.count == 1
+                && recorder.nemotronCalls.first?.0 == .english1120
+                && recorder.nemotronCalls.first?.1 == nil
+        }
     }
 }
 
@@ -2210,6 +2305,7 @@ private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
     private let progressMessages: [String]
     private(set) var preferences: [SpeechEnginePreference] = []
     private(set) var parakeetVariants: [ParakeetModelVariant] = []
+    private(set) var nemotronVariants: [NemotronModelVariant] = []
     private var shouldBlockNextSwitch = false
     private var switchContinuation: CheckedContinuation<Void, Never>?
     private var releaseRequested = false
@@ -2252,6 +2348,30 @@ private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         parakeetVariants.append(variant)
+        for message in progressMessages {
+            onProgress?(message)
+        }
+        if shouldBlockNextSwitch {
+            shouldBlockNextSwitch = false
+            await withCheckedContinuation { continuation in
+                if releaseRequested {
+                    releaseRequested = false
+                    continuation.resume()
+                } else {
+                    switchContinuation = continuation
+                }
+            }
+        }
+        if let error {
+            throw error
+        }
+    }
+
+    func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        nemotronVariants.append(variant)
         for message in progressMessages {
             onProgress?(message)
         }

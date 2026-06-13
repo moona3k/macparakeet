@@ -291,6 +291,13 @@ REQ-STT-003:
   version: v0.6
   status: implemented
 
+REQ-STT-004:
+  description: Nemotron exposes multilingual-1120ms (default) and english-1120ms (Nemotron Speech Streaming EN 0.6B, English-only Beta) builds as a persisted per-engine model selection across Settings and CLI (models select/download/delete/status, transcribe --nemotron-model, config nemotron-model); the English build ignores language hints and the fresh-install default engine remains Parakeet v3
+  # tagged v0.6 per the REQ-LLM-004 precedent (untagged-on-main work kept at
+  # v0.6); owner may re-tag to v0.7 if v0.6 is judged closed
+  version: v0.6
+  status: implemented
+
 REQ-TRANS-002:
   description: CLI file and URL transcription support per-invocation Parakeet, Nemotron, or Whisper engine selection, per-invocation Parakeet model overrides, persisted Parakeet/Nemotron/Whisper defaults via config/models, optional Nemotron/Whisper language hints, and additive detected-language output
   version: cli-2.5.0

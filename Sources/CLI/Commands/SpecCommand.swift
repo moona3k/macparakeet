@@ -182,8 +182,9 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--format", valueName: "text|transcript|json", summary: "Output format for stdout or written transcript files."),
                 CLISpecParameter.option("--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this run."),
                 CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|app-default", summary: "Speech engine for this run."),
-                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper."),
+                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper; the English-only Nemotron build ignores it."),
                 CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2", summary: "Parakeet build for this run; ignored for Nemotron and Whisper."),
+                CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron build for this run; ignored for Parakeet and Whisper."),
                 CLISpecParameter.option("--downloaded-audio", valueName: "app-default|keep|delete", summary: "Downloaded media retention policy."),
                 CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection behavior for this run."),
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
@@ -203,7 +204,7 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["config", "get"],
             summary: "Read one shared app/CLI configuration value.",
-            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-language, or whisper-language.")],
+            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, or whisper-language.")],
             output: "Configuration value."
         ),
         CLISpecCommand(

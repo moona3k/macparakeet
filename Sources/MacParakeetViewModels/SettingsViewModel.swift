@@ -325,6 +325,15 @@ public final class SettingsViewModel {
             applyParakeetModelVariantChange(parakeetModelVariant)
         }
     }
+    /// Which Nemotron build (multilingual vs English-only) is active. Changing
+    /// it live-reloads the model when Nemotron is the selected engine
+    /// (downloading the target on first use); see `applyNemotronModelVariantChange`.
+    public var nemotronModelVariant: NemotronModelVariant {
+        didSet {
+            guard !isApplyingNemotronVariantState else { return }
+            applyNemotronModelVariantChange(nemotronModelVariant)
+        }
+    }
     public var whisperDefaultLanguage: String {
         didSet {
             SpeechEnginePreference.saveWhisperDefaultLanguage(whisperDefaultLanguage, defaults: defaults)
@@ -340,6 +349,9 @@ public final class SettingsViewModel {
     /// banner needs this to avoid the misleading "Switching to Parakeet" copy
     /// when the user is already on Parakeet and only changing the build.
     public var isParakeetVariantSwitch = false
+    /// Nemotron counterpart of `isParakeetVariantSwitch` (multilingual ↔
+    /// English build swap while Nemotron is already the active engine).
+    public var isNemotronVariantSwitch = false
     public var speechEngineSwitchAvailability: SpeechEngineSwitchAvailability = .available
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
@@ -495,6 +507,10 @@ public final class SettingsViewModel {
     /// download badges in the Parakeet Model card; refreshed in
     /// `refreshModelStatus()`.
     public var downloadedParakeetVariants: Set<ParakeetModelVariant> = []
+    /// Which Nemotron builds are present on disk. Drives the per-variant
+    /// download badges in the Nemotron Model card; refreshed in
+    /// `refreshModelStatus()`. Both builds can be installed independently.
+    public var downloadedNemotronVariants: Set<NemotronModelVariant> = []
 
     // Licensing / entitlements
     public var entitlementsSummary: String = ""
@@ -531,6 +547,7 @@ public final class SettingsViewModel {
     private var isApplyingLaunchAtLoginState = false
     private var isApplyingSpeechEngineState = false
     private var isApplyingParakeetVariantState = false
+    private var isApplyingNemotronVariantState = false
     private var modelStatusRefreshGeneration = 0
     // `deinit` is nonisolated even though this type is `@MainActor`.
     // These handles are only mutated on the main actor during the view
@@ -633,6 +650,7 @@ public final class SettingsViewModel {
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+        nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
         // Ensure auto-save folders are configured before reading paths.
         // Idempotent: existing user-chosen folders are preserved; only
@@ -1229,7 +1247,7 @@ public final class SettingsViewModel {
         let activeEngine = speechEnginePreference
         let activeVariant = parakeetModelVariant
         let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
-        let nemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant
+        let activeNemotronVariant = nemotronModelVariant
         let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
 
         let parakeetModelVariantCached = self.parakeetModelVariantCached
@@ -1246,18 +1264,22 @@ public final class SettingsViewModel {
                 let disk = await Task.detached(priority: .userInitiated) {
                     (
                         parakeetDownloaded: Set(ParakeetModelVariant.allCases.filter(parakeetModelVariantCached)),
-                        nemotronDownloaded: nemotronModelVariantCached(nemotronModelVariant, nemotronLanguage),
+                        nemotronDownloaded: Set(NemotronModelVariant.allCases.filter {
+                            nemotronModelVariantCached($0, nemotronLanguage)
+                        }),
                         whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
                     )
                 }.value
                 guard let self,
                       self.modelStatusRefreshGeneration == refreshGeneration,
                       self.speechEnginePreference == activeEngine,
-                      self.parakeetModelVariant == activeVariant else {
+                      self.parakeetModelVariant == activeVariant,
+                      self.nemotronModelVariant == activeNemotronVariant else {
                     return
                 }
                 self.downloadedParakeetVariants = disk.parakeetDownloaded
-                self.applyNemotronDownloadedStatus(disk.nemotronDownloaded)
+                self.downloadedNemotronVariants = disk.nemotronDownloaded
+                self.applyNemotronDownloadedStatus(disk.nemotronDownloaded.contains(activeNemotronVariant))
                 self.applyWhisperDownloadedStatus(disk.whisperDownloaded)
             }
             return
@@ -1285,7 +1307,9 @@ public final class SettingsViewModel {
             async let diskState = Task.detached(priority: .userInitiated) {
                 (
                     parakeetDownloaded: Set(ParakeetModelVariant.allCases.filter(parakeetModelVariantCached)),
-                    nemotronDownloaded: nemotronModelVariantCached(nemotronModelVariant, nemotronLanguage),
+                    nemotronDownloaded: Set(NemotronModelVariant.allCases.filter {
+                        nemotronModelVariantCached($0, nemotronLanguage)
+                    }),
                     whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
                 )
             }.value
@@ -1293,11 +1317,13 @@ public final class SettingsViewModel {
             let (activeEngineIsLoaded, modelDiskState) = await (activeEngineLoaded, diskState)
             guard self.modelStatusRefreshGeneration == refreshGeneration,
                   self.speechEnginePreference == activeEngine,
-                  self.parakeetModelVariant == activeVariant else {
+                  self.parakeetModelVariant == activeVariant,
+                  self.nemotronModelVariant == activeNemotronVariant else {
                 return
             }
 
             self.downloadedParakeetVariants = modelDiskState.parakeetDownloaded
+            self.downloadedNemotronVariants = modelDiskState.nemotronDownloaded
             let parakeetName = activeVariant.modelName
             if activeEngine == .parakeet, activeEngineIsLoaded {
                 self.parakeetStatus = .ready
@@ -1312,9 +1338,9 @@ public final class SettingsViewModel {
 
             if activeEngine == .nemotron, activeEngineIsLoaded {
                 self.nemotronModelStatus = .ready
-                self.nemotronModelStatusDetail = "\(nemotronModelVariant.modelName) · Loaded in memory."
+                self.nemotronModelStatusDetail = "\(activeNemotronVariant.modelName) · Loaded in memory."
             } else {
-                self.applyNemotronDownloadedStatus(modelDiskState.nemotronDownloaded)
+                self.applyNemotronDownloadedStatus(modelDiskState.nemotronDownloaded.contains(activeNemotronVariant))
             }
 
             if activeEngine == .whisper, activeEngineIsLoaded {
@@ -1333,16 +1359,17 @@ public final class SettingsViewModel {
     }
 
     public func refreshNemotronModelStatus() {
-        applyNemotronDownloadedStatus(
-            nemotronModelVariantCached(
-                SpeechEnginePreference.defaultNemotronModelVariant,
-                SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
-            )
-        )
+        let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        downloadedNemotronVariants = Set(NemotronModelVariant.allCases.filter {
+            nemotronModelVariantCached($0, language)
+        })
+        applyNemotronDownloadedStatus(downloadedNemotronVariants.contains(nemotronModelVariant))
     }
 
+    /// Applies the disk state of the *selected* Nemotron build to the Local
+    /// Models row (per-build badges read `downloadedNemotronVariants`).
     private func applyNemotronDownloadedStatus(_ isDownloaded: Bool) {
-        let variant = SpeechEnginePreference.defaultNemotronModelVariant
+        let variant = nemotronModelVariant
         if isDownloaded {
             nemotronModelStatus = .notLoaded
             nemotronModelStatusDetail = "\(variant.modelName) · Installed locally, loads when selected."
@@ -1382,7 +1409,7 @@ public final class SettingsViewModel {
         speechEngineError = nil
         nemotronDownloading = true
         nemotronModelStatus = .repairing
-        let modelVariant = SpeechEnginePreference.defaultNemotronModelVariant
+        let modelVariant = nemotronModelVariant
         let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         let operationContext = Observability.childOperationContext()
         nemotronModelStatusDetail = "Downloading \(modelVariant.modelName)..."
@@ -1641,7 +1668,10 @@ public final class SettingsViewModel {
 
         speechEngineSwitching = true
         speechEngineSwitchTarget = preference
-        speechEngineSwitchDetail = Self.initialSpeechEngineSwitchDetail(for: preference)
+        speechEngineSwitchDetail = Self.initialSpeechEngineSwitchDetail(
+            for: preference,
+            nemotronVariant: nemotronModelVariant
+        )
         Task { @MainActor [weak self] in
             guard let self else { return }
             // `defer` fires even on cancellation or unexpected early exit, so
@@ -1789,6 +1819,66 @@ public final class SettingsViewModel {
         isApplyingParakeetVariantState = false
     }
 
+    /// Applies a Nemotron build toggle (multilingual ↔ English-only). Mirrors
+    /// `applyParakeetModelVariantChange`: validates switch availability,
+    /// drives the shared switch banner, persists only after the runtime reload
+    /// succeeds, and reverts the published value on block/cancel/failure.
+    private func applyNemotronModelVariantChange(_ variant: NemotronModelVariant) {
+        speechEngineError = nil
+        let previousVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+        guard variant != previousVariant else { return }
+
+        guard let speechEngineSwitcher else {
+            // No runtime wired (previews/tests): just persist the choice.
+            SpeechEnginePreference.saveNemotronModelVariant(variant, defaults: defaults)
+            Telemetry.send(.settingChanged(setting: .nemotronModelVariant))
+            return
+        }
+
+        speechEngineSwitching = true
+        speechEngineSwitchTarget = .nemotron
+        isNemotronVariantSwitch = true
+        speechEngineSwitchDetail = "Preparing \(variant.modelName)..."
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.speechEngineSwitching = false
+                self.speechEngineSwitchTarget = nil
+                self.isNemotronVariantSwitch = false
+                self.speechEngineSwitchDetail = nil
+                self.refreshModelStatus()
+            }
+            let availability = await self.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                self.speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: availability)
+                self.revertNemotronModelVariant()
+                return
+            }
+            do {
+                try await speechEngineSwitcher.setNemotronModelVariant(variant) { [weak self] message in
+                    Task { @MainActor [weak self] in
+                        self?.speechEngineSwitchDetail = message
+                    }
+                }
+                SpeechEnginePreference.saveNemotronModelVariant(variant, defaults: self.defaults)
+                Telemetry.send(.settingChanged(setting: .nemotronModelVariant))
+            } catch is CancellationError {
+                self.revertNemotronModelVariant()
+            } catch {
+                self.speechEngineError = error.localizedDescription
+                self.revertNemotronModelVariant()
+            }
+        }
+    }
+
+    /// Snaps the published variant back to the persisted value without
+    /// re-triggering a switch (the `isApplyingNemotronVariantState` guard).
+    private func revertNemotronModelVariant() {
+        isApplyingNemotronVariantState = true
+        nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+        isApplyingNemotronVariantState = false
+    }
+
     public func repairParakeetModel() {
         guard let sttClient else { return }
         guard !speechEngineSwitching else { return }
@@ -1898,18 +1988,28 @@ public final class SettingsViewModel {
         }
     }
 
-    /// Removes the downloaded Nemotron Beta model. Only offered while
-    /// Nemotron is not the active engine so the next active use has an explicit
-    /// download/setup moment instead of a surprise re-fetch.
-    public func deleteNemotronModel() {
+    /// Removes a downloaded Nemotron build. The non-selected build is
+    /// deletable any time (Nemotron Model card). The selected build is
+    /// protected while Nemotron is the active engine; when Nemotron is
+    /// inactive it keeps its existing delete affordance (Local Models
+    /// overflow) so the next active use has an explicit download moment
+    /// instead of a surprise re-fetch.
+    public func deleteNemotronVariant(_ variant: NemotronModelVariant) {
         guard !speechEngineSwitching, !nemotronDownloading else { return }
-        guard speechEnginePreference != .nemotron else { return }
-        guard nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded else { return }
+        if speechEnginePreference == .nemotron, nemotronModelVariant == variant { return }
+        guard downloadedNemotronVariants.contains(variant) else { return }
 
-        let variant = SpeechEnginePreference.defaultNemotronModelVariant
         let deleter = deleteNemotronModelOnDisk
+        // Invalidate any in-flight status refresh so it can't re-add the badge
+        // we're about to drop (the files linger on disk until the detached
+        // delete runs).
         modelStatusRefreshGeneration += 1
-        applyNemotronDownloadedStatus(false)
+        // Optimistic: drop the badge now so the row can't be tapped twice; the
+        // refresh below reconciles against disk.
+        downloadedNemotronVariants.remove(variant)
+        if nemotronModelVariant == variant {
+            applyNemotronDownloadedStatus(false)
+        }
         Task { @MainActor [weak self] in
             await Task.detached(priority: .userInitiated) {
                 _ = deleter(variant, nil)
@@ -1984,13 +2084,16 @@ public final class SettingsViewModel {
     }
 
     private static func initialSpeechEngineSwitchDetail(
-        for preference: SpeechEnginePreference
+        for preference: SpeechEnginePreference,
+        nemotronVariant: NemotronModelVariant
     ) -> String {
         switch preference {
         case .parakeet:
             "Loading Parakeet with Core ML..."
         case .nemotron:
-            "Loading Nemotron 3.5 Beta with Core ML..."
+            nemotronVariant.isEnglishOnly
+                ? "Loading Nemotron Speech EN Beta with Core ML..."
+                : "Loading Nemotron 3.5 Beta with Core ML..."
         case .whisper:
             "Optimizing Whisper for this Mac..."
         }

@@ -7,6 +7,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
 
     public static let defaultsKey = "speechRecognitionEngine"
     public static let parakeetModelVariantKey = "parakeetModelVariant"
+    public static let nemotronModelVariantKey = "nemotronModelVariant"
     public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
@@ -110,6 +111,21 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
 
     public static func saveParakeetModelVariant(_ variant: ParakeetModelVariant, defaults: UserDefaults = .standard) {
         defaults.set(variant.rawValue, forKey: parakeetModelVariantKey)
+    }
+
+    /// The persisted Nemotron build, defaulting to the multilingual `1120ms`
+    /// tier. Backed by a validated enum so the stored value can never drift to
+    /// an unsupported model id.
+    public static func nemotronModelVariant(defaults: UserDefaults = .standard) -> NemotronModelVariant {
+        guard let raw = defaults.string(forKey: nemotronModelVariantKey),
+              let variant = NemotronModelVariant(rawValue: raw) else {
+            return defaultNemotronModelVariant
+        }
+        return variant
+    }
+
+    public static func saveNemotronModelVariant(_ variant: NemotronModelVariant, defaults: UserDefaults = .standard) {
+        defaults.set(variant.rawValue, forKey: nemotronModelVariantKey)
     }
 
     /// Whether `variant` has already paid its one-time on-device optimize, so
@@ -326,19 +342,25 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// The Nemotron 3.5 CoreML build surfaced by MacParakeet.
+/// The Nemotron CoreML builds surfaced by MacParakeet.
 ///
-/// FluidAudio exposes several chunk-size tiers. MacParakeet starts with the
-/// multilingual 1120 ms tier because it keeps the Beta product surface simple
-/// while preserving the balanced quality/latency posture expected for
-/// dictation, meetings, and file transcription.
+/// FluidAudio exposes several chunk-size tiers per Nemotron family. MacParakeet
+/// surfaces the 1120 ms tier of each because it keeps the Beta product surface
+/// simple while preserving the balanced quality/latency posture expected for
+/// dictation, meetings, and file transcription. The multilingual build is the
+/// Nemotron 3.5 model; the English build is the smaller English-only
+/// Nemotron Speech Streaming EN 0.6B model
+/// (research: `docs/research/stt-models-and-voice-personalization-2026-06.md` §2.1).
 public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
     case multilingual1120 = "multilingual-1120ms"
+    case english1120 = "english-1120ms"
 
     public var displayName: String {
         switch self {
         case .multilingual1120:
             "Multilingual Beta"
+        case .english1120:
+            "English Beta"
         }
     }
 
@@ -346,6 +368,8 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
         switch self {
         case .multilingual1120:
             "Nemotron 3.5 ASR Streaming 0.6B"
+        case .english1120:
+            "Nemotron Speech Streaming EN 0.6B"
         }
     }
 
@@ -353,15 +377,33 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
         switch self {
         case .multilingual1120:
             "Fast multilingual streaming model. Beta while MacParakeet benchmarks quality and edge cases."
+        case .english1120:
+            "English only. Strong research-benchmarked accuracy; Beta while MacParakeet corpus benchmarks run."
         }
     }
 
-    public var approximateDownloadSize: String { "~1.5 GB" }
+    public var approximateDownloadSize: String {
+        switch self {
+        case .multilingual1120:
+            "~1.5 GB"
+        case .english1120:
+            "~600 MB"
+        }
+    }
 
     public var chunkMilliseconds: Int {
         switch self {
-        case .multilingual1120:
+        case .multilingual1120, .english1120:
             1120
+        }
+    }
+
+    public var isEnglishOnly: Bool { self == .english1120 }
+
+    public var alternative: NemotronModelVariant {
+        switch self {
+        case .multilingual1120: .english1120
+        case .english1120: .multilingual1120
         }
     }
 }

@@ -584,6 +584,7 @@ struct TranscriptResultView: View {
             VStack(spacing: DesignSystem.Spacing.sm) {
                 EngineOptionCard(
                     selection: option.primaryEngine,
+                    nemotronVariant: option.nemotronVariant,
                     isPrimary: true,
                     isAvailable: true,
                     unavailableReason: nil
@@ -593,6 +594,7 @@ struct TranscriptResultView: View {
 
                 EngineOptionCard(
                     selection: option.alternativeEngine,
+                    nemotronVariant: option.nemotronVariant,
                     isPrimary: false,
                     isAvailable: option.isAlternativeAvailable,
                     unavailableReason: option.unavailableReason
@@ -680,6 +682,11 @@ struct TranscriptResultView: View {
         case .parakeet:
             return "Parakeet TDT"
         case .nemotron:
+            // Variant-aware: the EN build is not "Nemotron 3.5". Legacy rows
+            // (nil/multilingual variant) keep the established label.
+            if activeTranscription.engineVariant == NemotronModelVariant.english1120.rawValue {
+                return "Nemotron EN Beta"
+            }
             return "Nemotron 3.5 Beta"
         case .whisper:
             guard let variant = activeTranscription.engineVariant else {
@@ -2907,6 +2914,7 @@ struct TranscriptResultView: View {
 
 private struct EngineOptionCard: View {
     let selection: SpeechEngineSelection
+    let nemotronVariant: NemotronModelVariant
     let isPrimary: Bool
     let isAvailable: Bool
     let unavailableReason: String?
@@ -2927,7 +2935,9 @@ private struct EngineOptionCard: View {
         case .parakeet:
             "Fast • 25 European languages, including English"
         case .nemotron:
-            "Beta • Nemotron 3.5 multilingual streaming"
+            nemotronVariant.isEnglishOnly
+                ? "Beta • Nemotron Speech EN streaming"
+                : "Beta • Nemotron 3.5 multilingual streaming"
         case .whisper:
             "Broader languages • Korean, Chinese, Japanese, and more"
         }
@@ -2935,6 +2945,10 @@ private struct EngineOptionCard: View {
 
     private var languageDetail: String? {
         guard selection.engine == .whisper || selection.engine == .nemotron else { return nil }
+        if selection.engine == .nemotron, nemotronVariant.isEnglishOnly {
+            // The English-only build ignores language hints.
+            return "Language: English"
+        }
         let language = selection.language ?? "auto-detect"
         return "Language: \(language)"
     }

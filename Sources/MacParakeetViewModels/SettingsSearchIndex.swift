@@ -253,6 +253,19 @@ public enum SettingsSearchIndex {
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
+            id: "engine.nemotronModel",
+            tab: .engine,
+            title: "Nemotron Model",
+            subtitle: "Available when Nemotron is the active engine.",
+            keywords: [
+                "nemotron", "english", "english-only", "multilingual",
+                "streaming", "beta", "model", "variant"
+            ],
+            // Same hidden-anchor rationale as the Parakeet Model entry: the
+            // Nemotron Model card only renders when Nemotron is active.
+            cardAnchor: "engine.selector"
+        ),
+        SettingsSearchEntry(
             id: "engine.models",
             tab: .engine,
             title: "Local Models",

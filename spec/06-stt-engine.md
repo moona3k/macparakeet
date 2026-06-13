@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path. Nemotron 3.5 is available as an opt-in Beta local multilingual engine, and WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough. All speech engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path. Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), and WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough. All speech engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -41,13 +41,13 @@ FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
 
 | Property | Value |
 |----------|-------|
-| Model | Nemotron 3.5 ASR Streaming 0.6B (`multilingual-1120ms`) |
+| Model | Nemotron 3.5 ASR Streaming 0.6B (`multilingual-1120ms`, default) / Nemotron Speech Streaming EN 0.6B (`english-1120ms`, English-only, ~600 MB) |
 | Runtime | FluidAudio streaming Nemotron CoreML path |
 | Model cache | FluidAudio model cache under `~/Library/Application Support/FluidAudio/Models/` |
 | Output | Text and detected/specified language when reported; word timestamps are not currently surfaced through MacParakeet |
-| Languages | 40 language-locales upstream; exposed as opt-in Beta while MacParakeet benchmarks quality on real product audio |
-| Selection | Explicit in Settings or CLI (`--engine nemotron --language <code>`); no automatic fallback |
-| Download | ~1.5 GB, explicit Settings/CLI download before selecting as the shared default |
+| Languages | Multilingual build: 40 language-locales upstream; English build: English only (ignores the `nemotron-language` hint); both exposed as opt-in Beta while MacParakeet benchmarks quality on real product audio |
+| Selection | Explicit in Settings or CLI (`--engine nemotron --language <code>`); build via the Settings *Nemotron Model* card, `config set nemotron-model`, or `transcribe --nemotron-model`; no automatic fallback |
+| Download | ~1.5 GB (multilingual) / ~600 MB (English), explicit Settings/CLI download before selecting as the shared default |
 
 Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as Parakeet and Whisper rather than creating a feature-owned ASR stack.
 
@@ -64,7 +64,7 @@ Because Nemotron is a streaming engine, dictation on Nemotron streams microphone
 | Languages | Broad Whisper language coverage, including Korean, Japanese, Chinese, Hindi, Arabic, and others outside Parakeet v3 coverage |
 | Selection | Explicit in Settings or CLI (`--engine whisper --language <code>`); no automatic fallback |
 
-Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. Nemotron is the faster experimental multilingual path; WhisperKit solves mature broad coverage while preserving the local-first speech boundary.
+Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. Nemotron is the faster experimental path (multilingual default build, English-only opt-in build); WhisperKit solves mature broad coverage while preserving the local-first speech boundary.
 
 ### Three-Chip Architecture
 
@@ -379,9 +379,10 @@ Nemotron is downloaded from an explicit Settings/CLI action. It is not part of f
 
 ```bash
 swift run macparakeet-cli models download nemotron-multilingual-1120ms
+swift run macparakeet-cli models download nemotron-english-1120ms
 ```
 
-The single surfaced variant is `NemotronModelVariant.multilingual1120` (`multilingual-1120ms`). The optional language hint is stored separately as `nemotron-language`; `auto` clears the stored hint.
+The surfaced variants are `NemotronModelVariant.multilingual1120` (`multilingual-1120ms`, default) and `NemotronModelVariant.english1120` (`english-1120ms`, Nemotron Speech Streaming EN 0.6B, English-only). The build preference is stored as `nemotron-model` (`config set nemotron-model multilingual-1120ms|english-1120ms`, aliases `multilingual`/`english`) and can be overridden per run via `transcribe --nemotron-model app-default|multilingual-1120ms|english-1120ms`. The optional language hint is stored separately as `nemotron-language` and applies only to the multilingual build (the English build ignores it); `auto` clears the stored hint.
 
 ### Whisper Model Download
 

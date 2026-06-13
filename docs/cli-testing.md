@@ -189,11 +189,16 @@ English-only opt-in. Use `--parakeet-model app-default|v3|v2` for a single run,
 or `config set parakeet-model v2` / `models select parakeet-v2` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
 speech engine, Parakeet model, and Nemotron/Whisper language defaults.
-Nemotron is an opt-in Beta engine for multilingual local ASR. Download it
-explicitly before selecting or running it:
+Nemotron is an opt-in Beta engine with two builds: the multilingual default
+and an English-only streaming build. Use `--nemotron-model
+app-default|multilingual-1120ms|english-1120ms` for a single run, or
+`config set nemotron-model english-1120ms` / `models select
+nemotron-english-1120ms` to persist it. Download a build explicitly before
+selecting or running it:
 
 ```bash
 swift run macparakeet-cli models download nemotron-multilingual-1120ms
+swift run macparakeet-cli models download nemotron-english-1120ms
 
 swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine nemotron \
@@ -254,6 +259,7 @@ swift run macparakeet-cli config list
 swift run macparakeet-cli config set processing-mode raw
 swift run macparakeet-cli config set speech-engine whisper
 swift run macparakeet-cli config set parakeet-model v3
+swift run macparakeet-cli config set nemotron-model english-1120ms
 swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
@@ -262,10 +268,10 @@ swift run macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
-`parakeet-model`, `nemotron-language`, `whisper-language`, `speaker-detection`,
-`save-transcription-audio`, `youtube-audio-quality`. Underscore aliases such as
-`youtube_audio_quality` are accepted on input; JSON output uses canonical
-hyphenated keys.
+`parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
+`speaker-detection`, `save-transcription-audio`, `youtube-audio-quality`.
+Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
+output uses canonical hyphenated keys.
 
 ### Output Formats
 
@@ -306,14 +312,16 @@ swift run macparakeet-cli models select parakeet-v2
 swift run macparakeet-cli models download parakeet-v2
 swift run macparakeet-cli models download nemotron-multilingual-1120ms
 swift run macparakeet-cli models select nemotron-multilingual-1120ms
+swift run macparakeet-cli models download nemotron-english-1120ms
+swift run macparakeet-cli models select nemotron-english-1120ms
 swift run macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB
 ```
 
 `models list` reports the selectable speech engines MacParakeet exposes today:
-Parakeet v3, Parakeet v2, Nemotron 3.5 ASR Beta, and the configured WhisperKit
-variant. `models select` writes the same shared default used by the GUI and
-`transcribe --engine app-default`; Nemotron and Whisper selection require the
-local model to be downloaded first.
+Parakeet v3, Parakeet v2, the two Nemotron Beta builds (multilingual and
+English-only), and the configured WhisperKit variant. `models select` writes
+the same shared default used by the GUI and `transcribe --engine app-default`;
+Nemotron and Whisper selection require the local model to be downloaded first.
 
 ## Retained Entitlements Parity
 

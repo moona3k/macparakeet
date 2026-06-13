@@ -85,6 +85,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--format"))
         XCTAssertTrue(optionNames.contains("--mode"))
         XCTAssertTrue(optionNames.contains("--parakeet-model"))
+        XCTAssertTrue(optionNames.contains("--nemotron-model"))
         XCTAssertTrue(optionNames.contains("--downloaded-audio"))
         XCTAssertTrue(optionNames.contains("--speaker-count"))
         XCTAssertTrue(optionNames.contains("--speaker-min"))
@@ -94,8 +95,13 @@ final class SpecCommandTests: XCTestCase {
 
         let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
         XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|app-default")
+        let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
+        XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
-        XCTAssertEqual(language["summary"] as? String, "Language hint for Nemotron or Whisper.")
+        XCTAssertEqual(
+            language["summary"] as? String,
+            "Language hint for Nemotron or Whisper; the English-only Nemotron build ignores it."
+        )
     }
 
     func testSpecDocumentsConfigAndModelsCommands() throws {

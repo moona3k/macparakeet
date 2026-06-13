@@ -84,6 +84,7 @@ final class AppEnvironment {
         sttRuntime = STTRuntime(
             modelVersion: SpeechEnginePreference.parakeetModelVariant().asrModelVersion,
             speechEngine: SpeechEnginePreference.current(),
+            nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(),
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
@@ -273,7 +274,10 @@ final class AppEnvironment {
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
+                // The English-only Nemotron build is batch-at-stop; only the
+                // multilingual build streams live dictation partials.
                 SpeechEnginePreference.current() == .nemotron
+                    && !SpeechEnginePreference.nemotronModelVariant().isEnglishOnly
             },
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a

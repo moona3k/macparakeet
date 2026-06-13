@@ -336,6 +336,37 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, STTLiveD
         }
     }
 
+    public func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        // Shares the engine-switch guard + task slot: a variant swap reloads the
+        // model and must not race transcription, meetings, or an engine switch.
+        guard acceptsNewJobs,
+              activeSpeechEngineSessionIDs.isEmpty,
+              !hasQueuedOrRunningJobs,
+              speechEngineSwitchTask == nil else {
+            throw STTError.engineBusy
+        }
+
+        acceptsNewJobs = false
+        let switchTask = Task {
+            try await runtime.setNemotronModelVariant(variant, onProgress: onProgress)
+        }
+        speechEngineSwitchTask = switchTask
+        defer {
+            speechEngineSwitchTask = nil
+            acceptsNewJobs = true
+        }
+        try await observingRuntimeTimeoutThrowing(reason: "set_nemotron_model_variant") {
+            try await withTaskCancellationHandler {
+                try await switchTask.value
+            } onCancel: {
+                switchTask.cancel()
+            }
+        }
+    }
+
     public func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
         if speechEngineSwitchTask != nil {
             return .switchInProgress

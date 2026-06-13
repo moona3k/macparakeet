@@ -441,6 +441,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case youtubeAudioQuality = "youtube_audio_quality"
     case speakerDiarization = "speaker_diarization"
     case parakeetModelVariant = "parakeet_model_variant"
+    case nemotronModelVariant = "nemotron_model_variant"
     case whisperDefaultLanguage = "whisper_default_language"
     case autoSave = "auto_save"
     case meetingAutoSave = "meeting_auto_save"
@@ -1612,6 +1613,13 @@ extension TelemetryEventSpec {
             "large-v2",
             "large-v3",
             SpeechEnginePreference.defaultWhisperModelVariant,
+            // First-party fixed build ids (privacy-safe enum raw values).
+            // Without them every Parakeet/Nemotron event collapses to
+            // "custom" and variant adoption can't be measured.
+            ParakeetModelVariant.v2.rawValue,
+            ParakeetModelVariant.v3.rawValue,
+            NemotronModelVariant.multilingual1120.rawValue,
+            NemotronModelVariant.english1120.rawValue,
         ]
 
         return allowedVariants.contains(normalized) ? normalized : "custom"

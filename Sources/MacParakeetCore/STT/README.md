@@ -2,9 +2,11 @@
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
 > CoreML) is default, with v3 multilingual as the default build and v2
-> English-only as an opt-in Parakeet variant; Nemotron 3.5 is an opt-in
-> Beta local multilingual engine; WhisperKit is optional for languages
-> outside Parakeet/Nemotron coverage.
+> English-only as an opt-in Parakeet variant; Nemotron is an opt-in Beta
+> engine with two builds — multilingual (Nemotron 3.5, default) and an
+> English-only streaming build (Nemotron Speech Streaming EN 0.6B);
+> WhisperKit is optional for languages outside Parakeet/Nemotron
+> coverage.
 
 ## Entry point
 
@@ -20,8 +22,10 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `STTScheduler.swift` — public broker. Job admission, slot scheduling,
   engine routing, session leases for active meetings.
 - `STTRuntime.swift` — sole owner of the Parakeet `AsrManager`s, the
-  optional Beta `NemotronEngine`, and the optional `WhisperEngine`.
-  Handles warm-up, model init, cache clearing, shutdown.
+  optional Beta `NemotronEngine`/`NemotronEnglishEngine` pair (routed
+  by the persisted `NemotronModelVariant`), and the optional
+  `WhisperEngine`. Handles warm-up, model init, cache clearing,
+  shutdown, and Parakeet/Nemotron build swaps.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -35,6 +39,11 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the
   Beta local multilingual engine. Uses separate interactive/background
   managers backed by shared model weights so it fits the scheduler lanes.
+- `NemotronEnglishEngine.swift` — FluidAudio Nemotron Speech Streaming
+  EN 0.6B wrapper (English-only Beta build, `english-1120ms`). Same
+  two-lane shape; no language hints, no shared-weights API (both lanes
+  load the same compiled artifacts), batch-at-stop feeding through the
+  streaming manager in bounded slices.
 
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined

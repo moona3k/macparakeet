@@ -11,6 +11,9 @@ public final class TranscriptionViewModel {
         public let alternativeEngine: SpeechEngineSelection
         public let isAlternativeAvailable: Bool
         public let unavailableReason: String?
+        /// Persisted Nemotron build a Nemotron rerun would load (STTRuntime
+        /// resolves the persisted variant at run start).
+        public let nemotronVariant: NemotronModelVariant
 
         public var title: String {
             "Try with \(alternativeEngine.engine.displayName)"
@@ -162,6 +165,7 @@ public final class TranscriptionViewModel {
     private var activeTranscriptionTaskID: UUID?
     private var activeProgressSpeechEngine: SpeechEngineSelection?
     private var activeProgressWhisperVariant: String?
+    private var activeProgressNemotronVariant: NemotronModelVariant?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropCollectedURLs: [URL] = []
@@ -185,6 +189,7 @@ public final class TranscriptionViewModel {
         }
         self.isNemotronModelDownloaded = isNemotronModelDownloaded ?? {
             STTClient.isNemotronModelCached(
+                modelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
                 language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
             )
         }
@@ -441,7 +446,8 @@ public final class TranscriptionViewModel {
             primaryEngine: primaryEngine,
             alternativeEngine: alternativeEngine,
             isAlternativeAvailable: unavailableReason == nil,
-            unavailableReason: unavailableReason
+            unavailableReason: unavailableReason,
+            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         )
     }
 
@@ -683,6 +689,9 @@ public final class TranscriptionViewModel {
         activeProgressWhisperVariant = progressSpeechEngine.engine == .whisper
             ? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
             : nil
+        activeProgressNemotronVariant = progressSpeechEngine.engine == .nemotron
+            ? SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+            : nil
         transcribingFileName = fileName
         beginTranscription(source: source)
 
@@ -885,6 +894,7 @@ public final class TranscriptionViewModel {
         transcribingFileName = ""
         activeProgressSpeechEngine = nil
         activeProgressWhisperVariant = nil
+        activeProgressNemotronVariant = nil
         progressPhase = .preparing
         progressHeadline = Self.headline(for: .preparing)
         progressSubline = nil
@@ -902,11 +912,14 @@ public final class TranscriptionViewModel {
         let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(defaults: defaults)
         let whisperVariant = activeProgressWhisperVariant
             ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        let nemotronVariant = activeProgressNemotronVariant
+            ?? SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         self.progressSubline = Self.subline(
             for: phase,
             sourceKind: sourceKind,
             engine: speechEngine.engine,
-            whisperVariant: whisperVariant
+            whisperVariant: whisperVariant,
+            nemotronVariant: nemotronVariant
         )
     }
 
@@ -956,7 +969,8 @@ public final class TranscriptionViewModel {
         for phase: ProgressPhase,
         sourceKind: SourceKind,
         engine: SpeechEnginePreference,
-        whisperVariant: String
+        whisperVariant: String,
+        nemotronVariant: NemotronModelVariant
     ) -> String? {
         switch phase {
         case .downloading:
@@ -973,7 +987,9 @@ public final class TranscriptionViewModel {
             case .parakeet:
                 return "Parakeet TDT \u{00B7} Local Core ML"
             case .nemotron:
-                return "Nemotron 3.5 Beta \u{00B7} Local Core ML"
+                return nemotronVariant.isEnglishOnly
+                    ? "Nemotron EN Beta \u{00B7} Local Core ML"
+                    : "Nemotron 3.5 Beta \u{00B7} Local Core ML"
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Local Core ML"

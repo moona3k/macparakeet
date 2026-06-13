@@ -437,17 +437,19 @@ struct SettingsView: View {
         }
     }
 
-    /// Engine tab — speech recognition stack, decomposed into three cards
-    /// so each surface owns one decision the user makes:
+    /// Engine tab — speech recognition stack, decomposed into cards so each
+    /// surface owns one decision the user makes:
     ///
     /// 1. `engineSelectorCard` — which engine? (Parakeet vs Nemotron vs Whisper)
     /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
     ///    multilingual `v3` vs English-only `v2`)
-    /// 3. `engineLanguageCard` — which language? (Whisper only — Parakeet
+    /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
+    ///    multilingual vs English-only)
+    /// 4. `engineLanguageCard` — which language? (Whisper only — Parakeet
     ///    auto-detects from its 25 supported European languages)
-    /// 4. `enginesModelsCard` — what's the local model state?
+    /// 5. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 2 and 3 are mutually exclusive (one per engine), so exactly one
+    /// Cards 2–4 are mutually exclusive (one per engine), so exactly one
     /// contextual config card sits between the selector and the models card.
     ///
     /// Sub-VM split (`EngineSettingsViewModel`) lands in a later commit;
@@ -456,6 +458,7 @@ struct SettingsView: View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
             engineParakeetModelCard.id("engine.parakeetModel")
+            engineNemotronModelCard.id("engine.nemotronModel")
             engineLanguageCard.id("engine.language")
             enginesModelsCard.id("engine.models")
         }
@@ -493,19 +496,19 @@ struct SettingsView: View {
         }
     }
 
-    /// A downloaded model awaiting delete confirmation. `parakeet` carries the
-    /// specific build; Whisper deletion follows the configured Whisper variant
-    /// from `SettingsViewModel.deleteWhisperModel()`, so the alert copy stays
-    /// variant-agnostic here.
+    /// A downloaded model awaiting delete confirmation. `parakeet` and
+    /// `nemotron` carry the specific build; Whisper deletion follows the
+    /// configured Whisper variant from `SettingsViewModel.deleteWhisperModel()`,
+    /// so the alert copy stays variant-agnostic here.
     private enum PendingModelDeletion: Identifiable, Equatable {
         case parakeet(ParakeetModelVariant)
-        case nemotron
+        case nemotron(NemotronModelVariant)
         case whisper
 
         var id: String {
             switch self {
             case .parakeet(let variant): "parakeet-\(variant.rawValue)"
-            case .nemotron: "nemotron"
+            case .nemotron(let variant): "nemotron-\(variant.rawValue)"
             case .whisper: "whisper"
             }
         }
@@ -516,7 +519,7 @@ struct SettingsView: View {
     private var modelDeletionAlertTitle: String {
         switch pendingModelDeletion {
         case .parakeet(let variant): "Delete \(variant.modelName)?"
-        case .nemotron: "Delete the Nemotron model?"
+        case .nemotron(let variant): "Delete \(variant.modelName)?"
         case .whisper: "Delete the Whisper model?"
         case nil: "Delete this model?"
         }
@@ -526,8 +529,7 @@ struct SettingsView: View {
         switch deletion {
         case .parakeet(let variant):
             return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
-        case .nemotron:
-            let variant = SpeechEnginePreference.defaultNemotronModelVariant
+        case .nemotron(let variant):
             return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
         case .whisper:
             return "This removes the configured Whisper model download from this Mac. You can download it again at any time."
@@ -538,8 +540,8 @@ struct SettingsView: View {
         switch deletion {
         case .parakeet(let variant):
             viewModel.deleteParakeetVariant(variant)
-        case .nemotron:
-            viewModel.deleteNemotronModel()
+        case .nemotron(let variant):
+            viewModel.deleteNemotronVariant(variant)
         case .whisper:
             viewModel.deleteWhisperModel()
         }
@@ -556,7 +558,7 @@ struct SettingsView: View {
     private func speechEngineSwitchConfirmationMessage(for engine: SpeechEnginePreference) -> String {
         switch engine {
         case .nemotron:
-            return "Nemotron 3.5 is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
+            return "Nemotron is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
         case .whisper:
             if viewModel.whisperHasBeenOptimized {
                 return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
@@ -1981,14 +1983,14 @@ struct SettingsView: View {
 
                     EngineOptionTile(
                         icon: "sparkles",
-                        name: "Nemotron 3.5",
-                        tagline: "Latest multilingual (Beta)",
+                        name: "Nemotron",
+                        tagline: "Streaming local models (Beta)",
                         strengths: [
-                            "English + many European languages",
+                            "Multilingual or English-only builds",
                             "Korean, Mandarin, Japanese, Hindi",
                             "Cache-aware low-latency streaming"
                         ],
-                        helpText: "Newest local NVIDIA ASR option. It supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. It stays Beta while real-world quality is benchmarked.",
+                        helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy. Both stay Beta while real-world quality is benchmarked.",
                         modelStatus: displayedNemotronModelStatus,
                         isSelected: viewModel.speechEnginePreference == .nemotron,
                         isBusy: viewModel.speechEngineSwitching,
@@ -2018,7 +2020,9 @@ struct SettingsView: View {
 
                 if let banner = nemotronDownloadBannerState {
                     EngineDownloadBanner(
-                        title: "Nemotron 3.5 Beta",
+                        title: viewModel.nemotronModelVariant.isEnglishOnly
+                            ? "Nemotron Speech EN Beta"
+                            : "Nemotron 3.5 Beta",
                         subtitle: banner.subtitle,
                         mode: banner.mode,
                         action: { viewModel.downloadNemotronModel() }
@@ -2095,7 +2099,7 @@ struct SettingsView: View {
                             Text(variant.modelName)
                                 .font(DesignSystem.Typography.body.weight(.medium))
                                 .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            parakeetVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
                         }
                         Text(variant.coverageSummary)
                             .font(DesignSystem.Typography.caption)
@@ -2129,9 +2133,10 @@ struct SettingsView: View {
     }
 
     /// Compact trailing badge: green "Downloaded" when present, amber size hint
-    /// with a download glyph when the build hasn't been fetched yet.
+    /// with a download glyph when the build hasn't been fetched yet. Shared by
+    /// the Parakeet and Nemotron build pickers.
     @ViewBuilder
-    private func parakeetVariantStatusBadge(isDownloaded: Bool, size: String) -> some View {
+    private func modelVariantStatusBadge(isDownloaded: Bool, size: String) -> some View {
         if isDownloaded {
             HStack(spacing: 4) {
                 Circle()
@@ -2166,6 +2171,99 @@ struct SettingsView: View {
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
                 viewModel.parakeetModelVariant = variant
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var engineNemotronModelCard: some View {
+        if viewModel.speechEnginePreference == .nemotron {
+            SettingsCard(
+                title: "Nemotron Model",
+                subtitle: "Pick which Nemotron build loads. English-only is a smaller download; both are Beta while MacParakeet corpus benchmarks run.",
+                icon: "character.book.closed"
+            ) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    nemotronModelOptionRow(.multilingual1120)
+                    Divider()
+                    nemotronModelOptionRow(.english1120)
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private func nemotronModelOptionRow(_ variant: NemotronModelVariant) -> some View {
+        let isSelected = viewModel.nemotronModelVariant == variant
+        let isDownloaded = viewModel.downloadedNemotronVariants.contains(variant)
+        let downloadStatusLabel = isDownloaded
+            ? "Downloaded."
+            : "\(variant.approximateDownloadSize), downloads on first use."
+        // The selected build is the one Nemotron loads, so it's protected; only
+        // the other, already-downloaded build can be removed from here.
+        let canDelete = isDownloaded && !isSelected
+
+        return HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Button {
+                selectNemotronModelVariant(variant)
+            } label: {
+                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                    Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                        .accessibilityHidden(true)
+                        .padding(.top, 1)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: DesignSystem.Spacing.sm) {
+                            Text(variant.modelName)
+                                .font(DesignSystem.Typography.body.weight(.medium))
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                        }
+                        Text(variant.coverageSummary)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.vertical, DesignSystem.Spacing.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.speechEngineSwitching)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
+            // `.combine` can drop the wrapping Button's role, so assert it explicitly
+            // alongside the selected state for VoiceOver.
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
+
+            if canDelete {
+                ModelDeleteIconButton(
+                    helpText: "Remove this Nemotron build to free \(variant.approximateDownloadSize).",
+                    accessibilityLabel: "Delete \(variant.modelName) download"
+                ) {
+                    pendingModelDeletion = .nemotron(variant)
+                }
+                .padding(.top, 1)
+                .disabled(viewModel.speechEngineSwitching)
+            }
+        }
+    }
+
+    /// Mirrors `selectParakeetModelVariant` for the Nemotron build picker.
+    private func selectNemotronModelVariant(_ variant: NemotronModelVariant) {
+        guard viewModel.nemotronModelVariant != variant,
+              !viewModel.speechEngineSwitching else { return }
+        Task { @MainActor in
+            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                return
+            }
+            withAnimation(DesignSystem.Animation.contentSwap) {
+                viewModel.nemotronModelVariant = variant
             }
         }
     }
@@ -2260,12 +2358,15 @@ struct SettingsView: View {
         )
     }
 
-    /// Title for the switch banner / status chip. A Parakeet *build* swap
-    /// (v3 ↔ v2) keeps the engine on Parakeet, so "Switching to Parakeet" would
-    /// be wrong — show "Updating Parakeet model" instead.
+    /// Title for the switch banner / status chip. A Parakeet/Nemotron *build*
+    /// swap keeps the engine selection unchanged, so "Switching to …" would be
+    /// wrong — show "Updating … model" instead.
     private var speechEngineSwitchTitle: String {
         if viewModel.isParakeetVariantSwitch {
             return "Updating Parakeet model"
+        }
+        if viewModel.isNemotronVariantSwitch {
+            return "Updating Nemotron model"
         }
         let target = currentSpeechEngineSwitchTarget
         switch target {
@@ -2341,7 +2442,7 @@ struct SettingsView: View {
               currentSpeechEngineSwitchTarget == .nemotron else {
             return viewModel.nemotronModelStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Loading Nemotron 3.5 Beta with Core ML..."
+        return viewModel.speechEngineSwitchDetail ?? "Loading \(viewModel.nemotronModelVariant.modelName) with Core ML..."
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
@@ -2429,7 +2530,7 @@ struct SettingsView: View {
         }
         switch viewModel.nemotronModelStatus {
         case .notDownloaded:
-            return (.download, "\(SpeechEnginePreference.defaultNemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
+            return (.download, "\(viewModel.nemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
         case .repairing:
             return (.downloading, viewModel.nemotronModelStatusDetail)
         case .failed:
@@ -2468,7 +2569,7 @@ struct SettingsView: View {
         case .ready, .notLoaded:
             selectEngine(.nemotron)
         case .notDownloaded:
-            viewModel.speechEngineError = "Download the Nemotron model from Local Models below before switching engines."
+            viewModel.speechEngineError = "Download the \(viewModel.nemotronModelVariant.displayName) Nemotron model below before switching engines."
         case .repairing:
             viewModel.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
         case .preparing:
@@ -2551,7 +2652,7 @@ struct SettingsView: View {
             return ModelRowAction(
                 label: "Download",
                 isProminent: true,
-                help: "Download Nemotron 3.5 Beta for local multilingual speech recognition."
+                help: "Download the selected Nemotron build for local speech recognition."
             ) {
                 viewModel.downloadNemotronModel()
             }
@@ -2583,9 +2684,9 @@ struct SettingsView: View {
                     label: "Delete download…",
                     isProminent: false,
                     isDestructive: true,
-                    help: "Remove the Nemotron model download from this Mac."
+                    help: "Remove the selected Nemotron build's download from this Mac."
                 ) {
-                    pendingModelDeletion = .nemotron
+                    pendingModelDeletion = .nemotron(viewModel.nemotronModelVariant)
                 })
             }
             return actions

@@ -179,6 +179,48 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(ParakeetModelVariant.v2.alternative, .v3)
     }
 
+    // MARK: - Nemotron model variant
+
+    func testNemotronModelVariantDefaultsToMultilingual1120() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .multilingual1120)
+    }
+
+    func testNemotronModelVariantRoundTrips() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .english1120)
+
+        SpeechEnginePreference.saveNemotronModelVariant(.multilingual1120, defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .multilingual1120)
+    }
+
+    func testNemotronModelVariantFallsBackOnCorruptValue() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set("nonsense", forKey: SpeechEnginePreference.nemotronModelVariantKey)
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .multilingual1120)
+    }
+
+    func testNemotronModelVariantFrozenContract() {
+        // Raw values are persisted in UserDefaults and surfaced via the CLI
+        // (`config set nemotron-model`) — renaming them silently orphans
+        // stored preferences.
+        XCTAssertEqual(NemotronModelVariant.multilingual1120.rawValue, "multilingual-1120ms")
+        XCTAssertEqual(NemotronModelVariant.english1120.rawValue, "english-1120ms")
+        XCTAssertTrue(NemotronModelVariant.english1120.isEnglishOnly)
+        XCTAssertFalse(NemotronModelVariant.multilingual1120.isEnglishOnly)
+        XCTAssertEqual(NemotronModelVariant.multilingual1120.chunkMilliseconds, 1120)
+        XCTAssertEqual(NemotronModelVariant.english1120.chunkMilliseconds, 1120)
+        XCTAssertEqual(NemotronModelVariant.multilingual1120.alternative, .english1120)
+        XCTAssertEqual(NemotronModelVariant.english1120.alternative, .multilingual1120)
+    }
+
     func testColdSwitchOnlyAppliesToUnoptimizedActiveWhisperVariant() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }

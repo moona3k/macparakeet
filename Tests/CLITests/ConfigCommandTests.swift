@@ -31,6 +31,7 @@ final class ConfigCommandTests: XCTestCase {
             "processing-mode",
             "speech-engine",
             "parakeet-model",
+            "nemotron-model",
             "nemotron-language",
             "whisper-language",
             "speaker-detection",
@@ -59,6 +60,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v3")
+        XCTAssertEqual(try ConfigCommand.read(key: "nemotron-model", defaults: defaults), "multilingual-1120ms")
         XCTAssertEqual(try ConfigCommand.read(key: "nemotron-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
@@ -156,6 +158,31 @@ final class ConfigCommandTests: XCTestCase {
         }
     }
 
+    func testWriteNemotronModelPersistsAndCanonicalizesAliases() throws {
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "english-1120ms", defaults: defaults), "english-1120ms")
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .english1120)
+
+        // Friendly aliases canonicalize to the tier ids.
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "english", defaults: defaults), "english-1120ms")
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "english-only", defaults: defaults), "english-1120ms")
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "en", defaults: defaults), "english-1120ms")
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "multilingual", defaults: defaults), "multilingual-1120ms")
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-model", value: "multi", defaults: defaults), "multilingual-1120ms")
+        XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: defaults), .multilingual1120)
+
+        // Underscore-aliased key resolves too.
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron_model", value: "english-1120ms", defaults: defaults), "english-1120ms")
+        XCTAssertEqual(try ConfigCommand.read(key: "nemotron-model", defaults: defaults), "english-1120ms")
+    }
+
+    func testWriteNemotronModelRejectsInvalidValue() {
+        XCTAssertThrowsError(try ConfigCommand.write(key: "nemotron-model", value: "english-9999ms", defaults: defaults)) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        // Defaults must not have been mutated.
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.nemotronModelVariantKey))
+    }
+
     func testWriteWhisperLanguageAutoClearsStoredDefault() throws {
         defaults.set("ko", forKey: SpeechEnginePreference.whisperDefaultLanguageKey)
 
@@ -176,6 +203,15 @@ final class ConfigCommandTests: XCTestCase {
             "zh-Hant-TW"
         )
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey), "zh-Hant-TW")
+    }
+
+    func testWriteNemotronLanguagePersistsWhileEnglishModelSelected() throws {
+        // The English-only build ignores the language hint, but the value still
+        // persists so it applies once the multilingual build is selected again.
+        SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "nemotron-language", value: "ko", defaults: defaults), "ko")
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey), "ko")
     }
 
     func testWriteNemotronLanguageRejectsInvalidValue() {

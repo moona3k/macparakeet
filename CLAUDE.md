@@ -89,7 +89,7 @@ from grep. Folders with READMEs today: `Audio/`, `STT/`,
 | Platform | macOS 14.2+ | Apple Silicon only |
 | Language | Swift 5.9 (tools-version) | `Package.swift` declares `swift-tools-version: 5.9`; first-party code is kept Swift 6 language-mode / concurrency clean (separate CI compile check). SwiftUI for UI |
 | Database | SQLite | GRDB (single file, dictation history + transcriptions + meeting recordings) |
-| STT | Parakeet TDT 0.6B (v3 default, v2 opt-in) + optional Nemotron 3.5 Beta + optional WhisperKit | Parakeet via FluidAudio CoreML/ANE is default (v3 multilingual: ~2.5% WER, 155x realtime, 25 European languages; v2 English-only: ~2.1% WER and no language auto-detect); Nemotron 3.5 (Beta) is an opt-in fast multilingual FluidAudio engine, labeled Beta while quality is benchmarked; WhisperKit adds broader local multilingual coverage |
+| STT | Parakeet TDT 0.6B (v3 default, v2 opt-in) + optional Nemotron 3.5 Beta + optional WhisperKit | Parakeet via FluidAudio CoreML/ANE is default (v3 multilingual: ~2.5% WER, 155x realtime, 25 European languages; v2 English-only: ~2.1% WER and no language auto-detect); Nemotron (Beta) is an opt-in fast FluidAudio engine with two builds — the multilingual 3.5 default and an English-only Nemotron Speech Streaming EN 0.6B — labeled Beta while quality is benchmarked; WhisperKit adds broader local multilingual coverage |
 | Audio | AVAudioEngine + ScreenCaptureKit | Mic capture for dictation; ScreenCaptureKit system audio + AVAudioEngine mic for meeting recording; FFmpeg (bundled) for video file conversion |
 | YouTube | yt-dlp | Standalone macOS binary, weekly non-blocking auto-update via `--update` |
 | Auto-Update | Sparkle 2 | In-app updates via EdDSA-signed appcast (non-App Store) |
@@ -197,7 +197,8 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 - ~66 MB working memory per active Parakeet inference slot (vs ~2 GB+ on GPU/MLX)
 - ~465 MB CoreML speech model bundle per Parakeet build; v2 and v3 cache independently
 - ~130 MB diarization asset bundle prepared alongside onboarding/default speaker-detection readiness
-- Nemotron 3.5 ASR (Beta) is an opt-in FluidAudio CoreML multilingual streaming engine (model id `nemotron-multilingual-1120ms`, ~1.5 GB) selected via Settings, `config set nemotron-language`, `models select nemotron-multilingual-1120ms`, or `transcribe --engine nemotron`; labeled Beta while real-world quality is benchmarked (no word-level timestamps surfaced yet)
+- Nemotron 3.5 ASR (Beta) is an opt-in FluidAudio CoreML multilingual streaming engine (default build `nemotron-multilingual-1120ms`, ~1.5 GB) selected via Settings, `config set nemotron-language`, `models select nemotron-multilingual-1120ms`, or `transcribe --engine nemotron`; labeled Beta while real-world quality is benchmarked (no word-level timestamps surfaced yet from either build)
+- A second Nemotron build, Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, ~600 MB), is English-only (ignores the Nemotron language hint) and transcribes batch-at-stop; selected via Settings, `config set nemotron-model`, `models select nemotron-english-1120ms`, or `transcribe --nemotron-model`
 - WhisperKit is available as a local secondary engine for broader language coverage; default model variant is `large-v3-v20240930_turbo_632MB`
 - Whisper and Nemotron language hints are optional (`auto` means detect); persisted defaults are stored in `UserDefaults` and exposed in Settings
 - One process-wide `STTRuntime` owner manages model lifecycle for the app

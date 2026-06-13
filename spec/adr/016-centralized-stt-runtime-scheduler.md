@@ -5,6 +5,7 @@
 > Related: ADR-001 (Parakeet STT + Nemotron Beta amendment), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
 > Amendment 2026-04-28: The scheduler is now engine-routed. Parakeet remains default; WhisperKit can be selected globally or per routed job. Meeting sessions hold a speech-engine lease so engine changes cannot split a meeting across engines.
 > Amendment 2026-06-08: Nemotron 3.5 joins the same routed scheduler/runtime as an opt-in Beta engine. The one-control-plane rule still holds; Nemotron does not create feature-owned STT runtimes.
+> Amendment 2026-06-11: The Nemotron engine routes between two builds (multilingual `NemotronEngine` / English-only `NemotronEnglishEngine`) on the persisted Nemotron model preference. Nemotron build swaps follow the same scheduler rules as Parakeet v2/v3 swaps — rejected while jobs run or a meeting lease is active.
 
 ## Context
 

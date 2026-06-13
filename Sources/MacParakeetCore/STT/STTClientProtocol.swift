@@ -87,6 +87,14 @@ public protocol SpeechEngineSwitching: Sendable {
         _ variant: ParakeetModelVariant,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws
+    /// Switches the active Nemotron build (multilingual ↔ English-only).
+    /// Like an engine switch, this may download the target and reloads the
+    /// runtime when Nemotron is active; see
+    /// ``STTRuntime/setNemotronModelVariant(_:onProgress:)``.
+    func setNemotronModelVariant(
+        _ variant: NemotronModelVariant,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws
 }
 
 public enum SpeechEngineSwitchAvailability: Sendable, Equatable {

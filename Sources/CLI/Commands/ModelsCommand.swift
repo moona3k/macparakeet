@@ -67,6 +67,9 @@ extension ModelsCommand {
                 if let parakeetVariant = selection.parakeetVariant {
                     SpeechEnginePreference.saveParakeetModelVariant(parakeetVariant, defaults: defaults)
                 }
+                if let nemotronVariant = selection.nemotronVariant {
+                    SpeechEnginePreference.saveNemotronModelVariant(nemotronVariant, defaults: defaults)
+                }
 
                 let selected = loadSelectableSpeechModels(defaults: defaults).first { $0.selected }
                     ?? SelectableSpeechModel(
@@ -130,7 +133,7 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var variant: String
 
         func run() async throws {
@@ -254,7 +257,7 @@ extension ModelsCommand {
             commandName: "delete",
             abstract: "Delete one downloaded speech model, freeing its disk space.",
             discussion: """
-                Removes a single model (one Parakeet build, Nemotron, or the Whisper variant) \
+                Removes a single model (one Parakeet build, one Nemotron build, or the Whisper variant) \
                 while leaving every other model in place — unlike `models clear`, \
                 which wipes the whole local stack.
 
@@ -264,7 +267,7 @@ extension ModelsCommand {
                 """
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var id: String
 
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
@@ -348,9 +351,12 @@ func parakeetDownloadVariant(
     return parseParakeetSelectionVariant(lowered)
 }
 
-func nemotronDownloadVariant(from lowered: String) -> NemotronModelVariant? {
+func nemotronDownloadVariant(
+    from lowered: String,
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> NemotronModelVariant? {
     if lowered == SpeechEnginePreference.nemotron.rawValue {
-        return SpeechEnginePreference.defaultNemotronModelVariant
+        return SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
     }
     return parseNemotronSelectionVariant(lowered)
 }
@@ -361,7 +367,7 @@ func resolveWhisperDownloadModel(_ variant: String) throws -> String {
         throw ValidationError("Model variant cannot be empty.")
     }
     guard normalizedInput.hasPrefix("whisper-") else {
-        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, or whisper-* id from `models list`.")
+        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-* id from `models list`.")
     }
     return WhisperEngine.normalizeModelVariant(normalizedInput)
 }
@@ -439,7 +445,7 @@ func makeConfiguredSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) 
     STTClient(
         modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
         speechEngine: SpeechEnginePreference.current(defaults: defaults),
-        nemotronModelVariant: SpeechEnginePreference.defaultNemotronModelVariant,
+        nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
         whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
         defaults: defaults
     )
@@ -458,13 +464,14 @@ func loadSpeechStackStatus(
     diarizationService: DiarizationServiceProtocol,
     defaults: UserDefaults = macParakeetAppDefaults(),
     isParakeetModelCached: (@Sendable (ParakeetModelVariant) -> Bool)? = nil,
-    nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+    nemotronModelVariant: NemotronModelVariant? = nil,
     isNemotronModelDownloaded: (@Sendable (NemotronModelVariant) -> Bool)? = nil,
     whisperModelVariant: String? = nil,
     isWhisperModelDownloaded: (@Sendable (String) -> Bool)? = nil
 ) async -> SpeechStackStatus {
     let speechEngine = SpeechEnginePreference.current(defaults: defaults)
     let parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+    let nemotronModelVariant = nemotronModelVariant ?? SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
     let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
     let whisperModelVariant = whisperModelVariant ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
     let parakeetDownloaded = (isParakeetModelCached ?? { variant in
@@ -574,6 +581,7 @@ func loadSelectableSpeechModels(
         )
     }
 
+    let currentNemotronVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
     let nemotronModels = NemotronModelVariant.allCases.map { variant in
         SelectableSpeechModel(
             id: nemotronModelID(for: variant),
@@ -582,8 +590,8 @@ func loadSelectableSpeechModels(
             variant: variant.rawValue,
             size: variant.approximateDownloadSize,
             installed: checkNemotronModelDownloaded(variant),
-            selected: currentEngine == .nemotron,
-            language: nemotronLanguage ?? "auto"
+            selected: currentEngine == .nemotron && currentNemotronVariant == variant,
+            language: variant.isEnglishOnly ? "en" : (nemotronLanguage ?? "auto")
         )
     }
 
@@ -634,7 +642,7 @@ func resolveSelectableSpeechModel(
         return SelectableSpeechModelSelection(
             engine: .nemotron,
             whisperVariant: nil,
-            nemotronVariant: SpeechEnginePreference.defaultNemotronModelVariant
+            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         )
     }
 
@@ -770,7 +778,7 @@ func isModelInUse(
         return SpeechEnginePreference.parakeetModelVariant(defaults: defaults) == variant
     case .nemotron(let variant):
         return currentEngine == .nemotron
-            && variant == SpeechEnginePreference.defaultNemotronModelVariant
+            && variant == SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
     case .whisper(let variant):
         return currentEngine == .whisper
             && SpeechEnginePreference.whisperModelVariant(defaults: defaults) == variant
@@ -820,6 +828,8 @@ private func parseNemotronSelectionVariant(_ lowered: String) -> NemotronModelVa
     switch suffix {
     case "multilingual-1120ms", "multilingual", "multi", "beta":
         return .multilingual1120
+    case "english-1120ms", "english", "english-only", "en":
+        return .english1120
     default:
         return nil
     }

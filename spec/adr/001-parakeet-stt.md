@@ -7,6 +7,7 @@
 > Amendment (2026-04-28): Parakeet remains the **primary/default** STT engine. It is no longer the only engine. ADR-021 adds WhisperKit as an optional local multilingual engine for languages outside Parakeet's coverage.
 > Amendment (2026-05-30): The Parakeet family now exposes both FluidAudio builds. Multilingual v3 remains the default/primary model chosen by this ADR; English-only v2 is an opt-in Parakeet model for users who want a faster no-auto-detect English path.
 > Amendment (2026-06-08): Nemotron 3.5 is added as an opt-in Beta local multilingual engine through FluidAudio/CoreML. Parakeet v3 remains the primary/default STT engine; Nemotron is not a default replacement until real MacParakeet corpus benchmarks justify promotion.
+> Amendment (2026-06-11): Nemotron Speech Streaming EN 0.6B (`english-1120ms`) is added as a second opt-in Beta build under the Nemotron engine, a peer of the multilingual build the way Parakeet v2 is a peer of v3. Parakeet v3 remains the primary/default STT engine; promotion of either Nemotron build still requires real MacParakeet corpus benchmarks.
 
 ## Context
 
@@ -123,6 +124,38 @@ See ADR-021 for the full decision.
 Parakeet remains the default engine for dictation, file transcription, and meeting recording. Nemotron 3.5 ASR Streaming 0.6B is available as an explicit Beta local engine through FluidAudio/CoreML. It can be selected in Settings or per CLI invocation, and active meeting recordings capture the engine/language at start so live preview, final transcription, and crash recovery stay deterministic.
 
 Nemotron is labeled Beta because the first MacParakeet smoke benchmark showed strong warm-path speed but weaker English-heavy transcript quality than Parakeet on the synthetic corpus. It should not replace Parakeet as the default without a larger real-world dictation/meeting benchmark.
+
+## Addendum: Nemotron English Beta Build (June 2026)
+
+> Date: 2026-06-11
+
+The Nemotron engine now exposes two builds, selected through a persisted
+Nemotron model preference (Settings build picker, `config set nemotron-model`,
+`models select nemotron-english-1120ms`, or `transcribe --nemotron-model`):
+
+- `multilingual-1120ms` (default) — the Nemotron 3.5 multilingual build from
+  the 2026-06-08 amendment, with the existing `nemotron-language` hint.
+- `english-1120ms` — **Nemotron Speech Streaming EN 0.6B** (FastConformer-RNNT,
+  ~600 MB CoreML download via `FluidInference/nemotron-speech-streaming-en-0.6b-coreml`,
+  1120 ms chunk tier). English-only; it has no language-hint surface, so the
+  stored `nemotron-language` is ignored while it is selected. Vendor-published
+  benchmarks (M5 Pro: 2.28% WER / 65x RTFx at the 1120 ms tier, 100-file
+  LibriSpeech subset) motivated surfacing it — see
+  `docs/research/stt-models-and-voice-personalization-2026-06.md` §2.1 and
+  roadmap item 2 (§9) (June 2026 STT research, currently on the
+  `research/stt-models-voice-personalization` branch pending merge).
+
+Scope notes: the EN build runs batch-at-stop through the streaming manager
+(no live dictation partials in this amendment), exposes no word-level
+timestamps or confidence scores (the established Nemotron posture), and only
+the 1120 ms tier is surfaced. Build swaps follow the same scheduler guards as
+Parakeet v2/v3 swaps (ADR-016). License posture: FluidAudio and its CoreML
+conversion are Apache-2.0, but upstream NVIDIA model terms are not publicly
+verifiable, so the model stays a user-triggered download — never bundled.
+
+Both Nemotron builds remain Beta; fresh installs default to Parakeet v3.
+Promotion criteria are unchanged: real MacParakeet corpus benchmarks
+(dictation + meeting audio with corrected transcripts), not vendor numbers.
 
 ## References
 
