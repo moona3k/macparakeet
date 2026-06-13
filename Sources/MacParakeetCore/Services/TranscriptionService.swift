@@ -228,15 +228,19 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
     private let podcastAudioFetcher: PodcastAudioFetching?
+    private let promptResultRepo: PromptResultRepositoryProtocol?
     private let diarizationService: DiarizationServiceProtocol?
     private let mediaMetadataExtractor: MediaMetadataExtracting
     private let thumbnailCache: ThumbnailCaching
     private let playbackConverter: YouTubeAudioPlaybackConverting
+    private let meetingArtifactStore: MeetingArtifactStoring?
+    private let meetingAutomationHookRunner: MeetingAutomationHookRunning?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
@@ -254,7 +258,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         diarizationService: DiarizationServiceProtocol? = nil,
         mediaMetadataExtractor: MediaMetadataExtracting = AVMediaMetadataExtractor(),
         thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
-        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter()
+        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
+        meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
+        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner()
     ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
@@ -274,10 +280,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
         self.podcastAudioFetcher = podcastAudioFetcher
+        self.promptResultRepo = promptResultRepo
         self.diarizationService = diarizationService
         self.mediaMetadataExtractor = mediaMetadataExtractor
         self.thumbnailCache = thumbnailCache
         self.playbackConverter = playbackConverter
+        self.meetingArtifactStore = meetingArtifactStore
+        self.meetingAutomationHookRunner = meetingAutomationHookRunner
     }
 
     public func transcribe(
@@ -1561,6 +1570,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             await llmRunRecorder.record(formatterOutcome.run)
         }
 
+        if persistResult, source == .meeting {
+            await materializeMeetingArtifactIfPossible(transcription)
+        }
+
         let outputText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
         let wordCount = outputText.split(whereSeparator: \.isWhitespace).count
         let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 }
@@ -1593,6 +1606,33 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         )
 
         return transcription
+    }
+
+    private func materializeMeetingArtifactIfPossible(_ transcription: Transcription) async {
+        guard let meetingArtifactStore else { return }
+        do {
+            let promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcription.id) ?? []
+            let artifact = try await meetingArtifactStore.materialize(
+                transcription: transcription,
+                promptResults: promptResults
+            )
+            runMeetingAutomationHookIfConfigured(transcription: transcription, artifact: artifact)
+        } catch {
+            logger.warning("meeting_artifact_materialize_failed id=\(transcription.id.uuidString, privacy: .public) error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    private func runMeetingAutomationHookIfConfigured(
+        transcription: Transcription,
+        artifact: MeetingArtifactSnapshot
+    ) {
+        guard let meetingAutomationHookRunner else { return }
+        Task.detached(priority: .utility) {
+            _ = await meetingAutomationHookRunner.runCompletedMeetingHook(
+                transcription: transcription,
+                artifact: artifact
+            )
+        }
     }
 
     private func formatTranscriptIfNeeded(

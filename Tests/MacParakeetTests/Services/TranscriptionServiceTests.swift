@@ -176,6 +176,37 @@ private final class CapturingPlaybackConverter: YouTubeAudioPlaybackConverting, 
     }
 }
 
+private actor CapturingMeetingArtifactStore: MeetingArtifactStoring {
+    private(set) var capturedTranscription: Transcription?
+    private(set) var capturedPromptResults: [PromptResult] = []
+
+    func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult]
+    ) async throws -> MeetingArtifactSnapshot {
+        capturedTranscription = transcription
+        capturedPromptResults = promptResults
+
+        let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)
+            ?? FileManager.default.temporaryDirectory
+        return MeetingArtifactSnapshot(
+            generatedAt: Date(),
+            meetingID: transcription.id,
+            title: transcription.fileName,
+            folderPath: folderURL.path,
+            manifestPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path,
+            transcriptPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path,
+            notesPath: nil,
+            promptResultsPath: folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path,
+            promptResultsDirectoryPath: folderURL.appendingPathComponent(
+                MeetingArtifactStore.promptResultsDirectoryName,
+                isDirectory: true
+            ).path,
+            promptResultCount: promptResults.count
+        )
+    }
+}
+
 private struct StubMediaMetadataExtractor: MediaMetadataExtracting {
     let metadata: MediaMetadata
 
@@ -226,6 +257,7 @@ final class TranscriptionServiceTests: XCTestCase {
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
     var transcriptionRepo: TranscriptionRepository!
+    var promptResultRepo: PromptResultRepository!
     var llmRunRepo: LLMRunRepository!
 
     override func setUp() async throws {
@@ -233,6 +265,7 @@ final class TranscriptionServiceTests: XCTestCase {
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
         transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
         llmRunRepo = LLMRunRepository(dbQueue: dbManager.dbQueue)
         Telemetry.configure(NoOpTelemetryService())
 
@@ -1356,6 +1389,76 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let selections = await mockSTT.speechEngineSelections
         XCTAssertEqual(selections, [])
+    }
+
+    func testRetranscribeMeetingMaterializesExistingPromptResults() async throws {
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: recordingFolder) }
+
+        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+
+        let original = Transcription(
+            fileName: "Prompt Result Meeting",
+            filePath: mixedURL.path,
+            rawTranscript: "Old text",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(original)
+        try promptResultRepo.save(PromptResult(
+            transcriptionId: original.id,
+            promptName: "Action Items",
+            promptContent: "Extract action items.",
+            content: "Ship the artifact refresh.",
+            userNotesSnapshot: "Focus on follow-through."
+        ))
+
+        await mockSTT.configure(result: STTResult(
+            text: "Fresh text",
+            words: [
+                TimestampedWord(word: "Fresh", startMs: 0, endMs: 300, confidence: 0.9),
+                TimestampedWord(word: "text", startMs: 320, endMs: 520, confidence: 0.9),
+            ]
+        ))
+
+        let artifactStore = CapturingMeetingArtifactStore()
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            promptResultRepo: promptResultRepo,
+            meetingArtifactStore: artifactStore,
+            meetingAutomationHookRunner: nil
+        )
+        let recording = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Prompt Result Meeting",
+            folderURL: recordingFolder,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            durationSeconds: 1.0,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0, writtenFrameCount: 24_000, sampleRate: 48_000),
+                system: nil
+            )
+        )
+
+        let result = try await service.retranscribeMeeting(existing: original, recording: recording)
+
+        XCTAssertEqual(result.id, original.id)
+        let capturedTranscription = await artifactStore.capturedTranscription
+        let capturedPromptResults = await artifactStore.capturedPromptResults
+        XCTAssertEqual(capturedTranscription?.id, original.id)
+        XCTAssertEqual(capturedPromptResults.count, 1)
+        XCTAssertEqual(capturedPromptResults.first?.promptName, "Action Items")
+        XCTAssertEqual(capturedPromptResults.first?.content, "Ship the artifact refresh.")
     }
 
     func testTranscribeMeetingFailsWhenCapturedSpeechEngineCannotBeRouted() async throws {

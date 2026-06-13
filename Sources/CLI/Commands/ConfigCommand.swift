@@ -31,6 +31,10 @@ struct ConfigCommand: ParsableCommand {
           speaker-detection         on|off                          default: off
           save-transcription-audio  on|off                          default: on
           youtube-audio-quality     m4a|best-available              default: m4a
+          meeting-artifacts-folder  absolute path|default           default: app support
+          meeting-hook-enabled      on|off                          default: off
+          meeting-hook-path         absolute executable path|none    default: none
+          meeting-hook-timeout      seconds (1-300)                 default: 20
 
         Full event catalog:
           https://github.com/moona3k/macparakeet/blob/main/docs/telemetry.md
@@ -55,6 +59,10 @@ struct ConfigCommand: ParsableCommand {
         "speaker-detection",
         "save-transcription-audio",
         "youtube-audio-quality",
+        "meeting-artifacts-folder",
+        "meeting-hook-enabled",
+        "meeting-hook-path",
+        "meeting-hook-timeout",
     ]
 
     // MARK: - Subcommands
@@ -177,6 +185,19 @@ struct ConfigCommand: ParsableCommand {
             return on ? "on" : "off"
         case "youtube-audio-quality":
             return displayYouTubeAudioQuality(YouTubeAudioQuality.current(defaults: store))
+        case "meeting-artifacts-folder":
+            return AppPaths.configuredMeetingRecordingsDir(defaults: store)
+        case "meeting-hook-enabled":
+            let on = store.object(forKey: MeetingAutomationHookConfiguration.enabledKey) as? Bool ?? false
+            return on ? "on" : "off"
+        case "meeting-hook-path":
+            return store.string(forKey: MeetingAutomationHookConfiguration.executablePathKey)
+                .flatMap { MeetingAutomationHookConfiguration.normalizedExecutablePath($0) }
+                ?? "none"
+        case "meeting-hook-timeout":
+            let timeout = store.object(forKey: MeetingAutomationHookConfiguration.timeoutSecondsKey) as? Double
+                ?? MeetingAutomationHookConfiguration.defaultTimeoutSeconds
+            return displayTimeout(MeetingAutomationHookConfiguration.clampedTimeout(timeout))
         default:
             throw unknownKeyError(key)
         }
@@ -224,6 +245,37 @@ struct ConfigCommand: ParsableCommand {
             let quality = try parseYouTubeAudioQuality(value)
             store.set(quality.rawValue, forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
             return displayYouTubeAudioQuality(quality)
+        case "meeting-artifacts-folder":
+            let folder = try parseMeetingArtifactsFolder(value)
+            if let folder {
+                try FileManager.default.createDirectory(
+                    at: URL(fileURLWithPath: folder, isDirectory: true),
+                    withIntermediateDirectories: true
+                )
+                store.set(folder, forKey: AppPaths.meetingArtifactsFolderKey)
+                return folder
+            }
+            store.removeObject(forKey: AppPaths.meetingArtifactsFolderKey)
+            return AppPaths.defaultMeetingRecordingsDir
+        case "meeting-hook-enabled":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: MeetingAutomationHookConfiguration.enabledKey)
+            return parsed ? "on" : "off"
+        case "meeting-hook-path":
+            let path = try parseMeetingHookPath(value)
+            if let path {
+                guard FileManager.default.isExecutableFile(atPath: path) else {
+                    throw ValidationError("Invalid value for meeting-hook-path: '\(value)'. The path must exist and be executable.")
+                }
+                store.set(path, forKey: MeetingAutomationHookConfiguration.executablePathKey)
+                return path
+            }
+            store.removeObject(forKey: MeetingAutomationHookConfiguration.executablePathKey)
+            return "none"
+        case "meeting-hook-timeout":
+            let timeout = try parseMeetingHookTimeout(value)
+            store.set(timeout, forKey: MeetingAutomationHookConfiguration.timeoutSecondsKey)
+            return displayTimeout(timeout)
         default:
             throw unknownKeyError(key)
         }
@@ -328,6 +380,47 @@ struct ConfigCommand: ParsableCommand {
         case .bestAvailable:
             return "best-available"
         }
+    }
+
+    static func parseMeetingArtifactsFolder(_ value: String) throws -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        if lowered == "default" || lowered == "reset" {
+            return nil
+        }
+        guard let normalized = AppPaths.normalizedMeetingArtifactsFolder(trimmed),
+              (normalized as NSString).isAbsolutePath
+        else {
+            throw ValidationError("Invalid value for meeting-artifacts-folder: '\(value)'. Use an absolute path, ~/path, or default.")
+        }
+        return normalized
+    }
+
+    static func parseMeetingHookPath(_ value: String) throws -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        if lowered == "none" || lowered == "off" || lowered == "default" || lowered == "reset" {
+            return nil
+        }
+        guard let normalized = MeetingAutomationHookConfiguration.normalizedExecutablePath(trimmed) else {
+            throw ValidationError("Invalid value for meeting-hook-path: '\(value)'. Use an absolute executable path, ~/path, or none.")
+        }
+        return normalized
+    }
+
+    static func parseMeetingHookTimeout(_ value: String) throws -> TimeInterval {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let seconds = Double(trimmed),
+              seconds >= MeetingAutomationHookConfiguration.minimumTimeoutSeconds,
+              seconds <= MeetingAutomationHookConfiguration.maximumTimeoutSeconds
+        else {
+            throw ValidationError("Invalid value for meeting-hook-timeout: '\(value)'. Use seconds from 1 to 300.")
+        }
+        return seconds
+    }
+
+    static func displayTimeout(_ value: TimeInterval) -> String {
+        value.rounded(.towardZero) == value ? String(Int(value)) : String(value)
     }
 
     private static func unknownKeyError(_ key: String) -> ValidationError {

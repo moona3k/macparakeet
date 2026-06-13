@@ -36,6 +36,10 @@ final class ConfigCommandTests: XCTestCase {
             "speaker-detection",
             "save-transcription-audio",
             "youtube-audio-quality",
+            "meeting-artifacts-folder",
+            "meeting-hook-enabled",
+            "meeting-hook-path",
+            "meeting-hook-timeout",
         ])
     }
 
@@ -64,6 +68,10 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), AppPaths.defaultMeetingRecordingsDir)
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-hook-enabled", defaults: defaults), "off")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-hook-path", defaults: defaults), "none")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-hook-timeout", defaults: defaults), "20")
     }
 
     func testReadCanonicalizesUnderscoreKeys() throws {
@@ -134,6 +142,67 @@ final class ConfigCommandTests: XCTestCase {
     func testWriteCanonicalizesUnderscoreKeys() throws {
         XCTAssertEqual(try ConfigCommand.write(key: "speaker_detection", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool, true)
+    }
+
+    func testWriteMeetingArtifactFolderPersistsAndResets() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-config-artifacts-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-artifacts-folder", value: folder.path, defaults: defaults),
+            folder.path
+        )
+        XCTAssertEqual(defaults.string(forKey: AppPaths.meetingArtifactsFolderKey), folder.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), folder.path)
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-artifacts-folder", value: "default", defaults: defaults),
+            AppPaths.defaultMeetingRecordingsDir
+        )
+        XCTAssertNil(defaults.string(forKey: AppPaths.meetingArtifactsFolderKey))
+    }
+
+    func testMeetingArtifactFolderRejectsRelativePath() {
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "meeting-artifacts-folder", value: "relative/path", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+    }
+
+    func testWriteMeetingHookConfigPersists() throws {
+        XCTAssertEqual(try ConfigCommand.write(key: "meeting-hook-enabled", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(defaults.object(forKey: MeetingAutomationHookConfiguration.enabledKey) as? Bool, true)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "meeting-hook-timeout", value: "3.5", defaults: defaults), "3.5")
+        XCTAssertEqual(defaults.object(forKey: MeetingAutomationHookConfiguration.timeoutSecondsKey) as? Double, 3.5)
+
+        let executable = URL(fileURLWithPath: "/bin/cat")
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-hook-path", value: executable.path, defaults: defaults),
+            executable.path
+        )
+        XCTAssertEqual(defaults.string(forKey: MeetingAutomationHookConfiguration.executablePathKey), executable.path)
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-hook-path", defaults: defaults), executable.path)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "meeting-hook-path", value: "none", defaults: defaults), "none")
+        XCTAssertNil(defaults.string(forKey: MeetingAutomationHookConfiguration.executablePathKey))
+    }
+
+    func testMeetingHookConfigRejectsUnsafeValues() {
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "meeting-hook-path", value: "relative-hook", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "meeting-hook-timeout", value: "0", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
     }
 
     func testWriteParakeetModelPersistsAndCanonicalizesAliases() throws {

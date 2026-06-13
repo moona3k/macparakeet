@@ -254,6 +254,56 @@ public struct CLIErrorEnvelope: Encodable {
     public let ok: Bool   // always false
     public let error: String
     public let errorType: String
+    public let fix: String?
+    public let meta: CLIEnvelopeMeta?
+
+    public init(
+        ok: Bool,
+        error: String,
+        errorType: String,
+        fix: String? = nil,
+        meta: CLIEnvelopeMeta? = nil
+    ) {
+        self.ok = ok
+        self.error = error
+        self.errorType = errorType
+        self.fix = fix
+        self.meta = meta
+    }
+}
+
+public struct CLIEnvelopeMeta: Encodable {
+    public let schemaVersion: Int
+    public let generatedAt: Date
+    public let warnings: [String]
+
+    public init(
+        schemaVersion: Int = 1,
+        generatedAt: Date = Date(),
+        warnings: [String] = []
+    ) {
+        self.schemaVersion = schemaVersion
+        self.generatedAt = generatedAt
+        self.warnings = warnings
+    }
+}
+
+public struct CLISuccessEnvelope<T: Encodable>: Encodable {
+    public let ok: Bool
+    public let command: String
+    public let data: T
+    public let meta: CLIEnvelopeMeta
+
+    public init(
+        command: String,
+        data: T,
+        meta: CLIEnvelopeMeta = CLIEnvelopeMeta()
+    ) {
+        self.ok = true
+        self.command = command
+        self.data = data
+        self.meta = meta
+    }
 }
 
 /// Stable, low-cardinality string keys for the `errorType` field. Picking
@@ -346,8 +396,46 @@ extension CLIErrorEnvelope {
         } else {
             message = String(describing: error)
         }
-        self.init(ok: false, error: message, errorType: CLIErrorType.key(for: error))
+        self.init(
+            ok: false,
+            error: message,
+            errorType: CLIErrorType.key(for: error),
+            fix: CLIErrorFix.message(for: error),
+            meta: CLIEnvelopeMeta()
+        )
     }
+}
+
+enum CLIErrorFix {
+    static func message(for error: Error) -> String? {
+        if error is CLILookupError {
+            return "List nearby records with the matching command, then retry with a full UUID or longer UUID prefix."
+        }
+        if let input = error as? CLIInputError {
+            switch input {
+            case .empty:
+                return "Pass non-empty text through the documented flag or stdin path."
+            case .invalidEncoding:
+                return "Send UTF-8 input."
+            }
+        }
+        if error is ValidationError {
+            return "Run the command with --help and retry with a supported flag combination."
+        }
+        return nil
+    }
+}
+
+func printEnvelope<T: Encodable>(
+    command: String,
+    data: T,
+    warnings: [String] = []
+) throws {
+    try printJSON(CLISuccessEnvelope(
+        command: command,
+        data: data,
+        meta: CLIEnvelopeMeta(warnings: warnings)
+    ))
 }
 
 /// Wrap a `--json`-aware CLI body. On error: when `json` is true, emit a

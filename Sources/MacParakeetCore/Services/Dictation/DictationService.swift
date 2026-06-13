@@ -876,10 +876,10 @@ public actor DictationService: DictationServiceProtocol {
         }
         liveTranscriptionState = nil
         liveTranscriptText = ""
+        state.task.cancel()
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
         state.partialTask.cancel()
-        state.task.cancel()
         if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
             await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)
         }

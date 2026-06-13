@@ -12,6 +12,7 @@ struct MeetingsCommand: AsyncParsableCommand {
             TranscriptSubcommand.self,
             NotesSubcommand.self,
             ResultsSubcommand.self,
+            ArtifactSubcommand.self,
             ExportSubcommand.self,
         ]
     )
@@ -28,15 +29,19 @@ struct MeetingsCommand: AsyncParsableCommand {
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
         var json: Bool = false
 
+        @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+        var envelope: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func validate() throws {
             guard limit >= 0 else { throw ValidationError("--limit must be >= 0.") }
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
         }
 
         func run() async throws {
-            try emitJSONOrRethrow(json: json) {
+            try emitJSONOrRethrow(json: json || envelope) {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let meetings = try repositories.transcriptions.fetchLibraryPage(query: TranscriptionLibraryQuery(
                     sourceType: .meeting,
@@ -53,6 +58,10 @@ struct MeetingsCommand: AsyncParsableCommand {
                     )
                 }
 
+                if envelope {
+                    try printEnvelope(command: "meetings list", data: items)
+                    return
+                }
                 if json {
                     try printJSON(items)
                     return
@@ -85,11 +94,18 @@ struct MeetingsCommand: AsyncParsableCommand {
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
         var json: Bool = false
 
+        @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+        var envelope: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
+        func validate() throws {
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+        }
+
         func run() async throws {
-            try emitJSONOrRethrow(json: json) {
+            try emitJSONOrRethrow(json: json || envelope) {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                 let record = MeetingRecord(
@@ -97,6 +113,10 @@ struct MeetingsCommand: AsyncParsableCommand {
                     promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
                 )
 
+                if envelope {
+                    try printEnvelope(command: "meetings show", data: record)
+                    return
+                }
                 if json {
                     try printJSON(record)
                     return
@@ -163,16 +183,25 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit JSON instead of plain text.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
+
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
+                try emitJSONOrRethrow(json: json || envelope) {
                     let repo = try makeTranscriptionRepository(database: database)
                     let transcription = try findMeeting(idOrName: meeting, repo: repo)
                     let envelope = MeetingNotesRecord(transcription)
 
-                    if json {
+                    if self.envelope {
+                        try printEnvelope(command: "meetings notes get", data: envelope)
+                    } else if json {
                         try printJSON(envelope)
                     } else {
                         print(envelope.notes ?? "")
@@ -196,6 +225,9 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit the updated notes object as JSON.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
@@ -206,16 +238,18 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if text == nil && !stdin {
                     throw ValidationError("Pass --text or --stdin.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
-                    let repo = try makeTranscriptionRepository(database: database)
-                    let transcription = try findMeeting(idOrName: meeting, repo: repo)
+                try await emitJSONOrRethrow(json: json || envelope) {
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let notes = try notesInput(text: text, stdin: stdin)
-                    try repo.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(notes))
-                    let updated = try repo.fetch(id: transcription.id) ?? transcription
-                    try emitNotesUpdate(MeetingNotesRecord(updated), json: json)
+                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(notes))
+                    let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
+                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes set")
                 }
             }
         }
@@ -235,6 +269,9 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit the updated notes object as JSON.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
@@ -245,17 +282,19 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if text == nil && !stdin {
                     throw ValidationError("Pass --text or --stdin.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
-                    let repo = try makeTranscriptionRepository(database: database)
-                    let transcription = try findMeeting(idOrName: meeting, repo: repo)
+                try await emitJSONOrRethrow(json: json || envelope) {
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let addition = try notesInput(text: text, stdin: stdin)
                     let combined = appendedNotes(existing: transcription.userNotes, addition: addition)
-                    try repo.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(combined))
-                    let updated = try repo.fetch(id: transcription.id) ?? transcription
-                    try emitNotesUpdate(MeetingNotesRecord(updated), json: json)
+                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(combined))
+                    let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
+                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes append")
                 }
             }
         }
@@ -269,16 +308,24 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit the updated notes object as JSON.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
+
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
-                    let repo = try makeTranscriptionRepository(database: database)
-                    let transcription = try findMeeting(idOrName: meeting, repo: repo)
-                    try repo.updateUserNotes(id: transcription.id, userNotes: nil)
-                    let updated = try repo.fetch(id: transcription.id) ?? transcription
-                    try emitNotesUpdate(MeetingNotesRecord(updated), json: json)
+                try await emitJSONOrRethrow(json: json || envelope) {
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: nil)
+                    let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
+                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes clear")
                 }
             }
         }
@@ -306,17 +353,28 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
+
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
+                try emitJSONOrRethrow(json: json || envelope) {
                     let repositories = try makeMeetingResultRepositories(database: database)
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let results = try repositories.promptResults
                         .fetchAll(transcriptionId: transcription.id)
                         .map { MeetingPromptResultRecord(result: $0, transcription: transcription) }
 
+                    if envelope {
+                        try printEnvelope(command: "meetings results list", data: results)
+                        return
+                    }
                     if json {
                         try printJSON(results)
                         return
@@ -364,6 +422,9 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Flag(name: .long, help: "Emit the saved result object as JSON.")
             var json: Bool = false
 
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope: Bool = false
+
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
@@ -377,10 +438,11 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if normalizedNonEmptyText(name) == nil {
                     throw ValidationError("--name must not be empty.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
-                try emitJSONOrRethrow(json: json) {
+                try await emitJSONOrRethrow(json: json || envelope) {
                     let repositories = try makeMeetingResultRepositories(database: database)
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let resultContent = try resultInput(content: content, stdin: stdin)
@@ -402,12 +464,72 @@ struct MeetingsCommand: AsyncParsableCommand {
                     )
 
                     try repositories.promptResults.save(promptResult)
-                    let record = MeetingPromptResultRecord(result: promptResult, transcription: transcription)
-                    if json {
+                    let updatedResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: transcription,
+                        promptResults: updatedResults
+                    )
+                    let record = MeetingPromptResultRecord(
+                        result: promptResult,
+                        transcription: transcription,
+                        artifact: snapshot
+                    )
+                    if envelope {
+                        try printEnvelope(command: "meetings results add", data: record)
+                    } else if json {
                         try printJSON(record)
                     } else {
                         print("Saved PromptResult \(record.shortID) for \(transcription.fileName).")
                     }
+                }
+            }
+        }
+    }
+
+    struct ArtifactSubcommand: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "artifact",
+            abstract: "Materialize and inspect a meeting session artifact folder."
+        )
+
+        @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+        var meeting: String
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+        var envelope: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func validate() throws {
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+        }
+
+        func run() async throws {
+            try await emitJSONOrRethrow(json: json || envelope) {
+                let repositories = try makeMeetingResultRepositories(database: database)
+                let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+                let snapshot = try await materializeMeetingArtifact(
+                    transcription: transcription,
+                    promptResults: promptResults
+                )
+
+                if envelope {
+                    try printEnvelope(command: "meetings artifact", data: snapshot)
+                } else if json {
+                    try printJSON(snapshot)
+                } else {
+                    print("Artifact folder: \(snapshot.folderPath)")
+                    print("Manifest: \(snapshot.manifestPath)")
+                    print("Transcript: \(snapshot.transcriptPath)")
+                    if let notesPath = snapshot.notesPath {
+                        print("Notes: \(notesPath)")
+                    }
+                    print("Prompt results: \(snapshot.promptResultsPath)")
                 }
             }
         }
@@ -490,6 +612,8 @@ private struct MeetingListItem: Encodable {
     let promptResultCount: Int
     let hasTranscript: Bool
     let transcriptPreview: String?
+    let artifactFolderPath: String?
+    let hasArtifactManifest: Bool
 
     init(_ transcription: Transcription, promptResultCount: Int = 0) {
         id = transcription.id
@@ -507,6 +631,13 @@ private struct MeetingListItem: Encodable {
         let transcript = preferredTranscriptText(transcription)
         hasTranscript = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         transcriptPreview = preview(transcript)
+        let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
+        artifactFolderPath = artifactFolder?.path
+        hasArtifactManifest = artifactFolder.map {
+            FileManager.default.fileExists(
+                atPath: $0.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+            )
+        } ?? false
     }
 }
 
@@ -532,6 +663,9 @@ private struct MeetingRecord: Encodable {
     let speakerCount: Int?
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
+    let artifactFolderPath: String?
+    let artifactManifestPath: String?
+    let hasArtifactManifest: Bool
 
     init(_ transcription: Transcription, promptResultCount: Int = 0) {
         id = transcription.id
@@ -555,6 +689,15 @@ private struct MeetingRecord: Encodable {
         speakerCount = transcription.speakerCount
         speakers = transcription.speakers
         diarizationSegments = transcription.diarizationSegments
+        let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
+        artifactFolderPath = artifactFolder?.path
+        let manifestPath = artifactFolder?
+            .appendingPathComponent(MeetingArtifactStore.manifestFileName)
+            .path
+        artifactManifestPath = manifestPath
+        hasArtifactManifest = manifestPath.map {
+            FileManager.default.fileExists(atPath: $0)
+        } ?? false
     }
 }
 
@@ -584,13 +727,15 @@ private struct MeetingNotesRecord: Encodable {
     let notes: String?
     let hasNotes: Bool
     let updatedAt: Date
+    let artifact: MeetingArtifactSnapshot?
 
-    init(_ transcription: Transcription) {
+    init(_ transcription: Transcription, artifact: MeetingArtifactSnapshot? = nil) {
         id = transcription.id
         title = transcription.fileName
         notes = transcription.userNotes
         hasNotes = normalizedNotes(transcription.userNotes) != nil
         updatedAt = transcription.updatedAt
+        self.artifact = artifact
     }
 }
 
@@ -606,8 +751,13 @@ private struct MeetingPromptResultRecord: Encodable {
     let userNotesSnapshot: String?
     let createdAt: Date
     let updatedAt: Date
+    let artifact: MeetingArtifactSnapshot?
 
-    init(result: PromptResult, transcription: Transcription) {
+    init(
+        result: PromptResult,
+        transcription: Transcription,
+        artifact: MeetingArtifactSnapshot? = nil
+    ) {
         id = result.id
         shortID = String(result.id.uuidString.prefix(8))
         meetingId = transcription.id
@@ -619,6 +769,7 @@ private struct MeetingPromptResultRecord: Encodable {
         userNotesSnapshot = result.userNotesSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
+        self.artifact = artifact
     }
 }
 
@@ -643,6 +794,53 @@ private func makeMeetingResultRepositories(database: String?) throws -> MeetingR
 private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
     let dbManager = try makeDatabaseManager(database: database)
     return TranscriptionRepository(dbQueue: dbManager.dbQueue)
+}
+
+private func validateJSONEnvelopeFlags(json: Bool, envelope: Bool) throws {
+    if json && envelope {
+        throw ValidationError("--json and --envelope are mutually exclusive.")
+    }
+}
+
+private func materializeMeetingArtifact(
+    transcription: Transcription,
+    promptResults: [PromptResult]
+) async throws -> MeetingArtifactSnapshot {
+    try await MeetingArtifactStore().materialize(
+        transcription: transcription,
+        promptResults: promptResults
+    )
+}
+
+private func refreshMeetingArtifactBestEffort(
+    transcription: Transcription,
+    repositories: MeetingResultRepositories
+) async -> MeetingArtifactSnapshot? {
+    do {
+        let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+        return try await materializeMeetingArtifact(
+            transcription: transcription,
+            promptResults: promptResults
+        )
+    } catch {
+        printErr("Warning: meeting artifact refresh failed: \(error.localizedDescription)")
+        return nil
+    }
+}
+
+private func refreshMeetingArtifactBestEffort(
+    transcription: Transcription,
+    promptResults: [PromptResult]
+) async -> MeetingArtifactSnapshot? {
+    do {
+        return try await materializeMeetingArtifact(
+            transcription: transcription,
+            promptResults: promptResults
+        )
+    } catch {
+        printErr("Warning: meeting artifact refresh failed: \(error.localizedDescription)")
+        return nil
+    }
 }
 
 private func preferredTranscriptText(_ transcription: Transcription) -> String {
@@ -711,8 +909,15 @@ private func appendedNotes(existing: String?, addition: String) -> String {
     return existing + "\n" + addition
 }
 
-private func emitNotesUpdate(_ record: MeetingNotesRecord, json: Bool) throws {
-    if json {
+private func emitNotesUpdate(
+    _ record: MeetingNotesRecord,
+    json: Bool,
+    envelope: Bool = false,
+    command: String = "meetings notes"
+) throws {
+    if envelope {
+        try printEnvelope(command: command, data: record)
+    } else if json {
         try printJSON(record)
     } else if record.hasNotes {
         print("Updated notes for \(record.title).")
