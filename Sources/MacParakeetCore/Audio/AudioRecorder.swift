@@ -716,7 +716,6 @@ public actor AudioRecorder {
         recording = false
         let sampleSink = liveSampleSink
         liveSampleSink = nil
-        sampleSink?.onFinish()
         atomicAudioLevel.withLock { $0 = 0.0 }
         preRollCaptureGeneration.withLock { $0 += 1 }
         preRollConverterCache.reset()
@@ -765,6 +764,7 @@ public actor AudioRecorder {
             )
             throw AudioProcessorError.insufficientSamples
         }
+        sampleSink?.onFinish()
 
         if discardFrames > 0 {
             // Releasing the subscriber drops the tap's retain on the writer

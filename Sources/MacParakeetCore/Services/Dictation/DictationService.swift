@@ -57,6 +57,7 @@ private struct LiveDictationTranscriptionState: Sendable {
     let sttSessionID: UUID
     let sampleContinuation: AsyncStream<[Float]>.Continuation
     let partialContinuation: AsyncStream<String>.Continuation
+    let partialTask: Task<Void, Never>
     let task: Task<STTResult, Error>
     /// Set when the live stream is no longer a faithful rendition of the
     /// recorded WAV (backpressure dropped samples, or the pre-roll was
@@ -736,7 +737,7 @@ public actor DictationService: DictationServiceProtocol {
             sampleContinuation.finish()
             return nil
         }
-        Task { [weak self] in
+        let partialTask = Task { [weak self] in
             for await partial in partialStream {
                 await self?.updateLiveTranscript(partial, sessionID: sessionID)
             }
@@ -757,6 +758,11 @@ public actor DictationService: DictationServiceProtocol {
                             sessionID: sttSessionID
                         )
                     }
+                    if degradeReason.withLock({ $0 != nil }) {
+                        await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
+                        throw CancellationError()
+                    }
+                    try Task.checkCancellation()
                     return try await liveTranscriber.finishLiveDictationTranscription(
                         sessionID: sttSessionID
                     )
@@ -774,6 +780,7 @@ public actor DictationService: DictationServiceProtocol {
                 sttSessionID: sttSessionID,
                 sampleContinuation: sampleContinuation,
                 partialContinuation: partialContinuation,
+                partialTask: partialTask,
                 task: task,
                 degradeReason: degradeReason
             )
@@ -797,6 +804,7 @@ public actor DictationService: DictationServiceProtocol {
         } catch {
             sampleContinuation.finish()
             partialContinuation.finish()
+            partialTask.cancel()
             AudioCaptureDiagnostics.append(
                 "dictation_live_transcribe_skipped \(AudioCaptureDiagnostics.errorFields(error))"
             )
@@ -820,6 +828,7 @@ public actor DictationService: DictationServiceProtocol {
         liveTranscriptionState = nil
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
+        state.partialTask.cancel()
 
         // Capture stopped before this runs, so no further degrade writes can
         // race this read.
@@ -869,6 +878,7 @@ public actor DictationService: DictationServiceProtocol {
         liveTranscriptText = ""
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
+        state.partialTask.cancel()
         state.task.cancel()
         if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
             await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)

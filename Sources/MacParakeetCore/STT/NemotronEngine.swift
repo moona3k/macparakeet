@@ -129,6 +129,7 @@ public actor NemotronEngine: STTTranscribing {
               activeLanes.contains(lane) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
+        let requestedLanguage = liveDictationLanguage
         defer {
             liveDictationLanguage = nil
             endTranscription(on: lane)
@@ -141,7 +142,7 @@ public actor NemotronEngine: STTTranscribing {
             return STTResult(
                 text: text,
                 words: [],
-                language: detectedLanguage ?? liveDictationLanguage,
+                language: detectedLanguage ?? requestedLanguage,
                 engine: .nemotron,
                 engineVariant: modelVariant.rawValue
             )
