@@ -1,5 +1,8 @@
 # MacParakeet Requirements
-# Requirement IDs for traceability between specs, tests, and code.
+# Optional, compact feature/status index. Stable requirement IDs for
+# cross-referencing specs, commits, and ADRs. Not exhaustive and not required
+# on every change. (Tests and git are the authoritative coverage/history record;
+# the former manual source/test traceability map was retired.)
 # Format: REQ-{area}-{number}: {description}
 #
 # Areas:
