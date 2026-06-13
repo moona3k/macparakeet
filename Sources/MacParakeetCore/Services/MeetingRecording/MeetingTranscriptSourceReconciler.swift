@@ -81,15 +81,37 @@ struct MeetingTranscriptSourceReconciler {
             for run: WordRun,
             toleranceMs: Int
         ) -> [RunToken] {
-            guard let runStart = run.startMs, let runEnd = run.endMs else { return [] }
+            guard !tokenWords.isEmpty else { return [] }
 
-            let windowStart = runStart - toleranceMs
-            let windowEnd = runEnd + toleranceMs
-            let simultaneousTokens = tokenWords
-                .filter { $0.word.endMs >= windowStart && $0.word.startMs <= windowEnd }
-                .map(\.token)
+            var matchedWords: [RunToken] = []
+            var systemIndex = 0
 
-            return fuzzyInOrderMatches(run.tokenWords, simultaneousTokens)
+            for microphoneToken in run.tokenWords {
+                let windowStart = microphoneToken.word.startMs - toleranceMs
+                let windowEnd = microphoneToken.word.endMs + toleranceMs
+
+                while systemIndex < tokenWords.count,
+                      tokenWords[systemIndex].word.endMs < windowStart {
+                    systemIndex += 1
+                }
+
+                var candidateIndex = systemIndex
+                while candidateIndex < tokenWords.count,
+                      tokenWords[candidateIndex].word.startMs <= windowEnd {
+                    if MeetingTranscriptSourceReconciler.tokensRoughlyMatch(
+                        microphoneToken.token,
+                        tokenWords[candidateIndex].token
+                    ) {
+                        matchedWords.append(microphoneToken)
+                        systemIndex = candidateIndex + 1
+                        break
+                    }
+
+                    candidateIndex += 1
+                }
+            }
+
+            return matchedWords
         }
     }
 
@@ -243,26 +265,6 @@ struct MeetingTranscriptSourceReconciler {
         }
 
         return echoWords
-    }
-
-    private static func fuzzyInOrderMatches(
-        _ microphoneTokens: [RunToken],
-        _ systemTokens: [String]
-    ) -> [RunToken] {
-        guard !microphoneTokens.isEmpty, !systemTokens.isEmpty else { return [] }
-
-        var matches: [RunToken] = []
-        var systemIndex = 0
-        for microphoneToken in microphoneTokens {
-            while systemIndex < systemTokens.count {
-                defer { systemIndex += 1 }
-                if tokensRoughlyMatch(microphoneToken.token, systemTokens[systemIndex]) {
-                    matches.append(microphoneToken)
-                    break
-                }
-            }
-        }
-        return matches
     }
 
     private static func tokensRoughlyMatch(_ lhs: String, _ rhs: String) -> Bool {
