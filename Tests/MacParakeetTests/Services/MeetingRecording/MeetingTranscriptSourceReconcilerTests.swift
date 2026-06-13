@@ -105,6 +105,46 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         ])
     }
 
+    func testReconcilerUsesOnlyTemporallyOverlappingWordsForEchoThreshold() {
+        let microphoneWords = [
+            word("okay", 0, 120, confidence: 0.93, speakerId: "microphone"),
+            word("quick", 220, 360, confidence: 0.92, speakerId: "microphone"),
+            word("note", 460, 580, confidence: 0.91, speakerId: "microphone"),
+            word("first", 700, 840, confidence: 0.90, speakerId: "microphone"),
+            word("Let's", 1_400, 1_660, confidence: 0.92, speakerId: "microphone"),
+            word("finalize", 1_700, 2_000, confidence: 0.91, speakerId: "microphone"),
+            word("the", 2_020, 2_140, confidence: 0.93, speakerId: "microphone"),
+            word("budget", 2_160, 2_500, confidence: 0.90, speakerId: "microphone"),
+            word("numbers", 2_520, 2_880, confidence: 0.88, speakerId: "microphone"),
+            word("tomorrow", 2_900, 3_280, confidence: 0.92, speakerId: "microphone"),
+        ]
+        let systemWords = [
+            word("Let's", 2_000, 2_280, speakerId: "system"),
+            word("finalize", 2_300, 2_700, speakerId: "system"),
+            word("the", 2_720, 2_840, speakerId: "system"),
+            word("budget", 2_860, 3_200, speakerId: "system"),
+            word("number", 3_220, 3_580, speakerId: "system"),
+            word("tomorrow", 3_600, 4_100, speakerId: "system"),
+        ]
+
+        let result = MeetingTranscriptSourceReconciler.reconcile(
+            microphoneWords: microphoneWords,
+            systemWords: systemWords
+        )
+
+        XCTAssertEqual(result.microphoneWords.map(\.word), ["okay", "quick", "note", "first"])
+        XCTAssertEqual(result.removedMicrophoneWordCount, 6)
+        XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
+        XCTAssertEqual(result.removals.first?.words.map(\.word), [
+            "Let's",
+            "finalize",
+            "the",
+            "budget",
+            "numbers",
+            "tomorrow",
+        ])
+    }
+
     func testFinalizeDropsLowConfidenceMicDuplicateOfSystemRun() {
         let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
             .init(

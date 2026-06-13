@@ -112,6 +112,33 @@ struct MeetingTranscriptSourceReconciler {
 
             return matchedWords
         }
+
+        func temporallyOverlappingMicrophoneTokenCount(
+            for run: WordRun,
+            toleranceMs: Int
+        ) -> Int {
+            guard !tokenWords.isEmpty else { return 0 }
+
+            var count = 0
+            var systemIndex = 0
+
+            for microphoneToken in run.tokenWords {
+                let windowStart = microphoneToken.word.startMs - toleranceMs
+                let windowEnd = microphoneToken.word.endMs + toleranceMs
+
+                while systemIndex < tokenWords.count,
+                      tokenWords[systemIndex].word.endMs < windowStart {
+                    systemIndex += 1
+                }
+
+                if systemIndex < tokenWords.count,
+                   tokenWords[systemIndex].word.startMs <= windowEnd {
+                    count += 1
+                }
+            }
+
+            return count
+        }
     }
 
     private struct RemovalDecision {
@@ -235,7 +262,13 @@ struct MeetingTranscriptSourceReconciler {
     ) -> [RunToken]? {
         guard run.tokens.count >= simultaneousEchoMinWords else { return nil }
 
-        let requiredMatches = Int((Double(run.tokens.count) * simultaneousEchoSimilarity).rounded(.up))
+        let overlappingTokenCount = reference.temporallyOverlappingMicrophoneTokenCount(
+            for: run,
+            toleranceMs: duplicateTimingToleranceMs
+        )
+        guard overlappingTokenCount >= simultaneousEchoMinWords else { return nil }
+
+        let requiredMatches = Int((Double(overlappingTokenCount) * simultaneousEchoSimilarity).rounded(.up))
         let echoWords = reference.fuzzyMatchedMicrophoneWords(for: run, toleranceMs: duplicateTimingToleranceMs)
         guard echoWords.count >= simultaneousEchoMinWords, echoWords.count >= requiredMatches else {
             return nil
