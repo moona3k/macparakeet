@@ -1,12 +1,9 @@
 import Foundation
 
-/// Writes the user's typed meeting notes to a `notes.md` file in the meeting
-/// session folder so they can be inspected outside the app (Finder, any text
-/// editor) — the canonical store remains `transcriptions.userNotes` in
-/// SQLite. The file is a snapshot taken at meeting finalize / crash-recovery
-/// time and is NOT kept in sync with later DB edits (e.g. via the
-/// `macparakeet-cli meetings notes` subcommands). If you need the latest
-/// notes, read the DB.
+/// Writes the user's typed meeting notes to `notes.md` in the meeting session
+/// folder so they can be inspected outside the app. SQLite
+/// `transcriptions.userNotes` remains canonical; `MeetingArtifactStore`
+/// rewrites this file when materializing the current artifact contract.
 ///
 /// Empty / whitespace-only / nil notes do not produce a file. If a stale
 /// file exists from a prior write, it is removed so the file's presence is

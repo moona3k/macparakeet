@@ -99,11 +99,12 @@ macparakeet-cli
 │   ├── delete <id-or-name> [--json]
 │   └── history {list,show,delete,clear} [--json]
 ├── meetings                             Inspect and manage local meeting recordings
-│   ├── list [--limit] [--json]
-│   ├── show <meeting> [--json]
+│   ├── list [--limit] [--json|--envelope]
+│   ├── show <meeting> [--json|--envelope]
 │   ├── transcript <meeting> [--format text|json|srt|vtt]
-│   ├── notes {get,set,append,clear} <meeting>
-│   ├── results {list,add} <meeting>     Inspect/store saved meeting PromptResults
+│   ├── notes {get,set,append,clear} <meeting> [--json|--envelope]
+│   ├── results {list,add} <meeting> [--json|--envelope]
+│   ├── artifact <meeting> [--json|--envelope]
 │   └── export <meeting> [--format md|json] [--output path] [--stdout]
 ├── calendar
 │   └── upcoming [--days N] [--filter link|participants|all] [--json]
@@ -118,7 +119,9 @@ scripts; the alias remains documented here only while the CLI still exposes it.
 > **JSON output convention**: any query command marked `[--json]` emits a single
 > JSON document on stdout (ISO-8601 dates, sorted keys, pretty-printed). Pipe to
 > `jq` or any JSON tool. Side-effect commands generally print a confirmation line;
-> a few newer meeting-note commands also accept `--json` for agent workflows.
+> meeting artifact, note, and result commands also accept JSON modes for agent
+> workflows. Commands that support `--envelope` return `{ ok, command, data,
+> meta }` on success without changing their existing `--json` shape.
 
 > **Telemetry convention**: CLI telemetry uses the same opt-out preference as
 > the GUI and does not change stdout/stderr contracts. After argument parsing
@@ -265,13 +268,16 @@ swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set save-transcription-audio off
 swift run macparakeet-cli config set youtube-audio-quality m4a
+swift run macparakeet-cli config set meeting-artifacts-folder ~/Documents/MacParakeet-Meetings
+swift run macparakeet-cli config set meeting-hook-enabled off
 ```
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
-`speaker-detection`, `save-transcription-audio`, `youtube-audio-quality`.
-Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
-output uses canonical hyphenated keys.
+`speaker-detection`, `save-transcription-audio`, `youtube-audio-quality`,
+`meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
+`meeting-hook-timeout`. Underscore aliases such as `youtube_audio_quality` are
+accepted on input; JSON output uses canonical hyphenated keys.
 
 ### Output Formats
 

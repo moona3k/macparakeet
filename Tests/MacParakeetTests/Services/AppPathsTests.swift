@@ -33,8 +33,25 @@ final class AppPathsTests: XCTestCase {
     }
 
     func testMeetingRecordingsDirIsInsideAppSupport() {
-        XCTAssertTrue(AppPaths.meetingRecordingsDir.hasPrefix(AppPaths.appSupportDir))
-        XCTAssertTrue(AppPaths.meetingRecordingsDir.hasSuffix("meeting-recordings"))
+        XCTAssertTrue(AppPaths.defaultMeetingRecordingsDir.hasPrefix(AppPaths.appSupportDir))
+        XCTAssertTrue(AppPaths.defaultMeetingRecordingsDir.hasSuffix("meeting-recordings"))
+    }
+
+    func testMeetingRecordingsDirCanBeConfiguredFromDefaults() {
+        let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(
+            AppPaths.configuredMeetingRecordingsDir(defaults: defaults),
+            AppPaths.defaultMeetingRecordingsDir
+        )
+
+        let custom = FileManager.default.temporaryDirectory
+            .appendingPathComponent("custom-meeting-artifacts")
+            .path
+        defaults.set(custom, forKey: AppPaths.meetingArtifactsFolderKey)
+        XCTAssertEqual(AppPaths.configuredMeetingRecordingsDir(defaults: defaults), custom)
     }
 
     func testLogsDirIsInsideUserLogs() {

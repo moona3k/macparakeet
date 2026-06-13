@@ -48,7 +48,7 @@ private struct CLISpec: Encodable {
                 stdout: "Machine-readable payloads are written to stdout.",
                 stderr: "Human progress/status messages are written to stderr.",
                 failureEnvelope: CLIErrorEnvelopeSpec(
-                    fields: ["ok", "error", "errorType"],
+                    fields: ["ok", "error", "errorType", "fix", "meta"],
                     okValueOnFailure: false,
                     appliesAfterArgumentParsing: true
                 ),
@@ -204,7 +204,7 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["config", "get"],
             summary: "Read one shared app/CLI configuration value.",
-            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, or whisper-language.")],
+            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, whisper-language, meeting-artifacts-folder, meeting-hook-enabled, meeting-hook-path, or meeting-hook-timeout.")],
             output: "Configuration value."
         ),
         CLISpecCommand(
@@ -333,14 +333,20 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["meetings", "list"],
             summary: "List recent meeting recordings.",
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "Array of meeting list objects with transcript, notes, and prompt-result availability."
         ),
         CLISpecCommand(
             ["meetings", "show"],
             summary: "Show one meeting artifact.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "MeetingRecord object with transcript, notes, and prompt-result count."
         ),
         CLISpecCommand(
@@ -358,7 +364,10 @@ private extension CLISpecCommand {
             ["meetings", "notes", "get"],
             summary: "Read user-authored notes from a meeting.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "MeetingNotesRecord object."
         ),
         CLISpecCommand(
@@ -369,6 +378,7 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option("--text", valueName: "TEXT", summary: "Notes text to store."),
                 CLISpecParameter.flag("--stdin", summary: "Read notes text from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "MeetingNotesRecord object."
@@ -381,6 +391,7 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option("--text", valueName: "TEXT", summary: "Notes text to append."),
                 CLISpecParameter.flag("--stdin", summary: "Read notes text from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "MeetingNotesRecord object."
@@ -390,14 +401,20 @@ private extension CLISpecCommand {
             summary: "Clear user-authored notes from a meeting.",
             readOnly: false,
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "MeetingNotesRecord object."
         ),
         CLISpecCommand(
             ["meetings", "results", "list"],
             summary: "List saved PromptResults for a meeting.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "Array of MeetingPromptResultRecord objects."
         ),
         CLISpecCommand(
@@ -411,9 +428,21 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--stdin", summary: "Read generated result content from stdin."),
                 CLISpecParameter.option("--prompt-content", valueName: "TEXT", summary: "Optional prompt/instructions that produced the result."),
                 CLISpecParameter.option("--extra", valueName: "TEXT", summary: "Optional extra instructions or provenance."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "MeetingPromptResultRecord object."
+        ),
+        CLISpecCommand(
+            ["meetings", "artifact"],
+            summary: "Materialize and inspect the first-class meeting session artifact folder.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "MeetingArtifactSnapshot object."
         ),
         CLISpecCommand(
             ["meetings", "export"],

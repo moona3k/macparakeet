@@ -306,6 +306,7 @@ final class AppEnvironment {
             audioProcessor: audioProcessor,
             sttTranscriber: sttScheduler,
             transcriptionRepo: transcriptionRepo,
+            promptResultRepo: promptResultRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,

@@ -52,17 +52,37 @@ public enum TranscriptionAssetCleanup {
     }
 
     private static func removeMeetingFolder(containing fileURL: URL, fileManager: FileManager) throws {
-        let meetingRootURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .standardizedFileURL
         let folderURL = fileURL.deletingLastPathComponent().standardizedFileURL
 
-        guard folderURL.path.hasPrefix(meetingRootURL.path + "/") else {
+        guard isKnownMeetingFolder(folderURL, fileManager: fileManager) else {
             logger.warning(
                 "Refusing to remove meeting folder outside app support: \(folderURL.path, privacy: .private)"
             )
             return
         }
         try removeItem(at: folderURL, fileManager: fileManager)
+    }
+
+    private static func isKnownMeetingFolder(_ folderURL: URL, fileManager: FileManager) -> Bool {
+        let knownRoots = [
+            AppPaths.defaultMeetingRecordingsDir,
+            AppPaths.meetingRecordingsDir,
+        ].map {
+            URL(fileURLWithPath: $0, isDirectory: true).standardizedFileURL
+        }
+        if knownRoots.contains(where: { folderURL.path.hasPrefix($0.path + "/") }) {
+            return true
+        }
+        if fileManager.fileExists(atPath: MeetingRecordingMetadataStore.metadataURL(for: folderURL).path) {
+            return true
+        }
+        return hasMeetingArtifactManifest(in: folderURL)
+    }
+
+    private static func hasMeetingArtifactManifest(in folderURL: URL) -> Bool {
+        let manifestURL = folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName)
+        guard let data = try? Data(contentsOf: manifestURL) else { return false }
+        return ((try? JSONDecoder().decode(MeetingArtifactManifestProbe.self, from: data))?.schema) == MeetingArtifactStore.schema
     }
 
     private static func removeItem(at url: URL, fileManager: FileManager) throws {
@@ -79,4 +99,8 @@ public enum TranscriptionAssetCleanup {
             )
         }
     }
+}
+
+private struct MeetingArtifactManifestProbe: Decodable {
+    let schema: String
 }

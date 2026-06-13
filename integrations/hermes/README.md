@@ -68,6 +68,7 @@ commands:
   search_dictations: macparakeet-cli history search "{query}" --json
   list_meetings: macparakeet-cli meetings list --json
   meeting_transcript: macparakeet-cli meetings transcript "{meeting_id_or_title}" --format json
+  meeting_artifact: macparakeet-cli meetings artifact "{meeting_id_or_title}" --json
   add_meeting_result: |
     macparakeet-cli meetings results add "{meeting_id_or_title}" \
       --name "{result_name}" --stdin --json

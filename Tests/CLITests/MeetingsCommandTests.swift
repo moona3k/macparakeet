@@ -1,3 +1,4 @@
+import ArgumentParser
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -14,15 +15,52 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.ListSubcommand.parse(["--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.TranscriptSubcommand.parse(["abcd", "--format", "srt"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--envelope"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "Decision: ship"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse(["abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json"]))
+        XCTAssertNoThrow(try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--json"]))
+        XCTAssertNoThrow(try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.ExportSubcommand.parse(["abcd", "--format", "md", "--stdout"]))
     }
 
     func testListRejectsNegativeLimit() {
         XCTAssertThrowsError(try MeetingsCommand.ListSubcommand.parse(["--limit", "-1"]))
+    }
+
+    func testJSONAndEnvelopeFlagsAreMutuallyExclusive() {
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ListSubcommand.parse(["--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
+                "abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json", "--envelope",
+            ])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
     }
 
     func testNotesSetRequiresOneInputSource() {
@@ -69,12 +107,20 @@ final class MeetingsCommandTests: XCTestCase {
 
     func testResultsAddStoresPromptResultForMeeting() async throws {
         let dbURL = temporaryDatabaseURL()
-        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-result-artifact-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
         let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
         let meeting = Transcription(
             fileName: "Design Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
             rawTranscript: "We agreed to ship the parser.",
             status: .completed,
             sourceType: .meeting,
@@ -102,6 +148,8 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(payload["name"] as? String, "Agent Notes")
         XCTAssertEqual(payload["content"] as? String, "Decision: ship the parser.")
         XCTAssertEqual(payload["userNotesSnapshot"] as? String, "Manual note")
+        let artifact = try XCTUnwrap(payload["artifact"] as? [String: Any])
+        XCTAssertEqual(artifact["folderPath"] as? String, folderURL.path)
 
         let saved = try resultRepo.fetchAll(transcriptionId: meeting.id)
         XCTAssertEqual(saved.count, 1)
@@ -187,6 +235,105 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertTrue(markdownExportOutput.contains("- Prompt results: 1"))
     }
 
+    func testArtifactSubcommandMaterializesMeetingFolder() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-artifact-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Artifact Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            rawTranscript: "We agreed to make meeting folders first-class.",
+            cleanTranscript: "Meeting folders are first-class.",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Use the folder as the contract."
+        )
+        try transcriptionRepo.save(meeting)
+        try resultRepo.save(PromptResult(
+            transcriptionId: meeting.id,
+            promptName: "Agent Summary",
+            promptContent: "Summarize.",
+            content: "Meeting folders become the artifact contract."
+        ))
+
+        let command = try MeetingsCommand.ArtifactSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let output = try await captureStandardOutput {
+            try await command.run()
+        }
+        let snapshot = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+
+        XCTAssertEqual(snapshot["meetingID"] as? String, meeting.id.uuidString)
+        XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
+        XCTAssertEqual(snapshot["promptResultCount"] as? Int, 1)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: MeetingNotesFile.fileURL(for: folderURL).path
+        ))
+    }
+
+    func testArtifactSubcommandSupportsSuccessEnvelope() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-envelope-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Envelope Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            rawTranscript: "Envelope mode stays opt in.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(meeting)
+
+        let command = try MeetingsCommand.ArtifactSubcommand.parse([
+            meeting.id.uuidString,
+            "--envelope",
+            "--database", dbURL.path,
+        ])
+        let output = try await captureStandardOutput {
+            try await command.run()
+        }
+        let envelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        XCTAssertEqual(envelope["command"] as? String, "meetings artifact")
+        let data = try XCTUnwrap(envelope["data"] as? [String: Any])
+        XCTAssertEqual(data["meetingID"] as? String, meeting.id.uuidString)
+        let meta = try XCTUnwrap(envelope["meta"] as? [String: Any])
+        XCTAssertEqual(meta["schemaVersion"] as? Int, 1)
+    }
+
     func testFormatRawValues() {
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "text"), .text)
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "json"), .json)
@@ -199,5 +346,20 @@ final class MeetingsCommandTests: XCTestCase {
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString).db")
+    }
+
+    private func assertRejectsJSONEnvelope(
+        _ parse: () throws -> any ParsableCommand,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try parse(), file: file, line: line) { error in
+            XCTAssertTrue(
+                String(describing: error).contains("--json") && String(describing: error).contains("--envelope"),
+                "Expected error to mention --json and --envelope, got: \(error)",
+                file: file,
+                line: line
+            )
+        }
     }
 }
