@@ -643,9 +643,17 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testSettingSaveMeetingAudioPersists() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
         viewModel.saveMeetingAudio = false
 
         XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.saveMeetingAudio])
     }
 
     func testSettingYouTubeAudioQualityPersists() {
@@ -1174,9 +1182,39 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRecordingsTestDir.path))
+        XCTAssertNil(viewModel.storageCleanupError)
         XCTAssertEqual(viewModel.meetingAudioRecordingCount, 0)
         XCTAssertNil(mockTranscriptionRepo.transcriptions.first(where: { $0.id == meeting.id })?.filePath)
         XCTAssertEqual(mockTranscriptionRepo.transcriptions.first(where: { $0.id == local.id })?.filePath, local.filePath)
+    }
+
+    func testClearMeetingAudioLeavesStoredPathsWhenDirectoryCannotBePrepared() throws {
+        let blockedPath = "/dev/null/macparakeet-meetings-\(UUID().uuidString)"
+        let youtubeDirPath = youtubeDownloadsTestDir.path
+        let meeting = Transcription(
+            fileName: "meeting",
+            filePath: "\(blockedPath)/meeting.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting]
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { youtubeDirPath },
+            meetingRecordingsDirPath: { blockedPath }
+        )
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        vm.clearMeetingAudio()
+
+        XCTAssertNotNil(vm.storageCleanupError)
+        XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, meeting.filePath)
     }
 
     // MARK: - Local Models

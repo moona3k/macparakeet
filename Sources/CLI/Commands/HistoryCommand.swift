@@ -356,7 +356,7 @@ struct DeleteMeetingAudioSubcommand: ParsableCommand {
         try repo.updateFilePath(id: transcription.id, filePath: nil)
 
         if removedAudio {
-            print("Deleted meeting audio for: \"\(transcription.fileName)\"")
+            print("Detached managed meeting audio for: \"\(transcription.fileName)\"")
         } else {
             print("No meeting audio attached for: \"\(transcription.fileName)\"")
         }

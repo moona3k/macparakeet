@@ -567,12 +567,9 @@ struct TranscriptResultView: View {
             Text(confirmation.message)
         }
         .alert("Delete Meeting Audio?", isPresented: $pendingDeleteMeetingAudio) {
-            Button("Cancel", role: .cancel) {
-                pendingDeleteMeetingAudio = false
-            }
+            Button("Cancel", role: .cancel) {}
             Button("Delete Audio", role: .destructive) {
                 deleteMeetingAudioFromActionBar()
-                pendingDeleteMeetingAudio = false
             }
         } message: {
             Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
