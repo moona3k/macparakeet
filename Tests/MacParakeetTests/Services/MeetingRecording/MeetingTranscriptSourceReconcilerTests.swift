@@ -1,7 +1,72 @@
 import XCTest
 @testable import MacParakeetCore
 
-final class MeetingTranscriptNoiseFilterTests: XCTestCase {
+final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
+    func testReconcilerReportsHighConfidenceEchoReason() {
+        let microphoneWords = [
+            word("Let's", 200, 480, confidence: 0.92, speakerId: "microphone"),
+            word("finalize", 500, 900, confidence: 0.91, speakerId: "microphone"),
+            word("the", 920, 1_040, confidence: 0.93, speakerId: "microphone"),
+            word("budget", 1_060, 1_400, confidence: 0.90, speakerId: "microphone"),
+            word("numbers", 1_420, 1_780, confidence: 0.88, speakerId: "microphone"),
+            word("tomorrow", 1_800, 2_300, confidence: 0.92, speakerId: "microphone"),
+        ]
+        let systemWords = [
+            word("Let's", 0, 280, speakerId: "system"),
+            word("finalize", 300, 700, speakerId: "system"),
+            word("the", 720, 840, speakerId: "system"),
+            word("budget", 860, 1_200, speakerId: "system"),
+            word("number", 1_220, 1_580, speakerId: "system"),
+            word("tomorrow", 1_600, 2_100, speakerId: "system"),
+        ]
+
+        let result = MeetingTranscriptSourceReconciler.reconcile(
+            microphoneWords: microphoneWords,
+            systemWords: systemWords
+        )
+
+        XCTAssertTrue(result.microphoneWords.isEmpty)
+        XCTAssertEqual(result.removedMicrophoneWordCount, 6)
+        XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
+    }
+
+    func testReconcilerPreservesUnmatchedMicrophoneWordsInsideEchoRun() {
+        let microphoneWords = [
+            word("Let's", 200, 480, confidence: 0.92, speakerId: "microphone"),
+            word("finalize", 500, 900, confidence: 0.91, speakerId: "microphone"),
+            word("the", 920, 1_040, confidence: 0.93, speakerId: "microphone"),
+            word("budget", 1_060, 1_400, confidence: 0.90, speakerId: "microphone"),
+            word("numbers", 1_420, 1_780, confidence: 0.88, speakerId: "microphone"),
+            word("tomorrow", 1_800, 2_300, confidence: 0.92, speakerId: "microphone"),
+            word("yeah", 2_320, 2_480, confidence: 0.91, speakerId: "microphone"),
+        ]
+        let systemWords = [
+            word("Let's", 0, 280, speakerId: "system"),
+            word("finalize", 300, 700, speakerId: "system"),
+            word("the", 720, 840, speakerId: "system"),
+            word("budget", 860, 1_200, speakerId: "system"),
+            word("number", 1_220, 1_580, speakerId: "system"),
+            word("tomorrow", 1_600, 2_100, speakerId: "system"),
+        ]
+
+        let result = MeetingTranscriptSourceReconciler.reconcile(
+            microphoneWords: microphoneWords,
+            systemWords: systemWords
+        )
+
+        XCTAssertEqual(result.microphoneWords.map(\.word), ["yeah"])
+        XCTAssertEqual(result.removedMicrophoneWordCount, 6)
+        XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
+        XCTAssertEqual(result.removals.first?.words.map(\.word), [
+            "Let's",
+            "finalize",
+            "the",
+            "budget",
+            "numbers",
+            "tomorrow",
+        ])
+    }
+
     func testFinalizeDropsFillerOnlyMicrophoneRuns() {
         let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
             .init(
@@ -228,6 +293,22 @@ final class MeetingTranscriptNoiseFilterTests: XCTestCase {
             finalized.words.filter { $0.speakerId == "microphone" }.count,
             7,
             "cross-talk with different words must never be treated as echo"
+        )
+    }
+
+    private func word(
+        _ word: String,
+        _ startMs: Int,
+        _ endMs: Int,
+        confidence: Double = 0.95,
+        speakerId: String
+    ) -> WordTimestamp {
+        WordTimestamp(
+            word: word,
+            startMs: startMs,
+            endMs: endMs,
+            confidence: confidence,
+            speakerId: speakerId
         )
     }
 }

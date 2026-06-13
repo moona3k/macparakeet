@@ -43,11 +43,11 @@ struct MeetingTranscriptFinalizer {
         })
 
         let systemWords = shiftedWordsBySource[.system] ?? []
-        let microphoneCleanup = MeetingTranscriptNoiseFilter.cleanFinalMicrophoneWords(
+        let sourceReconciliation = MeetingTranscriptSourceReconciler.reconcile(
             microphoneWords: shiftedWordsBySource[.microphone] ?? [],
             systemWords: systemWords
         )
-        let microphoneWords = microphoneCleanup.microphoneWords
+        let microphoneWords = sourceReconciliation.microphoneWords
         let finalizedSystemWords: [WordTimestamp]
         if let systemDiarization {
             finalizedSystemWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
@@ -72,7 +72,7 @@ struct MeetingTranscriptFinalizer {
         let rawTranscript = finalTranscriptText(
             from: normalized,
             mergedWords: mergedWords,
-            forceMergedWordText: microphoneCleanup.removedMicrophoneWordCount > 0
+            forceMergedWordText: sourceReconciliation.removedMicrophoneWordCount > 0
         )
 
         return FinalizedTranscript(
