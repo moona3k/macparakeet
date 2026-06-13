@@ -271,6 +271,11 @@ REQ-MEET-013:
   version: v0.6
   status: implemented
 
+REQ-MEET-014:
+  description: An in-flight post-stop meeting transcription can be stopped from the Transcribe-tab tile and the floating pill menu, with a confirmation offering to keep the recorded audio (cancelled Library row plus recovery lock stay retryable) or delete the recording entirely (session folder, lock, and transcription rows removed)
+  version: v0.6
+  status: implemented
+
 # --- v0.6 Multilingual Speech Recognition ---
 
 REQ-STT-002:

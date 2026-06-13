@@ -35,6 +35,11 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     /// stop+transcribe path as `.stopRequested` so whatever audio was
     /// captured before the failure still becomes a saved Transcription.
     case captureFailed(generation: Int)
+    /// User-confirmed abort of the in-flight final transcription (issue #487).
+    /// `keepAudio: true` leaves the session folder + recovery lock intact so
+    /// the recording stays retryable from Library / launch recovery;
+    /// `keepAudio: false` deletes the recording entirely.
+    case abortTranscriptionRequested(keepAudio: Bool)
     case transcriptionCompleted(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
     case dismissRequested
@@ -50,6 +55,10 @@ public enum MeetingRecordingFlowEffect: Equatable, Sendable {
     case showCompleted
     case showError(String)
     case cancelRecording
+    /// Cancel the in-flight stop+transcribe task. The handler must wait for
+    /// the cancelled task to drain, then — when `keepAudio` is false — delete
+    /// the session's transcription rows and recording folder.
+    case abortTranscription(keepAudio: Bool)
     case hidePill
     case updateMenuBar(DictationFlowMenuBarState)
     case navigateToTranscription(UUID)
@@ -125,6 +134,10 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             guard gen == generation else { return [] }
             state = .transcribing
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
+
+        case (.transcribing, .abortTranscriptionRequested(let keepAudio)):
+            state = .idle
+            return [.abortTranscription(keepAudio: keepAudio), .hidePill, .updateMenuBar(.idle)]
 
         case (.transcribing, .transcriptionCompleted(let gen, let transcriptionID)):
             guard gen == generation else { return [] }

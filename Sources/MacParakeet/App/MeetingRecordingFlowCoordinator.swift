@@ -1,6 +1,7 @@
 import AppKit
 import MacParakeetCore
 import MacParakeetViewModels
+import OSLog
 
 enum MeetingRecordingQuitState {
     case starting
@@ -10,6 +11,8 @@ enum MeetingRecordingQuitState {
 
 @MainActor
 final class MeetingRecordingFlowCoordinator {
+    private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingRecordingFlow")
+
     var isMeetingRecordingActive: Bool {
         switch stateMachine.state {
         case .idle, .finishing:
@@ -66,6 +69,11 @@ final class MeetingRecordingFlowCoordinator {
     private var speechWarmUpObservationTask: Task<Void, Never>?
     private var activeFlowSettlementWaiters: [CheckedContinuation<Void, Never>] = []
     private var completedTranscription: Transcription?
+    /// The finalized recording whose final transcription is currently in
+    /// flight. Published by the `.stopRecordingAndTranscribe` task the moment
+    /// `stopRecording()` returns, so the abort path (issue #487) knows which
+    /// session to keep or delete. Cleared on completion and flow teardown.
+    private var currentTranscribingOutput: MeetingRecordingOutput?
     private var currentMeetingOperationContext: ObservabilityOperationContext?
     private var currentMeetingTrigger: TelemetryMeetingRecordingTrigger?
     private var pendingAudioSourceMode: MeetingAudioSourceMode?
@@ -346,9 +354,12 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showRecordingPill:
+            currentTranscribingOutput = nil
             let vm = pillViewModel
             vm.onStop = { [weak self] in self?.toggleRecording() }
             vm.onPauseToggle = { [weak self] in self?.togglePause() }
+            vm.onAbortTranscription = { [weak self] in self?.confirmAndAbortTranscription() }
+            vm.canAbortTranscription = false
             vm.elapsedSeconds = 0
             vm.micLevel = 0
             vm.systemLevel = 0
@@ -407,6 +418,9 @@ final class MeetingRecordingFlowCoordinator {
             }
             pillController?.onPauseToggle = { [weak self] in
                 self?.togglePause()
+            }
+            pillController?.onStopTranscription = { [weak self] in
+                self?.confirmAndAbortTranscription()
             }
             if panelController == nil {
                 let controller = MeetingRecordingPanelController(viewModel: panelVM)
@@ -526,6 +540,15 @@ final class MeetingRecordingFlowCoordinator {
                         await notesVM?.commit()
                         let output = try await meetingRecordingService.stopRecording()
                         stoppedOutput = output
+                        self.currentTranscribingOutput = output
+                        // Recording is finalized on disk — the in-flight
+                        // transcription can now be aborted safely (issue #487).
+                        // Skip when this task was already cancelled mid-stop so
+                        // a stale flag can't re-arm the affordance after the
+                        // abort path reset the pill view model.
+                        if !Task.isCancelled {
+                            self.pillViewModel.canAbortTranscription = true
+                        }
                         Telemetry.send(.meetingRecordingCompleted(
                             durationSeconds: output.durationSeconds,
                             liveWordCount: liveWordCount,
@@ -546,26 +569,48 @@ final class MeetingRecordingFlowCoordinator {
                     self.currentMeetingOperationContext = nil
                     self.currentMeetingTrigger = nil
                     self.completedTranscription = transcription
+                    self.currentTranscribingOutput = nil
+                    self.pillViewModel.canAbortTranscription = false
                     self.sendEvent(.transcriptionCompleted(generation: gen, transcriptionID: transcription.id))
                 } catch {
                     if let stoppedOutput {
                         await meetingRecordingService.finishTranscriptionAttempt(for: stoppedOutput)
                     }
-                    Telemetry.send(.meetingRecordingFailed(
-                        errorType: TelemetryErrorClassifier.classify(error),
-                        errorDetail: TelemetryErrorClassifier.errorDetail(error)
-                    ))
-                    self.sendMeetingOperation(
-                        outcome: .failure,
-                        output: stoppedOutput,
-                        stage: stoppedOutput == nil ? .stopRecording : (transcriptionFinished ? .completeTranscription : .transcription),
-                        liveWordCount: liveWordCount,
-                        liveTranscriptLagged: liveTranscriptLagged,
-                        errorType: TelemetryErrorClassifier.classify(error)
-                    )
-                    self.currentMeetingOperationContext = nil
-                    self.currentMeetingTrigger = nil
-                    self.sendEvent(.transcriptionFailed(generation: gen, message: error.localizedDescription))
+                    self.pillViewModel.canAbortTranscription = false
+                    if error is CancellationError {
+                        // Deliberate abort (issue #487) — the only path that
+                        // cancels this task. The transcription layer already
+                        // emitted cancelled telemetry and persisted the row's
+                        // `.cancelled` status, and the state machine returned
+                        // to idle, so no failure state is surfaced. The
+                        // `.abortTranscription` handler owns keep/delete
+                        // cleanup of the session folder and rows.
+                        self.sendMeetingOperation(
+                            outcome: .cancelled,
+                            output: stoppedOutput,
+                            stage: stoppedOutput == nil ? .stopRecording : .transcription,
+                            liveWordCount: liveWordCount,
+                            liveTranscriptLagged: liveTranscriptLagged
+                        )
+                        self.currentMeetingOperationContext = nil
+                        self.currentMeetingTrigger = nil
+                    } else {
+                        Telemetry.send(.meetingRecordingFailed(
+                            errorType: TelemetryErrorClassifier.classify(error),
+                            errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                        ))
+                        self.sendMeetingOperation(
+                            outcome: .failure,
+                            output: stoppedOutput,
+                            stage: stoppedOutput == nil ? .stopRecording : (transcriptionFinished ? .completeTranscription : .transcription),
+                            liveWordCount: liveWordCount,
+                            liveTranscriptLagged: liveTranscriptLagged,
+                            errorType: TelemetryErrorClassifier.classify(error)
+                        )
+                        self.currentMeetingOperationContext = nil
+                        self.currentMeetingTrigger = nil
+                        self.sendEvent(.transcriptionFailed(generation: gen, message: error.localizedDescription))
+                    }
                 }
             }
 
@@ -608,6 +653,27 @@ final class MeetingRecordingFlowCoordinator {
                 self.currentMeetingTrigger = nil
             }
 
+        case .abortTranscription(let keepAudio):
+            let cancelledTask = actionTask
+            let output = currentTranscribingOutput
+            currentTranscribingOutput = nil
+            cancelledTask?.cancel()
+            actionTask = Task { @MainActor in
+                // Drain the cancelled stop+transcribe task first so its catch
+                // block has released the speech-engine lease and persisted the
+                // row's `.cancelled` status before any cleanup below. Also
+                // keeps the quit path honest — quitting mid-abort waits for
+                // this cleanup via `actionTask.value`.
+                await cancelledTask?.value
+                guard !keepAudio, let output else {
+                    // Keep Audio: the recovery lock and session folder stay on
+                    // disk (ADR-019), so the recording remains retryable from
+                    // the Library row and the launch recovery dialog.
+                    return
+                }
+                await self.deleteAbortedRecording(output)
+            }
+
         case .showError(let message):
             stopPillPolling()
             stopTranscriptObservation()
@@ -636,7 +702,9 @@ final class MeetingRecordingFlowCoordinator {
             // the next `.showRecordingPill` action.
             pillViewModel.onStop = nil
             pillViewModel.onPauseToggle = nil
+            pillViewModel.onAbortTranscription = nil
             pillViewModel.onCompletionAnimationFinished = nil
+            pillViewModel.canAbortTranscription = false
             pillViewModel.elapsedSeconds = 0
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
@@ -645,6 +713,7 @@ final class MeetingRecordingFlowCoordinator {
             panelController = nil
             panelViewModel = nil
             completedTranscription = nil
+            currentTranscribingOutput = nil
             onFlowReturnedToIdle()
 
         case .updateMenuBar(let state):
@@ -712,6 +781,68 @@ final class MeetingRecordingFlowCoordinator {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             sendEvent(.cancelRequested)
+        }
+    }
+
+    /// Stop-transcription confirmation (issue #487). Keep Audio is the safe
+    /// default: the recording stays retryable from the Library and the launch
+    /// recovery dialog. Delete Recording removes the session audio and its
+    /// transcription rows entirely.
+    private func confirmAndAbortTranscription() {
+        guard stateMachine.state == .transcribing, currentTranscribingOutput != nil else { return }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Stop transcribing this meeting?"
+        alert.informativeText = "The recording is saved on this Mac. Keep the audio to transcribe it later from your Library, or delete the recording entirely.\n\nDeleting cannot be undone."
+        alert.addButton(withTitle: "Keep Audio")
+        alert.addButton(withTitle: "Delete Recording")
+        alert.addButton(withTitle: "Cancel")
+        if alert.buttons.indices.contains(1) {
+            alert.buttons[1].hasDestructiveAction = true
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+
+        // Transcription may have completed or failed while the dialog was up;
+        // aborting is only meaningful if the flow is still transcribing. When
+        // it completed meanwhile, the pill/tile show "Saved to Library" and
+        // the transcript window opens — the user can delete from there.
+        guard stateMachine.state == .transcribing, currentTranscribingOutput != nil else { return }
+        switch response {
+        case .alertFirstButtonReturn:
+            sendEvent(.abortTranscriptionRequested(keepAudio: true))
+        case .alertSecondButtonReturn:
+            sendEvent(.abortTranscriptionRequested(keepAudio: false))
+        default:
+            break
+        }
+    }
+
+    /// Delete-everything arm of the abort flow. Folder first: if this is
+    /// interrupted partway, a lingering recovery lock would resurrect a
+    /// recording the user explicitly deleted, whereas an orphaned `.cancelled`
+    /// row is inert (retry guards on file existence) and deletable from the
+    /// Library.
+    private func deleteAbortedRecording(_ output: MeetingRecordingOutput) async {
+        await meetingRecordingService.discardStoppedRecording(output)
+        do {
+            // Match rows by the exact path `transcribeMeeting` persisted.
+            // Status is deliberately ignored: if the STT runtime ignored
+            // cancellation and completed the save mid-abort, the user still
+            // asked for this recording to be gone.
+            let rows = try transcriptionRepo.fetchByFilePath(
+                output.mixedAudioURL.path,
+                sourceType: .meeting
+            )
+            for row in rows {
+                _ = try transcriptionRepo.delete(id: row.id)
+            }
+        } catch {
+            logger.error(
+                "meeting_abort_row_cleanup_failed session=\(output.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
         }
     }
 
