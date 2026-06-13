@@ -363,7 +363,10 @@ private extension CLISpecCommand {
             ["meetings", "notes", "get"],
             summary: "Read user-authored notes from a meeting.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "MeetingNotesRecord object."
         ),
         CLISpecCommand(
@@ -374,6 +377,7 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option("--text", valueName: "TEXT", summary: "Notes text to store."),
                 CLISpecParameter.flag("--stdin", summary: "Read notes text from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "MeetingNotesRecord object."
@@ -396,7 +400,10 @@ private extension CLISpecCommand {
             summary: "Clear user-authored notes from a meeting.",
             readOnly: false,
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
             output: "MeetingNotesRecord object."
         ),
         CLISpecCommand(

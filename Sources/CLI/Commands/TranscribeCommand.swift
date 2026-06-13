@@ -397,6 +397,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
             let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+            let promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
             let defaults = macParakeetAppDefaults()
             let speechEngine = Self.resolveSpeechEngine(
                 self.engine,
@@ -468,6 +469,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 audioProcessor: audioProcessor,
                 sttTranscriber: sttTranscriber,
                 transcriptionRepo: transcriptionRepo,
+                promptResultRepo: promptResultRepo,
                 entitlements: entitlementsService,
                 customWordRepo: customWordRepo,
                 snippetRepo: snippetRepo,

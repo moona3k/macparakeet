@@ -36,6 +36,16 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(paths.contains(["meetings", "notes", "set"]))
         XCTAssertTrue(paths.contains(["meetings", "notes", "append"]))
         XCTAssertTrue(paths.contains(["meetings", "notes", "clear"]))
+
+        for path in [
+            ["meetings", "notes", "get"],
+            ["meetings", "notes", "set"],
+            ["meetings", "notes", "clear"],
+        ] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == path })
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--envelope" })
+        }
     }
 
     func testSpecCatalogDocumentsRegisteredAgentFacingRoots() throws {

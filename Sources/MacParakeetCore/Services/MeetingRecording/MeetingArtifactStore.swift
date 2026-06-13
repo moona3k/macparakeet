@@ -160,7 +160,9 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         jsonURL: URL,
         directoryURL: URL
     ) throws -> [MeetingArtifactPromptResultFile] {
-        try? fileManager.removeItem(at: directoryURL)
+        if fileManager.fileExists(atPath: directoryURL.path) {
+            try fileManager.removeItem(at: directoryURL)
+        }
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         let records = promptResults.enumerated().map { index, result in
@@ -369,7 +371,7 @@ private struct MeetingArtifactPromptResult: Codable {
         sections.append("""
         - Meeting: \(meetingTitle)
         - Result ID: \(id.uuidString)
-        - Created: \(Self.iso.string(from: createdAt))
+        - Created: \(Self.isoString(createdAt))
         """)
         sections.append("## Output\n\n\(content.trimmingCharacters(in: .whitespacesAndNewlines))")
         if let extra = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines), !extra.isEmpty {
@@ -382,7 +384,9 @@ private struct MeetingArtifactPromptResult: Codable {
         return sections.joined(separator: "\n\n") + "\n"
     }
 
-    private static let iso = ISO8601DateFormatter()
+    private static func isoString(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
 }
 
 private struct MeetingArtifactPromptResultFile: Codable {

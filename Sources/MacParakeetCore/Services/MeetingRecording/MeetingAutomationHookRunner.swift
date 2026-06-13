@@ -164,16 +164,13 @@ public final class MeetingAutomationHookRunner: MeetingAutomationHookRunning, @u
         )
 
         do {
-            let fileManager = self.fileManager
-            let result = try await Task.detached(priority: .utility) {
-                try Self.runProcess(
-                    event: event,
-                    executablePath: executablePath,
-                    artifact: artifact,
-                    timeoutSeconds: configuration.timeoutSeconds,
-                    fileManager: fileManager
-                )
-            }.value
+            let result = try await Self.runProcess(
+                event: event,
+                executablePath: executablePath,
+                artifact: artifact,
+                timeoutSeconds: configuration.timeoutSeconds,
+                fileManager: fileManager
+            )
             logger.info("meeting_automation_hook_completed id=\(transcription.id.uuidString, privacy: .public) status=\(result.status.rawValue, privacy: .public) exit_code=\(String(describing: result.exitCode), privacy: .public)")
             return await writeResult(result, artifact: artifact)
         } catch {
@@ -212,11 +209,17 @@ public final class MeetingAutomationHookRunner: MeetingAutomationHookRunning, @u
         artifact: MeetingArtifactSnapshot,
         timeoutSeconds: TimeInterval,
         fileManager: FileManager
-    ) throws -> MeetingAutomationHookResult {
+    ) async throws -> MeetingAutomationHookResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = []
         process.currentDirectoryURL = URL(fileURLWithPath: artifact.folderPath, isDirectory: true)
+        var processStarted = false
+        defer {
+            if processStarted, process.isRunning {
+                process.terminate()
+            }
+        }
 
         var environment = ProcessInfo.processInfo.environment
         environment["MACPARAKEET_EVENT"] = "meeting.completed"
@@ -243,23 +246,26 @@ public final class MeetingAutomationHookRunner: MeetingAutomationHookRunning, @u
         let startedAt = Date()
         let eventData = try makeEncoder().encode(event)
         try process.run()
-        stdin.fileHandleForWriting.write(eventData)
-        stdin.fileHandleForWriting.closeFile()
+        processStarted = true
+        try stdin.fileHandleForWriting.write(contentsOf: eventData)
+        try stdin.fileHandleForWriting.close()
 
         let deadline = startedAt.addingTimeInterval(timeoutSeconds)
         while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
+            try await Task.sleep(nanoseconds: 50_000_000)
         }
 
         let timedOut = process.isRunning
         if timedOut {
             process.terminate()
-            Thread.sleep(forTimeInterval: 0.25)
+            try await Task.sleep(nanoseconds: 250_000_000)
             if process.isRunning {
                 kill(process.processIdentifier, SIGKILL)
             }
+            while process.isRunning {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
         }
-        process.waitUntilExit()
 
         let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
         if timedOut {

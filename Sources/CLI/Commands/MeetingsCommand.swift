@@ -37,6 +37,7 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         func validate() throws {
             guard limit >= 0 else { throw ValidationError("--limit must be >= 0.") }
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
         }
 
         func run() async throws {
@@ -98,6 +99,10 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
+
+        func validate() throws {
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+        }
 
         func run() async throws {
             try emitJSONOrRethrow(json: json || envelope) {
@@ -184,6 +189,10 @@ struct MeetingsCommand: AsyncParsableCommand {
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
 
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
+
             func run() async throws {
                 try emitJSONOrRethrow(json: json || envelope) {
                     let repo = try makeTranscriptionRepository(database: database)
@@ -229,6 +238,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if text == nil && !stdin {
                     throw ValidationError("Pass --text or --stdin.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
@@ -272,6 +282,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if text == nil && !stdin {
                     throw ValidationError("Pass --text or --stdin.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
@@ -302,6 +313,10 @@ struct MeetingsCommand: AsyncParsableCommand {
 
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
+
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
 
             func run() async throws {
                 try await emitJSONOrRethrow(json: json || envelope) {
@@ -343,6 +358,10 @@ struct MeetingsCommand: AsyncParsableCommand {
 
             @Option(help: "Path to SQLite database file (defaults to the app database).")
             var database: String?
+
+            func validate() throws {
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+            }
 
             func run() async throws {
                 try emitJSONOrRethrow(json: json || envelope) {
@@ -419,6 +438,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                 if normalizedNonEmptyText(name) == nil {
                     throw ValidationError("--name must not be empty.")
                 }
+                try validateJSONEnvelopeFlags(json: json, envelope: envelope)
             }
 
             func run() async throws {
@@ -483,6 +503,10 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
+
+        func validate() throws {
+            try validateJSONEnvelopeFlags(json: json, envelope: envelope)
+        }
 
         func run() async throws {
             try await emitJSONOrRethrow(json: json || envelope) {
@@ -770,6 +794,12 @@ private func makeMeetingResultRepositories(database: String?) throws -> MeetingR
 private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
     let dbManager = try makeDatabaseManager(database: database)
     return TranscriptionRepository(dbQueue: dbManager.dbQueue)
+}
+
+private func validateJSONEnvelopeFlags(json: Bool, envelope: Bool) throws {
+    if json && envelope {
+        throw ValidationError("--json and --envelope are mutually exclusive.")
+    }
 }
 
 private func materializeMeetingArtifact(

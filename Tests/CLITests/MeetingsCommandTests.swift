@@ -1,3 +1,4 @@
+import ArgumentParser
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -14,7 +15,10 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.ListSubcommand.parse(["--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.TranscriptSubcommand.parse(["abcd", "--format", "srt"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--envelope"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "Decision: ship"]))
+        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse(["abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json"]))
@@ -25,6 +29,38 @@ final class MeetingsCommandTests: XCTestCase {
 
     func testListRejectsNegativeLimit() {
         XCTAssertThrowsError(try MeetingsCommand.ListSubcommand.parse(["--limit", "-1"]))
+    }
+
+    func testJSONAndEnvelopeFlagsAreMutuallyExclusive() {
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ListSubcommand.parse(["--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
+                "abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json", "--envelope",
+            ])
+        }
+        assertRejectsJSONEnvelope {
+            try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--json", "--envelope"])
+        }
     }
 
     func testNotesSetRequiresOneInputSource() {
@@ -310,5 +346,20 @@ final class MeetingsCommandTests: XCTestCase {
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString).db")
+    }
+
+    private func assertRejectsJSONEnvelope(
+        _ parse: () throws -> any ParsableCommand,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try parse(), file: file, line: line) { error in
+            XCTAssertTrue(
+                String(describing: error).contains("--json") && String(describing: error).contains("--envelope"),
+                "Expected error to mention --json and --envelope, got: \(error)",
+                file: file,
+                line: line
+            )
+        }
     }
 }

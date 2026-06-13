@@ -228,6 +228,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
     private let podcastAudioFetcher: PodcastAudioFetching?
+    private let promptResultRepo: PromptResultRepositoryProtocol?
     private let diarizationService: DiarizationServiceProtocol?
     private let mediaMetadataExtractor: MediaMetadataExtracting
     private let thumbnailCache: ThumbnailCaching
@@ -239,6 +240,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
@@ -278,6 +280,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
         self.podcastAudioFetcher = podcastAudioFetcher
+        self.promptResultRepo = promptResultRepo
         self.diarizationService = diarizationService
         self.mediaMetadataExtractor = mediaMetadataExtractor
         self.thumbnailCache = thumbnailCache
@@ -1608,9 +1611,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private func materializeMeetingArtifactIfPossible(_ transcription: Transcription) async {
         guard let meetingArtifactStore else { return }
         do {
+            let promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcription.id) ?? []
             let artifact = try await meetingArtifactStore.materialize(
                 transcription: transcription,
-                promptResults: []
+                promptResults: promptResults
             )
             runMeetingAutomationHookIfConfigured(transcription: transcription, artifact: artifact)
         } catch {
