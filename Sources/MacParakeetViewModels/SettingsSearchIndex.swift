@@ -367,7 +367,8 @@ public enum SettingsSearchIndex {
             subtitle: "Retention preferences and disk usage.",
             keywords: [
                 "storage", "retention", "disk", "history",
-                "save dictation", "save audio", "keep youtube audio", "youtube"
+                "save dictation", "save audio", "keep youtube audio", "youtube",
+                "keep meeting audio", "meeting audio", "meeting recordings", "clear audio"
             ],
             cardAnchor: "system.storage"
         ),

@@ -167,7 +167,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onPresentRecoveredTranscription: { [weak self] transcription in
             guard let self else { return }
-            self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
+            // Recovered meetings are exempt from keep-meeting-audio deletion:
+            // choosing Recover (over Discard) in the recovery dialog is an
+            // explicit "keep this" — see presentCompletedTranscription.
+            self.transcriptionViewModel.presentCompletedTranscription(
+                transcription,
+                autoSave: true,
+                runAutoPrompts: true,
+                applyMeetingRetention: false
+            )
             self.mainWindowState.navigateToTranscription(from: .library)
             self.windowCoordinator.openMainWindow()
         }

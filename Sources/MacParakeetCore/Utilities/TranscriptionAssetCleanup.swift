@@ -12,7 +12,19 @@ public enum TranscriptionAssetCleanupError: Error, LocalizedError {
     }
 }
 
+public struct MeetingAudioDetachResult: Sendable {
+    public let removedOwnedAudio: Bool
+    public let hadAudioPath: Bool
+
+    public var detached: Bool {
+        removedOwnedAudio || !hadAudioPath
+    }
+}
+
 public enum TranscriptionAssetCleanup {
+    public static let unmanagedMeetingAudioMessage =
+        "Meeting audio is not stored in MacParakeet's managed recordings folder."
+
     private static let logger = Logger(
         subsystem: "com.macparakeet.core",
         category: "TranscriptionAssetCleanup"
@@ -30,10 +42,42 @@ public enum TranscriptionAssetCleanup {
             // app-managed downloads directory; the same prefix guard applies.
             try removeDownloadedMediaFile(at: URL(fileURLWithPath: filePath), fileManager: fileManager)
         case .meeting:
-            try removeMeetingFolder(containing: URL(fileURLWithPath: filePath), fileManager: fileManager)
+            _ = try removeOwnedMeetingAudio(for: transcription, fileManager: fileManager)
         case .file:
             return
         }
+    }
+
+    @discardableResult
+    public static func removeOwnedMeetingAudio(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) throws -> Bool {
+        guard transcription.sourceType == .meeting,
+              let filePath = transcription.filePath,
+              !filePath.isEmpty else {
+            return false
+        }
+
+        return try removeMeetingFolder(containing: URL(fileURLWithPath: filePath), fileManager: fileManager)
+    }
+
+    @discardableResult
+    public static func detachOwnedMeetingAudio(
+        for transcription: Transcription,
+        repository: TranscriptionRepositoryProtocol,
+        fileManager: FileManager = .default
+    ) throws -> MeetingAudioDetachResult {
+        let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
+        let removedOwnedAudio = try removeOwnedMeetingAudio(for: transcription, fileManager: fileManager)
+        let result = MeetingAudioDetachResult(
+            removedOwnedAudio: removedOwnedAudio,
+            hadAudioPath: hasAudioPath
+        )
+        guard result.detached else { return result }
+
+        try repository.updateFilePath(id: transcription.id, filePath: nil)
+        return result
     }
 
     private static func removeDownloadedMediaFile(at fileURL: URL, fileManager: FileManager) throws {
@@ -51,7 +95,8 @@ public enum TranscriptionAssetCleanup {
         try removeItem(at: targetURL, fileManager: fileManager)
     }
 
-    private static func removeMeetingFolder(containing fileURL: URL, fileManager: FileManager) throws {
+    @discardableResult
+    private static func removeMeetingFolder(containing fileURL: URL, fileManager: FileManager) throws -> Bool {
         let meetingRootURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .standardizedFileURL
         let folderURL = fileURL.deletingLastPathComponent().standardizedFileURL
@@ -60,9 +105,10 @@ public enum TranscriptionAssetCleanup {
             logger.warning(
                 "Refusing to remove meeting folder outside app support: \(folderURL.path, privacy: .private)"
             )
-            return
+            return false
         }
         try removeItem(at: folderURL, fileManager: fileManager)
+        return true
     }
 
     private static func removeItem(at url: URL, fileManager: FileManager) throws {

@@ -164,6 +164,29 @@ public final class TranscriptionLibraryViewModel {
         }
     }
 
+    public func deleteMeetingAudio(_ transcription: Transcription) {
+        do {
+            errorMessage = nil
+            guard let repo = transcriptionRepo else { return }
+            guard transcription.sourceType == .meeting else { return }
+            let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+                for: transcription,
+                repository: repo
+            )
+            guard result.detached else {
+                errorMessage = TranscriptionAssetCleanup.unmanagedMeetingAudioMessage
+                return
+            }
+            if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[idx].filePath = nil
+                publishLoadedItems(transcriptions, hasMore: hasMore)
+            }
+        } catch {
+            logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to delete meeting audio: \(error.localizedDescription)"
+        }
+    }
+
     private func reloadAfterStateChange() {
         searchDebounceTask?.cancel()
         searchDebounceTask = nil

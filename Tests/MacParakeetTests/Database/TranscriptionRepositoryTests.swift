@@ -581,6 +581,45 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertNil(fetched?.filePath)
     }
 
+    func testClearStoredAudioPathsForMeetingTranscriptionsOnlyClearsManagedDirectory() throws {
+        let meetingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-repo-meetings-\(UUID().uuidString)", isDirectory: true)
+        let managedAudio = meetingRoot
+            .appendingPathComponent("session", isDirectory: true)
+            .appendingPathComponent("meeting.m4a")
+        let externalAudio = FileManager.default.temporaryDirectory
+            .appendingPathComponent("external-meeting-\(UUID().uuidString).m4a")
+            .path
+
+        let managedMeeting = Transcription(
+            fileName: "managed",
+            filePath: managedAudio.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let externalMeeting = Transcription(
+            fileName: "external",
+            filePath: externalAudio,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let regularFile = Transcription(
+            fileName: "file",
+            filePath: managedAudio.path,
+            status: .completed,
+            sourceType: .file
+        )
+        try repo.save(managedMeeting)
+        try repo.save(externalMeeting)
+        try repo.save(regularFile)
+
+        try repo.clearStoredAudioPathsForMeetingTranscriptions(under: meetingRoot.path)
+
+        XCTAssertNil(try repo.fetch(id: managedMeeting.id)?.filePath)
+        XCTAssertEqual(try repo.fetch(id: externalMeeting.id)?.filePath, externalAudio)
+        XCTAssertEqual(try repo.fetch(id: regularFile.id)?.filePath, managedAudio.path)
+    }
+
     func testChatMessagesRoundTrip() throws {
         let transcription = Transcription(fileName: "test.mp3", status: .completed)
         try repo.save(transcription)

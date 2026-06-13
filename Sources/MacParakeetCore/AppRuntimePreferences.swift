@@ -7,6 +7,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
     var shouldSaveTranscriptionAudio: Bool { get }
+    var shouldSaveMeetingAudio: Bool { get }
     var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
@@ -187,6 +188,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
+    public static let saveMeetingAudioKey = "saveMeetingAudio"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
@@ -243,6 +245,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldSaveTranscriptionAudio: Bool {
         defaults.object(forKey: Self.saveTranscriptionAudioKey) as? Bool ?? true
+    }
+
+    public var shouldSaveMeetingAudio: Bool {
+        defaults.object(forKey: Self.saveMeetingAudioKey) as? Bool ?? true
     }
 
     public var youtubeAudioQuality: YouTubeAudioQuality {

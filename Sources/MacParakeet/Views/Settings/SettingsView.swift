@@ -1778,6 +1778,14 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Keep meeting audio",
+                    detail: "Turn off to remove meeting audio after the final transcript is saved.",
+                    isOn: $viewModel.saveMeetingAudio
+                )
+
+                Divider()
+
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 190), spacing: DesignSystem.Spacing.md)],
                     spacing: DesignSystem.Spacing.md
@@ -1792,6 +1800,12 @@ struct SettingsView: View {
                         title: "Video Downloads",
                         value: "\(viewModel.youtubeDownloadCount)",
                         detail: viewModel.formattedYouTubeStorage
+                    )
+
+                    metricTile(
+                        title: "Meeting Audio",
+                        value: "\(viewModel.meetingAudioRecordingCount)",
+                        detail: viewModel.formattedMeetingAudioStorage
                     )
                 }
             }
@@ -1823,6 +1837,12 @@ struct SettingsView: View {
                     label: "Delete data",
                     caption: "Removes saved rows. Your lifetime stats stay."
                 ) {
+                    if let error = viewModel.storageCleanupError {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
+
                     resetActionRow(
                         title: "Dictation history",
                         detail: "All dictations and their audio files.",
@@ -1865,6 +1885,24 @@ struct SettingsView: View {
                             perform: viewModel.clearDownloadedYouTubeAudio
                         )
                     )
+
+                    Divider()
+
+                    resetActionRow(
+                        title: "Meeting audio",
+                        detail: viewModel.isMeetingRecordingActive
+                            ? "Stop the active meeting recording before clearing audio."
+                            : "Saved meeting audio only. Transcripts stay; audio detaches.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Clear…",
+                            accessibilityLabel: "Clear meeting audio",
+                            confirmationTitle: "Clear Meeting Audio?",
+                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. This cannot be undone.",
+                            confirmButtonLabel: "Clear Audio",
+                            perform: viewModel.clearMeetingAudio
+                        )
+                    )
+                    .disabled(viewModel.isMeetingRecordingActive)
                 }
 
                 resetSection(

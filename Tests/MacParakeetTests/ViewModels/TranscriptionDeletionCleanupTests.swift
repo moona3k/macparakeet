@@ -29,6 +29,23 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
     }
 
+    func testRemoveOwnedMeetingAudioReturnsTrueForStaleManagedPath() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let missingAudioURL = folderURL.appendingPathComponent("meeting.m4a")
+
+        let transcription = Transcription(
+            fileName: "Meeting.m4a",
+            filePath: missingAudioURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let removed = try TranscriptionDeletionCleanup.removeOwnedMeetingAudio(for: transcription)
+
+        XCTAssertTrue(removed)
+    }
+
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
