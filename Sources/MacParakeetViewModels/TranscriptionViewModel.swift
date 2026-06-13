@@ -827,13 +827,22 @@ public final class TranscriptionViewModel {
     public func presentCompletedTranscription(
         _ transcription: Transcription,
         autoSave: Bool,
-        runAutoPrompts: Bool
+        runAutoPrompts: Bool,
+        applyMeetingRetention: Bool = true
     ) {
         currentTranscription = transcription
         loadTranscriptions()
         if autoSave {
             autoSaveIfEnabled(transcription)
-            applyMeetingAudioRetentionIfNeeded(transcription)
+            // `applyMeetingRetention` lets a caller opt a meeting out of the
+            // keep-meeting-audio policy. Crash-recovered meetings pass `false`:
+            // the recovery dialog already offered Discard (delete) vs Recover
+            // (keep), so a user who chose Recover has explicitly opted to keep
+            // this audio — the global toggle must not silently override that
+            // per-session choice.
+            if applyMeetingRetention {
+                applyMeetingAudioRetentionIfNeeded(transcription)
+            }
         }
         guard runAutoPrompts else { return }
         let text = aiContextText(for: transcription)

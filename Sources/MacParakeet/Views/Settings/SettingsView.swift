@@ -1890,7 +1890,9 @@ struct SettingsView: View {
 
                     resetActionRow(
                         title: "Meeting audio",
-                        detail: "Saved meeting audio only. Transcripts stay; audio detaches.",
+                        detail: viewModel.isMeetingRecordingActive
+                            ? "Stop the active meeting recording before clearing audio."
+                            : "Saved meeting audio only. Transcripts stay; audio detaches.",
                         action: ResetDestructiveAction(
                             buttonTitle: "Clear…",
                             accessibilityLabel: "Clear meeting audio",
@@ -1900,6 +1902,7 @@ struct SettingsView: View {
                             perform: viewModel.clearMeetingAudio
                         )
                     )
+                    .disabled(viewModel.isMeetingRecordingActive)
                 }
 
                 resetSection(

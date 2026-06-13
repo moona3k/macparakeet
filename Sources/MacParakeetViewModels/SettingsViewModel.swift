@@ -374,6 +374,17 @@ public final class SettingsViewModel {
     public private(set) var pendingMeetingRecoveryCount = 0
     public var onRecoverPendingMeetingRecordings: (() -> Void)?
 
+    /// Reports whether a meeting capture session is currently writing into the
+    /// managed recordings directory. Wired from the meeting pill state in the
+    /// app layer. `clearMeetingAudio()` refuses to wipe the directory while
+    /// this is true so an in-progress recording is never deleted out from
+    /// under the live writer (ADR-015 allows recording while Settings is open).
+    public var meetingRecordingActiveProvider: (@MainActor () -> Bool)?
+
+    public var isMeetingRecordingActive: Bool {
+        meetingRecordingActiveProvider?() ?? false
+    }
+
     // Auto-save (transcription)
     public var autoSaveTranscripts: Bool {
         didSet {
@@ -2179,9 +2190,19 @@ public final class SettingsViewModel {
     }
 
     public func clearMeetingAudio() {
+        storageCleanupError = nil
+
+        // A live meeting session writes into this same directory
+        // (meeting-recordings/{sessionID}/). Wiping it mid-recording would
+        // delete the active writer's folder and lose the in-progress meeting,
+        // so refuse while a recording is active rather than clobber it.
+        guard !isMeetingRecordingActive else {
+            storageCleanupError = "Stop the active meeting recording before clearing meeting audio."
+            return
+        }
+
         let dir = meetingRecordingsDirPath()
         let fm = FileManager.default
-        storageCleanupError = nil
 
         if fm.fileExists(atPath: dir) {
             do {
