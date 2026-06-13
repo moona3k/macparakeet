@@ -55,7 +55,6 @@ public final class OnboardingViewModel {
     public private(set) var step: Step = .welcome
     public private(set) var micStatus: PermissionStatus = .notDetermined
     public private(set) var accessibilityGranted: Bool = false
-    public private(set) var calendarPermissionGranted: Bool = false
     public private(set) var engineState: EngineState = .idle
     public private(set) var whisperRecommendation: WhisperOnboardingRecommendation?
 
@@ -127,7 +126,6 @@ public final class OnboardingViewModel {
         self.defaults = defaults
         self.now = now
         self.permissionPollingInterval = permissionPollingInterval
-        self.calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
             preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
         )
@@ -149,10 +147,6 @@ public final class OnboardingViewModel {
         defaults.removeObject(forKey: Self.onboardingCompletedKey)
         step = .welcome
         engineState = .idle
-        // Re-resolve from the live calendar permission so a previously-
-        // granted user re-entering onboarding sees the correct "completed"
-        // state, not the stale value carried over from VM init.
-        calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
     }
 
     public func refresh() {
@@ -250,39 +244,6 @@ public final class OnboardingViewModel {
         if accessibilityGranted {
             Telemetry.send(.permissionGranted(permission: .accessibility))
         }
-    }
-
-    /// Trigger the EventKit permission prompt. On grant, default the user
-    /// into `.notify` mode so the feature works out of the box and request
-    /// notification authorization in the same flow — without it, macOS
-    /// silently drops every reminder we post and the user concludes the
-    /// feature is broken. We write directly to UserDefaults + post the
-    /// shared notification so a running `MeetingAutoStartCoordinator`
-    /// re-evaluates immediately.
-    public func requestCalendarAccess() {
-        isBusy = true
-        Telemetry.send(.permissionPrompted(permission: .calendar))
-        Task {
-            let granted = await CalendarService.shared.requestPermission()
-            let notificationsGranted = granted
-                ? await CalendarNotificationAuthorization.requestIfNeeded()
-                : false
-            await MainActor.run {
-                self.isBusy = false
-                self.calendarPermissionGranted = granted
-                if granted {
-                    Telemetry.send(.permissionGranted(permission: .calendar))
-                    self.applyCalendarMode(notificationsGranted ? .notify : .off)
-                } else {
-                    Telemetry.send(.permissionDenied(permission: .calendar))
-                }
-            }
-        }
-    }
-
-    private func applyCalendarMode(_ mode: CalendarAutoStartMode) {
-        defaults.set(mode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
-        NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
     }
 
     public func startPermissionPolling() {
