@@ -112,15 +112,15 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 - Teach the core interaction model in under 60 seconds.
 - Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese. Nemotron is opt-in after onboarding.
 
-**Flow:**
+**Flow (6 steps, dictation-first):**
 1. Welcome
 2. Microphone permission
 3. Accessibility permission
-4. Meeting recording permission (optional Screen & System Audio Recording)
-5. Calendar meetings (optional EventKit access, when `AppFeatures.calendarEnabled`)
-6. Hotkey instructions (configurable trigger + Esc)
-7. Speech stack setup (Parakeet + speaker detection by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup)
-8. Ready
+4. Hotkey instructions (configurable trigger + Esc)
+5. Speech stack setup (Parakeet + speaker detection by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup)
+6. Ready
+
+Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-005 amendment, 2026-06-13).
 
 **Model failure recovery:**
 - Before warm-up, onboarding runs lightweight preflight checks (runtime support + first-setup disk/network readiness for both STT and any required default-on speaker-detection assets).

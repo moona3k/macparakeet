@@ -49,3 +49,23 @@ While onboarding is visible, permission state is polled so changes made in Syste
 
 - Inline onboarding inside the main window: rejected because the app is menu-bar-first and may never open the main window on first launch.
 - No onboarding: rejected due to permission and warm-up failures appearing as unexplained errors.
+
+## Amendment — 2026-06-13: Dictation-First Onboarding (Part A)
+
+**Decision:** Remove Meeting Recording and Calendar from the first-run onboarding flow. Onboarding is now 6 steps:
+1. Welcome
+2. Microphone permission
+3. Accessibility permission
+4. Hotkey instructions
+5. Speech stack setup
+6. Ready
+
+**Rationale:** Telemetry showed the Meeting Recording step (step 4 of 8) was the single largest onboarding drop, with ~90% of users skipping or abandoning at that step. Meeting recording and calendar are optional features; their onboarding steps added friction to the dictation-primary flow without improving activation.
+
+**Self-prompt contract:** Each removed feature sets itself up on first use:
+- Meeting recording: the Transcribe tab "Record Meeting" tile triggers the Screen & System Audio Recording permission prompt on first use (`MeetingRecordingFlowCoordinator`).
+- Calendar: the Settings calendar subsection requests EventKit access on first use (`CalendarSettingsView`).
+
+Accessibility is still granted during onboarding for all users, which also covers the meeting recording global hotkey's `CGEvent` session tap.
+
+**Part B (not yet done):** A separate planned change will move the speech-model download to start at onboarding open rather than at the Speech Model step. See `plans/active/2026-05-dictation-first-onboarding.md`.
