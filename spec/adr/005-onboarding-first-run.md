@@ -60,7 +60,7 @@ While onboarding is visible, permission state is polled so changes made in Syste
 5. Speech stack setup
 6. Ready
 
-**Rationale:** Telemetry showed the Meeting Recording step (step 4 of 8) was the single largest onboarding drop, with ~90% of users skipping or abandoning at that step. Meeting recording and calendar are optional features; their onboarding steps added friction to the dictation-primary flow without improving activation.
+**Rationale:** ~90% of users skipped the optional Screen & System Audio Recording permission at that step, and the step was the single largest onboarding drop-off (~24% of users who reached it did not continue to the core dictation setup). Meeting recording and calendar are optional features; their onboarding steps added friction to the dictation-primary flow without improving activation.
 
 **Self-prompt contract:** Each removed feature sets itself up on first use:
 - Meeting recording: the Transcribe tab "Record Meeting" tile triggers the Screen & System Audio Recording permission prompt on first use (`MeetingRecordingFlowCoordinator`).
