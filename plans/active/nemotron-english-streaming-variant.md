@@ -56,15 +56,27 @@ origin is SSH and the sandbox proxy only auths HTTPS; do NOT change remotes.
    a verbatim mirror of the locked `setParakeetModelVariant` pattern
    (STTRuntime.swift:642-662). Left unchanged by design; PR-note it.
 
+**DONE session #2 (continued):**
+6. Committed a0f6a288, pushed; CI run 27448068784 GREEN on the first compile
+   (build, bundle smoke, concurrency + Swift 6 checks, full `swift test`).
+   Note: the fork's GitHub Actions needed a one-time disable→enable toggle via
+   `gh api` to register workflows; the first run was dispatched manually.
+7. Host checklist (user, 2026-06-12/13): dev app GUI pass done; **punctuation
+   gate PASSED** — EN-build dictation produced punctuated, capitalized text.
+8. Side quest: `scripts/dev/run_app.sh` crashed at launch on the user's
+   cert-less Mac (ad-hoc signing + `--options runtime` → hardened-runtime
+   library validation rejects bundle-local Sparkle). Fixed by adding
+   `com.apple.security.cs.disable-library-validation` to a temp entitlements
+   copy for the ad-hoc fallback only; user-verified. Landed separately on
+   `fix/dev-run-adhoc-signing` (own PR, kept out of this branch); the patch
+   rides uncommitted in the local working tree until that PR merges — feature
+   commits must use explicit paths, never `git add -A`.
+
 **PENDING:**
-1. Commit (rich message, NO co-author trailer, include this plan file) →
-   push HTTPS → watch CI via `gh run list/watch --repo athurdekoos/macparakeet`
-   (FIRST-EVER COMPILE of the feature; fixup commits expected) → CI green →
-   HOLD → user host checklist → draft PR (`gh pr create --draft
-   --repo moona3k/macparakeet
-   --head athurdekoos:feat/nemotron-english-streaming-variant`) with
-   punctuation-gate findings, REQ version flag, deferred research-doc note,
-   FIX-B latent-branch note, accepted-P2 note.
+1. Draft PR opened against moona3k/macparakeet (2026-06-13) — awaiting review.
+2. After merge: archive this plan to `plans/completed/`; user switches default
+   via `models select nemotron-english-1120ms` (GUI selection already persists
+   it for the dev build).
 
 ## Context
 
