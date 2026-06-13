@@ -210,8 +210,7 @@ exactly what those guards were built to tolerate.
 | `Sources/MacParakeetCore/AppFeatures.swift` | Update `meetingRecordingEnabled` / `calendarEnabled` doc-comments (they no longer hide an onboarding step). |
 | `spec/adr/005-onboarding-first-run.md` | Amendment: 6-step dictation-first flow; meeting recording + calendar are opt-in post-onboarding. |
 | `spec/02-features.md`, `spec/README.md` | Onboarding progress note. |
-| `spec/kernel/requirements.yaml` | New `REQ-ONB-001`: dictation-first onboarding; meeting recording & calendar are opt-in and self-prompt on first use. |
-| `spec/kernel/traceability.md` | Map `REQ-ONB-001` → VM/Flow + tests. |
+| `spec/kernel/requirements.yaml` | New `REQ-ONB-001` (optional): dictation-first onboarding; meeting recording & calendar are opt-in and self-prompt on first use. |
 
 No website / `telemetry.ts` change. No new telemetry event.
 

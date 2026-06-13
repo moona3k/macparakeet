@@ -335,14 +335,14 @@ In-app feedback creates GitHub Issues via a Cloudflare Pages Function. User emai
 
 ## Implementation Guidelines
 
-1. **Specs are the source of truth** -- Follow `spec/10-ai-coding-method.md` precedence: ADRs first, then narrative specs, then active plans, with `spec/kernel/*` as supporting feature/status and traceability context. If code and spec disagree, update code to match the highest-precedence spec (or update the spec if it is wrong).
+1. **Specs are the source of truth** -- Follow `spec/10-ai-coding-method.md` precedence: ADRs first, then narrative specs, then active plans, with `spec/kernel/requirements.yaml` as an optional supporting feature/status index. If code and spec disagree, update code to match the highest-precedence spec (or update the spec if it is wrong).
 2. **ADRs are locked** -- Don't second-guess architectural decisions in `spec/adr/`.
 3. **Never lose user data** -- Graceful degradation for dictation history and transcriptions.
 4. **UI philosophy** -- Minimal during dictation, rich for transcription results.
 5. **Local-first** -- Speech recognition stays on-device by default. Optional provider and media-download flows are user-triggered; model/update flows and self-hosted telemetry/crash reporting are product-managed surfaces. Retained purchase activation endpoints remain in code but current public builds are free/GPL-3.0 and always unlocked. That licensing plumbing is intentionally retained as future-option code for GPL-compatible official paid distribution/support, not cleanup fodder. Telemetry is opt-out in Settings and never includes audio or transcript content.
 6. **Simplicity is the product** -- Resist feature creep. MacParakeet does three things well.
 7. **Fast feedback loops for agents** -- Design everything so the agent can verify its own work: tests for logic, CLI for headless smoke-testing, build errors that surface immediately.
-8. **Bounded agent discretion** -- Agents should choose the simplest process that preserves correctness, traceability, and ADR constraints. Kernel updates should be proportional to risk and user visibility.
+8. **Bounded agent discretion** -- Agents should choose the simplest process that preserves correctness, test coverage, and ADR constraints. Kernel updates should be proportional to risk and user visibility.
 9. **Protect the context zone** -- For behavior changes, explicitly define in-scope requirements, out-of-scope behavior, and invariants before coding.
 
 ## Documentation Hygiene
@@ -353,7 +353,7 @@ After completing work: update spec progress in `spec/README.md` and `spec/02-fea
 
 Document status headers: `**ACTIVE**` (authoritative), `**IMPLEMENTED**` (done, still accurate), `**HISTORICAL**` (superseded), `**PROPOSAL**` (under discussion).
 
-Source-of-truth precedence: ADR > narrative spec > active plan > kernel index/traceability > code/comments.
+Source-of-truth precedence: ADR > narrative spec > active plan > kernel feature/status index > code/comments.
 
 ## Working with Plans
 
@@ -368,9 +368,8 @@ Plans live in `plans/` and are version-controlled. Create a plan for multi-file 
 3. Create a plan in `plans/active/` if multi-file
 4. Implement in `Sources/MacParakeetCore/` (logic) and `Sources/MacParakeet/` (UI)
 5. Add/update tests in `Tests/MacParakeetTests/`
-6. Update `spec/kernel/traceability.md` if source/test mappings changed
-7. Run focused tests, then `swift test` before merge
-8. Update spec progress markers
+6. Run focused tests, then `swift test` before merge
+7. Update spec progress markers
 
 ### Add a new database table
 
@@ -610,7 +609,6 @@ This project uses **rich commit messages** with `## What Changed`, `## Root Inte
 ### After Completing Work
 
 - [ ] Run required focused tests and `swift test` -- all tests should pass
-- [ ] Update `spec/kernel/traceability.md` when source/test mappings changed
 - [ ] Update docs if behavior changed (specs, README, this file)
 - [ ] Archive completed plans to `plans/completed/`
 - [ ] Commit with rich message (see `docs/commit-guidelines.md`)
