@@ -234,11 +234,14 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
-    func clearStoredAudioPathsForMeetingTranscriptions() throws {
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {
+        let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
         for i in transcriptions.indices {
-            if transcriptions[i].sourceType == .meeting {
-                transcriptions[i].filePath = nil
-            }
+            guard transcriptions[i].sourceType == .meeting,
+                  let filePath = transcriptions[i].filePath else { continue }
+            let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
+            guard target.hasPrefix(root + "/") else { continue }
+            transcriptions[i].filePath = nil
         }
     }
 

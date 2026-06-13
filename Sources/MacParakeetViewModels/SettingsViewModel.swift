@@ -2226,7 +2226,7 @@ public final class SettingsViewModel {
         }
 
         do {
-            try transcriptionRepo?.clearStoredAudioPathsForMeetingTranscriptions()
+            try transcriptionRepo?.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
         } catch {
             logger.error("Failed to clear stored meeting audio paths error=\(error.localizedDescription, privacy: .public)")
             storageCleanupError = "Could not detach meeting audio from transcripts: \(error.localizedDescription)"

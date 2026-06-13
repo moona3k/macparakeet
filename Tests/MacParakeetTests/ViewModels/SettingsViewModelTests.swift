@@ -1168,7 +1168,13 @@ final class SettingsViewModelTests: XCTestCase {
             status: .completed,
             sourceType: .file
         )
-        mockTranscriptionRepo.transcriptions = [meeting, local]
+        let externalMeeting = Transcription(
+            fileName: "external meeting",
+            filePath: "/tmp/external-meeting-\(UUID().uuidString).m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting, local, externalMeeting]
 
         viewModel.configure(
             permissionService: mockPermissions,
@@ -1186,6 +1192,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingAudioRecordingCount, 0)
         XCTAssertNil(mockTranscriptionRepo.transcriptions.first(where: { $0.id == meeting.id })?.filePath)
         XCTAssertEqual(mockTranscriptionRepo.transcriptions.first(where: { $0.id == local.id })?.filePath, local.filePath)
+        XCTAssertEqual(
+            mockTranscriptionRepo.transcriptions.first(where: { $0.id == externalMeeting.id })?.filePath,
+            externalMeeting.filePath
+        )
     }
 
     func testClearMeetingAudioLeavesStoredPathsWhenDirectoryCannotBePrepared() throws {

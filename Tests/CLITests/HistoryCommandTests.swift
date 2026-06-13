@@ -218,8 +218,16 @@ final class HistoryCommandTests: XCTestCase {
             status: .completed,
             sourceType: .file
         )
+        let externalMeeting = Transcription(
+            fileName: "external-meeting.m4a",
+            filePath: "/tmp/external-meeting-\(UUID().uuidString).m4a",
+            rawTranscript: "External",
+            status: .completed,
+            sourceType: .meeting
+        )
         try repo.save(meeting)
         try repo.save(local)
+        try repo.save(externalMeeting)
 
         let command = try ClearMeetingAudioSubcommand.parse([
             "--database", dbURL.path,
@@ -234,6 +242,7 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
         XCTAssertNil(try repo.fetch(id: meeting.id)?.filePath)
         XCTAssertEqual(try repo.fetch(id: local.id)?.filePath, local.filePath)
+        XCTAssertEqual(try repo.fetch(id: externalMeeting.id)?.filePath, externalMeeting.filePath)
         XCTAssertTrue(output.contains("Deleted all stored meeting audio"))
     }
 

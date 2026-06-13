@@ -18,7 +18,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
     func updateFilePath(id: UUID, filePath: String?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
-    func clearStoredAudioPathsForMeetingTranscriptions() throws
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws
     func updateFavorite(id: UUID, isFavorite: Bool) throws
     func fetchFavorites() throws -> [Transcription]
 }
@@ -80,7 +80,7 @@ extension TranscriptionRepositoryProtocol {
         )
     }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
-    public func clearStoredAudioPathsForMeetingTranscriptions() throws {}
+    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {}
     public func updateFileName(id: UUID, fileName: String) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
@@ -440,12 +440,22 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
-    public func clearStoredAudioPathsForMeetingTranscriptions() throws {
+    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {
         try dbQueue.write { db in
-            try db.execute(
-                sql: "UPDATE transcriptions SET filePath = NULL, updatedAt = ? WHERE sourceType = ?",
-                arguments: [Date(), Transcription.SourceType.meeting.rawValue]
-            )
+            let now = Date()
+            let meetings = try Transcription
+                .filter(Transcription.Columns.sourceType == Transcription.SourceType.meeting.rawValue)
+                .fetchAll(db)
+
+            for var transcription in meetings {
+                guard let filePath = transcription.filePath,
+                      Self.isFilePath(filePath, underDirectory: directoryPath) else {
+                    continue
+                }
+                transcription.filePath = nil
+                transcription.updatedAt = now
+                try transcription.update(db)
+            }
         }
     }
 
@@ -465,6 +475,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 .order(Transcription.Columns.createdAt.desc)
                 .fetchAll(db)
         }
+    }
+
+    private static func isFilePath(_ filePath: String, underDirectory directoryPath: String) -> Bool {
+        let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
+        let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
+        return target.hasPrefix(root + "/")
     }
 
     private static func libraryOrderClause(for sortOrder: TranscriptionLibrarySortOrder) -> String {

@@ -347,15 +347,15 @@ struct DeleteMeetingAudioSubcommand: ParsableCommand {
             throw ValidationError("Transcription '\(id)' is not a meeting recording.")
         }
 
-        let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
-        let removedAudio = try TranscriptionAssetCleanup.removeOwnedMeetingAudio(for: transcription)
-        guard removedAudio || !hasAudioPath else {
-            throw ValidationError("Meeting audio is not stored in MacParakeet's managed recordings folder.")
+        let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        )
+        guard result.detached else {
+            throw ValidationError(TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
         }
 
-        try repo.updateFilePath(id: transcription.id, filePath: nil)
-
-        if removedAudio {
+        if result.removedOwnedAudio {
             print("Detached managed meeting audio for: \"\(transcription.fileName)\"")
         } else {
             print("No meeting audio attached for: \"\(transcription.fileName)\"")
@@ -380,15 +380,27 @@ struct ClearMeetingAudioSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let fm = FileManager.default
-        let dir = meetingRecordingsDirectory ?? AppPaths.meetingRecordingsDir
+        let dir = try resolvedMeetingRecordingsDirectory()
 
         if fm.fileExists(atPath: dir) {
             try fm.removeItem(atPath: dir)
         }
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        try repo.clearStoredAudioPathsForMeetingTranscriptions()
+        try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
 
         print("Deleted all stored meeting audio. Saved meeting transcripts remain.")
+    }
+
+    private func resolvedMeetingRecordingsDirectory() throws -> String {
+        guard let meetingRecordingsDirectory else {
+            return AppPaths.meetingRecordingsDir
+        }
+
+        #if DEBUG
+        return meetingRecordingsDirectory
+        #else
+        throw ValidationError("--meeting-recordings-directory is only available in debug/test builds.")
+        #endif
     }
 }
 

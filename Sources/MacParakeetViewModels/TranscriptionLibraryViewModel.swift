@@ -167,14 +167,16 @@ public final class TranscriptionLibraryViewModel {
     public func deleteMeetingAudio(_ transcription: Transcription) {
         do {
             errorMessage = nil
+            guard let repo = transcriptionRepo else { return }
             guard transcription.sourceType == .meeting else { return }
-            let removedOwnedAudio = try TranscriptionDeletionCleanup.removeOwnedMeetingAudio(for: transcription)
-            let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
-            guard removedOwnedAudio || !hasAudioPath else {
-                errorMessage = "Meeting audio is not stored in MacParakeet's managed recordings folder."
+            let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+                for: transcription,
+                repository: repo
+            )
+            guard result.detached else {
+                errorMessage = TranscriptionAssetCleanup.unmanagedMeetingAudioMessage
                 return
             }
-            try transcriptionRepo?.updateFilePath(id: transcription.id, filePath: nil)
             if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore)
