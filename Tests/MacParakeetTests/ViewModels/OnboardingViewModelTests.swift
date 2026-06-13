@@ -1,4 +1,5 @@
 import XCTest
+import os
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -57,6 +58,43 @@ private actor WhisperDownloadSpy {
     }
 }
 
+private final class PollingPermissionService: PermissionServiceProtocol, @unchecked Sendable {
+    private let microphoneCheckCount = OSAllocatedUnfairLock(initialState: 0)
+
+    var checkMicrophonePermissionCallCount: Int {
+        microphoneCheckCount.withLock { $0 }
+    }
+
+    func checkMicrophonePermission() async -> PermissionStatus {
+        microphoneCheckCount.withLock { $0 += 1 }
+        return .granted
+    }
+
+    func requestMicrophonePermission() async -> Bool {
+        true
+    }
+
+    func checkScreenRecordingPermission() -> Bool {
+        true
+    }
+
+    func requestScreenRecordingPermission() -> Bool {
+        true
+    }
+
+    func openMicrophoneSettings() {}
+
+    func openScreenRecordingSettings() {}
+
+    func checkAccessibilityPermission() -> Bool {
+        true
+    }
+
+    func requestAccessibilityPermission(prompt _: Bool) -> Bool {
+        true
+    }
+}
+
 @MainActor
 final class OnboardingViewModelTests: XCTestCase {
     private func waitUntil(
@@ -91,8 +129,7 @@ final class OnboardingViewModelTests: XCTestCase {
         downloadWhisperModel: OnboardingViewModel.WhisperModelDownloader? = nil,
         preferredLanguages: @escaping @Sendable () -> [String] = { ["en-US"] },
         now: @escaping @Sendable () -> Date = { Date() },
-        permissionPollingInterval: Duration = .seconds(2),
-        relaunchHintDelay: TimeInterval = 10
+        permissionPollingInterval: Duration = .seconds(2)
     ) -> OnboardingViewModel {
         OnboardingViewModel(
             permissionService: permissionService,
@@ -108,8 +145,7 @@ final class OnboardingViewModelTests: XCTestCase {
             preferredLanguages: preferredLanguages,
             defaults: defaults,
             now: now,
-            permissionPollingInterval: permissionPollingInterval,
-            relaunchHintDelay: relaunchHintDelay
+            permissionPollingInterval: permissionPollingInterval
         )
     }
 
@@ -301,36 +337,8 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["zh-Hans-CN", "en-GB"]))
     }
 
-    func testScreenRecordingGrantTransitionEmitsPermissionGrantedOnce() async throws {
-        let telemetry = OnboardingTelemetrySpy()
-        Telemetry.configure(telemetry)
-        defer { Telemetry.configure(NoOpTelemetryService()) }
-
-        let perms = MockPermissionService()
-        perms.screenRecordingPermissionSequence = [false, true, true]
-        let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(60))
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(60))
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(60))
-
-        let grantedEvents = telemetry.snapshot().filter {
-            if case .permissionGranted(let permission) = $0 {
-                return permission == .screenRecording
-            }
-            return false
-        }
-        XCTAssertEqual(grantedEvents.count, 1)
-    }
-
     func testPermissionPollingLifecycleStopsAfterCancellation() async throws {
-        let perms = MockPermissionService()
-        perms.screenRecordingPermission = false
+        let perms = PollingPermissionService()
         let stt = MockSTTClient()
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
         let vm = makeViewModel(
@@ -343,17 +351,17 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startPermissionPolling()
         vm.startPermissionPolling()
         try await waitUntil(timeout: .milliseconds(500)) {
-            perms.checkScreenRecordingPermissionCallCount > 1
+            perms.checkMicrophonePermissionCallCount > 1
         }
-        let beforeStopCount = perms.checkScreenRecordingPermissionCallCount
+        let beforeStopCount = perms.checkMicrophonePermissionCallCount
         XCTAssertGreaterThan(beforeStopCount, 1)
 
         vm.stopPermissionPolling()
-        let atStopCount = perms.checkScreenRecordingPermissionCallCount
+        let atStopCount = perms.checkMicrophonePermissionCallCount
         try await Task.sleep(for: .milliseconds(100))
-        let firstSettledCount = perms.checkScreenRecordingPermissionCallCount
+        let firstSettledCount = perms.checkMicrophonePermissionCallCount
         try await Task.sleep(for: .milliseconds(100))
-        let secondSettledCount = perms.checkScreenRecordingPermissionCallCount
+        let secondSettledCount = perms.checkMicrophonePermissionCallCount
 
         // Allow at most one in-flight refresh tick to finish after cancellation.
         XCTAssertLessThanOrEqual(firstSettledCount, atStopCount + 1)

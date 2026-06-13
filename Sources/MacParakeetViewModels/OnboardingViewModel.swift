@@ -55,9 +55,7 @@ public final class OnboardingViewModel {
     public private(set) var step: Step = .welcome
     public private(set) var micStatus: PermissionStatus = .notDetermined
     public private(set) var accessibilityGranted: Bool = false
-    public private(set) var screenRecordingGranted: Bool = false
     public private(set) var calendarPermissionGranted: Bool = false
-    public private(set) var showRelaunchHint: Bool = false
     public private(set) var engineState: EngineState = .idle
     public private(set) var whisperRecommendation: WhisperOnboardingRecommendation?
 
@@ -76,7 +74,6 @@ public final class OnboardingViewModel {
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private let permissionPollingInterval: Duration
-    private let relaunchHintDelay: TimeInterval
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -91,9 +88,6 @@ public final class OnboardingViewModel {
     /// this strongly suggests a stuck connection or a hung dependency.
     /// Memory: v0.4.22 stranded ~23 users for ~24h with no escape hatch.
     public static let warmUpStallTimeout: Duration = .seconds(180)
-    private var screenRecordingGrantRequestedAt: Date?
-    private var hasLoadedInitialScreenRecordingState = false
-    private var hasEmittedScreenRecordingGranted = false
     private let requiredFirstSetupDiskBytes: Int64 = 7 * 1_024 * 1_024 * 1_024
     private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
     private let requiredWhisperSetupDiskBytes: Int64 = 2 * 1_024 * 1_024 * 1_024
@@ -114,8 +108,7 @@ public final class OnboardingViewModel {
         preferredLanguages: (@Sendable () -> [String])? = nil,
         defaults: UserDefaults = .standard,
         now: @escaping @Sendable () -> Date = { Date() },
-        permissionPollingInterval: Duration = .seconds(2),
-        relaunchHintDelay: TimeInterval = 10
+        permissionPollingInterval: Duration = .seconds(2)
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
@@ -134,7 +127,6 @@ public final class OnboardingViewModel {
         self.defaults = defaults
         self.now = now
         self.permissionPollingInterval = permissionPollingInterval
-        self.relaunchHintDelay = relaunchHintDelay
         self.calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
             preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
@@ -161,7 +153,6 @@ public final class OnboardingViewModel {
         // granted user re-entering onboarding sees the correct "completed"
         // state, not the stale value carried over from VM init.
         calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
-        clearMeetingRecordingPendingState()
     }
 
     public func refresh() {
@@ -169,22 +160,10 @@ public final class OnboardingViewModel {
         refreshTask = Task {
             let mic = await permissionService.checkMicrophonePermission()
             let ax = permissionService.checkAccessibilityPermission()
-            let screenRecording = permissionService.checkScreenRecordingPermission()
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                let previousScreenRecordingGranted = self.screenRecordingGranted
                 self.micStatus = mic
                 self.accessibilityGranted = ax
-                self.screenRecordingGranted = screenRecording
-                if self.hasLoadedInitialScreenRecordingState,
-                   !previousScreenRecordingGranted,
-                   screenRecording,
-                   !self.hasEmittedScreenRecordingGranted {
-                    self.hasEmittedScreenRecordingGranted = true
-                    Telemetry.send(.permissionGranted(permission: .screenRecording))
-                }
-                self.hasLoadedInitialScreenRecordingState = true
-                self.updateMeetingRecordingRelaunchHint(now: self.now())
                 self.refreshTask = nil
             }
         }
@@ -273,14 +252,6 @@ public final class OnboardingViewModel {
         }
     }
 
-    public func requestScreenRecordingAccess() {
-        Telemetry.send(.permissionPrompted(permission: .screenRecording))
-        screenRecordingGrantRequestedAt = now()
-        showRelaunchHint = false
-        _ = permissionService.requestScreenRecordingPermission()
-        refresh()
-    }
-
     /// Trigger the EventKit permission prompt. On grant, default the user
     /// into `.notify` mode so the feature works out of the box and request
     /// notification authorization in the same flow — without it, macOS
@@ -312,10 +283,6 @@ public final class OnboardingViewModel {
     private func applyCalendarMode(_ mode: CalendarAutoStartMode) {
         defaults.set(mode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
         NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
-    }
-
-    public func openScreenRecordingSystemSettings() {
-        permissionService.openScreenRecordingSettings()
     }
 
     public func startPermissionPolling() {
@@ -678,20 +645,6 @@ public final class OnboardingViewModel {
     public func stopObservingWarmUp() {
         cancelWarmUpObservation()
         stopPermissionPolling()
-    }
-
-    private func clearMeetingRecordingPendingState() {
-        screenRecordingGrantRequestedAt = nil
-        showRelaunchHint = false
-    }
-
-    private func updateMeetingRecordingRelaunchHint(now _: Date) {
-        guard !screenRecordingGranted else {
-            clearMeetingRecordingPendingState()
-            return
-        }
-
-        showRelaunchHint = false
     }
 
     private func cancelWarmUpObservation() {
