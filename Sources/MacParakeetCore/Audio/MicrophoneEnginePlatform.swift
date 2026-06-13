@@ -91,16 +91,21 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
     /// Parameters from the most recent successful start. Used by the
     /// configuration-change observer to re-run the exact same start sequence
-    /// during self-healing recovery. Cleared in `stopEngine()` — including
-    /// when the platform is already stopped — so a stale tap-handler closure
-    /// is never retained after an explicit stop. Never cleared by teardown /
-    /// reset / engine-replace helpers (they are part of the recovery path).
+    /// during self-healing recovery. Cleared at the start of each configure
+    /// attempt and in `stopEngine()` — including when the platform is already
+    /// stopped — so a stale tap-handler closure is never retained after a
+    /// failed start or explicit stop. Never cleared by teardown / reset /
+    /// engine-replace helpers (they are part of the recovery path).
     private struct StartRequest {
         let vpioEnabled: Bool
         let bufferSize: AVAudioFrameCount
         let tapHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     }
     private var lastStartRequestLocked: StartRequest?
+
+    deinit {
+        tearDownLocked()
+    }
 
     private static func nowNanos() -> UInt64 {
         DispatchTime.now().uptimeNanoseconds
@@ -209,6 +214,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
+        lastStartRequestLocked = nil
         // VPIO toggle requires a stop → setVoiceProcessingEnabled → start
         // sequence; the engine cannot be reconfigured while running.
         if running {
