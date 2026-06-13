@@ -105,40 +105,6 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         ])
     }
 
-    func testFinalizeDropsFillerOnlyMicrophoneRuns() {
-        let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
-            .init(
-                source: .microphone,
-                result: STTResult(
-                    text: "Uh uh",
-                    words: [
-                        TimestampedWord(word: "Uh", startMs: 0, endMs: 120, confidence: 0.92),
-                        TimestampedWord(word: "uh", startMs: 180, endMs: 300, confidence: 0.90),
-                    ]
-                ),
-                startOffsetMs: 0
-            ),
-            .init(
-                source: .system,
-                result: STTResult(
-                    text: "lecture content",
-                    words: [
-                        TimestampedWord(word: "lecture", startMs: 0, endMs: 240, confidence: 0.95),
-                        TimestampedWord(word: "content", startMs: 280, endMs: 560, confidence: 0.95),
-                    ]
-                ),
-                startOffsetMs: 0
-            ),
-        ])
-
-        XCTAssertEqual(finalized.words.map(\.word), ["lecture", "content"])
-        XCTAssertEqual(finalized.words.map(\.speakerId), ["system", "system"])
-        XCTAssertEqual(finalized.speakers, [
-            SpeakerInfo(id: "system", label: "Others"),
-        ])
-        XCTAssertEqual(finalized.rawTranscript, "lecture content")
-    }
-
     func testFinalizeDropsLowConfidenceMicDuplicateOfSystemRun() {
         let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
             .init(

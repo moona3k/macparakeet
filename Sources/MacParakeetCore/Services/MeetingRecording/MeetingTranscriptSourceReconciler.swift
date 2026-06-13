@@ -13,7 +13,6 @@ struct MeetingTranscriptSourceReconciler {
     }
 
     enum RemovalReason: String, Sendable, Equatable {
-        case fillerOnly
         case lowConfidenceSystemDuplicate
         case simultaneousSystemEcho
     }
@@ -121,20 +120,6 @@ struct MeetingTranscriptSourceReconciler {
         let words: [WordTimestamp]
     }
 
-    private static let fillerTokens: Set<String> = [
-        "ah",
-        "eh",
-        "er",
-        "hm",
-        "hmm",
-        "mm",
-        "mhm",
-        "mmhmm",
-        "uh",
-        "uhh",
-        "um",
-        "umm",
-    ]
     private static let runGapMs = 1_200
     private static let duplicateTimingToleranceMs = 600
     private static let duplicateMaxWords = 10
@@ -178,10 +163,6 @@ struct MeetingTranscriptSourceReconciler {
     }
 
     private static func removalDecision(for run: WordRun, reference: SystemEchoReference) -> RemovalDecision? {
-        if isFillerOnly(run) {
-            return RemovalDecision(reason: .fillerOnly, indexes: run.indexes, words: run.words)
-        }
-
         if isLowConfidenceSystemDuplicate(run, reference: reference) {
             return RemovalDecision(reason: .lowConfidenceSystemDuplicate, indexes: run.indexes, words: run.words)
         }
@@ -227,10 +208,6 @@ struct MeetingTranscriptSourceReconciler {
             tokenWords: tokenizedMicrophoneWords(currentWords, indexes: currentIndexes)
         ))
         return runs
-    }
-
-    private static func isFillerOnly(_ run: WordRun) -> Bool {
-        !run.tokens.isEmpty && run.tokens.allSatisfy { fillerTokens.contains($0) }
     }
 
     private static func isLowConfidenceSystemDuplicate(
