@@ -1,6 +1,6 @@
 # Dictation Media Pause
 
-Status: **ACTIVE**
+Status: ✅ COMPLETED — media pause shipped (#355 / #383 / #384 / #418); spike resolved **Yellow** (2026-05-24), MediaRemote adapter behind an opt-in setting. Archived 2026-06-13.
 Owner: Core app team
 Updated: 2026-06-10
 Related: [GitHub issue #351](https://github.com/moona3k/macparakeet/issues/351)

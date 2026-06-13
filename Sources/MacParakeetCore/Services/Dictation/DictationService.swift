@@ -799,6 +799,15 @@ public actor DictationService: DictationServiceProtocol {
                 },
                 onFinish: {
                     sampleContinuation.finish()
+                },
+                onCancel: {
+                    degradeReason.withLock { current in
+                        if current == nil { current = "capture_cancelled" }
+                    }
+                    task.cancel()
+                    sampleContinuation.finish()
+                    partialContinuation.finish()
+                    partialTask.cancel()
                 }
             )
         } catch {

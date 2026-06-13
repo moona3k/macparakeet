@@ -120,6 +120,7 @@ struct TranscriptResultView: View {
     @State private var retranscriptionConfirmation: RetranscriptionConfirmation?
     @State private var showingRetranscribeOptions = false
     @State private var pendingRetranscribePick: RetranscribePick?
+    @State private var pendingDeleteMeetingAudio = false
     @State private var showingCancelGenerationAlert: UUID?
     @FocusState private var chatInputFocused: Bool
     @FocusState private var meetingTitleFocused: Bool
@@ -469,6 +470,14 @@ struct TranscriptResultView: View {
                     } label: {
                         Label("Save Audio As…", systemImage: "square.and.arrow.down")
                     }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        pendingDeleteMeetingAudio = true
+                    } label: {
+                        Label("Delete Audio", systemImage: "waveform.slash")
+                    }
                 } label: {
                     Label("Audio", systemImage: "waveform")
                 }
@@ -556,6 +565,14 @@ struct TranscriptResultView: View {
             Button("Cancel", role: .cancel) { }
         } message: { confirmation in
             Text(confirmation.message)
+        }
+        .alert("Delete Meeting Audio?", isPresented: $pendingDeleteMeetingAudio) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Audio", role: .destructive) {
+                deleteMeetingAudioFromActionBar()
+            }
+        } message: {
+            Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
         }
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)
@@ -2902,6 +2919,10 @@ struct TranscriptResultView: View {
                 SoundManager.shared.play(.errorSoft)
             }
         }
+    }
+
+    private func deleteMeetingAudioFromActionBar() {
+        viewModel.deleteMeetingAudio(activeTranscription)
     }
 
     private func formatTimestamp(ms: Int) -> String {

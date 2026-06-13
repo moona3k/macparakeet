@@ -33,6 +33,7 @@ struct ConfigCommand: ParsableCommand {
           whisper-language          auto|<Whisper language code>    default: auto
           speaker-detection         on|off                          default: off
           save-transcription-audio  on|off                          default: on
+          save-meeting-audio        on|off                          default: on
           youtube-audio-quality     m4a|best-available              default: m4a
           meeting-artifacts-folder  absolute path|default           default: app support
           meeting-hook-enabled      on|off                          default: off
@@ -62,6 +63,7 @@ struct ConfigCommand: ParsableCommand {
         "whisper-language",
         "speaker-detection",
         "save-transcription-audio",
+        "save-meeting-audio",
         "youtube-audio-quality",
         "meeting-artifacts-folder",
         "meeting-hook-enabled",
@@ -189,6 +191,9 @@ struct ConfigCommand: ParsableCommand {
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
+        case "save-meeting-audio":
+            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool ?? true
+            return on ? "on" : "off"
         case "youtube-audio-quality":
             return displayYouTubeAudioQuality(YouTubeAudioQuality.current(defaults: store))
         case "meeting-artifacts-folder":
@@ -256,6 +261,10 @@ struct ConfigCommand: ParsableCommand {
         case "save-transcription-audio":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)
+            return parsed ? "on" : "off"
+        case "save-meeting-audio":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
             return parsed ? "on" : "off"
         case "youtube-audio-quality":
             let quality = try parseYouTubeAudioQuality(value)

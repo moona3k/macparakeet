@@ -350,7 +350,7 @@ public actor AudioRecorder {
         var didClaimSampleSink = false
         defer {
             if !didClaimSampleSink {
-                sampleSink?.onFinish()
+                sampleSink?.onCancel()
             }
         }
 
@@ -740,6 +740,7 @@ public actor AudioRecorder {
         outputURL = nil
 
         guard let url else {
+            sampleSink?.onCancel()
             throw AudioProcessorError.recordingFailed("No output file")
         }
 
@@ -762,6 +763,7 @@ public actor AudioRecorder {
             AudioCaptureDiagnostics.append(
                 "dictation_capture_insufficient sample_count=\(effectiveSampleCount) required=\(Self.minimumSamples)\(discardField)"
             )
+            sampleSink?.onCancel()
             throw AudioProcessorError.insufficientSamples
         }
         sampleSink?.onFinish()

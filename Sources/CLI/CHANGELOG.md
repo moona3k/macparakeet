@@ -121,6 +121,15 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - Meeting JSON commands that matter to agent workflows accept opt-in
   `--envelope` success output with `{ "ok": true, "command", "data", "meta" }`.
   Existing `--json` success shapes are unchanged.
+- `history delete-meeting-audio <transcription>` deletes MacParakeet-managed
+  meeting audio for a single saved meeting while keeping the transcript row and
+  clearing its stored audio path.
+- `history clear-meeting-audio` deletes all stored meeting audio and detaches
+  audio paths from saved meeting transcripts. It refuses (exit code `2`) while
+  a meeting recording is in progress in a running app, so it cannot wipe an
+  active session's folder out from under the writer.
+- `config get|set|list` now includes `save-meeting-audio`, matching the GUI's
+  default-on meeting audio retention preference.
 
 ### Fixed
 

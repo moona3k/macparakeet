@@ -739,6 +739,80 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
+    func testPresentCompletedMeetingDeletesAudioWhenRetentionIsOff() throws {
+        let suite = "transcription-vm-meeting-audio-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("vm-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let t = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            rawTranscript: "Done",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [t]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.setError(message: "Prior load warning")
+
+        viewModel.presentCompletedTranscription(t, autoSave: true)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertNil(viewModel.currentTranscription?.filePath)
+        XCTAssertNil(mockRepo.transcriptions.first?.filePath)
+        XCTAssertEqual(viewModel.errorMessage, "Prior load warning")
+    }
+
+    func testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff() throws {
+        let suite = "transcription-vm-meeting-recovery-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("vm-recovered-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let t = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            rawTranscript: "Done",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [t]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        // The recovery present path opts out of retention: choosing Recover
+        // (over Discard) is an explicit "keep this audio", so the global
+        // keep-meeting-audio = off must not delete it.
+        viewModel.presentCompletedTranscription(
+            t,
+            autoSave: true,
+            runAutoPrompts: false,
+            applyMeetingRetention: false
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(viewModel.currentTranscription?.filePath, audioURL.path)
+        XCTAssertEqual(mockRepo.transcriptions.first?.filePath, audioURL.path)
+    }
+
     func testRepositoryDeleteFailureKeepsExternalAudioFile() throws {
         let audioURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("yt-audio-\(UUID().uuidString).m4a")

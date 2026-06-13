@@ -249,10 +249,13 @@ curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:ver
 1. Confirm R2 file size matches appcast `length`
 2. Confirm appcast `sparkle:version` is newer than the installed app's build number
 3. Launch the app → "Check for Updates..." from the menu bar → should find and validate the update
-4. Confirm the GitHub release has a versioned DMG asset named
-   `MacParakeet-X.Y.Z.dmg`. The official Homebrew cask URL is versioned as
-   `MacParakeet-#{version}.dmg`, and BrewTestBot cannot autobump the cask until
-   that GitHub asset URL exists.
+4. Confirm the GitHub release `vX.Y.Z` includes an asset named **exactly**
+   `MacParakeet.dmg`. The official Homebrew cask fetches
+   `…/releases/download/v#{version}/MacParakeet.dmg` — the version lives in the
+   tag path, **not** the filename. BrewTestBot cannot autobump the cask until
+   that plain-named asset exists on the new tag. (Attaching only a
+   `MacParakeet-X.Y.Z.dmg` is not enough; v0.6.20 shipped without the plain
+   `MacParakeet.dmg` and the cask could not bump to it.)
 
 ## Standalone CLI Homebrew release
 

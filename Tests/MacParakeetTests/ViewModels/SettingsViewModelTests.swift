@@ -45,6 +45,7 @@ final class SettingsViewModelTests: XCTestCase {
     var testDefaultsSuiteName: String!
     var entitlements: EntitlementsService!
     var youtubeDownloadsTestDir: URL!
+    var meetingRecordingsTestDir: URL!
 
     private func waitUntil(
         timeout: Duration = .seconds(1),
@@ -72,6 +73,9 @@ final class SettingsViewModelTests: XCTestCase {
         youtubeDownloadsTestDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mp-youtube-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: youtubeDownloadsTestDir, withIntermediateDirectories: true)
+        meetingRecordingsTestDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mp-meetings-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: meetingRecordingsTestDir, withIntermediateDirectories: true)
 
         // Use a unique suite name for isolated UserDefaults per test
         testDefaultsSuiteName = "com.macparakeet.tests.\(UUID().uuidString)"
@@ -81,6 +85,9 @@ final class SettingsViewModelTests: XCTestCase {
             defaults: testDefaults,
             youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
                 youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            },
+            meetingRecordingsDirPath: { [meetingRecordingsTestDir] in
+                meetingRecordingsTestDir?.path ?? AppPaths.meetingRecordingsDir
             }
         )
 
@@ -100,6 +107,9 @@ final class SettingsViewModelTests: XCTestCase {
         }
         if let youtubeDownloadsTestDir {
             try? FileManager.default.removeItem(at: youtubeDownloadsTestDir)
+        }
+        if let meetingRecordingsTestDir {
+            try? FileManager.default.removeItem(at: meetingRecordingsTestDir)
         }
         testDefaults = nil
         testDefaultsSuiteName = nil
@@ -142,6 +152,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
+        XCTAssertTrue(viewModel.saveMeetingAudio, "saveMeetingAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
         XCTAssertFalse(viewModel.speakerDiarization, "speakerDiarization should default to false")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
@@ -168,6 +179,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
         testDefaults.set(
             YouTubeAudioQuality.bestAvailable.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey
@@ -195,6 +207,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.dictationInsertionStyle, .inline)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
+        XCTAssertFalse(vm.saveMeetingAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
         XCTAssertTrue(vm.speakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
@@ -629,6 +642,20 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(testDefaults.bool(forKey: "saveTranscriptionAudio"))
     }
 
+    func testSettingSaveMeetingAudioPersists() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.saveMeetingAudio = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.saveMeetingAudio])
+    }
+
     func testSettingYouTubeAudioQualityPersists() {
         viewModel.youtubeAudioQuality = .bestAvailable
 
@@ -1058,7 +1085,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     // MARK: - YouTube Audio Storage
 
-    func testRefreshStatsIncludesYouTubeDownloadStorage() throws {
+    func testRefreshStatsIncludesYouTubeDownloadStorage() async throws {
         let fileA = youtubeDownloadsTestDir.appendingPathComponent("a.m4a")
         let fileB = youtubeDownloadsTestDir.appendingPathComponent("b.webm")
         XCTAssertTrue(FileManager.default.createFile(atPath: fileA.path, contents: Data(repeating: 0x1, count: 1024)))
@@ -1072,11 +1099,11 @@ final class SettingsViewModelTests: XCTestCase {
             checkoutURL: nil
         )
 
-        XCTAssertEqual(viewModel.youtubeDownloadCount, 2)
+        try await waitUntil { viewModel.youtubeDownloadCount == 2 }
         XCTAssertGreaterThan(viewModel.youtubeDownloadStorageMB, 0)
     }
 
-    func testClearDownloadedYouTubeAudioRemovesFilesAndClearsStoredPaths() throws {
+    func testClearDownloadedYouTubeAudioRemovesFilesAndClearsStoredPaths() async throws {
         let file = youtubeDownloadsTestDir.appendingPathComponent("a.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x1, count: 512)))
 
@@ -1095,12 +1122,143 @@ final class SettingsViewModelTests: XCTestCase {
             entitlementsService: entitlements,
             checkoutURL: nil
         )
+        try await waitUntil { viewModel.youtubeDownloadCount == 1 }
 
         viewModel.clearDownloadedYouTubeAudio()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
-        XCTAssertEqual(viewModel.youtubeDownloadCount, 0)
+        try await waitUntil { viewModel.youtubeDownloadCount == 0 }
         XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, nil)
+    }
+
+    // MARK: - Meeting Audio Storage
+
+    func testRefreshStatsIncludesMeetingAudioStorage() async throws {
+        let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x3, count: 2048)))
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { viewModel.meetingAudioRecordingCount == 1 }
+        XCTAssertGreaterThan(viewModel.meetingAudioStorageMB, 0)
+    }
+
+    func testClearMeetingAudioRemovesFilesAndClearsMeetingStoredPaths() async throws {
+        let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x4, count: 1024)))
+
+        let meeting = Transcription(
+            fileName: "meeting",
+            filePath: file.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let local = Transcription(
+            fileName: "local",
+            filePath: "/tmp/local.m4a",
+            status: .completed,
+            sourceType: .file
+        )
+        let externalMeeting = Transcription(
+            fileName: "external meeting",
+            filePath: "/tmp/external-meeting-\(UUID().uuidString).m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting, local, externalMeeting]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+        try await waitUntil { viewModel.meetingAudioRecordingCount == 1 }
+
+        viewModel.clearMeetingAudio()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRecordingsTestDir.path))
+        XCTAssertNil(viewModel.storageCleanupError)
+        try await waitUntil { viewModel.meetingAudioRecordingCount == 0 }
+        XCTAssertNil(mockTranscriptionRepo.transcriptions.first(where: { $0.id == meeting.id })?.filePath)
+        XCTAssertEqual(mockTranscriptionRepo.transcriptions.first(where: { $0.id == local.id })?.filePath, local.filePath)
+        XCTAssertEqual(
+            mockTranscriptionRepo.transcriptions.first(where: { $0.id == externalMeeting.id })?.filePath,
+            externalMeeting.filePath
+        )
+    }
+
+    func testClearMeetingAudioLeavesStoredPathsWhenDirectoryCannotBePrepared() throws {
+        let blockedPath = "/dev/null/macparakeet-meetings-\(UUID().uuidString)"
+        let youtubeDirPath = youtubeDownloadsTestDir.path
+        let meeting = Transcription(
+            fileName: "meeting",
+            filePath: "\(blockedPath)/meeting.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting]
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { youtubeDirPath },
+            meetingRecordingsDirPath: { blockedPath }
+        )
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        vm.clearMeetingAudio()
+
+        XCTAssertNotNil(vm.storageCleanupError)
+        XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, meeting.filePath)
+    }
+
+    func testClearMeetingAudioRefusesWhileMeetingRecordingActive() throws {
+        let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x5, count: 1024)))
+
+        let meeting = Transcription(
+            fileName: "meeting",
+            filePath: file.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+        // Simulate a live meeting session — clearing must refuse rather than
+        // delete the active writer's folder out from under it.
+        viewModel.meetingRecordingActiveProvider = { true }
+
+        viewModel.clearMeetingAudio()
+
+        XCTAssertNotNil(viewModel.storageCleanupError)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, file.path)
     }
 
     // MARK: - Local Models
@@ -2073,6 +2231,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.silenceDelay = 5.0
         viewModel.saveAudioRecordings = false
         viewModel.saveTranscriptionAudio = false
+        viewModel.saveMeetingAudio = false
         viewModel.speakerDiarization = true
 
         // Create a new ViewModel reading from the same defaults
@@ -2086,6 +2245,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm2.silenceDelay, 5.0)
         XCTAssertFalse(vm2.saveAudioRecordings)
         XCTAssertFalse(vm2.saveTranscriptionAudio)
+        XCTAssertFalse(vm2.saveMeetingAudio)
         XCTAssertTrue(vm2.speakerDiarization)
     }
 

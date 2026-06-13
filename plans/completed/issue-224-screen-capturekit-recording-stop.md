@@ -2,6 +2,8 @@
 
 GitHub issue: https://github.com/moona3k/macparakeet/issues/224
 
+> Status: ✅ COMPLETED — GitHub issue #224 closed 2026-05-11. Archived 2026-06-13.
+
 ## What We Know
 
 The reporter confirmed that the app did not crash. The meeting recording UI

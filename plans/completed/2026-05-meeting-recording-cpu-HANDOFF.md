@@ -1,7 +1,7 @@
 # Handoff — Meeting-recording CPU regression (v0.6.14)
 
-> Status: **ACTIVE** — handoff written 2026-05-29 by the prior agent.
-> Branch: `fix/meeting-recording-cpu-swiftui-render` · PR: **#396** (open).
+> Status: ✅ COMPLETED — PR **#396** merged (`80aeb9e32`, on `main`). Archived 2026-06-13.
+> Branch: `fix/meeting-recording-cpu-swiftui-render` · PR: **#396** (merged).
 > Companion docs: `2026-05-meeting-recording-cpu-debug.md` (full investigation +
 > measurements + the richness-restoration plan). This file is the orientation
 > layer; the debug doc is the detail.

@@ -1,4 +1,10 @@
-# Advisor Audit Index — 2026-06-12
+# Advisor Audit Index — 2026-06-12 (`f8e28be91` run)
+
+> Status: **SUPERSEDED / HISTORICAL** — this is the prior advisor run at
+> `f8e28be91`. It reached `main` via doc-bundling commits (#487/#509) and is
+> superseded by
+> [`../active/2026-06-12-advisor-index.md`](../active/2026-06-12-advisor-index.md)
+> (2026-06-13 reconcile). Kept as the record of that run. Archived 2026-06-13.
 
 Advisor audit at commit `f8e28be91` (branch `chore/improve-audit-fixes`),
 deliberately complementing `docs/audits/2026-06-09-codebase-audit.md` by

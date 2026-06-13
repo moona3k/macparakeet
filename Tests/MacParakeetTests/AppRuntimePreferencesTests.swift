@@ -39,6 +39,18 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testSaveMeetingAudioDefaultsToTrueAndReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldSaveMeetingAudio)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldSaveMeetingAudio)
+    }
+
     func testDictationInsertionStyleDefaultsToSentenceAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

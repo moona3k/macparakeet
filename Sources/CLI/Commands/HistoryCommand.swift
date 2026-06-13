@@ -13,6 +13,8 @@ struct HistoryCommand: AsyncParsableCommand {
             SearchTranscriptionsSubcommand.self,
             DeleteDictationSubcommand.self,
             DeleteTranscriptionSubcommand.self,
+            DeleteMeetingAudioSubcommand.self,
+            ClearMeetingAudioSubcommand.self,
             FavoritesSubcommand.self,
             FavoriteSubcommand.self,
             UnfavoriteSubcommand.self,
@@ -320,6 +322,102 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
             throw CLILookupError.notFound("No transcription matching '\(id)'")
         }
         print("Deleted transcription: \"\(transcription.fileName)\"")
+    }
+}
+
+struct DeleteMeetingAudioSubcommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "delete-meeting-audio",
+        abstract: "Delete stored audio for a meeting transcript while keeping the transcript."
+    )
+
+    @Argument(help: "The UUID, UUID prefix, or file name of the meeting transcription.")
+    var id: String
+
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
+    func run() throws {
+        try AppPaths.ensureDirectories()
+        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+
+        let transcription = try findTranscription(id: id, repo: repo)
+        guard transcription.sourceType == .meeting else {
+            throw ValidationError("Transcription '\(id)' is not a meeting recording.")
+        }
+
+        let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        )
+        guard result.detached else {
+            throw ValidationError(TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
+        }
+
+        if result.removedOwnedAudio {
+            print("Detached managed meeting audio for: \"\(transcription.fileName)\"")
+        } else {
+            print("No meeting audio attached for: \"\(transcription.fileName)\"")
+        }
+    }
+}
+
+struct ClearMeetingAudioSubcommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "clear-meeting-audio",
+        abstract: "Delete all stored meeting audio while keeping saved meeting transcripts."
+    )
+
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
+    @Option(name: .long, help: .hidden)
+    var meetingRecordingsDirectory: String?
+
+    func run() throws {
+        try AppPaths.ensureDirectories()
+        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        let fm = FileManager.default
+        let dir = try resolvedMeetingRecordingsDirectory()
+
+        // A live meeting session (in a running app — likely this user's GUI)
+        // writes into meeting-recordings/{sessionID}/. Wiping that out from
+        // under the active writer loses the in-progress recording. The GUI
+        // refuses while its pill is active; the CLI can't see the pill, so it
+        // checks the same disk signal the recovery path trusts: a lock file
+        // whose owning process is still alive. Crashed/stale sessions (dead
+        // pid) stay clearable, matching the GUI's clear-all behavior.
+        let lockStore = MeetingRecordingLockFileStore()
+        let activeSessions = try lockStore.discoverActiveSessions(
+            meetingsRoot: URL(fileURLWithPath: dir, isDirectory: true)
+        )
+        guard activeSessions.isEmpty else {
+            throw ValidationError(
+                "A meeting recording is currently in progress. Stop it before clearing meeting audio."
+            )
+        }
+
+        if fm.fileExists(atPath: dir) {
+            try fm.removeItem(atPath: dir)
+        }
+        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
+
+        print("Deleted all stored meeting audio. Saved meeting transcripts remain.")
+    }
+
+    private func resolvedMeetingRecordingsDirectory() throws -> String {
+        guard let meetingRecordingsDirectory else {
+            return AppPaths.meetingRecordingsDir
+        }
+
+        #if DEBUG
+        return meetingRecordingsDirectory
+        #else
+        throw ValidationError("--meeting-recordings-directory is only available in debug/test builds.")
+        #endif
     }
 }
 

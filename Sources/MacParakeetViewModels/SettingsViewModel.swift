@@ -296,6 +296,12 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .saveTranscriptionAudio))
         }
     }
+    public var saveMeetingAudio: Bool {
+        didSet {
+            defaults.set(saveMeetingAudio, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+            Telemetry.send(.settingChanged(setting: .saveMeetingAudio))
+        }
+    }
 
     // Transcription
     public var youtubeAudioQuality: YouTubeAudioQuality {
@@ -379,6 +385,17 @@ public final class SettingsViewModel {
     }
     public private(set) var pendingMeetingRecoveryCount = 0
     public var onRecoverPendingMeetingRecordings: (() -> Void)?
+
+    /// Reports whether a meeting capture session is currently writing into the
+    /// managed recordings directory. Wired from the meeting pill state in the
+    /// app layer. `clearMeetingAudio()` refuses to wipe the directory while
+    /// this is true so an in-progress recording is never deleted out from
+    /// under the live writer (ADR-015 allows recording while Settings is open).
+    public var meetingRecordingActiveProvider: (@MainActor () -> Bool)?
+
+    public var isMeetingRecordingActive: Bool {
+        meetingRecordingActiveProvider?() ?? false
+    }
 
     // Auto-save (transcription)
     public var autoSaveTranscripts: Bool {
@@ -491,8 +508,17 @@ public final class SettingsViewModel {
     public var dictationCount = 0
     public var youtubeDownloadCount = 0
     public var youtubeDownloadStorageMB: Double = 0
+    public var meetingAudioRecordingCount = 0
+    public var meetingAudioStorageMB: Double = 0
+    public var storageCleanupError: String?
     public var formattedYouTubeStorage: String {
-        let mb = youtubeDownloadStorageMB
+        Self.formatStorageMB(youtubeDownloadStorageMB)
+    }
+    public var formattedMeetingAudioStorage: String {
+        Self.formatStorageMB(meetingAudioStorageMB)
+    }
+
+    private static func formatStorageMB(_ mb: Double) -> String {
         if mb >= 1024 {
             return String(format: "%.1f GB", mb / 1024)
         }
@@ -536,6 +562,7 @@ public final class SettingsViewModel {
     private var sharedMicStream: SharedMicrophoneStream?
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
+    private let meetingRecordingsDirPath: @Sendable () -> String
     private let parakeetModelVariantCached: @Sendable (ParakeetModelVariant) -> Bool
     private let nemotronModelVariantCached: @Sendable (NemotronModelVariant, String?) -> Bool
     private let deleteParakeetModelOnDisk: @Sendable (ParakeetModelVariant) -> Bool
@@ -549,11 +576,13 @@ public final class SettingsViewModel {
     private var isApplyingParakeetVariantState = false
     private var isApplyingNemotronVariantState = false
     private var modelStatusRefreshGeneration = 0
+    private var storageStatsRefreshGeneration = 0
     // `deinit` is nonisolated even though this type is `@MainActor`.
     // These handles are only mutated on the main actor during the view
     // model lifetime; unsafe access lets deinit cancel/unregister.
     @ObservationIgnored nonisolated(unsafe) private var permissionPollingTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var microphoneTestTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var storageStatsTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var calendarSettingsObserver: NSObjectProtocol?
     /// Re-entrancy guard so `observeCalendarSettings()` doesn't fire `didSet`
     /// → notification → re-resolve → `didSet` → … on every user toggle.
@@ -563,6 +592,7 @@ public final class SettingsViewModel {
     public init(
         defaults: UserDefaults = .standard,
         youtubeDownloadsDirPath: @escaping @Sendable () -> String = { AppPaths.youtubeDownloadsDir },
+        meetingRecordingsDirPath: @escaping @Sendable () -> String = { AppPaths.meetingRecordingsDir },
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             STTRuntime.isModelCached(version: $0.asrModelVersion)
         },
@@ -589,6 +619,7 @@ public final class SettingsViewModel {
         AutoSaveService.migrateLegacyMeetingSettingsIfNeeded(defaults: defaults)
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath
+        self.meetingRecordingsDirPath = meetingRecordingsDirPath
         self.parakeetModelVariantCached = parakeetModelVariantCached
         self.nemotronModelVariantCached = nemotronModelVariantCached
         self.deleteParakeetModelOnDisk = deleteParakeetModelOnDisk
@@ -646,6 +677,7 @@ public final class SettingsViewModel {
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
+        saveMeetingAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool ?? true
         youtubeAudioQuality = YouTubeAudioQuality.current(defaults: defaults)
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
@@ -694,6 +726,7 @@ public final class SettingsViewModel {
     deinit {
         permissionPollingTask?.cancel()
         microphoneTestTask?.cancel()
+        storageStatsTask?.cancel()
         if let calendarSettingsObserver {
             NotificationCenter.default.removeObserver(calendarSettingsObserver)
         }
@@ -1164,9 +1197,7 @@ public final class SettingsViewModel {
         do { snippetCount = try snippetRepo?.fetchAll().count ?? 0 }
         catch { logger.error("Failed to load snippet count: \(error.localizedDescription)") }
 
-        let (count, sizeBytes) = youtubeDownloadStats()
-        youtubeDownloadCount = count
-        youtubeDownloadStorageMB = Double(sizeBytes) / (1024.0 * 1024.0)
+        refreshStorageStats()
     }
 
     public func refreshSpeechEngineSwitchAvailability() {
@@ -2228,22 +2259,122 @@ public final class SettingsViewModel {
     public func clearDownloadedYouTubeAudio() {
         let dir = youtubeDownloadsDirPath()
         let fm = FileManager.default
+        storageCleanupError = nil
 
         if fm.fileExists(atPath: dir) {
-            try? fm.removeItem(atPath: dir)
+            do {
+                try fm.removeItem(atPath: dir)
+            } catch {
+                logger.error("Failed to remove downloaded audio directory error=\(error.localizedDescription, privacy: .public)")
+                storageCleanupError = "Could not clear downloaded video audio: \(error.localizedDescription)"
+                refreshStats()
+                return
+            }
         }
-        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to recreate downloaded audio directory error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not recreate the downloaded audio folder: \(error.localizedDescription)"
+            refreshStats()
+            return
+        }
 
         do {
             try transcriptionRepo?.clearStoredAudioPathsForURLTranscriptions()
         } catch {
             logger.error("Failed to clear stored audio paths error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not detach downloaded audio from transcriptions: \(error.localizedDescription)"
         }
         refreshStats()
     }
 
-    private func youtubeDownloadStats() -> (count: Int, sizeBytes: Int64) {
-        let dirURL = URL(fileURLWithPath: youtubeDownloadsDirPath(), isDirectory: true)
+    public func clearMeetingAudio() {
+        storageCleanupError = nil
+
+        // A live meeting session writes into this same directory
+        // (meeting-recordings/{sessionID}/). Wiping it mid-recording would
+        // delete the active writer's folder and lose the in-progress meeting,
+        // so refuse while a recording is active rather than clobber it.
+        guard !isMeetingRecordingActive else {
+            storageCleanupError = "Stop the active meeting recording before clearing meeting audio."
+            return
+        }
+
+        let dir = meetingRecordingsDirPath()
+        let fm = FileManager.default
+
+        if fm.fileExists(atPath: dir) {
+            do {
+                try fm.removeItem(atPath: dir)
+            } catch {
+                logger.error("Failed to remove meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
+                storageCleanupError = "Could not clear meeting audio: \(error.localizedDescription)"
+                refreshStats()
+                refreshPendingMeetingRecoveries()
+                return
+            }
+        }
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to recreate meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not recreate the meeting recordings folder: \(error.localizedDescription)"
+            refreshStats()
+            refreshPendingMeetingRecoveries()
+            return
+        }
+
+        do {
+            try transcriptionRepo?.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
+        } catch {
+            logger.error("Failed to clear stored meeting audio paths error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not detach meeting audio from transcripts: \(error.localizedDescription)"
+        }
+        refreshStats()
+        refreshPendingMeetingRecoveries()
+    }
+
+    private func refreshStorageStats() {
+        storageStatsRefreshGeneration += 1
+        let generation = storageStatsRefreshGeneration
+        let youtubeDownloadsDir = youtubeDownloadsDirPath()
+        let meetingRecordingsDir = meetingRecordingsDirPath()
+
+        storageStatsTask?.cancel()
+        storageStatsTask = Task { @MainActor [weak self, generation, youtubeDownloadsDir, meetingRecordingsDir] in
+            let stats = await Task.detached(priority: .utility) {
+                StorageStatsSnapshot(
+                    youtubeDownloads: Self.youtubeDownloadStats(in: youtubeDownloadsDir),
+                    meetingAudio: Self.meetingAudioStats(in: meetingRecordingsDir)
+                )
+            }.value
+
+            guard
+                !Task.isCancelled,
+                let self,
+                self.storageStatsRefreshGeneration == generation
+            else { return }
+
+            self.youtubeDownloadCount = stats.youtubeDownloads.count
+            self.youtubeDownloadStorageMB = Double(stats.youtubeDownloads.sizeBytes) / (1024.0 * 1024.0)
+            self.meetingAudioRecordingCount = stats.meetingAudio.count
+            self.meetingAudioStorageMB = Double(stats.meetingAudio.sizeBytes) / (1024.0 * 1024.0)
+        }
+    }
+
+    private struct StorageDirectoryStats: Sendable {
+        var count: Int
+        var sizeBytes: Int64
+    }
+
+    private struct StorageStatsSnapshot: Sendable {
+        var youtubeDownloads: StorageDirectoryStats
+        var meetingAudio: StorageDirectoryStats
+    }
+
+    nonisolated private static func youtubeDownloadStats(in dirPath: String) -> StorageDirectoryStats {
+        let dirURL = URL(fileURLWithPath: dirPath, isDirectory: true)
         let fm = FileManager.default
 
         guard let enumerator = fm.enumerator(
@@ -2251,7 +2382,7 @@ public final class SettingsViewModel {
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
             options: [.skipsHiddenFiles]
         ) else {
-            return (0, 0)
+            return StorageDirectoryStats(count: 0, sizeBytes: 0)
         }
 
         var count = 0
@@ -2267,7 +2398,55 @@ public final class SettingsViewModel {
             sizeBytes += Int64(values.fileSize ?? 0)
         }
 
-        return (count, sizeBytes)
+        return StorageDirectoryStats(count: count, sizeBytes: sizeBytes)
+    }
+
+    nonisolated private static func meetingAudioStats(in dirPath: String) -> StorageDirectoryStats {
+        let dirURL = URL(fileURLWithPath: dirPath, isDirectory: true)
+        let fm = FileManager.default
+
+        guard let contents = try? fm.contentsOfDirectory(
+            at: dirURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return StorageDirectoryStats(count: 0, sizeBytes: 0)
+        }
+
+        let count = contents.reduce(into: 0) { total, url in
+            guard
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                values.isDirectory == true
+            else { return }
+            total += 1
+        }
+
+        return StorageDirectoryStats(count: count, sizeBytes: directorySizeBytes(dirURL))
+    }
+
+    nonisolated private static func directorySizeBytes(_ rootURL: URL) -> Int64 {
+        let fm = FileManager.default
+
+        guard let enumerator = fm.enumerator(
+            at: rootURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+
+        var sizeBytes: Int64 = 0
+
+        for case let fileURL as URL in enumerator {
+            guard
+                let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                values.isRegularFile == true
+            else { continue }
+
+            sizeBytes += Int64(values.fileSize ?? 0)
+        }
+
+        return sizeBytes
     }
 
     private static func normalizedProcessingMode(_ rawValue: String?) -> String {

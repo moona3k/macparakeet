@@ -216,6 +216,27 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
     }
 
     public func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
+        // Orphans are crashed sessions: a lock file whose owning process is no
+        // longer alive. Their audio is recoverable, not in active use.
+        try sortedSessions(meetingsRoot: meetingsRoot) { !processChecker.isAlive(pid: $0.pid) }
+    }
+
+    /// Lock files in `meetingsRoot` whose owning process is still alive — i.e.
+    /// meetings actively recording or awaiting transcription inside a running
+    /// MacParakeet instance. The inverse of `discoverOrphans`.
+    ///
+    /// Used by out-of-process callers (the CLI) that cannot observe the GUI's
+    /// live recording state but must avoid clobbering an in-progress session's
+    /// folder on disk. Same disk signal the recovery service already trusts:
+    /// `pid` liveness via `ProcessAliveChecking`.
+    public func discoverActiveSessions(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
+        try sortedSessions(meetingsRoot: meetingsRoot) { processChecker.isAlive(pid: $0.pid) }
+    }
+
+    private func sortedSessions(
+        meetingsRoot: URL,
+        where predicate: (MeetingRecordingLockFile) -> Bool
+    ) throws -> [MeetingRecordingLockFile] {
         guard FileManager.default.fileExists(atPath: meetingsRoot.path) else {
             return []
         }
@@ -226,18 +247,18 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
             options: [.skipsHiddenFiles]
         )
 
-        var discoveries: [MeetingRecordingLockFile] = []
+        var matches: [MeetingRecordingLockFile] = []
         for folderURL in sessionFolders {
             guard try folderURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true,
                   let lockFile = try read(folderURL: folderURL),
-                  !processChecker.isAlive(pid: lockFile.pid) else {
+                  predicate(lockFile) else {
                 continue
             }
 
-            discoveries.append(lockFile)
+            matches.append(lockFile)
         }
 
-        return discoveries.sorted {
+        return matches.sorted {
             if $0.startedAt == $1.startedAt {
                 return ($0.folderURL?.path ?? "") < ($1.folderURL?.path ?? "")
             }

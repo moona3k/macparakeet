@@ -62,6 +62,7 @@ final class SettingsSearchIndexTests: XCTestCase {
     func testSubtitleMatches() {
         let results = SettingsSearchIndex.matches("meeting audio")
         XCTAssertTrue(results.contains(where: { $0.id == "meeting" }))
+        XCTAssertTrue(results.contains(where: { $0.id == "system.storage" }))
     }
 
     func testCalendarQueriesHonorCalendarFeatureFlag() {

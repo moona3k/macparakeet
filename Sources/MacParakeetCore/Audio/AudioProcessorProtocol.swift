@@ -3,13 +3,16 @@ import Foundation
 public struct DictationAudioSampleSink: Sendable {
     public let onSamples: @Sendable ([Float]) -> Void
     public let onFinish: @Sendable () -> Void
+    public let onCancel: @Sendable () -> Void
 
     public init(
         onSamples: @escaping @Sendable ([Float]) -> Void,
-        onFinish: @escaping @Sendable () -> Void
+        onFinish: @escaping @Sendable () -> Void,
+        onCancel: @escaping @Sendable () -> Void = {}
     ) {
         self.onSamples = onSamples
         self.onFinish = onFinish
+        self.onCancel = onCancel
     }
 }
 

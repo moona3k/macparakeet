@@ -1,6 +1,6 @@
 # Meeting Neural Echo Suppression
 
-> Status: ACTIVE PLAN
+> Status: ✅ COMPLETED — shipped via #480/#485 (`c1f3b141f`, on `main`). Archived 2026-06-13.
 > Date: 2026-05-22
 > Updated: 2026-06-10
 > Scope: meeting recording microphone cleanup, source separation, and release packaging.

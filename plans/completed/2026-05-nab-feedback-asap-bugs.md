@@ -1,6 +1,6 @@
 # Nab Feedback: ASAP Bugs and Blocker Issues
 
-> Status: **ACTIVE PLAN**
+> Status: ✅ COMPLETED — P0 (raw-mic default, `92c3dfdfb`) + both P1s + P2 all carry "Implemented fix". Only the non-reproduced Whisper-switch *watchlist* item remains (manual-repro, not actionable). Archived 2026-06-13.
 > Date: 2026-05-14
 > Source: live user feedback from Nab using meeting recording in daily meetings.
 > Scope: defects and near-term blocker issues only. Product polish and wishlist items are intentionally excluded.

@@ -151,6 +151,17 @@ the VPAU aggregate device. Long-lived engines inherit duplex layout
 into sibling engines in the same process — exactly the bug PR #189
 fixed. Do not optimize this away by caching the engine.
 
+**A `DictationAudioSampleSink` is finished on success but cancelled on
+abort.** `AudioRecorder.stop()` calls `onFinish()` only when the capture
+yields a usable WAV (>= the FluidAudio sample floor). The abort paths — an
+unclaimed sink, no output file, or a too-short capture — call `onCancel()`
+instead. The live-transcription wiring (`DictationService`, Nemotron streaming
+path) treats `onCancel` as "tear down": cancel the inference task and finish
+both the sample and partial continuations, rather than draining a partial
+result the recorded audio can no longer back. Keep the success path on
+`onFinish` and every early-out on `onCancel`; collapsing them leaks the
+live-transcription continuations on cancelled dictations.
+
 **Tap closures run on the audio render thread.** No allocation, no
 actor hops, no `await`. State touched from the tap path uses
 `OSAllocatedUnfairLock`-protected nonisolated fields. The buffer

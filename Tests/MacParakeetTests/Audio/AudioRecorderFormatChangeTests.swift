@@ -73,6 +73,60 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         }
     }
 
+    func testStopInvokesSampleSinkOnFinishWhenSamplesSufficient() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let spy = SampleSinkSpy()
+        let sink = DictationAudioSampleSink(
+            onSamples: { _ in },
+            onFinish: { spy.recordFinish() },
+            onCancel: { spy.recordCancel() }
+        )
+
+        try await recorder.start(sampleSink: sink)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertEqual(spy.counts.finish, 1, "a completed capture should finish the sample sink")
+        XCTAssertEqual(spy.counts.cancel, 0, "a completed capture must not cancel the sample sink")
+    }
+
+    func testStopInvokesSampleSinkOnCancelBelowMinimumSamples() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let spy = SampleSinkSpy()
+        let sink = DictationAudioSampleSink(
+            onSamples: { _ in },
+            onFinish: { spy.recordFinish() },
+            onCancel: { spy.recordCancel() }
+        )
+
+        try await recorder.start(sampleSink: sink)
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_799))
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should reject recordings below FluidAudio's current 0.3s floor")
+        } catch AudioProcessorError.insufficientSamples {
+            // Expected — a too-short capture is a cancellation, not a finish:
+            // the live-transcription continuations must be torn down rather
+            // than left to drain a result the recorded WAV won't back.
+        }
+
+        XCTAssertEqual(spy.counts.cancel, 1, "a cancelled capture should cancel the sample sink")
+        XCTAssertEqual(spy.counts.finish, 0, "a cancelled capture must not finish the sample sink")
+    }
+
     func testInstantDictationPrependsWarmPreRoll() async throws {
         let platform = AudioRecorderBlockingPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
@@ -937,5 +991,20 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
     func deliverBuffer(_ buffer: AVAudioPCMBuffer) {
         let handler = lock.withLock { _tapHandler }
         handler?(buffer, AVAudioTime(hostTime: 1))
+    }
+}
+
+/// Thread-safe tally for a `DictationAudioSampleSink`'s lifecycle callbacks,
+/// which the recorder invokes from its actor.
+private final class SampleSinkSpy: @unchecked Sendable {
+    private let lock = NSLock()
+    private var finish = 0
+    private var cancel = 0
+
+    func recordFinish() { lock.withLock { finish += 1 } }
+    func recordCancel() { lock.withLock { cancel += 1 } }
+
+    var counts: (finish: Int, cancel: Int) {
+        lock.withLock { (finish, cancel) }
     }
 }

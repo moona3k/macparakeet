@@ -36,6 +36,7 @@ final class ConfigCommandTests: XCTestCase {
             "whisper-language",
             "speaker-detection",
             "save-transcription-audio",
+            "save-meeting-audio",
             "youtube-audio-quality",
             "meeting-artifacts-folder",
             "meeting-hook-enabled",
@@ -69,6 +70,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
+        XCTAssertEqual(try ConfigCommand.read(key: "save-meeting-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), AppPaths.defaultMeetingRecordingsDir)
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-hook-enabled", defaults: defaults), "off")
@@ -133,6 +135,9 @@ final class ConfigCommandTests: XCTestCase {
 
         XCTAssertEqual(try ConfigCommand.write(key: "save-transcription-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool, false)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "save-meeting-audio", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, false)
 
         XCTAssertEqual(try ConfigCommand.write(key: "youtube-audio-quality", value: "best-available", defaults: defaults), "best-available")
         XCTAssertEqual(

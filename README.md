@@ -109,11 +109,12 @@ The DMG is the stable release.
 **Mac app (Homebrew cask):**
 
 ```bash
-brew install --cask moona3k/tap/macparakeet
+brew install --cask macparakeet
 ```
 
-The cask installs the same notarized DMG as the direct download. In-app updates
-continue through Sparkle.
+This is the official [`homebrew/cask`](https://github.com/Homebrew/homebrew-cask/blob/HEAD/Casks/m/macparakeet.rb)
+entry — no tap required. It installs the same notarized DMG as the direct
+download, and in-app updates continue through Sparkle.
 
 **Standalone CLI (Homebrew):**
 

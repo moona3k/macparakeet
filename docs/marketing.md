@@ -184,7 +184,7 @@ MacParakeet is the only Mac voice app that captures meetings (system audio + mic
 
 - **Primary URL:** `macparakeet.com`
 - **GitHub:** `github.com/moona3k/macparakeet`
-- **Future Homebrew (when shipped):** `brew install --cask macparakeet`
+- **Homebrew (official cask, live since 2026-06-06):** `brew install --cask macparakeet`
 - **Never use:** "Get started today," "Try it free," "Sign up." There is no signup. The app downloads and runs.
 
 ## Production Stack

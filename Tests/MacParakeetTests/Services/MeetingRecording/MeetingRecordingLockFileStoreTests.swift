@@ -118,6 +118,41 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertTrue(discoveries.isEmpty)
     }
 
+    // MARK: - discoverActiveSessions (inverse of discoverOrphans)
+
+    func testDiscoverActiveSessionsReturnsLiveOwners() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let lockFile = makeLockFile(pid: 42)
+        let store = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42])
+        )
+        try store.write(lockFile, folderURL: folderURL)
+
+        let active = try store.discoverActiveSessions(meetingsRoot: tempRoot)
+
+        XCTAssertEqual(active.count, 1)
+        XCTAssertEqual(active.first?.sessionId, lockFile.sessionId)
+        XCTAssertEqual(active.first?.folderURL?.standardizedFileURL, folderURL.standardizedFileURL)
+    }
+
+    func testDiscoverActiveSessionsSkipsDeadOwners() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let store = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [])
+        )
+        try store.write(makeLockFile(pid: 42), folderURL: folderURL)
+
+        let active = try store.discoverActiveSessions(meetingsRoot: tempRoot)
+
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    func testDiscoverActiveSessionsReturnsEmptyForMissingRoot() throws {
+        let missing = tempRoot.appendingPathComponent("does-not-exist", isDirectory: true)
+
+        XCTAssertTrue(try store.discoverActiveSessions(meetingsRoot: missing).isEmpty)
+    }
+
     // MARK: - ADR-020 §9 — notes field
 
     func testWriteThenReadRoundTripsNotes() throws {

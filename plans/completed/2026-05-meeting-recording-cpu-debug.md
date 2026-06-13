@@ -1,5 +1,7 @@
 # Meeting Recording CPU Debug Notes
 
+> Status: ✅ COMPLETED — investigation companion to #396 (`80aeb9e32` "richer pill animation, lower CPU", on `main`). Archived 2026-06-13.
+
 Date: 2026-05-29
 
 > **Owner correction (2026-05-29):** this is **not a v0.6.14 regression.** The

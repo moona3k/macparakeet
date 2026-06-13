@@ -233,7 +233,14 @@ User clicks "Start Meeting Recording"
     └── chunks/            # Live-preview scratch chunks
 ```
 
-Audio files are kept by default. Users can delete manually from the transcription detail view.
+Audio files are kept by default (`saveMeetingAudio = true`). Users can reveal,
+save a copy, or delete managed meeting audio from the meeting detail view,
+Library/Meetings row menus, Settings > Storage, and CLI support commands. Audio
+deletion clears the transcript's stored `filePath` and removes the
+`meeting-recordings/{uuid}` folder, but keeps the transcript row. If the
+preference is off, the app deletes managed meeting audio after the final
+transcript has been saved; interrupted recovery recordings remain governed by
+the recovery flow unless the user explicitly clears all meeting audio.
 
 ### Concurrent Operation with Dictation (ADR-015)
 
