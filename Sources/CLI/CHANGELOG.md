@@ -84,6 +84,16 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## Unreleased
+
+### Added
+
+- `diarization-eval <fixtures-dir>` is a developer/testing command for private
+  speaker-diarization fixtures. It runs the local diarizer on each immediate
+  fixture subdirectory, optionally compares `reference.rttm` annotations with
+  DER/coverage metrics, and supports `--json` output. Private fixtures should
+  live under ignored `fixtures/private/`.
+
 ## [2.9.0] -- 2026-06-11
 
 ### Added
