@@ -193,7 +193,7 @@ main local engine.
   build deletable any time.
 - `SettingsView.swift`: `PendingModelDeletion.nemotron` now carries
   `NemotronModelVariant` (variant-driven alert copy); new
-  `engineNemotronModelCard` + `nemotronModelOptionRow` + 
+  `engineNemotronModelCard` + `nemotronModelOptionRow` +
   `selectNemotronModelVariant` (mirrors Parakeet card; inserted into
   `engineTabContent` as `.id("engine.nemotronModel")`);
   `parakeetVariantStatusBadge` renamed `modelVariantStatusBadge` (shared);

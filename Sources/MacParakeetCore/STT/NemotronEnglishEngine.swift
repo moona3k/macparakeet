@@ -77,10 +77,8 @@ public actor NemotronEnglishEngine: STTTranscribing {
                 let buffer = try Self.makePCMBuffer(samples: samples[offset..<end])
                 _ = try await manager.process(audioBuffer: buffer)
                 offset = end
-                if !samples.isEmpty {
-                    let fraction = Double(offset) / Double(samples.count)
-                    onProgress?(25 + Int(fraction * 65), 100)
-                }
+                let fraction = Double(offset) / Double(samples.count)
+                onProgress?(25 + Int(fraction * 65), 100)
             }
             let text = try await manager.finish()
             onProgress?(100, 100)
@@ -228,7 +226,9 @@ public actor NemotronEnglishEngine: STTTranscribing {
     }
 
     private func loadManagers(onProgress: (@Sendable (String) -> Void)?) async throws {
-        onProgress?("Preparing Nemotron model download...")
+        if !Self.isModelCached() {
+            onProgress?("Preparing Nemotron model download...")
+        }
         let progressHandler = Self.makeDownloadProgressHandler(onProgress)
 
         // No shared-weights API on the English manager (unlike the multilingual
