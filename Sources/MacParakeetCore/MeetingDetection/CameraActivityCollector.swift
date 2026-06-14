@@ -68,11 +68,23 @@ public final class CameraActivityCollector: @unchecked Sendable {
     }
 
     private func handleDeviceListChanged() {
-        let currentDeviceIDs = Self.deviceIDs()
-        lock.withLock {
-            refreshDeviceListenersLocked(deviceIDs: currentDeviceIDs)
+        let generation: UInt64? = lock.withLock {
+            guard stateHandler != nil else { return nil }
+            return lifecycleGeneration
         }
-        emitCurrentState()
+        guard let generation else { return }
+
+        let currentDeviceIDs = Self.deviceIDs()
+        let shouldEmit = lock.withLock {
+            guard lifecycleGeneration == generation, stateHandler != nil else {
+                return false
+            }
+            refreshDeviceListenersLocked(deviceIDs: currentDeviceIDs)
+            return true
+        }
+        if shouldEmit {
+            emitCurrentState(generation: generation)
+        }
     }
 
     private func emitCurrentState(generation: UInt64? = nil) {
