@@ -129,7 +129,8 @@ final class OnboardingViewModelTests: XCTestCase {
         downloadWhisperModel: OnboardingViewModel.WhisperModelDownloader? = nil,
         preferredLanguages: @escaping @Sendable () -> [String] = { ["en-US"] },
         now: @escaping @Sendable () -> Date = { Date() },
-        permissionPollingInterval: Duration = .seconds(2)
+        permissionPollingInterval: Duration = .seconds(2),
+        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout
     ) -> OnboardingViewModel {
         OnboardingViewModel(
             permissionService: permissionService,
@@ -145,7 +146,8 @@ final class OnboardingViewModelTests: XCTestCase {
             preferredLanguages: preferredLanguages,
             defaults: defaults,
             now: now,
-            permissionPollingInterval: permissionPollingInterval
+            permissionPollingInterval: permissionPollingInterval,
+            warmUpStallTimeout: warmUpStallTimeout
         )
     }
 
@@ -376,6 +378,66 @@ final class OnboardingViewModelTests: XCTestCase {
         defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
+
+        XCTAssertEqual(vm.engineState, .ready)
+        let called = await stt.wasWarmUpCalled()
+        XCTAssertTrue(called)
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    /// The warm-up stall watchdog is the only escape hatch for a first-run user
+    /// whose model download silently stalls (memory: v0.4.22 stranded ~23 users
+    /// for ~24h). When the progress stream goes quiet past `warmUpStallTimeout`,
+    /// the watchdog must surface a retry-able `.failed` and clear `isBusy`.
+    func testEngineWarmUpStallTimeoutTransitionsToFailed() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUpHangIndefinitely()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            warmUpStallTimeout: .milliseconds(200)
+        )
+        vm.jump(to: .engine)
+        vm.startEngineWarmUp()
+
+        // Generous margin over the 200ms watchdog to keep CI deterministic.
+        try await Task.sleep(for: .seconds(2))
+
+        guard case .failed(let message) = vm.engineState else {
+            return XCTFail("expected .failed after stall, got \(vm.engineState)")
+        }
+        XCTAssertTrue(
+            message.contains("longer than expected"),
+            "stall message should prompt a network check + retry, got: \(message)"
+        )
+        XCTAssertFalse(vm.isBusy, "isBusy must clear so the Retry button is actionable")
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "a stalled engine must not gate open")
+    }
+
+    /// The watchdog must not false-positive on a healthy warm-up: even with a
+    /// short timeout window, a stream that reaches `.ready` quickly re-arms the
+    /// watchdog on every event and finishes before it can fire.
+    func testEngineWarmUpDoesNotStallOnHealthyWarmUpWithShortTimeout() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            warmUpStallTimeout: .milliseconds(500)
+        )
         vm.jump(to: .engine)
 
         vm.startEngineWarmUp()

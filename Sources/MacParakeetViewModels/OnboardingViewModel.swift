@@ -73,6 +73,7 @@ public final class OnboardingViewModel {
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private let permissionPollingInterval: Duration
+    private let warmUpStallTimeout: Duration
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -107,7 +108,8 @@ public final class OnboardingViewModel {
         preferredLanguages: (@Sendable () -> [String])? = nil,
         defaults: UserDefaults = .standard,
         now: @escaping @Sendable () -> Date = { Date() },
-        permissionPollingInterval: Duration = .seconds(2)
+        permissionPollingInterval: Duration = .seconds(2),
+        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
@@ -126,6 +128,7 @@ public final class OnboardingViewModel {
         self.defaults = defaults
         self.now = now
         self.permissionPollingInterval = permissionPollingInterval
+        self.warmUpStallTimeout = warmUpStallTimeout
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
             preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
         )
@@ -628,13 +631,16 @@ public final class OnboardingViewModel {
     /// `startEngineWarmUp` call cannot overwrite a newer attempt.
     private func resetWarmUpStallWatchdog(generation: Int, observationToken: UUID) {
         warmUpStallWatchdogTask?.cancel()
+        // Capture the (injectable) instance timeout before entering the Task so
+        // both the sleep and the log use the configured value, not the static default.
+        let stallTimeout = warmUpStallTimeout
         warmUpStallWatchdogTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.warmUpStallTimeout)
+            try? await Task.sleep(for: stallTimeout)
             guard !Task.isCancelled, let self else { return }
             guard self.engineGeneration == generation,
                   self.warmUpObservationToken == observationToken else { return }
             // No progress event for `warmUpStallTimeout`. Declare stuck.
-            let stallSeconds = Int(Self.warmUpStallTimeout.components.seconds)
+            let stallSeconds = Int(stallTimeout.components.seconds)
             let detail = "no warm-up progress for \(stallSeconds)s"
             self.logger.error("warm_up_stall_detected detail=\(detail, privacy: .public)")
             Telemetry.send(.modelDownloadFailed(

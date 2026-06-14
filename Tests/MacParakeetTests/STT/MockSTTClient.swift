@@ -15,6 +15,7 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     public var warmUpError: Error?
     public var warmUpFailuresBeforeSuccess: Int = 0
     public var warmUpProgressPhases: [String]?
+    public var warmUpHangIndefinitely = false
     public var clearModelCacheCalled = false
     public var shutdownCalled = false
     public var speechEngineSwitches: [SpeechEnginePreference] = []
@@ -81,6 +82,12 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
 
     public func configureWarmUpFailuresBeforeSuccess(_ count: Int) {
         self.warmUpFailuresBeforeSuccess = max(0, count)
+    }
+
+    /// Make `warmUp` hang until cancelled, simulating a stalled first-run model
+    /// download. Lets the onboarding stall watchdog be tested deterministically.
+    public func configureWarmUpHangIndefinitely() {
+        self.warmUpHangIndefinitely = true
     }
 
     public func transcribe(
@@ -214,6 +221,13 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
         warmUpCalled = true
         warmUpCallCount += 1
+
+        if warmUpHangIndefinitely {
+            // Hang until cancelled. backgroundWarmUp()'s `catch is CancellationError`
+            // branch deliberately leaves the state machine untouched, so the stream
+            // emits nothing further — exactly the stall the watchdog must catch.
+            try await Task.sleep(for: .seconds(3600))
+        }
 
         if let phases = warmUpProgressPhases {
             for phase in phases {
