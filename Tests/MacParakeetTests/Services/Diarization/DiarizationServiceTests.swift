@@ -124,23 +124,68 @@ final class DiarizationServiceTests: XCTestCase {
         XCTAssertEqual(config.clustering.maxSpeakers, 4)
     }
 
+    func testDiarizationOptionsValidationRejectsNonpositiveHints() {
+        XCTAssertThrowsError(try DiarizationOptions(
+            speakerCountHint: SpeakerCountHint(exact: 0)
+        ).validate()) { error in
+            XCTAssertEqual(
+                error as? DiarizationOptionsValidationError,
+                .nonPositive(field: "exact", value: 0)
+            )
+        }
+
+        XCTAssertThrowsError(try DiarizationOptions(
+            speakerCountHint: SpeakerCountHint(minimum: 0)
+        ).validate()) { error in
+            XCTAssertEqual(
+                error as? DiarizationOptionsValidationError,
+                .nonPositive(field: "minimum", value: 0)
+            )
+        }
+
+        XCTAssertThrowsError(try DiarizationOptions(
+            speakerCountHint: SpeakerCountHint(maximum: 0)
+        ).validate()) { error in
+            XCTAssertEqual(
+                error as? DiarizationOptionsValidationError,
+                .nonPositive(field: "maximum", value: 0)
+            )
+        }
+    }
+
+    func testDiarizationOptionsValidationRejectsExactCombinedWithRange() {
+        XCTAssertThrowsError(try DiarizationOptions(
+            speakerCountHint: SpeakerCountHint(exact: 2, minimum: 1)
+        ).validate()) { error in
+            XCTAssertEqual(error as? DiarizationOptionsValidationError, .exactCannotCombineWithRange)
+        }
+    }
+
+    func testDiarizationOptionsValidationRejectsMinimumGreaterThanMaximum() {
+        XCTAssertThrowsError(try DiarizationOptions(
+            speakerCountHint: SpeakerCountHint(minimum: 5, maximum: 4)
+        ).validate()) { error in
+            XCTAssertEqual(
+                error as? DiarizationOptionsValidationError,
+                .minimumGreaterThanMaximum(minimum: 5, maximum: 4)
+            )
+        }
+    }
+
     func testDiarizePreparesModelsUsingCustomDirectoryBeforeColdStartInference() async throws {
         let customDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .standardizedFileURL
-        let manager = RecordingOfflineDiarizerManager(result: DiarizationResult(segments: [
-            TimedSpeakerSegment(
-                speakerId: "speaker_0",
-                embedding: [],
-                startTimeSeconds: 0,
-                endTimeSeconds: 1.2,
-                qualityScore: 0.9
-            ),
-        ]))
-        let service = DiarizationService(manager: manager, modelsDirectory: customDirectory)
+        let factory = RecordingOfflineDiarizerFactory(result: Self.singleSpeakerResult())
+        let service = DiarizationService(
+            baseConfig: .default,
+            modelsDirectory: customDirectory,
+            makeManager: { factory.makeManager(config: $0) }
+        )
         let audioURL = URL(fileURLWithPath: "/tmp/test.wav")
 
         let result = try await service.diarize(audioURL: audioURL)
+        let manager = try XCTUnwrap(factory.managers.first)
         let preparedDirectories = await manager.preparedDirectories
         let processedAudioURLs = await manager.processedAudioURLs
         let ready = await service.isReady()
@@ -151,6 +196,123 @@ final class DiarizationServiceTests: XCTestCase {
         XCTAssertEqual(result.speakers.map { $0.id }, ["S1"])
         XCTAssertEqual(result.segments.map { $0.speakerId }, ["S1"])
         XCTAssertTrue(ready)
+    }
+
+    func testDiarizeAppliesExactSpeakerCountHintToFactoryConfig() async throws {
+        var baseConfig = OfflineDiarizerConfig.default
+        baseConfig.clustering.threshold = 0.42
+        baseConfig.clustering.minSpeakers = 7
+        baseConfig.clustering.maxSpeakers = 9
+        let factory = RecordingOfflineDiarizerFactory(result: Self.singleSpeakerResult())
+        let service = DiarizationService(
+            baseConfig: baseConfig,
+            modelsDirectory: FileManager.default.temporaryDirectory,
+            makeManager: { factory.makeManager(config: $0) }
+        )
+
+        _ = try await service.diarize(
+            audioURL: URL(fileURLWithPath: "/tmp/test.wav"),
+            options: DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: 3))
+        )
+
+        let config = try XCTUnwrap(factory.configs.first)
+        XCTAssertEqual(config.clustering.threshold, 0.42, accuracy: 0.0001)
+        XCTAssertEqual(config.clustering.numSpeakers, 3)
+        XCTAssertNil(config.clustering.minSpeakers)
+        XCTAssertNil(config.clustering.maxSpeakers)
+    }
+
+    func testDiarizeAppliesMinimumAndMaximumSpeakerCountHintsToFactoryConfig() async throws {
+        var baseConfig = OfflineDiarizerConfig.default
+        baseConfig.clustering.threshold = 0.43
+        baseConfig.clustering.numSpeakers = 8
+        let factory = RecordingOfflineDiarizerFactory(result: Self.singleSpeakerResult())
+        let service = DiarizationService(
+            baseConfig: baseConfig,
+            modelsDirectory: FileManager.default.temporaryDirectory,
+            makeManager: { factory.makeManager(config: $0) }
+        )
+
+        _ = try await service.diarize(
+            audioURL: URL(fileURLWithPath: "/tmp/test.wav"),
+            options: DiarizationOptions(speakerCountHint: SpeakerCountHint(minimum: 2, maximum: 4))
+        )
+
+        let config = try XCTUnwrap(factory.configs.first)
+        XCTAssertEqual(config.clustering.threshold, 0.43, accuracy: 0.0001)
+        XCTAssertNil(config.clustering.numSpeakers)
+        XCTAssertEqual(config.clustering.minSpeakers, 2)
+        XCTAssertEqual(config.clustering.maxSpeakers, 4)
+    }
+
+    func testDiarizeValidatesOptionsBeforeCreatingManager() async throws {
+        let factory = RecordingOfflineDiarizerFactory(result: Self.singleSpeakerResult())
+        let service = DiarizationService(
+            baseConfig: .default,
+            modelsDirectory: FileManager.default.temporaryDirectory,
+            makeManager: { factory.makeManager(config: $0) }
+        )
+
+        do {
+            _ = try await service.diarize(
+                audioURL: URL(fileURLWithPath: "/tmp/test.wav"),
+                options: DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: 2, maximum: 4))
+            )
+            XCTFail("Expected invalid options to throw before manager creation")
+        } catch let error as DiarizationOptionsValidationError {
+            XCTAssertEqual(error, .exactCannotCombineWithRange)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertTrue(factory.configs.isEmpty)
+        XCTAssertTrue(factory.managers.isEmpty)
+    }
+
+    private static func singleSpeakerResult() -> DiarizationResult {
+        DiarizationResult(segments: [
+            TimedSpeakerSegment(
+                speakerId: "speaker_0",
+                embedding: [],
+                startTimeSeconds: 0,
+                endTimeSeconds: 1.2,
+                qualityScore: 0.9
+            ),
+        ])
+    }
+}
+
+private final class RecordingOfflineDiarizerFactory: @unchecked Sendable {
+    private let lock = NSLock()
+    private let result: DiarizationResult
+    private var recordedConfigs: [OfflineDiarizerConfig] = []
+    private var recordedManagers: [RecordingOfflineDiarizerManager] = []
+
+    init(result: DiarizationResult) {
+        self.result = result
+    }
+
+    var configs: [OfflineDiarizerConfig] {
+        withLock { recordedConfigs }
+    }
+
+    var managers: [RecordingOfflineDiarizerManager] {
+        withLock { recordedManagers }
+    }
+
+    func makeManager(config: OfflineDiarizerConfig) -> any OfflineDiarizerManaging {
+        let manager = RecordingOfflineDiarizerManager(result: result)
+        withLock {
+            recordedConfigs.append(config)
+            recordedManagers.append(manager)
+        }
+        return manager
+    }
+
+    private func withLock<T>(_ operation: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return operation()
     }
 }
 

@@ -224,6 +224,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let aiFormatterPromptTemplate: @Sendable () -> String
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
+    private let diarizationOptions: @Sendable () -> DiarizationOptions
     private let youtubeDownloader: YouTubeDownloading?
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
@@ -251,6 +252,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
+        diarizationOptions: (@Sendable () -> DiarizationOptions)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         podcastResolver: PodcastResolving? = nil,
         podcastSearchResolver: PodcastSearchResolving? = nil,
@@ -276,6 +278,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
+        self.diarizationOptions = diarizationOptions ?? { .default }
         self.youtubeDownloader = youtubeDownloader
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
@@ -1202,7 +1205,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
             let mappedSpeakers = diarResult.speakers.enumerated().map { index, speaker in
                 SpeakerInfo(
-                    id: "\(AudioSource.system.rawValue):\(speaker.id)",
+                    id: SpeakerID.systemSpeaker(speaker.id),
                     label: "\(AudioSource.system.displayLabel) \(index + 1)"
                 )
             }
@@ -1212,7 +1215,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             ))
             let mappedSegments = diarResult.segments.map { segment in
                 SpeakerSegment(
-                    speakerId: speakerIDMap[segment.speakerId] ?? "\(AudioSource.system.rawValue):\(segment.speakerId)",
+                    speakerId: speakerIDMap[segment.speakerId] ?? SpeakerID.systemSpeaker(segment.speakerId),
                     startMs: segment.startMs + systemTrack.startOffsetMs,
                     endMs: segment.endMs + systemTrack.startOffsetMs
                 )
@@ -1351,7 +1354,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     onProgress?(.identifyingSpeakers)
                     Telemetry.send(.diarizationStarted(source: source))
                     let diarStartedAt = Date()
-                    let diarResult = try await diarizationService.diarize(audioURL: wavURL)
+                    let diarResult = try await diarizationService.diarize(
+                        audioURL: wavURL,
+                        options: diarizationOptions()
+                    )
                     let diarDuration = Date().timeIntervalSince(diarStartedAt)
                     if !diarResult.segments.isEmpty {
                         let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(

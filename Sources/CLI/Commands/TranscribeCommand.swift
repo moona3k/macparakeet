@@ -357,10 +357,16 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         for speakerDetection: ResolvedSpeakerDetection
     ) -> DiarizationService? {
         guard speakerDetection.enabled else { return nil }
-        guard let constraint = speakerDetection.constraint else {
-            return DiarizationService()
+        return DiarizationService()
+    }
+
+    static func diarizationOptions(
+        for speakerDetection: ResolvedSpeakerDetection
+    ) -> DiarizationOptions {
+        guard speakerDetection.enabled, let constraint = speakerDetection.constraint else {
+            return .default
         }
-        return DiarizationService(speakerConstraint: constraint)
+        return DiarizationOptions(speakerCountHint: constraint.speakerCountHint)
     }
 
     static func localFileURL(for input: String) -> URL {
@@ -517,6 +523,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     shouldKeepDownloadedAudio
                 },
                 shouldDiarize: { resolvedSpeakerDetection.enabled },
+                diarizationOptions: {
+                    Self.diarizationOptions(for: resolvedSpeakerDetection)
+                },
                 youtubeDownloader: youtubeDownloader,
                 podcastResolver: PodcastEpisodeResolver(),
                 podcastSearchResolver: PodcastQueryResolver(),

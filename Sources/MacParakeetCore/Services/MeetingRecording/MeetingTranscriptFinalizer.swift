@@ -226,16 +226,21 @@ struct MeetingTranscriptFinalizer {
     }
 
     private static func sourceOrder(id: String?) -> Int {
-        switch id {
-        case AudioSource.microphone.rawValue:
-            return 0
-        case AudioSource.system.rawValue:
-            return 1
-        case let value? where value.hasPrefix("\(AudioSource.system.rawValue):"):
-            return 2
-        default:
-            return 3
+        if SpeakerID.isSourceOnly(id) {
+            switch SpeakerID.source(for: id) {
+            case .microphone:
+                return 0
+            case .system:
+                return 1
+            case nil:
+                return 3
+            }
         }
+
+        if SpeakerID.source(for: id) == .system {
+            return 2
+        }
+        return 3
     }
 
     private static func orderedSourceTextsIfContiguous(
@@ -262,25 +267,12 @@ struct MeetingTranscriptFinalizer {
         var lastSource: AudioSource?
 
         for word in words {
-            guard let source = source(for: word.speakerId) else { continue }
+            guard let source = SpeakerID.source(for: word.speakerId) else { continue }
             guard source != lastSource else { continue }
             sources.append(source)
             lastSource = source
         }
 
         return sources
-    }
-
-    private static func source(for speakerID: String?) -> AudioSource? {
-        switch speakerID {
-        case AudioSource.microphone.rawValue:
-            return .microphone
-        case AudioSource.system.rawValue:
-            return .system
-        case let value? where value.hasPrefix("\(AudioSource.system.rawValue):"):
-            return .system
-        default:
-            return nil
-        }
     }
 }
