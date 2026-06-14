@@ -45,7 +45,7 @@ struct MeetingCountdownToastView: View {
 
             Spacer(minLength: DesignSystem.Spacing.sm)
 
-            // Bare ✕ — minimal cancel. "Cancel auto-start" via accessibility.
+            // Bare close affordance; accessibility names the current action.
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
@@ -76,7 +76,7 @@ struct MeetingCountdownToastView: View {
 
     /// Rosette wrapped in the countdown ring. The track is a faint full circle;
     /// the coral arc trims from 0 → `progress` and fills as the countdown
-    /// completes (full ring = recording starts).
+    /// completes (full ring = the default automation action fires).
     private var halo: some View {
         ZStack {
             Circle()
