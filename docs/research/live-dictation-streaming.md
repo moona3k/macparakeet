@@ -4,8 +4,9 @@
 > decoupled from the paste; mechanism: single-flight tail-window batch preview
 > reusing the existing batch transcriber) / **OPEN** (one number: Whisper
 > per-pass latency) / **PROPOSAL** (impl).
-> Date: 2026-06-13. Base: `origin/main` @ `8e62661d1`. Settled after two
-> adversarial code reviews (see §0).
+> Date: 2026-06-13. Original study base: `origin/main` @ `8e62661d1`.
+> Anchors re-verified against `origin/main` @ `2473828f5` after the Nemotron
+> streaming merge. Settled after two adversarial code reviews (see §0).
 >
 > Implementation plan: `plans/active/2026-06-13-live-dictation-streaming-parakeet-and-preview-ui.md`.
 
@@ -36,7 +37,7 @@ Why **not** the vendor `SlidingWindowAsrManager` for Parakeet, despite it being
 encapsulated: it's a *long-lived streaming session* (start → stream → updates →
 finish) — the same session-shaped lifecycle as Nemotron's native path, which is
 what creates the "final `.dictation` rejected while a live session is held"
-hazard (`STTScheduler.swift:395`) — plus it's a *second* Parakeet manager, and the
+hazard (`STTScheduler.swift:426`) — plus it's a *second* Parakeet manager, and the
 confirmed/volatile quality it provides is something we don't surface. Discrete
 **single-flight** passes reusing the one existing manager have fewer lifecycle
 hazards and trivial rollback. (It stays a fallback behind the seam if the naive
@@ -44,9 +45,9 @@ preview's tail wobble ever actually bothers us.)
 
 Accepted code-cited findings now baked in:
 1. **No live frames for Parakeet/Whisper today** — the sample sink is created only on the Nemotron-gated live path (`DictationService.swift:714-789`); `AudioRecorder` mirrors only if it's non-nil (`:536-541`). → decouple a display-preview sink.
-2. **No samples-based STT API** — STT is path-based (`STTClientProtocol.swift:17`), scheduler jobs carry `audioPath` (`STTScheduler.swift:23`), runtime Parakeet calls `manager.transcribe(audioURL)` (`STTRuntime.swift:275`). FluidAudio *does* have `[Float]` batch (`AsrManager.swift:482`) and WhisperKit too (`WhisperKit.swift:896`), but MacParakeet doesn't expose it through the scheduler. → add an explicit sample-preview API; **don't improvise** `.dictation` jobs.
+2. **No samples-based STT API** — STT is path-based (`STTClientProtocol.swift:17`), scheduler jobs carry `audioPath` (`STTScheduler.swift:23`), runtime Parakeet calls `manager.transcribe(audioURL)` (`STTRuntime.swift:345`). FluidAudio *does* have `[Float]` batch (`AsrManager.swift:482`) and WhisperKit too (`WhisperKit.swift:896`), but MacParakeet doesn't expose it through the scheduler. → add an explicit sample-preview API; **don't improvise** `.dictation` jobs.
 3. **Single-flight** — one preview pass in flight at a time; skip timer ticks while one runs; ignore stale results by pass/session ID.
-4. **Stop ordering** — scheduler rejects an interactive `.dictation` job while a live session exists (`:395`). On stop: cancel preview → await drain → then the final. Preview holds **no** live-session reservation.
+4. **Stop / switch ordering** — scheduler rejects an interactive `.dictation` job while a live session exists (`:426`). Preview holds **no** live-session reservation, but it still needs bounded cancellation: on stop or engine switch, cancel preview → bounded drain → then the final/switch.
 5. **Ephemeral, not stable** — earlier words *can* shift (different right-context + sliding left boundary each pass). Render as **ephemeral tail text**; never label it "stable"/"confirmed."
 6. **Divergence is expected** — the paste runs through cleanup + optional AI formatting (`DictationService.swift:940-991`) and pre-roll discard trims audio the preview showed (`:505-512`). The preview can legitimately differ from the paste; reset it on pre-roll discard.
 7. **Whisper latency** — Whisper pads every pass to a 30s decode; measure before enabling by default.
@@ -121,7 +122,7 @@ feedback today).
 
 PR **#496** (merged 2026-06-12, unreleased; latest tag v0.6.22). Nemotron-only
 native streaming; the streamed final *is* its paste with guarded WAV fallback
-(`DictationService.swift:856-923`). Kept as-is alongside the new path.
+(`DictationService.swift:898-923`). Kept as-is alongside the new path.
 
 ## 8. UI
 
@@ -134,12 +135,12 @@ untouched. **Single-style ephemeral tail text** (no two-tone). Panel: fixed
 
 ## 9. References (file:line)
 
-- `STTScheduler.swift:23,395-397` — jobs carry `audioPath`; interactive rejected during live session
-- `STTRuntime.swift:275` — Parakeet `manager.transcribe(audioURL)` (path-based)
+- `STTScheduler.swift:23,426-428` — jobs carry `audioPath`; interactive rejected during live session
+- `STTRuntime.swift:345` — Parakeet `manager.transcribe(audioURL)` (path-based)
 - `STTClientProtocol.swift:17` — path-based `STTTranscribing`
-- `DictationService.swift:505-512,714-789,856-923,940-991` — pre-roll discard; Nemotron-gated sink; final/fallback; cleanup+formatting
+- `DictationService.swift:505-512,714-789,898-923,940-991` — pre-roll discard; Nemotron-gated sink; final/fallback; cleanup+formatting
 - `AudioRecorder.swift:536-541` — sample mirror gated on non-nil sink
-- `AppEnvironment.swift:276` — Nemotron-only gate
+- `AppEnvironment.swift:276-281` — Nemotron-only native-live gate
 - `DictationOverlayView.swift:232-344,427,509` — body/capsule/preview
 - `AppFeatures.swift:53` — flag precedent
 - FluidAudio `AsrManager.swift:482` `[Float]` batch; WhisperKit `WhisperKit.swift:896` `transcribe(audioArray:)`
