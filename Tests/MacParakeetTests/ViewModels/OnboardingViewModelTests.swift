@@ -397,8 +397,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpHangIndefinitely()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -433,8 +434,9 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpDoesNotStallOnHealthyWarmUpWithShortTimeout() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
 
         let vm = makeViewModel(
             permissionService: perms,
