@@ -48,6 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var meetingQuitTask: Task<Void, Never>?
     private var speechPreWarmTask: Task<Void, Never>?
     private var instantDictationPreferenceTask: Task<Void, Never>?
+    #if DEBUG
+    private var debugDictationPreviewQA: DebugDictationPreviewQA?
+    #endif
     private var instantDictationPreferenceGeneration = 0
     private var isHotkeyRecorderActive = false
     // Let first paint and onboarding routing settle before starting CoreML cache work.
@@ -351,6 +354,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsObserverCoordinator.startObserving()
         windowCoordinator.applyActivationPolicyFromSettings()
         setupDiscoverContent()
+        #if DEBUG
+        showDebugDictationPreviewQAIfRequested()
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -377,6 +383,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = done.wait(timeout: .now() + 0.35)
         }
     }
+
+    #if DEBUG
+    private func showDebugDictationPreviewQAIfRequested() {
+        let arguments = CommandLine.arguments
+        guard DebugDictationPreviewQA.isRequested(arguments: arguments) else { return }
+        let fixture = DebugDictationPreviewQA(arguments: arguments)
+        fixture.show()
+        debugDictationPreviewQA = fixture
+    }
+    #endif
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Don't quit when window closes — dictation/menu bar features stay available.

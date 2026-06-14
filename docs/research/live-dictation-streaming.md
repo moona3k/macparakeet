@@ -133,7 +133,24 @@ render it as a sibling **above** the pill in the bottom-aligned `body` VStack
 untouched. **Single-style ephemeral tail text** (no two-tone). Panel: fixed
 `300×160` `ClickablePanel` (`DictationOverlayController.swift`).
 
-## 9. References (file:line)
+## 9. GUI QA hook
+
+Debug builds can show the real overlay surface without microphone/STT setup:
+
+```bash
+scripts/dev/run_app.sh
+APP_BUNDLE=".build/xcode-dev/Build/Products/Debug/MacParakeet-Dev.app"
+pkill -f "MacParakeet-Dev.app/Contents/MacOS/MacParakeet" || true
+open -na "$APP_BUNDLE" --args \
+  --qa-dictation-preview-overlay \
+  --qa-dictation-preview-text "Drafting the launch notes now. The live preview updates while final dictation is still streaming in."
+```
+
+The hook is `#if DEBUG`-only and presents `DictationOverlayController` with a
+fixture `DictationOverlayViewModel`, so screenshots exercise the same SwiftUI
+preview panel and pill layout as the app.
+
+## 10. References (file:line)
 
 - `STTScheduler.swift:23,426-428` — jobs carry `audioPath`; interactive rejected during live session
 - `STTRuntime.swift:345` — Parakeet `manager.transcribe(audioURL)` (path-based)
