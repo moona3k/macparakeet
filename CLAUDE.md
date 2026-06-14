@@ -25,11 +25,13 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 | Stable DMG | User-facing release, recommended for normal use | Dictation, file and multi-platform video/podcast URL transcription, meeting recording, calendar auto-start (opt-in, default `.off`), productized Transforms, VAD-guided meeting live-preview chunking, opt-in instant dictation, optional Nemotron Beta and WhisperKit engines, exports, vocabulary, AI features |
 | `main` | Development | Latest stable release plus untagged in-progress fixes, plus the flag delta below |
 
-**Flag delta — `main` vs the latest release tag (one flag):**
+**Flag delta — `main` vs the latest release tag:**
 `AppFeatures.aiFormatterProfilesEnabled = true` (app-aware AI Formatter
 profiles with readable/toggleable smart defaults, REQ-LLM-004; enabled
-2026-06-10, not yet in a tagged release). All other `AppFeatures` flags match
-the shipping build.
+2026-06-10, not yet in a tagged release). Staged default-off flags on `main`
+that are not user-visible until validation flips them: `AppFeatures.meetingAutoStopEnabled = false`
+(ADR-023 activity-based meeting auto-stop, implemented 2026-06-14 behind its
+own opt-in setting). All other `AppFeatures` flags match the shipping build.
 
 Ship history for flagged features: Transforms reached stable in v0.6.7;
 calendar auto-start in v0.6.10 (defaults to mode `.off`, strictly opt-in;
@@ -141,6 +143,9 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-020 | Live meeting notepad + memo-steered summaries (implemented) | `spec/adr/020-live-meeting-notepad-and-memo-summaries.md` |
 | ADR-021 | WhisperKit as optional multilingual STT engine (implemented) | `spec/adr/021-whisperkit-multilingual-stt.md` |
 | ADR-022 | Transforms — system-wide LLM rewrites on selected text (Phase 2 productized; enabled, shipping since v0.6.7) | `spec/adr/022-transforms-system-wide-rewrite.md` |
+| ADR-023 | Activity-based meeting auto-stop (silence + app-quit signals + veto countdown; Phases A+B implemented behind default-off flag, Phase C deferred to ADR-024 attribution) | `spec/adr/023-activity-based-meeting-auto-stop.md` |
+| ADR-024 | Activity-based meeting detection (per-process audio attribution + camera + app signal fusion; proposed) | `spec/adr/024-activity-based-meeting-detection.md` |
+| ADR-025 | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (proposed) | `spec/adr/025-meeting-capture-reliability.md` |
 
 > Historical/dormant ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). Current public builds are free/GPL-3.0 and unlocked. The old LemonSqueezy/trial entitlement plumbing is intentionally retained as future-option code for GPL-compatible official paid distribution/support; do not remove it as dead code without explicit owner direction and an ADR/spec update.
 
@@ -151,6 +156,7 @@ video/podcast URL transcription (any `yt-dlp` site plus Apple Podcasts and
 freetext podcast search), Parakeet v3/v2 model selection, optional Nemotron
 3.5 Beta (ADR-001 amendment) and WhisperKit (ADR-021) engines, opt-in instant dictation (warm-mic
 pre-roll), app-aware AI Formatter profiles (REQ-LLM-004, `main`-only flag),
+default-off activity-based meeting auto-stop (ADR-023, `main` validation flag),
 and productized Transforms with `Polish`/`Distill`/`Decide` built-ins on
 Control-Option hotkeys (ADR-022). Calendar auto-start is ADR-017 Phases 1 + 2
 (enabled, default `.off`); Phase 3 (late-join/retro-link) remains proposed.

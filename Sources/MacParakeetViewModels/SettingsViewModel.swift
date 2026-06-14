@@ -192,6 +192,16 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
         }
     }
+    public var meetingAutoStopEnabled: Bool {
+        didSet {
+            defaults.set(
+                meetingAutoStopEnabled,
+                forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
+            )
+            NotificationCenter.default.post(name: .macParakeetMeetingAutoStopDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .meetingAutoStop))
+        }
+    }
     public var pauseMediaDuringDictation: Bool {
         didSet {
             defaults.set(
@@ -673,6 +683,9 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        meetingAutoStopEnabled = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
+        ) as? Bool ?? false
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false

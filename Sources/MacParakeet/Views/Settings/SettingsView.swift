@@ -1118,6 +1118,16 @@ struct SettingsView: View {
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
                 }
 
+                if AppFeatures.meetingAutoStopEnabled {
+                    Divider()
+
+                    settingsToggleRow(
+                        title: "Auto-stop ended meetings",
+                        detail: "Offer to stop after a meeting app closes or both channels stay quiet. You can keep recording before anything stops.",
+                        isOn: $viewModel.meetingAutoStopEnabled
+                    )
+                }
+
                 if viewModel.pendingMeetingRecoveryCount > 0 {
                     Divider()
 

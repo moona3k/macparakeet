@@ -168,20 +168,29 @@ final class SettingsSearchIndexTests: XCTestCase {
         // any given build. Asserting both directions documents the
         // contract and forces a deliberate update if the gate semantics
         // change. Ids: card + sub-card + cross-tab permission row.
-        let meetingGatedIds: Set<String> = ["meeting", "meeting.calendar", "system.permissions.screen"]
+        let meetingGatedIds: Set<String> = [
+            "meeting",
+            "meeting.autoStop",
+            "meeting.calendar",
+            "system.permissions.screen"
+        ]
         let calendarGatedIds: Set<String> = ["meeting.calendar"]
+        let autoStopGatedIds: Set<String> = ["meeting.autoStop"]
         let presentIds = Set(SettingsSearchIndex.entries.map(\.id))
         let intersection = presentIds.intersection(meetingGatedIds)
 
         if AppFeatures.meetingRecordingEnabled {
             // Calendar entry drops out independently when calendarEnabled
-            // is off, even though meeting recording is on.
+            // is off, and auto-stop drops out independently while staged.
             let expected = AppFeatures.calendarEnabled
                 ? meetingGatedIds
                 : meetingGatedIds.subtracting(calendarGatedIds)
+            let expectedWithAutoStop = AppFeatures.meetingAutoStopEnabled
+                ? expected
+                : expected.subtracting(autoStopGatedIds)
             XCTAssertEqual(
                 intersection,
-                expected,
+                expectedWithAutoStop,
                 "Meeting-gated entries should match the active flag combination"
             )
         } else {
@@ -189,6 +198,18 @@ final class SettingsSearchIndexTests: XCTestCase {
                 intersection.isEmpty,
                 "No meeting-gated entries should appear when the flag is off"
             )
+        }
+    }
+
+    func testMeetingAutoStopQueriesHonorFeatureFlag() {
+        for query in ["auto-stop", "auto stop", "meeting ended", "zoom closed"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+
+            if AppFeatures.meetingAutoStopEnabled {
+                XCTAssertTrue(ids.contains("meeting.autoStop"), "Query \(query) should find meeting auto-stop")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.autoStop"), "Query \(query) should not reveal hidden auto-stop")
+            }
         }
     }
 

@@ -76,6 +76,9 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
 | [ADR-021](adr/021-whisperkit-multilingual-stt.md) | WhisperKit as optional multilingual STT engine |
 | [ADR-022](adr/022-transforms-system-wide-rewrite.md) | Transforms — system-wide LLM rewrites on selected text (implemented 2026-05-13) |
+| [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B implemented behind default-off flag — replaces withdrawn ADR-017 calendar auto-stop) |
+| [ADR-024](adr/024-activity-based-meeting-detection.md) | Activity-based meeting detection (per-process audio + camera + app signal fusion; proposed) |
+| [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (proposed) |
 
 ## Version Roadmap
 
@@ -87,7 +90,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Follow-up scope TBD after v0.6 ships | **Planned** |
+| v0.7 | Post-v0.6 polish | Meeting reliability + activity-based detection (proposed — ADR-024/025) plus activity-based auto-stop (ADR-023 implemented behind default-off flag), plus other follow-up polish | **Planned** |
 
 ## Version Progress
 
@@ -224,7 +227,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + first-use prompt + settings + per-calendar include list
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-right, non-activating
-- [ ] ~~Auto-stop toast at calendar event end~~ — **removed** (ADR-017 amendment, 2026-05): scheduled end times are unreliable; recordings stop manually. Activity/audio-based auto-stop is a future ADR.
+- [x] Activity-based auto-stop replacement (ADR-023 Phases A+B): scheduled end times remain removed; the default-off validation build stops only after app-quit or sustained dual-channel-silence signals persist through grace and a veto countdown is not dismissed.
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
 

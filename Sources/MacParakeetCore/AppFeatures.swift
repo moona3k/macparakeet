@@ -24,6 +24,12 @@ public enum AppFeatures {
     /// Settings; nothing changes for existing users until they do.
     public static let calendarEnabled: Bool = true
 
+    /// Activity-based meeting auto-stop (ADR-023). When `true`, Settings shows
+    /// the opt-in meeting auto-stop toggle and the app constructs the
+    /// coordinator that observes meeting-end signals only while a recording is
+    /// active. Default off until field validation proves the trust posture.
+    public static let meetingAutoStopEnabled: Bool = false
+
     /// Transforms — productized Phase 2 (ADR-022). When `true`:
     /// - the Transforms tab appears in the main sidebar
     /// - `TransformsHotkeyRegistry` installs its event tap on launch

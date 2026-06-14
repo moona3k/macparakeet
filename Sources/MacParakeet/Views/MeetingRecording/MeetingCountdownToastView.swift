@@ -1,30 +1,27 @@
 import MacParakeetViewModels
 import SwiftUI
 
-/// Compact "countdown halo" toast for calendar-driven **auto-start**. The
+/// Compact "countdown halo" toast for meeting automation. The
 /// sacred-geometry rosette (shared with the recording pill via
 /// `MerkabaPillIcon`) sits inside a coral ring that sweeps over the countdown —
-/// the ring *is* the timer, so there's no separate progress bar. Minimal text:
-/// the meeting title plus one status line. Lives top-right (ADR-017 / ADR-020 §10).
-///
-/// `✕` cancels this auto-start; `↵` starts now. If left alone, the ring fills
-/// and recording starts automatically. (Auto-*stop* was removed — see the
-/// ADR-017 amendment — so there is no stop variant of this toast.)
+/// the ring *is* the timer, so there's no separate progress bar. Lives top-right
+/// (ADR-017 / ADR-020 §10, reused by ADR-023).
 struct MeetingCountdownToastView: View {
     @Bindable var viewModel: MeetingCountdownToastViewModel
     /// Dismissive action — Cancel. Bound to `.escape`.
     let onDismiss: () -> Void
-    /// Affirmative action — Start Now. Bound to `.return` via a hidden shortcut.
-    /// Always supplied (the toast is auto-start-only), so non-optional.
+    /// Affirmative auto-start action. Bound to `.return` only for auto-start to
+    /// avoid making auto-stop easier to accept accidentally.
     let onConfirm: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One short status line under the title. Kept deliberately terse — the
-    /// rosette + ring already carry "counting down". "Auto-recording" (not
-    /// "Recording") because the meeting hasn't started recording yet — this
-    /// is the pre-start countdown.
+    /// rosette + ring already carry "counting down".
     private var subtitle: String {
+        if viewModel.kind == .autoStop {
+            return "Stopping soon · Keep recording"
+        }
         if let service = viewModel.calendarContext?.serviceName {
             return "Auto-recording · \(service)"
         }
@@ -48,7 +45,7 @@ struct MeetingCountdownToastView: View {
 
             Spacer(minLength: DesignSystem.Spacing.sm)
 
-            // Bare ✕ — minimal cancel. "Cancel auto-start" via accessibility.
+            // Bare close affordance; accessibility names the current action.
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
@@ -58,7 +55,7 @@ struct MeetingCountdownToastView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
-            .accessibilityLabel("Cancel auto-start")
+            .accessibilityLabel(viewModel.kind == .autoStop ? "Keep recording" : "Cancel auto-start")
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm + 2)
@@ -72,16 +69,14 @@ struct MeetingCountdownToastView: View {
                 )
                 .shadow(color: .black.opacity(0.28), radius: 14, y: 6)
         )
-        // Hidden Return shortcut for "Start Now". Kept out of the visible
-        // layout so the toast stays button-free per the design.
         .background(returnShortcut)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(viewModel.title). \(subtitle). Starting automatically."))
+        .accessibilityLabel(Text(accessibilityLabel))
     }
 
     /// Rosette wrapped in the countdown ring. The track is a faint full circle;
     /// the coral arc trims from 0 → `progress` and fills as the countdown
-    /// completes (full ring = recording starts).
+    /// completes (full ring = the default automation action fires).
     private var halo: some View {
         ZStack {
             Circle()
@@ -106,10 +101,23 @@ struct MeetingCountdownToastView: View {
     }
 
     private var returnShortcut: some View {
-        Button("", action: onConfirm)
-            .keyboardShortcut(.return, modifiers: [])
-            .opacity(0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        Group {
+            if viewModel.kind == .autoStart {
+                Button("", action: onConfirm)
+                    .keyboardShortcut(.return, modifiers: [])
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch viewModel.kind {
+        case .autoStart:
+            return "\(viewModel.title). \(subtitle). Starting automatically."
+        case .autoStop:
+            return "\(viewModel.title). \(subtitle). Stopping automatically."
+        }
     }
 }

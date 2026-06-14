@@ -22,6 +22,10 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    var isCapturingMeetingAudioForAutoStop: Bool {
+        stateMachine.state == .recording
+    }
+
     var quitState: MeetingRecordingQuitState? {
         switch stateMachine.state {
         case .idle, .finishing:
@@ -49,6 +53,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
     private let onRecordingBegan: () -> Void
+    private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
@@ -75,7 +80,7 @@ final class MeetingRecordingFlowCoordinator {
     /// session to keep or delete. Cleared on completion and flow teardown.
     private var currentTranscribingOutput: MeetingRecordingOutput?
     private var currentMeetingOperationContext: ObservabilityOperationContext?
-    private var currentMeetingTrigger: TelemetryMeetingRecordingTrigger?
+    private var currentMeetingTrigger: TelemetryMeetingOperationTrigger?
     private var pendingAudioSourceMode: MeetingAudioSourceMode?
 
     init(
@@ -94,6 +99,7 @@ final class MeetingRecordingFlowCoordinator {
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
         onRecordingBegan: @escaping () -> Void = {},
+        onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
     ) {
         self.meetingRecordingService = meetingRecordingService
@@ -111,6 +117,7 @@ final class MeetingRecordingFlowCoordinator {
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
         self.onRecordingBegan = onRecordingBegan
+        self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
     }
 
@@ -194,9 +201,26 @@ final class MeetingRecordingFlowCoordinator {
         case .idle:
             startRecording(trigger: trigger)
         case .recording, .starting, .stopping:
-            sendEvent(.stopRequested)
+            stopRecording(trigger: trigger)
         case .checkingPermissions, .transcribing, .finishing:
             break
+        }
+    }
+
+    @discardableResult
+    func stopRecording(trigger: TelemetryMeetingRecordingTrigger = .manual) -> Bool {
+        stopRecording(operationTrigger: TelemetryMeetingOperationTrigger(trigger))
+    }
+
+    @discardableResult
+    func stopRecording(operationTrigger trigger: TelemetryMeetingOperationTrigger) -> Bool {
+        switch stateMachine.state {
+        case .recording, .starting:
+            currentMeetingTrigger = trigger
+            sendEvent(.stopRequested)
+            return true
+        case .idle, .checkingPermissions, .stopping, .transcribing, .finishing:
+            return false
         }
     }
 
@@ -205,7 +229,7 @@ final class MeetingRecordingFlowCoordinator {
         case .checkingPermissions, .starting:
             sendEvent(.cancelRequested)
         default:
-            sendEvent(.stopRequested)
+            _ = stopRecording(trigger: .manual)
         }
         await waitForActiveFlowToSettle()
         if let actionTask {
@@ -253,7 +277,7 @@ final class MeetingRecordingFlowCoordinator {
         let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
         sendMeetingOperation(
             outcome: .unavailable,
-            trigger: pendingTrigger,
+            trigger: pendingTrigger.map(TelemetryMeetingOperationTrigger.init),
             stage: .permissions,
             errorType: failureReason
         )
@@ -407,7 +431,7 @@ final class MeetingRecordingFlowCoordinator {
                 self?.showMeetingPanel()
             }
             pillController?.onStopRecording = { [weak self] in
-                self?.sendEvent(.stopRequested)
+                self?.stopRecording(trigger: .manual)
             }
             pillController?.onOpenApp = { [weak self] in
                 NSApp.activate(ignoringOtherApps: true)
@@ -447,7 +471,7 @@ final class MeetingRecordingFlowCoordinator {
             pendingAudioSourceMode = nil
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             currentMeetingOperationContext = operationContext
-            currentMeetingTrigger = trigger
+            currentMeetingTrigger = trigger.map(TelemetryMeetingOperationTrigger.init)
             actionTask = Task { @MainActor in
                 do {
                     try await meetingRecordingService.startRecording(title: title, sourceMode: sourceMode)
@@ -464,9 +488,9 @@ final class MeetingRecordingFlowCoordinator {
                     case .some(.preparingSpeechModel):
                         break
                     }
+                    self.sendEvent(.recordingStarted(generation: gen))
                     Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
-                    self.sendEvent(.recordingStarted(generation: gen))
                 } catch {
                     Telemetry.send(.meetingRecordingFailed(
                         errorType: TelemetryErrorClassifier.classify(error),
@@ -481,7 +505,7 @@ final class MeetingRecordingFlowCoordinator {
                     }
                     self.sendMeetingOperation(
                         outcome: .failure,
-                        trigger: trigger,
+                        trigger: trigger.map(TelemetryMeetingOperationTrigger.init),
                         stage: .startRecording,
                         errorType: TelemetryErrorClassifier.classify(error)
                     )
@@ -492,6 +516,7 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showTranscribingState:
+            onRecordingStopping()
             stopPillPolling()
             stopTranscriptObservation()
             stopSpeechWarmUpObservation()
@@ -630,7 +655,7 @@ final class MeetingRecordingFlowCoordinator {
         case .cancelRecording:
             let durationSeconds = Double(panelViewModel?.elapsedSeconds ?? 0)
             let notesVM = panelViewModel?.notesViewModel
-            let cancelledTrigger = currentMeetingTrigger ?? pendingTrigger
+            let cancelledTrigger = currentMeetingTrigger ?? pendingTrigger.map(TelemetryMeetingOperationTrigger.init)
             pendingTrigger = nil
             pendingTitle = nil
             pendingAudioSourceMode = nil
@@ -1131,7 +1156,7 @@ final class MeetingRecordingFlowCoordinator {
 
     private func sendMeetingOperation(
         outcome: ObservabilityOutcome,
-        trigger: TelemetryMeetingRecordingTrigger? = nil,
+        trigger: TelemetryMeetingOperationTrigger? = nil,
         output: MeetingRecordingOutput? = nil,
         stage: TelemetryMeetingOperationStage? = nil,
         durationSeconds: Double? = nil,
@@ -1156,5 +1181,34 @@ final class MeetingRecordingFlowCoordinator {
             notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
             errorType: errorType
         ))
+    }
+}
+
+/// Hooks for unit tests. These stay internal and are not `#if DEBUG`-gated so
+/// `swift test -c release` links the same as the auto-start coordinator tests.
+extension MeetingRecordingFlowCoordinator {
+    func testHook_enterRecording(
+        operationContext: ObservabilityOperationContext = ObservabilityOperationContext(
+            operationID: "test-meeting-operation",
+            startedAt: Date(timeIntervalSince1970: 0)
+        )
+    ) {
+        stateMachine = MeetingRecordingFlowStateMachine()
+        currentMeetingOperationContext = operationContext
+        currentMeetingTrigger = nil
+        pendingTrigger = nil
+        pendingTitle = nil
+        pendingAudioSourceMode = nil
+        _ = stateMachine.handle(.startRequested)
+        _ = stateMachine.handle(.permissionsGranted(generation: stateMachine.generation))
+        _ = stateMachine.handle(.recordingStarted(generation: stateMachine.generation))
+    }
+
+    var testHook_state: MeetingRecordingFlowState {
+        stateMachine.state
+    }
+
+    func testHook_waitForActionTask() async {
+        await actionTask?.value
     }
 }

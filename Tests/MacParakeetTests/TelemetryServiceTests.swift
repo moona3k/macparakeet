@@ -1538,6 +1538,9 @@ final class TelemetryServiceTests: XCTestCase {
             .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch),
             .meetingRecoveryDiscarded(count: 1, source: .settings),
             .meetingRecoveryFailed(count: 1, source: .settings, errorType: "no_audio"),
+            .meetingAutoStopProposed(reason: .meetingAppClosed),
+            .meetingAutoStopConfirmed(reason: .meetingAppClosed),
+            .meetingAutoStopVetoed(reason: .prolongedSilence),
             .vadModelPrep(outcome: .prepared),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(

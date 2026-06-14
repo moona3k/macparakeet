@@ -14,7 +14,10 @@
 > [`docs/audits/2026-06-03-activation-metrics-cohort-caveats.md`](audits/2026-06-03-activation-metrics-cohort-caveats.md).
 > Catalog reconciliation: 2026-06-13. Added the `snippet_edited` row (the event
 > has shipped since 2026-05-23) and aligned ADR-012's event-count/category
-> summary with the live `TelemetryEventName` enum (97 events today). The cross-repo
+> summary with the live `TelemetryEventName` enum.
+> Auto-stop rollout update: 2026-06-14. Added ADR-023's
+> `meeting_auto_stop_proposed` / `confirmed` / `vetoed` events, bringing the
+> live enum to 100 events. The cross-repo
 > allowlist guard for that enum is tracked in
 > [`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`](../plans/active/2026-06-12-telemetry-allowlist-ci-guard.md).
 
@@ -361,6 +364,9 @@ prompt-customization trend.
 `meeting_operation.stage` values are `permissions`, `start_recording`,
 `recording`, `stop_recording`, `transcription`, `complete_transcription`, and
 `cancel`.
+`meeting_operation.trigger` values include `manual`, `hotkey`,
+`calendar_auto_start`, and `auto_stop`; `meeting_recording_started.trigger`
+does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -376,7 +382,7 @@ prompt-customization trend.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, save_meeting_audio, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, pause_media_during_dictation, dictation_insertion_style, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. Appearance changes log only that the setting changed, not the selected light/dark/system value. The dictation insertion-style picker logs only that the control changed, not the selected style or dictated text. The Parakeet and Nemotron model pickers, Whisper language picker, and CJK first-run setup emit only the setting name; selected speech engine details are observed from actual STT usage rows. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, save_meeting_audio, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, meeting_auto_stop, pause_media_during_dictation, dictation_insertion_style, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. Appearance changes log only that the setting changed, not the selected light/dark/system value. The dictation insertion-style picker logs only that the control changed, not the selected style or dictated text. The Parakeet and Nemotron model pickers, Whisper language picker, and CJK first-run setup emit only the setting name; selected speech engine details are observed from actual STT usage rows. Meeting auto-stop logs only that the toggle changed; it does not include app bundle IDs, audio, or transcript content. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -392,6 +398,18 @@ prompt-customization trend.
 | `calendar_auto_start_triggered` | `lead_seconds`, `has_meet_url` | How often countdowns reach auto-start |
 | `calendar_auto_start_cancelled` | `reason` | How often users cancel the countdown |
 | `calendar_auto_start_failed` | `reason` (`permission_denied`, `state_busy`, `service_threw`) | What blocks auto-start |
+
+### 5c. Meeting Auto-Stop — "Does conservative meeting-end detection work?"
+
+> ADR-023 auto-stop is implemented behind `AppFeatures.meetingAutoStopEnabled
+> = false`. These events should remain low/no-volume until a validation build
+> flips the compile-time flag and users opt in through Settings.
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `meeting_auto_stop_proposed` | `reason` (`meeting_app_closed`, `prolonged_silence`) | Which conservative meeting-end signal reached the veto countdown |
+| `meeting_auto_stop_confirmed` | `reason` (`meeting_app_closed`, `prolonged_silence`) | How often the countdown completed and stopped through the normal finalize path |
+| `meeting_auto_stop_vetoed` | `reason` (`meeting_app_closed`, `prolonged_silence`) | Which signals users overrode with "Keep recording" |
 
 ### 6. Licensing — "Is the business working?"
 

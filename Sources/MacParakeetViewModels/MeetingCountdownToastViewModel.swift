@@ -1,20 +1,19 @@
 import Foundation
 
 /// Small `@Observable` shared between the toast controller and its SwiftUI
-/// view for the calendar-driven **auto-start** countdown. The controller
-/// drives `progress` from a 60Hz timer; the view binds to `progress`, `title`,
-/// and `calendarContext` and renders the countdown halo.
-///
-/// Auto-*stop* was removed (ADR-017 amendment, 2026-05): scheduled end times
-/// are unreliable, so stopping is left to the user / a future activity-based
-/// detector rather than a clock-driven countdown. This view model therefore
-/// only ever represents an auto-start countdown.
+/// view for meeting automation countdowns. The controller drives `progress`
+/// from a 60Hz timer; the view binds to `progress`, `title`, and context.
 ///
 /// Lives in `MacParakeetViewModels` (not in App) so unit tests can construct
 /// it without launching AppKit panels.
 @MainActor
 @Observable
 public final class MeetingCountdownToastViewModel {
+    public enum Kind: Sendable, Equatable {
+        case autoStart
+        case autoStop
+    }
+
     /// Optional metadata that upgrades the toast to its richer pre-meeting
     /// variant (ADR-020 §10). When present, the view renders the meeting
     /// service in the status line. Manual-start toasts pass `nil`.
@@ -34,15 +33,18 @@ public final class MeetingCountdownToastViewModel {
     /// 0...1 — completion fraction over `duration` seconds.
     public var progress: Double = 0
     public var duration: TimeInterval
+    public var kind: Kind
     public var calendarContext: CalendarContext?
 
     public init(
         title: String,
         duration: TimeInterval,
+        kind: Kind = .autoStart,
         calendarContext: CalendarContext? = nil
     ) {
         self.title = title
         self.duration = duration
+        self.kind = kind
         self.calendarContext = calendarContext
     }
 

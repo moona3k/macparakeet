@@ -206,6 +206,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"

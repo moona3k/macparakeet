@@ -2,7 +2,7 @@
 
 > Status: **IMPLEMENTED (amended)** — Phase 1 (notify-only) and Phase 2 (auto-start + countdown) are implemented and enabled (`AppFeatures.calendarEnabled = true` as of the post-#318 reliability hardening: mid-flight teardown, RSVP/zero-duration guards, reschedule re-fire). Auto-start defaults to mode `.off`, so users opt in via onboarding or Settings — nothing changes for existing users until they do. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
 > Date: 2026-04-19
-> **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the coordinator now never stops a recording. Stopping is manual (one click on the pill), with activity/audio-based auto-stop scoped as a future ADR.
+> **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the calendar coordinator never stops a recording. The replacement is ADR-023 (Activity-Based Meeting Auto-Stop, 2026-06-14), implemented behind a default-off flag using activity signals plus a veto countdown.
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 
 ## Context
@@ -65,7 +65,7 @@ Countdown is fixed at 5 seconds; not exposing it as a setting. Longer defeats th
 >
 > **What replaces it:** Nothing, for now. The coordinator never stops a recording; the user stops manually (one click on the recording pill). The trade-off — trailing dead air if the user walks away — is recoverable (trim) and the clear lesser evil vs. truncation.
 >
-> **Future direction:** the right stop signal is the meeting *actually ending*, detected from the audio MacParakeet already captures (sustained `systemLevel` silence, optionally plus a Zoom-app-quit fast path) — engine-agnostic across the Zoom app, a browser Meet/Teams tab, and in-person recordings. To be specced as its own ADR; deliberately not pre-built here.
+> **Replacement implemented in ADR-023:** the right stop signal is the meeting *actually ending*, detected from the audio MacParakeet already captures (sustained `systemLevel` silence, optionally plus a Zoom-app-quit fast path) — engine-agnostic across the Zoom app, a browser Meet/Teams tab, and in-person recordings. ADR-023 implements that replacement behind a default-off flag with a veto countdown and the normal finalize/transcribe path.
 >
 > **Removed surfaces:** the `.autoStop` countdown toast, the `MeetingMonitor.autoStopDue` event + auto-stop config, the coordinator's auto-start→recording ownership binding (`onAutoStartFailed` / `stopFromCalendar`), the "Stop recording at meeting end" Settings toggle (`calendarAutoStopEnabled`), and the `calendar_auto_stop_shown` / `calendar_auto_stop_cancelled` telemetry. Auto-*start* is unchanged.
 

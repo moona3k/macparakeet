@@ -83,6 +83,7 @@ public enum SettingsSearchIndex {
     /// that won't render.
     private static let meetingGatedIds: Set<String> = [
         "meeting",
+        "meeting.autoStop",
         "meeting.calendar",
         "system.permissions.screen"
     ]
@@ -94,6 +95,12 @@ public enum SettingsSearchIndex {
         "meeting.calendar"
     ]
 
+    /// Ids gated on ADR-023's staged auto-stop flag. The preference exists in
+    /// the model either way, but Settings search should not expose a hidden row.
+    private static let meetingAutoStopGatedIds: Set<String> = [
+        "meeting.autoStop"
+    ]
+
     public static let entries: [SettingsSearchEntry] = {
         var result = allEntries
         if !AppFeatures.meetingRecordingEnabled {
@@ -101,6 +108,9 @@ public enum SettingsSearchIndex {
         }
         if !AppFeatures.calendarEnabled {
             result = result.filter { !calendarGatedIds.contains($0.id) }
+        }
+        if !AppFeatures.meetingAutoStopEnabled {
+            result = result.filter { !meetingAutoStopGatedIds.contains($0.id) }
         }
         return result
     }()
@@ -220,6 +230,14 @@ public enum SettingsSearchIndex {
             title: "Calendar",
             subtitle: "in Meeting Recording",
             keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.autoStop",
+            tab: .capture,
+            title: "Auto-stop meetings",
+            subtitle: "in Meeting Recording",
+            keywords: ["auto stop", "auto-stop", "stop recording", "meeting ended", "silence", "zoom closed"],
             cardAnchor: "meeting"
         ),
 

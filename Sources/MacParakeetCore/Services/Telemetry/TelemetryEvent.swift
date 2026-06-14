@@ -107,6 +107,9 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecoveryCompleted = "meeting_recovery_completed"
     case meetingRecoveryDiscarded = "meeting_recovery_discarded"
     case meetingRecoveryFailed = "meeting_recovery_failed"
+    case meetingAutoStopProposed = "meeting_auto_stop_proposed"
+    case meetingAutoStopConfirmed = "meeting_auto_stop_confirmed"
+    case meetingAutoStopVetoed = "meeting_auto_stop_vetoed"
     /// Universal launch-time Silero VAD model prep for VAD-guided meeting live
     /// chunking (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6).
     /// Confirms the installed base actually acquires the model once the feature
@@ -368,6 +371,31 @@ public enum TelemetryMeetingRecordingTrigger: String, Sendable, Equatable {
     case calendarAutoStart = "calendar_auto_start"
 }
 
+/// Why a full meeting recording operation moved through its lifecycle. This is
+/// wider than start telemetry because auto-stop only applies to finalization.
+public enum TelemetryMeetingOperationTrigger: String, Sendable, Equatable {
+    case manual
+    case hotkey
+    case calendarAutoStart = "calendar_auto_start"
+    case autoStop = "auto_stop"
+
+    public init(_ trigger: TelemetryMeetingRecordingTrigger) {
+        switch trigger {
+        case .manual:
+            self = .manual
+        case .hotkey:
+            self = .hotkey
+        case .calendarAutoStart:
+            self = .calendarAutoStart
+        }
+    }
+}
+
+public enum TelemetryMeetingAutoStopReason: String, Sendable, Equatable {
+    case meetingAppClosed = "meeting_app_closed"
+    case prolongedSilence = "prolonged_silence"
+}
+
 public enum TelemetryMeetingOperationStage: String, Sendable, Equatable {
     case permissions
     case startRecording = "start_recording"
@@ -451,6 +479,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case youtubeTranscriptionHotkey = "youtube_transcription_hotkey"
     case microphoneSelection = "microphone_selection"
     case meetingAudioSourceMode = "meeting_audio_source_mode"
+    case meetingAutoStop = "meeting_auto_stop"
     case pauseMediaDuringDictation = "pause_media_during_dictation"
     case instantDictation = "instant_dictation"
     case liveDictationPreview = "live_dictation_preview"
@@ -752,7 +781,7 @@ public enum TelemetryEventSpec: Sendable {
         operationID: String,
         operationContext: ObservabilityOperationContext? = nil,
         outcome: ObservabilityOutcome,
-        trigger: TelemetryMeetingRecordingTrigger?,
+        trigger: TelemetryMeetingOperationTrigger?,
         stage: TelemetryMeetingOperationStage? = nil,
         durationSeconds: Double?,
         liveWordCount: Int?,
@@ -773,6 +802,9 @@ public enum TelemetryEventSpec: Sendable {
         errorType: String,
         errorDetail: String? = nil
     )
+    case meetingAutoStopProposed(reason: TelemetryMeetingAutoStopReason)
+    case meetingAutoStopConfirmed(reason: TelemetryMeetingAutoStopReason)
+    case meetingAutoStopVetoed(reason: TelemetryMeetingAutoStopReason)
     /// Launch-time VAD model prep outcome (Phase 4.5). Only `.prepared` /
     /// `.failed` are ever sent — see `TelemetryVADModelPrepOutcome`.
     case vadModelPrep(outcome: TelemetryVADModelPrepOutcome)
@@ -923,6 +955,9 @@ extension TelemetryEventSpec {
         case .meetingRecoveryCompleted: return .meetingRecoveryCompleted
         case .meetingRecoveryDiscarded: return .meetingRecoveryDiscarded
         case .meetingRecoveryFailed: return .meetingRecoveryFailed
+        case .meetingAutoStopProposed: return .meetingAutoStopProposed
+        case .meetingAutoStopConfirmed: return .meetingAutoStopConfirmed
+        case .meetingAutoStopVetoed: return .meetingAutoStopVetoed
         case .vadModelPrep: return .vadModelPrep
         case .calendarReminderShown: return .calendarReminderShown
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
@@ -1493,6 +1528,10 @@ extension TelemetryEventSpec {
             ]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
+        case .meetingAutoStopProposed(let reason),
+             .meetingAutoStopConfirmed(let reason),
+             .meetingAutoStopVetoed(let reason):
+            return ["reason": reason.rawValue]
         case .vadModelPrep(let outcome):
             return ["outcome": outcome.rawValue]
         case .calendarReminderShown(let mode, let leadMinutes, let hasMeetUrl):
@@ -1733,6 +1772,9 @@ public enum TelemetryImplementedContract {
         .meetingRecoveryCompleted: ["count", "duration_seconds", "source"],
         .meetingRecoveryDiscarded: ["count", "source"],
         .meetingRecoveryFailed: ["count", "source", "error_type"],
+        .meetingAutoStopProposed: ["reason"],
+        .meetingAutoStopConfirmed: ["reason"],
+        .meetingAutoStopVetoed: ["reason"],
         .vadModelPrep: ["outcome"],
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],

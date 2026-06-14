@@ -65,6 +65,23 @@ final class MeetingCountdownToastController {
         )
     }
 
+    /// Show the ADR-023 pre-stop countdown. If the user dismisses the toast,
+    /// the coordinator vetoes auto-stop for that reason for the session.
+    func showAutoStop(
+        title: String = "This meeting looks finished",
+        duration: TimeInterval = 15,
+        onOutcome: @escaping (MeetingCountdownToastOutcome) -> Void
+    ) {
+        present(
+            viewModel: MeetingCountdownToastViewModel(
+                title: title,
+                duration: duration,
+                kind: .autoStop
+            ),
+            onOutcome: onOutcome
+        )
+    }
+
     /// Force-close any visible toast without firing the default action.
     /// Coordinator uses this when a higher-priority event preempts the
     /// current countdown (e.g., user manually starts recording while the

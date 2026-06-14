@@ -32,4 +32,8 @@ public extension Notification.Name {
     /// `MeetingAutoStartCoordinator` re-reads its config and re-evaluates on
     /// the next poll tick instead of waiting for the timer.
     static let macParakeetCalendarSettingsDidChange = Notification.Name("macparakeet.calendarSettingsDidChange")
+    /// Posted when the ADR-023 activity-based meeting auto-stop setting
+    /// changes. The coordinator re-reads the opt-in toggle immediately so
+    /// disabling it tears down observers/countdowns without waiting.
+    static let macParakeetMeetingAutoStopDidChange = Notification.Name("macparakeet.meetingAutoStopDidChange")
 }

@@ -14,6 +14,7 @@ final class AppEnvironmentConfigurer {
         let meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator
         let hotkeyCoordinator: AppHotkeyCoordinator
         let meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
+        let meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
     }
 
     struct Callbacks {
@@ -287,6 +288,14 @@ final class AppEnvironmentConfigurer {
         )
         coordinatorRefs.dictation = dictationCoordinator
 
+        var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+        var isMeetingAutoStopObservingRecording = false
+        let endMeetingAutoStopObservation = {
+            guard isMeetingAutoStopObservingRecording else { return }
+            isMeetingAutoStopObservingRecording = false
+            meetingAutoStopCoordinator?.recordingDidEnd()
+        }
+
         let meetingCoordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: env.meetingRecordingService,
             transcriptionService: env.transcriptionService,
@@ -310,8 +319,14 @@ final class AppEnvironmentConfigurer {
             },
             onRecordingBegan: {
                 coordinatorRefs.dictation?.hideIdlePill()
+                isMeetingAutoStopObservingRecording = true
+                meetingAutoStopCoordinator?.recordingDidStart()
+            },
+            onRecordingStopping: {
+                endMeetingAutoStopObservation()
             },
             onFlowReturnedToIdle: {
+                endMeetingAutoStopObservation()
                 callbacks.onMenuBarIconUpdate()
                 guard coordinatorRefs.dictation?.isDictationActive != true else { return }
                 coordinatorRefs.dictation?.showIdlePill()
@@ -384,11 +399,34 @@ final class AppEnvironmentConfigurer {
             calendarCoordinator = nil
         }
 
+        if AppFeatures.meetingRecordingEnabled, AppFeatures.meetingAutoStopEnabled {
+            let coordinator = MeetingAutoStopCoordinator(
+                settingsViewModel: settingsViewModel,
+                isRecordingActive: { [weak meetingCoordinator] in
+                    meetingCoordinator?.isCapturingMeetingAudioForAutoStop ?? false
+                },
+                isPaused: {
+                    await env.meetingRecordingService.isPaused
+                },
+                audioLevelsProvider: {
+                    let micLevel = await env.meetingRecordingService.micLevel
+                    let systemLevel = await env.meetingRecordingService.systemLevel
+                    return MeetingAudioLevels(microphone: micLevel, system: systemLevel)
+                },
+                onAutoStopConfirmed: { [weak meetingCoordinator] _ in
+                    meetingCoordinator?.stopRecording(operationTrigger: .autoStop) ?? false
+                }
+            )
+            coordinator.start()
+            meetingAutoStopCoordinator = coordinator
+        }
+
         return Runtime(
             dictationFlowCoordinator: dictationCoordinator,
             meetingRecordingFlowCoordinator: meetingCoordinator,
             hotkeyCoordinator: hotkeyCoordinator,
-            meetingAutoStartCoordinator: calendarCoordinator
+            meetingAutoStartCoordinator: calendarCoordinator,
+            meetingAutoStopCoordinator: meetingAutoStopCoordinator
         )
     }
 

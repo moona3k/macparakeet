@@ -1770,6 +1770,30 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 ---
 
+## v0.7 Features (Meeting Reliability & Detection)
+
+> Status: **MIXED** — F44 / ADR-023 auto-stop Phases A+B are implemented behind a default-off flag. F45 / ADR-024 detection and F46 / ADR-025 reliability remain proposed. Each ships opt-in / flag-gated; nothing changes for existing users until a tagged release enables it.
+
+### F44: Activity-Based Meeting Auto-Stop
+
+> Status: **IMPLEMENTED BEHIND DEFAULT-OFF FLAG** — ADR-023 Phases A+B, REQ-MEET-015. Phase C remains deferred until ADR-024 attribution exists.
+
+**What:** Stop an active meeting recording when the meeting *actually ends*, never on a scheduled clock (calendar-driven auto-stop was withdrawn in the ADR-017 §5 amendment). The primary signal is sustained dual-channel silence — engine-agnostic across the Zoom app, a browser Meet/Teams tab, and in-person recordings; a recognized-meeting-app quit is a fast path. A stop is always preceded by a veto-able countdown ("stopping in 15s · Keep recording") and runs the identical finalize/transcribe path as a manual stop, so audio and transcript are never lost or truncated by surprise. Opt-in, default off, gated by `AppFeatures.meetingAutoStopEnabled`. Reuses the existing meeting VAD/level signal and the auto-start countdown toast.
+
+### F45: Activity-Based Meeting Detection
+
+> Status: **PROPOSAL** — ADR-024, REQ-MEET-016.
+
+**What:** Recognize an *unscheduled* live meeting from metadata-only on-device signals — per-process CoreAudio audio attribution (which app holds the mic, never the audio itself), CoreMediaIO camera activity, and a recognized conferencing-app/URL registry — fused conservatively so camera alone (e.g. Photo Booth) never triggers, with the app's own capture excluded from the signals. It offers to record ("Record this meeting?"), with opt-in auto-start as a separate mode. Extends ADR-017's calendar-only trigger to ad-hoc calls and someone-else's invites. Metadata-only / local-first, opt-in, default off, gated by `AppFeatures.meetingActivityDetectionEnabled`. The same signal layer feeds F44 auto-stop.
+
+### F46: Meeting Capture Reliability — Mic-Health Watchdog + Coverage Repair
+
+> Status: **PROPOSAL** — ADR-025, REQ-MEET-017 / REQ-MEET-018.
+
+**What:** Two hardening measures for meeting capture. (1) A **mic-health watchdog** treats the system-audio stream as the liveness oracle: if "Others" are clearly talking but the microphone delivers nothing / all-zero / a stalled gap, it surfaces a gentle "may be missing your side" warning plus telemetry (detection-first; auto-recovery deferred behind a confirmed-signature gate, consistent with the dictation silent-stall work). (2) A **post-stop coverage repair** runs an offline VAD pass over the retained audio, measures how much detected speech the live transcript covered, and re-transcribes only the missed regions on the ADR-016 background slot — turning live preview from "best-effort, lossy on drop" into a guaranteed-complete final transcript. Refines REQ-MEET-013 (adds a completeness stage; per-chunk transcription is unchanged).
+
+---
+
 ## Future Features (Post-Launch)
 
 ### F30: iOS Companion App

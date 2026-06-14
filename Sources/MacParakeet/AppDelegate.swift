@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
+    private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
     /// `TransformsHotkeyRegistry` + dispatch from registered hotkeys to the
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
@@ -367,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictationFlowCoordinator?.hideIdlePill()
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
+        meetingAutoStopCoordinator?.stop()
         transformsCoordinator?.stop()
         settingsObserverCoordinator.stopObserving()
         environmentSetupTask?.cancel()
@@ -494,6 +496,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
+        meetingAutoStopCoordinator = runtime.meetingAutoStopCoordinator
         applyInstantDictationPreference(refreshWarmCapture: false)
 
         // Shared resolver for the user's LLM provider — returns the live
