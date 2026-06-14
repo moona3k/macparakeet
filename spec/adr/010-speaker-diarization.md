@@ -131,7 +131,7 @@ Skip diarization for: dictation (single speaker by design), or when the Settings
 
 **CLI:** `macparakeet-cli transcribe` ~~runs diarization by default (backward compatibility)~~ does **not** diarize by default (corrected — see the 2026-06-14 amendment). Use `--no-diarize` to skip, or `--speaker-detection on` / a speaker-count constraint to force it on. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
 
-**Readiness contract:** Diarization remains a separate service from the STT scheduler, but when speaker detection is enabled by default the onboarding/ready-state path must account for diarization-model readiness before claiming file transcription is fully ready.
+**Readiness contract:** Diarization remains a separate service from the STT scheduler, but when speaker detection is enabled (off by default — see the 2026-06-14 amendment) the onboarding/ready-state path must account for diarization-model readiness before claiming file transcription is fully ready.
 
 > **Amendment (2026-06-14):** Two corrections to keep this ADR faithful to the
 > shipped code.
@@ -150,7 +150,7 @@ Skip diarization for: dictation (single speaker by design), or when the Settings
 > enabled speaker detection — default onboarding does not fetch the ~130 MB
 > diarization assets.
 >
-> **2. The FluidAudio dependency surface has grown.** The core decision below
+> **2. The FluidAudio dependency surface has grown.** The core decision above
 > still stands — MacParakeet ships only the offline batch pipeline and uses
 > neither Sortformer nor streaming diarization. But the pinned FluidAudio now
 > also exposes streaming diarizers (`LSEENDDiarizer`, `SortformerDiarizer`) and
@@ -217,7 +217,7 @@ Users can correct misattributions by renaming speakers. Missed speech is visible
 
 ### Negative
 
-- ~130 MB additional model download during onboarding
+- ~130 MB additional model download when the user enables speaker detection (off by default, so default onboarding skips it — see the 2026-06-14 amendment)
 - ~2-4% DER loss vs PyTorch reference due to CoreML fp16 quantization
 - Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may get `speakerId = nil`
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
