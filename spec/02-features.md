@@ -1772,7 +1772,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 ## v0.7 Features (Meeting Reliability & Detection)
 
-> Status: **MIXED** — F44 / ADR-023 auto-stop Phases A+B are implemented behind a default-off flag. F45 / ADR-024 detection Phase A is implemented behind a default-off flag with no UI/coordinator wiring. F46 / ADR-025 reliability Phase A is implemented behind a default-on kill-switch with telemetry only. Remaining ADR-024 and ADR-025 phases remain proposed. User-visible meeting automation stays opt-in / flag-gated.
+> Status: **MIXED** — F44 / ADR-023 auto-stop Phases A+B are implemented behind a default-off flag. F45 / ADR-024 detection Phases A+B are implemented behind a default-off flag with no UI/coordinator wiring. F46 / ADR-025 reliability Phase A is implemented behind a default-on kill-switch with telemetry only. Remaining ADR-024 and ADR-025 phases remain proposed. User-visible meeting automation stays opt-in / flag-gated.
 
 ### F44: Activity-Based Meeting Auto-Stop
 
@@ -1782,9 +1782,9 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 ### F45: Activity-Based Meeting Detection
 
-> Status: **PARTIAL IMPLEMENTATION** — ADR-024 Phase A implements the CoreAudio process attribution collector, shared signal snapshot types, trust-tiered app registry, detection mode, and pure detector tests behind `AppFeatures.meetingActivityDetectionEnabled = false`. Camera collection, coordinator/UI wiring, prompt/auto-start telemetry, and ADR-023 auto-stop attribution remain proposed.
+> Status: **PARTIAL IMPLEMENTATION** — ADR-024 Phases A+B implement the CoreAudio process attribution collector, CoreMediaIO camera activity collector, shared signal snapshot types, trust-tiered app registry, detection mode, and pure detector tests behind `AppFeatures.meetingActivityDetectionEnabled = false`. Coordinator/UI wiring, prompt/auto-start telemetry, and ADR-023 auto-stop attribution remain proposed.
 
-**What:** Recognize an *unscheduled* live meeting from metadata-only on-device signals — per-process CoreAudio audio attribution (which app holds the mic, never the audio itself), CoreMediaIO camera activity, and a recognized conferencing-app/URL registry — fused conservatively so camera alone (e.g. Photo Booth) never triggers, with the app's own capture excluded from the signals. Phase A ships the metadata-only audio attribution and pure policy foundation only; it does not start observers at runtime or show prompts while the flag remains off. Later phases offer to record ("Record this meeting?"), with opt-in auto-start as a separate mode. Extends ADR-017's calendar-only trigger to ad-hoc calls and someone-else's invites. Metadata-only / local-first, opt-in, default off, gated by `AppFeatures.meetingActivityDetectionEnabled`. The same signal layer feeds F44 auto-stop.
+**What:** Recognize an *unscheduled* live meeting from metadata-only on-device signals — per-process CoreAudio audio attribution (which app holds the mic, never the audio itself), CoreMediaIO camera activity, and a recognized conferencing-app/URL registry — fused conservatively so camera alone (e.g. Photo Booth) never triggers, with the app's own capture excluded from the signals. Phases A+B ship the metadata-only collectors and pure policy foundation only; they do not start observers at runtime or show prompts while the flag remains off. Later phases offer to record ("Record this meeting?"), with opt-in auto-start as a separate mode. Extends ADR-017's calendar-only trigger to ad-hoc calls and someone-else's invites. Metadata-only / local-first, opt-in, default off, gated by `AppFeatures.meetingActivityDetectionEnabled`. The same signal layer feeds F44 auto-stop.
 
 ### F46: Meeting Capture Reliability — Mic-Health Watchdog + Coverage Repair
 
