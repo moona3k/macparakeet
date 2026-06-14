@@ -218,6 +218,43 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(retrySwitchCount, 1)
     }
 
+    func testShutdownWaitsForDictationPreviewDrainBeforeRuntimeShutdown() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setIgnoreCancellation(true)
+        await runtime.blockNextPreview()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            dictationPreviewDrainTimeout: .milliseconds(50)
+        )
+
+        let previewTask = Task {
+            try await scheduler.transcribeDictationPreview(
+                samples: [0.1, 0.2, 0.3],
+                speechEngine: SpeechEngineSelection(engine: .parakeet)
+            )
+        }
+        await runtime.waitForPreviewStart()
+
+        let shutdownTask = Task {
+            await scheduler.shutdown()
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        let countsBeforeRelease = await runtime.lifecycleCounts()
+        XCTAssertEqual(countsBeforeRelease.shutdown, 0)
+
+        await runtime.setIgnoreCancellation(false)
+        await runtime.forceReleaseAll()
+        let shutdownWaitTask = Task<Void, any Error> {
+            await shutdownTask.value
+        }
+        try await value(shutdownWaitTask, timeout: .seconds(1))
+        _ = try? await previewTask.value
+
+        let countsAfterRelease = await runtime.lifecycleCounts()
+        XCTAssertEqual(countsAfterRelease.shutdown, 1)
+    }
+
     func testMeetingFinalizeWaitsBehindRunningFileTranscriptionOnSharedBackgroundSlot() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "file")
@@ -1008,7 +1045,7 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
-    private func value<T>(
+    private func value<T: Sendable>(
         _ task: Task<T, any Error>,
         timeout: Duration = .seconds(1)
     ) async throws -> T {

@@ -15,15 +15,15 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
     }
 }
 
-private final class OneShotContinuation<Value>: @unchecked Sendable {
+private final class OneShotBoolContinuation: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<Value, Never>?
+    private var continuation: CheckedContinuation<Bool, Never>?
 
-    init(_ continuation: CheckedContinuation<Value, Never>) {
+    init(_ continuation: CheckedContinuation<Bool, Never>) {
         self.continuation = continuation
     }
 
-    func resume(returning value: Value) {
+    func resume(returning value: Bool) {
         lock.lock()
         let continuation = continuation
         self.continuation = nil
@@ -670,7 +670,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
     private func quiesce(restoreAcceptsNewJobs: Bool) async {
         acceptsNewJobs = false
-        await cancelDictationPreviewIfNeeded()
+        await cancelAndDrainDictationPreviewIfNeeded()
         cancelAllPendingJobs()
         await cancelLiveDictationSessionIfNeeded()
         await cancelAndDrainRunningJobs()
@@ -715,10 +715,19 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         return drained
     }
 
+    private func cancelAndDrainDictationPreviewIfNeeded() async {
+        guard let execution = dictationPreviewExecution else { return }
+        execution.task.cancel()
+        await observingRuntimeTimeout(reason: "dictation_preview_cancel_drain") {
+            _ = await execution.task.result
+        }
+        clearDictationPreviewExecution(id: execution.id)
+    }
+
     private func waitForDictationPreviewDrain(_ task: Task<STTResult, Error>) async -> Bool {
         let timeout = dictationPreviewDrainTimeout
         return await withCheckedContinuation { continuation in
-            let gate = OneShotContinuation(continuation)
+            let gate = OneShotBoolContinuation(continuation)
             Task {
                 _ = await task.result
                 gate.resume(returning: true)
