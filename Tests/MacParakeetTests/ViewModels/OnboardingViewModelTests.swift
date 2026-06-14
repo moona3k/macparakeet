@@ -409,8 +409,12 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .engine)
         vm.startEngineWarmUp()
 
-        // Generous margin over the 200ms watchdog to keep CI deterministic.
-        try await Task.sleep(for: .seconds(2))
+        // Wait (bounded) for the 200ms watchdog to fire rather than sleeping a
+        // fixed margin — returns as soon as it trips and isn't load-sensitive.
+        try await waitUntil(timeout: .seconds(2)) {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
 
         guard case .failed(let message) = vm.engineState else {
             return XCTFail("expected .failed after stall, got \(vm.engineState)")
@@ -439,9 +443,12 @@ final class OnboardingViewModelTests: XCTestCase {
             warmUpStallTimeout: .milliseconds(500)
         )
         vm.jump(to: .engine)
-
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(120))
+
+        // Poll for .ready with a ceiling safely under the 500ms watchdog. If the
+        // watchdog wrongly fired, state would be terminal `.failed` and this would
+        // time out — so reaching `.ready` proves the watchdog did not fire.
+        try await waitUntil(timeout: .milliseconds(400)) { vm.engineState == .ready }
 
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
