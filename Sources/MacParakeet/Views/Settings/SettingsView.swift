@@ -1023,6 +1023,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Live transcript preview",
+                    detail: "Shows a short in-progress transcript above the dictation pill while recording.",
+                    isOn: $viewModel.showLiveDictationPreview
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop

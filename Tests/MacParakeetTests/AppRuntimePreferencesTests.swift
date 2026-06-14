@@ -130,6 +130,18 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).instantDictationEnabled)
     }
 
+    func testLiveDictationPreviewDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).showLiveDictationPreview)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).showLiveDictationPreview)
+    }
+
     func testAIFormatterEnabledForDictationDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

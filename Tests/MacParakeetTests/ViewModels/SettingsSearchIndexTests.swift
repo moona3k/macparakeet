@@ -45,6 +45,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testLivePreviewQueryFindsDictationPreviewSetting() {
+        let results = SettingsSearchIndex.matches("live preview")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.live.preview" }),
+            "Live preview should land on the dictation preview setting"
+        )
+    }
+
     func testDarkModeQueryFindsAppearanceSetting() {
         let results = SettingsSearchIndex.matches("dark mode")
 

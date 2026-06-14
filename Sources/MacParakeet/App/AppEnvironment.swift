@@ -280,6 +280,9 @@ final class AppEnvironment {
                     && SpeechEnginePreference.current() == .nemotron
                     && !SpeechEnginePreference.nemotronModelVariant().isEnglishOnly
             },
+            shouldShowDictationPreview: { [runtimePreferences] in
+                runtimePreferences.showLiveDictationPreview
+            },
             dictationPreviewSpeechEngine: {
                 guard AppFeatures.liveDictationStreamingEnabled else { return nil }
                 switch SpeechEnginePreference.current() {

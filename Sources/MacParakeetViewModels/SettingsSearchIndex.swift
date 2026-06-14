@@ -143,6 +143,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.live.preview",
+            tab: .capture,
+            title: "Live transcript preview",
+            subtitle: "in Dictation",
+            keywords: ["preview", "live preview", "transcript preview", "dictation pill", "overlay", "in progress"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "transcription",
             tab: .capture,
             title: "Transcription",

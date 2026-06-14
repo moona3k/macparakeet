@@ -507,6 +507,36 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveBeginCallCount, 0)
     }
 
+    func testDisplayPreviewDisabledSkipsPreviewTranscription() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldShowDictationPreview: { false },
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        let result = try await service.stopRecording()
+
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        XCTAssertEqual(previewCallCount, 0)
+        XCTAssertEqual(previewCancelCallCount, 0)
+        XCTAssertEqual(transcribeCallCount, 1)
+    }
+
     func testBlockedDisplayPreviewIsCancelledBeforeRecordedFileFinal() async throws {
         service = DictationService(
             audioProcessor: mockAudio,

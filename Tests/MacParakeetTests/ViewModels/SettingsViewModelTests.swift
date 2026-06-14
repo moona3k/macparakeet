@@ -145,6 +145,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
+        XCTAssertTrue(viewModel.showLiveDictationPreview, "showLiveDictationPreview should default to true")
         XCTAssertFalse(
             viewModel.keepDictationOnClipboard,
             "keepDictationOnClipboard should default to false (opt-in)"
@@ -192,6 +193,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
 
@@ -214,6 +216,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertTrue(vm.instantDictationEnabled)
+        XCTAssertFalse(vm.showLiveDictationPreview)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
     }
 
@@ -270,6 +273,24 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.instantDictation])
+    }
+
+    func testLiveDictationPreviewPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.showLiveDictationPreview = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey))
+
+        viewModel.showLiveDictationPreview = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.liveDictationPreview, .liveDictationPreview])
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {

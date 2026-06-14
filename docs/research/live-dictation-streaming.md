@@ -64,7 +64,8 @@ the existing final transcription on stop (Parakeet ~instant). A jumpy/approximat
 preview can't corrupt the result, so none of PR #496's streamed-final/degrade
 machinery is generalized. The preview is **ephemeral tail text**: it updates and
 re-settles as you talk, and it can differ from the final paste — that's expected
-and we don't promise otherwise.
+and we don't promise otherwise. Users can turn the live transcript preview off
+from Settings -> Capture -> Dictation without changing the final dictation path.
 
 All three engines can batch-transcribe raw `[Float]` — FluidAudio
 `AsrManager.transcribe` (`:482`), WhisperKit `transcribe(audioArray:)` (`:896`),

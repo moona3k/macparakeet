@@ -115,6 +115,7 @@ public actor DictationService: DictationServiceProtocol {
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let shouldAttemptLiveDictationTranscription: @Sendable () -> Bool
+    private let shouldShowDictationPreview: @Sendable () -> Bool
     private let dictationPreviewSpeechEngine: @Sendable () -> SpeechEngineSelection?
     private let markFirstDictationCompleted: (@Sendable () -> Void)?
     private let cancelWindow: Duration
@@ -170,6 +171,7 @@ public actor DictationService: DictationServiceProtocol {
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         shouldAttemptLiveDictationTranscription: (@Sendable () -> Bool)? = nil,
+        shouldShowDictationPreview: (@Sendable () -> Bool)? = nil,
         dictationPreviewSpeechEngine: (@Sendable () -> SpeechEngineSelection?)? = nil,
         markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
         cancelWindow: Duration = .seconds(5),
@@ -196,6 +198,7 @@ public actor DictationService: DictationServiceProtocol {
         self.aiFormatterPromptResolver = aiFormatterPromptResolver
             ?? AIFormatterGlobalPromptResolver(promptTemplate: promptTemplate)
         self.shouldAttemptLiveDictationTranscription = shouldAttemptLiveDictationTranscription ?? { false }
+        self.shouldShowDictationPreview = shouldShowDictationPreview ?? { true }
         self.dictationPreviewSpeechEngine = dictationPreviewSpeechEngine ?? { nil }
         self.markFirstDictationCompleted = markFirstDictationCompleted
         self.cancelWindow = cancelWindow
@@ -855,6 +858,7 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     private func beginDisplayPreviewIfAvailable(sessionID: Int) -> DictationAudioSampleSink? {
+        guard shouldShowDictationPreview() else { return nil }
         guard displayPreviewState == nil else { return nil }
         guard let previewTranscriber = sttTranscriber as? any STTDictationPreviewTranscribing else {
             return nil

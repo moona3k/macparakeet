@@ -211,6 +211,15 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .instantDictation))
         }
     }
+    public var showLiveDictationPreview: Bool {
+        didSet {
+            defaults.set(
+                showLiveDictationPreview,
+                forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
+            )
+            Telemetry.send(.settingChanged(setting: .liveDictationPreview))
+        }
+    }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
     public var microphoneTestState: MicrophoneTestState = .idle
     public var microphoneTestLevel: Float = 0
@@ -670,6 +679,9 @@ public final class SettingsViewModel {
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false
+        showLiveDictationPreview = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
+        ) as? Bool ?? true
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
