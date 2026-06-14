@@ -10,8 +10,8 @@ struct MeetingCountdownToastView: View {
     @Bindable var viewModel: MeetingCountdownToastViewModel
     /// Dismissive action — Cancel. Bound to `.escape`.
     let onDismiss: () -> Void
-    /// Affirmative action — Start Now. Bound to `.return` via a hidden shortcut.
-    /// Always supplied (the toast is auto-start-only), so non-optional.
+    /// Affirmative auto-start action. Bound to `.return` only for auto-start to
+    /// avoid making auto-stop easier to accept accidentally.
     let onConfirm: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

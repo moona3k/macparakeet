@@ -20,7 +20,6 @@ final class MeetingAutoStopCoordinator {
     private let closeCountdown: @MainActor () -> Void
     private let featureEnabled: Bool
     private let config: MeetingAutoStopPolicy.Config
-    private let countdownDuration: TimeInterval
     private let pollInterval: TimeInterval
     private let silenceLevelThreshold: Float
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStop")
@@ -80,7 +79,6 @@ final class MeetingAutoStopCoordinator {
         }
         self.featureEnabled = featureEnabled
         self.config = config
-        self.countdownDuration = countdownDuration
         self.pollInterval = pollInterval
         self.silenceLevelThreshold = silenceLevelThreshold
     }
