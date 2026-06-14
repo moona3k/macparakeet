@@ -15,20 +15,20 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
     }
 }
 
-private final class OneShotVoidContinuation: @unchecked Sendable {
+private final class OneShotContinuation<Value>: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuation: CheckedContinuation<Value, Never>?
 
-    init(_ continuation: CheckedContinuation<Void, Never>) {
+    init(_ continuation: CheckedContinuation<Value, Never>) {
         self.continuation = continuation
     }
 
-    func resume() {
+    func resume(returning value: Value) {
         lock.lock()
         let continuation = continuation
         self.continuation = nil
         lock.unlock()
-        continuation?.resume()
+        continuation?.resume(returning: value)
     }
 }
 
@@ -345,7 +345,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         _ preference: SpeechEnginePreference,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        await cancelDictationPreviewIfNeeded()
+        guard await cancelDictationPreviewIfNeeded() else {
+            throw STTError.engineBusy
+        }
         guard acceptsNewJobs,
               activeSpeechEngineSessionIDs.isEmpty,
               !hasQueuedOrRunningJobs,
@@ -375,7 +377,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         _ variant: ParakeetModelVariant,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        await cancelDictationPreviewIfNeeded()
+        guard await cancelDictationPreviewIfNeeded() else {
+            throw STTError.engineBusy
+        }
         // Shares the engine-switch guard + task slot: a variant swap reloads the
         // model and must not race transcription, meetings, or an engine switch.
         guard acceptsNewJobs,
@@ -407,7 +411,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         _ variant: NemotronModelVariant,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        await cancelDictationPreviewIfNeeded()
+        guard await cancelDictationPreviewIfNeeded() else {
+            throw STTError.engineBusy
+        }
         // Shares the engine-switch guard + task slot: a variant swap reloads the
         // model and must not race transcription, meetings, or an engine switch.
         guard acceptsNewJobs,
@@ -696,24 +702,30 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         }
     }
 
-    private func cancelDictationPreviewIfNeeded() async {
-        guard let execution = dictationPreviewExecution else { return }
+    @discardableResult
+    private func cancelDictationPreviewIfNeeded() async -> Bool {
+        guard let execution = dictationPreviewExecution else { return true }
         execution.task.cancel()
-        await waitForDictationPreviewDrain(execution.task)
-        clearDictationPreviewExecution(id: execution.id)
+        let drained = await waitForDictationPreviewDrain(execution.task)
+        if drained {
+            clearDictationPreviewExecution(id: execution.id)
+        } else {
+            Telemetry.send(.sttRuntimeUnhealthy(reason: "dictation_preview_cancel_drain"))
+        }
+        return drained
     }
 
-    private func waitForDictationPreviewDrain(_ task: Task<STTResult, Error>) async {
+    private func waitForDictationPreviewDrain(_ task: Task<STTResult, Error>) async -> Bool {
         let timeout = dictationPreviewDrainTimeout
-        await withCheckedContinuation { continuation in
-            let gate = OneShotVoidContinuation(continuation)
+        return await withCheckedContinuation { continuation in
+            let gate = OneShotContinuation(continuation)
             Task {
                 _ = await task.result
-                gate.resume()
+                gate.resume(returning: true)
             }
             Task {
                 try? await Task.sleep(for: timeout)
-                gate.resume()
+                gate.resume(returning: false)
             }
         }
     }

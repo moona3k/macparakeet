@@ -177,7 +177,7 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(switchCount, 1)
     }
 
-    func testEngineSwitchPreviewDrainTimeoutDoesNotHangScheduler() async throws {
+    func testEngineSwitchPreviewDrainTimeoutFailsFastAndAllowsRetryAfterDrain() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setIgnoreCancellation(true)
         await runtime.blockNextPreview()
@@ -197,14 +197,25 @@ final class STTSchedulerTests: XCTestCase {
         let switchTask = Task {
             try await scheduler.setSpeechEngine(.whisper)
         }
-        _ = try await value(switchTask, timeout: .seconds(1))
+        do {
+            _ = try await value(switchTask, timeout: .seconds(1))
+            XCTFail("Expected switch to fail while cancelled preview is still draining")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        } catch {
+            XCTFail("Expected engineBusy, got \(error)")
+        }
 
         let switchCount = await runtime.setSpeechEngineCallCount
-        XCTAssertEqual(switchCount, 1)
+        XCTAssertEqual(switchCount, 0)
 
         await runtime.setIgnoreCancellation(false)
         await runtime.forceReleaseAll()
         _ = try? await previewTask.value
+
+        try await scheduler.setSpeechEngine(.whisper)
+        let retrySwitchCount = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(retrySwitchCount, 1)
     }
 
     func testMeetingFinalizeWaitsBehindRunningFileTranscriptionOnSharedBackgroundSlot() async throws {

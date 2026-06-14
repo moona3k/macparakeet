@@ -115,8 +115,10 @@ Dictation can request a single-flight tail-window preview via
 does not replace the recorded-file final transcript; it is only for the
 floating overlay text while capture is active. Engine switches, variant
 switches, shutdown, and dictation stop/cancel paths cancel the preview
-with bounded drain so preview work cannot block the control plane or final
-paste path indefinitely.
+with bounded drain. If a cancelled preview still has runtime work in flight,
+engine/variant switches fail fast with `engineBusy` rather than reloading
+under active inference; the final paste path still proceeds after its bounded
+display-preview drain.
 
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI

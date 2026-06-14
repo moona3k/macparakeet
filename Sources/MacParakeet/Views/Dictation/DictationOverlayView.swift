@@ -461,7 +461,8 @@ struct DictationOverlayView: View {
                 .lineLimit(2)
                 .truncationMode(.head)
                 .multilineTextAlignment(.leading)
-                .frame(width: 252, height: 30, alignment: .leading)
+                .frame(width: 252, alignment: .leading)
+                .frame(minHeight: 30, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .background(
