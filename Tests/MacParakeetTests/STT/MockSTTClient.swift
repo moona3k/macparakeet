@@ -12,6 +12,10 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     public var speechEngineSelections: [SpeechEngineSelection] = []
     public var warmUpCalled = false
     public var warmUpCallCount = 0
+    /// Counts calls to `backgroundWarmUp()` itself (before its internal dedup),
+    /// so a test can assert the *ViewModel* didn't re-enter — `warmUpCallCount`
+    /// alone is masked by this mock's own `backgroundWarmUpTask != nil` guard.
+    public var backgroundWarmUpCallCount = 0
     public var warmUpError: Error?
     public var warmUpFailuresBeforeSuccess: Int = 0
     public var warmUpProgressPhases: [String]?
@@ -248,6 +252,7 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     }
 
     public func backgroundWarmUp() async {
+        backgroundWarmUpCallCount += 1
         if case .ready = warmUpState { return }
         if backgroundWarmUpTask != nil { return }
         prepareWarmUpStateForRetry()
@@ -320,6 +325,10 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
 
     public func warmUpCallCountSnapshot() -> Int {
         warmUpCallCount
+    }
+
+    public func backgroundWarmUpCallCountSnapshot() -> Int {
+        backgroundWarmUpCallCount
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {

@@ -508,8 +508,50 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(50)) // window for an erroneous 2nd download
 
+        // Assert on backgroundWarmUp call-count, which the ViewModel uniquely
+        // controls: warmUpCallCount alone is masked by the mock's own dedup
+        // (removing the VM's `warmUpObserverTask != nil` guard would still leave
+        // warmUpCallCount == 1), so it would not catch a VM idempotency regression.
+        let bgCount = await stt.backgroundWarmUpCallCountSnapshot()
+        XCTAssertEqual(bgCount, 1, "the engine-step retrigger must not re-enter the warm-up")
         let callCount = await stt.warmUpCallCountSnapshot()
         XCTAssertEqual(callCount, 1, "the engine-step retrigger must not start a second download")
+    }
+
+    /// Engine-step boundary race (review): `startEngineWarmUp()` must NOT
+    /// auto-restart from a surfaced `.failed` — only the explicit Retry does.
+    /// Otherwise a head-start failure that surfaces just as the engine step
+    /// appears would silently kick off a second attempt instead of showing Retry.
+    func testStartEngineWarmUpDoesNotAutoRestartFromFailedState() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .engine)
+        vm.startEngineWarmUp()
+        try await waitUntil(timeout: .seconds(2)) {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+        let bgAfterFail = await stt.backgroundWarmUpCallCountSnapshot()
+
+        // A plain re-trigger (e.g. the engine step's .onAppear firing again) must
+        // be a no-op while `.failed` — no new attempt.
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(50))
+        let bgAfterRetrigger = await stt.backgroundWarmUpCallCountSnapshot()
+        XCTAssertEqual(bgAfterRetrigger, bgAfterFail, "must not auto-restart from .failed")
+        guard case .failed = vm.engineState else { return XCTFail("should remain .failed") }
+
+        // The explicit Retry path resets to .idle first, so it DOES restart.
+        vm.retryEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(50))
+        let bgAfterRetry = await stt.backgroundWarmUpCallCountSnapshot()
+        XCTAssertGreaterThan(bgAfterRetry, bgAfterRetrigger, "explicit Retry should start a new attempt")
     }
 
     /// Guard 3 (§5.3): a warm-up failure that lands before the user reaches the

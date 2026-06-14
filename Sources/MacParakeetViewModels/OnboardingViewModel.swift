@@ -296,6 +296,14 @@ public final class OnboardingViewModel {
     public func startEngineWarmUp() {
         // If already observing or completed, don't restart
         if case .ready = engineState { return }
+        // Don't auto-restart from a surfaced failure. Only `retryEngineWarmUp()`
+        // (which resets to `.idle` first) restarts. This matters because Part B
+        // calls this from two sites (onboarding-open + the engine step's
+        // `.onAppear`): if a head-start failure surfaces right as the engine step
+        // appears — clearing `warmUpObserverTask` just before `.onAppear` fires —
+        // the step would otherwise silently kick off a second attempt instead of
+        // showing the user the Retry button.
+        if case .failed = engineState { return }
         if warmUpObserverTask != nil { return }
 
         if let whisperRecommendation {
@@ -343,7 +351,11 @@ public final class OnboardingViewModel {
             // (warmUpStartedAt → .ready) still measures real download+load time —
             // the background download runs independent of which step the user is
             // on, so the user's think-time overlaps it rather than inflating it.
-            // See §5.4.
+            // Note: modelDownloadStarted/modelDownloadFailed are attempt-counts,
+            // not session-counts — a transient failure before the engine step is
+            // suppressed (reset to .idle) and silently re-attempted there, so one
+            // session can emit started×2 / failed×1. modelDownloadCompleted still
+            // fires once (only on the successful attempt's .ready). See §5.4.
             let warmUpStartedAt = Date()
             Telemetry.send(.modelDownloadStarted(
                 modelKind: .localSpeechStack,
