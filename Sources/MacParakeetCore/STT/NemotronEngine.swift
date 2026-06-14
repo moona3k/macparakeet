@@ -2,7 +2,7 @@ import FluidAudio
 import Foundation
 import os
 
-public actor NemotronEngine: STTTranscribing {
+public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
     public static let defaultModelVariant = SpeechEnginePreference.defaultNemotronModelVariant
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "NemotronEngine")

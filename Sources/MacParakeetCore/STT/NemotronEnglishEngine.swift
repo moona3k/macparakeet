@@ -10,9 +10,12 @@ import os
 /// gets its own engine actor and `STTRuntime` routes on the persisted
 /// `NemotronModelVariant`.
 ///
-/// Streaming-only model driven batch-at-stop: the whole file is resampled,
-/// then fed through the streaming manager in bounded slices and finalized.
-public actor NemotronEnglishEngine: STTTranscribing {
+/// File/batch transcription is driven batch-at-stop: the whole file is
+/// resampled, then fed through the streaming manager in bounded slices and
+/// finalized. Live dictation drives the same streaming manager incrementally,
+/// emitting partials through `setPartialCallback` exactly like the multilingual
+/// sibling (see `NemotronLiveDictating`).
+public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
     public static let modelVariant = NemotronModelVariant.english1120
 
     /// Samples per feed slice (10 s at 16 kHz). The manager's internal buffer
@@ -97,6 +100,93 @@ public actor NemotronEnglishEngine: STTTranscribing {
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
+    }
+
+    // MARK: - Live dictation
+
+    /// Begins a live dictation session on the interactive lane. The build is
+    /// English-only, so `language` is intentionally ignored. Mirrors
+    /// `NemotronEngine.beginLiveDictation`, adapted to the buffer-based manager.
+    public func beginLiveDictation(
+        language: String?,
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws {
+        let lane: NemotronEnglishRuntimeLane = .interactive
+        guard beginTranscription(on: lane) else {
+            throw STTError.engineBusy
+        }
+
+        do {
+            try await prepare(onProgress: nil)
+            guard let manager = manager(for: lane) else {
+                throw STTError.modelNotLoaded
+            }
+            // Fresh session: clears encoder caches, decoder LSTM state, and any
+            // buffered audio a cancelled prior job may have left behind (same
+            // pre-roll reset the batch path performs).
+            await manager.reset()
+            await manager.setPartialCallback { partial in
+                onPartial(partial)
+            }
+        } catch {
+            endTranscription(on: lane)
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func processLiveDictationSamples(_ samples: [Float]) async throws {
+        guard !samples.isEmpty else { return }
+        guard let manager = manager(for: .interactive),
+              activeLanes.contains(.interactive) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        do {
+            try Task.checkCancellation()
+            // The manager consumes `AVAudioPCMBuffer`s; the live samples are
+            // already 16 kHz mono Float32, so `makePCMBuffer` wraps them in the
+            // manager's target format and `resampleBuffer` skips a second
+            // resample.
+            let buffer = try Self.makePCMBuffer(samples: samples[...])
+            _ = try await manager.process(audioBuffer: buffer)
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func finishLiveDictation() async throws -> STTResult {
+        let lane: NemotronEnglishRuntimeLane = .interactive
+        guard let manager = manager(for: lane),
+              activeLanes.contains(lane) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        defer { endTranscription(on: lane) }
+
+        do {
+            await manager.setPartialCallback { _ in }
+            let text = try await manager.finish()
+            return STTResult(
+                text: text,
+                words: [],
+                language: "en",
+                engine: .nemotron,
+                engineVariant: Self.modelVariant.rawValue
+            )
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func cancelLiveDictation() async {
+        let lane: NemotronEnglishRuntimeLane = .interactive
+        guard activeLanes.contains(lane) else { return }
+        // Release the lane even if unload() already dropped the manager —
+        // otherwise a cancel that races shutdown would leave the interactive
+        // lane claimed forever on this engine instance.
+        if let manager = manager(for: lane) {
+            await manager.setPartialCallback { _ in }
+            await manager.reset()
+        }
+        endTranscription(on: lane)
     }
 
     public func prepare(onProgress: (@Sendable (String) -> Void)? = nil) async throws {

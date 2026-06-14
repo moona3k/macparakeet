@@ -1024,7 +1024,8 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Live transcript preview",
-                    detail: "Shows a short in-progress transcript above the dictation pill while recording.",
+                    detail: "Shows a short in-progress transcript above the dictation pill while recording. Available with the Parakeet and Nemotron engines, not Whisper.",
+                    isBeta: true,
                     isOn: $viewModel.showLiveDictationPreview
                 )
 

@@ -214,7 +214,7 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 - ~465 MB CoreML speech model bundle per Parakeet build; v2 and v3 cache independently
 - ~130 MB diarization asset bundle prepared alongside onboarding/default speaker-detection readiness
 - Nemotron 3.5 ASR (Beta) is an opt-in FluidAudio CoreML multilingual streaming engine (default build `nemotron-multilingual-1120ms`, ~1.5 GB) selected via Settings, `config set nemotron-language`, `models select nemotron-multilingual-1120ms`, or `transcribe --engine nemotron`; labeled Beta while real-world quality is benchmarked (no word-level timestamps surfaced yet from either build)
-- A second Nemotron build, Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, ~600 MB), is English-only (ignores the Nemotron language hint) and transcribes batch-at-stop; selected via Settings, `config set nemotron-model`, `models select nemotron-english-1120ms`, or `transcribe --nemotron-model`
+- A second Nemotron build, Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, ~600 MB), is English-only (ignores the Nemotron language hint); file/meeting jobs transcribe batch-at-stop, while dictation streams live partials (live transcript preview) like the multilingual build; selected via Settings, `config set nemotron-model`, `models select nemotron-english-1120ms`, or `transcribe --nemotron-model`
 - WhisperKit is available as a local secondary engine for broader language coverage; default model variant is `large-v3-v20240930_turbo_632MB`
 - Whisper and Nemotron language hints are optional (`auto` means detect); persisted defaults are stored in `UserDefaults` and exposed in Settings
 - One process-wide `STTRuntime` owner manages model lifecycle for the app

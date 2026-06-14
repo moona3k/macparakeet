@@ -42,8 +42,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `NemotronEnglishEngine.swift` — FluidAudio Nemotron Speech Streaming
   EN 0.6B wrapper (English-only Beta build, `english-1120ms`). Same
   two-lane shape; no language hints, no shared-weights API (both lanes
-  load the same compiled artifacts), batch-at-stop feeding through the
-  streaming manager in bounded slices.
+  load the same compiled artifacts). File/meeting jobs feed batch-at-stop
+  through the streaming manager in bounded slices; live dictation drives
+  the same manager incrementally and emits partials (see below).
+- `NemotronLiveDictating.swift` — internal protocol both Nemotron builds
+  conform to so `STTRuntime` can route a live dictation session to
+  whichever build is active without knowing the concrete engine type.
 
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined
@@ -97,9 +101,11 @@ background slot, with explicit priority: meeting finalize
 shared slot drops the lowest-priority pending work.
 
 **Live dictation sessions (Nemotron only).** When the selected engine
-is Nemotron, dictation can hold a live streaming session via
-`beginLiveDictationTranscription` / `appendLiveDictationSamples` /
-`finishLiveDictationTranscription` / `cancelLiveDictationTranscription`.
+is Nemotron — either build, multilingual or English-only — dictation can
+hold a live streaming session via `beginLiveDictationTranscription` /
+`appendLiveDictationSamples` / `finishLiveDictationTranscription` /
+`cancelLiveDictationTranscription`. The runtime routes the session to the
+active build through `NemotronLiveDictating`.
 The session owns the interactive slot for its duration: competing
 dictation transcribe jobs are rejected with `engineBusy`, engine-switch
 availability reports `transcribing`, and quiesce/shutdown cancels the

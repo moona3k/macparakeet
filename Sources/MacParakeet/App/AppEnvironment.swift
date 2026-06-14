@@ -274,11 +274,10 @@ final class AppEnvironment {
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
-                // The English-only Nemotron build is batch-at-stop; only the
-                // multilingual build streams live dictation partials.
+                // Both Nemotron builds stream live dictation partials from their
+                // FluidAudio streaming managers (multilingual and English-only).
                 AppFeatures.liveDictationStreamingEnabled
                     && SpeechEnginePreference.current() == .nemotron
-                    && !SpeechEnginePreference.nemotronModelVariant().isEnglishOnly
             },
             shouldShowDictationPreview: { [runtimePreferences] in
                 runtimePreferences.showLiveDictationPreview
