@@ -1,234 +1,173 @@
-# Plan: Live dictation streaming — preview-above-pill UI revamp + Parakeet sliding-window streaming
+# Plan: Live dictation preview — pill UI revamp + unified all-engine streaming preview
 
 > **Executor instructions**: Follow this plan phase by phase. Run every
 > verification command and confirm the expected result before moving on. Part A
-> (UI) and Part B (Parakeet) are independently shippable — Part A can merge
-> alone. If anything in "STOP conditions" occurs, stop and report — do not
+> (UI) and Part B (all-engine preview) are independently shippable — Part A can
+> merge alone. If anything in "STOP conditions" occurs, stop and report — do not
 > improvise. When done, update this plan's row in `plans/README.md` and
 > `plans/active/2026-06-12-advisor-index.md`.
 >
 > **Background reading (read first)**: `docs/research/live-dictation-streaming.md`
-> is the feasibility study this plan executes. `spec/adr/016-...`,
-> `spec/adr/021-whisperkit-multilingual-stt.md`, and
-> `Sources/MacParakeetCore/STT/README.md` are the governing constraints.
+> is the decided architecture this plan executes (read its TL;DR + §1–§5).
+> `Sources/MacParakeetCore/STT/README.md`, `spec/adr/016-*` (scheduler/slots),
+> `spec/adr/021-*` (engine routing).
 >
 > **Drift check (run first)**:
-> `git diff --stat 4e2303d4b..HEAD -- Sources/MacParakeetCore/STT/STTScheduler.swift Sources/MacParakeetCore/STT/STTRuntime.swift Sources/MacParakeetCore/STT/NemotronEngine.swift Sources/MacParakeetCore/STT/STTClientProtocol.swift Sources/MacParakeet/App/AppEnvironment.swift Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift Sources/MacParakeetCore/Services/Dictation/DictationService.swift`
-> If any changed since `4e2303d4b`, re-read the "Current state" excerpts against
+> `git diff --stat 8e62661d1..HEAD -- Sources/MacParakeetCore/STT/STTScheduler.swift Sources/MacParakeetCore/STT/STTRuntime.swift Sources/MacParakeetCore/STT/NemotronEngine.swift Sources/MacParakeetCore/STT/STTClientProtocol.swift Sources/MacParakeet/App/AppEnvironment.swift Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift Sources/MacParakeetCore/Services/Dictation/DictationService.swift`
+> If any changed since `8e62661d1`, re-read the "Current state" excerpts against
 > live code before proceeding; on a material mismatch treat it as a STOP.
-> Also confirm FluidAudio still exposes `SlidingWindowAsrManager` /
-> `SlidingWindowAsrSession` (it ships in the pinned checkout today).
 
 ## Status
 
 - **Priority**: P2 (UX upgrade + capability extension; not a correctness fix)
-- **Effort**: Part A = S/M (SwiftUI restructure). Part B = L (new engine + runtime/scheduler routing). Part C = M (optional).
-- **Risk**: Part A LOW (view-only). Part B MEDIUM (touches the interactive STT slot; mitigated by the unchanged WAV-fallback invariant + kill-switch).
-- **Depends on**: none. Builds on PR #496 (Nemotron live dictation, on `main`, unreleased).
-- **Category**: feature (UI + STT engine)
-- **Planned at**: commit `4e2303d4b`, 2026-06-13
-- **Requirement**: amends **REQ-STT-002** (today: "Nemotron dictation streams live partial text…"). Generalize to "streaming-capable engines (Nemotron, Parakeet via sliding window)…"; the streamed-final/WAV-fallback invariant is unchanged.
+- **Effort**: Part A = S/M (SwiftUI restructure). Part B = M/L (one new generic component + runtime sample-transcribe entry + wiring). Part C (two-tone) folds into A once B exists.
+- **Risk**: Part A LOW (view-only). Part B MEDIUM-LOW — **the preview is display-only and never the paste**, so it cannot corrupt the result; the existing final/fallback path is unchanged. Mitigated further by the kill-switch.
+- **Depends on**: none. Builds on PR #496 (Nemotron native streaming, on `main`, unreleased) which we **keep as-is**.
+- **Category**: feature (UI + STT preview)
+- **Planned at**: commit `8e62661d1`, 2026-06-13
+- **Requirement**: amends **REQ-STT-002**. Today it reads "Nemotron dictation streams live partial text…". Generalize to: "Dictation shows a **display-only** live preview for all streaming-capable engines — Nemotron via native streaming, Parakeet and Whisper via periodic re-transcription — while the pasted result continues to come from each engine's existing final path."
 
 ## Why this matters
 
-The live transcript preview (PR #496) is a real perceived-speed win — the
-streamed text *becomes* the paste, so there's no post-release transcription
-pause — but it ships with two limits worth removing:
+The live preview (PR #496) is a real perceived-speed win, but ships with two
+limits worth removing: (1) it deforms the floating pill (renders inside the
+capsule), and (2) it's Nemotron-only — and Nemotron is opt-in **Beta**, while
+**Parakeet is the default** and **Whisper is the only engine** for
+Korean/Japanese/Chinese/+95 languages (those users get zero live feedback today).
 
-1. **The preview deforms the floating pill.** It renders *inside* the capsule,
-   so the capsule stretches into a tall card (see the screenshots in the
-   research doc). The pill is a brand surface (sacred-geometry family); it
-   should keep its shape, with the preview floating above it.
-2. **It's Nemotron-only.** Nemotron is opt-in **Beta**. Parakeet is the
-   **default** engine, and FluidAudio can stream the *exact Parakeet TDT model
-   we already load* via `SlidingWindowAsrManager` — **no new download**, plus
-   richer data (confirmed/volatile transcript, word timings, live vocab
-   boosting). Extending streaming to Parakeet brings the preview to the default
-   path. (Whisper is **out** — its only streaming API grabs the mic and is
-   multi-second-latency; see research doc §4.)
+The architecture decision (see research doc): **the preview is a display-only
+feedback surface, never the result.** That lets one generic re-transcription
+mechanism cover every engine by reusing its existing batch transcribe — no
+per-engine streaming integrations, no new correctness surface.
 
 ## Scope
 
 **In scope**
 - Part A: move the preview out of the capsule to a floating element above the pill; pill geometry untouched.
-- Part B: a `ParakeetStreamingEngine` (sliding window over existing `AsrModels`); generalize the Nemotron-only gates to a per-engine capability; add an `AppFeatures` kill-switch.
-- Part C (optional/recommended follow-up): confirmed/volatile two-tone rendering, which requires widening the partial callback beyond a single `String`.
+- Part B: a generic `RetranscribingPreviewSource` (LocalAgreement-2 over each engine's existing `[Float]` batch transcribe), wired for **Parakeet + Whisper**; Nemotron keeps its native streaming. A `supportsLivePreview` capability (true for all three) + an `AppFeatures.liveDictationStreamingEnabled` kill-switch.
+- Part C: confirmed/volatile two-tone rendering — folds into Part A's preview view once B produces the two tiers. Uniform across engines.
 
 **Out of scope / invariants (MUST NOT change)**
-- The **result/degrade invariant**: a healthy live final is the result; every degrade path (drop, empty final, pre-roll discard, lifecycle race) falls back to WAV transcription. Do not weaken this for either engine (`DictationService.swift:856-878,898-923`).
-- Whisper stays batch-only.
-- ADR-016 slot model: live dictation owns the **interactive** slot; meeting work stays on the background slot.
-- The scheduler's post-`begin` reservation re-check and orphan-unwind (`STTScheduler.swift:195-205`).
+- The **final-result path**. Parakeet/Whisper keep full-WAV batch on stop; Nemotron keeps its streamed final + degrade-to-WAV machinery (`DictationService.swift:856-923`). The preview never becomes the paste for Parakeet/Whisper.
+- Whisper does **not** get its own bespoke streaming integration (no `AudioStreamTranscriber` adapter) — it rides the generic re-transcriber.
+- ADR-016 slot model: live preview runs on the **interactive** slot; meeting work stays on the background slot. The scheduler's reservation re-check / orphan-unwind (`STTScheduler.swift:195-205`) stays.
 - No change to engine *switching* guards while speech work / a meeting lease is active (ADR-021).
 
 ## Current state (anchors — verify in drift check)
 
-**Gates that are Nemotron-specific (the seams to widen):**
+**Gates that are Nemotron-specific (widen to a capability):**
 - `Sources/MacParakeet/App/AppEnvironment.swift:276` — `shouldAttemptLiveDictationTranscription: { SpeechEnginePreference.current() == .nemotron }`
-- `Sources/MacParakeetCore/STT/STTScheduler.swift:186` — `guard selection.engine == .nemotron else { throw …unsupportedEngine }`
-- `Sources/MacParakeetCore/STT/STTRuntime.swift:165` — `guard speechEngine == .nemotron …`; and `appendLiveDictationSamples`/`finishLiveDictationTranscription`/`cancel` **hardcode `nemotronEngine`** (`:188`, `:165`+ following methods).
+- `Sources/MacParakeetCore/STT/STTScheduler.swift:186` — `guard selection.engine == .nemotron …`
+- `Sources/MacParakeetCore/STT/STTRuntime.swift:165` — `guard speechEngine == .nemotron …`; `append/finish/cancel` **hardcode `nemotronEngine`** (`:188`+).
 
-**Engine + protocol shapes:**
-- `Sources/MacParakeetCore/SpeechEnginePreference.swift:3-6` — `enum SpeechEnginePreference { case parakeet, nemotron, whisper }`.
-- `Sources/MacParakeetCore/STT/STTClientProtocol.swift:42-52` — app-facing `STTLiveDictationTranscribing` (`beginLiveDictationTranscription(onPartial: (String)->Void)`, `appendLiveDictationSamples([Float], sessionID:)`, `finishLiveDictationTranscription(sessionID:)->STTResult`, `cancelLiveDictationTranscription(sessionID:)`). Error enum at `:25-40` (`unsupportedEngine`, `sessionNotActive`, `modelNotReady`).
-- `Sources/MacParakeetCore/STT/NemotronEngine.swift:86-166` — the **engine-level** live methods (`beginLiveDictation(language:onPartial:)`, `processLiveDictationSamples([Float])`, `finishLiveDictation()->STTResult`, `cancelLiveDictation()`). This is the de-facto interface `ParakeetStreamingEngine` must match.
-- `Sources/MacParakeetCore/STT/STTRuntime.swift:67-69` — `interactiveManager/backgroundManager: AsrManager?`, `models: AsrModels?` (Parakeet batch; **already loaded** — reuse for streaming).
+**Batch transcribe on `[Float]` (the re-transcriber's primitive) — verified to exist:**
+- FluidAudio `AsrManager.transcribe(...)` (sample-based; Parakeet TDT, the model already loaded for the interactive slot — `STTRuntime.swift:67-69`).
+- WhisperKit `transcribe(audioArray: [Float])` (`WhisperKit.swift:547`).
+- Nemotron `manager.process(samples:)` (already used by the live path).
+- App-facing `STTTranscribing` (`STTClientProtocol.swift:17`) is **path-based** today — Part B adds a samples entry on the interactive slot.
 
-**FluidAudio (pinned checkout):**
-- `…/ASR/Parakeet/SlidingWindow/SlidingWindowAsrManager.swift` — `loadModels(_ models: AsrModels)` (`:140`), `streamAudio(_ buffer: AVAudioPCMBuffer)` (`:212`), `transcriptionUpdates: AsyncStream<SlidingWindowTranscriptionUpdate>` (`:217`), `finish()->String` (`:231`), `reset/cleanup/cancel`, `configureVocabularyBoosting` (`:86`). Update struct `:803` (`text`, `isConfirmed`, `confidence`, `tokenTimings`). Config `:678`.
-- `…/SlidingWindow/SlidingWindowAsrSession.swift:26` — `AsrModels.downloadAndLoad()` (same model family as our batch path).
+**Engine enum:** `SpeechEnginePreference { case parakeet, nemotron, whisper }` (`SpeechEnginePreference.swift:3-6`).
 
-**UI (the deformation):**
-- `Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift`:
-  - `liveTranscriptPreview` (`:441-453`) + `liveTranscriptPreviewText(width:)` (`:455-467`).
-  - Embedded **inside** the capsule: a row in `holdToTalkContent` VStack (`:427`) and `recordingContent` VStack (`:509`).
-  - Capsule background wraps `pillContent` (`:323-340`).
-  - Root `body` VStack is **bottom-aligned** (`:252`), with the hover tooltip already living above the pill (`:234`). ~100 pt of headroom exists above the pill.
-- `Sources/MacParakeet/Views/Dictation/DictationOverlayController.swift` — fixed `300×160` `ClickablePanel`, bottom-center; `updateSize(width:)` re-centers horizontally, height fixed.
-- Data flow: `DictationFlowCoordinator.swift:1104` polls `snapshot.liveTranscript` → `overlayViewModel.liveTranscript` (single `String`); reset at `:445,:454`.
+**UI (the deformation):** `DictationOverlayView.swift` — `liveTranscriptPreviewText(width:)` (`:455-467`) embedded **inside** the capsule via `holdToTalkContent` (`:427`) and `recordingContent` (`:509`); capsule wraps `pillContent` (`:323-340`); root `body` VStack bottom-aligned with headroom above the pill (`:232,:252`, tooltip at `:234`). Panel: fixed `300×160` `ClickablePanel` (`DictationOverlayController.swift`). Data flow: `DictationFlowCoordinator.swift:1104` polls `liveTranscript` (single `String`) → overlay VM; reset at `:445,:454`.
 
 ---
 
 ## Part A — Preview above the pill (ship-on-its-own)
 
-Goal: pill keeps its exact capsule shape; the preview floats above it. Engine-agnostic (single `String`, works for Nemotron today and Parakeet later). No data-flow change.
+Goal: pill keeps its exact capsule shape; the preview floats above it. Works for the single-`String` preview we have today (Nemotron) and the two-tier one from Part B. No data-flow change for v1.
 
 ### A1. Lift the preview out of the capsule
-- In `DictationOverlayView.swift`, **remove** `liveTranscriptPreviewText(...)` from `holdToTalkContent` (`:427`) and `recordingContent` (`:509`); revert each to just its `HStack` (so `pillContent` — and thus the `Capsule` — returns to the compact one-row shape).
-- Add a new floating preview view as a **sibling above** `overlayContent` in the `body` VStack (`:232`), placed after the tooltip slot. Gate it on `viewModel.state == .recording && liveTranscriptPreview != nil`. Because the stack is bottom-aligned, it grows **upward** into the headroom; the pill stays pinned.
-- Keep the existing tail-normalization (`:446-453`) and `.transition(.opacity…)`.
+- Remove `liveTranscriptPreviewText(...)` from `holdToTalkContent` (`:427`) and `recordingContent` (`:509`); revert each to just its `HStack` so `pillContent` (and the `Capsule`) returns to the compact one-row shape.
+- Add a new floating preview view as a **sibling above** `overlayContent` in the `body` VStack (`:232`), after the tooltip slot, gated on `state == .recording && preview present`. Bottom-aligned stack → it grows upward into the headroom; pill stays pinned.
 
 ### A2. Style the floating caption
-- Reuse atoms (DesignSystem colors/opacities, 0.16s ease timing) but let the **shape differ** from the pill (the "siblings not twins" UI principle). Options: bare 2-line text, or its own subtle translucent rounded background distinct from the capsule. Keep width ≤ pill width; center-align under the pill.
-- Confirm it does not intercept hover/clicks (the panel's single `NSTrackingArea` covers the whole panel; the preview is display-only — no buttons).
+- Reuse DesignSystem atoms (colors/opacities, 0.16 s ease) but let the shape differ from the pill ("siblings not twins"). Width ≤ pill width, centered. Display-only — no hover/click targets.
 
 ### A3. Panel headroom
-- Verify 1–2 lines render fully within the current `300×160` panel above the pill. If 2 lines clip, bump panel height in `DictationOverlayController` (e.g. 160→190) keeping the bottom anchor and re-centering on show; **do not** change width logic. Document the new constant inline.
+- Verify 1–2 lines render within the `300×160` panel above the pill; if 2 lines clip, bump panel height (e.g. 160→190) keeping the bottom anchor + re-center on show; do not touch width logic.
 
-### A4. Verify (Part A)
+### A4. Verify
 ```
-scripts/dev/run_app.sh        # select Nemotron, dictate; confirm pill keeps shape, preview floats above
+scripts/dev/run_app.sh        # Nemotron, dictate: pill keeps shape, preview floats above
 swift build --target MacParakeet
-swift test --filter DictationOverlay   # if any view-model-level coverage exists; else rely on manual
 ```
-Expected: capsule identical to its non-preview shape at all times; preview text appears above, grows upward, never widens/stretches the capsule; idle pill (separate panel) unaffected.
-
-**Part A done criteria**: screenshots before/after show the capsule unchanged; no regression in `swift test`; ship as its own PR if desired.
+**Part A done**: capsule visually identical at all times; preview floats above, grows upward, never stretches the capsule; idle pill unaffected. Shippable as its own PR.
 
 ---
 
-## Part B — Parakeet sliding-window streaming (Path A)
+## Part B — Unified all-engine display-only preview
 
-Goal: Parakeet (default engine) streams live partials by sliding-window over the **already-loaded** `AsrModels` — no new download. Generalize the Nemotron-only gates to a capability; gate the whole feature behind a new kill-switch.
+Goal: Parakeet + Whisper get a live preview via one generic re-transcriber over their existing batch transcribe; Nemotron keeps native streaming. Behind the kill-switch.
 
-### B1. Engine capability + kill-switch
-- `SpeechEnginePreference` (`SpeechEnginePreference.swift`): add
-  ```swift
-  public var supportsLiveDictation: Bool {
-      switch self { case .parakeet, .nemotron: return true; case .whisper: return false }
-  }
-  ```
-- `AppFeatures.swift`: add `public static let liveDictationStreamingEnabled: Bool = true` with a doc comment mirroring `meetingVadLiveChunkingEnabled` (`:53`). This is the single off-switch for the whole live-dictation feature (both engines).
+### B1. Capability + kill-switch
+- `SpeechEnginePreference`: add `var supportsLivePreview: Bool { true }` for all three cases (Parakeet/Nemotron/Whisper). (Name it `supportsLivePreview`, not `…LiveDictation`, to signal display-only.)
+- `AppFeatures.swift`: `public static let liveDictationStreamingEnabled: Bool = true`, doc-commented like `meetingVadLiveChunkingEnabled` (`:53`). Single off-switch for the whole feature.
 
-### B2. Extract an engine-level live protocol
-- In `STTClientProtocol.swift`, add an **internal engine-facing** protocol (distinct from the app-facing `STTLiveDictationTranscribing`), matching what `NemotronEngine` already implements:
-  ```swift
-  protocol STTLiveDictating: Actor {
-      func beginLiveDictation(language: String?, onPartial: @escaping @Sendable (String) -> Void) async throws
-      func processLiveDictationSamples(_ samples: [Float]) async throws
-      func finishLiveDictation() async throws -> STTResult
-      func cancelLiveDictation() async
-  }
-  ```
-- Conform `NemotronEngine` to it (it already has the methods; just declare conformance — `NemotronEngine.swift:5`).
+### B2. Samples batch-transcribe entry on the interactive slot
+- Add a runtime method to transcribe a `[Float]` window on the **interactive** slot using the *currently selected engine's* batch path — e.g. `STTRuntime.transcribeInteractiveSamples(_ samples: [Float]) async throws -> STTResult`. Route by engine to the underlying sample API (Parakeet `AsrManager.transcribe`, Whisper `WhisperKit.transcribe(audioArray:)`, Nemotron unused here). Must not disturb the background slot or meeting work.
+- This reuses already-loaded models (Parakeet `AsrModels`, Whisper engine). No new downloads.
 
-### B3. `ParakeetStreamingEngine`
-- New `Sources/MacParakeetCore/STT/ParakeetStreamingEngine.swift`, an `actor` conforming to `STTLiveDictating`. Mirror `NemotronEngine`'s lane/guard discipline (`activeLanes`, generation/`sessionNotActive` guards).
-- Construct/hold a `SlidingWindowAsrManager`. **Load from the runtime's already-loaded `AsrModels`** via `loadModels(_ models:)` — the engine takes `AsrModels` at init or via a `prepare(models:)` call; do **not** call `AsrModels.downloadAndLoad()` again. Pick the lower-latency streaming config preset (left=2s/right=2s) and document the choice.
-- `beginLiveDictation`: `reset()`, optionally `configureVocabularyBoosting(...)` from the user's custom vocabulary (nice-to-have; can defer), then start consuming `transcriptionUpdates`:
-  - For each `SlidingWindowTranscriptionUpdate`, compute the **collapsed string** = `confirmedTranscript + volatileTranscript` (manager exposes both; or accumulate from updates) and call `onPartial(collapsed)`. (Two-tone is Part C.)
-  - Serialize like Nemotron — the consumer task owns the stream; finish it on every finish/cancel path.
-- `processLiveDictationSamples([Float])`: wrap `[Float]` → `AVAudioPCMBuffer` (16 kHz mono; `streamAudio` re-converts but expects a buffer) and call `streamAudio(_:)`.
-- `finishLiveDictation()`: `finish()` → `String`; return `STTResult(text:, words: <map tokenTimings if available else []>, language:, engine: .parakeet, engineVariant: <v3/v2>)`. **Word timings are available from sliding-window** — map them if cheap; else `[]` is acceptable for v1.
-- `cancelLiveDictation()`: `cancel()`/`reset()`, finish the updates stream, release the lane (mirror `NemotronEngine.swift:154-166`).
+### B3. `RetranscribingPreviewSource` (the one generic component)
+- New `Sources/MacParakeetCore/Services/Dictation/RetranscribingPreviewSource.swift` (actor). Responsibilities:
+  - Accept `[Float]` frames (fed from the same live sample sink that exists today).
+  - On a cadence (~700 ms–1 s, or "when the previous pass finishes," whichever is slower), call `transcribeInteractiveSamples` over a sliding **tail window** (~10–15 s).
+  - **LocalAgreement-2**: maintain `confirmed` (text two consecutive passes agree on) + `volatile` (latest unstable tail). Trim confirmed audio from the buffer so passes stay bounded.
+  - Emit updates (`confirmed`, `volatile`) to a callback/stream.
+  - Serialize passes; cancel cleanly on stop. Skip a pass if one is in flight (no pile-up).
+- Pure-ish and unit-testable: inject a `transcribe(samples:) -> STTResult` closure so tests drive it with canned results (assert LocalAgreement confirm/volatile behavior, trimming, no-pile-up).
 
-### B4. Runtime routing (the hardcoded-`nemotronEngine` fix)
-- `STTRuntime.swift`: add `private var activeLiveEngine: (any STTLiveDictating)?` and a lazily-prepared `parakeetStreamingEngine: ParakeetStreamingEngine?`.
-- `beginLiveDictationTranscription` (`:157`): replace `guard speechEngine == .nemotron` with `guard speechEngine.supportsLiveDictation`. Then:
-  ```
-  switch speechEngine {
-  case .nemotron: engine = nemotronEngine (ensure ready)
-  case .parakeet: engine = parakeet streaming engine, prepared from self.models (ensure models loaded — they are, for the interactive slot)
-  case .whisper:  unreachable (guarded) — throw unsupportedEngine
-  }
-  activeLiveEngine = engine
-  ```
-- `appendLiveDictationSamples`/`finishLiveDictationTranscription`/`cancelLiveDictationTranscription`: route through `activeLiveEngine` instead of `nemotronEngine` directly; clear `activeLiveEngine` on finish/cancel. Preserve the `liveDictationSession == .active(sessionID)` guards exactly.
-- **Models availability**: Parakeet streaming needs `self.models` loaded. The interactive slot already loads `AsrModels` for batch dictation; ensure the streaming engine reuses that instance (no second load). If models aren't loaded yet at `begin`, prepare them (same path batch dictation uses) — and if that fails, throw so the caller falls back to WAV.
+### B4. Wire it into the dictation flow
+- In `DictationService`, when `shouldAttemptLivePreview` is true and the engine is **Parakeet/Whisper**, start a `RetranscribingPreviewSource` instead of (or alongside) the Nemotron native path; for **Nemotron**, keep the existing native `STTLiveDictating` path untouched.
+- Both feed the same overlay preview field. For v1 you may collapse `confirmed+volatile` into the existing single `String` (Part C upgrades the UI to two tiers).
+- **Final result is unchanged**: on stop, Parakeet/Whisper still transcribe the full WAV (existing path); the preview source is just torn down. (Document the optional **confirmed-prefix-reuse** fast-final for Whisper as a follow-up — not required for v1.)
 
-### B5. Scheduler gate
-- `STTScheduler.swift:186`: replace `guard selection.engine == .nemotron` with `guard selection.engine.supportsLiveDictation`. Keep everything else (reservation, post-begin re-check, orphan unwind) byte-for-byte.
+### B5. Generalize the gates (capability, not engine)
+- `AppEnvironment.swift:276`: `{ AppFeatures.liveDictationStreamingEnabled && SpeechEnginePreference.current().supportsLivePreview }`.
+- `STTScheduler.swift:186` / `STTRuntime.swift:165`: the **native** live path stays Nemotron-only (it's the only native engine) — leave those guards, OR if the scheduler also fronts the re-transcriber, gate on `supportsLivePreview`. Keep the reservation re-check / orphan unwind byte-for-byte. (Re-transcription does not need the native live-session reservation; it just uses the interactive slot for short batch passes — confirm it cooperates with the slot scheduler and doesn't fight a meeting job.)
 
-### B6. App gate
-- `AppEnvironment.swift:276`: change to
-  `shouldAttemptLiveDictationTranscription: { AppFeatures.liveDictationStreamingEnabled && SpeechEnginePreference.current().supportsLiveDictation }`.
+### B6. Diagnostics
+- Replace the hardcoded `engine=nemotron` in `DictationService.swift:787` with the actual engine; add a `dictation_preview_pass engine=… ms=…` diagnostic for the re-transcriber.
 
-### B7. Diagnostics
-- `DictationService.swift:787`: replace the hardcoded `engine=nemotron` with the actual engine (thread it from the runtime selection, or log `engine=\(selection)`).
-
-### B8. Verify (Part B)
+### B7. Verify
 ```
-swift build
-swift test
-swift test --filter STTScheduler
+swift build && swift test
+swift test --filter RetranscribingPreviewSource
 swift test --filter DictationService
-swift run macparakeet-cli health
-scripts/dev/run_app.sh   # select Parakeet, dictate: live preview appears; release → pasted text matches; switch to Nemotron: still works
+scripts/dev/run_app.sh   # Parakeet dictate → preview appears; release → correct paste (unchanged latency). Whisper → preview (laggier) + correct paste. Nemotron → unchanged. Kill-switch off → no preview anywhere.
 ```
-Manual matrix: Parakeet healthy stream (preview + correct paste), Parakeet degrade (kill network mid-stream? force drop) → WAV fallback still pastes, Nemotron unchanged, Whisper shows **no** preview and pastes via batch (unchanged), kill-switch off → no preview on any engine.
+Manual matrix: Parakeet preview + ~status-quo paste latency; Whisper preview (slower cadence) + correct paste; Nemotron unchanged; kill-switch off → no preview on any engine; long dictation → buffer trimming keeps passes bounded (no slowdown over time).
 
-**Part B done criteria**: Parakeet live preview works end-to-end with no new model download (verify FluidAudio cache unchanged); the WAV-fallback invariant holds under each degrade path; Nemotron/Whisper behavior unchanged; full `swift test` green.
-
----
-
-## Part C — Confirmed/volatile two-tone (optional, recommended follow-up)
-
-Only after A+B. Sliding-window distinguishes `isConfirmed`; render confirmed bright, volatile dim/italic so users see text settling (reads higher-quality than whole-line rewrites).
-
-- Widen the partial callback from `(String) -> Void` to a small `LiveDictationPartial { confirmed: String; volatile: String }` through: engine `onPartial`, `STTLiveDictating`, app-facing `STTLiveDictationTranscribing.beginLiveDictationTranscription`, `DictationService.updateLiveTranscript`, the snapshot, and `overlayViewModel.liveTranscript` (→ a two-field type).
-- Nemotron fills `confirmed` only (it has no volatile distinction); UI renders identically to today for Nemotron.
-- Update the Part A preview view to render the two tones.
-- This is a cross-layer signature change — keep it a **separate PR** so A+B can ship first.
+**Part B done**: Parakeet + Whisper show a live preview with **no new model download** and **no change to the final/paste path**; Nemotron unchanged; long-dictation passes stay bounded; full `swift test` green.
 
 ---
+
+## Part C — Confirmed/volatile two-tone (folds into Part A)
+
+Once B emits `confirmed`+`volatile`, widen the preview field from a single
+`String` to `{ confirmed, volatile }` through `DictationService` → snapshot →
+overlay VM, and render confirmed bright / volatile dim in the Part A preview
+view. Uniform across engines (Nemotron fills `confirmed` only). Cross-layer
+signature change — can be its own commit after A+B work.
 
 ## Tests
-
-- `ParakeetStreamingEngineTests` (new): begin→append→finish returns non-empty `STTResult` with `engine == .parakeet` (mock or fixture `AsrModels` if feasible; otherwise gate behind a model-available check like existing STT integration tests). Cancel releases the lane. Empty final → caller falls back (assert at `DictationService` level).
-- `DictationServiceTests` (extend): the existing WAV-fallback assertions must pass with `engine == .parakeet` as the live engine (drop/empty/preroll-discard → WAV). Reuse the `MockSTTClient` live-dictation seam.
-- `STTSchedulerTests` (extend): `supportsLiveDictation == false` (Whisper) → `unsupportedEngine`; Parakeet/Nemotron accepted; the begin-vs-shutdown race test still passes.
-- Capability unit test: `SpeechEnginePreference.supportsLiveDictation` truth table.
-- Kill-switch: `AppFeatures.liveDictationStreamingEnabled == false` → `shouldAttemptLiveDictationTranscription` closure returns false for all engines (test the closure or its inputs).
-- Part A is view-layer; rely on manual screenshots + any existing overlay VM tests.
+- `RetranscribingPreviewSourceTests` (new, pure): LocalAgreement confirm promotion; volatile tail updates; buffer trimming on confirmation; no pass pile-up; cancel tears down cleanly. Driven by an injected fake transcribe.
+- `DictationServiceTests` (extend): with Parakeet/Whisper selected, the **final still comes from the WAV path** (preview teardown doesn't change the result); Nemotron path unchanged.
+- Capability + kill-switch unit tests (`supportsLivePreview` truth table; flag-off → gate closure false).
+- Part A is view-layer; rely on screenshots + any overlay VM tests.
 
 ## Docs to update (after shipping)
-
-- `spec/kernel/requirements.yaml` REQ-STT-002: generalize "Nemotron dictation streams…" → "streaming-capable engines (Nemotron, Parakeet via sliding window) stream live partials…"; note Whisper excluded.
-- `CLAUDE.md` "Release Channels": the live-dictation streaming feature (and the new flag) belongs in the `main`-vs-release delta until it ships in a tag — currently that block only lists `aiFormatterProfilesEnabled`. Also note the new `AppFeatures.liveDictationStreamingEnabled`.
-- `Sources/MacParakeetCore/STT/README.md`: add the Parakeet sliding-window streaming path + the "live owns the interactive slot, reuses loaded `AsrModels`" rule.
-- `spec/02-features.md` / `spec/README.md`: progress markers.
-- `docs/research/live-dictation-streaming.md`: flip §7 decisions to "decided: Part A + Path A".
-- Move this plan to `plans/completed/` and update `plans/README.md` + advisor index.
+- `spec/kernel/requirements.yaml` REQ-STT-002 — the generalization above.
+- `CLAUDE.md` "Release Channels" — add the preview feature + `liveDictationStreamingEnabled` to the `main`-vs-release delta until it ships in a tag.
+- `Sources/MacParakeetCore/STT/README.md` — the display-only re-transcription preview path + "preview never becomes the paste for Parakeet/Whisper" rule.
+- `docs/research/live-dictation-streaming.md` — flip status to implemented; `spec/02-features.md` / `spec/README.md` progress.
+- Move plan → `plans/completed/`; update `plans/README.md` + advisor index.
 
 ## STOP conditions
-
-- Drift check shows material change to any anchor since `4e2303d4b`.
-- FluidAudio pinned checkout no longer exposes `SlidingWindowAsrManager`/`SlidingWindowAsrSession` (API moved/renamed) — re-research before coding.
-- Parakeet streaming requires a *new* model download (it must reuse `AsrModels`) — if `loadModels(_ models:)` can't take our instance, STOP and reconsider (the no-download property is a core premise).
-- Any degrade path stops falling back to WAV (the result invariant) — STOP; that's a release-blocker.
-- Idle-CPU regression from continuous sliding-window decoding during dictation that materially exceeds Nemotron's — measure app-frontmost (occluded reads 0% and lies); if pathological, gate or revisit config.
+- Drift check shows material change to any anchor since `8e62661d1`.
+- A re-transcription pass on the interactive slot contends with or stalls meeting work / the final transcription — STOP and reconcile slot scheduling before continuing.
+- Any change makes the preview able to become the Parakeet/Whisper paste (it must stay display-only) — STOP.
+- Long-dictation passes grow unbounded (buffer not trimmed) causing idle-CPU/latency growth — measure app-frontmost (occluded reads 0% and lies); fix trimming before shipping.
 
 ## References
-
-See `docs/research/live-dictation-streaming.md` §8 for the full `file:line`
-index (app side, FluidAudio, WhisperKit). Key seams repeated above.
+See `docs/research/live-dictation-streaming.md` §9 for the full `file:line`
+index. Key seams repeated in "Current state" above.
