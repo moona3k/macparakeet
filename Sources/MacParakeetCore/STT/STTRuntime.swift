@@ -21,6 +21,10 @@ protocol STTRuntimeProtocol: Sendable {
     func appendLiveDictationSamples(_ samples: [Float], sessionID: UUID) async throws
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult
     func cancelLiveDictationTranscription(sessionID: UUID) async
+    func transcribeDictationPreview(
+        samples: [Float],
+        speechEngine: SpeechEngineSelection
+    ) async throws -> STTResult
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
     func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
@@ -162,6 +166,27 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
 
+    func transcribeDictationPreview(
+        samples: [Float],
+        speechEngine selection: SpeechEngineSelection
+    ) async throws -> STTResult {
+        guard !samples.isEmpty else {
+            throw STTError.transcriptionFailed("No dictation preview samples")
+        }
+
+        activeTranscriptionCount += 1
+        defer { activeTranscriptionCount -= 1 }
+
+        switch selection.engine {
+        case .parakeet:
+            return try await transcribeParakeetPreview(samples: samples)
+        case .whisper:
+            return try await transcribeWhisperPreview(samples: samples, language: selection.language)
+        case .nemotron:
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.nemotron)
+        }
+    }
+
     func beginLiveDictationTranscription(
         sessionID: UUID,
         onPartial: @escaping @Sendable (String) -> Void
@@ -270,6 +295,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         )
     }
 
+    private func transcribeWhisperPreview(samples: [Float], language: String?) async throws -> STTResult {
+        let engine = try ensureWhisperEngine()
+        return try await engine.transcribe(samples: samples, language: language)
+    }
+
     /// Transcription-path engine access. `warmUp()` and
     /// `performSpeechEngineSwitch()` intentionally construct `WhisperEngine`
     /// inline instead. Warm-up is NOT gated on `activeTranscriptionCount`
@@ -354,6 +384,33 @@ public actor STTRuntime: STTRuntimeProtocol {
             return STTResult(
                 text: result.text,
                 words: words,
+                language: "en",
+                engine: .parakeet,
+                engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+            )
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    private func transcribeParakeetPreview(samples: [Float]) async throws -> STTResult {
+        try await ensureInitialized()
+
+        guard let manager = manager(for: .interactive) else {
+            throw STTError.modelNotLoaded
+        }
+        guard let decoderLayers = decoderLayerCount else {
+            throw STTError.modelNotLoaded
+        }
+
+        do {
+            try Task.checkCancellation()
+            var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
+            try Task.checkCancellation()
+            let result = try await manager.transcribe(samples, decoderState: &decoderState)
+            return STTResult(
+                text: result.text,
+                words: Self.mergeTokenTimingsIntoWords(result.tokenTimings),
                 language: "en",
                 engine: .parakeet,
                 engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue

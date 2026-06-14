@@ -1,7 +1,7 @@
 import Foundation
 @testable import MacParakeetCore
 
-public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching {
+public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -33,6 +33,12 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     public var liveFinishCallCount = 0
     public var liveCancelCallCount = 0
     public var liveAppendedSamples: [[Float]] = []
+    public var previewResult: STTResult?
+    public var previewError: Error?
+    public var previewCallCount = 0
+    public var previewCancelCallCount = 0
+    public var previewSamples: [[Float]] = []
+    public var previewSelections: [SpeechEngineSelection] = []
     public var liveEnabled = false
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
@@ -43,6 +49,9 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     private var livePartialHandler: (@Sendable (String) -> Void)?
     private var liveAppendsHeld = false
     private var liveAppendHoldContinuations: [CheckedContinuation<Void, Never>] = []
+    private var previewHeld = false
+    private var previewReleasesOnCancel = true
+    private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
 
     public init() {}
 
@@ -117,6 +126,57 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, S
     ) async throws -> STTResult {
         speechEngineSelections.append(speechEngine)
         return try await transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
+    }
+
+    public func configurePreview(result: STTResult? = nil, error: Error? = nil) {
+        previewResult = result
+        previewError = error
+        previewCallCount = 0
+        previewCancelCallCount = 0
+        previewSamples = []
+        previewSelections = []
+        previewReleasesOnCancel = true
+        releasePreviewTranscription()
+    }
+
+    public func transcribeDictationPreview(
+        samples: [Float],
+        speechEngine: SpeechEngineSelection
+    ) async throws -> STTResult {
+        previewCallCount += 1
+        previewSamples.append(samples)
+        previewSelections.append(speechEngine)
+        if previewHeld {
+            await withCheckedContinuation { continuation in
+                previewHoldContinuations.append(continuation)
+            }
+        }
+        try Task.checkCancellation()
+        if let previewError {
+            throw previewError
+        }
+        return previewResult ?? STTResult(text: "preview", words: [], engine: speechEngine.engine)
+    }
+
+    public func holdPreviewTranscription(releaseOnCancel: Bool = true) {
+        previewHeld = true
+        previewReleasesOnCancel = releaseOnCancel
+    }
+
+    public func releasePreviewTranscription() {
+        previewHeld = false
+        let waiters = previewHoldContinuations
+        previewHoldContinuations = []
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    public func cancelDictationPreview() async {
+        previewCancelCallCount += 1
+        if previewReleasesOnCancel {
+            releasePreviewTranscription()
+        }
     }
 
     public func configureLive(

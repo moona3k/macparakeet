@@ -276,8 +276,20 @@ final class AppEnvironment {
             shouldAttemptLiveDictationTranscription: {
                 // The English-only Nemotron build is batch-at-stop; only the
                 // multilingual build streams live dictation partials.
-                SpeechEnginePreference.current() == .nemotron
+                AppFeatures.liveDictationStreamingEnabled
+                    && SpeechEnginePreference.current() == .nemotron
                     && !SpeechEnginePreference.nemotronModelVariant().isEnglishOnly
+            },
+            dictationPreviewSpeechEngine: {
+                guard AppFeatures.liveDictationStreamingEnabled else { return nil }
+                switch SpeechEnginePreference.current() {
+                case .parakeet:
+                    return SpeechEngineSelection(engine: .parakeet)
+                case .nemotron:
+                    return nil
+                case .whisper:
+                    return nil
+                }
             },
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a

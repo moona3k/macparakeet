@@ -247,6 +247,57 @@ public actor WhisperEngine: STTTranscribing {
         )
     }
 
+    public func transcribe(
+        samples: [Float],
+        language: String?,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
+        try await transcriptionPermit.wait()
+        defer { transcriptionPermit.signal() }
+        try Task.checkCancellation()
+        return try await transcribeSamplesLocked(
+            samples,
+            language: language,
+            onProgress: onProgress
+        )
+    }
+
+    private func transcribeSamplesLocked(
+        _ samples: [Float],
+        language: String?,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
+        #if canImport(WhisperKit)
+        do {
+            try await prepareLocked(onProgress: nil)
+            guard let whisperKit else {
+                throw STTError.modelNotLoaded
+            }
+
+            let requestedLanguage = SpeechEnginePreference.normalizeLanguage(language)
+
+            onProgress?(0, 100)
+            let callback: TranscriptionCallback = { _ in
+                onProgress?(50, 100)
+                return true
+            }
+            let result = try await Self.transcribeWithLanguageFallback(
+                whisperKit,
+                audioArray: samples,
+                requestedLanguage: requestedLanguage,
+                callback: callback
+            )
+
+            onProgress?(100, 100)
+            return Self.makeResult(from: result, modelVariant: modelVariant)
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+        #else
+        throw STTError.engineStartFailed("WhisperKit is not available in this build.")
+        #endif
+    }
+
     private func transcribeLocked(
         audioURL: URL,
         language: String?,
@@ -449,6 +500,31 @@ public actor WhisperEngine: STTTranscribing {
         )
     }
 
+    private static func transcribeWithLanguageFallback(
+        _ whisperKit: WhisperKit,
+        audioArray: [Float],
+        requestedLanguage: String?,
+        callback: TranscriptionCallback
+    ) async throws -> TranscriptionResult {
+        let result = try await transcribeWithWhisperKit(
+            whisperKit,
+            audioArray: audioArray,
+            decodeOptions: makeDecodingOptions(language: requestedLanguage),
+            callback: callback
+        )
+
+        guard requestedLanguage != nil, shouldRetryWithoutForcedLanguage(result) else {
+            return result
+        }
+
+        return try await transcribeWithWhisperKit(
+            whisperKit,
+            audioArray: audioArray,
+            decodeOptions: makeDecodingOptions(language: nil),
+            callback: callback
+        )
+    }
+
     private static func transcribeWithWhisperKit(
         _ whisperKit: WhisperKit,
         audioPaths: [String],
@@ -466,6 +542,20 @@ public actor WhisperEngine: STTTranscribing {
         }
 
         let partialResults = try first.get()
+        return TranscriptionUtilities.mergeTranscriptionResults(partialResults)
+    }
+
+    private static func transcribeWithWhisperKit(
+        _ whisperKit: WhisperKit,
+        audioArray: [Float],
+        decodeOptions: DecodingOptions,
+        callback: TranscriptionCallback
+    ) async throws -> TranscriptionResult {
+        let partialResults = try await whisperKit.transcribe(
+            audioArray: audioArray,
+            decodeOptions: decodeOptions,
+            callback: callback
+        )
         return TranscriptionUtilities.mergeTranscriptionResults(partialResults)
     }
 

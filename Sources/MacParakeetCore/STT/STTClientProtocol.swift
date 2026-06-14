@@ -51,6 +51,15 @@ public protocol STTLiveDictationTranscribing: Sendable {
     func cancelLiveDictationTranscription(sessionID: UUID) async
 }
 
+public protocol STTDictationPreviewTranscribing: Sendable {
+    func transcribeDictationPreview(
+        samples: [Float],
+        speechEngine: SpeechEngineSelection
+    ) async throws -> STTResult
+
+    func cancelDictationPreview() async
+}
+
 public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
     func transcribe(
         audioPath: String,

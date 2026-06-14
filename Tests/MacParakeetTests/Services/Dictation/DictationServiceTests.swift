@@ -475,6 +475,129 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(discardCallCount, 1)
     }
 
+    func testParakeetDisplayPreviewUsesSamplesButFinalStaysRecordedFile() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+
+        let previewApplied = await waitForCondition { [service] in
+            await service?.liveTranscript == "preview tail"
+        }
+        XCTAssertTrue(previewApplied, "Expected display preview to update liveTranscript")
+
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewSamples = await mockSTT.previewSamples
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveBeginCallCount = await mockSTT.liveBeginCallCount
+        XCTAssertEqual(previewCallCount, 1)
+        XCTAssertEqual(previewSamples, [[0.1, 0.2, 0.3]])
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(liveBeginCallCount, 0)
+    }
+
+    func testBlockedDisplayPreviewIsCancelledBeforeRecordedFileFinal() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+        await mockSTT.holdPreviewTranscription()
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let previewStarted = await waitForCondition { [mockSTT] in
+            await mockSTT?.previewCallCount == 1
+        }
+        XCTAssertTrue(previewStarted, "Expected preview pass to start")
+
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(previewCancelCallCount, 1)
+        XCTAssertEqual(transcribeCallCount, 1)
+    }
+
+    func testBlockedDisplayPreviewCancellationTimeoutStillAllowsRecordedFileFinal() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero,
+            dictationPreviewCancellationTimeout: .milliseconds(50)
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+        await mockSTT.holdPreviewTranscription(releaseOnCancel: false)
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let previewStarted = await waitForCondition { [mockSTT] in
+            await mockSTT?.previewCallCount == 1
+        }
+        XCTAssertTrue(previewStarted, "Expected preview pass to start")
+
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(previewCancelCallCount, 1)
+        XCTAssertEqual(transcribeCallCount, 1)
+
+        await mockSTT.releasePreviewTranscription()
+    }
+
+    func testPreRollDiscardClearsDisplayPreviewAndStillUsesRecordedFileFinal() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        let previewApplied = await waitForCondition { [service] in
+            await service?.liveTranscript == "preview tail"
+        }
+        XCTAssertTrue(previewApplied, "Expected display preview before pre-roll discard")
+
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+
+        let cleared = await waitForCondition { [service] in
+            await service?.liveTranscript == ""
+        }
+        XCTAssertTrue(cleared, "Expected pre-roll discard to clear display preview")
+
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        let discardCallCount = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(discardCallCount, 1)
+    }
+
     func testStopRecordingCancelsLiveSessionWhenCaptureIsTooShort() async throws {
         let shortCaptureAudio = StopFailingLiveAudioProcessor(error: AudioProcessorError.insufficientSamples)
         service = DictationService(

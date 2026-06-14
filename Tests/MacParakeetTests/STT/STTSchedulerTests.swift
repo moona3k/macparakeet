@@ -124,6 +124,89 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertFalse(hasActiveSession)
     }
 
+    func testDictationPreviewDoesNotUseLiveSessionReservation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "meeting-live")
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let meetingTask = Task {
+            try await scheduler.transcribe(audioPath: "meeting-live", job: .meetingLiveChunk)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let preview = try await scheduler.transcribeDictationPreview(
+            samples: [0.1, 0.2, 0.3],
+            speechEngine: SpeechEngineSelection(engine: .parakeet)
+        )
+        XCTAssertEqual(preview.text, "preview:3")
+
+        let availability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(availability, .transcribing)
+
+        await runtime.release(path: "meeting-live")
+        _ = try await meetingTask.value
+    }
+
+    func testEngineSwitchCancelsRunningDictationPreview() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextPreview()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            dictationPreviewDrainTimeout: .milliseconds(50)
+        )
+
+        let previewTask = Task {
+            try await scheduler.transcribeDictationPreview(
+                samples: [0.1, 0.2, 0.3],
+                speechEngine: SpeechEngineSelection(engine: .parakeet)
+            )
+        }
+        await runtime.waitForPreviewStart()
+
+        try await scheduler.setSpeechEngine(.whisper)
+
+        do {
+            _ = try await previewTask.value
+            XCTFail("Expected preview task to be cancelled by engine switch")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+
+        let switchCount = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(switchCount, 1)
+    }
+
+    func testEngineSwitchPreviewDrainTimeoutDoesNotHangScheduler() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setIgnoreCancellation(true)
+        await runtime.blockNextPreview()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            dictationPreviewDrainTimeout: .milliseconds(50)
+        )
+
+        let previewTask = Task {
+            try await scheduler.transcribeDictationPreview(
+                samples: [0.1, 0.2, 0.3],
+                speechEngine: SpeechEngineSelection(engine: .parakeet)
+            )
+        }
+        await runtime.waitForPreviewStart()
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        _ = try await value(switchTask, timeout: .seconds(1))
+
+        let switchCount = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(switchCount, 1)
+
+        await runtime.setIgnoreCancellation(false)
+        await runtime.forceReleaseAll()
+        _ = try? await previewTask.value
+    }
+
     func testMeetingFinalizeWaitsBehindRunningFileTranscriptionOnSharedBackgroundSlot() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "file")
@@ -918,16 +1001,19 @@ final class STTSchedulerTests: XCTestCase {
         _ task: Task<T, any Error>,
         timeout: Duration = .seconds(1)
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            defer { group.cancelAll() }
-            group.addTask {
-                try await task.value
+        try await withCheckedThrowingContinuation { continuation in
+            let gate = OneShotThrowingContinuation<T>(continuation)
+            Task {
+                do {
+                    gate.resume(returning: try await task.value)
+                } catch {
+                    gate.resume(throwing: error)
+                }
             }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw STTSchedulerTestError.timeout
+            Task {
+                try? await Task.sleep(for: timeout)
+                gate.resume(throwing: STTSchedulerTestError.timeout)
             }
-            return try await group.next()!
         }
     }
 
@@ -1054,6 +1140,31 @@ private enum STTSchedulerTestError: Error {
     case timeout
 }
 
+private final class OneShotThrowingContinuation<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, any Error>?
+
+    init(_ continuation: CheckedContinuation<T, any Error>) {
+        self.continuation = continuation
+    }
+
+    func resume(returning value: T) {
+        lock.lock()
+        let continuation = continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(returning: value)
+    }
+
+    func resume(throwing error: any Error) {
+        lock.lock()
+        let continuation = continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(throwing: error)
+    }
+}
+
 private final class LockedStringRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String] = []
@@ -1107,6 +1218,11 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var liveBeginContinuation: CheckedContinuation<Void, Never>?
     private var liveBeginStartContinuation: CheckedContinuation<Void, Never>?
     private var liveBeginStartedCount = 0
+    private(set) var previewSamples: [[Float]] = []
+    private(set) var previewSelections: [SpeechEngineSelection] = []
+    private var blockedPreviewCount = 0
+    private var previewContinuation: CheckedContinuation<Void, Never>?
+    private var previewStartContinuation: CheckedContinuation<Void, Never>?
 
     func transcribe(
         audioPath: String,
@@ -1143,6 +1259,49 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     ) async throws -> STTResult {
         routedSelections[audioPath] = speechEngine
         return try await transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
+    }
+
+    func transcribeDictationPreview(
+        samples: [Float],
+        speechEngine: SpeechEngineSelection
+    ) async throws -> STTResult {
+        previewSamples.append(samples)
+        previewSelections.append(speechEngine)
+        previewStartContinuation?.resume()
+        previewStartContinuation = nil
+        if blockedPreviewCount > 0 {
+            blockedPreviewCount -= 1
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    previewContinuation = continuation
+                }
+            } onCancel: {
+                Task { await self.cancelBlockedPreview() }
+            }
+            try Task.checkCancellation()
+        }
+        return STTResult(text: "preview:\(samples.count)", words: [], engine: speechEngine.engine)
+    }
+
+    func blockNextPreview() {
+        blockedPreviewCount += 1
+    }
+
+    func waitForPreviewStart() async {
+        guard previewSamples.isEmpty else { return }
+        await withCheckedContinuation { continuation in
+            previewStartContinuation = continuation
+        }
+    }
+
+    func releasePreview() {
+        previewContinuation?.resume()
+        previewContinuation = nil
+    }
+
+    private func cancelBlockedPreview() {
+        guard !ignoreCancellation else { return }
+        releasePreview()
     }
 
     func beginLiveDictationTranscription(
@@ -1400,6 +1559,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             continuation.resume(throwing: CancellationError())
         }
         waitingContinuations.removeAll()
+        releasePreview()
         releaseClearModelCache()
     }
 
