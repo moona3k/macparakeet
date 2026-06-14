@@ -324,6 +324,42 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveFinishCallCount, 1)
     }
 
+    func testLiveNemotronPreviewDisabledStillUsesLiveFinalButHidesPartials() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true },
+            shouldShowDictationPreview: { false }
+        )
+        await mockSTT.configure(result: STTResult(text: "file fallback"))
+        await mockSTT.configureLive(result: STTResult(
+            text: "live final",
+            words: [],
+            language: "en",
+            engine: .nemotron,
+            engineVariant: NemotronModelVariant.multilingual1120.rawValue
+        ))
+
+        try await service.startRecording()
+        await mockSTT.emitLivePartial(" live partial ")
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "live final")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        XCTAssertEqual(transcribeCallCount, 0)
+        XCTAssertEqual(liveAppendCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 1)
+    }
+
     func testStopRecordingFallsBackToRecordedFileWhenLiveNemotronFails() async throws {
         service = DictationService(
             audioProcessor: mockAudio,

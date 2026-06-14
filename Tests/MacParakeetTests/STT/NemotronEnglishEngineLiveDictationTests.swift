@@ -19,6 +19,19 @@ final class NemotronEnglishEngineLiveDictationTests: XCTestCase {
         XCTAssertNotNil(engine)
     }
 
+    func testRuntimeDoesNotRejectEnglishVariantAsUnsupportedForLiveDictation() async {
+        let runtime = STTRuntime(speechEngine: .nemotron, nemotronModelVariant: .english1120)
+
+        do {
+            try await runtime.beginLiveDictationTranscription(sessionID: UUID()) { _ in }
+            XCTFail("Expected unprepared English Nemotron runtime to throw modelNotReady")
+        } catch let error as STTLiveDictationTranscriptionError {
+            XCTAssertEqual(error, .modelNotReady)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testProcessSamplesWithoutActiveSessionThrowsSessionNotActive() async {
         let engine = NemotronEnglishEngine()
         do {

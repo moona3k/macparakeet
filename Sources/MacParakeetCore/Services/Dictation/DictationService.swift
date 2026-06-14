@@ -964,6 +964,10 @@ public actor DictationService: DictationServiceProtocol {
               case .recording = _state else {
             return
         }
+        guard shouldShowDictationPreview() else {
+            liveTranscriptText = ""
+            return
+        }
         liveTranscriptText = partial.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
