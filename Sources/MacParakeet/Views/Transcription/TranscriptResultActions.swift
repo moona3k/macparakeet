@@ -80,7 +80,8 @@ enum TranscriptResultActions {
         } catch {
             Telemetry.send(.exportFailed(
                 format: format.rawValue,
-                errorType: TelemetryErrorClassifier.classify(error)
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
             throw error
         }
@@ -112,7 +113,8 @@ enum TranscriptResultActions {
         } catch {
             Telemetry.send(.exportFailed(
                 format: format.rawValue,
-                errorType: TelemetryErrorClassifier.classify(error)
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
             throw error
         }

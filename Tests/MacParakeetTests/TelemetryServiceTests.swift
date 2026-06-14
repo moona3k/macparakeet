@@ -389,6 +389,7 @@ final class TelemetryServiceTests: XCTestCase {
             .dictationFailed(errorType: "runtime", errorDetail: rawDetail),
             .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),
             .diarizationFailed(source: .meeting, errorType: "runtime", errorDetail: rawDetail),
+            .exportFailed(format: "pdf", errorType: "runtime", errorDetail: rawDetail),
             .llmPromptResultFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
             .llmChatFailed(provider: "openai", source: .transcriptChat, errorType: "provider", errorDetail: rawDetail),
             .llmTransformFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
