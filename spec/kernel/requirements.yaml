@@ -372,7 +372,7 @@ REQ-MEET-015:
   status: implemented
 
 REQ-MEET-016:
-  description: Activity-based meeting detection recognizes an unscheduled live meeting from metadata-only on-device signals (per-process CoreAudio audio attribution, CoreMediaIO camera activity, recognized conferencing-app/URL registry) fused so camera alone never triggers, with self-attribution exclusion and a stabilization + decline-cooldown prompt state machine, and offers to record (opt-in auto-start as a separate mode); Phase A implements the default-off process-audio attribution collector, shared signal snapshot, trust-tiered app registry, detection mode, and pure detector tests while camera collection, coordinator/UI wiring, prompt telemetry, and auto-stop attribution remain deferred; opt-in, default off, metadata-only/local-first, gated by AppFeatures.meetingActivityDetectionEnabled (ADR-024)
+  description: Activity-based meeting detection recognizes an unscheduled live meeting from metadata-only on-device signals (per-process CoreAudio audio attribution, CoreMediaIO camera activity, recognized conferencing-app/URL registry) fused so camera alone never triggers, with self-attribution exclusion and a stabilization + decline-cooldown prompt state machine, and offers to record (opt-in auto-start as a separate mode); Phases A+B implement the default-off process-audio attribution collector, CoreMediaIO camera activity collector, shared signal snapshot, trust-tiered app registry, detection mode, and pure detector tests while coordinator/UI wiring, prompt telemetry, and auto-stop attribution remain deferred; opt-in, default off, metadata-only/local-first, gated by AppFeatures.meetingActivityDetectionEnabled (ADR-024)
   version: v0.7
   status: active
 

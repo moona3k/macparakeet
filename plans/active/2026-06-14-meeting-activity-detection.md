@@ -1,6 +1,6 @@
 # Activity-Based Meeting Detection
 
-**Status:** IN PROGRESS — Phase A implemented 2026-06-14 behind
+**Status:** IN PROGRESS — Phases A+B implemented 2026-06-14 behind
 `AppFeatures.meetingActivityDetectionEnabled = false`. No user-visible behavior
 ships until later phases add coordinator/UI wiring and the flag is validated.
 **Date:** 2026-06-14
@@ -9,7 +9,7 @@ implements). Related: ADR-002 (local-first), ADR-014 (meeting recording),
 ADR-015 (concurrent dictation/meeting), ADR-017 (calendar auto-start — the
 coordinator/pure-evaluator pattern to mirror), ADR-023 (activity-based
 auto-stop — consumes the same signal layer this plan builds).
-**Requirement:** REQ-MEET-016 (v0.7, Phase A foundation implemented).
+**Requirement:** REQ-MEET-016 (v0.7, Phases A+B foundation implemented).
 
 ## What this plan closes out
 
@@ -101,7 +101,7 @@ structure (tiers, self-exclusion, dwell, suppression) is in place and tested.
 fabricated snapshots. Collector compiles and excludes self. No user-visible
 change (flag off, no coordinator).
 
-### Phase B — Camera collector + full fusion rule + self-exclusion across signals
+### Phase B — Camera collector + full fusion rule + self-exclusion across signals — implemented 2026-06-14
 
 | File | Change |
 |------|--------|

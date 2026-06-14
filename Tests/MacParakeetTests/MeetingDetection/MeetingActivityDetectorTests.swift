@@ -123,6 +123,26 @@ final class MeetingActivityDetectorTests: XCTestCase {
         XCTAssertEqual(result, [])
     }
 
+    func testMicAndCameraWithSelfFilteredAudioDoesNotTrigger() {
+        let processes = [
+            AudioProcessActivity(pid: 100, bundleID: "com.macparakeet", isRunningInput: true, isRunningOutput: false),
+        ]
+        let filtered = AudioProcessActivityCollector.filterSelf(
+            processes: processes,
+            selfProcessID: 100,
+            selfBundleID: "com.macparakeet"
+        )
+
+        let result = evaluate(
+            signal: ActivitySignalSnapshot(
+                audio: ProcessAudioSnapshot(processes: filtered),
+                cameraRunning: true
+            )
+        )
+
+        XCTAssertEqual(result, [])
+    }
+
     func testSuppressedIdentityDoesNotPromptUntilCooldownExpires() {
         let identity = MeetingIdentity(source: .app, app: .zoom)
         let signal = snapshot(input: [.zoom])
@@ -169,6 +189,12 @@ final class MeetingActivityDetectorTests: XCTestCase {
         )
 
         XCTAssertEqual(filtered, [activity(.teams, pid: 200, input: true)])
+    }
+
+    func testCameraCollectorAggregatesAnyRunningDevice() {
+        XCTAssertFalse(CameraActivityCollector.cameraRunning(deviceStates: []))
+        XCTAssertFalse(CameraActivityCollector.cameraRunning(deviceStates: [false, false]))
+        XCTAssertTrue(CameraActivityCollector.cameraRunning(deviceStates: [false, true, false]))
     }
 
     private func evaluate(
