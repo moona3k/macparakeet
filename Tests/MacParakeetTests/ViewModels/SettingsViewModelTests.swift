@@ -324,6 +324,25 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.liveDictationPreview, .liveDictationPreview])
     }
 
+    func testDictationPreviewTextSizeDefaultsToMediumPersistsAndEmitsTelemetry() {
+        XCTAssertEqual(viewModel.dictationPreviewTextSize, .medium)
+
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationPreviewTextSize = .large
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationPreviewTextSizeKey),
+            DictationPreviewTextSize.large.rawValue
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.liveDictationPreview])
+    }
+
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
         var microphoneNotificationCount = 0
         var instantDictationNotificationCount = 0

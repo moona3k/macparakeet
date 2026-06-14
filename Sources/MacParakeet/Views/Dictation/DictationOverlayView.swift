@@ -451,30 +451,50 @@ struct DictationOverlayView: View {
         return String(compact.suffix(180))
     }
 
+    /// Visual metrics for the live preview, keyed off the user's size choice.
+    /// Width stays fixed (the floating panel is 300pt wide and the shadow must
+    /// not clip); only the type scale, line spacing, and vertical breathing room
+    /// grow with size.
+    private var previewMetrics: (font: CGFloat, lineSpacing: CGFloat, verticalPadding: CGFloat, minHeight: CGFloat) {
+        switch viewModel.previewTextSize {
+        case .small:
+            return (13, 1, 8, 30)
+        case .medium:
+            return (16, 2, 9, 34)
+        case .large:
+            return (19, 3, 11, 40)
+        }
+    }
+
     @ViewBuilder
     private var liveTranscriptPreviewPanel: some View {
         if let liveTranscriptPreview {
+            let metrics = previewMetrics
             Text(liveTranscriptPreview)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.76))
+                .font(.system(size: metrics.font, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.92))
                 .lineLimit(2)
+                .lineSpacing(metrics.lineSpacing)
                 .truncationMode(.head)
                 .multilineTextAlignment(.leading)
                 .frame(width: 252, alignment: .leading)
-                .frame(minHeight: 30, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
+                .frame(minHeight: metrics.minHeight, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, metrics.verticalPadding)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(DesignSystem.Colors.pillBackground.opacity(0.82))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .strokeBorder(DesignSystem.Colors.pillBorder.opacity(0.42), lineWidth: 0.5)
                         )
-                        .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
+                        .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
                 )
                 .accessibilityLabel(liveTranscriptPreview)
                 .padding(.bottom, 2)
+                // Smoothly grow/shrink the card when the size changes live
+                // (Settings picker) instead of snapping between presets.
+                .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
                 .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
         }
     }

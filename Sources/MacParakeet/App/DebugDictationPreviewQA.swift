@@ -6,6 +6,7 @@ import MacParakeetCore
 final class DebugDictationPreviewQA {
     private static let launchArgument = "--qa-dictation-preview-overlay"
     private static let transcriptArgument = "--qa-dictation-preview-text"
+    private static let sizeArgument = "--qa-dictation-preview-size"
 
     private let arguments: [String]
     private var overlayController: DictationOverlayController?
@@ -31,6 +32,8 @@ final class DebugDictationPreviewQA {
         viewModel.recordingElapsedSeconds = 8
         viewModel.audioLevel = 0.45
         viewModel.liveTranscript = arguments.value(after: Self.transcriptArgument) ?? Self.defaultTranscript
+        viewModel.previewTextSize = arguments.value(after: Self.sizeArgument)
+            .flatMap(DictationPreviewTextSize.init(rawValue:)) ?? .medium
         viewModel.onCancel = { [weak self] in self?.hide() }
         viewModel.onStop = { [weak self] in self?.hide() }
         viewModel.startTimer()

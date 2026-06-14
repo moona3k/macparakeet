@@ -20,6 +20,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var pauseMediaDuringDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
+    var dictationPreviewTextSize: DictationPreviewTextSize { get }
     var shouldKeepDictationOnClipboard: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
@@ -67,6 +68,34 @@ public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, E
             return .sentence
         }
         return style
+    }
+}
+
+/// Text size for the in-progress live transcript preview shown above the
+/// dictation pill. Discrete presets keep the control glanceable; the view layer
+/// maps each case to concrete font/padding metrics so Core stays UI-free.
+public enum DictationPreviewTextSize: String, CaseIterable, Hashable, Sendable, Equatable {
+    case small
+    case medium
+    case large
+
+    public var displayTitle: String {
+        switch self {
+        case .small:
+            return "Small"
+        case .medium:
+            return "Medium"
+        case .large:
+            return "Large"
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> DictationPreviewTextSize {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationPreviewTextSizeKey),
+              let size = DictationPreviewTextSize(rawValue: raw) else {
+            return .medium
+        }
+        return size
     }
 }
 
@@ -210,6 +239,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
+    public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
@@ -310,6 +340,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var showLiveDictationPreview: Bool {
         defaults.object(forKey: Self.showLiveDictationPreviewKey) as? Bool ?? true
+    }
+
+    public var dictationPreviewTextSize: DictationPreviewTextSize {
+        DictationPreviewTextSize.current(defaults: defaults)
     }
 
     public var shouldKeepDictationOnClipboard: Bool {

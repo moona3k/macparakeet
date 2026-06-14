@@ -230,6 +230,20 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .liveDictationPreview))
         }
     }
+    public var dictationPreviewTextSize: DictationPreviewTextSize {
+        didSet {
+            guard dictationPreviewTextSize != oldValue else { return }
+            defaults.set(
+                dictationPreviewTextSize.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationPreviewTextSizeKey
+            )
+            // Let an active dictation overlay re-read the size and resize live.
+            NotificationCenter.default.post(name: .macParakeetDictationPreviewTextSizeDidChange, object: nil)
+            // Reuses the live-preview setting channel — size is part of the same
+            // feature, so no separate telemetry setting name is needed.
+            Telemetry.send(.settingChanged(setting: .liveDictationPreview))
+        }
+    }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
     public var microphoneTestState: MicrophoneTestState = .idle
     public var microphoneTestLevel: Float = 0
@@ -695,6 +709,7 @@ public final class SettingsViewModel {
         showLiveDictationPreview = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
         ) as? Bool ?? true
+        dictationPreviewTextSize = DictationPreviewTextSize.current(defaults: defaults)
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))

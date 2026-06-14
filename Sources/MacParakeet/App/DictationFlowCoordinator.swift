@@ -238,6 +238,7 @@ final class DictationFlowCoordinator {
         self.onHistoryReload = onHistoryReload
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
+        observePreviewTextSizeNotifications()
     }
 
     // MARK: - AI Formatter pill transitions
@@ -280,6 +281,24 @@ final class DictationFlowCoordinator {
             vm.isHovered = false
             vm.hoverTooltip = nil
             vm.state = .formatting
+        }
+    }
+
+    /// Observer token for `.macParakeetDictationPreviewTextSizeDidChange` —
+    /// lets a size change in Settings resize the live preview mid-dictation
+    /// instead of only taking effect on the next recording.
+    private var previewTextSizeObserver: NSObjectProtocol?
+
+    private func observePreviewTextSizeNotifications() {
+        previewTextSizeObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationPreviewTextSizeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.overlayViewModel?.previewTextSize = self.runtimePreferences.dictationPreviewTextSize
+            }
         }
     }
 
@@ -443,6 +462,7 @@ final class DictationFlowCoordinator {
             vm.busyProcessingMessage = nil
             vm.processingLoadCaption = nil
             vm.liveTranscript = ""
+            vm.previewTextSize = runtimePreferences.dictationPreviewTextSize
             vm.state = .recording
             vm.startTimer()
 

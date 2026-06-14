@@ -1024,10 +1024,29 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Live transcript preview",
-                    detail: "Shows a short in-progress transcript above the dictation pill while recording. Available with the Parakeet and Nemotron engines, not Whisper.",
+                    detail: "Shows a running transcript above the dictation pill as you speak. Works with the Parakeet and Nemotron engines; not yet available with Whisper.",
                     isBeta: true,
                     isOn: $viewModel.showLiveDictationPreview
                 )
+
+                if viewModel.showLiveDictationPreview {
+                    Divider()
+                    HStack(alignment: .center) {
+                        rowText(
+                            title: "Preview text size",
+                            detail: "Text size for the live preview above the dictation pill."
+                        )
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        Picker("Preview text size", selection: $viewModel.dictationPreviewTextSize) {
+                            ForEach(DictationPreviewTextSize.allCases, id: \.self) { size in
+                                Text(size.displayTitle).tag(size)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                    }
+                }
 
                 Divider()
 
@@ -1066,6 +1085,10 @@ struct SettingsView: View {
                     isOn: $viewModel.keepDictationOnClipboard
                 )
             }
+            // Smoothly reveal/hide the "Preview text size" sub-row (and reflow
+            // the rows below it) when the preview toggle flips, instead of
+            // snapping it in.
+            .animation(.easeInOut(duration: 0.2), value: viewModel.showLiveDictationPreview)
         }
     }
 

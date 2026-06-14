@@ -36,4 +36,8 @@ public extension Notification.Name {
     /// changes. The coordinator re-reads the opt-in toggle immediately so
     /// disabling it tears down observers/countdowns without waiting.
     static let macParakeetMeetingAutoStopDidChange = Notification.Name("macparakeet.meetingAutoStopDidChange")
+    /// Posted when the live transcript preview text size changes. The dictation
+    /// flow coordinator re-reads the preference and updates the on-screen
+    /// preview live, so a size change is visible mid-dictation.
+    static let macParakeetDictationPreviewTextSizeDidChange = Notification.Name("macparakeet.dictationPreviewTextSizeDidChange")
 }

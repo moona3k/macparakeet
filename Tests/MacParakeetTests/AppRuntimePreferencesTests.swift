@@ -142,6 +142,31 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).showLiveDictationPreview)
     }
 
+    func testDictationPreviewTextSizeDefaultsToMediumAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationPreviewTextSize, .medium)
+
+        defaults.set(
+            DictationPreviewTextSize.large.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationPreviewTextSizeKey
+        )
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationPreviewTextSize, .large)
+    }
+
+    func testDictationPreviewTextSizeFallsBackToMediumOnUnknownRawValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set("gigantic", forKey: UserDefaultsAppRuntimePreferences.dictationPreviewTextSizeKey)
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationPreviewTextSize, .medium)
+    }
+
     func testAIFormatterEnabledForDictationDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

@@ -221,6 +221,7 @@ final class DictationOverlayViewModel {
     var busyProcessingMessage: String?
     var processingLoadCaption: ProcessingLoadCaption?
     var liveTranscript: String = ""
+    var previewTextSize: DictationPreviewTextSize = .medium
     var commandPromptText: String = "Speak your command..."
     var commandSelectedText: String = ""
 
