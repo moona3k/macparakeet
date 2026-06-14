@@ -1,6 +1,8 @@
 import Foundation
 import OSLog
 
+private typealias OneShotBoolContinuation = OneShotContinuation<Bool>
+
 public enum STTSchedulerError: Error, LocalizedError, Equatable {
     case droppedDueToBackpressure(job: STTJobKind)
     case unavailable
@@ -12,23 +14,6 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
         case .unavailable:
             return "Speech scheduler is temporarily unavailable"
         }
-    }
-}
-
-private final class OneShotBoolContinuation: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Bool, Never>?
-
-    init(_ continuation: CheckedContinuation<Bool, Never>) {
-        self.continuation = continuation
-    }
-
-    func resume(returning value: Bool) {
-        lock.lock()
-        let continuation = continuation
-        self.continuation = nil
-        lock.unlock()
-        continuation?.resume(returning: value)
     }
 }
 
@@ -199,6 +184,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
             throw STTSchedulerError.unavailable
         }
         guard liveDictationSession == nil else {
+            throw STTError.engineBusy
+        }
+        guard dictationPreviewExecution == nil else {
             throw STTError.engineBusy
         }
         let interactiveState = slotState(for: .interactive)

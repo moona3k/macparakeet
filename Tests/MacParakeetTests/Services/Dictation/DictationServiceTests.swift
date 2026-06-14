@@ -537,6 +537,37 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(transcribeCallCount, 1)
     }
 
+    func testDisplayPreviewTailWindowDropsOldSamples() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewInterval: .zero,
+            dictationPreviewWindowSeconds: 3.0 / 16_000.0
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "preview tail", words: [], engine: .parakeet))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        let firstPreviewApplied = await waitForCondition { [mockSTT] in
+            await mockSTT?.previewCallCount == 1
+        }
+        XCTAssertTrue(firstPreviewApplied, "Expected first preview pass")
+
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        let secondPreviewApplied = await waitForCondition { [mockSTT] in
+            await mockSTT?.previewCallCount == 2
+        }
+        XCTAssertTrue(secondPreviewApplied, "Expected second preview pass")
+
+        _ = try await service.stopRecording()
+
+        let previewSamples = await mockSTT.previewSamples
+        XCTAssertEqual(previewSamples, [[0.1, 0.2], [0.2, 0.3, 0.4]])
+    }
+
     func testBlockedDisplayPreviewIsCancelledBeforeRecordedFileFinal() async throws {
         service = DictationService(
             audioProcessor: mockAudio,

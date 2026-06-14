@@ -183,7 +183,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return try await transcribeWhisperPreview(samples: samples, language: selection.language)
         case .nemotron:
-            throw STTLiveDictationTranscriptionError.unsupportedEngine(.nemotron)
+            throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
         }
     }
 
@@ -411,6 +411,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             return STTResult(
                 text: result.text,
                 words: Self.mergeTokenTimingsIntoWords(result.tokenTimings),
+                // Mirrors batch Parakeet attribution: the build variant carries v2/v3.
                 language: "en",
                 engine: .parakeet,
                 engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue

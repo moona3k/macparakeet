@@ -177,6 +177,33 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(switchCount, 1)
     }
 
+    func testLiveDictationBeginRejectedWhileDictationPreviewIsRunning() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))
+        await runtime.blockNextPreview()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let previewTask = Task {
+            try await scheduler.transcribeDictationPreview(
+                samples: [0.1, 0.2, 0.3],
+                speechEngine: SpeechEngineSelection(engine: .parakeet)
+            )
+        }
+        await runtime.waitForPreviewStart()
+
+        do {
+            _ = try await scheduler.beginLiveDictationTranscription { _ in }
+            XCTFail("Expected live dictation begin to be rejected while preview is running")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        } catch {
+            XCTFail("Expected engineBusy, got \(error)")
+        }
+
+        await runtime.releasePreview()
+        _ = try await previewTask.value
+    }
+
     func testEngineSwitchPreviewDrainTimeoutFailsFastAndAllowsRetryAfterDrain() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setIgnoreCancellation(true)

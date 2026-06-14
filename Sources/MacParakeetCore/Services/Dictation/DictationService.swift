@@ -878,16 +878,29 @@ public actor DictationService: DictationServiceProtocol {
         let windowSampleCount = dictationPreviewWindowSampleCount
         let task = Task { [weak self, previewTranscriber] in
             var tailSamples: [Float] = []
+            var tailStartIndex = 0
             let clock = ContinuousClock()
             var lastPass = clock.now
+            func appendTailSamples(_ samples: [Float]) {
+                tailSamples.append(contentsOf: samples)
+                let visibleCount = tailSamples.count - tailStartIndex
+                if visibleCount > windowSampleCount {
+                    tailStartIndex += visibleCount - windowSampleCount
+                }
+                if tailStartIndex > windowSampleCount, tailStartIndex * 2 > tailSamples.count {
+                    tailSamples.removeFirst(tailStartIndex)
+                    tailStartIndex = 0
+                }
+            }
+            func currentTailWindow() -> [Float] {
+                guard tailStartIndex < tailSamples.count else { return [] }
+                return Array(tailSamples[tailStartIndex...])
+            }
 
             for await samples in stream {
                 guard !Task.isCancelled else { break }
                 guard !samples.isEmpty else { continue }
-                tailSamples.append(contentsOf: samples)
-                if tailSamples.count > windowSampleCount {
-                    tailSamples.removeFirst(tailSamples.count - windowSampleCount)
-                }
+                appendTailSamples(samples)
 
                 let now = clock.now
                 guard interval == .zero || lastPass.duration(to: now) >= interval else {
@@ -895,7 +908,7 @@ public actor DictationService: DictationServiceProtocol {
                 }
                 lastPass = now
 
-                let window = tailSamples
+                let window = currentTailWindow()
                 guard !window.isEmpty else { continue }
 
                 let startedAt = clock.now
