@@ -543,6 +543,7 @@ public actor DictationService: DictationServiceProtocol {
             state.markDegraded(reason: "preroll_discarded")
         }
         liveTranscriptText = ""
+        await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         await audioProcessor.discardPreRollForActiveCapture()
     }
 

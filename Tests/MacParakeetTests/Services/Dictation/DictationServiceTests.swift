@@ -620,6 +620,17 @@ final class DictationServiceTests: XCTestCase {
             await service?.liveTranscript == ""
         }
         XCTAssertTrue(cleared, "Expected pre-roll discard to clear display preview")
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        XCTAssertEqual(previewCancelCallCount, 1)
+
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        try await Task.sleep(for: .milliseconds(50))
+        let previewCallCount = await mockSTT.previewCallCount
+        XCTAssertEqual(
+            previewCallCount,
+            1,
+            "Preview should stop after pre-roll discard so stale pre-roll samples cannot re-enter the visible tail"
+        )
 
         let result = try await service.stopRecording()
 
