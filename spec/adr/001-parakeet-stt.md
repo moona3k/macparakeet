@@ -145,13 +145,20 @@ Nemotron model preference (Settings build picker, `config set nemotron-model`,
   roadmap item 2 (§9) (June 2026 STT research, currently on the
   `research/stt-models-voice-personalization` branch pending merge).
 
-Scope notes: the EN build runs batch-at-stop through the streaming manager
-(no live dictation partials in this amendment), exposes no word-level
-timestamps or confidence scores (the established Nemotron posture), and only
-the 1120 ms tier is surfaced. Build swaps follow the same scheduler guards as
+Scope notes: file and meeting jobs run batch-at-stop through the streaming
+manager; the EN build exposes no word-level timestamps or confidence scores
+(the established Nemotron posture), and only the 1120 ms tier is surfaced.
+Build swaps follow the same scheduler guards as
 Parakeet v2/v3 swaps (ADR-016). License posture: FluidAudio and its CoreML
 conversion are Apache-2.0, but upstream NVIDIA model terms are not publicly
 verifiable, so the model stays a user-triggered download — never bundled.
+
+> Amendment (2026-06-14): the EN build now also streams **live dictation
+> partials** (the display-only live transcript preview) through its native
+> streaming path, matching the multilingual build; file and meeting jobs remain
+> batch-at-stop. Gated by `AppFeatures.liveDictationStreamingEnabled`. See
+> `plans/active/2026-06-13-live-dictation-streaming-parakeet-and-preview-ui.md`
+> and `docs/research/live-dictation-streaming.md`.
 
 Both Nemotron builds remain Beta; fresh installs default to Parakeet v3.
 Promotion criteria are unchanged: real MacParakeet corpus benchmarks

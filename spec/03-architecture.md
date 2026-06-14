@@ -75,6 +75,11 @@
 │  │   ~2.5% WER, 155x realtime   │                                                │
 │  └──────────────────────────────┘                                                │
 │  ┌──────────────────────────────┐                                                │
+│  │   Nemotron STT (optional)    │                                                │
+│  │   FluidAudio CoreML, Beta    │                                                │
+│  │   Multilingual + English     │                                                │
+│  └──────────────────────────────┘                                                │
+│  ┌──────────────────────────────┐                                                │
 │  │   WhisperKit STT (optional)  │                                                │
 │  │   Local multilingual engine  │                                                │
 │  │   Explicit model download    │                                                │
@@ -449,6 +454,7 @@ public typealias STTClientProtocol = STTManaging
 
 public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
+    case nemotron
     case whisper
 }
 
@@ -683,7 +689,7 @@ protocol TranscriptionRepositoryProtocol: Sendable {
 
 ### 3. Local STT Engines
 
-Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine family: v3 is the multilingual default and v2 is an English-only opt-in. WhisperKit is an optional local engine for broader language coverage.
+Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine family: v3 is the multilingual default and v2 is an English-only opt-in. Two optional local engines extend coverage: Nemotron 3.5 (Beta), a fast FluidAudio CoreML streaming engine with a multilingual default build and an English-only build, and WhisperKit for broader language coverage.
 
 **Responsibility:** Speech-to-text transcription using the user's selected local engine.
 
@@ -700,7 +706,16 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 | Output | Text + word-level timestamps + confidence |
 | Model download | ~465 MB CoreML bundle per build; v2 and v3 cache independently |
 
-| Optional Engine | Value |
+| Optional Engine (Nemotron, Beta) | Value |
+|-----------------|-------|
+| Model | Nemotron 3.5 ASR Streaming 0.6B (`nemotron-multilingual-1120ms`, default) / Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, English-only) |
+| Runtime | FluidAudio CoreML streaming path |
+| Sizes | ~1.5 GB (multilingual) / ~600 MB (English) |
+| Output | Text + detected/specified language; no word-level timestamps surfaced |
+| Model cache | FluidAudio cache (`nemotron-multilingual/` and `nemotron-streaming/<tier>ms`) |
+| Selection | Settings speech-engine + Nemotron Model picker, or CLI `--engine nemotron --nemotron-model <id>` |
+
+| Optional Engine (WhisperKit) | Value |
 |-----------------|-------|
 | Model | Whisper large-v3 turbo CoreML variant by default |
 | Runtime | WhisperKit |
@@ -1341,4 +1356,4 @@ open Package.swift
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-06-14*

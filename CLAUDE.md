@@ -38,6 +38,12 @@ validation flips it: `AppFeatures.meetingActivityDetectionEnabled = false`
 foundation; no runtime coordinator/UI yet). Reliability kill-switch on `main`:
 `AppFeatures.meetingCaptureReliabilityEnabled = true` (ADR-025 Phase A
 mic-health telemetry watchdog; default-on, no UI/recording behavior change).
+`AppFeatures.liveDictationStreamingEnabled = true` (display-only live dictation
+transcript preview above the pill — Parakeet uses a single-flight tail-window
+batch preview, both Nemotron builds use their native live-partial path, and
+Whisper stays default-off pending a per-pass latency probe; the paste still
+comes from the stop-time transcription path; #517, enabled on `main`
+2026-06-14, not yet in a tagged release).
 All other `AppFeatures` flags match the shipping build.
 
 Ship history for flagged features: Transforms reached stable in v0.6.7;
@@ -167,6 +173,7 @@ default-off activity-based meeting auto-stop (ADR-023, `main` validation flag),
 default-off activity-based meeting detection foundation (ADR-024 Phases A+B,
 no runtime coordinator/UI yet),
 meeting mic-health telemetry watchdog (ADR-025 Phase A, default-on kill-switch),
+display-only live dictation transcript preview (`main`-only flag, #517),
 and productized Transforms with `Polish`/`Distill`/`Decide` built-ins on
 Control-Option hotkeys (ADR-022). Calendar auto-start is ADR-017 Phases 1 + 2
 (enabled, default `.off`); Phase 3 (late-join/retro-link) remains proposed.
@@ -216,6 +223,7 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 - Nemotron 3.5 ASR (Beta) is an opt-in FluidAudio CoreML multilingual streaming engine (default build `nemotron-multilingual-1120ms`, ~1.5 GB) selected via Settings, `config set nemotron-language`, `models select nemotron-multilingual-1120ms`, or `transcribe --engine nemotron`; labeled Beta while real-world quality is benchmarked (no word-level timestamps surfaced yet from either build)
 - A second Nemotron build, Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, ~600 MB), is English-only (ignores the Nemotron language hint); file/meeting jobs transcribe batch-at-stop, while dictation streams live partials (live transcript preview) like the multilingual build; selected via Settings, `config set nemotron-model`, `models select nemotron-english-1120ms`, or `transcribe --nemotron-model`
 - WhisperKit is available as a local secondary engine for broader language coverage; default model variant is `large-v3-v20240930_turbo_632MB`
+- Display-only live dictation transcript preview (`AppFeatures.liveDictationStreamingEnabled`, `main`-only, #517): an ephemeral tail of in-progress text renders above the dictation pill while you speak. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Parakeet uses a single-flight tail-window batch preview, both Nemotron builds use their native live-partial path, and Whisper stays default-off pending a per-pass latency probe. Users toggle it in Settings → Capture → Dictation (`showLiveDictationPreview`, default on) and can pick a preview text size
 - Whisper and Nemotron language hints are optional (`auto` means detect); persisted defaults are stored in `UserDefaults` and exposed in Settings
 - One process-wide `STTRuntime` owner manages model lifecycle for the app
 - The default STT topology uses 2 execution slots: reserved dictation + shared meeting/batch
@@ -485,11 +493,11 @@ open Package.swift  # Select MacParakeet scheme
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet / Nemotron STT models | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron: `nemotron-multilingual/`; CoreML; ~465 MB per Parakeet build, ~1.5 GB Nemotron) |
+| Parakeet / Nemotron STT models | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron multilingual: `nemotron-multilingual/`; Nemotron English: `nemotron-streaming/<tier>ms`, e.g. `nemotron-streaming/1120ms`; CoreML; ~465 MB per Parakeet build, ~1.5 GB Nemotron multilingual / ~600 MB Nemotron English) |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
-| Settings | `~/Library/Preferences/com.macparakeet.plist` |
+| Settings | `~/Library/Preferences/com.macparakeet.MacParakeet.plist` (dev build: `com.macparakeet.dev`) |
 | Temp audio | `$TMPDIR/macparakeet/` |
 | Logs | `~/Library/Logs/MacParakeet/` |
 

@@ -1,8 +1,10 @@
 # Nemotron Speech Streaming EN 0.6B as a first-class engine variant
 
-> Status: **ACTIVE** — implementation done, committed on branch
-> `feat/nemotron-english-streaming-variant`, awaiting CI + the user's
-> host-side checklist before the draft PR. This file is the session handoff;
+> Status: **SHIPPED** (2026-06-14) — merged as #503; `nemotron-english-1120ms`
+> (English-only, ~600 MB, opt-in Beta) is selectable in Settings/CLI. The
+> branch also gained live dictation partials on
+> `nemotron-english-live-transcript-preview` (see ADR-001 amendment 2026-06-14).
+> Verify-then-archive to `plans/completed/`. This file is the session handoff;
 > it is self-contained (the original approved plan lived at
 > `~/.claude/plans/fluidaudio-s-nemotron-speech-streaming-drifting-crayon.md`;
 > the 2026-06-12 restart plans live at

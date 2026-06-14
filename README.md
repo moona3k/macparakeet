@@ -64,7 +64,7 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 | Channel | Status | Includes |
 |---------|--------|----------|
 | Stable DMG | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes |
+| `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes (e.g., a display-only live dictation transcript preview) |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
 
@@ -173,7 +173,7 @@ same commands with `swift run`.
 |-------|--------|
 | STT | Parakeet TDT 0.6B via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in) + optional local Nemotron Beta and WhisperKit engines |
 | STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared meeting/file slot; speech-engine routing and meeting-session pinning |
-| Language | Swift 6.0 + SwiftUI |
+| Language | Swift 6 language mode (package tools-version 5.9) + SwiftUI |
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
 | Media URLs | yt-dlp |

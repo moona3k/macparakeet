@@ -90,7 +90,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), and activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), plus other follow-up polish | **Planned** |
+| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), plus other follow-up polish | **Planned** |
 
 ## Version Progress
 
@@ -235,7 +235,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 
 - [x] WhisperKit dependency and `WhisperEngine` wrapper with local model cache at `~/Library/Application Support/MacParakeet/models/stt/whisper/`
 - [x] Nemotron 3.5 Beta engine via FluidAudio CoreML, surfaced as opt-in local multilingual ASR with explicit model download/delete/status controls
-- [x] Nemotron Speech Streaming EN 0.6B surfaced as a second opt-in English-only Beta build with persisted model selection (multilingual default) via the Settings Nemotron Model card, `config set nemotron-model`, `models select nemotron-english-1120ms`, and `transcribe --nemotron-model`
+- [x] Nemotron Speech Streaming EN 0.6B surfaced as a second opt-in English-only Beta build with persisted model selection (multilingual default) via the Settings Nemotron Model card, `config set nemotron-model`, `models select nemotron-english-1120ms`, and `transcribe --nemotron-model`; dictation streams live partials (live transcript preview) like the multilingual build, while file/meeting jobs run batch-at-stop
 - [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
 - [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, and Whisper Language cards/controls
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active

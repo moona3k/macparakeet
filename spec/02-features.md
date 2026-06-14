@@ -276,6 +276,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
    - Waveform: 12 white bars, 3px wide, max 20px tall, center-peaking wave pattern, updates in real-time from audio level
    - Stop button: white square (10x10, cornerRadius 3) inside red circle, triggers stop
    - Recording timer displayed (e.g., "0:03") -- hover tooltips provide additional guidance
+   - **Live transcript preview (opt-in, `AppFeatures.liveDictationStreamingEnabled`, #517):** when enabled, a display-only ephemeral tail of in-progress text renders in a sibling panel *above* the pill (pill geometry unchanged). It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Per engine: Parakeet single-flight tail-window batch preview, both Nemotron builds native live partials, Whisper default-off. Toggle and preview text size live in Settings → Capture → Dictation (`showLiveDictationPreview`, default on). See `spec/05-audio-pipeline.md` → "Dictation Live Preview".
 
 2. **Cancelled** -- `[countdown ring] [Undo button]` (~140px)
    - Countdown ring: circular progress indicator (accent color, depletes over 5 seconds) with remaining seconds number in center
@@ -320,6 +321,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Hold shortcut activates hold-mode, release auto-stops and pastes
 - [x] Hotkey trigger configurable to bare modifiers, standalone keys, modifier+key chords, and modifier-only chords via record-a-shortcut UI; Fn+Space is supported and Escape remains reserved
 - [x] Overlay appears at bottom-center with waveform animation
+- [x] Optional display-only live transcript preview renders above the pill while speaking, decoupled from the paste (`liveDictationStreamingEnabled`, `main`-only)
 - [x] Hover tooltips display correctly on non-activating panel
 - [ ] Parakeet transcribes with <500ms end-to-end latency for short dictations
 - [x] Text auto-pastes into active app, clipboard restored afterward

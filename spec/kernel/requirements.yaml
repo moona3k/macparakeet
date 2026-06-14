@@ -154,6 +154,11 @@ REQ-DICT-006:
   version: v0.6
   status: implemented
 
+REQ-DICT-007:
+  description: Opt-in display-only live dictation transcript preview renders an ephemeral tail of in-progress text above the dictation pill while speaking, decoupled from the paste (final text always comes from the stop-time transcription path); Parakeet uses a single-flight tail-window batch preview, both Nemotron builds use native live partials, Whisper is default-off; gated by AppFeatures.liveDictationStreamingEnabled (enabled on main, not yet in a tagged release), toggle and preview text size in Settings -> Capture -> Dictation
+  version: v0.7
+  status: implemented
+
 REQ-DATA-003:
   description: Multi-conversation chat per transcription
   version: v0.5
@@ -283,7 +288,7 @@ REQ-MEET-014:
 # --- v0.6 Multilingual Speech Recognition ---
 
 REQ-STT-002:
-  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary; Nemotron dictation streams live partial text to the overlay and uses the streamed final transcript, falling back to recorded-file transcription when the live session cannot start, fails, drops samples, or finishes empty
+  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary; dictation on both Nemotron builds (multilingual and English) streams live partial text to the overlay and uses the streamed final transcript, falling back to recorded-file transcription when the live session cannot start, fails, drops samples, or finishes empty (Nemotron file/meeting jobs run batch-at-stop)
   version: v0.6
   status: implemented
 
@@ -374,7 +379,7 @@ REQ-MEET-015:
 REQ-MEET-016:
   description: Activity-based meeting detection recognizes an unscheduled live meeting from metadata-only on-device signals (per-process CoreAudio audio attribution, CoreMediaIO camera activity, recognized conferencing-app/URL registry) fused so camera alone never triggers, with self-attribution exclusion and a stabilization + decline-cooldown prompt state machine, and offers to record (opt-in auto-start as a separate mode); Phases A+B implement the default-off process-audio attribution collector, CoreMediaIO camera activity collector, shared signal snapshot, trust-tiered app registry, detection mode, and pure detector tests while coordinator/UI wiring, prompt telemetry, and auto-stop attribution remain deferred; opt-in, default off, metadata-only/local-first, gated by AppFeatures.meetingActivityDetectionEnabled (ADR-024)
   version: v0.7
-  status: active
+  status: implemented
 
 REQ-MEET-017:
   description: Meeting mic-health watchdog treats the system-audio stream as the liveness oracle and detects a stalled, all-zero, or missing microphone (three signatures) after a short confirmation window, emitting privacy-safe telemetry once per confirmed stall behind AppFeatures.meetingCaptureReliabilityEnabled; warning UI and auto-recovery remain deferred behind confirmed field signatures (ADR-025 Phase A)

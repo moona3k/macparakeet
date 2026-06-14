@@ -51,7 +51,9 @@ FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
 
 Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as Parakeet and Whisper rather than creating a feature-owned ASR stack.
 
-Because Nemotron is a streaming engine, dictation on Nemotron streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
+Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. (File and meeting jobs on Nemotron still run batch-at-stop.) The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
+
+**Display-only live dictation preview (all engines).** Separately from Nemotron's native streaming, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders an ephemeral tail of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet uses a single-flight tail-window batch preview (reusing its `[Float]` batch path), the Nemotron builds reuse their native live partials, and Whisper stays default-off pending a per-pass latency probe. Full behavior and lifecycle (single-flight, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
 
 ### WhisperKit Optional Engine
 
@@ -212,12 +214,13 @@ public typealias STTClientProtocol = STTManaging
 
 public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
+    case nemotron
     case whisper
 }
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     let engine: SpeechEnginePreference
-    let language: String?  // only used for Whisper; nil means auto-detect
+    let language: String?  // language hint for Whisper / Nemotron; nil means auto-detect
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {

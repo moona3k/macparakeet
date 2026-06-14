@@ -264,11 +264,21 @@ All STT work routes through a process-wide scheduler and shared runtime owner (A
 
 The primary concurrency use case remains meeting recording + dictation. File transcription may coexist architecturally, but it should never degrade dictation responsiveness.
 
-### Live Preview
+### Dictation Live Preview
 
 Dictation can show a display-only live transcript preview above the dictation
-pill while recording. The setting defaults on and gates only the preview sink;
-the final paste still comes from the stop-time transcription path.
+pill while you speak (`AppFeatures.liveDictationStreamingEnabled`, #517). It is
+decoupled from the paste: the final inserted text always comes from the
+stop-time transcription path, so a jumpy or approximate preview can never
+corrupt the result. Per engine: Parakeet runs a single-flight tail-window batch
+preview (~1s cadence over the last ~15s of mic samples through its existing
+`[Float]` batch path); both Nemotron builds reuse their native live-partial
+path; Whisper stays default-off pending a per-pass latency probe. Users toggle
+it — and pick a preview text size — in Settings → Capture → Dictation
+(`showLiveDictationPreview`, default on); the toggle gates only the preview
+sink. See `docs/research/live-dictation-streaming.md`.
+
+### Meeting Live Preview
 
 `CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper sessions currently use the fixed cadence. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
 - Live transcript preview in the recording pill

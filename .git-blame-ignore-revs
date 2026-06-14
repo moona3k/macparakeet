@@ -8,3 +8,6 @@
 
 # 2026-06-13 line-ending renormalization applied to main (CRLF -> LF, 63 .swift files)
 f858bc873825d090480fe0ca94c2356777ea0f2f
+
+# 2026-06-14 line-ending normalization of spec/03-architecture.md (CRLF straggler -> LF)
+f0a4a85c2d98f9fbe2d2ed62c0470ca487905221

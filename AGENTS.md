@@ -142,10 +142,10 @@ READMEs today: `Audio/`, `STT/`, `TextProcessing/`, `Database/`,
 |------|------|
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet / Nemotron CoreML STT models (~465 MB per Parakeet build, ~1.5 GB Nemotron) | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron: `nemotron-multilingual/`) |
+| Parakeet / Nemotron CoreML STT models (~465 MB per Parakeet build, ~1.5 GB Nemotron multilingual / ~600 MB Nemotron English) | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron multilingual: `nemotron-multilingual/`; Nemotron English: `nemotron-streaming/<tier>ms`) |
 | WhisperKit STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp / FFmpeg helper binaries | `~/Library/Application Support/MacParakeet/bin/` |
-| Settings | `~/Library/Preferences/com.macparakeet.plist` |
+| Settings | `~/Library/Preferences/com.macparakeet.MacParakeet.plist` (dev build: `com.macparakeet.dev`) |
 | Logs | `~/Library/Logs/MacParakeet/` |
 
 ## Where to Look Next
