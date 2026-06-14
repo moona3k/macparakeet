@@ -2028,7 +2028,7 @@ struct SettingsView: View {
                             "Korean, Mandarin, Japanese, Hindi",
                             "Cache-aware low-latency streaming"
                         ],
-                        helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy. Both stay Beta while real-world quality is benchmarked.",
+                        helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy.",
                         modelStatus: displayedNemotronModelStatus,
                         isSelected: viewModel.speechEnginePreference == .nemotron,
                         isBusy: viewModel.speechEngineSwitching,
@@ -2218,7 +2218,7 @@ struct SettingsView: View {
         if viewModel.speechEnginePreference == .nemotron {
             SettingsCard(
                 title: "Nemotron Model",
-                subtitle: "Pick which Nemotron build loads. English-only is a smaller download; both are Beta while MacParakeet corpus benchmarks run.",
+                subtitle: "Pick which Nemotron build loads. English-only is a smaller download.",
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {

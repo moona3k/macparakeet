@@ -376,9 +376,9 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
     public var coverageSummary: String {
         switch self {
         case .multilingual1120:
-            "Fast multilingual streaming model. Beta while MacParakeet benchmarks quality and edge cases."
+            "Fast multilingual streaming model."
         case .english1120:
-            "English only. Strong research-benchmarked accuracy; Beta while MacParakeet corpus benchmarks run."
+            "English only. Strong research-benchmarked accuracy."
         }
     }
 
