@@ -247,7 +247,6 @@ struct DictationOverlayView: View {
             }
 
             liveTranscriptPreviewPanel
-                .padding(.bottom, liveTranscriptPreview == nil ? 0 : 2)
 
             overlayContent
         }
@@ -475,6 +474,7 @@ struct DictationOverlayView: View {
                         .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
                 )
                 .accessibilityLabel(liveTranscriptPreview)
+                .padding(.bottom, 2)
                 .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
         }
     }
