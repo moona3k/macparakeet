@@ -300,6 +300,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | Event | Props | Question It Answers |
 |---|---|---|
 | `export_used` | `format` (txt, md, srt, vtt, docx, pdf, json) | Which export formats matter? |
+| `export_failed` | `format`, `error_type` | Which export formats fail and why (disk full, permissions, docx/pdf encode)? Pairs with `export_used` for a per-format success rate. |
 | `llm_prompt_result_used` | `provider` | Are prompt-library results and generated summaries being used? Which providers matter? |
 | `llm_prompt_result_failed` | `provider`, `error_type` | Failure rates for prompt-library result generation per provider |
 | `llm_chat_used` | `provider`, `source` (`meeting_ask`, `transcript_chat`), `message_count` | Do people chat with transcripts? Live meeting Ask is separable from post-transcription chat. |

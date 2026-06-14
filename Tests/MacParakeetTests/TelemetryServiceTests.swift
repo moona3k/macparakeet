@@ -1404,6 +1404,7 @@ final class TelemetryServiceTests: XCTestCase {
                 errorType: nil
             ),
             .exportUsed(format: "txt"),
+            .exportFailed(format: "pdf", errorType: "disk_full"),
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
             .llmChatUsed(provider: "openai", source: .transcriptChat, messageCount: 3),
