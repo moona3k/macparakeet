@@ -1001,6 +1001,56 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertNil(fetched.aiFormatterProfileMatchKind)
     }
 
+    /// A profile/category/smart-default can route a dictation and then the LLM
+    /// can return successfully but with empty/whitespace output. The dictation
+    /// then falls back to standard cleanup, so — like the failure path — the
+    /// saved record must NOT carry the matched profile, or History would
+    /// overclaim "Formatted with the '<profile>' prompt". Regression guard for
+    /// the empty-success branch the QA pass for the failure path did not cover.
+    func testStopRecordingDropsProfileProvenanceWhenAIFormatterReturnsEmpty() async throws {
+        await mockSTT.configure(result: STTResult(text: "send update to team"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "   \n  "
+        let resolver = RecordingAIFormatterPromptResolver(
+            resolution: AIFormatterPromptResolution(
+                promptTemplate: "Slack style prompt",
+                matchKind: .exactApp,
+                profileID: UUID(),
+                profileName: "Slack",
+                profileOrigin: .custom
+            )
+        )
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptResolver: resolver
+        )
+
+        try await service.startRecording()
+        let context = AppPromptContext(
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            displayName: "Slack"
+        )
+        await service.updateAIFormatterAppContext(context, phase: .start)
+        let result = try await service.stopRecording()
+
+        // The formatter ran but produced no usable text, so the record must
+        // read as an unrouted, standard-cleanup dictation.
+        XCTAssertNil(result.dictation.cleanTranscript)
+        XCTAssertNil(result.dictation.aiFormatterProfileID)
+        XCTAssertNil(result.dictation.aiFormatterProfileName)
+        XCTAssertNil(result.dictation.aiFormatterProfileMatchKind)
+
+        let fetched = try XCTUnwrap(dictationRepo.fetch(id: result.dictation.id))
+        XCTAssertNil(fetched.aiFormatterProfileID)
+        XCTAssertNil(fetched.aiFormatterProfileName)
+        XCTAssertNil(fetched.aiFormatterProfileMatchKind)
+    }
+
     func testExactAppFormatterProfileDoesNotEmitExactTelemetryData() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

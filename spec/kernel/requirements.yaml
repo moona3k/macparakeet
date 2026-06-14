@@ -299,6 +299,13 @@ REQ-STT-004:
   version: v0.6
   status: implemented
 
+REQ-STT-005:
+  description: Display-only live dictation preview shows in-progress text on the overlay while the user speaks, gated by AppFeatures.liveDictationStreamingEnabled; Nemotron uses its native live partials, Parakeet uses a single-flight tail-window sample preview that never contends with the reserved dictation slot, and Whisper stays default-off in this path until per-pass latency is measured. The preview is strictly display-only — every stop/cancel/abort/engine-switch path drains or cancels it, and the final pasted/saved transcript always comes from the normal post-recording STT path, never the preview
+  # untagged-on-main per the REQ-LLM-004 precedent (default-on, not yet in a
+  # tagged release); owner may re-tag to v0.7 if v0.6 is judged closed
+  version: v0.6
+  status: implemented
+
 REQ-TRANS-002:
   description: CLI file and URL transcription support per-invocation Parakeet, Nemotron, or Whisper engine selection, per-invocation Parakeet model overrides, persisted Parakeet/Nemotron/Whisper defaults via config/models, optional Nemotron/Whisper language hints, and additive detected-language output
   version: cli-2.5.0

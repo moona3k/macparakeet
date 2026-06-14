@@ -1301,7 +1301,14 @@ public actor DictationService: DictationServiceProtocol {
             let run = runSource.map {
                 LLMRun(formatterResult: result, source: $0, feature: .formatterDictation)
             }
-            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run, resolution: resolution)
+            // Drop the routing resolution when the formatter produced no usable
+            // output: the dictation falls back to standard cleanup (see the
+            // `formattedTranscript ?? baseText` consumer), so stamping the
+            // matched profile would make History claim "Formatted with the
+            // '<profile>' prompt" for text the profile never produced — the same
+            // overclaim guarded against on the failure path below.
+            let usableOutput = trimmed.isEmpty ? nil : trimmed
+            return FormatterOutcome(text: usableOutput, run: run, resolution: usableOutput == nil ? nil : resolution)
         } catch {
             if error is CancellationError {
                 throw error

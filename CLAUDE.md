@@ -26,10 +26,16 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 | `main` | Development | Latest stable release plus untagged in-progress fixes, plus the flag delta below |
 
 **Flag delta — `main` vs the latest release tag:**
+Default-on, user-visible features not yet in a tagged release:
 `AppFeatures.aiFormatterProfilesEnabled = true` (app-aware AI Formatter
 profiles with readable/toggleable smart defaults, REQ-LLM-004; enabled
-2026-06-10, not yet in a tagged release). Staged default-off flags on `main`
-that are not user-visible until validation flips them: `AppFeatures.meetingAutoStopEnabled = false`
+2026-06-10) and `AppFeatures.liveDictationStreamingEnabled = true`
+(display-only live dictation preview — Nemotron native partials + a
+single-flight Parakeet tail-window preview; Whisper stays default-off within
+this path until its per-pass latency is measured; the final pasted/saved
+transcript still comes from the normal post-recording STT path). Staged
+default-off flags on `main` that are not user-visible until validation flips
+them: `AppFeatures.meetingAutoStopEnabled = false`
 (ADR-023 activity-based meeting auto-stop, implemented 2026-06-14 behind its
 own opt-in setting), `AppFeatures.meetingActivityDetectionEnabled = false`
 (ADR-024 Phases A+B process-audio attribution + camera activity + pure detector
