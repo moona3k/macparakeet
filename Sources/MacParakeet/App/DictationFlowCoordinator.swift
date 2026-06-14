@@ -302,11 +302,12 @@ final class DictationFlowCoordinator {
         }
     }
 
-    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`. This
-    // coordinator is effectively a singleton for the app's lifetime, the
-    // observer block captures `[weak self]`, and Swift 6 forbids touching
-    // `@MainActor`-isolated stored properties from a nonisolated deinit.
-    // NotificationCenter cleans up automatically when the token drops.
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver` or
+    // `previewTextSizeObserver`. This coordinator is effectively a singleton
+    // for the app's lifetime, both observer blocks capture `[weak self]`, and
+    // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
+    // nonisolated deinit. NotificationCenter cleans up automatically when the
+    // tokens drop.
 
     // MARK: - Public Methods (translate to state machine events)
 

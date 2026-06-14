@@ -1026,7 +1026,10 @@ struct SettingsView: View {
                     title: "Live transcript preview",
                     detail: "Shows a running transcript above the dictation pill as you speak. Works with the Parakeet and Nemotron engines; not yet available with Whisper.",
                     isBeta: true,
-                    isOn: $viewModel.showLiveDictationPreview
+                    // Animate via the binding so only this toggle's state change
+                    // animates the sub-row reveal/reflow — not a blanket
+                    // container animation that could catch unrelated controls.
+                    isOn: $viewModel.showLiveDictationPreview.animation(.easeInOut(duration: 0.2))
                 )
 
                 if viewModel.showLiveDictationPreview {
@@ -1085,10 +1088,6 @@ struct SettingsView: View {
                     isOn: $viewModel.keepDictationOnClipboard
                 )
             }
-            // Smoothly reveal/hide the "Preview text size" sub-row (and reflow
-            // the rows below it) when the preview toggle flips, instead of
-            // snapping it in.
-            .animation(.easeInOut(duration: 0.2), value: viewModel.showLiveDictationPreview)
         }
     }
 

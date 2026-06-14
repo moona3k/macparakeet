@@ -230,6 +230,7 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .liveDictationPreview))
         }
     }
+
     public var dictationPreviewTextSize: DictationPreviewTextSize {
         didSet {
             guard dictationPreviewTextSize != oldValue else { return }
