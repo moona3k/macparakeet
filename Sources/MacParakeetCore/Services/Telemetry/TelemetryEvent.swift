@@ -26,6 +26,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case diarizationCompleted = "diarization_completed"
     case diarizationFailed = "diarization_failed"
     case exportUsed = "export_used"
+    case exportFailed = "export_failed"
     case llmPromptResultUsed = "llm_prompt_result_used"
     case llmPromptResultFailed = "llm_prompt_result_failed"
     case llmChatUsed = "llm_chat_used"
@@ -607,6 +608,7 @@ public enum TelemetryEventSpec: Sendable {
     case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
     case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
     case exportUsed(format: String)
+    case exportFailed(format: String, errorType: String, errorDetail: String? = nil)
     case llmPromptResultUsed(provider: String)
     case llmPromptResultFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, source: TelemetryChatSource, messageCount: Int)
@@ -907,6 +909,7 @@ extension TelemetryEventSpec {
         case .diarizationCompleted: return .diarizationCompleted
         case .diarizationFailed: return .diarizationFailed
         case .exportUsed: return .exportUsed
+        case .exportFailed: return .exportFailed
         case .llmPromptResultUsed: return .llmPromptResultUsed
         case .llmPromptResultFailed: return .llmPromptResultFailed
         case .llmChatUsed: return .llmChatUsed
@@ -1204,6 +1207,10 @@ extension TelemetryEventSpec {
             return props
         case .exportUsed(let format):
             return ["format": format]
+        case .exportFailed(let format, let errorType, let errorDetail):
+            var props = ["format": format, "error_type": errorType]
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+            return props
         case .llmPromptResultUsed(let provider):
             return ["provider": provider]
         case .llmPromptResultFailed(let provider, let errorType, let errorDetail):
@@ -1730,6 +1737,7 @@ public enum TelemetryImplementedContract {
         .diarizationCompleted: ["source", "speaker_count"],
         .diarizationFailed: ["source", "error_type"],
         .exportUsed: ["format"],
+        .exportFailed: ["format", "error_type"],
         .llmPromptResultUsed: ["provider"],
         .llmPromptResultFailed: ["provider", "error_type"],
         .llmChatUsed: ["provider", "source", "message_count"],

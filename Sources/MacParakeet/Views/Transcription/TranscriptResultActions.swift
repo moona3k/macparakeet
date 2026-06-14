@@ -61,21 +61,30 @@ enum TranscriptResultActions {
         source: Transcription,
         format: TranscriptExportFormat
     ) throws -> URL {
-        let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
-        let promptNameSafe = promptResult.promptName
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-        let promptComponent = promptNameSafe.isEmpty ? "result" : promptNameSafe
-        let stem = "\(baseStem)-\(promptComponent)"
+        do {
+            let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
+            let promptNameSafe = promptResult.promptName
+                .lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+                .joined(separator: "-")
+            let promptComponent = promptNameSafe.isEmpty ? "result" : promptNameSafe
+            let stem = "\(baseStem)-\(promptComponent)"
 
-        let downloadsURL = try downloadsDirectory()
-        let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
+            let downloadsURL = try downloadsDirectory()
+            let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
 
-        try promptResult.content.write(to: fileURL, atomically: true, encoding: .utf8)
-        Telemetry.send(.exportUsed(format: format.rawValue))
-        return fileURL
+            try promptResult.content.write(to: fileURL, atomically: true, encoding: .utf8)
+            Telemetry.send(.exportUsed(format: format.rawValue))
+            return fileURL
+        } catch {
+            Telemetry.send(.exportFailed(
+                format: format.rawValue,
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
+            throw error
+        }
     }
 
     static func exportTranscriptToDownloads(
@@ -83,23 +92,32 @@ enum TranscriptResultActions {
         format: TranscriptExportFormat,
         options: TranscriptExportOptions = .default
     ) throws -> URL {
-        let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
-        let downloadsURL = try downloadsDirectory()
-        let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
-        let exportService = ExportService()
+        do {
+            let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
+            let downloadsURL = try downloadsDirectory()
+            let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
+            let exportService = ExportService()
 
-        switch format {
-        case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
-        case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
-        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
-        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
-        case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
-        case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
-        case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
+            switch format {
+            case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
+            case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
+            case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
+            case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+            case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
+            case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
+            case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
+            }
+
+            Telemetry.send(.exportUsed(format: format.rawValue))
+            return fileURL
+        } catch {
+            Telemetry.send(.exportFailed(
+                format: format.rawValue,
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
+            throw error
         }
-
-        Telemetry.send(.exportUsed(format: format.rawValue))
-        return fileURL
     }
 
     private static func downloadsDirectory() throws -> URL {
