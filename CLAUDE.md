@@ -32,7 +32,7 @@ profiles with readable/toggleable smart defaults, REQ-LLM-004; enabled
 that are not user-visible until validation flips them: `AppFeatures.meetingAutoStopEnabled = false`
 (ADR-023 activity-based meeting auto-stop, implemented 2026-06-14 behind its
 own opt-in setting), `AppFeatures.meetingActivityDetectionEnabled = false`
-(ADR-024 Phases A+B process-audio/camera attribution + pure detector
+(ADR-024 Phases A+B process-audio attribution + camera activity + pure detector
 foundation; no runtime coordinator/UI yet). Reliability kill-switch on `main`:
 `AppFeatures.meetingCaptureReliabilityEnabled = true` (ADR-025 Phase A
 mic-health telemetry watchdog; default-on, no UI/recording behavior change).
@@ -149,7 +149,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-021 | WhisperKit as optional multilingual STT engine (implemented) | `spec/adr/021-whisperkit-multilingual-stt.md` |
 | ADR-022 | Transforms — system-wide LLM rewrites on selected text (Phase 2 productized; enabled, shipping since v0.6.7) | `spec/adr/022-transforms-system-wide-rewrite.md` |
 | ADR-023 | Activity-based meeting auto-stop (silence + app-quit signals + veto countdown; Phases A+B implemented behind default-off flag, Phase C deferred to ADR-024 attribution) | `spec/adr/023-activity-based-meeting-auto-stop.md` |
-| ADR-024 | Activity-based meeting detection (Phases A+B per-process audio + camera attribution with pure detector implemented behind default-off flag; coordinator/prompt phases proposed) | `spec/adr/024-activity-based-meeting-detection.md` |
+| ADR-024 | Activity-based meeting detection (Phases A+B per-process audio attribution + camera activity with pure detector implemented behind default-off flag; coordinator/prompt phases proposed) | `spec/adr/024-activity-based-meeting-detection.md` |
 | ADR-025 | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (Phase A mic-health telemetry watchdog implemented behind default-on kill-switch; warning UI + repair proposed) | `spec/adr/025-meeting-capture-reliability.md` |
 
 > Historical/dormant ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). Current public builds are free/GPL-3.0 and unlocked. The old LemonSqueezy/trial entitlement plumbing is intentionally retained as future-option code for GPL-compatible official paid distribution/support; do not remove it as dead code without explicit owner direction and an ADR/spec update.

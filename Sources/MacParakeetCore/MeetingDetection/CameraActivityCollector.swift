@@ -17,21 +17,38 @@ public final class CameraActivityCollector: @unchecked Sendable {
     private var stateHandler: StateHandler?
     private var deviceListListener: CMIOObjectPropertyListenerBlock?
     private var deviceListeners: [DeviceListener] = []
+    private var lifecycleGeneration: UInt64 = 0
 
     public init() {}
 
+    deinit {
+        stop()
+    }
+
     public func start(handler: @escaping StateHandler) {
-        let currentDeviceIDs = Self.deviceIDs()
-        lock.withLock {
-            stateHandler = handler
-            installDeviceListListenerLocked()
-            refreshDeviceListenersLocked(deviceIDs: currentDeviceIDs)
+        let generation = lock.withLock {
+            lifecycleGeneration &+= 1
+            return lifecycleGeneration
         }
-        emitCurrentState()
+
+        listenerQueue.async { [weak self] in
+            guard let self else { return }
+
+            self.lock.withLock {
+                guard self.lifecycleGeneration == generation else { return }
+
+                self.stateHandler = handler
+                self.installDeviceListListenerLocked()
+                self.refreshDeviceListenersLocked(deviceIDs: Self.deviceIDs())
+            }
+
+            self.emitCurrentState(generation: generation)
+        }
     }
 
     public func stop() {
         lock.withLock {
+            lifecycleGeneration &+= 1
             removeDeviceListenersLocked()
             removeDeviceListListenerLocked()
             stateHandler = nil
@@ -58,9 +75,14 @@ public final class CameraActivityCollector: @unchecked Sendable {
         emitCurrentState()
     }
 
-    private func emitCurrentState() {
+    private func emitCurrentState(generation: UInt64? = nil) {
         let isRunning = cameraRunning()
-        let handler = lock.withLock { stateHandler }
+        let handler: StateHandler? = lock.withLock {
+            guard generation == nil || lifecycleGeneration == generation else {
+                return nil
+            }
+            return stateHandler
+        }
         handler?(isRunning)
     }
 
@@ -109,7 +131,10 @@ public final class CameraActivityCollector: @unchecked Sendable {
             self?.emitCurrentState()
         }
         let status = CMIOObjectAddPropertyListenerBlock(deviceID, &address, listenerQueue, block)
-        guard status == noErr else { return }
+        guard status == noErr else {
+            logger.debug("camera_device_listener_failed deviceID=\(deviceID) status=\(status)")
+            return
+        }
         deviceListeners.append(DeviceListener(deviceID: deviceID, block: block))
     }
 
