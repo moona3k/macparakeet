@@ -137,6 +137,9 @@ public actor DictationService: DictationServiceProtocol {
     private var liveTranscriptionState: LiveDictationTranscriptionState?
     private var displayPreviewState: DictationDisplayPreviewState?
     private var liveTranscriptText: String = ""
+    /// Stabilizes the rolling preview stream into a monotonic, append-only
+    /// readout. Display-only — never feeds the pasted text. Reset per session.
+    private var liveTranscriptStabilizer = LiveTranscriptStabilizer()
     private var activeSessionID: Int = 0
     private var cancellationRequestedDuringStartSessionID: Int?
     private var pendingCancelReason: TelemetryDictationCancelReason?
@@ -305,7 +308,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelReason = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
-        liveTranscriptText = ""
+        clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTelemetryContext = context
         currentObservabilityOperationContext = operationContext
@@ -542,7 +545,7 @@ public actor DictationService: DictationServiceProtocol {
         if let state = liveTranscriptionState, state.dictationSessionID == activeSessionID {
             state.markDegraded(reason: "preroll_discarded")
         }
-        liveTranscriptText = ""
+        clearLiveTranscript()
         await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         await audioProcessor.discardPreRollForActiveCapture()
     }
@@ -965,10 +968,10 @@ public actor DictationService: DictationServiceProtocol {
             return
         }
         guard shouldShowDictationPreview() else {
-            liveTranscriptText = ""
+            clearLiveTranscript()
             return
         }
-        liveTranscriptText = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+        setLiveTranscript(raw: partial)
     }
 
     private func updateDisplayPreview(_ preview: String, sessionID: Int, previewSessionID: UUID) {
@@ -977,7 +980,21 @@ public actor DictationService: DictationServiceProtocol {
               case .recording = _state else {
             return
         }
-        liveTranscriptText = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        setLiveTranscript(raw: preview)
+    }
+
+    /// Feed a raw preview transcript through the stabilizer and publish the
+    /// stabilized, append-only readout. Display-only.
+    private func setLiveTranscript(raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        liveTranscriptText = liveTranscriptStabilizer.ingest(trimmed)
+    }
+
+    /// Clear the live readout and reset the stabilizer so the next session
+    /// starts from an empty, append-only state.
+    private func clearLiveTranscript() {
+        liveTranscriptStabilizer.reset()
+        liveTranscriptText = ""
     }
 
     private func cancelDisplayPreview(sessionID: Int, clearText: Bool) async {
@@ -987,7 +1004,7 @@ public actor DictationService: DictationServiceProtocol {
         }
         displayPreviewState = nil
         if clearText {
-            liveTranscriptText = ""
+            clearLiveTranscript()
         }
         state.sampleContinuation.finish()
         state.task.cancel()
@@ -1067,7 +1084,7 @@ public actor DictationService: DictationServiceProtocol {
             return
         }
         liveTranscriptionState = nil
-        liveTranscriptText = ""
+        clearLiveTranscript()
         state.task.cancel()
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
@@ -1408,7 +1425,7 @@ public actor DictationService: DictationServiceProtocol {
         currentObservabilityOperationContext = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
-        liveTranscriptText = ""
+        clearLiveTranscript()
         pendingCancelReason = nil
     }
 
