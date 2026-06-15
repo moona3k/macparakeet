@@ -2,9 +2,12 @@ import MacParakeetCore
 import MacParakeetViewModels
 import SwiftUI
 
-/// Calendar auto-start section. Slotted into Settings between Meeting
-/// Recording and Transcription. Exposes all three modes — `.off`, `.notify`,
-/// and `.autoStart` per ADR-017 Phases 1+2.
+/// Calendar auto-start — the "Start recording automatically" half of the
+/// Meeting Recording card's Automatic recording group. A single adaptive row
+/// requests Calendar access in context (so the user opts into auto-start and
+/// *that* prompts for access), then exposes all three modes — `.off`,
+/// `.notify`, `.autoStart` per ADR-017 Phases 1+2 — with disclosed reminder,
+/// event-filter, and per-calendar controls.
 struct CalendarSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var availableCalendars: [CalendarInfo] = []
@@ -13,26 +16,21 @@ struct CalendarSettingsView: View {
 
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            permissionRow
+            startRow
 
-            if viewModel.calendarPermissionGranted {
+            if viewModel.calendarPermissionGranted && viewModel.calendarAutoStartMode != .off {
+                if !viewModel.calendarNotificationsAuthorized {
+                    Divider()
+                    notificationWarningRow
+                }
                 Divider()
-                modeRow
+                reminderLeadRow
+                Divider()
+                triggerFilterRow
 
-                if viewModel.calendarAutoStartMode != .off {
-                    if !viewModel.calendarNotificationsAuthorized {
-                        Divider()
-                        notificationWarningRow
-                    }
+                if !availableCalendars.isEmpty {
                     Divider()
-                    reminderLeadRow
-                    Divider()
-                    triggerFilterRow
-
-                    if !availableCalendars.isEmpty {
-                        Divider()
-                        includedCalendarsRow
-                    }
+                    includedCalendarsRow
                 }
             }
         }
@@ -78,42 +76,58 @@ struct CalendarSettingsView: View {
         Task { await viewModel.refreshCalendarNotificationAuthorization() }
     }
 
-    // MARK: - Permission
+    // MARK: - Start (adaptive permission + mode)
 
+    /// Single adaptive row that frames calendar auto-start as the "start" half
+    /// of the Automatic recording group. The trailing control follows Calendar
+    /// permission: a one-tap enable button before access is granted (so the
+    /// user opts into auto-start and *that* triggers the access prompt), the
+    /// mode picker once granted, and a System Settings deep-link if denied.
     @ViewBuilder
-    private var permissionRow: some View {
+    private var startRow: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Calendar access")
+                Text("Start recording automatically")
                     .font(DesignSystem.Typography.body)
-                Text(permissionDetail)
+                Text(startDetail)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: DesignSystem.Spacing.md)
-            permissionAction
+            startControl
         }
     }
 
-    private var permissionDetail: String {
+    private var startDetail: String {
         switch viewModel.calendarPermissionStatus {
         case .granted:
-            return "Granted. Events stay on your Mac — MacParakeet never uploads them."
+            return modeDetail
         case .denied:
             // macOS only shows the EventKit prompt once. Once denied, the
-            // only path back is System Settings — telling the user to
-            // "grant access" via a button that can't actually re-prompt
-            // would mystify them.
-            return "Calendar access is blocked. Re-enable it in System Settings → Privacy & Security → Calendars to use reminders."
+            // only path back is System Settings — a button that can't actually
+            // re-prompt would mystify the user, so point them there explicitly.
+            return "Calendar access is blocked. Re-enable it in System Settings → Privacy & Security → Calendars to start meetings automatically."
         case .notDetermined:
-            return "Reads your macOS calendar so MacParakeet can remind you before a meeting starts. Events stay on your Mac."
+            return "Start a recording when a scheduled meeting begins. Needs Calendar access — your events stay on your Mac and are never uploaded."
         }
     }
 
     @ViewBuilder
-    private var permissionAction: some View {
+    private var startControl: some View {
         switch viewModel.calendarPermissionStatus {
-        case .granted, .denied:
+        case .granted:
+            Picker("", selection: $viewModel.calendarAutoStartMode) {
+                Text("Off").tag(CalendarAutoStartMode.off)
+                Text("Notify me").tag(CalendarAutoStartMode.notify)
+                Text("Start automatically").tag(CalendarAutoStartMode.autoStart)
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(minWidth: 200)
+            // No explicit accessibilityLabel: the adjacent "Start recording
+            // automatically" title is read first, matching the reminder/event
+            // pickers below. A label here would make VoiceOver speak it twice.
+        case .denied:
             Button("Open System Settings") {
                 viewModel.openCalendarSystemSettings()
             }
@@ -125,35 +139,11 @@ struct CalendarSettingsView: View {
                 if isRequestingPermission {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Grant Calendar Access")
+                    Text("Turn On…")
                 }
             }
             .controlSize(.small)
             .disabled(isRequestingPermission)
-        }
-    }
-
-    // MARK: - Mode
-
-    @ViewBuilder
-    private var modeRow: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Calendar behavior")
-                    .font(DesignSystem.Typography.body)
-                Text(modeDetail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: DesignSystem.Spacing.md)
-            Picker("", selection: $viewModel.calendarAutoStartMode) {
-                Text("Off").tag(CalendarAutoStartMode.off)
-                Text("Notify before meetings").tag(CalendarAutoStartMode.notify)
-                Text("Start recording automatically").tag(CalendarAutoStartMode.autoStart)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(minWidth: 240)
         }
     }
 
