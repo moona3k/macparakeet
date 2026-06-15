@@ -124,9 +124,11 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
-            // No explicit accessibilityLabel: the adjacent "Start recording
-            // automatically" title is read first, matching the reminder/event
-            // pickers below. A label here would make VoiceOver speak it twice.
+            // macOS VoiceOver focuses each control independently and does NOT
+            // auto-associate the adjacent title with the picker — without this
+            // the control announces only its value ("Off, pop up button"). The
+            // visible title is mirrored so the accessible name matches it.
+            .accessibilityLabel("Start recording automatically")
         case .denied:
             Button("Open System Settings") {
                 viewModel.openCalendarSystemSettings()
@@ -180,6 +182,7 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
+            .accessibilityLabel("Remind me")
         }
     }
 
@@ -204,6 +207,7 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
+            .accessibilityLabel("Which events count")
         }
     }
 
