@@ -147,6 +147,15 @@ final class LiveTranscriptStabilizerTests: XCTestCase {
         XCTAssertEqual(s.ingest("the the report now"), "we need the report now")
     }
 
+    func testSingleWordAnchorAtEndOfFreshGapDoesNotDropUpdate() {
+        var s = makeStabilizer(hypothesisHoldback: 0)
+        _ = s.ingest("we need the")
+        // A fresh post-pause update can coincidentally end with the committed
+        // tail word. A weak single-word match that consumes the entire new
+        // transcript is not enough evidence to treat the update as overlap.
+        XCTAssertEqual(s.ingest("brand new the"), "we need the brand new the")
+    }
+
     // MARK: - Shorter re-statement (retraction) must not duplicate
 
     func testShorterRestatementDoesNotDuplicate() {

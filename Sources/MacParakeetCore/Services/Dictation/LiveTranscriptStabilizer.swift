@@ -115,6 +115,14 @@ struct LiveTranscriptStabilizer {
                 ? firstContiguousMatchEnd(of: tail, in: normalizedWords)
                 : lastContiguousMatchEnd(of: tail, in: normalizedWords)
             if let matchEnd {
+                // A single-word anchor is too weak to consume an entire update
+                // unless that update is already contained in the committed body.
+                if anchor == 1,
+                   matchEnd == normalizedWords.count,
+                   !containsContiguous(normalizedCommitted, normalizedWords) {
+                    anchor -= 1
+                    continue
+                }
                 return matchEnd
             }
             anchor -= 1
