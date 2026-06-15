@@ -134,7 +134,11 @@ struct LiveTranscriptStabilizer {
         // re-statement of text we already committed (a retraction → nothing
         // new). Disambiguate by checking whether `words` is already contained in
         // the committed buffer.
-        if containsContiguous(normalizedCommitted, normalizedWords) {
+        // Retractions are local to the live edge; scanning the full committed
+        // history would swallow a fresh repeated phrase from much earlier.
+        let retractionLookback = max(anchorLength * 2, normalizedWords.count)
+        let recentCommitted = Array(normalizedCommitted.suffix(retractionLookback))
+        if containsContiguous(recentCommitted, normalizedWords) {
             return words.count
         }
         return 0

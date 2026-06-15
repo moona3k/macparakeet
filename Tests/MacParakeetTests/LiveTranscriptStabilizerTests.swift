@@ -167,6 +167,16 @@ final class LiveTranscriptStabilizerTests: XCTestCase {
         XCTAssertEqual(s.committedWords, ["alpha", "bravo"])
     }
 
+    func testFreshPhraseMatchingOlderHistoryStillAppends() {
+        var s = makeStabilizer(hypothesisHoldback: 0)
+        _ = s.ingest(
+            "thank you alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau"
+        )
+        let out = s.ingest("thank you")
+        XCTAssertTrue(out.hasSuffix("thank you"))
+        XCTAssertEqual(s.committedWords.suffix(2), ["thank", "you"])
+    }
+
     // MARK: - Genuine gap (long pause) appends new content
 
     func testNonOverlappingGapAppendsAsNew() {
