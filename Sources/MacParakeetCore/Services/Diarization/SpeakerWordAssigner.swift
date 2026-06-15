@@ -83,8 +83,10 @@ public struct SpeakerWordAssigner: Sendable {
             }
             return $0.startMs < $1.startMs
         }
-
-        let assignedWords = words.enumerated()
+        let eligibleSegments = sortedSegments.filter {
+            isEligible(segment: $0, sourceOnlySpeakerId: sourceOnlySpeakerId)
+        }
+        let sortedWords = words.enumerated()
             .sorted { lhs, rhs in
                 if lhs.element.startMs == rhs.element.startMs {
                     if lhs.element.endMs == rhs.element.endMs {
@@ -94,17 +96,26 @@ public struct SpeakerWordAssigner: Sendable {
                 }
                 return lhs.element.startMs < rhs.element.startMs
             }
-            .map { _, word in
-                let assignment = assignment(
+
+        var assignedWords: [WordTimestamp] = []
+        assignedWords.reserveCapacity(words.count)
+        var firstCandidateIndex = 0
+
+        for (_, word) in sortedWords {
+            let assignment = assignment(
+                for: word,
+                candidateSegments: candidateSegments(
                     for: word,
-                    segments: sortedSegments,
-                    sourceOnlySpeakerId: sourceOnlySpeakerId
-                )
-                counts[assignment.method, default: 0] += 1
-                var assignedWord = word
-                assignedWord.speakerId = assignment.speakerId
-                return assignedWord
-            }
+                    segments: eligibleSegments,
+                    firstCandidateIndex: &firstCandidateIndex
+                ),
+                sourceOnlySpeakerId: sourceOnlySpeakerId
+            )
+            counts[assignment.method, default: 0] += 1
+            var assignedWord = word
+            assignedWord.speakerId = assignment.speakerId
+            assignedWords.append(assignedWord)
+        }
 
         let summary = WordSpeakerAssignmentSummary(
             totalWords: words.count,
@@ -121,16 +132,14 @@ public struct SpeakerWordAssigner: Sendable {
 
     private func assignment(
         for word: WordTimestamp,
-        segments: [SpeakerSegment],
+        candidateSegments: ArraySlice<SpeakerSegment>,
         sourceOnlySpeakerId: String?
     ) -> (speakerId: String?, method: WordSpeakerAssignmentMethod) {
         guard isEligible(word: word, sourceOnlySpeakerId: sourceOnlySpeakerId) else {
             return (word.speakerId, sourceOnlySpeakerId == nil ? .unassigned : .sourceOnly)
         }
 
-        let eligibleSegments = segments.filter { isEligible(segment: $0, sourceOnlySpeakerId: sourceOnlySpeakerId) }
-
-        let directOverlap = directOverlapSpeaker(for: word, segments: eligibleSegments)
+        let directOverlap = directOverlapSpeaker(for: word, segments: candidateSegments)
         if directOverlap.isAmbiguous {
             return sourceOnlyAssignment(sourceOnlySpeakerId)
         }
@@ -138,11 +147,33 @@ public struct SpeakerWordAssigner: Sendable {
             return (speakerId, .directOverlap)
         }
 
-        if let speakerId = nearestFallbackSpeaker(for: word, segments: eligibleSegments) {
+        if let speakerId = nearestFallbackSpeaker(for: word, segments: candidateSegments) {
             return (speakerId, .fallbackNearest)
         }
 
         return sourceOnlyAssignment(sourceOnlySpeakerId)
+    }
+
+    private func candidateSegments(
+        for word: WordTimestamp,
+        segments: [SpeakerSegment],
+        firstCandidateIndex: inout Int
+    ) -> ArraySlice<SpeakerSegment> {
+        let windowMs = max(0, fallbackToleranceMs + ambiguityMarginMs)
+        let earliestEndMs = word.startMs - windowMs
+        while firstCandidateIndex < segments.count,
+              segments[firstCandidateIndex].endMs < earliestEndMs {
+            firstCandidateIndex += 1
+        }
+
+        let latestStartMs = word.endMs + windowMs
+        var endIndex = firstCandidateIndex
+        while endIndex < segments.count,
+              segments[endIndex].startMs <= latestStartMs {
+            endIndex += 1
+        }
+
+        return segments[firstCandidateIndex..<endIndex]
     }
 
     private func sourceOnlyAssignment(_ sourceOnlySpeakerId: String?) -> (speakerId: String?, method: WordSpeakerAssignmentMethod) {
@@ -154,7 +185,7 @@ public struct SpeakerWordAssigner: Sendable {
 
     private func directOverlapSpeaker(
         for word: WordTimestamp,
-        segments: [SpeakerSegment]
+        segments: ArraySlice<SpeakerSegment>
     ) -> (speakerId: String?, isAmbiguous: Bool) {
         let overlapsBySpeaker = segments.reduce(into: [String: Int]()) { overlaps, segment in
             let overlap = overlapMs(word: word, segment: segment)
@@ -179,7 +210,7 @@ public struct SpeakerWordAssigner: Sendable {
         return (best.speakerId, false)
     }
 
-    private func nearestFallbackSpeaker(for word: WordTimestamp, segments: [SpeakerSegment]) -> String? {
+    private func nearestFallbackSpeaker(for word: WordTimestamp, segments: ArraySlice<SpeakerSegment>) -> String? {
         let candidates = segments.map { segment in
             (segment: segment, gapMs: gapMs(word: word, segment: segment))
         }

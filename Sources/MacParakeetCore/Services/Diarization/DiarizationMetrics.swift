@@ -363,7 +363,7 @@ public enum DiarizationMetrics {
         options: DiarizationScoringOptions
     ) -> [Interval] {
         var boundaries = Set((reference + hypothesis).flatMap { [$0.startMs, $0.endMs] })
-        let collarIntervals = collarIntervals(reference: reference, collarMs: options.collarMs)
+        let collarIntervals = mergedIntervals(collarIntervals(reference: reference, collarMs: options.collarMs))
         for interval in collarIntervals {
             boundaries.insert(interval.startMs)
             boundaries.insert(interval.endMs)
@@ -373,10 +373,16 @@ public enum DiarizationMetrics {
         guard sorted.count >= 2 else { return [] }
 
         var regions: [Interval] = []
+        var collarIndex = 0
         for index in 0..<(sorted.count - 1) {
             let region = Interval(startMs: sorted[index], endMs: sorted[index + 1])
             guard region.endMs > region.startMs else { continue }
-            if collarIntervals.contains(where: { overlapDuration(region, $0) > 0 }) {
+            while collarIndex < collarIntervals.count,
+                  collarIntervals[collarIndex].endMs <= region.startMs {
+                collarIndex += 1
+            }
+            if collarIndex < collarIntervals.count,
+               overlapDuration(region, collarIntervals[collarIndex]) > 0 {
                 continue
             }
             if options.skipOverlap,
@@ -386,6 +392,31 @@ public enum DiarizationMetrics {
             regions.append(region)
         }
         return regions
+    }
+
+    private static func mergedIntervals(_ intervals: [Interval]) -> [Interval] {
+        let sorted = intervals.sorted {
+            if $0.startMs != $1.startMs { return $0.startMs < $1.startMs }
+            return $0.endMs < $1.endMs
+        }
+
+        var merged: [Interval] = []
+        for interval in sorted where interval.endMs > interval.startMs {
+            guard let last = merged.last else {
+                merged.append(interval)
+                continue
+            }
+
+            if interval.startMs <= last.endMs {
+                merged[merged.count - 1] = Interval(
+                    startMs: last.startMs,
+                    endMs: max(last.endMs, interval.endMs)
+                )
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged
     }
 
     private static func collarIntervals(reference: [LabeledSegment], collarMs: Int) -> [Interval] {
@@ -417,28 +448,6 @@ public enum DiarizationMetrics {
     }
 
     private static func mergedIntervals(_ segments: [LabeledSegment]) -> [Interval] {
-        let intervals = segments.map { Interval(startMs: $0.startMs, endMs: $0.endMs) }
-            .sorted {
-                if $0.startMs != $1.startMs { return $0.startMs < $1.startMs }
-                return $0.endMs < $1.endMs
-            }
-
-        var merged: [Interval] = []
-        for interval in intervals where interval.endMs > interval.startMs {
-            guard let last = merged.last else {
-                merged.append(interval)
-                continue
-            }
-
-            if interval.startMs <= last.endMs {
-                merged[merged.count - 1] = Interval(
-                    startMs: last.startMs,
-                    endMs: max(last.endMs, interval.endMs)
-                )
-            } else {
-                merged.append(interval)
-            }
-        }
-        return merged
+        mergedIntervals(segments.map { Interval(startMs: $0.startMs, endMs: $0.endMs) })
     }
 }
