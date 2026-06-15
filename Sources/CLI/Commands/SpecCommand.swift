@@ -190,6 +190,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
                 CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
+                CLISpecParameter.option("--diarization-report", valueName: "PATH", summary: "Write a content-free diarization quality report JSON for a single fresh run."),
                 CLISpecParameter.option("--media-audio-quality", valueName: "app-default|m4a|best-available", summary: "Downloaded media audio quality."),
                 CLISpecParameter.flag("--no-history", summary: "Do not persist the completed transcription."),
                 databaseOption,

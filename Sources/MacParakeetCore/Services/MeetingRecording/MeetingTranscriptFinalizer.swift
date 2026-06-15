@@ -18,6 +18,7 @@ struct MeetingTranscriptFinalizer {
         let speakers: [SpeakerInfo]
         let diarizationSegments: [DiarizationSegmentRecord]
         let durationMs: Int?
+        let wordSpeakerAssignmentSummary: WordSpeakerAssignmentSummary?
     }
 
     static func finalize(
@@ -49,14 +50,18 @@ struct MeetingTranscriptFinalizer {
         )
         let microphoneWords = sourceReconciliation.microphoneWords
         let finalizedSystemWords: [WordTimestamp]
+        let wordSpeakerAssignmentSummary: WordSpeakerAssignmentSummary?
         if let systemDiarization {
-            finalizedSystemWords = SpeakerWordAssigner().assign(
+            let assignmentResult = SpeakerWordAssigner().assign(
                 words: systemWords,
                 segments: systemDiarization.segments,
                 sourceOnlySpeakerId: AudioSource.system.rawValue
-            ).words
+            )
+            finalizedSystemWords = assignmentResult.words
+            wordSpeakerAssignmentSummary = assignmentResult.summary
         } else {
             finalizedSystemWords = systemWords
+            wordSpeakerAssignmentSummary = nil
         }
 
         var mergedWords = microphoneWords + finalizedSystemWords
@@ -81,7 +86,8 @@ struct MeetingTranscriptFinalizer {
             words: mergedWords,
             speakers: speakers,
             diarizationSegments: diarizationSegments,
-            durationMs: mergedWords.map(\.endMs).max()
+            durationMs: mergedWords.map(\.endMs).max(),
+            wordSpeakerAssignmentSummary: wordSpeakerAssignmentSummary
         )
     }
 

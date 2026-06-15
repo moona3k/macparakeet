@@ -224,7 +224,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let aiFormatterPromptTemplate: @Sendable () -> String
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
-    private let diarizationOptions: @Sendable () -> DiarizationOptions
     private let youtubeDownloader: YouTubeDownloading?
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
@@ -252,7 +251,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
-        diarizationOptions: (@Sendable () -> DiarizationOptions)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         podcastResolver: PodcastResolving? = nil,
         podcastSearchResolver: PodcastSearchResolving? = nil,
@@ -278,7 +276,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
-        self.diarizationOptions = diarizationOptions ?? { .default }
         self.youtubeDownloader = youtubeDownloader
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
@@ -300,7 +297,22 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         try await transcribe(
             fileURL: fileURL,
             source: source,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeRun(
+            fileURL: fileURL,
+            source: source,
             persistResult: true,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -310,20 +322,36 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource = .file,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribe(
+        try await transcribeTransient(
+            fileURL: fileURL,
+            source: source,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeRun(
             fileURL: fileURL,
             source: source,
             persistResult: false,
+            options: options,
             onProgress: onProgress
         )
     }
 
-    private func transcribe(
+    private func transcribeRun(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let sourceType: Transcription.SourceType = switch source {
         case .youtube:
             .youtube
@@ -342,6 +370,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             sttJob: .fileTranscription,
             sourceType: sourceType,
             persistResult: persistResult,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -445,9 +474,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 tempFiles: [],
                 persistFailureStatus: false,
+                options: .default,
                 speechEngine: speechEngineOverride,
                 onProgress: onProgress
-            )
+            ).transcription
         }
     }
 
@@ -511,8 +541,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
         persistResult: Bool = true,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let embeddedMetadata = sourceType == .file
             ? await mediaMetadataExtractor.metadata(for: fileURL)
             : .empty
@@ -585,6 +616,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 tempFiles: [],
                 persistResult: persistResult,
+                options: options,
                 onProgress: onProgress
             )
         }
@@ -593,24 +625,51 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     public func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
         try await transcribeURL(
             urlString: urlString,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeURL(
+        urlString: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeURLRun(
+            urlString: urlString,
             persistResult: true,
+            options: options,
             onProgress: onProgress
         )
     }
 
     public func transcribeURLTransient(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
-        try await transcribeURL(
+        try await transcribeURLTransient(
+            urlString: urlString,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeURLTransient(
+        urlString: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeURLRun(
             urlString: urlString,
             persistResult: false,
+            options: options,
             onProgress: onProgress
         )
     }
 
-    private func transcribeURL(
+    private func transcribeURLRun(
         urlString: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let inputURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Apple Podcasts links are their own lane: resolve via the iTunes
@@ -621,6 +680,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             return try await transcribePodcastURL(
                 inputURL,
                 persistResult: persistResult,
+                options: options,
                 onProgress: onProgress
             )
         }
@@ -652,6 +712,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 isPodcast: false,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 onProgress: onProgress
             )
         }
@@ -662,8 +723,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private func transcribePodcastURL(
         _ inputURL: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let operation = Self.podcastOperationContext()
         return try await Observability.withOperationContext(operation.operationContext) {
             guard let resolver = podcastResolver else {
@@ -694,6 +756,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 isPodcast: true,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 onProgress: onProgress
             )
         }
@@ -703,23 +766,50 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQuery(query: query, persistResult: true, onProgress: onProgress)
+        try await transcribePodcastQuery(query: query, options: .default, onProgress: onProgress).transcription
+    }
+
+    public func transcribePodcastQuery(
+        query: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribePodcastQueryRun(
+            query: query,
+            persistResult: true,
+            options: options,
+            onProgress: onProgress
+        )
     }
 
     public func transcribePodcastQueryTransient(
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQuery(query: query, persistResult: false, onProgress: onProgress)
+        try await transcribePodcastQueryTransient(query: query, options: .default, onProgress: onProgress).transcription
+    }
+
+    public func transcribePodcastQueryTransient(
+        query: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribePodcastQueryRun(
+            query: query,
+            persistResult: false,
+            options: options,
+            onProgress: onProgress
+        )
     }
 
     /// Transcribe a freetext podcast query ("Lex Fridman episode 400"): iTunes
     /// search → RSS feed parse → episode select → native fetch → local STT.
-    private func transcribePodcastQuery(
+    private func transcribePodcastQueryRun(
         query: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let operation = Self.podcastOperationContext()
         return try await Observability.withOperationContext(operation.operationContext) {
             guard let searchResolver = podcastSearchResolver else {
@@ -750,6 +840,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 isPodcast: true,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 onProgress: onProgress
             )
         }
@@ -796,8 +887,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         isPodcast: Bool,
         operation: TranscriptionOperationContext,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         var unownedDownloadedAudioURL: URL?
         defer {
             if let unownedDownloadedAudioURL {
@@ -939,6 +1031,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             tempFiles: [downloadResult.audioFileURL],
             cleanUpDownloadedFiles: !keepDownloadedAudio,
             persistResult: persistResult,
+            options: options,
             onProgress: onProgress
         )
 
@@ -949,10 +1042,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         // Podcast enclosures are normally already playable, so this is a no-op
         // for them, but harmless.
         if keepDownloadedAudio,
-           let storedPath = completed.filePath,
+           let storedPath = completed.transcription.filePath,
            YouTubeAudioPlaybackConverter.needsConversion(forPath: storedPath) {
             schedulePlaybackConversion(
-                transcriptionId: completed.id,
+                transcriptionId: completed.transcription.id,
                 inputPath: storedPath,
                 metadata: artifactMetadata
             )
@@ -1300,13 +1393,15 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         cleanUpDownloadedFiles: Bool = true,
         persistResult: Bool = true,
         persistFailureStatus: Bool = true,
+        options: TranscriptionRunOptions,
         speechEngine: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         var wavURL: URL?
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
         let diarizationRequested = diarizationService != nil && shouldDiarize()
+        var diarizationQualityReport: DiarizationQualityReport?
         do {
             onProgress?(.converting)
             wavURL = try await audioProcessor.convert(fileURL: fileURL)
@@ -1357,15 +1452,24 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     let diarStartedAt = Date()
                     let diarResult = try await diarizationService.diarize(
                         audioURL: wavURL,
-                        options: diarizationOptions()
+                        options: options.diarizationOptions
                     )
                     let diarDuration = Date().timeIntervalSince(diarStartedAt)
+                    let assignmentResult = SpeakerWordAssigner().assign(
+                        words: words,
+                        segments: diarResult.segments
+                    )
+                    if options.includeDiarizationReport {
+                        diarizationQualityReport = DiarizationQualityReport(
+                            transcriptionSourceType: transcription.sourceType,
+                            diarizedAudioSource: nil,
+                            requestedSpeakerHint: options.diarizationOptions.speakerCountHint,
+                            diarizationResult: diarResult,
+                            assignmentSummary: assignmentResult.summary
+                        )
+                    }
                     if !diarResult.segments.isEmpty {
-                        let assignedWords = SpeakerWordAssigner().assign(
-                            words: words,
-                            segments: diarResult.segments
-                        ).words
-                        transcription.wordTimestamps = assignedWords
+                        transcription.wordTimestamps = assignmentResult.words
                         transcription.speakerCount = diarResult.speakerCount
                         transcription.speakers = diarResult.speakers
                         transcription.diarizationSegments = diarResult.segments.map {
@@ -1412,7 +1516,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 }
             }
 
-            return completed
+            return TranscriptionRunResult(
+                transcription: completed,
+                diarizationQualityReport: diarizationQualityReport
+            )
         } catch {
             if let wavURL { try? FileManager.default.removeItem(at: wavURL) }
             if cleanUpDownloadedFiles {

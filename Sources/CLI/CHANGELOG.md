@@ -88,6 +88,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `transcribe --diarization-report PATH` writes a content-free
+  speaker-diarization quality report JSON for a single fresh transcription.
+  The report includes speaker-count hints, detected/segment counts, assignment
+  summary counters, and structured diagnostic warnings; it is rejected with
+  `--no-diarize`, `--speaker-detection off`, and batch/output-dir mode.
 - `diarization-eval <fixtures-dir>` is a developer/testing command for private
   speaker-diarization fixtures. It runs the local diarizer on each immediate
   fixture subdirectory, optionally compares `reference.rttm` annotations with

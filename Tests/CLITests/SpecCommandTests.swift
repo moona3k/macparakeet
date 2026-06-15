@@ -106,6 +106,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-count"))
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
+        XCTAssertTrue(optionNames.contains("--diarization-report"))
         XCTAssertTrue(optionNames.contains("--media-audio-quality"))
         XCTAssertTrue(optionNames.contains("--database"))
 
