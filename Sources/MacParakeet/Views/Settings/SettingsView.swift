@@ -1015,7 +1015,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Instant dictation",
-                    detail: "Keeps dictation ready so it starts faster and is less likely to miss your first words. macOS will show the microphone indicator while this is on. Pauses automatically while a Bluetooth mic such as AirPods is selected, so playback stays high quality.",
+                    detail: "Keeps the mic ready so dictation starts faster and catches your first words; macOS shows the mic indicator while it's on. Pauses for Bluetooth mics like AirPods to protect playback quality.",
                     isBeta: true,
                     isOn: $viewModel.instantDictationEnabled
                 )
