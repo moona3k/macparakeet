@@ -95,5 +95,10 @@ public enum AppFeatures {
     /// Enabled 2026-06-10 after the ship-polish pass (smart-defaults
     /// visibility/toggles, edit-path category fix, manual-entry parity)
     /// resolved the UX gaps that pulled the flag in `6cd4a7034`.
-    public static let aiFormatterProfilesEnabled: Bool = true
+    ///
+    /// Re-gated to `false` on 2026-06-14 to hold app-aware profiles out of the
+    /// v0.6.23 release; the rest of the v0.6.23 delta ships without it. Flip
+    /// back to `true` to ship profiles in a later tag (no-data operation — the
+    /// profile table/repository migrate regardless of this flag).
+    public static let aiFormatterProfilesEnabled: Bool = false
 }

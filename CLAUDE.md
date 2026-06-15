@@ -26,9 +26,7 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 | `main` | Development | Latest stable release plus untagged in-progress fixes, plus the flag delta below |
 
 **Flag delta — `main` vs the latest release tag:**
-`AppFeatures.aiFormatterProfilesEnabled = true` (app-aware AI Formatter
-profiles with readable/toggleable smart defaults, REQ-LLM-004; enabled
-2026-06-10, not yet in a tagged release). `AppFeatures.meetingAutoStopEnabled = true`
+`AppFeatures.meetingAutoStopEnabled = true`
 (ADR-023 activity-based meeting auto-stop; flag enabled on `main` 2026-06-14 so
 the Settings toggle is dogfoodable — the per-user opt-in setting still defaults
 off, so nothing auto-stops until a user turns it on; not yet in a tagged
@@ -44,6 +42,10 @@ batch preview, both Nemotron builds use their native live-partial path, and
 Whisper stays default-off pending a per-pass latency probe; the paste still
 comes from the stop-time transcription path; #517, enabled on `main`
 2026-06-14, not yet in a tagged release).
+Deliberately gated off for now: `AppFeatures.aiFormatterProfilesEnabled = false`
+(app-aware AI Formatter profiles with readable/toggleable smart defaults,
+REQ-LLM-004; code-complete and QA'd but held out of the v0.6.23 release on
+2026-06-14 — flip back to `true` to ship in a later tag; no-data operation).
 All other `AppFeatures` flags match the shipping build.
 
 Ship history for flagged features: Transforms reached stable in v0.6.7;
@@ -168,7 +170,8 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 video/podcast URL transcription (any `yt-dlp` site plus Apple Podcasts and
 freetext podcast search), Parakeet v3/v2 model selection, optional Nemotron
 3.5 Beta (ADR-001 amendment) and WhisperKit (ADR-021) engines, opt-in instant dictation (warm-mic
-pre-roll), app-aware AI Formatter profiles (REQ-LLM-004, `main`-only flag),
+pre-roll), app-aware AI Formatter profiles (REQ-LLM-004, code-complete but
+gated off — deferred past v0.6.23),
 default-off activity-based meeting auto-stop (ADR-023, `main` validation flag),
 default-off activity-based meeting detection foundation (ADR-024 Phases A+B,
 no runtime coordinator/UI yet),

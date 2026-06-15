@@ -723,7 +723,7 @@ Row anatomy:
 
 Settings open in the content area when "Settings" is selected in the sidebar. The current information architecture is a four-tab shell with a persistent header, search field, and status-aware tab badges:
 
-- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording and appear once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
+- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. The Meeting Recording card groups start/stop automation under an "Automatic recording" subsection: a calendar-driven "Start recording automatically" adaptive row (requests Calendar access in context, then exposes the off/notify/auto-start mode plus disclosed reminder, event-filter, and per-calendar controls; `AppFeatures.calendarEnabled = true`) paired with an activity-driven "Stop recording automatically" toggle (`AppFeatures.meetingAutoStopEnabled = true`).
 - **Engine** — Speech engine selector, Whisper language picker, and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
 - **System** — Appearance, startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.

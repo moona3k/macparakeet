@@ -1141,14 +1141,25 @@ struct SettingsView: View {
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
                 }
 
-                if AppFeatures.meetingAutoStopEnabled {
+                Divider()
+
+                settingsToggleRow(
+                    title: "Auto-save meetings to disk",
+                    detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
+                    isOn: $viewModel.meetingAutoSave
+                )
+
+                if viewModel.meetingAutoSave {
+                    meetingAutoSaveOptionsView
+                }
+
+                // Start (calendar) and stop (activity) automation are grouped
+                // under one subsection so they read as the two ends of the
+                // recording lifecycle. Either flag alone still shows the group.
+                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled {
                     Divider()
 
-                    settingsToggleRow(
-                        title: "Auto-stop ended meetings",
-                        detail: "Offer to stop after a meeting app closes or both channels stay quiet. You can keep recording before anything stops.",
-                        isOn: $viewModel.meetingAutoStopEnabled
-                    )
+                    meetingAutomationSection
                 }
 
                 if viewModel.pendingMeetingRecoveryCount > 0 {
@@ -1168,27 +1179,6 @@ struct SettingsView: View {
                         .parakeetAction(.secondary)
                     }
                 }
-
-                Divider()
-
-                settingsToggleRow(
-                    title: "Auto-save meetings to disk",
-                    detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
-                    isOn: $viewModel.meetingAutoSave
-                )
-
-                if viewModel.meetingAutoSave {
-                    meetingAutoSaveOptionsView
-                }
-
-                if AppFeatures.calendarEnabled {
-                    Divider()
-
-                    // Calendar section folded in from the legacy standalone
-                    // `calendarCard`. Calendar is meeting-only — folding it
-                    // here removes a card without losing any controls.
-                    meetingCalendarSection
-                }
             }
         }
     }
@@ -1203,22 +1193,40 @@ struct SettingsView: View {
         )
     }
 
-    /// Calendar auto-start controls, rendered inline within the Meeting
-    /// Recording card after the auto-save section. Visually demoted to a
-    /// section heading so it reads as part of meeting setup.
-    private var meetingCalendarSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+    /// Automatic-recording controls grouped under one subsection: the
+    /// calendar-driven "Start recording automatically" half (ADR-017) and the
+    /// activity-driven "Stop recording automatically" half (ADR-023). They read
+    /// as the two ends of the recording lifecycle but use different signals on
+    /// purpose — calendar *start* times are reliable, *end* times are not, so
+    /// stop keys off meeting-end activity (app quit + dual-channel silence)
+    /// instead. Each flag is independent; either alone still renders the group.
+    private var meetingAutomationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: 6) {
-                Image(systemName: "calendar")
+                Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("Calendar auto-start")
+                Text("Automatic recording")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
 
-            CalendarSettingsView(viewModel: viewModel)
+            if AppFeatures.calendarEnabled {
+                CalendarSettingsView(viewModel: viewModel)
+            }
+
+            if AppFeatures.meetingAutoStopEnabled {
+                if AppFeatures.calendarEnabled {
+                    Divider()
+                }
+
+                settingsToggleRow(
+                    title: "Stop recording automatically",
+                    detail: "Stop after a meeting app quits, or both channels stay quiet for a few minutes. A countdown lets you keep recording first.",
+                    isOn: $viewModel.meetingAutoStopEnabled
+                )
+            }
         }
     }
 
