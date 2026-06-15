@@ -50,7 +50,9 @@ These decisions are final. Do not second-guess them.
 
 ## Architecture Decision Records (ADRs)
 
-All ADRs live in `spec/adr/`. These are locked -- they record decisions already made.
+All ADRs live in `spec/adr/`. Accepted and implemented ADRs are locked; entries
+marked as proposals are decision prompts and must not be treated as approved
+implementation scope.
 
 | ADR | Decision |
 |-----|----------|
@@ -79,6 +81,8 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B implemented behind default-off flag — replaces withdrawn ADR-017 calendar auto-stop) |
 | [ADR-024](adr/024-activity-based-meeting-detection.md) | Activity-based meeting detection (Phases A+B process-audio/camera collectors + pure detector implemented behind default-off flag; coordinator/prompt phases proposed) |
 | [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (Phase A mic-health telemetry watchdog implemented; warning UI + repair proposed) |
+| [ADR-026](adr/026-cross-meeting-speaker-identity.md) | PROPOSAL: opt-in local cross-meeting speaker identity via deletable voice embeddings |
+| [ADR-027](adr/027-live-speaker-labels.md) | PROPOSAL: tentative live meeting speaker labels via streaming diarization |
 
 ## Version Roadmap
 
@@ -126,7 +130,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 ### v0.4 Polish & Launch (Implemented)
 
-- [x] Speaker diarization CLI preview (FluidAudio offline pipeline, ADR-010)
+- [x] Speaker diarization CLI preview (FluidAudio offline pipeline, speaker-count hints, content-free quality report, ADR-010)
 - [x] Speaker diarization GUI (summary panel + inline rename)
 - [x] Custom hotkey support (any single key + chord combos, ADR-009)
 - [x] Sparkle auto-updates

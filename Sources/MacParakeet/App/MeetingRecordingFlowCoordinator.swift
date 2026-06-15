@@ -134,12 +134,14 @@ final class MeetingRecordingFlowCoordinator {
     /// which sets this and re-enters `toggleRecording`.
     private var pendingTrigger: TelemetryMeetingRecordingTrigger?
 
-    /// Pre-set title for the *next* `.startRecording` effect. Paired with
-    /// `pendingTrigger`: `startFromCalendar(title:)` sets both, the
-    /// `.startRecording` handler snapshots and clears both before the async
-    /// hop. Manual / hotkey starts set only the trigger, so the service falls
-    /// back to its date-based default title.
+    /// Pre-set title and calendar context for the *next* `.startRecording`
+    /// effect. Paired with `pendingTrigger`: `startFromCalendar(...)` sets
+    /// all three, the `.startRecording` handler snapshots and clears them
+    /// before the async hop. Manual / hotkey starts set only the trigger, so
+    /// the service falls back to its date-based default title and no calendar
+    /// speaker hint.
     private var pendingTitle: String?
+    private var pendingCalendarContext: MeetingRecordingCalendarContext?
 
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
@@ -186,11 +188,13 @@ final class MeetingRecordingFlowCoordinator {
     @discardableResult
     func startRecording(
         title: String? = nil,
-        trigger: TelemetryMeetingRecordingTrigger = .manual
+        trigger: TelemetryMeetingRecordingTrigger = .manual,
+        calendarContext: MeetingRecordingCalendarContext? = nil
     ) -> Int? {
         guard stateMachine.state == .idle else { return nil }
         pendingTrigger = pendingTrigger ?? trigger
         pendingTitle = title
+        pendingCalendarContext = calendarContext
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -254,13 +258,17 @@ final class MeetingRecordingFlowCoordinator {
     /// often back-to-back meetings actually collide in the wild. Returns the
     /// recording generation on success (or `nil` when the state was busy).
     @discardableResult
-    func startFromCalendar(title: String? = nil) -> Int? {
+    func startFromCalendar(
+        title: String? = nil,
+        calendarContext: MeetingRecordingCalendarContext? = nil
+    ) -> Int? {
         guard stateMachine.state == .idle else {
             Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
             return nil
         }
         pendingTrigger = .calendarAutoStart
         pendingTitle = title
+        pendingCalendarContext = calendarContext
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -283,6 +291,7 @@ final class MeetingRecordingFlowCoordinator {
         )
         pendingTrigger = nil
         pendingTitle = nil
+        pendingCalendarContext = nil
         pendingAudioSourceMode = nil
         currentMeetingOperationContext = nil
         currentMeetingTrigger = nil
@@ -465,16 +474,22 @@ final class MeetingRecordingFlowCoordinator {
             // can't smuggle a stale trigger / title into this start.
             let trigger = pendingTrigger
             let title = pendingTitle
+            let calendarContext = pendingCalendarContext
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
             pendingTrigger = nil
             pendingTitle = nil
+            pendingCalendarContext = nil
             pendingAudioSourceMode = nil
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             currentMeetingOperationContext = operationContext
             currentMeetingTrigger = trigger.map(TelemetryMeetingOperationTrigger.init)
             actionTask = Task { @MainActor in
                 do {
-                    try await meetingRecordingService.startRecording(title: title, sourceMode: sourceMode)
+                    try await meetingRecordingService.startRecording(
+                        title: title,
+                        sourceMode: sourceMode,
+                        calendarContext: calendarContext
+                    )
                     let isSpeechModelReady = await self.sttManager?.isReady() ?? true
                     switch self.panelViewModel?.liveTranscriptStatus {
                     case .some(.startingAudio) where isSpeechModelReady:
@@ -658,6 +673,7 @@ final class MeetingRecordingFlowCoordinator {
             let cancelledTrigger = currentMeetingTrigger ?? pendingTrigger.map(TelemetryMeetingOperationTrigger.init)
             pendingTrigger = nil
             pendingTitle = nil
+            pendingCalendarContext = nil
             pendingAudioSourceMode = nil
             actionTask?.cancel()
             actionTask = Task { @MainActor in
@@ -1198,6 +1214,7 @@ extension MeetingRecordingFlowCoordinator {
         currentMeetingTrigger = nil
         pendingTrigger = nil
         pendingTitle = nil
+        pendingCalendarContext = nil
         pendingAudioSourceMode = nil
         _ = stateMachine.handle(.startRequested)
         _ = stateMachine.handle(.permissionsGranted(generation: stateMachine.generation))

@@ -16,6 +16,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     private var recordingActiveStub = false
     private var autoStartConfirmedCount = 0
     private var autoStartConfirmedTitles: [String] = []
+    private var autoStartConfirmedCalendarContexts: [MeetingRecordingCalendarContext?] = []
     /// When true, the `onAutoStartConfirmed` stub mimics the real flow
     /// coordinator's `state_busy` rejection by returning nil — exercising the
     /// back-to-back retry path (#8).
@@ -35,6 +36,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         recordingActiveStub = false
         autoStartConfirmedCount = 0
         autoStartConfirmedTitles = []
+        autoStartConfirmedCalendarContexts = []
         simulateAutoStartBusy = false
     }
 
@@ -67,10 +69,11 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             calendarService: calendarService,
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
-            onAutoStartConfirmed: { [weak self] title in
+            onAutoStartConfirmed: { [weak self] title, calendarContext in
                 guard let self else { return nil }
                 self.autoStartConfirmedCount += 1
                 self.autoStartConfirmedTitles.append(title)
+                self.autoStartConfirmedCalendarContexts.append(calendarContext)
                 if self.simulateAutoStartBusy {
                     // Mimic MeetingRecordingFlowCoordinator.startFromCalendar's
                     // synchronous state_busy path: reject with nil.
@@ -87,7 +90,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         title: String = "Standup",
         startsIn seconds: TimeInterval = 5 * 60,
         durationMinutes: Int = 30,
-        meetUrl: String? = "https://zoom.us/j/123"
+        meetUrl: String? = "https://zoom.us/j/123",
+        participants: [EventParticipant] = [EventParticipant(email: "alice@example.com")]
     ) -> CalendarEvent {
         let now = Date()
         let start = now.addingTimeInterval(seconds)
@@ -98,7 +102,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             startTime: start,
             endTime: end,
             meetUrl: meetUrl,
-            participants: [EventParticipant(email: "alice@example.com")],
+            participants: participants,
             calendarIdentifier: "cal-1",
             userStatus: .accepted
         )
@@ -205,7 +209,12 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "evt-1",
             title: uniqueTitle,
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            participants: [
+                EventParticipant(email: "alice@example.com"),
+                EventParticipant(email: "bob@example.com"),
+                EventParticipant(email: "casey@example.com"),
+            ]
         )
         coordinator.handleAutoStartOutcome(.completed, for: event)
         XCTAssertEqual(autoStartConfirmedCount, 1,
@@ -214,6 +223,9 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         // recording will be titled, not the date-based default.
         XCTAssertEqual(autoStartConfirmedTitles, [uniqueTitle],
                        "Auto-start must forward the event title so the saved recording is named after the meeting")
+        XCTAssertEqual(autoStartConfirmedCalendarContexts, [
+            MeetingRecordingCalendarContext(attendeeCount: 3)
+        ], "Auto-start must forward the remote attendee count without subtracting the current user")
 
         coordinator.stop()
     }

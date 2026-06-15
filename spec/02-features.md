@@ -1327,7 +1327,8 @@ new scheduling architecture.
 - Manual renaming: click speaker label to assign real name
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
-- Off by default for file transcription (opt-in Settings toggle); the CLI follows the saved preference — `--speaker-detection on` or a speaker-count constraint forces it on, `--no-diarize` forces it off
+- Off by default for file transcription (opt-in Settings toggle); the CLI follows the saved preference — `--speaker-detection on` or a speaker-count constraint (`--speaker-count`, `--speaker-min`, `--speaker-max`) forces it on, `--no-diarize` forces it off
+- CLI `--diarization-report PATH` writes a content-free JSON quality report for a single fresh transcription, including requested speaker hints, detected speaker count, segment counts, speaking-time totals, word-assignment method counts, and warning flags
 
 **Transcript with speakers:**
 
@@ -1361,7 +1362,7 @@ new scheduling architecture.
 - SRT/VTT: speaker name prefix per subtitle
 - TXT/Markdown: speaker label before each turn
 - DOCX/PDF: speaker name in bold before each turn
-- JSON: `speakerId` field per word in `wordTimestamps`
+- JSON: `speakerId` field per word in `wordTimestamps`; speaker rows may also include optional `source`, `rawProviderSpeakerId`, and `labelSource` provenance fields
 
 **Technical notes:**
 - Uses FluidAudio's offline diarization pipeline (separate from ASR, see ADR-010)
@@ -1371,6 +1372,7 @@ new scheduling architecture.
 - Runs after ASR completes, merges speaker segments with word-level timestamps by time overlap
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
 - Stable speaker IDs (`"S1"`, `"S2"`) stored on words; display labels in separate mapping (rename is O(1))
+- Word-to-speaker assignment prefers unambiguous direct overlap and uses a bounded, quality-gated nearest-segment fallback for small timing gaps; quality reports expose the assignment summary without transcript text
 - Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
 - Single-speaker files correctly return one speaker label with no overhead
@@ -1389,7 +1391,7 @@ new scheduling architecture.
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
 - [x] Settings toggle for speaker detection (off by default, replaces planned Option-key alternate)
-- [x] CLI: `macparakeet-cli transcribe` follows the saved speaker-detection preference (off by default); `--speaker-detection on` / `--speaker-count` to force on, `--no-diarize` to force off
+- [x] CLI: `macparakeet-cli transcribe` follows the saved speaker-detection preference (off by default); `--speaker-detection on` / `--speaker-count` / `--speaker-min` / `--speaker-max` to force on, `--no-diarize` to force off, `--diarization-report PATH` to write a content-free quality report for one fresh run
 
 ---
 

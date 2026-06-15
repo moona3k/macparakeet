@@ -14,12 +14,14 @@ final class MeetingRecordingServiceTests: XCTestCase {
             lockFileStore: lockStore
         )
 
-        try await service.startRecording()
+        let calendarContext = MeetingRecordingCalendarContext(attendeeCount: 4)
+        try await service.startRecording(calendarContext: calendarContext)
 
         XCTAssertEqual(lockStore.writes.count, 1)
         let startCallCount = await captureService.startCallCount
         XCTAssertEqual(startCallCount, 1)
         XCTAssertEqual(lockStore.writes.first?.file.displayName.isEmpty, false)
+        XCTAssertEqual(lockStore.writes.first?.file.calendarContext, calendarContext)
 
         await service.cancelRecording()
     }
@@ -619,7 +621,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
             sttTranscriber: sttClient
         )
 
-        try await service.startRecording()
+        let calendarContext = MeetingRecordingCalendarContext(attendeeCount: 4)
+        try await service.startRecording(calendarContext: calendarContext)
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
@@ -642,11 +645,13 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(system.startOffsetMs - 150), 20)
         XCTAssertGreaterThan(microphone.writtenFrameCount, 0)
         XCTAssertGreaterThan(system.writtenFrameCount, 0)
+        XCTAssertEqual(output.calendarContext, calendarContext)
 
         let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: output.folderURL)
         let metadataData = try Data(contentsOf: metadataURL)
         let metadata = try JSONDecoder().decode(MeetingRecordingMetadata.self, from: metadataData)
         XCTAssertEqual(metadata.sourceAlignment, output.sourceAlignment)
+        XCTAssertEqual(metadata.calendarContext, calendarContext)
     }
 
     func testStopRecordingCancelsPendingLiveChunksInsteadOfWaitingForThem() async throws {

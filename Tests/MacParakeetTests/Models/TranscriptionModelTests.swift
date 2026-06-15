@@ -147,6 +147,40 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertEqual(t.speakers?.count, 1)
         XCTAssertEqual(t.speakers?[0].id, "S1")
         XCTAssertEqual(t.speakers?[0].label, "Speaker 1")
+        XCTAssertNil(t.speakers?[0].source)
+        XCTAssertNil(t.speakers?[0].rawProviderSpeakerId)
+        XCTAssertNil(t.speakers?[0].labelSource)
+    }
+
+    func testDecodingSpeakerInfoProvenanceMetadata() throws {
+        let json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "createdAt": "2026-03-01T00:00:00Z",
+            "fileName": "test.mp3",
+            "status": "completed",
+            "speakers": [
+                {
+                    "id": "system:S1",
+                    "label": "Others 1",
+                    "source": "system",
+                    "rawProviderSpeakerId": "speaker_0",
+                    "labelSource": "modelDefault"
+                }
+            ],
+            "updatedAt": "2026-03-01T00:00:00Z"
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let t = try decoder.decode(Transcription.self, from: Data(json.utf8))
+        let speaker = try XCTUnwrap(t.speakers?.first)
+
+        XCTAssertEqual(speaker.id, "system:S1")
+        XCTAssertEqual(speaker.label, "Others 1")
+        XCTAssertEqual(speaker.source, .system)
+        XCTAssertEqual(speaker.rawProviderSpeakerId, "speaker_0")
+        XCTAssertEqual(speaker.labelSource, .modelDefault)
     }
 
     func testDecodingNullSpeakers() throws {

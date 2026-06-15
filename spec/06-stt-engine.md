@@ -534,12 +534,12 @@ Audio file
   ├─→ selected ASR engine                    → word timestamps + text
   └─→ OfflineDiarizerManager.process()        → speaker segments + IDs
                     ↓
-         Merge by time overlap
+         Quality-aware word assignment
                     ↓
          WordTimestamp entries with speakerId
 ```
 
-Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word. Words in silence gaps or overlapping speech zones (trimmed by the offline pipeline) get `speakerId = nil`.
+Each word's time range is compared against diarization speaker segments. Direct overlap wins only when the best speaker clears the ambiguity margin; small timestamp gaps can use a bounded, quality-gated nearest-segment fallback. Words in silence gaps, ambiguous overlap zones, or low-confidence fallback regions get no speaker assignment for file transcription, or retain source-only attribution for meeting system audio.
 
 **Diarization is non-fatal.** If diarization fails (`noSpeechDetected`, model error, etc.), the ASR result is still persisted. Speaker fields remain nil and the transcript displays without speaker attribution.
 

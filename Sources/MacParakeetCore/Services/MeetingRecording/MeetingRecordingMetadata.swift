@@ -48,25 +48,37 @@ public struct MeetingSourceAlignment: Sendable, Codable, Equatable {
     }
 }
 
+public struct MeetingRecordingCalendarContext: Sendable, Codable, Equatable {
+    public let attendeeCount: Int?
+
+    public init(attendeeCount: Int? = nil) {
+        self.attendeeCount = attendeeCount
+    }
+}
+
 public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public static let fileName = "meeting-recording-metadata.json"
 
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
+    public let calendarContext: MeetingRecordingCalendarContext?
 
     public init(
         sourceAlignment: MeetingSourceAlignment,
-        speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet)
+        speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
+        calendarContext: MeetingRecordingCalendarContext? = nil
     ) {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = true
+        self.calendarContext = calendarContext
     }
 
     private enum CodingKeys: String, CodingKey {
         case sourceAlignment
         case speechEngine
+        case calendarContext
     }
 
     public init(from decoder: Decoder) throws {
@@ -75,6 +87,10 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         let decodedSpeechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
         speechEngine = decodedSpeechEngine ?? SpeechEngineSelection(engine: .parakeet)
         speechEngineWasCaptured = decodedSpeechEngine != nil
+        calendarContext = try container.decodeIfPresent(
+            MeetingRecordingCalendarContext.self,
+            forKey: .calendarContext
+        )
     }
 }
 

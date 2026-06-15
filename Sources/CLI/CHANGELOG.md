@@ -84,6 +84,29 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## Unreleased
+
+### Added
+
+- `transcribe --diarization-report PATH` writes a content-free
+  speaker-diarization quality report JSON for a single fresh transcription.
+  The report includes speaker-count hints, detected/segment counts, assignment
+  summary counters, and structured diagnostic warnings; it is rejected with
+  `--no-diarize`, `--speaker-detection off`, and batch/output-dir mode.
+- `diarization-eval <fixtures-dir>` is a developer/testing command for private
+  speaker-diarization fixtures. It runs the local diarizer on each immediate
+  fixture subdirectory, optionally compares `reference.rttm` annotations with
+  DER/coverage metrics, and supports `--json` output. DER uses optimal
+  one-to-one speaker mapping and the command accepts `--collar-ms` and
+  `--ignore-overlap` / `--skip-overlap` so reports carry the same
+  scoring-policy knobs used by common RTTM evaluators. Structured output omits
+  the absolute fixture root and selected audio filename by default; private
+  fixtures should live under ignored `fixtures/private/`.
+- Speaker objects in JSON output may now include optional `source`,
+  `rawProviderSpeakerId`, and `labelSource` fields so agents can distinguish
+  model-default labels from user-renamed speakers and trace meeting system
+  speakers back to the upstream diarizer ID.
+
 ## [2.9.0] -- 2026-06-11
 
 ### Added

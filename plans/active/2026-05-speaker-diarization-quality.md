@@ -1,9 +1,13 @@
 # Speaker Diarization Quality Plan
 
 > Status: ACTIVE PLAN
-> Date: 2026-05-27
+> Date: 2026-05-27 (refreshed 2026-06-14 against FluidAudio 0.15.2)
 > Review: revised after two ChatGPT Pro reviews and local fresh-eye review to
-> reduce overengineering and avoid brittle heuristics.
+> reduce overengineering and avoid brittle heuristics. The 2026-06-14 refresh
+> re-grounds "Verified Current State" against the now-pinned FluidAudio 0.15.2
+> (was 0.14.5), promotes the evaluation harness to the first implemented slice
+> (measure before changing behavior), and folds the newly-exposed per-segment
+> `qualityScore` and speaker embeddings into Phases 2 and 5.
 > Scope: speaker diarization accuracy, speaker-to-word attribution, local
 > diagnostics, and minimal speaker-label provenance. This is separate from the
 > meeting echo-suppression plan, which targets audio bleed into the microphone
@@ -33,19 +37,30 @@ current FluidAudio offline pipeline.
 
 ## Verified Current State
 
-- `Package.resolved` pins FluidAudio `0.14.5`
-  (`ce59fb14b8b8978b196f6a34282e20ea6762d164`).
-- `DiarizationService` constructs `OfflineDiarizerManager(config: .default)`
-  and exposes only `diarize(audioURL:)`, so every call uses the same default
-  clustering behavior.
-- FluidAudio `0.14.5` exposes speaker-count constraints through
-  `OfflineDiarizerConfig.Clustering`:
-  - `numSpeakers`
-  - `minSpeakers`
-  - `maxSpeakers`
-- FluidAudio resolves those constraints inside the offline VBx clustering path,
-  and may clamp them to the available embedding count. A requested hint is not
-  proof that the result is correct.
+- `Package.resolved` now pins FluidAudio `0.15.2`
+  (`7f963cdc43ba89c5993654f1e138047d517a818d`), via
+  `.upToNextMinor(from: "0.15.2")`. This plan was originally written against
+  `0.14.5`; the bullets below are re-verified against the 0.15.2 source checked
+  out under `.build/checkouts/FluidAudio`.
+- `DiarizationService` exposes `diarize(audioURL:)` (no per-call options). It is
+  constructed either with `config: .default` or, for the CLI file/URL path, with
+  `init(speakerConstraint:)` — so speaker-count hints are wired only at
+  construction time today, never per call, and never for the meeting path.
+- FluidAudio `0.15.2` still exposes speaker-count constraints through
+  `OfflineDiarizerConfig.Clustering` (`numSpeakers`, `minSpeakers`,
+  `maxSpeakers`); the code surfaces these via `OfflineDiarizerConfig`
+  `withSpeakers(exactly:)` / `withSpeakers(min:max:)`. FluidAudio resolves them
+  inside the offline VBx clustering path and may clamp to the available
+  embedding count. A requested hint is not proof the result is correct.
+- NEW in 0.15.2 (not available when this plan was first written):
+  `TimedSpeakerSegment` now carries a per-segment `embedding: [Float]` (256-dim,
+  L2-normalized) and a `qualityScore: Float`; `DiarizationResult` adds
+  `speakerDatabase: [String: [Float]]?` (per-file centroids) and, behind the
+  `exposeChunkEmbeddings` config flag, `chunkEmbeddings: [ChunkEmbedding]?`
+  (256-dim WeSpeaker + 128-dim PLDA `rho128`). `OfflineDiarizerManager.process`
+  also gained a `progressCallback`. `DiarizationService.diarize` currently
+  DISCARDS all of this — our `SpeakerSegment` carries only
+  `{ speakerId, startMs, endMs }`.
 - `TranscriptionService.transcribeMeetingAudio` diarizes only the system WAV
   and maps results into source-prefixed IDs such as `system:S1`.
 - `MeetingTranscriptFinalizer` keeps microphone words as `microphone` / `Me`
@@ -56,6 +71,38 @@ current FluidAudio offline pipeline.
 - `SpeakerInfo` currently stores only `{ id, label }`. Renaming a speaker
   updates the `speakers` JSON but does not store whether the label came from
   the model default or the user.
+
+## FluidAudio 0.15.2 Capability Delta (2026-06-14)
+
+The version bump since this plan was drafted changes what is *possible*, and in
+two places changes the recommended design:
+
+1. Per-segment `qualityScore` is a principled confidence gate. Phase 2's
+   conservative fallback was designed around hand-tuned millisecond tolerances
+   because the model gave no confidence signal. It now does. Phase 2 should gate
+   fallback assignment on `qualityScore` in addition to the gap/ambiguity
+   heuristics, and surface `qualityScore` through `SpeakerSegment` so both the
+   assigner and the eval report can see it. The 250 ms / 150 ms tolerances stay
+   as a backstop, not the primary signal.
+
+2. Speaker embeddings are now extractable (`speakerDatabase`, `chunkEmbeddings`,
+   `TimedSpeakerSegment.embedding`) and FluidAudio ships a known-speaker
+   enrollment API (`Speaker` + `initializeKnownSpeakers`). This makes
+   cross-meeting speaker identity ("name Alice once, recognize her next week")
+   technically feasible locally — which ADR-010 had ruled out partly because the
+   API did not surface vectors. This stays OUT OF SCOPE for this plan: voice
+   embeddings are biometric data and require a separate opt-in privacy ADR before
+   any persistence. Captured here only so the door is known to be open.
+
+3. Streaming diarizers (`LSEENDDiarizer`, `SortformerDiarizer`) are public, so
+   live speaker labels in the meeting preview are now feasible. Also deferred —
+   batch quality and the eval harness come first, and live labels need their own
+   quality bar.
+
+Net effect on this plan: (a) the evaluation harness moves to the first
+implemented slice so every later change is measured, not asserted; (b) Phase 2
+gains a real confidence input (`qualityScore`); (c) two larger, ADR-gated bets
+are named but explicitly not built here.
 
 ## Non-Goals
 
@@ -258,9 +305,9 @@ FluidAudio config.
 Add file/URL transcription flags:
 
 ```text
---speakers <n>
---min-speakers <n>
---max-speakers <n>
+--speaker-count <n>
+--speaker-min <n>
+--speaker-max <n>
 ```
 
 Rules:
@@ -269,7 +316,7 @@ Rules:
   `app-default`
 - reject speaker-count flags combined with explicit `--speaker-detection off`
   or `--no-diarize`
-- reject `--speakers` combined with `--min-speakers` or `--max-speakers`
+- reject `--speaker-count` combined with `--speaker-min` or `--speaker-max`
 - reject invalid bounds before any transcription starts
 - include requested hints in the fresh-run report
 
@@ -345,7 +392,8 @@ Do not infer assignment quality from `speakerId != nil`. In meetings,
 
 ### Algorithm
 
-1. Direct max-overlap segment wins.
+1. Direct max-overlap segment wins only when the best speaker clears the
+   ambiguity margin over the runner-up; near ties are ambiguous.
 2. If there is no overlap, compute interval boundary gap to nearby diarization
    segments.
 3. Fallback only if:
@@ -371,9 +419,14 @@ Initial conservative defaults:
 
 - fallback tolerance: 250 ms
 - ambiguity margin: 150 ms
+- minimum segment `qualityScore` for fallback assignment (0.15.2): injectable,
+  default `0.60`; below it, prefer source-only/unassigned over a low-confidence
+  fallback. This is a provisional gate over FluidAudio's normalized 0...1
+  segment quality and must be revisited once private fixtures produce evidence.
 
 These values must be injectable in tests and recorded in reports. Do not expose
-them in the general UI.
+them in the general UI. Surfacing `qualityScore` requires adding it to
+`SpeakerSegment`; see the 0.15.2 capability delta above.
 
 ### Source Policy
 
@@ -409,9 +462,10 @@ Behavior:
 
 ### Tie Handling
 
-Direct-overlap ties are ambiguous. If two different speakers have the same
-maximum overlap for a word, leave the word source-only/unassigned rather than
-using array order as a hidden tie-breaker.
+Direct-overlap ties and near ties inside the ambiguity margin are ambiguous.
+If two different speakers have effectively the same maximum overlap for a word,
+leave the word source-only/unassigned rather than using array order as a hidden
+tie-breaker.
 
 ### Finalizer Safety
 
@@ -429,6 +483,8 @@ first word that has a displayable speaker/source ID.
 - no fallback when two different speakers are close
 - no fallback across microphone/system boundaries
 - direct-overlap tie leaves a word source-only/unassigned
+- direct-overlap near tie inside the ambiguity margin leaves a word
+  source-only/unassigned
 - source-only meeting words are counted as source-only, not assigned
 - output ordering is deterministic when word start times tie
 - leading unassigned/source-only words do not drop later segments
@@ -610,6 +666,8 @@ fixtures/private/diarization/
 ```json
 {
   "expectedRemoteSpeakers": 2,
+  "minimumRemoteSpeakers": 2,
+  "maximumRemoteSpeakers": 3,
   "maxSourceOnlyWordRate": 0.15,
   "notes": "Two speakers, no overlap"
 }
@@ -620,7 +678,11 @@ The harness should:
 - run default config
 - run exact/min/max speaker-count variants
 - emit `DiarizationQualityReport` for each run
-- compute DER/JER only when an RTTM reference is present
+- make scoring policy explicit in output (`collarMs`, `skipOverlap`) and accept
+  CLI knobs for benchmark comparisons
+- compute DER only when an RTTM reference is present; JER remains deferred until
+  the harness has fixture evidence that it adds useful signal beyond DER,
+  coverage, and speaker-count delta
 
 Do not treat expected speaker count as a benchmark. It is a coarse symptom
 check, not ground truth.
@@ -639,7 +701,22 @@ These are intentionally not in the first implementation:
 
 ## Implementation Order
 
-Implement in small PR-sized slices:
+Implement in small PR-sized slices. NOTE (2026-06-14 refresh): the private
+evaluation harness, listed historically as step 5, is promoted to step 0 — a
+minimal "measure what we can today" baseline lands before any behavior change.
+
+0. Evaluation baseline (minimal):
+   - add a `DiarizationMetrics` module (DER + speaker-count delta + coverage;
+     JER deferred until fixtures show it adds signal)
+     with unit tests over synthetic segment/reference inputs
+   - add a dev CLI `diarization-eval <fixtures-dir>` that runs the existing
+     diarizer over `fixtures/private/diarization/*/` and prints per-fixture
+     metrics; route default vs hinted variants through `DiarizationOptions`
+     so the harness exercises the same per-call path as production
+   - gitignore `fixtures/private/`
+   - if FluidAudio's DER helper fits the local data shape, reuse it; otherwise
+     keep the local scorer explicit and tested, including optimal speaker
+     mapping rather than greedy first-pair assignment
 
 1. Speaker ID and hint plumbing:
    - add `SpeakerID` helper and tests for source-prefixed speaker IDs
@@ -648,7 +725,7 @@ Implement in small PR-sized slices:
    - change `DiarizationServiceProtocol` so options cannot be silently ignored
    - refactor `DiarizationService` to use `baseConfig` plus manager factory
    - map hints onto a copy of the injected base config
-   - add CLI `--speakers`, `--min-speakers`, and `--max-speakers`
+   - add CLI `--speaker-count`, `--speaker-min`, and `--speaker-max`
 2. Word assignment:
    - add `SpeakerWordAssigner`
    - keep `SpeakerMerger` as a compatibility wrapper if needed
@@ -668,7 +745,7 @@ Implement in small PR-sized slices:
 
 ## Acceptance Criteria
 
-1. A known two-remote-speaker file can be transcribed with `--speakers 2`, and
+1. A known two-remote-speaker file can be transcribed with `--speaker-count 2`, and
    the fresh-run report records the requested hint and detected speaker count.
 2. Invalid speaker hint combinations fail before transcription starts.
 3. Existing no-hint behavior remains the default.
@@ -706,7 +783,7 @@ swift test
 Manual validation:
 
 1. Transcribe a local multi-speaker file with no hints.
-2. Transcribe the same file with `--speakers 2`.
+2. Transcribe the same file with `--speaker-count 2`.
 3. Compare requested hint, detected speaker count, assignment coverage, and
    source-only rate.
 4. Retranscribe a meeting with isolated `system.m4a` and confirm the hint

@@ -1290,6 +1290,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.renameSpeaker(id: "S1", to: "Sarah")
 
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Sarah")
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].labelSource, .user)
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
     }
 
@@ -1305,6 +1306,32 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(mockRepo.updateSpeakersCalls.count, 1)
         XCTAssertEqual(mockRepo.updateSpeakersCalls[0].speakers?[0].label, "Alice")
+        XCTAssertEqual(mockRepo.updateSpeakersCalls[0].speakers?[0].labelSource, .user)
+    }
+
+    func testRenameSpeakerPreservesProviderMetadata() {
+        let speakers = [
+            SpeakerInfo(
+                id: "system:S1",
+                label: "Others 1",
+                source: .system,
+                rawProviderSpeakerId: "speaker_0",
+                labelSource: .modelDefault
+            ),
+        ]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "system:S1", to: "Dana")
+        let renamed = viewModel.currentTranscription?.speakers?.first
+
+        XCTAssertEqual(renamed?.label, "Dana")
+        XCTAssertEqual(renamed?.source, .system)
+        XCTAssertEqual(renamed?.rawProviderSpeakerId, "speaker_0")
+        XCTAssertEqual(renamed?.labelSource, .user)
     }
 
     func testRenameSpeakerIgnoresEmptyLabel() {

@@ -261,6 +261,21 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(resolved.constraint, .range(min: nil, max: 4))
     }
 
+    func testResolveSpeakerDetectionReportForcesDetectionForAppDefault() {
+        let resolved = TranscribeCommand.resolveSpeakerDetection(
+            .appDefault,
+            storedEnabled: false,
+            noDiarize: false,
+            speakerCount: nil,
+            speakerMin: nil,
+            speakerMax: nil,
+            forceDiarization: true
+        )
+
+        XCTAssertTrue(resolved.enabled)
+        XCTAssertNil(resolved.constraint)
+    }
+
     func testParsesWhisperEngineAndLanguage() throws {
         let command = try TranscribeCommand.parse([
             "sample.wav",
@@ -310,6 +325,15 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(range.speakerMax, 4)
     }
 
+    func testParsesDiarizationReportPath() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--diarization-report", "/tmp/report.json",
+        ])
+
+        XCTAssertEqual(command.diarizationReport, "/tmp/report.json")
+    }
+
     func testSpeakerConstraintFlagsRejectExplicitDisable() throws {
         XCTAssertThrowsError(try TranscribeCommand.parse([
             "sample.wav",
@@ -325,6 +349,31 @@ final class TranscribeCommandTests: XCTestCase {
             "--speaker-min", "2",
         ])) { error in
             XCTAssertTrue(String(describing: error).contains("--no-diarize cannot be combined"))
+        }
+    }
+
+    func testDiarizationReportRejectsExplicitDisableAndEmptyPath() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--speaker-detection", "off",
+            "--diarization-report", "/tmp/report.json",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--speaker-detection off cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--no-diarize",
+            "--diarization-report", "/tmp/report.json",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--no-diarize cannot be combined"))
+        }
+
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--diarization-report", "   ",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--diarization-report requires a non-empty path"))
         }
     }
 
@@ -535,6 +584,33 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertTrue((object["error"] as? String)?.contains("File not found") == true)
     }
 
+    func testJSONFormatEmitsFailureEnvelopeForDiarizationReportBatchMisuse() async throws {
+        let command = try TranscribeCommand.parse([
+            "a.wav", "b.wav",
+            "--format", "json",
+            "--diarization-report", "/tmp/report.json",
+        ])
+
+        var thrownError: Error?
+        let output = try await captureStandardOutput {
+            do {
+                try await command.run()
+            } catch {
+                thrownError = error
+            }
+        }
+
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(object["ok"] as? Bool, false)
+        XCTAssertEqual(object["errorType"] as? String, "validation")
+        XCTAssertTrue((object["error"] as? String)?.contains("single fresh transcription") == true)
+    }
+
     // MARK: - Batch (Phase C)
 
     func testParsesMultipleInputsAndOutputDir() throws {
@@ -659,6 +735,45 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         XCTAssertNotNil(object)
+    }
+
+    func testWriteDiarizationReportWritesParseableJSON() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-diarization-report-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let report = DiarizationQualityReport(
+            transcriptionSourceType: .file,
+            diarizedAudioSource: nil,
+            requestedSpeakerHint: SpeakerCountHint(exact: 2),
+            detectedSpeakerCount: 1,
+            rawDiarizationSegmentCount: 1,
+            segmentsPerSpeaker: ["S1": 1],
+            speakingTimeMsPerSpeaker: ["S1": 500],
+            assignmentSummary: WordSpeakerAssignmentSummary(
+                totalWords: 1,
+                directOverlapWords: 1,
+                fallbackNearestWords: 0,
+                sourceOnlyWords: 0,
+                unassignedWords: 0,
+                fallbackToleranceMs: 250,
+                ambiguityMarginMs: 150,
+                minFallbackQualityScore: 0.60
+            ),
+            warnings: []
+        )
+
+        let url = try TranscribeCommand.writeDiarizationReport(
+            report,
+            to: dir.appendingPathComponent("report.json").path
+        )
+        let decoded = try JSONDecoder().decode(
+            DiarizationQualityReport.self,
+            from: Data(contentsOf: url)
+        )
+
+        XCTAssertEqual(decoded, report)
     }
 
     func testPlainTextOutputToleratesDuplicateSpeakerIDs() {

@@ -22,6 +22,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(paths.contains(["config", "set"]))
         XCTAssertTrue(paths.contains(["models", "delete"]))
         XCTAssertTrue(paths.contains(["spec"]))
+        XCTAssertTrue(paths.contains(["diarization-eval"]))
 
         let writeback = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "results", "add"] })
         XCTAssertEqual(writeback["readOnly"] as? Bool, false)
@@ -61,7 +62,7 @@ final class SpecCommandTests: XCTestCase {
 
         XCTAssertEqual(
             documentedTopLevelCommands,
-            ["spec", "health", "transcribe", "config", "models", "history", "prompts", "meetings"],
+            ["spec", "health", "transcribe", "diarization-eval", "config", "models", "history", "prompts", "meetings"],
             "The spec catalog is a curated agent-facing surface; update this expectation when that surface changes."
         )
         for path in paths {
@@ -106,6 +107,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-count"))
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
+        XCTAssertTrue(optionNames.contains("--diarization-report"))
         XCTAssertTrue(optionNames.contains("--media-audio-quality"))
         XCTAssertTrue(optionNames.contains("--database"))
 
@@ -136,6 +138,25 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(health["readOnly"] as? Bool, false)
         let healthOptions = try XCTUnwrap(health["options"] as? [[String: Any]])
         XCTAssertTrue(healthOptions.contains { ($0["name"] as? String) == "--repair-attempts" })
+    }
+
+    func testSpecDocumentsDiarizationEvalSurface() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let eval = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["diarization-eval"] })
+
+        XCTAssertEqual(eval["summary"] as? String, "Run local speaker diarization against private fixture folders.")
+        XCTAssertEqual(eval["readOnly"] as? Bool, false)
+
+        let arguments = try XCTUnwrap(eval["arguments"] as? [[String: Any]])
+        XCTAssertEqual(arguments.first?["name"] as? String, "fixtures-dir")
+
+        let options = try XCTUnwrap(eval["options"] as? [[String: Any]])
+        let optionNames = Set(options.compactMap { $0["name"] as? String })
+        XCTAssertTrue(optionNames.contains("--json"))
+        XCTAssertTrue(optionNames.contains("--collar-ms"))
+        XCTAssertTrue(optionNames.contains("--ignore-overlap"))
+        XCTAssertTrue(optionNames.contains("--skip-overlap"))
     }
 
     func testSpecDocumentsMeetingNotesAndExportSurface() throws {

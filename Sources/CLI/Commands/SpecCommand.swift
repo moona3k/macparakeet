@@ -190,11 +190,30 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
                 CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
+                CLISpecParameter.option("--diarization-report", valueName: "PATH", summary: "Write a content-free diarization quality report JSON for a single fresh run."),
                 CLISpecParameter.option("--media-audio-quality", valueName: "app-default|m4a|best-available", summary: "Downloaded media audio quality."),
                 CLISpecParameter.flag("--no-history", summary: "Do not persist the completed transcription."),
                 databaseOption,
             ],
             output: "Single Transcription object for stdout mode; one transcript file per input in batch/output-dir mode."
+        ),
+        CLISpecCommand(
+            ["diarization-eval"],
+            summary: "Run local speaker diarization against private fixture folders.",
+            readOnly: false,
+            arguments: [
+                .argument(
+                    "fixtures-dir",
+                    summary: "Directory whose immediate subdirectories contain private diarization fixtures."
+                ),
+            ],
+            options: [
+                CLISpecParameter.flag("--json", summary: "Emit the DiarizationEvalReport JSON object."),
+                CLISpecParameter.option("--collar-ms", valueName: "MS", summary: "Full-width DER scoring collar in milliseconds."),
+                CLISpecParameter.flag("--ignore-overlap", summary: "Skip reference overlap regions when scoring DER and coverage."),
+                CLISpecParameter.flag("--skip-overlap", summary: "Alias for --ignore-overlap."),
+            ],
+            output: "DiarizationEvalReport object with scoringOptions and per-fixture run reports."
         ),
         CLISpecCommand(
             ["config", "list"],

@@ -30,6 +30,19 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertFalse(try encodedJSONKeys(folderURL: folderURL).contains("folderURL"))
     }
 
+    func testWriteThenReadRoundTripsCalendarContext() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let lockFile = makeLockFile(
+            folderURL: folderURL,
+            calendarContext: MeetingRecordingCalendarContext(attendeeCount: 3)
+        )
+
+        try store.write(lockFile, folderURL: folderURL)
+
+        let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
+        XCTAssertEqual(readLockFile.calendarContext, MeetingRecordingCalendarContext(attendeeCount: 3))
+    }
+
     func testReadFromMissingFolderReturnsNil() throws {
         let folderURL = tempRoot.appendingPathComponent("missing")
 
@@ -198,6 +211,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
 
         let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
         XCTAssertNil(readLockFile.notes)
+        XCTAssertNil(readLockFile.calendarContext)
         XCTAssertEqual(readLockFile.displayName, "Old Session")
     }
 
@@ -237,6 +251,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(updated.pid, lockFile.pid)
         XCTAssertEqual(updated.state, lockFile.state)
         XCTAssertEqual(updated.schemaVersion, lockFile.schemaVersion)
+        XCTAssertEqual(updated.calendarContext, lockFile.calendarContext)
     }
 
     private func makeLockFile(
@@ -245,7 +260,8 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         startedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
         pid: Int32 = 123,
         displayName: String = "Team Sync",
-        folderURL: URL? = nil
+        folderURL: URL? = nil,
+        calendarContext: MeetingRecordingCalendarContext? = nil
     ) -> MeetingRecordingLockFile {
         MeetingRecordingLockFile(
             schemaVersion: schemaVersion,
@@ -253,6 +269,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
             startedAt: startedAt,
             pid: pid,
             displayName: displayName,
+            calendarContext: calendarContext,
             folderURL: folderURL
         )
     }

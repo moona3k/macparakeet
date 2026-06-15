@@ -39,12 +39,16 @@ final class MeetingAutoStartCoordinator {
     /// on `MeetingRecordingFlowCoordinator` (and so tests can stub them).
     private let isRecordingActive: @MainActor () -> Bool
     /// Called when the user (or countdown completion) commits to starting
-    /// an auto-start recording. The event title is forwarded so the
-    /// recording flow can pre-name the saved transcription with the
-    /// calendar event name instead of the date-based default. Returns the
-    /// recording generation on success, or `nil` if the start was rejected
-    /// (state busy) — the coordinator only needs the non-nil/nil distinction.
-    private let onAutoStartConfirmed: @MainActor (_ title: String) -> Int?
+    /// an auto-start recording. The event title and optional remote-attendee
+    /// count are forwarded so the recording flow can pre-name the saved
+    /// transcription and persist enough calendar context for later
+    /// diarization hints. Returns the recording generation on success, or
+    /// `nil` if the start was rejected (state busy) — the coordinator only
+    /// needs the non-nil/nil distinction.
+    private let onAutoStartConfirmed: @MainActor (
+        _ title: String,
+        _ calendarContext: MeetingRecordingCalendarContext?
+    ) -> Int?
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -82,7 +86,10 @@ final class MeetingAutoStartCoordinator {
         calendarService: any CalendarServicing = CalendarService.shared,
         settingsViewModel: SettingsViewModel,
         isRecordingActive: @escaping @MainActor () -> Bool = { false },
-        onAutoStartConfirmed: @escaping @MainActor (_ title: String) -> Int? = { _ in nil },
+        onAutoStartConfirmed: @escaping @MainActor (
+            _ title: String,
+            _ calendarContext: MeetingRecordingCalendarContext?
+        ) -> Int? = { _, _ in nil },
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
@@ -421,7 +428,7 @@ final class MeetingAutoStartCoordinator {
                 logger.info("Auto-start completion ignored — calendar auto-start is no longer enabled")
                 return
             }
-            guard onAutoStartConfirmed(event.title) != nil else {
+            guard onAutoStartConfirmed(event.title, Self.recordingCalendarContext(for: event)) != nil else {
                 // Start was rejected (state_busy — a prior recording is still
                 // wrapping up). Drop this occurrence's countdown-shown mark so
                 // it can retry on a later poll once the blocking recording
@@ -442,6 +449,12 @@ final class MeetingAutoStartCoordinator {
             // Another toast preempted us — no telemetry, no recording.
             return
         }
+    }
+
+    private static func recordingCalendarContext(for event: CalendarEvent) -> MeetingRecordingCalendarContext? {
+        let attendeeCount = event.attendeeCount
+        guard attendeeCount > 0 else { return nil }
+        return MeetingRecordingCalendarContext(attendeeCount: attendeeCount)
     }
 }
 

@@ -17,32 +17,51 @@ public struct SpeakerSegment: Sendable {
     public let speakerId: String
     public let startMs: Int
     public let endMs: Int
+    public let qualityScore: Double
 
-    public init(speakerId: String, startMs: Int, endMs: Int) {
+    public init(speakerId: String, startMs: Int, endMs: Int, qualityScore: Double = 1.0) {
         self.speakerId = speakerId
         self.startMs = startMs
         self.endMs = endMs
+        self.qualityScore = qualityScore
     }
 }
 
 public enum SpeakerDiarizationConstraint: Equatable, Sendable {
     case exact(Int)
     case range(min: Int?, max: Int?)
+
+    public var speakerCountHint: SpeakerCountHint {
+        switch self {
+        case .exact(let count):
+            return SpeakerCountHint(exact: count)
+        case .range(let min, let max):
+            return SpeakerCountHint(minimum: min, maximum: max)
+        }
+    }
 }
 
 public protocol DiarizationServiceProtocol: Sendable {
-    func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult
+    func diarize(
+        audioURL: URL,
+        options: DiarizationOptions
+    ) async throws -> MacParakeetDiarizationResult
+
     func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws
     func isReady() async -> Bool
     func hasCachedModels() async -> Bool
 }
 
-extension DiarizationServiceProtocol {
-    public func prepareModels() async throws {
+public extension DiarizationServiceProtocol {
+    func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
+        try await diarize(audioURL: audioURL, options: .default)
+    }
+
+    func prepareModels() async throws {
         try await prepareModels(onProgress: nil)
     }
 
-    public func hasCachedModels() async -> Bool {
+    func hasCachedModels() async -> Bool {
         false
     }
 }
@@ -66,7 +85,8 @@ extension OfflineDiarizerManager: OfflineDiarizerManaging {
 extension OfflineDiarizerManager: @retroactive @unchecked Sendable {}
 
 public actor DiarizationService: DiarizationServiceProtocol {
-    private let manager: any OfflineDiarizerManaging
+    private let baseConfig: OfflineDiarizerConfig
+    private let makeManager: @Sendable (OfflineDiarizerConfig) -> any OfflineDiarizerManaging
     private let modelsDirectory: URL
     private var modelsReady = false
 
@@ -75,8 +95,9 @@ public actor DiarizationService: DiarizationServiceProtocol {
         modelsDirectory: URL? = nil
     ) {
         self.init(
-            manager: OfflineDiarizerManager(config: config),
-            modelsDirectory: modelsDirectory ?? OfflineDiarizerModels.defaultModelsDirectory()
+            baseConfig: config,
+            modelsDirectory: modelsDirectory ?? OfflineDiarizerModels.defaultModelsDirectory(),
+            makeManager: { OfflineDiarizerManager(config: $0) }
         )
     }
 
@@ -91,15 +112,23 @@ public actor DiarizationService: DiarizationServiceProtocol {
     }
 
     init(
-        manager: any OfflineDiarizerManaging,
-        modelsDirectory: URL
+        baseConfig: OfflineDiarizerConfig,
+        modelsDirectory: URL,
+        makeManager: @escaping @Sendable (OfflineDiarizerConfig) -> any OfflineDiarizerManaging
     ) {
-        self.manager = manager
+        self.baseConfig = baseConfig
+        self.makeManager = makeManager
         self.modelsDirectory = modelsDirectory.standardizedFileURL
     }
 
-    public func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
-        try await ensureModelsPrepared()
+    public func diarize(
+        audioURL: URL,
+        options: DiarizationOptions
+    ) async throws -> MacParakeetDiarizationResult {
+        try options.validate()
+        let config = Self.offlineConfig(baseConfig: baseConfig, options: options)
+        let manager = makeManager(config)
+        try await prepareModels(for: manager)
 
         let fluidResult: DiarizationResult
         do {
@@ -132,14 +161,24 @@ public actor DiarizationService: DiarizationServiceProtocol {
             let mappedId = idMapping[seg.speakerId] ?? seg.speakerId
             let startMs = max(0, Int((seg.startTimeSeconds * 1000).rounded()))
             let endMs = max(0, Int((seg.endTimeSeconds * 1000).rounded()))
-            return SpeakerSegment(speakerId: mappedId, startMs: startMs, endMs: endMs)
+            return SpeakerSegment(
+                speakerId: mappedId,
+                startMs: startMs,
+                endMs: endMs,
+                qualityScore: Double(seg.qualityScore)
+            )
         }
 
         let speakers: [SpeakerInfo] = idMapping
             .sorted { Int($0.value.dropFirst()) ?? 0 < Int($1.value.dropFirst()) ?? 0 }
-            .map { _, stableId in
+            .map { rawProviderSpeakerId, stableId in
                 let number = String(stableId.dropFirst())
-                return SpeakerInfo(id: stableId, label: "Speaker \(number)")
+                return SpeakerInfo(
+                    id: stableId,
+                    label: "Speaker \(number)",
+                    rawProviderSpeakerId: rawProviderSpeakerId,
+                    labelSource: .modelDefault
+                )
             }
 
         return MacParakeetDiarizationResult(
@@ -151,12 +190,12 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     public func prepareModels(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
         onProgress?("Downloading speaker models...")
-        try await ensureModelsPrepared()
+        let manager = makeManager(baseConfig)
+        try await prepareModels(for: manager)
         onProgress?("Speaker models ready")
     }
 
-    private func ensureModelsPrepared() async throws {
-        guard !modelsReady else { return }
+    private func prepareModels(for manager: any OfflineDiarizerManaging) async throws {
         try await manager.prepareModels(at: modelsDirectory)
         modelsReady = true
     }
@@ -204,6 +243,26 @@ public actor DiarizationService: DiarizationServiceProtocol {
             return config.withSpeakers(min: min, max: max)
         }
     }
+
+    nonisolated static func offlineConfig(
+        baseConfig: OfflineDiarizerConfig,
+        options: DiarizationOptions
+    ) -> OfflineDiarizerConfig {
+        var config = baseConfig
+        guard let hint = options.speakerCountHint else { return config }
+
+        if let exact = hint.exact {
+            config.clustering.numSpeakers = exact
+            config.clustering.minSpeakers = nil
+            config.clustering.maxSpeakers = nil
+        } else {
+            config.clustering.numSpeakers = nil
+            config.clustering.minSpeakers = hint.minimum
+            config.clustering.maxSpeakers = hint.maximum
+        }
+
+        return config
+    }
 }
 
 extension OfflineDiarizationError {
@@ -217,6 +276,7 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
     public var diarizeResult: MacParakeetDiarizationResult?
     public var diarizeError: Error?
     public var diarizeCalled = false
+    public var diarizeOptions: [DiarizationOptions] = []
     public var prepareModelsCalled = false
     public var prepareModelsError: Error?
     public var ready = false
@@ -246,8 +306,12 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
         self.cachedModels = cachedModels
     }
 
-    public func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
+    public func diarize(
+        audioURL: URL,
+        options: DiarizationOptions
+    ) async throws -> MacParakeetDiarizationResult {
         diarizeCalled = true
+        diarizeOptions.append(options)
         if let error = diarizeError { throw error }
         return diarizeResult ?? MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: [])
     }

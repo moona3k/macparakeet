@@ -152,13 +152,30 @@ public struct WordTimestamp: Codable, Sendable, Equatable {
     }
 }
 
+public enum SpeakerLabelSource: String, Codable, Sendable, Equatable {
+    case modelDefault
+    case user
+}
+
 public struct SpeakerInfo: Codable, Sendable, Equatable {
     public var id: String
     public var label: String
+    public var source: AudioSource?
+    public var rawProviderSpeakerId: String?
+    public var labelSource: SpeakerLabelSource?
 
-    public init(id: String, label: String) {
+    public init(
+        id: String,
+        label: String,
+        source: AudioSource? = nil,
+        rawProviderSpeakerId: String? = nil,
+        labelSource: SpeakerLabelSource? = nil
+    ) {
         self.id = id
         self.label = label
+        self.source = source
+        self.rawProviderSpeakerId = rawProviderSpeakerId
+        self.labelSource = labelSource
     }
 }
 

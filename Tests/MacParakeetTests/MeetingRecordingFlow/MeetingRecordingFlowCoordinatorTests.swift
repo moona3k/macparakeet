@@ -71,6 +71,34 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.systemTrackPresent, true)
     }
 
+    func testCalendarStartForwardsCalendarContextToRecordingService() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+        let calendarContext = MeetingRecordingCalendarContext(attendeeCount: 4)
+
+        XCTAssertNotNil(coordinator.startFromCalendar(
+            title: "Design Review",
+            calendarContext: calendarContext
+        ))
+        await coordinator.testHook_waitForActionTask()
+
+        let recordingSnapshot = await recordingService.snapshot()
+        XCTAssertEqual(recordingSnapshot.startCalendarContexts, [calendarContext])
+    }
+
     private func makeRecordingOutput() -> MeetingRecordingOutput {
         let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -102,12 +130,19 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private let output: MeetingRecordingOutput
     var stopCallCount = 0
     var completedTranscriptionSessionIDs: [UUID] = []
+    var startCalendarContexts: [MeetingRecordingCalendarContext?] = []
 
     init(output: MeetingRecordingOutput) {
         self.output = output
     }
 
-    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {}
+    func startRecording(
+        title: String?,
+        sourceMode: MeetingAudioSourceMode?,
+        calendarContext: MeetingRecordingCalendarContext?
+    ) async throws {
+        startCalendarContexts.append(calendarContext)
+    }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
         stopCallCount += 1
@@ -160,10 +195,15 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         }
     }
 
-    func snapshot() -> (stopCallCount: Int, completedTranscriptionSessionIDs: [UUID]) {
+    func snapshot() -> (
+        stopCallCount: Int,
+        completedTranscriptionSessionIDs: [UUID],
+        startCalendarContexts: [MeetingRecordingCalendarContext?]
+    ) {
         (
             stopCallCount: stopCallCount,
-            completedTranscriptionSessionIDs: completedTranscriptionSessionIDs
+            completedTranscriptionSessionIDs: completedTranscriptionSessionIDs,
+            startCalendarContexts: startCalendarContexts
         )
     }
 }

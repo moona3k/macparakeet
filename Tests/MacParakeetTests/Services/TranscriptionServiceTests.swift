@@ -1566,18 +1566,33 @@ final class TranscriptionServiceTests: XCTestCase {
                 meetingOriginHostTime: nil,
                 microphone: .init(firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0, writtenFrameCount: 24_000, sampleRate: 48_000),
                 system: .init(firstHostTime: nil, lastHostTime: nil, startOffsetMs: 900, writtenFrameCount: 24_000, sampleRate: 48_000)
-            )
+            ),
+            calendarContext: MeetingRecordingCalendarContext(attendeeCount: 2)
         )
 
         let result = try await service.transcribeMeeting(recording: recording)
         let diarizeCalled = await diarization.diarizeCalled
+        let diarizeOptions = await diarization.diarizeOptions
 
         XCTAssertTrue(diarizeCalled)
+        XCTAssertEqual(diarizeOptions, [.default])
         XCTAssertEqual(result.speakerCount, 3)
         XCTAssertEqual(result.speakers, [
             SpeakerInfo(id: "microphone", label: "Me"),
-            SpeakerInfo(id: "system:S1", label: "Others 1"),
-            SpeakerInfo(id: "system:S2", label: "Others 2"),
+            SpeakerInfo(
+                id: "system:S1",
+                label: "Others 1",
+                source: .system,
+                rawProviderSpeakerId: "S1",
+                labelSource: .modelDefault
+            ),
+            SpeakerInfo(
+                id: "system:S2",
+                label: "Others 2",
+                source: .system,
+                rawProviderSpeakerId: "S2",
+                labelSource: .modelDefault
+            ),
         ])
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "system:S1", "system:S2"])
         XCTAssertEqual(result.diarizationSegments, [
@@ -1585,6 +1600,68 @@ final class TranscriptionServiceTests: XCTestCase {
             DiarizationSegmentRecord(speakerId: "system:S1", startMs: 900, endMs: 1140),
             DiarizationSegmentRecord(speakerId: "system:S2", startMs: 1160, endMs: 1420),
         ])
+    }
+
+    func testTranscribeFileReturnsContentFreeDiarizationQualityReportForFreshRun() async throws {
+        await mockSTT.configure(result: STTResult(
+            text: "private context outside",
+            words: [
+                TimestampedWord(word: "private", startMs: 0, endMs: 100, confidence: 0.9),
+                TimestampedWord(word: "context", startMs: 180, endMs: 240, confidence: 0.9),
+                TimestampedWord(word: "outside", startMs: 800, endMs: 900, confidence: 0.9),
+            ]
+        ))
+
+        let diarization = MockDiarizationService()
+        await diarization.configure(result: MacParakeetDiarizationResult(
+            segments: [
+                SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 120),
+            ],
+            speakerCount: 1,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice Example"),
+            ]
+        ))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldDiarize: { true },
+            diarizationService: diarization
+        )
+
+        let result = try await service.transcribe(
+            fileURL: URL(fileURLWithPath: "/tmp/fresh-report.wav"),
+            options: TranscriptionRunOptions(
+                diarizationOptions: DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: 2)),
+                includeDiarizationReport: true
+            )
+        )
+
+        XCTAssertEqual(result.transcription.wordTimestamps?.map(\.speakerId), ["S1", "S1", nil])
+        let diarizationOptions = await diarization.diarizeOptions
+        XCTAssertEqual(diarizationOptions, [
+            DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: 2)),
+        ])
+
+        let report = try XCTUnwrap(result.diarizationQualityReport)
+        XCTAssertEqual(report.transcriptionSourceType, .file)
+        XCTAssertNil(report.diarizedAudioSource)
+        XCTAssertEqual(report.requestedSpeakerHint, SpeakerCountHint(exact: 2))
+        XCTAssertEqual(report.detectedSpeakerCount, 1)
+        XCTAssertEqual(report.rawDiarizationSegmentCount, 1)
+        XCTAssertEqual(report.assignmentSummary.directOverlapWords, 1)
+        XCTAssertEqual(report.assignmentSummary.fallbackNearestWords, 1)
+        XCTAssertEqual(report.assignmentSummary.unassignedWords, 1)
+        XCTAssertTrue(report.warnings.contains { $0.kind == .speakerCountBelowHint })
+
+        let encoded = try JSONEncoder().encode(report)
+        let payload = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+        XCTAssertFalse(payload.contains("private context outside"))
+        XCTAssertFalse(payload.contains("fresh-report.wav"))
+        XCTAssertFalse(payload.contains("/tmp"))
+        XCTAssertFalse(payload.contains("Alice Example"))
     }
 
     func testTranscribeMeetingPreservesOverlappingMicrophoneAndSystemSpeech() async throws {
@@ -1664,7 +1741,7 @@ final class TranscriptionServiceTests: XCTestCase {
                 text: "Hello there",
                 words: [
                     TimestampedWord(word: "Hello", startMs: 0, endMs: 180, confidence: 0.9),
-                    TimestampedWord(word: "there", startMs: 200, endMs: 360, confidence: 0.9),
+                    TimestampedWord(word: "there", startMs: 500, endMs: 660, confidence: 0.9),
                 ]
             ),
         ])
@@ -1704,11 +1781,19 @@ final class TranscriptionServiceTests: XCTestCase {
         )
 
         let result = try await service.transcribeMeeting(recording: recording)
+        let diarizeOptions = await diarization.diarizeOptions
 
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["system:S1", "system"])
+        XCTAssertEqual(diarizeOptions, [.default])
         XCTAssertEqual(result.speakers, [
             SpeakerInfo(id: "system", label: "Others"),
-            SpeakerInfo(id: "system:S1", label: "Others 1"),
+            SpeakerInfo(
+                id: "system:S1",
+                label: "Others 1",
+                source: .system,
+                rawProviderSpeakerId: "S1",
+                labelSource: .modelDefault
+            ),
         ])
     }
 

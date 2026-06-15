@@ -1141,6 +1141,7 @@ public final class TranscriptionViewModel {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
         speakers[index].label = trimmed
+        speakers[index].labelSource = .user
         transcription.speakers = speakers
         currentTranscription = transcription
         do {
