@@ -226,15 +226,14 @@ struct CalendarSettingsView: View {
         )
     }
 
+    /// Caption for the mode segmented control. Only `.notify` / `.autoStart`
+    /// are reachable here — the sub-panel that hosts the control is gated on
+    /// `calendarAutoStartMode != .off` — so anything non-`.autoStart` reads as
+    /// the notify default, matching `modeBinding`'s collapsing.
     private var modeDetail: String {
-        switch viewModel.calendarAutoStartMode {
-        case .off:
-            return "MacParakeet ignores your calendar."
-        case .notify:
-            return "Quietly notifies you before each meeting starts."
-        case .autoStart:
-            return "Shows a 5-second cancellable countdown, then starts recording. You can keep the recording past the meeting end."
-        }
+        viewModel.calendarAutoStartMode == .autoStart
+            ? "Shows a 5-second cancellable countdown, then starts recording. You can keep the recording past the meeting end."
+            : "Quietly notifies you before each meeting starts."
     }
 
     // MARK: - Reminder lead time
@@ -360,16 +359,11 @@ struct CalendarSettingsView: View {
     private func requestPermission() {
         isRequestingPermission = true
         Task {
-            let granted = await viewModel.requestCalendarPermission()
-            // "Turn On…" should actually turn it on. Default to the gentle
-            // `.notify` mode on first grant so the row lands in the on state and
-            // reveals the sub-panel, instead of granting access but leaving the
-            // toggle off (which would read as "I turned it on and nothing
-            // happened"). Setting the mode also triggers notification
-            // authorization via the view model's `didSet`.
-            if granted && viewModel.calendarAutoStartMode == .off {
-                viewModel.calendarAutoStartMode = .notify
-            }
+            // On a successful grant the view model already defaults the mode to
+            // the gentle `.notify` (and requests notification auth), so the row
+            // lands in the on state and reveals the sub-panel — "Turn On…"
+            // genuinely turns it on with nothing to set here.
+            _ = await viewModel.requestCalendarPermission()
             isRequestingPermission = false
             reloadCalendars()
         }
