@@ -715,7 +715,8 @@ minimal "measure what we can today" baseline lands before any behavior change.
      so the harness exercises the same per-call path as production
    - gitignore `fixtures/private/`
    - if FluidAudio's DER helper fits the local data shape, reuse it; otherwise
-     keep the local approximation explicit and tested
+     keep the local scorer explicit and tested, including optimal speaker
+     mapping rather than greedy first-pair assignment
 
 1. Speaker ID and hint plumbing:
    - add `SpeakerID` helper and tests for source-prefixed speaker IDs

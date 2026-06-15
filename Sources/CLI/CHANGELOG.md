@@ -96,11 +96,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `diarization-eval <fixtures-dir>` is a developer/testing command for private
   speaker-diarization fixtures. It runs the local diarizer on each immediate
   fixture subdirectory, optionally compares `reference.rttm` annotations with
-  DER/coverage metrics, and supports `--json` output. It also accepts
-  `--collar-ms` and `--ignore-overlap` / `--skip-overlap` so DER reports carry
-  the same scoring-policy knobs used by common RTTM evaluators. Structured
-  output omits the absolute fixture root and selected audio filename by
-  default; private fixtures should live under ignored `fixtures/private/`.
+  DER/coverage metrics, and supports `--json` output. DER uses optimal
+  one-to-one speaker mapping and the command accepts `--collar-ms` and
+  `--ignore-overlap` / `--skip-overlap` so reports carry the same
+  scoring-policy knobs used by common RTTM evaluators. Structured output omits
+  the absolute fixture root and selected audio filename by default; private
+  fixtures should live under ignored `fixtures/private/`.
 - Speaker objects in JSON output may now include optional `source`,
   `rawProviderSpeakerId`, and `labelSource` fields so agents can distinguish
   model-default labels from user-renamed speakers and trace meeting system

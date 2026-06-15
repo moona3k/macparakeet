@@ -1575,10 +1575,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let diarizeOptions = await diarization.diarizeOptions
 
         XCTAssertTrue(diarizeCalled)
-        XCTAssertEqual(
-            diarizeOptions,
-            [DiarizationOptions(speakerCountHint: SpeakerCountHint(maximum: 2))]
-        )
+        XCTAssertEqual(diarizeOptions, [.default])
         XCTAssertEqual(result.speakerCount, 3)
         XCTAssertEqual(result.speakers, [
             SpeakerInfo(id: "microphone", label: "Me"),

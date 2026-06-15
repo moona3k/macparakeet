@@ -65,6 +65,28 @@ final class DiarizationMetricsTests: XCTestCase {
         XCTAssertEqual(result.der, 0.5, accuracy: 0.0001)
     }
 
+    func testDERUsesOptimalSpeakerMappingInsteadOfGreedyFirstPair() {
+        let reference = [
+            segment("A", 0, 900),
+            segment("B", 900, 1700),
+            segment("A", 1700, 2500),
+            segment("C", 2500, 3200),
+        ]
+        let hypothesis = [
+            segment("H1", 0, 1700),
+            segment("H2", 1700, 2500),
+            segment("H3", 2500, 3200),
+        ]
+
+        let result = DiarizationMetrics.der(reference: reference, hypothesis: hypothesis)
+
+        XCTAssertEqual(result.missedMs, 0)
+        XCTAssertEqual(result.falseAlarmMs, 0)
+        XCTAssertEqual(result.confusionMs, 900)
+        XCTAssertEqual(result.totalReferenceMs, 3200)
+        XCTAssertEqual(result.der, 900.0 / 3200.0, accuracy: 0.0001)
+    }
+
     func testSpeakerCountDeltaReportsOverSplitAndUnderSplit() {
         let reference = [
             segment("A", 0, 1000),

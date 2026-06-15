@@ -1288,7 +1288,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             let diarStartedAt = Date()
             let diarResult = try await diarizationService.diarize(
                 audioURL: systemWavURL,
-                options: Self.meetingDiarizationOptions(calendarContext: recording.calendarContext)
+                options: .default
             )
             let diarDuration = Date().timeIntervalSince(diarStartedAt)
             Telemetry.send(.diarizationCompleted(
@@ -1323,17 +1323,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         case .system:
             return recording.systemAudioURL
         }
-    }
-
-    private static func meetingDiarizationOptions(
-        calendarContext: MeetingRecordingCalendarContext?
-    ) -> DiarizationOptions {
-        guard let attendeeCount = calendarContext?.attendeeCount, attendeeCount > 0 else {
-            return .default
-        }
-        return DiarizationOptions(
-            speakerCountHint: SpeakerCountHint(maximum: attendeeCount)
-        )
     }
 
     private func meetingSourceProgressMapper(

@@ -73,7 +73,7 @@ public enum DiarizationMetrics {
         let hypothesis: String
     }
 
-    /// Approximate NIST md-eval-style DER with exact millisecond regions.
+    /// Lightweight DER scorer with exact millisecond regions and optimal speaker mapping.
     /// Overlap regions use speaker-time accounting unless `skipOverlap` is set.
     public static func der(
         reference: [LabeledSegment],
@@ -90,7 +90,7 @@ public enum DiarizationMetrics {
         let reference = normalized(reference)
         let hypothesis = normalized(hypothesis)
         let regions = scoredRegions(reference: reference, hypothesis: hypothesis, options: options)
-        let mapping = greedySpeakerMapping(reference: reference, hypothesis: hypothesis, regions: regions)
+        let mapping = optimalSpeakerMapping(reference: reference, hypothesis: hypothesis, regions: regions)
 
         var missedMs = 0
         var falseAlarmMs = 0
@@ -210,11 +210,56 @@ public enum DiarizationMetrics {
         return Double(missedMs + falseAlarmMs + confusionMs) / Double(totalReferenceMs)
     }
 
-    private static func greedySpeakerMapping(
+    private static func optimalSpeakerMapping(
         reference: [LabeledSegment],
         hypothesis: [LabeledSegment],
         regions: [Interval]
     ) -> [String: String] {
+        let referenceSpeakers = Set(reference.map(\.speakerId)).sorted()
+        let hypothesisSpeakers = Set(hypothesis.map(\.speakerId)).sorted()
+        guard !referenceSpeakers.isEmpty, !hypothesisSpeakers.isEmpty else { return [:] }
+
+        let overlaps = speakerOverlaps(reference: reference, hypothesis: hypothesis, regions: regions)
+        guard let maxOverlap = overlaps.values.max(), maxOverlap > 0 else { return [:] }
+
+        let matrixSize = max(referenceSpeakers.count, hypothesisSpeakers.count)
+        var costs = Array(
+            repeating: Array(repeating: maxOverlap, count: matrixSize),
+            count: matrixSize
+        )
+
+        for hypothesisIndex in hypothesisSpeakers.indices {
+            for referenceIndex in referenceSpeakers.indices {
+                let pair = SpeakerPair(
+                    reference: referenceSpeakers[referenceIndex],
+                    hypothesis: hypothesisSpeakers[hypothesisIndex]
+                )
+                costs[hypothesisIndex][referenceIndex] = maxOverlap - (overlaps[pair] ?? 0)
+            }
+        }
+
+        let assignment = minimumCostAssignment(costs)
+        var mapping: [String: String] = [:]
+        for hypothesisIndex in hypothesisSpeakers.indices {
+            let referenceIndex = assignment[hypothesisIndex]
+            guard referenceIndex >= 0, referenceIndex < referenceSpeakers.count else { continue }
+
+            let pair = SpeakerPair(
+                reference: referenceSpeakers[referenceIndex],
+                hypothesis: hypothesisSpeakers[hypothesisIndex]
+            )
+            guard (overlaps[pair] ?? 0) > 0 else { continue }
+            mapping[hypothesisSpeakers[hypothesisIndex]] = referenceSpeakers[referenceIndex]
+        }
+
+        return mapping
+    }
+
+    private static func speakerOverlaps(
+        reference: [LabeledSegment],
+        hypothesis: [LabeledSegment],
+        regions: [Interval]
+    ) -> [SpeakerPair: Int] {
         var overlaps: [SpeakerPair: Int] = [:]
 
         for region in regions {
@@ -228,32 +273,78 @@ public enum DiarizationMetrics {
             }
         }
 
-        let pairs = overlaps.map { pair, overlap in
-            (pair: pair, overlap: overlap)
-        }.sorted { lhs, rhs in
-            if lhs.overlap != rhs.overlap { return lhs.overlap > rhs.overlap }
-            if lhs.pair.reference != rhs.pair.reference {
-                return lhs.pair.reference < rhs.pair.reference
-            }
-            return lhs.pair.hypothesis < rhs.pair.hypothesis
+        return overlaps
+    }
+
+    private static func minimumCostAssignment(_ costs: [[Int]]) -> [Int] {
+        let rowCount = costs.count
+        guard rowCount > 0 else { return [] }
+        let columnCount = costs[0].count
+        precondition(columnCount > 0)
+        precondition(costs.allSatisfy { $0.count == columnCount })
+
+        // Hungarian assignment in O(n^3). The scorer builds a square matrix
+        // with zero-overlap dummy rows/columns so every real speaker can still
+        // be left unmatched when that is the optimal DER alignment.
+        var rowPotential = Array(repeating: 0, count: rowCount + 1)
+        var columnPotential = Array(repeating: 0, count: columnCount + 1)
+        var matchedRowForColumn = Array(repeating: 0, count: columnCount + 1)
+        var previousColumn = Array(repeating: 0, count: columnCount + 1)
+
+        for row in 1...rowCount {
+            matchedRowForColumn[0] = row
+            var currentColumn = 0
+            var minCost = Array(repeating: Int.max, count: columnCount + 1)
+            var usedColumns = Array(repeating: false, count: columnCount + 1)
+
+            repeat {
+                usedColumns[currentColumn] = true
+                let currentRow = matchedRowForColumn[currentColumn]
+                var delta = Int.max
+                var nextColumn = 0
+
+                for column in 1...columnCount where !usedColumns[column] {
+                    let reducedCost = costs[currentRow - 1][column - 1]
+                        - rowPotential[currentRow]
+                        - columnPotential[column]
+                    if reducedCost < minCost[column] {
+                        minCost[column] = reducedCost
+                        previousColumn[column] = currentColumn
+                    }
+                    if minCost[column] < delta {
+                        delta = minCost[column]
+                        nextColumn = column
+                    }
+                }
+
+                for column in 0...columnCount {
+                    if usedColumns[column] {
+                        rowPotential[matchedRowForColumn[column]] += delta
+                        columnPotential[column] -= delta
+                    } else {
+                        minCost[column] -= delta
+                    }
+                }
+
+                currentColumn = nextColumn
+            } while matchedRowForColumn[currentColumn] != 0
+
+            repeat {
+                let priorColumn = previousColumn[currentColumn]
+                matchedRowForColumn[currentColumn] = matchedRowForColumn[priorColumn]
+                currentColumn = priorColumn
+            } while currentColumn != 0
         }
 
-        var usedReferences = Set<String>()
-        var usedHypotheses = Set<String>()
-        var mapping: [String: String] = [:]
-
-        for entry in pairs {
-            guard !usedReferences.contains(entry.pair.reference),
-                  !usedHypotheses.contains(entry.pair.hypothesis)
-            else {
-                continue
+        var assignment = Array(repeating: -1, count: rowCount)
+        for column in 1...columnCount {
+            let row = matchedRowForColumn[column]
+            if row > 0 {
+                assignment[row - 1] = column - 1
             }
-            usedReferences.insert(entry.pair.reference)
-            usedHypotheses.insert(entry.pair.hypothesis)
-            mapping[entry.pair.hypothesis] = entry.pair.reference
         }
 
-        return mapping
+        return assignment
     }
 
     private static func normalized(_ segments: [LabeledSegment]) -> [LabeledSegment] {
