@@ -83,9 +83,11 @@ monotonic, append-only readout:
 - Holds `committedWords` (append-only within a session).
 - `ingest(_ raw:) -> String`: aligns the latest raw transcript against the
   tail of `committedWords` (longest committed suffix, up to an anchor length,
-  found contiguously in the new words — rightmost match wins). Commits every
-  newly-revealed word **except** the last few (`hypothesisHoldback`), which
-  stay tentative so an incomplete trailing word is never frozen. Returns
+  found contiguously in the new words). Multi-word anchors use the leftmost
+  match so repeated phrases are preserved; weak single-word anchors use the
+  rightmost match so adjacent transcriber stutters are not duplicated. Commits
+  every newly-revealed word **except** the last few (`hypothesisHoldback`),
+  which stay tentative so an incomplete trailing word is never frozen. Returns
   `committed + hypothesis`.
 - Disambiguates the no-overlap case: if the new words are already contained in
   the committed tail it is a shorter re-statement (retraction) → nothing new;

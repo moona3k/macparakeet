@@ -444,9 +444,13 @@ struct DictationOverlayView: View {
     private var liveTranscriptPreview: String? {
         guard case .recording = viewModel.state else { return nil }
         guard viewModel.sessionKind == .dictation else { return nil }
-        let words = viewModel.liveTranscript.split(whereSeparator: \.isWhitespace)
+        let tail = Self.wordBoundedSuffix(
+            of: viewModel.liveTranscript,
+            maxCharacters: Self.liveTranscriptPreviewCharacterBudget
+        )
+        let words = tail.split(whereSeparator: \.isWhitespace)
         guard !words.isEmpty else { return nil }
-        return words.suffix(45).joined(separator: " ")
+        return words.suffix(Self.liveTranscriptPreviewWordLimit).joined(separator: " ")
     }
 
     /// Visual metrics for the live preview, keyed off the user's size choice.
@@ -534,6 +538,21 @@ struct DictationOverlayView: View {
 
     /// Stable identity for the readout's bottom anchor used by `scrollTo`.
     private static let liveTranscriptBottomAnchor = "liveTranscriptBottom"
+    private static let liveTranscriptPreviewWordLimit = 45
+    private static let liveTranscriptPreviewCharacterBudget = 1_200
+
+    private static func wordBoundedSuffix(of text: String, maxCharacters: Int) -> Substring {
+        guard maxCharacters > 0 else { return text[text.endIndex...] }
+        guard let start = text.index(text.endIndex, offsetBy: -maxCharacters, limitedBy: text.startIndex) else {
+            return text[...]
+        }
+        guard start != text.startIndex else { return text[...] }
+
+        let rawTail = text[start...]
+        guard rawTail.first?.isWhitespace != true else { return rawTail }
+        guard let firstWhitespace = rawTail.firstIndex(where: \.isWhitespace) else { return rawTail }
+        return rawTail[firstWhitespace...]
+    }
 
     private var recordingContent: some View {
         HStack(spacing: 12) {

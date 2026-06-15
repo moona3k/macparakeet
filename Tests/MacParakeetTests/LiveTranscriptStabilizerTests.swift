@@ -44,8 +44,15 @@ final class LiveTranscriptStabilizerTests: XCTestCase {
     func testEmptyIngestKeepsExistingReadout() {
         var s = makeStabilizer()
         _ = s.ingest("the quick brown fox jumps")
-        XCTAssertEqual(s.ingest("   "), "the quick")
-        XCTAssertEqual(s.ingest(""), "the quick")
+        XCTAssertEqual(s.ingest("   "), "the quick brown fox jumps")
+        XCTAssertEqual(s.ingest(""), "the quick brown fox jumps")
+    }
+
+    func testEmptyIngestKeepsShortHypothesisReadout() {
+        var s = makeStabilizer()
+        _ = s.ingest("hello there")
+        XCTAssertEqual(s.ingest("   "), "hello there")
+        XCTAssertEqual(s.committedWords, [])
     }
 
     // MARK: - Growing window (cumulative)

@@ -1126,8 +1126,8 @@ final class DictationFlowCoordinator {
             // polls at 20 Hz for the waveform, but the transcript changes ~1×/s,
             // and an equal write to the @Observable VM would still rebuild the
             // overlay's live-readout view tree every frame.
-            if overlayViewModel?.liveTranscript != snapshot.liveTranscript {
-                overlayViewModel?.liveTranscript = snapshot.liveTranscript
+            if let overlayViewModel, overlayViewModel.liveTranscript != snapshot.liveTranscript {
+                overlayViewModel.liveTranscript = snapshot.liveTranscript
             }
 
             if autoStopEnabled {

@@ -24,6 +24,11 @@ struct LiveTranscriptStabilizer {
     /// Words committed so far, in order. Append-only within a session.
     private(set) var committedWords: [String] = []
 
+    /// Latest uncommitted words shown at the live edge. These are intentionally
+    /// not used for alignment, but they are retained so an empty interim update
+    /// does not make the visible readout jump backward.
+    private var hypothesisWords: [String] = []
+
     /// Trailing words held back as a volatile hypothesis. The live edge of
     /// speech is always incomplete, so these are shown but not committed until a
     /// later pass pushes them into the stable body.
@@ -46,6 +51,7 @@ struct LiveTranscriptStabilizer {
     /// Drop all committed state. Call at the start of every dictation session.
     mutating func reset() {
         committedWords = []
+        hypothesisWords = []
     }
 
     /// Feed the latest raw transcript; returns the stabilized display string
@@ -56,7 +62,7 @@ struct LiveTranscriptStabilizer {
         guard !words.isEmpty else {
             // Nothing transcribed this pass — keep showing what we have rather
             // than blanking the readout.
-            return committedWords.joined(separator: " ")
+            return readout()
         }
 
         let newFrom = newWordOffset(for: words)
@@ -69,12 +75,12 @@ struct LiveTranscriptStabilizer {
             committedWords.append(contentsOf: newWords[0..<commitCount])
             capCommitted()
         }
-        let hypothesis = newWords[commitCount...]
+        hypothesisWords = Array(newWords[commitCount...])
+        return readout()
+    }
 
-        if hypothesis.isEmpty {
-            return committedWords.joined(separator: " ")
-        }
-        return (committedWords + hypothesis).joined(separator: " ")
+    private func readout() -> String {
+        (committedWords + hypothesisWords).joined(separator: " ")
     }
 
     // MARK: - Alignment
@@ -99,7 +105,7 @@ struct LiveTranscriptStabilizer {
         let maxAnchor = min(anchorLength, normalizedCommitted.count, normalizedWords.count)
         var anchor = maxAnchor
         while anchor >= 1 {
-            let tail = Array(normalizedCommitted.suffix(anchor))
+            let tail = normalizedCommitted.suffix(anchor)
             // A multi-word anchor is a confident alignment: take the leftmost
             // match so a repeated phrase ("the cat the cat") is preserved rather
             // than collapsed. A single-word anchor is a weak, ambiguous overlap;
@@ -128,11 +134,11 @@ struct LiveTranscriptStabilizer {
 
     /// Index just past the first (leftmost) contiguous occurrence of `pattern`
     /// in `sequence`, or nil if absent.
-    private func firstContiguousMatchEnd(of pattern: [String], in sequence: [String]) -> Int? {
+    private func firstContiguousMatchEnd(of pattern: some Collection<String>, in sequence: [String]) -> Int? {
         guard !pattern.isEmpty, pattern.count <= sequence.count else { return nil }
         var start = 0
         while start <= sequence.count - pattern.count {
-            if Array(sequence[start..<start + pattern.count]) == pattern {
+            if sequence[start..<start + pattern.count].elementsEqual(pattern) {
                 return start + pattern.count
             }
             start += 1
@@ -142,11 +148,11 @@ struct LiveTranscriptStabilizer {
 
     /// Index just past the last (rightmost) contiguous occurrence of `pattern`
     /// in `sequence`, or nil if absent.
-    private func lastContiguousMatchEnd(of pattern: [String], in sequence: [String]) -> Int? {
+    private func lastContiguousMatchEnd(of pattern: some Collection<String>, in sequence: [String]) -> Int? {
         guard !pattern.isEmpty, pattern.count <= sequence.count else { return nil }
         var start = sequence.count - pattern.count
         while start >= 0 {
-            if Array(sequence[start..<start + pattern.count]) == pattern {
+            if sequence[start..<start + pattern.count].elementsEqual(pattern) {
                 return start + pattern.count
             }
             start -= 1
@@ -160,7 +166,7 @@ struct LiveTranscriptStabilizer {
         guard needle.count <= haystack.count else { return false }
         var start = 0
         while start <= haystack.count - needle.count {
-            if Array(haystack[start..<start + needle.count]) == needle {
+            if haystack[start..<start + needle.count].elementsEqual(needle) {
                 return true
             }
             start += 1
