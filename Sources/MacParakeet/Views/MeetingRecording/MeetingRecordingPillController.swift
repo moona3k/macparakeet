@@ -73,6 +73,7 @@ private class PillMenuDelegate: NSObject {
 @MainActor
 final class MeetingRecordingPillController {
     private var panel: NSPanel?
+    private var preservedFrameForNextShow: NSRect?
     private weak var pillView: MeetingRecordingAppKitPillView?
     private let pillViewModel: MeetingRecordingPillViewModel
     var onClick: (() -> Void)?
@@ -132,7 +133,10 @@ final class MeetingRecordingPillController {
         panel.isMovableByWindowBackground = true
         panel.contentView = contentView
 
-        if let screen = NSScreen.main {
+        if let preservedFrame = preservedFrameForNextShow {
+            panel.setFrame(preservedFrame, display: false)
+            preservedFrameForNextShow = nil
+        } else if let screen = NSScreen.main {
             let frame = screen.visibleFrame
             let x = frame.maxX - panelWidth
             let y = frame.midY - panelHeight / 2
@@ -143,7 +147,14 @@ final class MeetingRecordingPillController {
         self.panel = panel
     }
 
-    func hide() {
+    func hide(preserveFrameForNextShow: Bool = false) {
+        if preserveFrameForNextShow {
+            if let frame = panel?.frame {
+                preservedFrameForNextShow = frame
+            }
+        } else {
+            preservedFrameForNextShow = nil
+        }
         panel?.orderOut(nil)
         panel = nil
         pillView = nil

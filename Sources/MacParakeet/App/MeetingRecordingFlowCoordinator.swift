@@ -256,7 +256,7 @@ final class MeetingRecordingFlowCoordinator {
     /// `restoreFloatingPillIfRecording()` if the user cancels the quit. Safe
     /// (no-op) when no pill is showing.
     func dismissFloatingPillForQuit() {
-        pillController?.hide()
+        pillController?.hide(preserveFrameForNextShow: true)
     }
 
     /// Re-show the floating pill after a quit was cancelled, but only while a
