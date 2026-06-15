@@ -1122,7 +1122,13 @@ final class DictationFlowCoordinator {
 
             let level = snapshot.audioLevel
             overlayViewModel?.audioLevel = level
-            overlayViewModel?.liveTranscript = snapshot.liveTranscript
+            // Only write when the stabilized text actually changes: this loop
+            // polls at 20 Hz for the waveform, but the transcript changes ~1×/s,
+            // and an equal write to the @Observable VM would still rebuild the
+            // overlay's live-readout view tree every frame.
+            if overlayViewModel?.liveTranscript != snapshot.liveTranscript {
+                overlayViewModel?.liveTranscript = snapshot.liveTranscript
+            }
 
             if autoStopEnabled {
                 let now = Date()

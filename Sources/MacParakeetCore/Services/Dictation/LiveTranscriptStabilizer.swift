@@ -100,7 +100,15 @@ struct LiveTranscriptStabilizer {
         var anchor = maxAnchor
         while anchor >= 1 {
             let tail = Array(normalizedCommitted.suffix(anchor))
-            if let matchEnd = firstContiguousMatchEnd(of: tail, in: normalizedWords) {
+            // A multi-word anchor is a confident alignment: take the leftmost
+            // match so a repeated phrase ("the cat the cat") is preserved rather
+            // than collapsed. A single-word anchor is a weak, ambiguous overlap;
+            // take the rightmost match so an adjacent transcriber stutter ("the
+            // the") advances past both copies instead of re-appending one.
+            let matchEnd = anchor >= 2
+                ? firstContiguousMatchEnd(of: tail, in: normalizedWords)
+                : lastContiguousMatchEnd(of: tail, in: normalizedWords)
+            if let matchEnd {
                 return matchEnd
             }
             anchor -= 1
@@ -128,6 +136,20 @@ struct LiveTranscriptStabilizer {
                 return start + pattern.count
             }
             start += 1
+        }
+        return nil
+    }
+
+    /// Index just past the last (rightmost) contiguous occurrence of `pattern`
+    /// in `sequence`, or nil if absent.
+    private func lastContiguousMatchEnd(of pattern: [String], in sequence: [String]) -> Int? {
+        guard !pattern.isEmpty, pattern.count <= sequence.count else { return nil }
+        var start = sequence.count - pattern.count
+        while start >= 0 {
+            if Array(sequence[start..<start + pattern.count]) == pattern {
+                return start + pattern.count
+            }
+            start -= 1
         }
         return nil
     }

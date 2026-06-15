@@ -482,7 +482,14 @@ struct DictationOverlayView: View {
                         .foregroundStyle(.white.opacity(0.92))
                         .lineSpacing(metrics.lineSpacing)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        // Pin a short transcript to the bottom of the viewport so
+                        // the newest line sits below the top fade; taller content
+                        // overflows upward and scrolls to the bottom as usual.
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: metrics.visibleHeight,
+                            alignment: .bottomLeading
+                        )
                         .id(Self.liveTranscriptBottomAnchor)
                 }
                 .frame(width: 252, height: metrics.visibleHeight)

@@ -131,6 +131,15 @@ final class LiveTranscriptStabilizerTests: XCTestCase {
         XCTAssertEqual(out, "the cat the cat sat down")
     }
 
+    func testAdjacentStutterOnAnchorWordIsNotDuplicated() {
+        var s = makeStabilizer(hypothesisHoldback: 0)
+        _ = s.ingest("we need the")
+        // The transcriber stutters the committed tail word ("the the"). The weak
+        // single-word anchor takes the rightmost match so the readout advances
+        // past the stutter instead of re-appending "the".
+        XCTAssertEqual(s.ingest("the the report now"), "we need the report now")
+    }
+
     // MARK: - Shorter re-statement (retraction) must not duplicate
 
     func testShorterRestatementDoesNotDuplicate() {
