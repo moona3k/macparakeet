@@ -245,6 +245,31 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    /// Detach the floating recording pill's window without disturbing the
+    /// recording/transcription flow. Called when the app begins a quit
+    /// decision or is terminating: the pill is a `.canJoinAllSpaces`,
+    /// background-draggable `NSPanel`, so while the app's main loop is busy
+    /// with the active-meeting quit alert or the final-transcription wait it
+    /// would otherwise linger on every Space as a window you can drag but
+    /// whose click/right-click handlers no longer respond — a "frozen ghost
+    /// pill." The recording itself keeps running; restore the pill with
+    /// `restoreFloatingPillIfRecording()` if the user cancels the quit. Safe
+    /// (no-op) when no pill is showing.
+    func dismissFloatingPillForQuit() {
+        pillController?.hide()
+    }
+
+    /// Re-show the floating pill after a quit was cancelled, but only while a
+    /// recording is still active — otherwise there is nothing to show and the
+    /// normal `.hidePill` teardown owns the lifecycle. The long-lived pill
+    /// view model still holds live state, so the rebuilt window renders the
+    /// current recording face immediately.
+    func restoreFloatingPillIfRecording() {
+        guard isMeetingRecordingActive else { return }
+        pillController?.show()
+        pillController?.refreshState()
+    }
+
     /// Calendar-driven entry point. Marks the next start as auto-start so
     /// telemetry distinguishes it and pre-names the recording with the
     /// event title, then enters the normal start flow. No-op if a recording

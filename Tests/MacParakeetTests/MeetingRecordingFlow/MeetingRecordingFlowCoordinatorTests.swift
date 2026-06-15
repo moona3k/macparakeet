@@ -71,6 +71,59 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.systemTrackPresent, true)
     }
 
+    // MARK: - Quit-time pill teardown (fix/meeting-pill-lingers-on-quit)
+
+    /// Hiding the floating pill for a quit decision must be flow-neutral: it
+    /// only detaches the window, never stops or advances the recording. The
+    /// AppKit window visibility itself isn't exercised here (the pill controller
+    /// is only built when the `.showRecordingPill` effect runs, which the test
+    /// hook deliberately skips), so this guards the invariant that matters —
+    /// dismiss/restore can't accidentally tear down the recording.
+    func testDismissAndRestoreFloatingPillDoNotDisturbRecordingFlow() {
+        let coordinator = makeQuitTeardownCoordinator()
+        coordinator.testHook_enterRecording()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.isMeetingRecordingActive)
+
+        coordinator.dismissFloatingPillForQuit()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.isMeetingRecordingActive)
+
+        coordinator.restoreFloatingPillIfRecording()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.isMeetingRecordingActive)
+    }
+
+    /// Both calls are safe (no-ops) when idle, so the `applicationWillTerminate`
+    /// safety-net path can call them unconditionally without crashing.
+    func testDismissAndRestoreFloatingPillAreSafeWhenIdle() {
+        let coordinator = makeQuitTeardownCoordinator()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertFalse(coordinator.isMeetingRecordingActive)
+
+        coordinator.dismissFloatingPillForQuit()
+        coordinator.restoreFloatingPillIfRecording()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertFalse(coordinator.isMeetingRecordingActive)
+    }
+
+    private func makeQuitTeardownCoordinator() -> MeetingRecordingFlowCoordinator {
+        MeetingRecordingFlowCoordinator(
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+    }
+
     private func makeRecordingOutput() -> MeetingRecordingOutput {
         let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

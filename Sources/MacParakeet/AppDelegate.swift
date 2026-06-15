@@ -366,6 +366,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // would send duplicate appQuit events and double the termination delay.
         dictationFlowCoordinator?.releaseMediaPauseForTermination()
         dictationFlowCoordinator?.hideIdlePill()
+        // Tear down the floating meeting pill so it can't outlive the app as a
+        // draggable-but-dead window during the final moments of termination.
+        meetingRecordingFlowCoordinator?.dismissFloatingPillForQuit()
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
         meetingAutoStopCoordinator?.stop()
@@ -810,6 +813,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
 
+        // Hide the floating pill while the quit alert is up. It joins all
+        // Spaces, so during this app-modal alert it would otherwise linger as a
+        // draggable, non-interactive window — and if the alert lands on another
+        // Space the pill is all the user sees, reading as a frozen ghost.
+        // Restored below if the user keeps the app open.
+        meetingRecordingFlowCoordinator?.dismissFloatingPillForQuit()
+        var committedToQuit = false
+
         let alert = NSAlert()
         alert.alertStyle = .warning
 
@@ -823,6 +834,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.buttons[0].hasDestructiveAction = true
             }
             if alert.runModal() == .alertFirstButtonReturn {
+                committedToQuit = true
                 finishMeetingThenQuit(discard: true)
             }
 
@@ -837,8 +849,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             switch alert.runModal() {
             case .alertFirstButtonReturn:
+                committedToQuit = true
                 finishMeetingThenQuit(discard: false)
             case .alertSecondButtonReturn:
+                committedToQuit = true
                 finishMeetingThenQuit(discard: true)
             default:
                 break
@@ -850,8 +864,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: "Finish & Quit")
             alert.addButton(withTitle: "Cancel Quit")
             if alert.runModal() == .alertFirstButtonReturn {
+                committedToQuit = true
                 finishMeetingThenQuit(discard: false)
             }
+        }
+
+        if !committedToQuit {
+            meetingRecordingFlowCoordinator?.restoreFloatingPillIfRecording()
         }
 
         return .terminateCancel
@@ -859,6 +878,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func finishMeetingThenQuit(discard: Bool) {
         guard let coordinator = meetingRecordingFlowCoordinator else { return }
+
+        // The user committed to quitting — tear the floating pill down now so it
+        // doesn't sit on screen as a non-interactive window while the final
+        // transcription finishes in the background ahead of `NSApp.terminate`.
+        coordinator.dismissFloatingPillForQuit()
 
         meetingQuitTask?.cancel()
         meetingQuitTask = Task { @MainActor [weak self, coordinator] in
