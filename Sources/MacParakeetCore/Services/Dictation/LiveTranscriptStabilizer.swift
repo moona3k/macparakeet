@@ -134,7 +134,10 @@ struct LiveTranscriptStabilizer {
 
     /// Index just past the first (leftmost) contiguous occurrence of `pattern`
     /// in `sequence`, or nil if absent.
-    private func firstContiguousMatchEnd(of pattern: some Collection<String>, in sequence: [String]) -> Int? {
+    private func firstContiguousMatchEnd<Pattern: Collection>(
+        of pattern: Pattern,
+        in sequence: [String]
+    ) -> Int? where Pattern.Element == String {
         guard !pattern.isEmpty, pattern.count <= sequence.count else { return nil }
         var start = 0
         while start <= sequence.count - pattern.count {
@@ -148,7 +151,10 @@ struct LiveTranscriptStabilizer {
 
     /// Index just past the last (rightmost) contiguous occurrence of `pattern`
     /// in `sequence`, or nil if absent.
-    private func lastContiguousMatchEnd(of pattern: some Collection<String>, in sequence: [String]) -> Int? {
+    private func lastContiguousMatchEnd<Pattern: Collection>(
+        of pattern: Pattern,
+        in sequence: [String]
+    ) -> Int? where Pattern.Element == String {
         guard !pattern.isEmpty, pattern.count <= sequence.count else { return nil }
         var start = sequence.count - pattern.count
         while start >= 0 {
