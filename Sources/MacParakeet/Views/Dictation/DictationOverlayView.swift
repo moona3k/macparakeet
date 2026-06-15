@@ -436,33 +436,32 @@ struct DictationOverlayView: View {
         viewModel.hoverTooltip?.contains("Stop") == true
     }
 
+    /// The visible slice of the (already stabilized) live transcript: a generous
+    /// word-bounded tail — enough to overflow the bottom-anchored readout so the
+    /// top fade always has a line to dissolve, and never cut mid-word. The
+    /// stabilizer upstream guarantees the body does not churn, so this can stay a
+    /// plain tail; the readout shows the most recent lines and fades the rest.
     private var liveTranscriptPreview: String? {
         guard case .recording = viewModel.state else { return nil }
         guard viewModel.sessionKind == .dictation else { return nil }
-        // Normalize only the visible tail: the transcript can reach thousands
-        // of characters in a long dictation and this recomputes per redraw.
-        // A leading partial word is fine — the head is truncated anyway.
-        let compact = viewModel.liveTranscript
-            .suffix(360)
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-        guard !compact.isEmpty else { return nil }
-        if compact.count <= 180 { return compact }
-        return String(compact.suffix(180))
+        let words = viewModel.liveTranscript.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return nil }
+        return words.suffix(45).joined(separator: " ")
     }
 
     /// Visual metrics for the live preview, keyed off the user's size choice.
     /// Width stays fixed (the floating panel is 300pt wide and the shadow must
-    /// not clip); only the type scale, line spacing, and vertical breathing room
-    /// grow with size.
-    private var previewMetrics: (font: CGFloat, lineSpacing: CGFloat, verticalPadding: CGFloat, minHeight: CGFloat) {
+    /// not clip); the type scale, line spacing, vertical breathing room, and the
+    /// readout viewport height grow with size. `visibleHeight` is sized for
+    /// roughly three lines so older lines have room to rise and fade at the top.
+    private var previewMetrics: (font: CGFloat, lineSpacing: CGFloat, verticalPadding: CGFloat, visibleHeight: CGFloat) {
         switch viewModel.previewTextSize {
         case .small:
-            return (13, 1, 8, 30)
+            return (13, 1, 8, 50)
         case .medium:
-            return (16, 2, 9, 34)
+            return (16, 2, 9, 62)
         case .large:
-            return (19, 3, 11, 40)
+            return (19, 3, 11, 76)
         }
     }
 
@@ -470,34 +469,64 @@ struct DictationOverlayView: View {
     private var liveTranscriptPreviewPanel: some View {
         if let liveTranscriptPreview {
             let metrics = previewMetrics
-            Text(liveTranscriptPreview)
-                .font(.system(size: metrics.font, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.92))
-                .lineLimit(2)
-                .lineSpacing(metrics.lineSpacing)
-                .truncationMode(.head)
-                .multilineTextAlignment(.leading)
-                .frame(width: 252, alignment: .leading)
-                .frame(minHeight: metrics.minHeight, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, metrics.verticalPadding)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(DesignSystem.Colors.pillBorder.opacity(0.42), lineWidth: 0.5)
-                        )
-                        .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
+            // Bottom-anchored rolling readout: newest words sit at the bottom,
+            // older lines rise and fade out at the top edge via the gradient
+            // mask — no hard mid-word truncation. Programmatic scroll-to-bottom
+            // (no animation) keeps the newest line pinned without jitter from the
+            // frequent updates; the panel is display-only so it never steals
+            // events from the pill below.
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    Text(liveTranscriptPreview)
+                        .font(.system(size: metrics.font, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineSpacing(metrics.lineSpacing)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id(Self.liveTranscriptBottomAnchor)
+                }
+                .frame(width: 252, height: metrics.visibleHeight)
+                .onChange(of: liveTranscriptPreview) {
+                    proxy.scrollTo(Self.liveTranscriptBottomAnchor, anchor: .bottom)
+                }
+                .onAppear {
+                    proxy.scrollTo(Self.liveTranscriptBottomAnchor, anchor: .bottom)
+                }
+            }
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.22),
+                        .init(color: .black, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                .accessibilityLabel(liveTranscriptPreview)
-                .padding(.bottom, 2)
-                // Smoothly grow/shrink the card when the size changes live
-                // (Settings picker) instead of snapping between presets.
-                .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
-                .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, metrics.verticalPadding)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(DesignSystem.Colors.pillBorder.opacity(0.42), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
+            )
+            .allowsHitTesting(false)
+            .accessibilityLabel(liveTranscriptPreview)
+            .padding(.bottom, 2)
+            // Smoothly grow/shrink the card when the size changes live
+            // (Settings picker) instead of snapping between presets.
+            .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
+            .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
         }
     }
+
+    /// Stable identity for the readout's bottom anchor used by `scrollTo`.
+    private static let liveTranscriptBottomAnchor = "liveTranscriptBottom"
 
     private var recordingContent: some View {
         HStack(spacing: 12) {
