@@ -119,7 +119,7 @@ struct LiveTranscriptStabilizer {
                 // unless that update is already contained in the committed body.
                 if anchor == 1,
                    matchEnd == normalizedWords.count,
-                   !containsContiguous(normalizedCommitted, normalizedWords) {
+                   !recentCommittedContains(normalizedWords, in: normalizedCommitted) {
                     anchor -= 1
                     continue
                 }
@@ -136,12 +136,16 @@ struct LiveTranscriptStabilizer {
         // the committed buffer.
         // Retractions are local to the live edge; scanning the full committed
         // history would swallow a fresh repeated phrase from much earlier.
-        let retractionLookback = max(anchorLength * 2, normalizedWords.count)
-        let recentCommitted = Array(normalizedCommitted.suffix(retractionLookback))
-        if containsContiguous(recentCommitted, normalizedWords) {
+        if recentCommittedContains(normalizedWords, in: normalizedCommitted) {
             return words.count
         }
         return 0
+    }
+
+    private func recentCommittedContains(_ needle: [String], in committed: [String]) -> Bool {
+        let retractionLookback = max(anchorLength * 2, needle.count)
+        let recentCommitted = Array(committed.suffix(retractionLookback))
+        return containsContiguous(recentCommitted, needle)
     }
 
     /// Index just past the first (leftmost) contiguous occurrence of `pattern`

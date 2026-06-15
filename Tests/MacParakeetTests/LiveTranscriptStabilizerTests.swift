@@ -156,6 +156,19 @@ final class LiveTranscriptStabilizerTests: XCTestCase {
         XCTAssertEqual(s.ingest("brand new the"), "we need the brand new the")
     }
 
+    func testSingleWordAnchorUsesRecentHistoryForRetractionCheck() {
+        var s = makeStabilizer(hypothesisHoldback: 0)
+        _ = s.ingest(
+            "please review the alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi the"
+        )
+        // The incoming phrase appeared much earlier in committed history and
+        // happens to end on the current one-word tail anchor. That older match is
+        // not local retraction evidence, so the fresh phrase still appends.
+        let out = s.ingest("please review the")
+        XCTAssertTrue(out.hasSuffix("please review the"))
+        XCTAssertEqual(s.committedWords.suffix(3), ["please", "review", "the"])
+    }
+
     // MARK: - Shorter re-statement (retraction) must not duplicate
 
     func testShorterRestatementDoesNotDuplicate() {
