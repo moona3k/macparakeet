@@ -155,7 +155,7 @@ REQ-DICT-006:
   status: implemented
 
 REQ-DICT-007:
-  description: Opt-in display-only live dictation transcript preview renders an ephemeral tail of in-progress text above the dictation pill while speaking, decoupled from the paste (final text always comes from the stop-time transcription path); Parakeet uses a single-flight tail-window batch preview, both Nemotron builds use native live partials, Whisper is default-off; gated by AppFeatures.liveDictationStreamingEnabled (enabled on main, not yet in a tagged release), toggle and preview text size in Settings -> Capture -> Dictation
+  description: Opt-in display-only live dictation transcript preview renders a stable rolling readout of in-progress text above the dictation pill while speaking, decoupled from the paste (final text always comes from the stop-time transcription path); the raw preview stream is stabilized into a monotonic append-only readout (LiveTranscriptStabilizer commits the settled body and holds the last few words as a volatile hypothesis) and rendered bottom-anchored with older lines fading out at the top edge (no mid-word truncation); Parakeet uses a single-flight tail-window batch preview, both Nemotron builds use native live partials, Whisper is default-off; gated by AppFeatures.liveDictationStreamingEnabled (enabled on main, not yet in a tagged release), toggle and preview text size in Settings -> Capture -> Dictation
   version: v0.7
   status: implemented
 

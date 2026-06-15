@@ -276,7 +276,17 @@ preview (~1s cadence over the last ~15s of mic samples through its existing
 path; Whisper stays default-off pending a per-pass latency probe. Users toggle
 it — and pick a preview text size — in Settings → Capture → Dictation
 (`showLiveDictationPreview`, default on); the toggle gates only the preview
-sink. See `docs/research/live-dictation-streaming.md`.
+sink.
+
+Before display the raw preview stream passes through a `LiveTranscriptStabilizer`
+(owned by `DictationService`, reset per session): it aligns each update against
+the committed tail and only ever appends — committing the stable body and holding
+the last few words as a volatile hypothesis — so already-shown words don't jump,
+re-spell, or disappear as the window slides or partials are revised. The overlay
+renders this as a bottom-anchored rolling readout: the newest line is pinned to
+the bottom and older lines rise and fade out at the top edge via a gradient mask,
+with no mid-word head truncation. Stabilization is display-only and can never
+alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 
 ### Meeting Live Preview
 
