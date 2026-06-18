@@ -47,13 +47,6 @@ public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServicePr
     ) async throws -> Transcription
 }
 
-private struct FormatterOutcome: Sendable {
-    let text: String?
-    let run: LLMRun?
-
-    static let skipped = FormatterOutcome(text: nil, run: nil)
-}
-
 /// Metadata that pre-resolution (e.g. an Apple Podcasts iTunes lookup or RSS
 /// feed parse) supplies for a downloaded media URL. When present, these fields
 /// win over the generic metadata inferred from a raw enclosure URL.
@@ -1545,9 +1538,17 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             snippets: snippets
         )
         let baseText = refinement.text ?? rawText
-        let formatterOutcome = try await formatTranscriptIfNeeded(
+        let transcriptFormatter = TranscriptFormatter(
+            llmService: llmService,
+            shouldUseAIFormatter: shouldUseAIFormatter,
+            logger: logger
+        )
+        let promptTemplateProvider = aiFormatterPromptTemplate
+        let formatterOutcome = try await transcriptFormatter.format(
             baseText,
-            runSource: persistResult ? LLMRunSource(transcriptionId: transcription.id) : nil
+            runSource: persistResult ? LLMRunSource(transcriptionId: transcription.id) : nil,
+            lane: .transcription,
+            resolvePrompt: { (promptTemplateProvider(), nil) }
         )
         let formattedTranscript = formatterOutcome.text
         transcription.cleanTranscript = formattedTranscript ?? refinement.text
@@ -1632,70 +1633,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 transcription: transcription,
                 artifact: artifact
             )
-        }
-    }
-
-    private func formatTranscriptIfNeeded(
-        _ text: String,
-        runSource: LLMRunSource?
-    ) async throws -> FormatterOutcome {
-        guard shouldUseAIFormatter(), let llmService else {
-            return .skipped
-        }
-        // The formatter rewrites the full text, so output length tracks input
-        // length; past the cap slow providers can stall finalization until
-        // timeout before falling back anyway (issue #493).
-        guard text.count <= AIFormatter.maxTranscriptionInputChars else {
-            logger.info("transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(AIFormatter.maxTranscriptionInputChars, privacy: .public)")
-            return .skipped
-        }
-
-        let promptTemplate = aiFormatterPromptTemplate()
-        // Normalize before comparing: `AIFormatter.renderPrompt` passes the
-        // template through `normalizedPromptTemplate` before sending, which
-        // trims whitespace and folds legacy-v1 prompts back onto the current
-        // default. Raw comparison would report those cases as custom prompts
-        // even though the LLM sees the shipped default.
-        let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
-            == AIFormatter.defaultPromptTemplate
-        let startedAt = Date()
-        do {
-            let result = try await llmService.formatTranscriptDetailed(
-                transcript: text,
-                promptTemplate: promptTemplate,
-                source: .transcription,
-                defaultPromptUsed: defaultPromptUsed
-            )
-            let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let run = runSource.map {
-                LLMRun(formatterResult: result, source: $0, feature: .formatterTranscription)
-            }
-            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run)
-        } catch {
-            if error is CancellationError {
-                throw error
-            }
-            logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-            let message = "\(error.localizedDescription) Used standard cleanup."
-            NotificationCenter.default.post(
-                name: .macParakeetAIFormatterWarning,
-                object: nil,
-                userInfo: [
-                    "source": "transcription",
-                    "message": message,
-                ]
-            )
-            let run = runSource.map {
-                LLMRun.failedFormatterRun(
-                    source: $0,
-                    feature: .formatterTranscription,
-                    errorType: Self.errorType(for: error),
-                    inputChars: text.count,
-                    defaultPromptUsed: defaultPromptUsed,
-                    startedAt: startedAt
-                )
-            }
-            return FormatterOutcome(text: nil, run: run)
         }
     }
 

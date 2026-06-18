@@ -54,6 +54,11 @@ swift run macparakeet-cli --help
 swift run macparakeet-cli health
 ```
 
+**Inner loop:** `scripts/dev/check.sh [TestFilter]` runs a debug build +
+optional filtered tests + report-only `swift-format` lint. Use it for fast
+iteration; `scripts/dev/ci_local.sh` remains the full pre-merge check. Run
+`scripts/dev/format.sh` to auto-format before committing.
+
 The full test suite is deterministic and normally finishes in roughly one to
 two minutes depending on SwiftPM cache state. Run `swift test` before declaring
 code-change work complete.

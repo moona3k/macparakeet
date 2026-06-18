@@ -44,14 +44,6 @@ public protocol DictationServiceProtocol: Sendable {
     var liveTranscript: String { get async }
 }
 
-private struct FormatterOutcome: Sendable {
-    let text: String?
-    let run: LLMRun?
-    let resolution: AIFormatterPromptResolution?
-
-    static let skipped = FormatterOutcome(text: nil, run: nil, resolution: nil)
-}
-
 private struct LiveDictationTranscriptionState: Sendable {
     let dictationSessionID: Int
     let sttSessionID: UUID
@@ -1201,10 +1193,20 @@ public actor DictationService: DictationServiceProtocol {
         let baseText = cleanTranscript ?? result.text
         let saveHistory = shouldSaveDictationHistory?() ?? true
         let dictationID = UUID()
-        let formatterOutcome = try await formatTranscriptIfNeeded(
+        let transcriptFormatter = TranscriptFormatter(
+            llmService: llmService,
+            shouldUseAIFormatter: shouldUseAIFormatter,
+            logger: logger
+        )
+        let promptResolver = aiFormatterPromptResolver
+        let formatterOutcome = try await transcriptFormatter.format(
             baseText,
             runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
-            formatterContext: formatterContext
+            lane: .dictation,
+            resolvePrompt: {
+                let resolution = await promptResolver.resolvePrompt(for: formatterContext)
+                return (resolution.promptTemplate, resolution)
+            }
         )
         let formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
@@ -1272,90 +1274,6 @@ public actor DictationService: DictationServiceProtocol {
             insertionStyle: insertionStyle,
             postPasteAction: refinement.postPasteAction
         )
-    }
-
-    private func formatTranscriptIfNeeded(
-        _ text: String,
-        runSource: LLMRunSource?,
-        formatterContext: AppPromptContext?
-    ) async throws -> FormatterOutcome {
-        guard shouldUseAIFormatter(), let llmService else {
-            return .skipped
-        }
-
-        // Notify observers (e.g. the dictation flow coordinator) that the
-        // LLM formatter is about to run so the overlay pill can switch to
-        // its `.formatting` beat. We only post this *after* the guards
-        // above so "formatter disabled" dictations never flicker into the
-        // formatting visual.
-        NotificationCenter.default.post(
-            name: .macParakeetAIFormatterDidStart,
-            object: nil,
-            userInfo: ["source": "dictation"]
-        )
-        defer {
-            NotificationCenter.default.post(
-                name: .macParakeetAIFormatterDidFinish,
-                object: nil,
-                userInfo: ["source": "dictation"]
-            )
-        }
-
-        let resolution = await aiFormatterPromptResolver.resolvePrompt(for: formatterContext)
-        let promptTemplate = resolution.promptTemplate
-        // Normalize before comparing: `AIFormatter.renderPrompt` passes the
-        // template through `normalizedPromptTemplate` before sending, which
-        // trims whitespace and folds legacy-v1 prompts back onto the current
-        // default. Raw comparison would report those cases as custom prompts
-        // even though the LLM sees the shipped default.
-        let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
-            == AIFormatter.defaultPromptTemplate
-        let startedAt = Date()
-        do {
-            let result = try await llmService.formatTranscriptDetailed(
-                transcript: text,
-                promptTemplate: promptTemplate,
-                source: .dictation,
-                defaultPromptUsed: defaultPromptUsed
-            )
-            let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let run = runSource.map {
-                LLMRun(formatterResult: result, source: $0, feature: .formatterDictation)
-            }
-            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run, resolution: resolution)
-        } catch {
-            if error is CancellationError {
-                throw error
-            }
-            logger.warning("dictation_ai_formatter_failed fallback=standard_cleanup error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-            let message = "\(error.localizedDescription) Used standard cleanup."
-            NotificationCenter.default.post(
-                name: .macParakeetAIFormatterWarning,
-                object: nil,
-                userInfo: [
-                    "source": "dictation",
-                    "message": message,
-                ]
-            )
-            let run = runSource.map {
-                LLMRun.failedFormatterRun(
-                    source: $0,
-                    feature: .formatterDictation,
-                    errorType: Self.errorType(for: error),
-                    inputChars: text.count,
-                    defaultPromptUsed: defaultPromptUsed,
-                    startedAt: startedAt
-                )
-            }
-            // Drop the routing resolution on the failure path: formatting did
-            // not run, so the dictation falls back to standard cleanup. Keeping
-            // the resolution here would stamp the matched profile onto the saved
-            // record (see the provenance write in stopRecording), making History
-            // claim "Formatted with the '<profile>' prompt" for text that was
-            // never formatted by it. The failed `run` still records the attempt
-            // for telemetry.
-            return FormatterOutcome(text: nil, run: run, resolution: nil)
-        }
     }
 
     private func computeDurationMs(from result: STTResult) -> Int {

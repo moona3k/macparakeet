@@ -119,7 +119,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testWhisperHasBeenOptimizedReflectsPersistedFlag() {
         XCTAssertFalse(
-            viewModel.whisperHasBeenOptimized,
+            viewModel.engine.whisperHasBeenOptimized,
             "Should read false before any Whisper variant has been optimized"
         )
 
@@ -129,7 +129,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         XCTAssertTrue(
-            viewModel.whisperHasBeenOptimized,
+            viewModel.engine.whisperHasBeenOptimized,
             "Should read true once the active variant is marked optimized"
         )
     }
@@ -1354,7 +1354,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await Task.sleep(for: .milliseconds(120))
-        XCTAssertEqual(vm.parakeetStatus, .notDownloaded)
+        XCTAssertEqual(vm.engine.parakeetStatus, .notDownloaded)
     }
 
     func testRefreshModelStatusMarksActiveWhisperReady() async throws {
@@ -1377,10 +1377,10 @@ final class SettingsViewModelTests: XCTestCase {
             sttClient: stt
         )
 
-        try await waitUntil { vm.whisperModelStatus == .ready }
-        XCTAssertEqual(vm.whisperModelStatusDetail, "Large v3 Turbo · Loaded in memory.")
-        XCTAssertEqual(vm.parakeetStatus, .notLoaded)
-        XCTAssertEqual(vm.parakeetStatusDetail, "Parakeet TDT 0.6B v3 · Installed locally, loads when selected.")
+        try await waitUntil { vm.engine.whisperModelStatus == .ready }
+        XCTAssertEqual(vm.engine.whisperModelStatusDetail, "Large v3 Turbo · Loaded in memory.")
+        XCTAssertEqual(vm.engine.parakeetStatus, .notLoaded)
+        XCTAssertEqual(vm.engine.parakeetStatusDetail, "Parakeet TDT 0.6B v3 · Installed locally, loads when selected.")
     }
 
     func testRefreshModelStatusChecksNemotronCacheWithStoredLanguage() async throws {
@@ -1408,11 +1408,11 @@ final class SettingsViewModelTests: XCTestCase {
             sttClient: stt
         )
 
-        try await waitUntil { vm.nemotronModelStatus == .notLoaded }
+        try await waitUntil { vm.engine.nemotronModelStatus == .notLoaded }
         let capturedChecks = recorder.calls
         XCTAssertEqual(capturedChecks.first?.0, .multilingual1120)
         XCTAssertEqual(capturedChecks.first?.1, "en-US")
-        XCTAssertEqual(vm.nemotronModelStatusDetail, "Nemotron 3.5 ASR Streaming 0.6B · Installed locally, loads when selected.")
+        XCTAssertEqual(vm.engine.nemotronModelStatusDetail, "Nemotron 3.5 ASR Streaming 0.6B · Installed locally, loads when selected.")
     }
 
     func testRepairParakeetModelUsesRetryAndEndsReady() async throws {
@@ -1435,23 +1435,23 @@ final class SettingsViewModelTests: XCTestCase {
             sttClient: stt
         )
 
-        vm.repairParakeetModel()
+        vm.engine.repairParakeetModel()
         try await Task.sleep(for: .milliseconds(1300))
 
         let warmUpCallCount = await stt.warmUpCallCount
         XCTAssertEqual(warmUpCallCount, 3)
-        XCTAssertFalse(vm.parakeetRepairing)
-        XCTAssertEqual(vm.parakeetStatus, .ready)
+        XCTAssertFalse(vm.engine.parakeetRepairing)
+        XCTAssertEqual(vm.engine.parakeetStatus, .ready)
     }
 
     func testWhisperDefaultLanguagePersistsNormalizedValue() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
 
-        viewModel.whisperDefaultLanguage = "KO_kr"
+        viewModel.engine.whisperDefaultLanguage = "KO_kr"
         XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults), "ko")
 
-        viewModel.whisperDefaultLanguage = "auto"
+        viewModel.engine.whisperDefaultLanguage = "auto"
         XCTAssertNil(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults))
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
@@ -1472,22 +1472,22 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .whisper)
 
-        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(viewModel.engine.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
         let preferencesBeforeConfirm = await switcher.preferences
         XCTAssertTrue(preferencesBeforeConfirm.isEmpty)
 
-        viewModel.confirmPendingSpeechEngineSwitch()
+        viewModel.engine.confirmPendingSpeechEngineSwitch()
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertNil(viewModel.engine.pendingSpeechEngineSwitchConfirmation)
         let preferencesAfterConfirm = await switcher.preferences
         XCTAssertEqual(preferencesAfterConfirm, [.whisper])
-        XCTAssertEqual(viewModel.speechEnginePreference, .whisper)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .whisper)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
     }
 
@@ -1502,45 +1502,45 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
-        viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.engine.cancelPendingSpeechEngineSwitchConfirmation()
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertNil(viewModel.engine.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
         let preferences = await switcher.preferences
         XCTAssertTrue(preferences.isEmpty)
     }
 
     func testSpeechEngineSwitchConfirmationIgnoresRequestsWhilePending() {
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
-        viewModel.speechEngineError = "Existing error"
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.engine.speechEngineError = "Existing error"
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .whisper)
 
-        XCTAssertEqual(viewModel.pendingSpeechEngineSwitchConfirmation, .whisper)
-        XCTAssertEqual(viewModel.speechEngineError, "Existing error")
+        XCTAssertEqual(viewModel.engine.pendingSpeechEngineSwitchConfirmation, .whisper)
+        XCTAssertEqual(viewModel.engine.speechEngineError, "Existing error")
     }
 
     func testSpeechEngineSwitchConfirmationIgnoresCurrentEngine() {
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .parakeet)
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .parakeet)
 
-        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertNil(viewModel.engine.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
     }
 
     func testConfirmPendingSpeechEngineSwitchShowsErrorWhenSwitchStartsFirst() {
-        viewModel.requestSpeechEngineSwitchConfirmation(to: .whisper)
-        viewModel.speechEngineSwitching = true
+        viewModel.engine.requestSpeechEngineSwitchConfirmation(to: .whisper)
+        viewModel.engine.speechEngineSwitching = true
 
-        viewModel.confirmPendingSpeechEngineSwitch()
+        viewModel.engine.confirmPendingSpeechEngineSwitch()
 
-        XCTAssertNil(viewModel.pendingSpeechEngineSwitchConfirmation)
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertNil(viewModel.engine.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(
-            viewModel.speechEngineError,
-            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+            viewModel.engine.speechEngineError,
+            EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
         )
     }
 
@@ -1555,15 +1555,15 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
 
         let preferences = await switcher.preferences
         XCTAssertEqual(preferences, [.whisper])
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
-        XCTAssertFalse(viewModel.speechEngineSwitching)
-        XCTAssertNil(viewModel.speechEngineError)
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
+        XCTAssertNil(viewModel.engine.speechEngineError)
     }
 
     func testSpeechEngineChangeBlocksMissingNemotronModel() async throws {
@@ -1579,13 +1579,13 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.nemotronModelStatus = .notDownloaded
-        viewModel.speechEnginePreference = .nemotron
+        viewModel.engine.nemotronModelStatus = .notDownloaded
+        viewModel.engine.speechEnginePreference = .nemotron
 
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
-        XCTAssertEqual(viewModel.speechEngineError, "Download the Nemotron model before switching engines.")
-        XCTAssertFalse(viewModel.speechEngineSwitching)
+        XCTAssertEqual(viewModel.engine.speechEngineError, "Download the Nemotron model before switching engines.")
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
         let preferences = await switcher.preferences
         XCTAssertTrue(preferences.isEmpty)
 
@@ -1611,15 +1611,15 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh(vm)
-        vm.whisperModelStatus = .notLoaded
-        vm.nemotronModelStatus = .notDownloaded
-        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+        vm.engine.whisperModelStatus = .notLoaded
+        vm.engine.nemotronModelStatus = .notDownloaded
+        XCTAssertEqual(vm.engine.speechEnginePreference, .whisper)
 
-        vm.speechEnginePreference = .nemotron
+        vm.engine.speechEnginePreference = .nemotron
 
-        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+        XCTAssertEqual(vm.engine.speechEnginePreference, .whisper)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
-        XCTAssertEqual(vm.speechEngineError, "Download the Nemotron model before switching engines.")
+        XCTAssertEqual(vm.engine.speechEngineError, "Download the Nemotron model before switching engines.")
         let preferences = await switcher.preferences
         XCTAssertTrue(preferences.isEmpty)
     }
@@ -1637,15 +1637,15 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh(vm)
-        vm.nemotronModelStatus = .notLoaded
-        vm.whisperModelStatus = .notDownloaded
-        XCTAssertEqual(vm.speechEnginePreference, .nemotron)
+        vm.engine.nemotronModelStatus = .notLoaded
+        vm.engine.whisperModelStatus = .notDownloaded
+        XCTAssertEqual(vm.engine.speechEnginePreference, .nemotron)
 
-        vm.speechEnginePreference = .whisper
+        vm.engine.speechEnginePreference = .whisper
 
-        XCTAssertEqual(vm.speechEnginePreference, .nemotron)
+        XCTAssertEqual(vm.engine.speechEnginePreference, .nemotron)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .nemotron)
-        XCTAssertEqual(vm.speechEngineError, "Download the Whisper model before switching engines.")
+        XCTAssertEqual(vm.engine.speechEngineError, "Download the Whisper model before switching engines.")
         let preferences = await switcher.preferences
         XCTAssertTrue(preferences.isEmpty)
     }
@@ -1660,15 +1660,15 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
-        XCTAssertEqual(viewModel.parakeetModelVariant, .v3)
-        viewModel.parakeetModelVariant = .v2
+        XCTAssertEqual(viewModel.engine.parakeetModelVariant, .v3)
+        viewModel.engine.parakeetModelVariant = .v2
         try await waitForSpeechEngineSwitchingToFinish()
 
         let variants = await switcher.parakeetVariants
         XCTAssertEqual(variants, [.v2])
         XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: testDefaults), .v2)
-        XCTAssertFalse(viewModel.speechEngineSwitching)
-        XCTAssertNil(viewModel.speechEngineError)
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
+        XCTAssertNil(viewModel.engine.speechEngineError)
     }
 
     func testParakeetModelVariantChangeBlockedByAvailabilityRevertsWithoutPersisting() async throws {
@@ -1683,12 +1683,12 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitchAvailabilityProvider: provider
         )
 
-        viewModel.parakeetModelVariant = .v2
+        viewModel.engine.parakeetModelVariant = .v2
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertEqual(viewModel.parakeetModelVariant, .v3)
+        XCTAssertEqual(viewModel.engine.parakeetModelVariant, .v3)
         XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: testDefaults), .v3)
-        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        XCTAssertEqual(viewModel.engine.speechEngineError, "Stop the meeting recording to switch engines")
         let variants = await switcher.parakeetVariants
         XCTAssertTrue(variants.isEmpty)
     }
@@ -1703,18 +1703,18 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
-        viewModel.parakeetModelVariant = .v2
+        viewModel.engine.parakeetModelVariant = .v2
         try await waitForSpeechEngineSwitchingToFinish()
 
         // The switch was attempted but failed, so the choice is NOT persisted
         // and the published value snaps back to the previous build.
         let variants = await switcher.parakeetVariants
         XCTAssertEqual(variants, [.v2])
-        XCTAssertEqual(viewModel.parakeetModelVariant, .v3)
+        XCTAssertEqual(viewModel.engine.parakeetModelVariant, .v3)
         XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: testDefaults), .v3)
-        XCTAssertEqual(viewModel.speechEngineError, STTError.engineBusy.localizedDescription)
-        XCTAssertFalse(viewModel.speechEngineSwitching)
-        XCTAssertFalse(viewModel.isParakeetVariantSwitch)
+        XCTAssertEqual(viewModel.engine.speechEngineError, STTError.engineBusy.localizedDescription)
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
+        XCTAssertFalse(viewModel.engine.isParakeetVariantSwitch)
     }
 
     func testNemotronModelVariantChangeCallsSwitcherAndPersistsOnSuccess() async throws {
@@ -1727,15 +1727,15 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
-        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
-        viewModel.nemotronModelVariant = .english1120
+        XCTAssertEqual(viewModel.engine.nemotronModelVariant, .multilingual1120)
+        viewModel.engine.nemotronModelVariant = .english1120
         try await waitForSpeechEngineSwitchingToFinish()
 
         let variants = await switcher.nemotronVariants
         XCTAssertEqual(variants, [.english1120])
         XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .english1120)
-        XCTAssertFalse(viewModel.speechEngineSwitching)
-        XCTAssertNil(viewModel.speechEngineError)
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
+        XCTAssertNil(viewModel.engine.speechEngineError)
     }
 
     func testNemotronModelVariantChangeBlockedByAvailabilityRevertsWithoutPersisting() async throws {
@@ -1750,12 +1750,12 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitchAvailabilityProvider: provider
         )
 
-        viewModel.nemotronModelVariant = .english1120
+        viewModel.engine.nemotronModelVariant = .english1120
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
+        XCTAssertEqual(viewModel.engine.nemotronModelVariant, .multilingual1120)
         XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .multilingual1120)
-        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        XCTAssertEqual(viewModel.engine.speechEngineError, "Stop the meeting recording to switch engines")
         let variants = await switcher.nemotronVariants
         XCTAssertTrue(variants.isEmpty)
     }
@@ -1770,18 +1770,18 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitcher: switcher
         )
 
-        viewModel.nemotronModelVariant = .english1120
+        viewModel.engine.nemotronModelVariant = .english1120
         try await waitForSpeechEngineSwitchingToFinish()
 
         // The switch was attempted but failed, so the choice is NOT persisted
         // and the published value snaps back to the previous build.
         let variants = await switcher.nemotronVariants
         XCTAssertEqual(variants, [.english1120])
-        XCTAssertEqual(viewModel.nemotronModelVariant, .multilingual1120)
+        XCTAssertEqual(viewModel.engine.nemotronModelVariant, .multilingual1120)
         XCTAssertEqual(SpeechEnginePreference.nemotronModelVariant(defaults: testDefaults), .multilingual1120)
-        XCTAssertEqual(viewModel.speechEngineError, STTError.engineBusy.localizedDescription)
-        XCTAssertFalse(viewModel.speechEngineSwitching)
-        XCTAssertFalse(viewModel.isNemotronVariantSwitch)
+        XCTAssertEqual(viewModel.engine.speechEngineError, STTError.engineBusy.localizedDescription)
+        XCTAssertFalse(viewModel.engine.speechEngineSwitching)
+        XCTAssertFalse(viewModel.engine.isNemotronVariantSwitch)
     }
 
     func testRefreshSpeechEngineSwitchAvailabilityStoresProviderResult() async {
@@ -1794,12 +1794,12 @@ final class SettingsViewModelTests: XCTestCase {
             speechEngineSwitchAvailabilityProvider: provider
         )
 
-        let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+        let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
 
         XCTAssertEqual(availability, .transcribing)
-        XCTAssertEqual(viewModel.speechEngineSwitchAvailability, .transcribing)
+        XCTAssertEqual(viewModel.engine.speechEngineSwitchAvailability, .transcribing)
         XCTAssertEqual(
-            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .transcribing),
+            EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: .transcribing),
             "Finishing transcription — switch when it completes"
         )
     }
@@ -1819,13 +1819,13 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
-        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        XCTAssertEqual(viewModel.engine.speechEngineError, "Stop the meeting recording to switch engines")
         let preferences = await switcher.preferences
         XCTAssertTrue(preferences.isEmpty)
 
@@ -1851,8 +1851,8 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
 
         let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
@@ -1876,18 +1876,18 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
 
-        try await waitUntil { viewModel.speechEngineSwitching }
-        try await waitUntil { viewModel.speechEngineSwitchTarget == .whisper }
-        try await waitUntil { viewModel.speechEngineSwitchDetail == "Optimizing Whisper for this Mac..." }
+        try await waitUntil { viewModel.engine.speechEngineSwitching }
+        try await waitUntil { viewModel.engine.speechEngineSwitchTarget == .whisper }
+        try await waitUntil { viewModel.engine.speechEngineSwitchDetail == "Optimizing Whisper for this Mac..." }
 
         await switcher.releaseSwitch()
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertNil(viewModel.speechEngineSwitchTarget)
-        XCTAssertNil(viewModel.speechEngineSwitchDetail)
+        XCTAssertNil(viewModel.engine.speechEngineSwitchTarget)
+        XCTAssertNil(viewModel.engine.speechEngineSwitchDetail)
     }
 
     func testModelRepairsAreIgnoredWhileSpeechEngineIsSwitching() async throws {
@@ -1904,18 +1904,18 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
-        try await waitUntil { viewModel.speechEngineSwitching }
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
+        try await waitUntil { viewModel.engine.speechEngineSwitching }
 
-        viewModel.repairParakeetModel()
-        viewModel.downloadWhisperModel()
+        viewModel.engine.repairParakeetModel()
+        viewModel.engine.downloadWhisperModel()
         try await Task.sleep(for: .milliseconds(50))
 
         let warmUpCallCount = await stt.warmUpCallCount
         XCTAssertEqual(warmUpCallCount, 0)
-        XCTAssertFalse(viewModel.parakeetRepairing)
-        XCTAssertFalse(viewModel.whisperDownloading)
+        XCTAssertFalse(viewModel.engine.parakeetRepairing)
+        XCTAssertFalse(viewModel.engine.whisperDownloading)
 
         await switcher.releaseSwitch()
         try await waitForSpeechEngineSwitchingToFinish()
@@ -1932,13 +1932,13 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitForInitialModelStatusRefresh()
-        viewModel.whisperModelStatus = .notLoaded
-        viewModel.speechEnginePreference = .whisper
+        viewModel.engine.whisperModelStatus = .notLoaded
+        viewModel.engine.speechEnginePreference = .whisper
         try await waitForSpeechEngineSwitchingToFinish()
 
-        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
-        XCTAssertEqual(viewModel.speechEngineError, STTError.engineBusy.localizedDescription)
+        XCTAssertEqual(viewModel.engine.speechEngineError, STTError.engineBusy.localizedDescription)
     }
 
     private func waitForSpeechEngineSwitchingToFinish(
@@ -1947,7 +1947,7 @@ final class SettingsViewModelTests: XCTestCase {
         line: UInt = #line
     ) async throws {
         let start = ContinuousClock.now
-        while viewModel.speechEngineSwitching {
+        while viewModel.engine.speechEngineSwitching {
             if start.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for speech engine switch to finish", file: file, line: line)
                 return
@@ -1964,9 +1964,9 @@ final class SettingsViewModelTests: XCTestCase {
     ) async throws {
         let target = vm ?? viewModel!
         try await waitUntil(timeout: timeout, file: file, line: line) {
-            target.parakeetStatus != .checking &&
-                target.whisperModelStatus != .checking &&
-                target.nemotronModelStatus != .checking
+            target.engine.parakeetStatus != .checking &&
+                target.engine.whisperModelStatus != .checking &&
+                target.engine.nemotronModelStatus != .checking
         }
     }
 
@@ -2344,59 +2344,59 @@ final class SettingsViewModelTests: XCTestCase {
     func testDeleteParakeetVariantRemovesUnusedBuild() async throws {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedParakeetVariants = [.v3, .v2]
+        vm.engine.downloadedParakeetVariants = [.v3, .v2]
 
-        vm.deleteParakeetVariant(.v2)
+        vm.engine.deleteParakeetVariant(.v2)
 
         // Badge drops synchronously; the disk delete lands on a detached task.
-        XCTAssertFalse(vm.downloadedParakeetVariants.contains(.v2))
+        XCTAssertFalse(vm.engine.downloadedParakeetVariants.contains(.v2))
         try await waitUntil { recorder.parakeetCalls == [.v2] }
     }
 
     func testDeleteParakeetVariantRefusesActiveBuild() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedParakeetVariants = [.v3, .v2]
+        vm.engine.downloadedParakeetVariants = [.v3, .v2]
 
         // v3 is the active build — deleting it would force a re-download.
-        vm.deleteParakeetVariant(.v3)
+        vm.engine.deleteParakeetVariant(.v3)
 
-        XCTAssertTrue(vm.downloadedParakeetVariants.contains(.v3))
+        XCTAssertTrue(vm.engine.downloadedParakeetVariants.contains(.v3))
         XCTAssertTrue(recorder.parakeetCalls.isEmpty)
     }
 
     func testDeleteParakeetVariantRefusesSelectedBuildWhenWhisperActive() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .whisper, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedParakeetVariants = [.v3, .v2]
+        vm.engine.downloadedParakeetVariants = [.v3, .v2]
 
-        vm.deleteParakeetVariant(.v3)
+        vm.engine.deleteParakeetVariant(.v3)
 
-        XCTAssertTrue(vm.downloadedParakeetVariants.contains(.v3))
+        XCTAssertTrue(vm.engine.downloadedParakeetVariants.contains(.v3))
         XCTAssertTrue(recorder.parakeetCalls.isEmpty)
     }
 
     func testDeleteParakeetVariantIgnoredWhileSwitching() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedParakeetVariants = [.v3, .v2]
-        vm.speechEngineSwitching = true
+        vm.engine.downloadedParakeetVariants = [.v3, .v2]
+        vm.engine.speechEngineSwitching = true
 
-        vm.deleteParakeetVariant(.v2)
+        vm.engine.deleteParakeetVariant(.v2)
 
-        XCTAssertTrue(vm.downloadedParakeetVariants.contains(.v2))
+        XCTAssertTrue(vm.engine.downloadedParakeetVariants.contains(.v2))
         XCTAssertTrue(recorder.parakeetCalls.isEmpty)
     }
 
     func testDeleteWhisperModelRemovesDownloadWhenParakeetActive() async throws {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
-        vm.whisperModelStatus = .notLoaded
+        vm.engine.whisperModelStatus = .notLoaded
 
-        vm.deleteWhisperModel()
+        vm.engine.deleteWhisperModel()
 
         // Status flips to not-downloaded immediately; delete runs in the background.
-        XCTAssertEqual(vm.whisperModelStatus, .notDownloaded)
+        XCTAssertEqual(vm.engine.whisperModelStatus, .notDownloaded)
         try await waitUntil {
             recorder.whisperCalls == [SpeechEnginePreference.whisperModelVariant(defaults: self.testDefaults)]
         }
@@ -2405,11 +2405,11 @@ final class SettingsViewModelTests: XCTestCase {
     func testDeleteWhisperModelRefusedWhenWhisperActive() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .whisper, parakeetVariant: .v3, recorder: recorder)
-        vm.whisperModelStatus = .notLoaded
+        vm.engine.whisperModelStatus = .notLoaded
 
-        vm.deleteWhisperModel()
+        vm.engine.deleteWhisperModel()
 
-        XCTAssertEqual(vm.whisperModelStatus, .notLoaded)
+        XCTAssertEqual(vm.engine.whisperModelStatus, .notLoaded)
         XCTAssertTrue(recorder.whisperCalls.isEmpty)
     }
 
@@ -2417,15 +2417,15 @@ final class SettingsViewModelTests: XCTestCase {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: testDefaults)
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .parakeet, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedNemotronVariants = [.multilingual1120]
-        vm.nemotronModelStatus = .notLoaded
+        vm.engine.downloadedNemotronVariants = [.multilingual1120]
+        vm.engine.nemotronModelStatus = .notLoaded
 
         // The selected build is deletable while Nemotron is inactive; a nil
         // language asks the deleter to drop every language cache for the build.
-        vm.deleteNemotronVariant(.multilingual1120)
+        vm.engine.deleteNemotronVariant(.multilingual1120)
 
-        XCTAssertEqual(vm.nemotronModelStatus, .notDownloaded)
-        XCTAssertFalse(vm.downloadedNemotronVariants.contains(.multilingual1120))
+        XCTAssertEqual(vm.engine.nemotronModelStatus, .notDownloaded)
+        XCTAssertFalse(vm.engine.downloadedNemotronVariants.contains(.multilingual1120))
         try await waitUntil {
             recorder.nemotronCalls.count == 1
                 && recorder.nemotronCalls.first?.0 == .multilingual1120
@@ -2436,31 +2436,31 @@ final class SettingsViewModelTests: XCTestCase {
     func testDeleteNemotronVariantRefusesSelectedBuildWhenNemotronActive() {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .nemotron, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedNemotronVariants = [.multilingual1120, .english1120]
-        vm.nemotronModelStatus = .notLoaded
+        vm.engine.downloadedNemotronVariants = [.multilingual1120, .english1120]
+        vm.engine.nemotronModelStatus = .notLoaded
 
         // The multilingual build is selected and Nemotron is the active
         // engine — deleting it would force a re-download.
-        vm.deleteNemotronVariant(.multilingual1120)
+        vm.engine.deleteNemotronVariant(.multilingual1120)
 
-        XCTAssertEqual(vm.nemotronModelStatus, .notLoaded)
-        XCTAssertTrue(vm.downloadedNemotronVariants.contains(.multilingual1120))
+        XCTAssertEqual(vm.engine.nemotronModelStatus, .notLoaded)
+        XCTAssertTrue(vm.engine.downloadedNemotronVariants.contains(.multilingual1120))
         XCTAssertTrue(recorder.nemotronCalls.isEmpty)
     }
 
     func testDeleteNemotronVariantRemovesNonSelectedBuildWhenNemotronActive() async throws {
         let recorder = ModelDeleteRecorder()
         let vm = makeDeletionViewModel(engine: .nemotron, parakeetVariant: .v3, recorder: recorder)
-        vm.downloadedNemotronVariants = [.multilingual1120, .english1120]
-        vm.nemotronModelStatus = .notLoaded
+        vm.engine.downloadedNemotronVariants = [.multilingual1120, .english1120]
+        vm.engine.nemotronModelStatus = .notLoaded
 
         // The English build is downloaded but not selected — deletable even
         // while Nemotron is the active engine.
-        vm.deleteNemotronVariant(.english1120)
+        vm.engine.deleteNemotronVariant(.english1120)
 
         // Badge drops synchronously; the disk delete lands on a detached task.
-        XCTAssertFalse(vm.downloadedNemotronVariants.contains(.english1120))
-        XCTAssertEqual(vm.nemotronModelStatus, .notLoaded)
+        XCTAssertFalse(vm.engine.downloadedNemotronVariants.contains(.english1120))
+        XCTAssertEqual(vm.engine.nemotronModelStatus, .notLoaded)
         try await waitUntil {
             recorder.nemotronCalls.count == 1
                 && recorder.nemotronCalls.first?.0 == .english1120

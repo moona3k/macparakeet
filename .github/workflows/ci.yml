@@ -43,6 +43,14 @@ jobs:
           set -o pipefail
           ./scripts/check-readme-references.sh 2>&1 | tee .ci-logs/check-readme-references.log
 
+      - name: Swift Format Lint (informational)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee .ci-logs/swift-format-lint.log
+
       - name: Cache SwiftPM Dependencies
         uses: actions/cache@v5
         with:

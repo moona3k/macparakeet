@@ -228,7 +228,7 @@ struct SettingsView: View {
             viewModel.startPermissionPolling()
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
-            viewModel.refreshModelStatus()
+            viewModel.engine.refreshModelStatus()
             viewModel.refreshPendingMeetingRecoveries()
         }
         .onDisappear {
@@ -236,7 +236,7 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshPermissions()
-            viewModel.refreshSpeechEngineSwitchAvailability()
+            viewModel.engine.refreshSpeechEngineSwitchAvailability()
             Task { await viewModel.refreshCalendarNotificationAuthorization() }
         }
         .onAppear {
@@ -451,9 +451,6 @@ struct SettingsView: View {
     ///
     /// Cards 2–4 are mutually exclusive (one per engine), so exactly one
     /// contextual config card sits between the selector and the models card.
-    ///
-    /// Sub-VM split (`EngineSettingsViewModel`) lands in a later commit;
-    /// the cards keep reading from `viewModel` for now.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
@@ -478,17 +475,17 @@ struct SettingsView: View {
         .alert(
             speechEngineSwitchConfirmationTitle,
             isPresented: Binding(
-                get: { viewModel.pendingSpeechEngineSwitchConfirmation != nil },
-                set: { if !$0 { viewModel.cancelPendingSpeechEngineSwitchConfirmation() } }
+                get: { viewModel.engine.pendingSpeechEngineSwitchConfirmation != nil },
+                set: { if !$0 { viewModel.engine.cancelPendingSpeechEngineSwitchConfirmation() } }
             ),
-            presenting: viewModel.pendingSpeechEngineSwitchConfirmation
+            presenting: viewModel.engine.pendingSpeechEngineSwitchConfirmation
         ) { engine in
             Button("Cancel", role: .cancel) {
-                viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+                viewModel.engine.cancelPendingSpeechEngineSwitchConfirmation()
             }
             Button("Switch to \(engine.displayName)") {
                 withAnimation(DesignSystem.Animation.contentSwap) {
-                    viewModel.confirmPendingSpeechEngineSwitch()
+                    viewModel.engine.confirmPendingSpeechEngineSwitch()
                 }
             }
         } message: { engine in
@@ -498,7 +495,7 @@ struct SettingsView: View {
 
     /// A downloaded model awaiting delete confirmation. `parakeet` and
     /// `nemotron` carry the specific build; Whisper deletion follows the
-    /// configured Whisper variant from `SettingsViewModel.deleteWhisperModel()`,
+    /// configured Whisper variant from `EngineSettingsViewModel.deleteWhisperModel()`,
     /// so the alert copy stays variant-agnostic here.
     private enum PendingModelDeletion: Identifiable, Equatable {
         case parakeet(ParakeetModelVariant)
@@ -539,17 +536,17 @@ struct SettingsView: View {
     private func performModelDeletion(_ deletion: PendingModelDeletion) {
         switch deletion {
         case .parakeet(let variant):
-            viewModel.deleteParakeetVariant(variant)
+            viewModel.engine.deleteParakeetVariant(variant)
         case .nemotron(let variant):
-            viewModel.deleteNemotronVariant(variant)
+            viewModel.engine.deleteNemotronVariant(variant)
         case .whisper:
-            viewModel.deleteWhisperModel()
+            viewModel.engine.deleteWhisperModel()
         }
         pendingModelDeletion = nil
     }
 
     private var speechEngineSwitchConfirmationTitle: String {
-        guard let engine = viewModel.pendingSpeechEngineSwitchConfirmation else {
+        guard let engine = viewModel.engine.pendingSpeechEngineSwitchConfirmation else {
             return "Switch speech engine?"
         }
         return "Switch to \(engine.displayName)?"
@@ -560,7 +557,7 @@ struct SettingsView: View {
         case .nemotron:
             return "Nemotron is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
         case .whisper:
-            if viewModel.whisperHasBeenOptimized {
+            if viewModel.engine.whisperHasBeenOptimized {
                 return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
             }
             return "Preparing Whisper can take several minutes the first time while Core ML optimizes it for this Mac. Dictation, file transcription, and meetings pause until the switch finishes."
@@ -2063,8 +2060,8 @@ struct SettingsView: View {
                         ],
                         helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
                         modelStatus: displayedParakeetModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .parakeet,
-                        isBusy: viewModel.speechEngineSwitching,
+                        isSelected: viewModel.engine.speechEnginePreference == .parakeet,
+                        isBusy: viewModel.engine.speechEngineSwitching,
                         unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
                         onSelect: { selectEngine(.parakeet) }
                     )
@@ -2080,8 +2077,8 @@ struct SettingsView: View {
                         ],
                         helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy.",
                         modelStatus: displayedNemotronModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .nemotron,
-                        isBusy: viewModel.speechEngineSwitching,
+                        isSelected: viewModel.engine.speechEnginePreference == .nemotron,
+                        isBusy: viewModel.engine.speechEngineSwitching,
                         unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
                         onSelect: { handleNemotronTileTap() }
                     )
@@ -2097,23 +2094,23 @@ struct SettingsView: View {
                         ],
                         helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
                         modelStatus: displayedWhisperModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .whisper,
-                        isBusy: viewModel.speechEngineSwitching,
+                        isSelected: viewModel.engine.speechEnginePreference == .whisper,
+                        isBusy: viewModel.engine.speechEngineSwitching,
                         unavailableReason: engineSwitchUnavailableReason(for: .whisper),
                         needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
-                            && !viewModel.whisperHasBeenOptimized,
+                            && !viewModel.engine.whisperHasBeenOptimized,
                         onSelect: { handleWhisperTileTap() }
                     )
                 }
 
                 if let banner = nemotronDownloadBannerState {
                     EngineDownloadBanner(
-                        title: viewModel.nemotronModelVariant.isEnglishOnly
+                        title: viewModel.engine.nemotronModelVariant.isEnglishOnly
                             ? "Nemotron Speech EN Beta"
                             : "Nemotron 3.5 Beta",
                         subtitle: banner.subtitle,
                         mode: banner.mode,
-                        action: { viewModel.downloadNemotronModel() }
+                        action: { viewModel.engine.downloadNemotronModel() }
                     )
                 }
 
@@ -2122,11 +2119,11 @@ struct SettingsView: View {
                         title: "Whisper Large v3 Turbo",
                         subtitle: banner.subtitle,
                         mode: banner.mode,
-                        action: { viewModel.downloadWhisperModel() }
+                        action: { viewModel.engine.downloadWhisperModel() }
                     )
                 }
 
-                if let error = viewModel.speechEngineError {
+                if let error = viewModel.engine.speechEngineError {
                     Text(error)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.errorRed)
@@ -2146,7 +2143,7 @@ struct SettingsView: View {
     /// #398); Unified is the highest-accuracy English offline build (issue #520).
     @ViewBuilder
     private var engineParakeetModelCard: some View {
-        if viewModel.speechEnginePreference == .parakeet {
+        if viewModel.engine.speechEnginePreference == .parakeet {
             SettingsCard(
                 title: "Parakeet Model",
                 subtitle: "Pick how Parakeet handles language. The English-only builds are a touch faster and never mistake English for another language; Unified is the most accurate on English.",
@@ -2165,8 +2162,8 @@ struct SettingsView: View {
     }
 
     private func parakeetModelOptionRow(_ variant: ParakeetModelVariant) -> some View {
-        let isSelected = viewModel.parakeetModelVariant == variant
-        let isDownloaded = viewModel.downloadedParakeetVariants.contains(variant)
+        let isSelected = viewModel.engine.parakeetModelVariant == variant
+        let isDownloaded = viewModel.engine.downloadedParakeetVariants.contains(variant)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
             : "\(variant.approximateDownloadSize), downloads on first use."
@@ -2203,7 +2200,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.speechEngineSwitching)
+            .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
@@ -2218,7 +2215,7 @@ struct SettingsView: View {
                     pendingModelDeletion = .parakeet(variant)
                 }
                 .padding(.top, 1)
-                .disabled(viewModel.speechEngineSwitching)
+                .disabled(viewModel.engine.speechEngineSwitching)
             }
         }
     }
@@ -2252,23 +2249,23 @@ struct SettingsView: View {
     /// flips then reverts. The VM setter (`applyParakeetModelVariantChange`)
     /// drives the actual reload + persistence.
     private func selectParakeetModelVariant(_ variant: ParakeetModelVariant) {
-        guard viewModel.parakeetModelVariant != variant,
-              !viewModel.speechEngineSwitching else { return }
+        guard viewModel.engine.parakeetModelVariant != variant,
+              !viewModel.engine.speechEngineSwitching else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.parakeetModelVariant = variant
+                viewModel.engine.parakeetModelVariant = variant
             }
         }
     }
 
     @ViewBuilder
     private var engineNemotronModelCard: some View {
-        if viewModel.speechEnginePreference == .nemotron {
+        if viewModel.engine.speechEnginePreference == .nemotron {
             SettingsCard(
                 title: "Nemotron Model",
                 subtitle: "Pick which Nemotron build loads. English-only is a smaller download.",
@@ -2285,8 +2282,8 @@ struct SettingsView: View {
     }
 
     private func nemotronModelOptionRow(_ variant: NemotronModelVariant) -> some View {
-        let isSelected = viewModel.nemotronModelVariant == variant
-        let isDownloaded = viewModel.downloadedNemotronVariants.contains(variant)
+        let isSelected = viewModel.engine.nemotronModelVariant == variant
+        let isDownloaded = viewModel.engine.downloadedNemotronVariants.contains(variant)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
             : "\(variant.approximateDownloadSize), downloads on first use."
@@ -2323,7 +2320,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.speechEngineSwitching)
+            .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
@@ -2338,30 +2335,31 @@ struct SettingsView: View {
                     pendingModelDeletion = .nemotron(variant)
                 }
                 .padding(.top, 1)
-                .disabled(viewModel.speechEngineSwitching)
+                .disabled(viewModel.engine.speechEngineSwitching)
             }
         }
     }
 
     /// Mirrors `selectParakeetModelVariant` for the Nemotron build picker.
     private func selectNemotronModelVariant(_ variant: NemotronModelVariant) {
-        guard viewModel.nemotronModelVariant != variant,
-              !viewModel.speechEngineSwitching else { return }
+        guard viewModel.engine.nemotronModelVariant != variant,
+              !viewModel.engine.speechEngineSwitching else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.nemotronModelVariant = variant
+                viewModel.engine.nemotronModelVariant = variant
             }
         }
     }
 
     @ViewBuilder
     private var engineLanguageCard: some View {
-        if viewModel.speechEnginePreference == .whisper {
+        @Bindable var engine = viewModel.engine
+        if engine.speechEnginePreference == .whisper {
             SettingsCard(
                 title: "Whisper Language",
                 subtitle: "Auto-detect works for most files. Pin a language for faster startup or mixed-language audio.",
@@ -2372,7 +2370,7 @@ struct SettingsView: View {
                         .font(DesignSystem.Typography.body)
                     Spacer(minLength: DesignSystem.Spacing.md)
                     LanguagePickerButton(
-                        selection: $viewModel.whisperDefaultLanguage,
+                        selection: $engine.whisperDefaultLanguage,
                         isDisabled: false
                     )
                 }
@@ -2397,8 +2395,8 @@ struct SettingsView: View {
                     title: "Parakeet",
                     detail: displayedParakeetModelStatusDetail,
                     status: displayedParakeetModelStatus,
-                    isWorking: viewModel.parakeetRepairing,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.parakeetRepairing,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedParakeetModelStatus == .preparing ? nil : parakeetPrimaryAction,
                     overflowActions: displayedParakeetModelStatus == .preparing ? [] : parakeetOverflowActions
                 )
@@ -2409,8 +2407,8 @@ struct SettingsView: View {
                     title: "Nemotron",
                     detail: displayedNemotronModelStatusDetail,
                     status: displayedNemotronModelStatus,
-                    isWorking: viewModel.nemotronDownloading,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.nemotronDownloading,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedNemotronModelStatus == .preparing ? nil : nemotronPrimaryAction,
                     overflowActions: displayedNemotronModelStatus == .preparing ? [] : nemotronOverflowActions
                 )
@@ -2421,8 +2419,8 @@ struct SettingsView: View {
                     title: "Whisper",
                     detail: displayedWhisperModelStatusDetail,
                     status: displayedWhisperModelStatus,
-                    isWorking: viewModel.whisperDownloading,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.whisperDownloading,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedWhisperModelStatus == .preparing ? nil : whisperPrimaryAction,
                     overflowActions: displayedWhisperModelStatus == .preparing ? [] : whisperOverflowActions
                 )
@@ -2431,18 +2429,18 @@ struct SettingsView: View {
     }
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
-        if viewModel.speechEngineSwitching {
+        if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
-        if viewModel.speechEngineError != nil {
+        if viewModel.engine.speechEngineError != nil {
             return SettingsCardStatus(.required, label: "Action needed")
         }
         return nil
     }
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
-        guard viewModel.speechEngineSwitching else { return nil }
-        let phase = viewModel.speechEngineSwitchDetail ?? "Preparing speech engine..."
+        guard viewModel.engine.speechEngineSwitching else { return nil }
+        let phase = viewModel.engine.speechEngineSwitchDetail ?? "Preparing speech engine..."
         return (
             speechEngineSwitchTitle,
             "\(phase) Dictation, file transcription, and meetings pause until this finishes."
@@ -2453,10 +2451,10 @@ struct SettingsView: View {
     /// swap keeps the engine selection unchanged, so "Switching to …" would be
     /// wrong — show "Updating … model" instead.
     private var speechEngineSwitchTitle: String {
-        if viewModel.isParakeetVariantSwitch {
+        if viewModel.engine.isParakeetVariantSwitch {
             return "Updating Parakeet model"
         }
-        if viewModel.isNemotronVariantSwitch {
+        if viewModel.engine.isNemotronVariantSwitch {
             return "Updating Nemotron model"
         }
         let target = currentSpeechEngineSwitchTarget
@@ -2475,65 +2473,65 @@ struct SettingsView: View {
             parakeet: displayedParakeetModelStatus,
             nemotron: displayedNemotronModelStatus,
             whisper: displayedWhisperModelStatus,
-            activeEngine: viewModel.speechEnginePreference
+            activeEngine: viewModel.engine.speechEnginePreference
         )
     }
 
     private var currentSpeechEngineSwitchTarget: SpeechEnginePreference {
-        viewModel.speechEngineSwitchTarget ?? viewModel.speechEnginePreference
+        viewModel.engine.speechEngineSwitchTarget ?? viewModel.engine.speechEnginePreference
     }
 
     private func engineSwitchUnavailableReason(for engine: SpeechEnginePreference) -> String? {
-        guard viewModel.speechEnginePreference != engine else { return nil }
-        return viewModel.speechEngineSwitchUnavailableMessage
+        guard viewModel.engine.speechEnginePreference != engine else { return nil }
+        return viewModel.engine.speechEngineSwitchUnavailableMessage
     }
 
     private var displayedParakeetModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .parakeet else {
-            return viewModel.parakeetStatus
+            return viewModel.engine.parakeetStatus
         }
         return .preparing
     }
 
     private var displayedParakeetModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .parakeet else {
-            return viewModel.parakeetStatusDetail
+            return viewModel.engine.parakeetStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Loading Parakeet with Core ML..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading Parakeet with Core ML..."
     }
 
     private var displayedWhisperModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .whisper else {
-            return viewModel.whisperModelStatus
+            return viewModel.engine.whisperModelStatus
         }
         return .preparing
     }
 
     private var displayedWhisperModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .whisper else {
-            return viewModel.whisperModelStatusDetail
+            return viewModel.engine.whisperModelStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
     }
 
     private var displayedNemotronModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .nemotron else {
-            return viewModel.nemotronModelStatus
+            return viewModel.engine.nemotronModelStatus
         }
         return .preparing
     }
 
     private var displayedNemotronModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .nemotron else {
-            return viewModel.nemotronModelStatusDetail
+            return viewModel.engine.nemotronModelStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Loading \(viewModel.nemotronModelVariant.modelName) with Core ML..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading \(viewModel.engine.nemotronModelVariant.modelName) with Core ML..."
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
@@ -2570,17 +2568,17 @@ struct SettingsView: View {
     /// setter still validates and performs the actual switch, but the first tap
     /// no longer starts a potentially multi-minute engine reload by surprise.
     private func selectEngine(_ engine: SpeechEnginePreference) {
-        guard viewModel.speechEnginePreference != engine,
-              !viewModel.speechEngineSwitching,
-              viewModel.pendingSpeechEngineSwitchConfirmation == nil else { return }
+        guard viewModel.engine.speechEnginePreference != engine,
+              !viewModel.engine.speechEngineSwitching,
+              viewModel.engine.pendingSpeechEngineSwitchConfirmation == nil else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.requestSpeechEngineSwitchConfirmation(to: engine)
+                viewModel.engine.requestSpeechEngineSwitchConfirmation(to: engine)
             }
         }
     }
@@ -2598,34 +2596,34 @@ struct SettingsView: View {
     /// The banner stays mounted across `.notDownloaded` → `.repairing` →
     /// terminal state so the action surface doesn't blink out on click.
     private var whisperDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard viewModel.speechEnginePreference == .whisper else { return nil }
-        if viewModel.whisperDownloading {
-            return (.downloading, viewModel.whisperModelStatusDetail)
+        guard viewModel.engine.speechEnginePreference == .whisper else { return nil }
+        if viewModel.engine.whisperDownloading {
+            return (.downloading, viewModel.engine.whisperModelStatusDetail)
         }
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
             return (.download, "632 MB · downloads once, runs locally afterwards")
         case .repairing:
-            return (.downloading, viewModel.whisperModelStatusDetail)
+            return (.downloading, viewModel.engine.whisperModelStatusDetail)
         case .failed:
-            return (.retry, viewModel.whisperModelStatusDetail)
+            return (.retry, viewModel.engine.whisperModelStatusDetail)
         case .ready, .notLoaded, .preparing, .checking, .unknown:
             return nil
         }
     }
 
     private var nemotronDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard viewModel.speechEnginePreference == .nemotron else { return nil }
-        if viewModel.nemotronDownloading {
-            return (.downloading, viewModel.nemotronModelStatusDetail)
+        guard viewModel.engine.speechEnginePreference == .nemotron else { return nil }
+        if viewModel.engine.nemotronDownloading {
+            return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         }
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
-            return (.download, "\(viewModel.nemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
+            return (.download, "\(viewModel.engine.nemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
         case .repairing:
-            return (.downloading, viewModel.nemotronModelStatusDetail)
+            return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         case .failed:
-            return (.retry, viewModel.nemotronModelStatusDetail)
+            return (.retry, viewModel.engine.nemotronModelStatusDetail)
         case .ready, .notLoaded, .preparing, .checking, .unknown:
             return nil
         }
@@ -2639,48 +2637,48 @@ struct SettingsView: View {
     /// usually settle within a frame, so we let those fall through to the
     /// VM's normal accept/revert path rather than rejecting prematurely.
     private func handleWhisperTileTap() {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .ready, .notLoaded:
             selectEngine(.whisper)
         case .notDownloaded:
-            viewModel.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
+            viewModel.engine.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
         case .repairing:
-            viewModel.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
         case .preparing:
-            viewModel.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
         case .failed:
-            viewModel.speechEngineError = "Whisper model failed to load — retry below."
+            viewModel.engine.speechEngineError = "Whisper model failed to load — retry below."
         case .checking, .unknown:
             selectEngine(.whisper)
         }
     }
 
     private func handleNemotronTileTap() {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .ready, .notLoaded:
             selectEngine(.nemotron)
         case .notDownloaded:
-            viewModel.speechEngineError = "Download the \(viewModel.nemotronModelVariant.displayName) Nemotron model below before switching engines."
+            viewModel.engine.speechEngineError = "Download the \(viewModel.engine.nemotronModelVariant.displayName) Nemotron model below before switching engines."
         case .repairing:
-            viewModel.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
         case .preparing:
-            viewModel.speechEngineError = "Nemotron is preparing for this Mac — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Nemotron is preparing for this Mac — switch engines once it finishes."
         case .failed:
-            viewModel.speechEngineError = "Nemotron model failed to load — retry below."
+            viewModel.engine.speechEngineError = "Nemotron model failed to load — retry below."
         case .checking, .unknown:
             selectEngine(.nemotron)
         }
     }
 
     private var parakeetPrimaryAction: ModelRowAction? {
-        switch viewModel.parakeetStatus {
+        switch viewModel.engine.parakeetStatus {
         case .failed:
             return ModelRowAction(
                 label: "Retry",
                 isProminent: true,
                 help: "Re-run Parakeet setup and load the model again."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }
         case .notDownloaded:
             return ModelRowAction(
@@ -2688,7 +2686,7 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Download and load the local Parakeet model."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }
         default:
             return nil
@@ -2700,14 +2698,14 @@ struct SettingsView: View {
     /// download badge — that's the unambiguous place to remove the build you're
     /// not using (this row represents whichever build is active).
     private var parakeetOverflowActions: [ModelRowAction] {
-        switch viewModel.parakeetStatus {
+        switch viewModel.engine.parakeetStatus {
         case .ready, .notLoaded:
             return [ModelRowAction(
                 label: "Repair…",
                 isProminent: false,
                 help: "Re-validate the Parakeet files and load the model again."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }]
         default:
             return []
@@ -2715,14 +2713,14 @@ struct SettingsView: View {
     }
 
     private var whisperPrimaryAction: ModelRowAction? {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
             return ModelRowAction(
                 label: "Download",
                 isProminent: true,
                 help: "Download Whisper Large v3 Turbo for multilingual transcription."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }
         case .failed:
             return ModelRowAction(
@@ -2730,7 +2728,7 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Try downloading the Whisper model again."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }
         default:
             return nil
@@ -2738,14 +2736,14 @@ struct SettingsView: View {
     }
 
     private var nemotronPrimaryAction: ModelRowAction? {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
             return ModelRowAction(
                 label: "Download",
                 isProminent: true,
                 help: "Download the selected Nemotron build for local speech recognition."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
             }
         case .failed:
             return ModelRowAction(
@@ -2753,7 +2751,7 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Try downloading the Nemotron model again."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
             }
         default:
             return nil
@@ -2761,23 +2759,23 @@ struct SettingsView: View {
     }
 
     private var nemotronOverflowActions: [ModelRowAction] {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .ready, .notLoaded:
             var actions = [ModelRowAction(
                 label: "Repair…",
                 isProminent: false,
                 help: "Re-check the Nemotron files and re-download any missing model assets."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
             }]
-            if viewModel.speechEnginePreference != .nemotron {
+            if viewModel.engine.speechEnginePreference != .nemotron {
                 actions.append(ModelRowAction(
                     label: "Delete download…",
                     isProminent: false,
                     isDestructive: true,
                     help: "Remove the selected Nemotron build's download from this Mac."
                 ) {
-                    pendingModelDeletion = .nemotron(viewModel.nemotronModelVariant)
+                    pendingModelDeletion = .nemotron(viewModel.engine.nemotronModelVariant)
                 })
             }
             return actions
@@ -2787,7 +2785,7 @@ struct SettingsView: View {
     }
 
     private var whisperOverflowActions: [ModelRowAction] {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .ready, .notLoaded:
             // Symmetric with Parakeet's "Repair…" — both engines surface the
             // same affordance to the user. Underneath, Parakeet re-runs warmup
@@ -2799,11 +2797,11 @@ struct SettingsView: View {
                 isProminent: false,
                 help: "Re-check the Whisper files and re-download any missing model assets."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }]
             // Offer delete only when Whisper isn't the active engine — deleting
             // the in-use model would force a silent re-download next time.
-            if viewModel.speechEnginePreference != .whisper {
+            if viewModel.engine.speechEnginePreference != .whisper {
                 actions.append(ModelRowAction(
                     label: "Delete download…",
                     isProminent: false,
