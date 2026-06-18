@@ -160,7 +160,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
             .appendingPathComponent("Models", isDirectory: true)
     }
 
-    /// `…/Models/parakeet-unified-en-0.6b-coreml` — keyed off FluidAudio's own
+    /// `.../Models/parakeet-unified-en-0.6b` - keyed off FluidAudio's own
     /// `Repo.parakeetUnified.folderName` so the path can never drift from where
     /// the manager actually downloads.
     public nonisolated static func defaultCacheRoot() -> URL {
