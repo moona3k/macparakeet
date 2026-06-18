@@ -37,6 +37,17 @@ Two categories:
 - **Disabled** words are skipped (user can toggle without deleting)
 - Applied in the order they appear in the database
 
+**Meetings (REQ-PIPE-003):** these custom-word corrections also run on
+finalized meeting transcripts — applied to both the plain text and the
+per-word timestamp tokens that drive the speaker-segmented transcript view and
+the SRT/VTT/speaker-paragraph exports. Meeting correction is **always-on**,
+independent of the Raw/Clean processing mode (custom words a user entered are
+intentional corrections, and the default mode is Raw). Only this custom-word
+step is reused; filler removal, snippet expansion, and insertion styling stay
+dictation-only so the verbatim meeting record is preserved. The shared
+matching logic lives in `CustomWordReplacer`; the meeting entry point is
+`MeetingTranscriptVocabularyApplier`.
+
 ### Step 3: Trailing Action Extraction
 
 If the user's text ends with an enabled action-snippet trigger, the trigger is stripped and the action is returned through `TextProcessingResult.postPasteAction`. This is how Voice Return-style behavior can simulate Return after paste without leaving "press return" in the transcript.

@@ -1251,6 +1251,94 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(diarizationApplied)
     }
 
+    func testTranscribeMeetingAppliesEnabledCustomWordsToTextAndWordTokens() async throws {
+        // Seed the user's Vocabulary with company-context corrections (issue #550).
+        let dbManager = try DatabaseManager()
+        let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+        try customWordRepo.save(CustomWord(word: "acme", replacement: "ACME Corporation"))
+        try customWordRepo.save(CustomWord(word: "kubernetes", replacement: "Kubernetes (K8s)"))
+        try customWordRepo.save(CustomWord(word: "ignored", replacement: "SHOULD-NOT-APPEAR", isEnabled: false))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            customWordRepo: customWordRepo
+        )
+
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: recordingFolder) }
+        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
+
+        // Mic source says "acme"; system source says "kubernetes" — both raw STT.
+        await mockSTT.configureSequence(results: [
+            STTResult(text: "sync with acme", words: [
+                TimestampedWord(word: "sync", startMs: 50, endMs: 260, confidence: 0.9),
+                TimestampedWord(word: "with", startMs: 300, endMs: 420, confidence: 0.9),
+                TimestampedWord(word: "acme", startMs: 440, endMs: 700, confidence: 0.9),
+            ]),
+            STTResult(text: "kubernetes rollout", words: [
+                TimestampedWord(word: "kubernetes", startMs: 20, endMs: 360, confidence: 0.9),
+                TimestampedWord(word: "rollout", startMs: 400, endMs: 640, confidence: 0.9),
+            ]),
+        ])
+
+        let recording = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Vocab Meeting",
+            folderURL: recordingFolder,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            durationSeconds: 1.5,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0, writtenFrameCount: 24_000, sampleRate: 48_000),
+                system: .init(firstHostTime: nil, lastHostTime: nil, startOffsetMs: 900, writtenFrameCount: 24_000, sampleRate: 48_000)
+            )
+        )
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        // Plain transcript is corrected.
+        let raw = try XCTUnwrap(result.rawTranscript)
+        XCTAssertTrue(raw.contains("ACME Corporation"), "rawTranscript should correct 'acme'; got: \(raw)")
+        XCTAssertTrue(raw.contains("Kubernetes (K8s)"), "rawTranscript should correct 'kubernetes'; got: \(raw)")
+
+        // Word tokens — the surface the speaker-segmented view and SRT/VTT/speaker
+        // exports read from — are corrected too, and were raw before this change.
+        let words = try XCTUnwrap(result.wordTimestamps)
+        let wordStrings = words.map(\.word)
+        XCTAssertTrue(wordStrings.contains("ACME Corporation"))
+        XCTAssertTrue(wordStrings.contains("Kubernetes (K8s)"))
+        XCTAssertFalse(wordStrings.contains("acme"))
+        XCTAssertFalse(wordStrings.contains("kubernetes"))
+
+        // Timestamps and speaker attribution survive the correction.
+        let acme = try XCTUnwrap(words.first { $0.word == "ACME Corporation" })
+        XCTAssertEqual(acme.startMs, 440)
+        XCTAssertEqual(acme.endMs, 700)
+        XCTAssertEqual(acme.speakerId, "microphone")
+        let k8s = try XCTUnwrap(words.first { $0.word == "Kubernetes (K8s)" })
+        XCTAssertEqual(k8s.startMs, 920) // 20 + 900ms system offset
+        XCTAssertEqual(k8s.speakerId, "system")
+
+        // Corrections are persisted, not just returned.
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        XCTAssertEqual(
+            fetched.wordTimestamps?.first { $0.word == "ACME Corporation" }?.speakerId,
+            "microphone"
+        )
+    }
+
     func testTranscribeMeetingUsesCapturedSpeechEngineSelection() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -96,23 +96,7 @@ public struct TextProcessingPipeline: Sendable {
     // MARK: - Step 2: Custom Word Replacements
 
     func applyCustomWords(to text: String, words: [CustomWord]) -> String {
-        var result = text
-
-        for word in words {
-            guard word.isEnabled else { continue }
-
-            let replacement = word.replacement ?? word.word
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word.word))\\b"
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                result = regex.stringByReplacingMatches(
-                    in: result,
-                    range: NSRange(result.startIndex..., in: result),
-                    withTemplate: NSRegularExpression.escapedTemplate(for: replacement)
-                )
-            }
-        }
-
-        return result
+        CustomWordReplacer(words: words).apply(to: text)
     }
 
     // MARK: - Step 3: Trailing Action Extraction
