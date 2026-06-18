@@ -8,8 +8,12 @@ FluidAudio 0.15.4 reports the full LibriSpeech `test-clean` results below for
 Parakeet Unified EN 0.6B. The run uses FluidAudio's Swift managers directly and
 scores with FluidAudio's `TextNormalizer`.
 
-Source:
-`/Users/dmoon/asr-bench/FluidAudio-0154/Sources/FluidAudio/ASR/Parakeet/Unified/benchmark.md`
+Sources:
+
+- FluidAudio benchmarks:
+  <https://github.com/FluidInference/FluidAudio/blob/main/Documentation/Benchmarks.md#parakeet-unified-english-batch--streaming>
+- NVIDIA model card:
+  <https://huggingface.co/nvidia/parakeet-unified-en-0.6b>
 
 Command noted by FluidAudio:
 
@@ -35,22 +39,26 @@ MacParakeet was also validated end to end through the release CLI, using
 Run:
 
 ```bash
+export LIBRISPEECH_TEST_CLEAN=/path/to/LibriSpeech/test-clean
 swift build --product macparakeet-cli -c release
 benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
-  --dataset /Users/dmoon/asr-bench/LibriSpeech/test-clean \
+  --dataset "$LIBRISPEECH_TEST_CLEAN" \
   --cli .build/release/macparakeet-cli \
   --limit 300 \
   --selection stride \
   --records benchmarks/parakeet-unified/macparakeet-unified-test-clean-stride300.jsonl
-python3 /Users/dmoon/asr-bench/score_wer.py \
-  benchmarks/parakeet-unified/macparakeet-unified-test-clean-stride300.jsonl
+
+# Re-score the committed JSONL without re-running transcription.
+benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
+  --score-only \
+  --records benchmarks/parakeet-unified/macparakeet-unified-test-clean-stride300.jsonl
 ```
 
 Unified result:
 
 ```text
-files=300  ref_words=5809  I=11 D=10 S=91
-CORPUS WER = 1.93%
+files=300 ref_words=5809 S=90 D=10 I=11
+CORPUS WER = 1.91%
 ```
 
 The same deterministic 300-file sample was also run through v2 for an
@@ -58,24 +66,26 @@ end-to-end CLI comparison:
 
 ```bash
 benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
-  --dataset /Users/dmoon/asr-bench/LibriSpeech/test-clean \
+  --dataset "$LIBRISPEECH_TEST_CLEAN" \
   --cli .build/release/macparakeet-cli \
   --limit 300 \
   --selection stride \
   --parakeet-model v2 \
   --records benchmarks/parakeet-unified/macparakeet-v2-test-clean-stride300.jsonl
-python3 /Users/dmoon/asr-bench/score_wer.py \
-  benchmarks/parakeet-unified/macparakeet-v2-test-clean-stride300.jsonl
+benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
+  --score-only \
+  --records benchmarks/parakeet-unified/macparakeet-v2-test-clean-stride300.jsonl
 ```
 
 | Model | Files | Corpus WER | Errors | Elapsed |
 |-------|------:|-----------:|--------|--------:|
-| Parakeet Unified | 300 | 1.93% | I=11 D=10 S=91 | 39.20s |
-| Parakeet v2 | 300 | 2.41% | I=15 D=27 S=98 | 64.20s |
+| Parakeet Unified | 300 | 1.91% | S=90 D=10 I=11 | 39.20s |
+| Parakeet v2 | 300 | 2.39% | S=97 D=27 I=15 | 64.20s |
 
-The MacParakeet scorer is intentionally dependency-free and uses a simpler
-English ASR normalizer than FluidAudio's canonical benchmark. The CLI result is
-therefore an end-to-end integration check, not the headline model-card number.
+The MacParakeet runner and scorer are intentionally dependency-free and use a
+simpler English ASR normalizer than FluidAudio's canonical benchmark. The CLI
+result is therefore an end-to-end integration check, not the headline model-card
+number.
 
 ## Partial-Cache Regression Smoke
 
@@ -92,7 +102,7 @@ this command repaired the cache and completed successfully:
 
 ```bash
 .build/release/macparakeet-cli transcribe \
-  /Users/dmoon/asr-bench/LibriSpeech/test-clean/1089/134686/1089-134686-0000.flac \
+  "$LIBRISPEECH_TEST_CLEAN/1089/134686/1089-134686-0000.flac" \
   --format transcript \
   --parakeet-model unified \
   --no-history
