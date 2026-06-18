@@ -1691,6 +1691,7 @@ extension TelemetryEventSpec {
             // "custom" and variant adoption can't be measured.
             ParakeetModelVariant.v2.rawValue,
             ParakeetModelVariant.v3.rawValue,
+            ParakeetModelVariant.unified.rawValue,
             NemotronModelVariant.multilingual1120.rawValue,
             NemotronModelVariant.english1120.rawValue,
         ]

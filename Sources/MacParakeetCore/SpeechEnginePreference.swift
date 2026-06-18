@@ -286,26 +286,38 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// Which Parakeet TDT 0.6B build powers on-device transcription.
+/// Which Parakeet build powers on-device transcription.
 ///
-/// FluidAudio ships two peer Parakeet TDT 0.6B bundles. `v3` is multilingual
-/// (English + 24 other European languages) and is the default; `v2` is an
-/// English-only build that runs a touch faster on English and — crucially —
-/// cannot mis-detect English speech as another language, which `v3`'s
-/// auto-detection occasionally does (issues #311, #398).
+/// FluidAudio ships two peer Parakeet TDT 0.6B bundles plus the newer Parakeet
+/// Unified build. `v3` is multilingual (English + 24 other European languages)
+/// and is the default; `v2` is an English-only TDT build that runs a touch
+/// faster on English and — crucially — cannot mis-detect English speech as
+/// another language, which `v3`'s auto-detection occasionally does (issues
+/// #311, #398). `unified` is English-only NVIDIA Parakeet Unified EN 0.6B,
+/// a *different* runtime (its own CoreML chain, no `AsrModelVersion`) with the
+/// best English offline accuracy of the three (issue #520).
 ///
 /// The FluidAudio `AsrModelVersion` bridge lives in the STT layer
 /// (`ParakeetModelVariant+ASR.swift`) so this preference type stays
-/// Foundation-only and decoupled from CoreML.
+/// Foundation-only and decoupled from CoreML. `unified` has no `AsrModelVersion`
+/// — see ``usesUnifiedEngine``.
 public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     case v3
     case v2
+    /// NVIDIA Parakeet Unified EN 0.6B (`parakeet-unified-en-0.6b`). English-only
+    /// Unified-FastConformer-RNNT — a *different* FluidAudio runtime from the TDT
+    /// v2/v3 builds (its own preprocessor/encoder/decoder chain, no
+    /// `AsrModelVersion`), so it is routed to ``ParakeetUnifiedEngine`` instead
+    /// of the shared `AsrManager`. Offline batch WER on LibriSpeech test-clean
+    /// is ~1.83% (int8) — a touch better than v2's ~2.1% (issue #520).
+    case unified
 
     /// Short label for the variant's language posture.
     public var displayName: String {
         switch self {
         case .v3: "Multilingual"
         case .v2: "English only"
+        case .unified: "English (Unified)"
         }
     }
 
@@ -314,6 +326,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         switch self {
         case .v3: "Parakeet TDT 0.6B v3"
         case .v2: "Parakeet TDT 0.6B v2"
+        case .unified: "Parakeet Unified 0.6B"
         }
     }
 
@@ -324,20 +337,35 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
             "English plus 24 European languages. Best for mixed or non-English speech."
         case .v2:
             "English only. A touch faster, and never mis-hears English as another language."
+        case .unified:
+            "English only. The highest offline accuracy on English — a touch better than v2."
         }
     }
 
-    /// Approximate on-disk download footprint. Both builds land near ~465 MB
-    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB). Kept deliberately
-    /// rounded so the copy doesn't read as falsely precise.
-    public var approximateDownloadSize: String { "~465 MB" }
+    /// Approximate on-disk download footprint. The TDT builds land near ~465 MB
+    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB); Unified's int8 offline
+    /// bundle is ~565 MB. Kept deliberately rounded so the copy doesn't read as
+    /// falsely precise.
+    public var approximateDownloadSize: String {
+        switch self {
+        case .v3, .v2: "~465 MB"
+        case .unified: "~565 MB"
+        }
+    }
 
-    public var isEnglishOnly: Bool { self == .v2 }
+    public var isEnglishOnly: Bool { self == .v2 || self == .unified }
+
+    /// Whether this variant is served by ``ParakeetUnifiedEngine`` (its own
+    /// FluidAudio runtime) rather than the shared TDT `AsrManager`. The STT
+    /// runtime branches on this before touching the `AsrModelVersion`-keyed
+    /// path; it is the single predicate every TDT-only site guards on.
+    public var usesUnifiedEngine: Bool { self == .unified }
 
     public var alternative: ParakeetModelVariant {
         switch self {
         case .v3: .v2
         case .v2: .v3
+        case .unified: .v2
         }
     }
 }

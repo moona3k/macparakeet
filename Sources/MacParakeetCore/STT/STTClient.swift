@@ -11,14 +11,14 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
     private let scheduler: STTScheduler
 
     public init(
-        modelVersion: AsrModelVersion = .v3,
+        parakeetModelVariant: ParakeetModelVariant = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
         defaults: UserDefaults = .standard
     ) {
         let runtime = STTRuntime(
-            modelVersion: modelVersion,
+            parakeetModelVariant: parakeetModelVariant,
             speechEngine: speechEngine,
             nemotronModelVariant: nemotronModelVariant,
             whisperModelVariant: whisperModelVariant,
