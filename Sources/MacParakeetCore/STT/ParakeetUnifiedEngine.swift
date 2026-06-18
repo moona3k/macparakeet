@@ -1,4 +1,3 @@
-import AVFoundation
 import FluidAudio
 import Foundation
 import os
@@ -30,7 +29,6 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
     /// (1.83% vs 1.82%), at ~half the download. Kept explicit so the choice is
     /// visible at the callsite that owns the model's disk + battery posture.
     private static let encoderPrecision = UnifiedEncoderPrecision.int8
-    private static let targetSampleRate = 16_000.0
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ParakeetUnifiedEngine")
 
@@ -241,6 +239,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
             configuration: nil,
             progressHandler: progressHandler
         )
+        try Task.checkCancellation()
         try await loadedBackgroundManager.loadModels(
             to: nil,
             configuration: nil,
