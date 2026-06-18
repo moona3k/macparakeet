@@ -317,6 +317,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     }
 
     private nonisolated static var streamingDownloadVariant: String? {
+        // nil selects FluidAudio's default streaming export, which is the int8
+        // encoder. The fp16 export lives under the explicit "fp16" variant key.
         encoderPrecision == .fp16 ? "fp16" : nil
     }
 

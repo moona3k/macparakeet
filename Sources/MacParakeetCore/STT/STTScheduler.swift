@@ -199,6 +199,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         liveDictationSession = .active(id)
         do {
             let selection = await runtime.currentSpeechEngineSelection()
+            // Selection only carries the engine family. `STTRuntime` owns the
+            // active Parakeet sub-variant and rejects TDT v2/v3 below; the
+            // scheduler only filters families with no native live path at all.
             guard selection.engine == .nemotron || selection.engine == .parakeet else {
                 throw STTLiveDictationTranscriptionError.unsupportedEngine(selection.engine)
             }
