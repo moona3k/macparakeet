@@ -26,6 +26,9 @@ import Foundation
 /// Single-token rules — the common case for names and jargon — are corrected
 /// consistently across both.
 struct MeetingTranscriptVocabularyApplier {
+    private static let tokenWordCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+    private static let tokenTrimCharacters = tokenWordCharacters.inverted
+
     static func apply(
         rawTranscript: String,
         words: [WordTimestamp],
@@ -35,11 +38,52 @@ struct MeetingTranscriptVocabularyApplier {
         guard !replacer.isEmpty else { return (rawTranscript, words) }
 
         let correctedTranscript = replacer.apply(to: rawTranscript)
+        let tokenLookup = tokenVocabularyLookup(from: customWords)
         let correctedWords = words.map { word -> WordTimestamp in
+            guard shouldScanToken(word.word, tokenLookup: tokenLookup) else {
+                return word
+            }
             var corrected = word
             corrected.word = replacer.apply(to: word.word)
             return corrected
         }
         return (correctedTranscript, correctedWords)
+    }
+
+    private static func tokenVocabularyLookup(from customWords: [CustomWord]) -> Set<String>? {
+        var keys: Set<String> = []
+        for customWord in customWords where customWord.isEnabled {
+            guard let key = tokenLookupKey(for: customWord.word) else {
+                return nil
+            }
+            keys.insert(key)
+        }
+        return keys
+    }
+
+    private static func shouldScanToken(_ text: String, tokenLookup: Set<String>?) -> Bool {
+        guard let tokenLookup else { return true }
+        guard !tokenLookup.isEmpty else { return false }
+        return !tokenCandidateKeys(for: text).isDisjoint(with: tokenLookup)
+    }
+
+    private static func tokenCandidateKeys(for text: String) -> Set<String> {
+        guard let key = tokenLookupKey(for: text) else { return [] }
+
+        var keys: Set<String> = [key]
+        for component in key.split(whereSeparator: { !isTokenWordCharacter($0) }) {
+            keys.insert(String(component))
+        }
+        return keys
+    }
+
+    private static func tokenLookupKey(for text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: tokenTrimCharacters)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed.lowercased()
+    }
+
+    private static func isTokenWordCharacter(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { tokenWordCharacters.contains($0) }
     }
 }

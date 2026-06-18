@@ -86,6 +86,26 @@ final class MeetingTranscriptVocabularyApplierTests: XCTestCase {
         XCTAssertEqual(result.words.map(\.word), ["ACME Corp"])
     }
 
+    func testTokenPrefilterPreservesPunctuationBoundaryCorrection() {
+        let words = [word("acme,", 0, 100), word("next", 100, 200)]
+        let result = MeetingTranscriptVocabularyApplier.apply(
+            rawTranscript: "acme, next",
+            words: words,
+            customWords: [CustomWord(word: "acme", replacement: "ACME")]
+        )
+        XCTAssertEqual(result.words.map(\.word), ["ACME,", "next"])
+    }
+
+    func testTokenPrefilterPreservesInternalBoundaryCorrection() {
+        let words = [word("acme-based", 0, 100), word("vendor", 100, 200)]
+        let result = MeetingTranscriptVocabularyApplier.apply(
+            rawTranscript: "acme-based vendor",
+            words: words,
+            customWords: [CustomWord(word: "acme", replacement: "ACME")]
+        )
+        XCTAssertEqual(result.words.map(\.word), ["ACME-based", "vendor"])
+    }
+
     /// Multi-token rules rewrite the contiguous plain text, but per-word tokens
     /// are corrected individually, so a phrase split across tokens is corrected
     /// in `rawTranscript` only. Documents the known limitation.
