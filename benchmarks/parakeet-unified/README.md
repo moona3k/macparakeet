@@ -46,12 +46,32 @@ python3 /Users/dmoon/asr-bench/score_wer.py \
   benchmarks/parakeet-unified/macparakeet-unified-test-clean-stride300.jsonl
 ```
 
-Result:
+Unified result:
 
 ```text
 files=300  ref_words=5809  I=11 D=10 S=91
 CORPUS WER = 1.93%
 ```
+
+The same deterministic 300-file sample was also run through v2 for an
+end-to-end CLI comparison:
+
+```bash
+benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
+  --dataset /Users/dmoon/asr-bench/LibriSpeech/test-clean \
+  --cli .build/release/macparakeet-cli \
+  --limit 300 \
+  --selection stride \
+  --parakeet-model v2 \
+  --records benchmarks/parakeet-unified/macparakeet-v2-test-clean-stride300.jsonl
+python3 /Users/dmoon/asr-bench/score_wer.py \
+  benchmarks/parakeet-unified/macparakeet-v2-test-clean-stride300.jsonl
+```
+
+| Model | Files | Corpus WER | Errors | Elapsed |
+|-------|------:|-----------:|--------|--------:|
+| Parakeet Unified | 300 | 1.93% | I=11 D=10 S=91 | 39.20s |
+| Parakeet v2 | 300 | 2.41% | I=15 D=27 S=98 | 64.20s |
 
 The MacParakeet scorer is intentionally dependency-free and uses a simpler
 English ASR normalizer than FluidAudio's canonical benchmark. The CLI result is
