@@ -402,6 +402,19 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    /// Whether completed meeting recordings may use the saved LLM provider to
+    /// replace the default timestamp title with a short topic title. Defaults
+    /// to `true`; it is still gated at runtime on an actual provider config.
+    public var autoGenerateMeetingTitles: Bool {
+        didSet {
+            guard autoGenerateMeetingTitles != oldValue else { return }
+            defaults.set(
+                autoGenerateMeetingTitles,
+                forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey
+            )
+        }
+    }
+
     public var transcriptAIContextMode: TranscriptAIContextMode {
         didSet {
             guard transcriptAIContextMode != oldValue else { return }
@@ -534,6 +547,7 @@ public final class LLMSettingsViewModel {
         self.defaults = defaults
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
         self.aiFormatterEnabledForTranscriptions = Self.loadStoredAIFormatterEnabledForTranscriptions(from: defaults)
+        self.autoGenerateMeetingTitles = Self.loadStoredAutoGenerateMeetingTitles(from: defaults)
         self.aiFormatterSmartDefaultsPolicy = AIFormatterSmartDefaultsPolicy.current(defaults: defaults)
         self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
@@ -650,6 +664,7 @@ public final class LLMSettingsViewModel {
         // clear returns the formatter to a fully predictable state.
         aiFormatterEnabledForDictation = false
         aiFormatterEnabledForTranscriptions = true
+        autoGenerateMeetingTitles = true
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
@@ -1241,6 +1256,10 @@ public final class LLMSettingsViewModel {
 
     private static func loadStoredAIFormatterEnabledForTranscriptions(from defaults: UserDefaults) -> Bool {
         defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? true
+    }
+
+    private static func loadStoredAutoGenerateMeetingTitles(from defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
     }
 
     private static func loadStoredAIFormatterPrompt(from defaults: UserDefaults) -> String {

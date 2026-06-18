@@ -1339,6 +1339,115 @@ final class TranscriptionServiceTests: XCTestCase {
         )
     }
 
+    func testTranscribeMeetingAutoGeneratesTitleForFallbackDisplayName() async throws {
+        let transcript = "We reviewed the product roadmap launch plan, customer onboarding risks, and next milestones for the mobile beta release."
+        await mockSTT.configure(result: STTResult(
+            text: transcript,
+            words: timestampedWords(from: transcript)
+        ))
+        let llm = MockLLMService()
+        llm.summarizeResult = "  \"Product Roadmap Review\"  "
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: llm,
+            shouldAutoGenerateMeetingTitles: { true },
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+        let recording = try makeOneSourceMeetingRecording(displayName: "Meeting Jun 17, 2026 at 09:59")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.fileName, "Product Roadmap Review")
+        XCTAssertEqual(result.derivedTitle, "Product Roadmap Review")
+        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.fileName, "Product Roadmap Review")
+        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.derivedTitle, "Product Roadmap Review")
+        XCTAssertEqual(llm.summarizeCallCount, 1)
+        XCTAssertEqual(llm.lastSummaryTranscript, transcript)
+        XCTAssertTrue(llm.lastSummarySystemPrompt?.contains("Generate a concise title") ?? false)
+    }
+
+    func testTranscribeMeetingSkipsAutoTitleWhenSettingDisabled() async throws {
+        let transcript = "We reviewed the product roadmap launch plan, customer onboarding risks, and next milestones for the mobile beta release."
+        await mockSTT.configure(result: STTResult(
+            text: transcript,
+            words: timestampedWords(from: transcript)
+        ))
+        let llm = MockLLMService()
+        llm.summarizeResult = "Product Roadmap Review"
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: llm,
+            shouldAutoGenerateMeetingTitles: { false },
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+        let recording = try makeOneSourceMeetingRecording(displayName: "Meeting Jun 17, 2026 at 09:59")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.fileName, "Meeting Jun 17, 2026 at 09:59")
+        XCTAssertEqual(llm.summarizeCallCount, 0)
+    }
+
+    func testTranscribeMeetingKeepsFallbackTitleWhenGeneratedTitleIsGeneric() async throws {
+        let transcript = "We reviewed the product roadmap launch plan, customer onboarding risks, and next milestones for the mobile beta release."
+        await mockSTT.configure(result: STTResult(
+            text: transcript,
+            words: timestampedWords(from: transcript)
+        ))
+        let llm = MockLLMService()
+        llm.summarizeResult = "Meeting"
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: llm,
+            shouldAutoGenerateMeetingTitles: { true },
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+        let recording = try makeOneSourceMeetingRecording(displayName: "Meeting Jun 17, 2026 at 09:59")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.fileName, "Meeting Jun 17, 2026 at 09:59")
+        XCTAssertEqual(llm.summarizeCallCount, 1)
+    }
+
+    func testTranscribeMeetingDoesNotReplaceCalendarOrCustomTitle() async throws {
+        let transcript = "We reviewed the product roadmap launch plan, customer onboarding risks, and next milestones for the mobile beta release."
+        await mockSTT.configure(result: STTResult(
+            text: transcript,
+            words: timestampedWords(from: transcript)
+        ))
+        let llm = MockLLMService()
+        llm.summarizeResult = "Product Roadmap Review"
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: llm,
+            shouldAutoGenerateMeetingTitles: { true },
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+        let recording = try makeOneSourceMeetingRecording(displayName: "Customer Expansion Review")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.fileName, "Customer Expansion Review")
+        XCTAssertEqual(llm.summarizeCallCount, 0)
+    }
+
     func testTranscribeMeetingUsesCapturedSpeechEngineSelection() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -2173,6 +2282,49 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(source, .youtube)
         XCTAssertEqual(stage, .download)
         XCTAssertEqual(errorType, "YouTubeDownloadError.downloadFailed")
+    }
+
+    private func timestampedWords(from transcript: String) -> [TimestampedWord] {
+        var startMs = 0
+        return transcript.split(whereSeparator: \.isWhitespace).map { word in
+            let cleanWord = String(word).trimmingCharacters(in: .punctuationCharacters)
+            let endMs = startMs + 180
+            defer { startMs = endMs + 40 }
+            return TimestampedWord(word: cleanWord, startMs: startMs, endMs: endMs, confidence: 0.95)
+        }
+    }
+
+    private func makeOneSourceMeetingRecording(displayName: String) throws -> MeetingRecordingOutput {
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+
+        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+
+        return MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: displayName,
+            folderURL: recordingFolder,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            durationSeconds: 3.0,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(
+                    firstHostTime: nil,
+                    lastHostTime: nil,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 144_000,
+                    sampleRate: 48_000
+                ),
+                system: nil
+            )
+        )
     }
 
     private func telemetryProps(for spec: TelemetryEventSpec) throws -> [String: String] {

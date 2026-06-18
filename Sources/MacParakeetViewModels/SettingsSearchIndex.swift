@@ -325,6 +325,17 @@ public enum SettingsSearchIndex {
             ],
             cardAnchor: "ai.transcriptContext"
         ),
+        SettingsSearchEntry(
+            id: "ai.meetingTitles",
+            tab: .ai,
+            title: "Meeting Titles",
+            subtitle: "Auto-generate short meeting names from completed transcripts.",
+            keywords: [
+                "meeting title", "meeting titles", "auto title", "auto-title",
+                "automatic title", "library title", "recording title", "timestamp title"
+            ],
+            cardAnchor: "ai.meetingTitles"
+        ),
         // The AI Formatter card (header + fallback prompt) is always visible;
         // only the smart defaults + profile management inside it are gated on
         // `AppFeatures.aiFormatterProfilesEnabled`. The entry stays indexed in

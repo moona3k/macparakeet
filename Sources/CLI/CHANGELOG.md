@@ -84,6 +84,13 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## [Unreleased]
+
+### Added
+
+- `config get|set|list` now includes `auto-meeting-titles`, the shared
+  on/off preference for LLM-generated meeting recording titles.
+
 ## [2.9.0] -- 2026-06-11
 
 ### Added

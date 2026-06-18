@@ -32,6 +32,7 @@ struct ConfigCommand: ParsableCommand {
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
           speaker-detection         on|off                          default: off
+          auto-meeting-titles       on|off                          default: on
           save-transcription-audio  on|off                          default: on
           save-meeting-audio        on|off                          default: on
           youtube-audio-quality     m4a|best-available              default: m4a
@@ -62,6 +63,7 @@ struct ConfigCommand: ParsableCommand {
         "nemotron-language",
         "whisper-language",
         "speaker-detection",
+        "auto-meeting-titles",
         "save-transcription-audio",
         "save-meeting-audio",
         "youtube-audio-quality",
@@ -188,6 +190,9 @@ struct ConfigCommand: ParsableCommand {
         case "speaker-detection":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
             return on ? "on" : "off"
+        case "auto-meeting-titles":
+            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
+            return on ? "on" : "off"
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
@@ -257,6 +262,10 @@ struct ConfigCommand: ParsableCommand {
         case "speaker-detection":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+            return parsed ? "on" : "off"
+        case "auto-meeting-titles":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey)
             return parsed ? "on" : "off"
         case "save-transcription-audio":
             let parsed = try parseBool(value, key: key)
