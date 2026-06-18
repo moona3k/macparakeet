@@ -217,7 +217,8 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 
 - Native Swift SDK via FluidAudio (CoreML on the Neural Engine)
 - Parakeet TDT 0.6B-v3 is the multilingual default; v2 is an English-only opt-in selected through Settings, `config set parakeet-model`, `models select parakeet-v2`, or `transcribe --parakeet-model v2`
-- Both Parakeet builds return word-level timestamps + confidence scores
+- Parakeet Unified EN 0.6B (`unified`) is a third opt-in Parakeet build (English-only, ~565 MB int8, FluidAudio ≥ 0.15.3) with the best offline English accuracy (~1.83% WER on LibriSpeech test-clean vs v2's ~2.1%). It is a *separate* FluidAudio runtime (`UnifiedAsrManager`, no `AsrModelVersion`) served by `ParakeetUnifiedEngine` and routed when `ParakeetModelVariant == .unified`. Offline-only in Phase 1 (no word timings, no live preview); selected via Settings, `config set parakeet-model unified`, `models select parakeet-unified`, or `transcribe --parakeet-model unified`. Issue #520, ADR-001 amendment
+- The TDT builds (v2/v3) return word-level timestamps + confidence scores; the Unified build's offline path returns text only (no word timings)
 - ~155x realtime on Apple Silicon (60 min audio in ~23 seconds)
 - ~2.5% Word Error Rate
 - ~66 MB working memory per active Parakeet inference slot (vs ~2 GB+ on GPU/MLX)

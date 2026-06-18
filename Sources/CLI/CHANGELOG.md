@@ -84,6 +84,25 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## [2.10.0] -- 2026-06-17
+
+### Added
+
+- New Parakeet model id **`parakeet-unified`** (NVIDIA Parakeet Unified EN
+  0.6B — English-only, ~565 MB int8). It is a selectable Parakeet build
+  alongside `parakeet-v3`/`parakeet-v2`:
+  - `transcribe --parakeet-model unified` transcribes the run with the Unified
+    offline build (highest English offline accuracy; ~1.83% WER on LibriSpeech
+    test-clean). `app-default`/`v3`/`v2` are unchanged.
+  - `config set parakeet-model unified` persists it as the default Parakeet
+    build (aliases: `english-unified`, `unified-offline`). `config get
+    parakeet-model` returns `unified`.
+  - `models list`/`status` show it; `models download parakeet-unified`,
+    `models select parakeet-unified`, and `models delete parakeet-unified`
+    manage it. Alias spellings (`parakeet:unified`, `parakeet-english-unified`)
+    resolve the same. `models select` requires the model downloaded first.
+  - Additive only — no existing flag, id, or default behavior changes.
+
 ## [2.9.0] -- 2026-06-11
 
 ### Added

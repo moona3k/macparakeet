@@ -1,8 +1,9 @@
 # STT
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
-> CoreML) is default, with v3 multilingual as the default build and v2
-> English-only as an opt-in Parakeet variant; Nemotron is an opt-in Beta
+> CoreML) is default, with v3 multilingual as the default build, v2
+> English-only and Parakeet Unified (English-only, highest offline accuracy)
+> as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
 > WhisperKit is optional for languages outside Parakeet/Nemotron
@@ -21,11 +22,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 **Speech control plane**
 - `STTScheduler.swift` — public broker. Job admission, slot scheduling,
   engine routing, session leases for active meetings.
-- `STTRuntime.swift` — sole owner of the Parakeet `AsrManager`s, the
-  optional Beta `NemotronEngine`/`NemotronEnglishEngine` pair (routed
-  by the persisted `NemotronModelVariant`), and the optional
-  `WhisperEngine`. Handles warm-up, model init, cache clearing,
-  shutdown, and Parakeet/Nemotron build swaps.
+- `STTRuntime.swift` — sole owner of the Parakeet TDT `AsrManager`s, the
+  optional `ParakeetUnifiedEngine` (routed when the persisted
+  `ParakeetModelVariant` is `.unified`), the optional Beta
+  `NemotronEngine`/`NemotronEnglishEngine` pair (routed by the persisted
+  `NemotronModelVariant`), and the optional `WhisperEngine`. Handles warm-up,
+  model init, cache clearing, shutdown, and Parakeet/Nemotron build swaps.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -34,6 +36,14 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   (text, word-level timing, optional detected language, the engine
   that produced the result, and an optional engine-specific model
   variant).
+- `ParakeetUnifiedEngine.swift` — FluidAudio `UnifiedAsrManager` wrapper for
+  NVIDIA Parakeet Unified EN 0.6B (English-only, `parakeet-unified-offline-15s`,
+  int8). Selected when `ParakeetModelVariant == .unified`. Two-lane
+  (interactive/background) like the Nemotron English engine, but offline-only:
+  it resamples the finished buffer and runs FluidAudio's overlapping 15 s window
+  batch transcription (the path that yields ~1.83% test-clean WER). No word
+  timings; `language` fixed to `en`. Native low-latency streaming
+  (`StreamingUnifiedAsrManager`) is a documented follow-up, not wired here.
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.
 - `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the

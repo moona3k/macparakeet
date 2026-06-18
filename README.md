@@ -87,6 +87,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 - ~155x realtime — 60 min of audio in ~23 seconds
 - ~2.5% word error rate with the default Parakeet TDT 0.6B-v3 model
 - Optional English-only Parakeet v2 model (~2.1% WER) for users who do not want v3 language auto-detect
+- Optional English-only Parakeet Unified model (~1.83% WER on LibriSpeech test-clean) for the highest offline English accuracy
 - ~66 MB working memory per active Parakeet inference slot
 - 25 European languages with Parakeet auto-detection
 - Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), plus WhisperKit for Korean, Japanese, Chinese, and many other languages
@@ -171,7 +172,7 @@ same commands with `swift run`.
 
 | Layer | Choice |
 |-------|--------|
-| STT | Parakeet TDT 0.6B via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in) + optional local Nemotron Beta and WhisperKit engines |
+| STT | Parakeet via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in, `unified` English-only best-offline opt-in) + optional local Nemotron Beta and WhisperKit engines |
 | STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared meeting/file slot; speech-engine routing and meeting-session pinning |
 | Language | Swift 6 language mode (package tools-version 5.9) + SwiftUI |
 | Database | SQLite via GRDB |

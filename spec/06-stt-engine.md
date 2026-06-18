@@ -23,19 +23,21 @@ MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio C
 | Languages | v3: 25 European languages; v2: English only |
 | Decoding | Optimized CTC/TDT decoding (FluidAudio implementation) |
 
-#### Parakeet model variant (v2 / v3)
+#### Parakeet model variant (v2 / v3 / unified)
 
-FluidAudio ships two peer Parakeet TDT 0.6B builds, both exposed to the user:
+FluidAudio ships two peer Parakeet TDT 0.6B builds plus the newer Parakeet
+Unified build, all exposed to the user as selectable Parakeet models:
 
 | Variant | `ParakeetModelVariant` | Languages | Notes |
 |---------|------------------------|-----------|-------|
 | Multilingual (default) | `.v3` | English + 24 European | "Works for everyone"; the new-user default. |
 | English-only | `.v2` | English only | A touch faster on English; cannot mis-detect English as another language (issues #311, #398). |
+| English (Unified) | `.unified` | English only | NVIDIA Parakeet Unified EN 0.6B. Highest English **offline** accuracy (~1.83% int8 test-clean vs v2's ~2.1%). A *separate* FluidAudio runtime (`UnifiedAsrManager`, no `AsrModelVersion`), so it has no word timings and no live preview in Phase 1; the final paste still comes from the stop-time offline transcription. ~565 MB int8. Requires FluidAudio ≥ 0.15.3. Issue #520. |
 
-- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only.
-- **Runtime switching:** `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current managers, then restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Both builds cache independently (`AsrModels.defaultCacheDirectory(for:)`), so flipping between two installed builds is near-instant.
+- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only; it returns `nil` for `.unified` (which has no TDT version — see `usesUnifiedEngine`).
+- **Runtime:** v2/v3 load the shared TDT `AsrManager`; `.unified` is routed to a dedicated `ParakeetUnifiedEngine` (wrapping FluidAudio's offline `UnifiedAsrManager`), the same way the Nemotron engine routes its English build. `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current one, restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Builds cache independently, so flipping between two installed builds is near-instant.
 - **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card).
-- **CLI:** `config set parakeet-model v3|v2` (aliases `multilingual`/`english`), `transcribe --parakeet-model app-default|v3|v2`, and the `parakeet-v3` / `parakeet-v2` ids in `models list` / `models select`.
+- **CLI:** `config set parakeet-model v3|v2|unified` (aliases `multilingual`/`english`/`english-unified`), `transcribe --parakeet-model app-default|v3|v2|unified`, and the `parakeet-v3` / `parakeet-v2` / `parakeet-unified` ids in `models list` / `models select`.
 
 ### Nemotron Beta Engine
 
