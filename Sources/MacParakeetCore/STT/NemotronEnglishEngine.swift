@@ -14,8 +14,8 @@ import os
 /// resampled, then fed through the streaming manager in bounded slices and
 /// finalized. Live dictation drives the same streaming manager incrementally,
 /// emitting partials through `setPartialCallback` exactly like the multilingual
-/// sibling (see `NemotronLiveDictating`).
-public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
+/// sibling (see `NativeLiveDictating`).
+public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     public static let modelVariant = NemotronModelVariant.english1120
 
     /// Samples per feed slice (10 s at 16 kHz). The manager's internal buffer

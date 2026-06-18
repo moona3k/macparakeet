@@ -1,27 +1,29 @@
+import AVFoundation
 import FluidAudio
 import Foundation
 import os
 
-/// Wraps FluidAudio's offline `UnifiedAsrManager` (NVIDIA Parakeet Unified
-/// EN 0.6B, `parakeet-unified-offline-15s`). Parakeet Unified is a separate
+/// Wraps FluidAudio's Parakeet Unified managers (NVIDIA Parakeet Unified
+/// EN 0.6B). Parakeet Unified is a separate
 /// FluidAudio runtime from the TDT v2/v3 builds — it has its own
 /// preprocessor/encoder/decoder CoreML chain and no `AsrModelVersion`/
 /// `AsrManager` surface — so it gets its own engine actor and `STTRuntime`
 /// routes the `.unified` `ParakeetModelVariant` here, exactly as the Nemotron
 /// engine routes its English variant to `NemotronEnglishEngine`.
 ///
-/// Phase 1 is offline-only: FluidAudio's best Unified CoreML benchmark uses the
-/// offline overlapping-window batch path, which is exactly MacParakeet's access
-/// pattern (file/meeting/dictation all transcribe a finished buffer at stop
-/// time). The model's native low-latency streaming (`StreamingUnifiedAsrManager`,
-/// ~2.08 s partials + token timings) is a documented follow-up, not wired here.
+/// File, meeting, and recorded-file dictation use FluidAudio's offline
+/// `parakeet-unified-offline-15s` path because that remains the best-quality
+/// stop-time transcription mode. Live dictation uses the native
+/// `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) on the interactive
+/// lane to emit partial transcripts while capture is active; if that live path
+/// fails, `DictationService` falls back to the recorded-file offline result.
 ///
 /// Two lanes (interactive for dictation, background for file/meeting) each get
 /// their own `UnifiedAsrManager` so concurrent dictation + file/meeting work
 /// (ADR-015) never collides on one actor's buffers. Both instances load the
 /// same compiled artifacts, which CoreML maps read-only, so the dominant
 /// encoder weights are shared via the page cache rather than duplicated.
-public actor ParakeetUnifiedEngine: STTTranscribing {
+public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     public static let modelVariant = ParakeetModelVariant.unified
 
     /// int8 is FluidAudio's default and WER-lossless vs fp16 within benchmark
@@ -33,6 +35,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
     private var interactiveManager: UnifiedAsrManager?
     private var backgroundManager: UnifiedAsrManager?
+    private var liveStreamingManager: StreamingUnifiedAsrManager?
     private var initializationTask: Task<Void, Error>?
     private var activeLanes: Set<ParakeetUnifiedRuntimeLane> = []
 
@@ -100,6 +103,83 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         }
     }
 
+    // MARK: - Live dictation
+
+    /// Begins a native streaming dictation session on the interactive lane.
+    /// Unified is English-only, so `language` is intentionally ignored.
+    public func beginLiveDictation(
+        language: String?,
+        onPartial: @escaping @Sendable (String) -> Void
+    ) async throws {
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
+        guard beginTranscription(on: lane) else {
+            throw STTError.engineBusy
+        }
+
+        do {
+            try await prepare(onProgress: nil)
+            guard let manager = liveStreamingManager else {
+                throw STTError.modelNotLoaded
+            }
+            try await manager.reset()
+            await manager.setPartialTranscriptCallback { partial in
+                onPartial(partial)
+            }
+        } catch {
+            endTranscription(on: lane)
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func processLiveDictationSamples(_ samples: [Float]) async throws {
+        guard !samples.isEmpty else { return }
+        guard let manager = liveStreamingManager,
+              activeLanes.contains(.interactive) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        do {
+            try Task.checkCancellation()
+            let buffer = try Self.makePCMBuffer(samples: samples[...])
+            try await manager.appendAudio(buffer)
+            try await manager.processBufferedAudio()
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func finishLiveDictation() async throws -> STTResult {
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
+        guard let manager = liveStreamingManager,
+              activeLanes.contains(lane) else {
+            throw STTLiveDictationTranscriptionError.sessionNotActive
+        }
+        defer { endTranscription(on: lane) }
+
+        do {
+            await manager.setPartialTranscriptCallback { _ in }
+            let text = try await manager.finish()
+            return STTResult(
+                text: text,
+                words: [],
+                language: "en",
+                engine: .parakeet,
+                engineVariant: Self.modelVariant.rawValue
+            )
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    public func cancelLiveDictation() async {
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
+        guard activeLanes.contains(lane) else { return }
+        if let manager = liveStreamingManager {
+            await manager.setPartialTranscriptCallback { _ in }
+            try? await manager.reset()
+        }
+        endTranscription(on: lane)
+    }
+
     public func prepare(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
         if isLoaded { return }
 
@@ -133,11 +213,14 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
         let interactiveManager = self.interactiveManager
         let backgroundManager = self.backgroundManager
+        let liveStreamingManager = self.liveStreamingManager
         self.interactiveManager = nil
         self.backgroundManager = nil
+        self.liveStreamingManager = nil
 
         await interactiveManager?.cleanup()
         await backgroundManager?.cleanup()
+        await liveStreamingManager?.cleanup()
     }
 
     public func isReady() -> Bool {
@@ -176,13 +259,21 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         ModelNames.ParakeetUnified.requiredModels(variant: downloadVariant)
     }
 
-    /// Cached only when every file FluidAudio needs for the selected offline
-    /// variant is present. FluidAudio's own `loadModels(to:)` only gates on the
-    /// encoder, so MacParakeet must be stricter to let explicit downloads repair
-    /// interrupted or partially deleted caches.
+    nonisolated static func requiredStreamingModelFiles() -> Set<String> {
+        ModelNames.ParakeetUnified.requiredModels(variant: streamingDownloadVariant)
+    }
+
+    nonisolated static func requiredAllModelFiles() -> Set<String> {
+        requiredModelFiles().union(requiredStreamingModelFiles())
+    }
+
+    /// Cached only when every file FluidAudio needs for both Unified access
+    /// paths is present. FluidAudio's own `loadModels(to:)` gates only on the
+    /// manager-specific encoder, so MacParakeet must be stricter to let explicit
+    /// downloads repair interrupted or partially deleted caches.
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
         let fileManager = FileManager.default
-        return requiredModelFiles().allSatisfy { fileName in
+        return requiredAllModelFiles().allSatisfy { fileName in
             fileManager.fileExists(atPath: cacheRoot.appendingPathComponent(fileName).path)
         }
     }
@@ -218,26 +309,46 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
     // MARK: - Internals
 
     private var isLoaded: Bool {
-        interactiveManager != nil && backgroundManager != nil
+        interactiveManager != nil && backgroundManager != nil && liveStreamingManager != nil
     }
 
     private nonisolated static var downloadVariant: String {
         encoderPrecision == .fp16 ? "offline-fp16" : "offline"
     }
 
+    private nonisolated static var streamingDownloadVariant: String? {
+        // nil selects FluidAudio's default streaming export, which is the int8
+        // encoder. The fp16 export lives under the explicit "fp16" variant key.
+        encoderPrecision == .fp16 ? "fp16" : nil
+    }
+
     private nonisolated static func downloadModelFilesIfNeeded(
         cacheRoot: URL,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        guard !isModelCached(cacheRoot: cacheRoot) else { return }
-        onProgress?("Preparing Parakeet Unified model download...")
         let progressHandler = makeDownloadProgressHandler(onProgress)
-        try await DownloadUtils.downloadRepo(
-            .parakeetUnified,
-            to: modelsBaseDirectory(),
-            variant: downloadVariant,
-            progressHandler: progressHandler
-        )
+        if !requiredModelFiles().allSatisfy({
+            FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
+        }) {
+            onProgress?("Preparing Parakeet Unified model download...")
+            try await DownloadUtils.downloadRepo(
+                .parakeetUnified,
+                to: modelsBaseDirectory(),
+                variant: downloadVariant,
+                progressHandler: progressHandler
+            )
+        }
+        if !requiredStreamingModelFiles().allSatisfy({
+            FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
+        }) {
+            onProgress?("Preparing Parakeet Unified streaming model download...")
+            try await DownloadUtils.downloadRepo(
+                .parakeetUnified,
+                to: modelsBaseDirectory(),
+                variant: streamingDownloadVariant,
+                progressHandler: progressHandler
+            )
+        }
     }
 
     private func loadManagers(onProgress: (@Sendable (String) -> Void)?) async throws {
@@ -249,6 +360,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
         let loadedInteractiveManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
         let loadedBackgroundManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        let loadedLiveStreamingManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
         do {
             try await loadedInteractiveManager.loadModels(
                 to: nil,
@@ -262,14 +374,22 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
                 progressHandler: progressHandler
             )
             try Task.checkCancellation()
+            try await loadedLiveStreamingManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
         } catch {
             await loadedInteractiveManager.cleanup()
             await loadedBackgroundManager.cleanup()
+            await loadedLiveStreamingManager.cleanup()
             throw error
         }
 
         self.interactiveManager = loadedInteractiveManager
         self.backgroundManager = loadedBackgroundManager
+        self.liveStreamingManager = loadedLiveStreamingManager
         logger.notice("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue, privacy: .public)")
         AudioCaptureDiagnostics.append("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue)")
         onProgress?("Ready")
@@ -301,6 +421,26 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
     private func endTranscription(on lane: ParakeetUnifiedRuntimeLane) {
         activeLanes.remove(lane)
+    }
+
+    private nonisolated static func makePCMBuffer(samples: ArraySlice<Float>) throws -> AVAudioPCMBuffer {
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        ), let buffer = AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: AVAudioFrameCount(samples.count)
+        ), let channelData = buffer.floatChannelData else {
+            throw STTError.transcriptionFailed("Failed to allocate audio buffer for Parakeet Unified streaming")
+        }
+        samples.withUnsafeBufferPointer { source in
+            guard let baseAddress = source.baseAddress else { return }
+            channelData[0].update(from: baseAddress, count: samples.count)
+        }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        return buffer
     }
 
     private nonisolated static func makeDownloadProgressHandler(

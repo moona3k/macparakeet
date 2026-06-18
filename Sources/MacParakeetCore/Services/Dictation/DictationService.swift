@@ -816,7 +816,7 @@ public actor DictationService: DictationServiceProtocol {
                 task: task,
                 degradeReason: degradeReason
             )
-            AudioCaptureDiagnostics.append("dictation_live_transcribe_started engine=nemotron")
+            AudioCaptureDiagnostics.append("dictation_live_transcribe_started engine=native")
             return DictationAudioSampleSink(
                 onSamples: { samples in
                     guard !samples.isEmpty else { return }

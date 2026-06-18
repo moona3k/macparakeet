@@ -60,6 +60,17 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertTrue(requiredFiles.contains("metadata.json"))
     }
 
+    func testParakeetUnifiedRequiredStreamingModelFilesTrackStreamingDownloadSet() {
+        let requiredFiles = ParakeetUnifiedEngine.requiredStreamingModelFiles()
+
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("vocab.json"))
+        XCTAssertTrue(requiredFiles.contains("metadata.json"))
+    }
+
     func testParakeetUnifiedIsModelCachedFalseWhenOnlyMetadataAndEncoderExist() throws {
         let cacheRoot = tempRoot.appendingPathComponent("parakeet-unified-en-0.6b-coreml", isDirectory: true)
         try writeUnifiedModelFile("metadata.json", in: cacheRoot)
@@ -69,7 +80,7 @@ final class ModelDeletionTests: XCTestCase {
     }
 
     func testParakeetUnifiedIsModelCachedFalseWhenAnyRequiredFileIsMissing() throws {
-        let requiredFiles = ParakeetUnifiedEngine.requiredModelFiles()
+        let requiredFiles = ParakeetUnifiedEngine.requiredAllModelFiles()
         for missingFile in requiredFiles {
             let cacheRoot = tempRoot
                 .appendingPathComponent("parakeet-unified-\(missingFile)-\(UUID().uuidString)", isDirectory: true)
@@ -86,7 +97,7 @@ final class ModelDeletionTests: XCTestCase {
 
     func testParakeetUnifiedIsModelCachedTrueWhenAllRequiredFilesExist() throws {
         let cacheRoot = tempRoot.appendingPathComponent("parakeet-unified-en-0.6b-coreml", isDirectory: true)
-        for fileName in ParakeetUnifiedEngine.requiredModelFiles() {
+        for fileName in ParakeetUnifiedEngine.requiredAllModelFiles() {
             try writeUnifiedModelFile(fileName, in: cacheRoot)
         }
 

@@ -274,10 +274,17 @@ final class AppEnvironment {
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
-                // Both Nemotron builds stream live dictation partials from their
-                // FluidAudio streaming managers (multilingual and English-only).
-                AppFeatures.liveDictationStreamingEnabled
-                    && SpeechEnginePreference.current() == .nemotron
+                guard AppFeatures.liveDictationStreamingEnabled else { return false }
+                switch SpeechEnginePreference.current() {
+                case .nemotron:
+                    // Both Nemotron builds stream live dictation partials from
+                    // their FluidAudio streaming managers.
+                    return true
+                case .parakeet:
+                    return SpeechEnginePreference.parakeetModelVariant().usesUnifiedEngine
+                case .whisper:
+                    return false
+                }
             },
             shouldShowDictationPreview: { [runtimePreferences] in
                 runtimePreferences.showLiveDictationPreview
@@ -286,6 +293,9 @@ final class AppEnvironment {
                 guard AppFeatures.liveDictationStreamingEnabled else { return nil }
                 switch SpeechEnginePreference.current() {
                 case .parakeet:
+                    guard !SpeechEnginePreference.parakeetModelVariant().usesUnifiedEngine else {
+                        return nil
+                    }
                     return SpeechEngineSelection(engine: .parakeet)
                 case .nemotron:
                     return nil

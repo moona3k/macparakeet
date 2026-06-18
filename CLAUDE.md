@@ -37,9 +37,10 @@ foundation; no runtime coordinator/UI yet). Reliability kill-switch on `main`:
 `AppFeatures.meetingCaptureReliabilityEnabled = true` (ADR-025 Phase A
 mic-health telemetry watchdog; default-on, no UI/recording behavior change).
 `AppFeatures.liveDictationStreamingEnabled = true` (display-only live dictation
-transcript preview above the pill — Parakeet uses a single-flight tail-window
-batch preview, both Nemotron builds use their native live-partial path, and
-Whisper stays default-off pending a per-pass latency probe; the paste still
+transcript preview above the pill — Parakeet v2/v3 use a single-flight
+tail-window batch preview, Parakeet Unified and both Nemotron builds use their
+native live-partial paths, and Whisper stays default-off pending a per-pass
+latency probe; the paste still
 comes from the stop-time transcription path; #517, enabled on `main`
 2026-06-14, not yet in a tagged release).
 Deliberately gated off for now: `AppFeatures.aiFormatterProfilesEnabled = false`
@@ -217,7 +218,7 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 
 - Native Swift SDK via FluidAudio (CoreML on the Neural Engine)
 - Parakeet TDT 0.6B-v3 is the multilingual default; v2 is an English-only opt-in selected through Settings, `config set parakeet-model`, `models select parakeet-v2`, or `transcribe --parakeet-model v2`
-- Parakeet Unified EN 0.6B (`unified`) is a third opt-in Parakeet build (English-only, ~565 MB int8, FluidAudio ≥ 0.15.3) with strong offline English accuracy and built-in punctuation/capitalization. FluidAudio's v0.15.4 CoreML benchmark reports 2.15% average / 1.68% aggregate WER on LibriSpeech test-clean; NVIDIA's upstream model card reports 1.63% offline WER. It is a *separate* FluidAudio runtime (`UnifiedAsrManager`, no `AsrModelVersion`) served by `ParakeetUnifiedEngine` and routed when `ParakeetModelVariant == .unified`. Offline-only in Phase 1 (no word timings, no live preview); selected via Settings, `config set parakeet-model unified`, `models select parakeet-unified`, or `transcribe --parakeet-model unified`. Issue #520, ADR-001 amendment
+- Parakeet Unified EN 0.6B (`unified`) is a third opt-in Parakeet build (English-only, ~565 MB int8 per encoder export, FluidAudio ≥ 0.15.4) with strong offline English accuracy and built-in punctuation/capitalization. FluidAudio's v0.15.4 CoreML benchmark reports 2.15% average / 1.68% aggregate WER on LibriSpeech test-clean; NVIDIA's upstream model card reports 1.63% offline WER. It is a *separate* FluidAudio runtime served by `ParakeetUnifiedEngine` and routed when `ParakeetModelVariant == .unified`: file/meeting/final dictation use offline `UnifiedAsrManager` (`parakeet-unified-offline-15s`), while live dictation preview uses native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`). No word timings; selected via Settings, `config set parakeet-model unified`, `models select parakeet-unified`, or `transcribe --parakeet-model unified`. Issue #520, ADR-001 amendment
 - The TDT builds (v2/v3) return word-level timestamps + confidence scores; the Unified build's offline path returns text only (no word timings)
 - ~155x realtime on Apple Silicon (60 min audio in ~23 seconds)
 - ~2.5% Word Error Rate
@@ -227,7 +228,7 @@ ADR-016 defines the STT architecture as one process-wide scheduler path with a r
 - Nemotron 3.5 ASR (Beta) is an opt-in FluidAudio CoreML multilingual streaming engine (default build `nemotron-multilingual-1120ms`, ~1.5 GB) selected via Settings, `config set nemotron-language`, `models select nemotron-multilingual-1120ms`, or `transcribe --engine nemotron`; labeled Beta while real-world quality is benchmarked (no word-level timestamps surfaced yet from either build)
 - A second Nemotron build, Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, ~600 MB), is English-only (ignores the Nemotron language hint); file/meeting jobs transcribe batch-at-stop, while dictation streams live partials (live transcript preview) like the multilingual build; selected via Settings, `config set nemotron-model`, `models select nemotron-english-1120ms`, or `transcribe --nemotron-model`
 - WhisperKit is available as a local secondary engine for broader language coverage; default model variant is `large-v3-v20240930_turbo_632MB`
-- Display-only live dictation transcript preview (`AppFeatures.liveDictationStreamingEnabled`, `main`-only, #517): an ephemeral tail of in-progress text renders above the dictation pill while you speak. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Parakeet uses a single-flight tail-window batch preview, both Nemotron builds use their native live-partial path, and Whisper stays default-off pending a per-pass latency probe. Users toggle it in Settings → Capture → Dictation (`showLiveDictationPreview`, default on) and can pick a preview text size
+- Display-only live dictation transcript preview (`AppFeatures.liveDictationStreamingEnabled`, `main`-only, #517): an ephemeral tail of in-progress text renders above the dictation pill while you speak. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview, Parakeet Unified and both Nemotron builds use their native live-partial paths, and Whisper stays default-off pending a per-pass latency probe. Users toggle it in Settings → Capture → Dictation (`showLiveDictationPreview`, default on) and can pick a preview text size
 - Whisper and Nemotron language hints are optional (`auto` means detect); persisted defaults are stored in `UserDefaults` and exposed in Settings
 - One process-wide `STTRuntime` owner manages model lifecycle for the app
 - The default STT topology uses 2 execution slots: reserved dictation + shared meeting/batch
