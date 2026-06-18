@@ -172,18 +172,19 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         isModelCached(cacheRoot: defaultCacheRoot())
     }
 
-    /// Cached only when both `metadata.json` and the int8 offline encoder are
-    /// present. The encoder is the manager's own download gate
-    /// (`loadModels(to:)` re-downloads if it is missing); `metadata.json`
-    /// guards against a partial fetch.
+    nonisolated static func requiredModelFiles() -> Set<String> {
+        ModelNames.ParakeetUnified.requiredModels(variant: downloadVariant)
+    }
+
+    /// Cached only when every file FluidAudio needs for the selected offline
+    /// variant is present. FluidAudio's own `loadModels(to:)` only gates on the
+    /// encoder, so MacParakeet must be stricter to let explicit downloads repair
+    /// interrupted or partially deleted caches.
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
         let fileManager = FileManager.default
-        let metadata = cacheRoot.appendingPathComponent(ModelNames.ParakeetUnified.metadata)
-        let encoder = cacheRoot.appendingPathComponent(
-            ModelNames.ParakeetUnified.offlineEncoderFile(precision: encoderPrecision)
-        )
-        return fileManager.fileExists(atPath: metadata.path)
-            && fileManager.fileExists(atPath: encoder.path)
+        return requiredModelFiles().allSatisfy { fileName in
+            fileManager.fileExists(atPath: cacheRoot.appendingPathComponent(fileName).path)
+        }
     }
 
     @discardableResult
@@ -210,15 +211,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws -> URL {
         let cacheRoot = defaultCacheRoot()
-        guard !isModelCached(cacheRoot: cacheRoot) else { return cacheRoot }
-        onProgress?("Preparing Parakeet Unified model download...")
-        let progressHandler = makeDownloadProgressHandler(onProgress)
-        try await DownloadUtils.downloadRepo(
-            .parakeetUnified,
-            to: modelsBaseDirectory(),
-            variant: encoderPrecision == .fp16 ? "offline-fp16" : "offline",
-            progressHandler: progressHandler
-        )
+        try await downloadModelFilesIfNeeded(cacheRoot: cacheRoot, onProgress: onProgress)
         return cacheRoot
     }
 
@@ -228,10 +221,30 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         interactiveManager != nil && backgroundManager != nil
     }
 
+    private nonisolated static var downloadVariant: String {
+        encoderPrecision == .fp16 ? "offline-fp16" : "offline"
+    }
+
+    private nonisolated static func downloadModelFilesIfNeeded(
+        cacheRoot: URL,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        guard !isModelCached(cacheRoot: cacheRoot) else { return }
+        onProgress?("Preparing Parakeet Unified model download...")
+        let progressHandler = makeDownloadProgressHandler(onProgress)
+        try await DownloadUtils.downloadRepo(
+            .parakeetUnified,
+            to: modelsBaseDirectory(),
+            variant: downloadVariant,
+            progressHandler: progressHandler
+        )
+    }
+
     private func loadManagers(onProgress: (@Sendable (String) -> Void)?) async throws {
-        if !Self.isModelCached() {
-            onProgress?("Preparing Parakeet Unified model download...")
-        }
+        try await Self.downloadModelFilesIfNeeded(
+            cacheRoot: Self.defaultCacheRoot(),
+            onProgress: onProgress
+        )
         let progressHandler = Self.makeDownloadProgressHandler(onProgress)
 
         let loadedInteractiveManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
