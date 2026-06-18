@@ -19,7 +19,8 @@ import tempfile
 import time
 from pathlib import Path
 
-_WORD_RE = re.compile(r"[^A-Z0-9]+")
+PUNCT_RE = re.compile(r"[^\w\s']", flags=re.UNICODE)
+APOS_RE = re.compile(r"(^'+|'+$)")
 
 
 def load_references(dataset: Path) -> dict[str, str]:
@@ -107,75 +108,78 @@ def write_records(files: list[Path], refs: dict[str, str], output_dir: Path, rec
             handle.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def words_for_wer(text: str) -> list[str]:
-    return _WORD_RE.sub(" ", text.upper().replace("'", "")).split()
+def normalize_for_wer(text: str) -> list[str]:
+    text = PUNCT_RE.sub(" ", text.lower())
+    tokens: list[str] = []
+    for token in text.split():
+        token = APOS_RE.sub("", token)
+        if token:
+            tokens.append(token)
+    return tokens
 
 
-def edit_counts(reference: list[str], hypothesis: list[str]) -> tuple[int, int, int]:
-    rows = len(reference) + 1
-    cols = len(hypothesis) + 1
-    costs = [[0] * cols for _ in range(rows)]
-    counts = [[(0, 0, 0)] * cols for _ in range(rows)]
-
-    for i in range(1, rows):
-        costs[i][0] = i
-        counts[i][0] = (0, i, 0)
-    for j in range(1, cols):
-        costs[0][j] = j
-        counts[0][j] = (0, 0, j)
+def edit_counts(hypothesis: list[str], reference: list[str]) -> tuple[int, int, int]:
+    rows = len(hypothesis) + 1
+    cols = len(reference) + 1
+    dp = [[0] * cols for _ in range(rows)]
+    for i in range(rows):
+        dp[i][0] = i
+    for j in range(cols):
+        dp[0][j] = j
 
     for i in range(1, rows):
         for j in range(1, cols):
-            candidates: list[tuple[int, tuple[int, int, int]]] = []
+            if hypothesis[i - 1] == reference[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
 
-            sub_count, del_count, ins_count = counts[i - 1][j - 1]
-            substitution = 0 if reference[i - 1] == hypothesis[j - 1] else 1
-            candidates.append(
-                (
-                    costs[i - 1][j - 1] + substitution,
-                    (sub_count + substitution, del_count, ins_count),
-                )
-            )
-
-            sub_count, del_count, ins_count = counts[i - 1][j]
-            candidates.append((costs[i - 1][j] + 1, (sub_count, del_count + 1, ins_count)))
-
-            sub_count, del_count, ins_count = counts[i][j - 1]
-            candidates.append((costs[i][j - 1] + 1, (sub_count, del_count, ins_count + 1)))
-
-            costs[i][j], counts[i][j] = min(candidates, key=lambda item: item[0])
-
-    return counts[-1][-1]
+    i = len(hypothesis)
+    j = len(reference)
+    insertions = deletions = substitutions = 0
+    while i > 0 or j > 0:
+        if i > 0 and j > 0 and hypothesis[i - 1] == reference[j - 1]:
+            i -= 1
+            j -= 1
+        elif i > 0 and j > 0 and dp[i][j] == dp[i - 1][j - 1] + 1:
+            substitutions += 1
+            i -= 1
+            j -= 1
+        elif i > 0 and dp[i][j] == dp[i - 1][j] + 1:
+            insertions += 1
+            i -= 1
+        elif j > 0 and dp[i][j] == dp[i][j - 1] + 1:
+            deletions += 1
+            j -= 1
+        else:
+            break
+    return insertions, deletions, substitutions
 
 
 def score_records(records: Path) -> tuple[int, int, int, int, int]:
-    files = 0
-    ref_words = 0
-    substitutions = 0
-    deletions = 0
-    insertions = 0
+    files = total_ref_words = total_insertions = total_deletions = total_substitutions = 0
 
     for line in records.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         rec = json.loads(line)
-        ref = words_for_wer(rec["ref"])
-        hyp = words_for_wer(rec["hyp"])
-        sub_count, del_count, ins_count = edit_counts(ref, hyp)
+        ref = normalize_for_wer(rec["ref"])
+        hyp = normalize_for_wer(rec.get("hyp", ""))
+        insertions, deletions, substitutions = edit_counts(hyp, ref)
         files += 1
-        ref_words += len(ref)
-        substitutions += sub_count
-        deletions += del_count
-        insertions += ins_count
+        total_ref_words += len(ref)
+        total_insertions += insertions
+        total_deletions += deletions
+        total_substitutions += substitutions
 
-    return files, ref_words, substitutions, deletions, insertions
+    return files, total_ref_words, total_insertions, total_deletions, total_substitutions
 
 
 def print_score(records: Path) -> None:
-    files, ref_words, substitutions, deletions, insertions = score_records(records)
-    errors = substitutions + deletions + insertions
+    files, ref_words, insertions, deletions, substitutions = score_records(records)
+    errors = insertions + deletions + substitutions
     wer = (errors / ref_words * 100) if ref_words else 0.0
-    print(f"files={files} ref_words={ref_words} S={substitutions} D={deletions} I={insertions}")
+    print(f"files={files}  ref_words={ref_words}  I={insertions} D={deletions} S={substitutions}")
     print(f"CORPUS WER = {wer:.2f}%")
 
 

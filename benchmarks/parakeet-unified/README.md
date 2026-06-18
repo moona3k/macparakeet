@@ -57,8 +57,8 @@ benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
 Unified result:
 
 ```text
-files=300 ref_words=5809 S=90 D=10 I=11
-CORPUS WER = 1.91%
+files=300  ref_words=5809  I=11 D=10 S=91
+CORPUS WER = 1.93%
 ```
 
 The same deterministic 300-file sample was also run through v2 for an
@@ -79,8 +79,8 @@ benchmarks/parakeet-unified/run_macparakeet_librispeech.py \
 
 | Model | Files | Corpus WER | Errors | Elapsed |
 |-------|------:|-----------:|--------|--------:|
-| Parakeet Unified | 300 | 1.91% | S=90 D=10 I=11 | 39.20s |
-| Parakeet v2 | 300 | 2.39% | S=97 D=27 I=15 | 64.20s |
+| Parakeet Unified | 300 | 1.93% | I=11 D=10 S=91 | 39.20s |
+| Parakeet v2 | 300 | 2.41% | I=15 D=27 S=98 | 64.20s |
 
 The MacParakeet runner and scorer are intentionally dependency-free and use a
 simpler English ASR normalizer than FluidAudio's canonical benchmark. The CLI
