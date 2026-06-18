@@ -106,7 +106,11 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
         if isLoaded { return }
 
         if let initializationTask {
-            try await initializationTask.value
+            do {
+                try await initializationTask.value
+            } catch {
+                throw try Self.mapWarmUpError(error)
+            }
             return
         }
 
@@ -234,17 +238,24 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
         let loadedInteractiveManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
         let loadedBackgroundManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
-        try await loadedInteractiveManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
-        try Task.checkCancellation()
-        try await loadedBackgroundManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
+        do {
+            try await loadedInteractiveManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
+            try await loadedBackgroundManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
+        } catch {
+            await loadedInteractiveManager.cleanup()
+            await loadedBackgroundManager.cleanup()
+            throw error
+        }
 
         self.interactiveManager = loadedInteractiveManager
         self.backgroundManager = loadedBackgroundManager
