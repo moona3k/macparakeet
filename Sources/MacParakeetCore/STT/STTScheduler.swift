@@ -199,7 +199,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         liveDictationSession = .active(id)
         do {
             let selection = await runtime.currentSpeechEngineSelection()
-            guard selection.engine == .nemotron else {
+            guard selection.engine == .nemotron || selection.engine == .parakeet else {
                 throw STTLiveDictationTranscriptionError.unsupportedEngine(selection.engine)
             }
             try await runtime.beginLiveDictationTranscription(

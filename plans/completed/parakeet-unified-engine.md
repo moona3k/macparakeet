@@ -1,7 +1,9 @@
 # Plan: Parakeet Unified (English) as a selectable Parakeet model
 
 > Status: **IMPLEMENTED** — Phase 1 shipped in PR #552
-> (`656031f11`, 2026-06-18). Archived from `plans/active` on 2026-06-18.
+> (`656031f11`, 2026-06-18); Phase 2 follow-up lives in PR #554
+> (`feat/parakeet-unified-streaming`). Archived from `plans/active` on
+> 2026-06-18.
 > Issue: #520 (feature request). Branch: `feat/parakeet-unified` (merged).
 > Owner-agent: orchestrated by Claude. Historical handoff doc — retained as the
 > implementation record.
@@ -19,6 +21,10 @@ reuse the display-only Parakeet tail-window preview in Phase 1. `STTRuntime`
 returns an empty Unified preview so active dictation avoids repeated offline
 batch work; the final paste/transcript still comes from stop-time Unified
 transcription. Native Unified streaming remains a Phase 2 follow-up.
+
+Phase 2 follow-up PR #554 implements the native
+`StreamingUnifiedAsrManager` live-dictation path while keeping file, meeting,
+and final dictation paste on the offline batch manager.
 
 ## 1. Context & motivation
 
@@ -73,18 +79,19 @@ This honors the product framing (a Parakeet model) while isolating the new
 runtime in its own wrapper, leaving the stable v2/v3 TDT path untouched except
 for the routing fork.
 
-**Scope (Phase 1, this PR):** Unified **offline** only — `UnifiedAsrManager`
-(`parakeet-unified-offline-15s`, int8) for **all** transcription jobs (file,
-meeting, dictation paste). This uses FluidAudio's benchmarked batch path, a
-single model download (~565 MB), and the lowest-risk slice. Live dictation paste
-already comes from the stop-time batch path, so it gets the same offline output.
+**Phase 1 (merged in PR #552):** Unified **offline** only —
+`UnifiedAsrManager` (`parakeet-unified-offline-15s`, int8) for file, meeting,
+and stop-time dictation transcription. This uses FluidAudio's benchmarked batch
+path and the lowest-risk slice. The merged Phase 1 intentionally did not wire
+native streaming.
 
-**Out of scope (Phase 2, follow-up, documented not built):** native
-low-latency streaming via `StreamingUnifiedAsrManager` (true 2.08s partials +
-`consumeTokenTimings()`), which would require extending the live-dictation
-gate currently hard-restricted to `.nemotron`. Phase 1 reuses the existing
-display-only Parakeet tail-window preview path (when the live-preview flag is
-on) so dictation still shows a live preview.
+**Phase 2 (this follow-up branch):** native low-latency streaming via
+`StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`, ~2.08s partials) is
+wired into the live-dictation session path by generalizing the Nemotron live
+protocol to `NativeLiveDictating`. File transcription, meeting finalization,
+and the final dictation paste remain on the offline batch manager for the
+headline quality path; if the live stream cannot produce a trustworthy result,
+dictation falls back to the recorded-file offline transcription.
 
 ## 3. FluidAudio bump
 

@@ -119,10 +119,10 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
     private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
-    /// The Nemotron build driving the active live dictation session. Captured at
-    /// `begin` so `append`/`finish`/`cancel` route to the same engine the
-    /// session started on, regardless of which build is selected.
-    private var liveDictationEngine: (any NemotronLiveDictating)?
+    /// The native streaming engine driving the active live dictation session.
+    /// Captured at `begin` so `append`/`finish`/`cancel` route to the same
+    /// loaded engine the session started on, regardless of later preferences.
+    private var liveDictationEngine: (any NativeLiveDictating)?
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -215,27 +215,37 @@ public actor STTRuntime: STTRuntimeProtocol {
         guard liveDictationSession == nil else {
             throw STTError.engineBusy
         }
-        guard speechEngine == .nemotron else {
-            throw STTLiveDictationTranscriptionError.unsupportedEngine(speechEngine)
-        }
-        // Both Nemotron builds wrap FluidAudio streaming managers that emit
-        // partials, so live dictation routes to whichever build is active. The
-        // English build ignores the language hint (it is English-only); the
-        // multilingual build honors the persisted default.
-        let engine: any NemotronLiveDictating
+        let engine: any NativeLiveDictating
         let language: String?
-        if nemotronModelVariant.isEnglishOnly {
-            guard let englishEngine = nemotronEnglishEngine else {
+        switch speechEngine {
+        case .parakeet where currentParakeetVariant.usesUnifiedEngine:
+            guard let unifiedEngine = parakeetUnifiedEngine else {
                 throw STTLiveDictationTranscriptionError.modelNotReady
             }
-            engine = englishEngine
+            engine = unifiedEngine
             language = nil
-        } else {
-            guard let multilingualEngine = nemotronEngine else {
-                throw STTLiveDictationTranscriptionError.modelNotReady
+        case .parakeet:
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.parakeet)
+        case .nemotron:
+            // Both Nemotron builds wrap FluidAudio streaming managers that emit
+            // partials, so live dictation routes to whichever build is active.
+            // The English build ignores the language hint; the multilingual
+            // build honors the persisted default.
+            if nemotronModelVariant.isEnglishOnly {
+                guard let englishEngine = nemotronEnglishEngine else {
+                    throw STTLiveDictationTranscriptionError.modelNotReady
+                }
+                engine = englishEngine
+                language = nil
+            } else {
+                guard let multilingualEngine = nemotronEngine else {
+                    throw STTLiveDictationTranscriptionError.modelNotReady
+                }
+                engine = multilingualEngine
+                language = defaultLanguage(for: .nemotron)
             }
-            engine = multilingualEngine
-            language = defaultLanguage(for: .nemotron)
+        case .whisper:
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.whisper)
         }
         guard await engine.isReady() else {
             throw STTLiveDictationTranscriptionError.modelNotReady
@@ -439,12 +449,9 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func transcribeParakeetPreview(samples: [Float]) async throws -> STTResult {
-        // Parakeet Unified has no display-only live preview in Phase 1: the
-        // offline pipeline runs a CPU preprocessor/decoder per pass, so re-running
-        // it on every tail window is not worth the battery for a preview. The
-        // final paste still comes from the stop-time offline transcription. Return
-        // an empty preview so the dictation loop neither errors (log spam) nor
-        // shows stale text.
+        // Parakeet Unified drives live dictation through its native streaming
+        // manager. This display-preview batch path is for the TDT builds only;
+        // return an empty preview if a stale caller reaches it.
         if currentParakeetVariant.usesUnifiedEngine {
             return STTResult(
                 text: "",

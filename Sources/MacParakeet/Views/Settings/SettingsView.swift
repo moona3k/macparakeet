@@ -1021,7 +1021,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Live transcript preview",
-                    detail: "Shows a running transcript above the dictation pill as you speak. Works with the Parakeet and Nemotron engines; not yet available with Whisper.",
+                    detail: "Shows a running transcript above the dictation pill as you speak. Works with Parakeet and Nemotron; not yet available with Whisper.",
                     isBeta: true,
                     // Animate via the binding so only this toggle's state change
                     // animates the sub-row reveal/reflow — not a blanket

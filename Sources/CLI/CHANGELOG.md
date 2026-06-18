@@ -84,6 +84,16 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## [Unreleased]
+
+### Changed
+
+- `models download parakeet-unified` now prepares both Parakeet Unified int8
+  encoder exports: the offline 15s batch path used by CLI transcription and
+  the native 2080ms streaming path used by app live dictation preview.
+  `transcribe --parakeet-model unified` is unchanged and still uses the offline
+  build for best stop-time quality.
+
 ## [2.10.0] -- 2026-06-17
 
 ### Added

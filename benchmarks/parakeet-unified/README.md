@@ -1,6 +1,7 @@
 # Parakeet Unified Benchmarks
 
-This folder records the merge-readiness benchmark evidence for PR #552.
+This folder records the merge-readiness benchmark evidence for PR #552 and the
+Phase 2 streaming follow-up.
 
 ## Canonical FluidAudio Benchmark
 
@@ -29,6 +30,43 @@ swift run -c release fluidaudiocli unified-benchmark
 FluidAudio's same-harness comparison for Parakeet TDT v3 is 2.6% average WER
 and 110x overall RTFx. Unified remains English-only; v3 remains the default
 multilingual Parakeet build.
+
+## Same-Machine First-300 Follow-Up
+
+After wiring Phase 2 streaming in MacParakeet, the first 300 lexicographically
+sorted LibriSpeech `test-clean` files were re-run on the same machine with the
+FluidAudio 0.15.4 release CLI.
+
+```bash
+/Users/dmoon/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli \
+  unified-benchmark --mode both --max-files 300 \
+  --write-md benchmarks/parakeet-unified/fluidaudio-unified-test-clean-first300.md
+
+/Users/dmoon/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli \
+  asr-benchmark --subset test-clean --max-files 300 --model-version v2 \
+  --output benchmarks/parakeet-unified/fluidaudio-v2-test-clean-first300.json
+
+/Users/dmoon/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli \
+  asr-benchmark --subset test-clean --max-files 300 --model-version v3 \
+  --output benchmarks/parakeet-unified/fluidaudio-v3-test-clean-first300.json
+
+/Users/dmoon/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli \
+  nemotron-benchmark --subset test-clean --max-files 300 --chunk 1120
+```
+
+| Model | Mode | Files | WER | Median WER | Overall RTFx | Artifact |
+|-------|------|------:|----:|-----------:|-------------:|----------|
+| Parakeet Unified | batch | 300 | 2.00% avg / 1.37% aggregate | 0.00% | 94.8x | `fluidaudio-unified-test-clean-first300.md` |
+| Parakeet Unified | streaming | 300 | 2.04% avg / 1.46% aggregate | 0.00% | 37.3x | `fluidaudio-unified-test-clean-first300.md` |
+| Parakeet TDT v2 | batch sliding window | 300 | 2.26% avg | 0.00% | 93.8x | `fluidaudio-v2-test-clean-first300.json` |
+| Parakeet TDT v3 | batch sliding window | 300 | 3.10% avg | 0.00% | 115.2x | `fluidaudio-v3-test-clean-first300.json` |
+| Nemotron English | streaming, 1120ms chunk | 300 | 1.98% corpus | n/a | 67.0x | `fluidaudio-nemotron-1120ms-test-clean-first300.json` |
+
+Unified batch/streaming and Parakeet TDT v2/v3 are scored by FluidAudio's
+`TextNormalizer`. The Nemotron benchmark command uses FluidAudio's older
+Nemotron-specific scorer with lowercase alphanumeric normalization, so treat
+that row as a model-of-interest comparison rather than an identical harness
+score.
 
 ## MacParakeet CLI End-to-End Check
 

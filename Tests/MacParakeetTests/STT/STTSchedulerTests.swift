@@ -60,10 +60,27 @@ final class STTSchedulerTests: XCTestCase {
         let result = try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
 
         XCTAssertEqual(result.text, "live dictation")
+        XCTAssertEqual(result.engine, .nemotron)
         let liveDictationSamples = await runtime.liveDictationSamples
         XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
         let finalAvailability = await scheduler.engineSwitchAvailability()
         XCTAssertEqual(finalAvailability, .available)
+    }
+
+    func testLiveDictationBeginAllowsParakeetSelectionForUnifiedRuntime() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .parakeet))
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+
+        try await scheduler.appendLiveDictationSamples([0.1, 0.2], sessionID: sessionID)
+        let result = try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
+
+        XCTAssertEqual(result.text, "live dictation")
+        XCTAssertEqual(result.engine, .parakeet)
+        let liveDictationSamples = await runtime.liveDictationSamples
+        XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
     }
 
     func testLiveDictationFinalizationIgnoresConcurrentCancel() async throws {
@@ -1417,7 +1434,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
         }
         liveDictationSessionID = nil
-        return STTResult(text: "live dictation", words: [], engine: .nemotron)
+        return STTResult(text: "live dictation", words: [], engine: selection.engine)
     }
 
     func cancelLiveDictationTranscription(sessionID: UUID) async {
