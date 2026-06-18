@@ -15,6 +15,10 @@ mode.
 
 - `TextProcessingPipeline.swift` — the deterministic pipeline. Five
   steps in fixed order; details below.
+- `CustomWordReplacer.swift` — pre-compiled, reusable custom-word
+  replacement (the step-2 rule). `TextProcessingPipeline.applyCustomWords`
+  delegates to it, and the meeting finalizer reuses it to correct a whole
+  transcript plus every word token without recompiling regexes per token.
 - `TextProcessingResult.swift` — value type returned by the pipeline.
   Carries the cleaned text, the set of expanded-snippet IDs, and an
   optional `postPasteAction` for trailing-action snippets.
@@ -89,6 +93,17 @@ post-paste action) first; dictation and transcription services may
 then invoke the opt-in AI formatter through `LLMService`. Don't
 conflate those two stages — the deterministic pipeline must remain
 LLM-free per ADR-004.
+
+**Meetings reuse only the custom-word step, not the whole pipeline.**
+`MeetingTranscriptVocabularyApplier` (in `Services/MeetingRecording/`)
+applies `CustomWordReplacer` to a finalized meeting transcript's plain
+text and word tokens (REQ-PIPE-003). It deliberately does **not** run
+filler removal, snippet expansion, or insertion styling — those are
+dictation-paste concerns that would corrupt a verbatim meeting record.
+Meeting correction is always-on (not gated on Raw/Clean) because the
+default processing mode is Raw and the word tokens it fixes drive the
+speaker-segmented view and exports. Keep custom-word semantics in
+`CustomWordReplacer` so dictation, file/URL, and meetings stay in sync.
 
 ## How to verify a change
 

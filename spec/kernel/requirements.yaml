@@ -93,6 +93,11 @@ REQ-PIPE-002:
   version: v0.2
   status: implemented
 
+REQ-PIPE-003:
+  description: Custom-word (Vocabulary) corrections also apply to finalized meeting transcripts — both the plain text and the word-timestamp tokens that drive the speaker-segmented view and SRT/VTT/speaker-paragraph exports — always-on and independent of the dictation Raw/Clean processing mode. Only the custom-word step is reused; filler removal, snippet expansion, and insertion styling stay dictation-only so the verbatim meeting record is preserved.
+  version: v0.6
+  status: implemented
+
 # --- v0.3 YouTube & Export ---
 
 REQ-YT-001:

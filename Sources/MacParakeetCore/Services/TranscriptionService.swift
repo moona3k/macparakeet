@@ -1035,8 +1035,23 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 systemDiarization: systemDiarization
             )
 
-            transcription.rawTranscript = finalized.rawTranscript
-            transcription.wordTimestamps = finalized.words
+            // Apply the user's Vocabulary corrections to the meeting transcript.
+            // Meetings otherwise never run custom words — the deterministic
+            // pipeline only touches dictation/file transcripts — so names the
+            // user has already corrected elsewhere would still come through raw
+            // here (issue #550). Intentionally always-on, not gated on the
+            // Raw/Clean dictation mode: the corrections drive the
+            // speaker-segmented view and the word-timestamp exports, and the
+            // default processing mode is `.raw`. `completeTranscription` below
+            // still receives the *uncorrected* `finalized.rawTranscript`, so its
+            // Clean-mode pass derives `cleanTranscript` without double-applying.
+            let corrected = MeetingTranscriptVocabularyApplier.apply(
+                rawTranscript: finalized.rawTranscript,
+                words: finalized.words,
+                customWords: fetchMeetingVocabulary()
+            )
+            transcription.rawTranscript = corrected.rawTranscript
+            transcription.wordTimestamps = corrected.words
             transcription.language = Self.commonDetectedLanguage(from: sourceResults) ?? transcription.language
             // Both meeting source transcripts (mic + system) run through the
             // same `SpeechEngineSelection`, so taking the first source's
@@ -1516,6 +1531,21 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             SpeechEnginePreference.normalizeKnownLanguage(source.result.language)
         })
         return languages.count == 1 ? languages.first : nil
+    }
+
+    /// Enabled custom words for meeting transcript correction.
+    ///
+    /// Unlike `completeTranscription`'s fetch this is not gated on the Raw/Clean
+    /// processing mode — meeting corrections are always applied (see the call
+    /// site in the meeting finalize path). Failures degrade to no corrections
+    /// rather than failing the transcription.
+    private func fetchMeetingVocabulary() -> [CustomWord] {
+        do {
+            return try customWordRepo?.fetchEnabled() ?? []
+        } catch {
+            logger.error("meeting_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            return []
+        }
     }
 
     private func completeTranscription(
