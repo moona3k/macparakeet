@@ -2140,13 +2140,13 @@ struct SettingsView: View {
     /// English-only Unified build). Only shown when Parakeet is the active
     /// engine — symmetric to the Whisper Language card. English-only builds fix
     /// the v3 auto-detect mis-firing English as another language (issues #311,
-    /// #398); Unified is the highest-accuracy English offline build (issue #520).
+    /// #398); Unified is the punctuated English offline build (issue #520).
     @ViewBuilder
     private var engineParakeetModelCard: some View {
         if viewModel.engine.speechEnginePreference == .parakeet {
             SettingsCard(
                 title: "Parakeet Model",
-                subtitle: "Pick how Parakeet handles language. The English-only builds are a touch faster and never mistake English for another language; Unified is the most accurate on English.",
+                subtitle: "Pick how Parakeet handles language. The English-only builds are a touch faster and never mistake English for another language; Unified adds punctuation and capitalization.",
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {

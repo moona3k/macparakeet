@@ -10,21 +10,22 @@ Issue #520 asks for **Parakeet Unified** (`nvidia/parakeet-unified-en-0.6b`,
 English-only, 600M Unified-FastConformer-RNNT). The owner is open to it
 "if performance is better or competitive to v2."
 
-**Validated claims** (FluidAudio PR #693 measured on full LibriSpeech
-test-clean, 2620 files; cross-checked vs NVIDIA's model card):
+**Validated claims** (FluidAudio's current benchmark docs and v0.15.4 source,
+full LibriSpeech test-clean, 2620 files; cross-checked vs NVIDIA's model card):
 
 | Mode | Unified WER | Reference |
 |------|-------------|-----------|
-| Offline batch (15s overlapping windows) | **1.82% fp16 / 1.83% int8** | NVIDIA card test-clean: 1.63% |
-| Streaming @ 2.08s latency | **2.14% fp16 / 2.15% int8** | — |
+| Offline batch (15s overlapping windows) | **2.15% avg / 1.68% aggregate WER** | NVIDIA card test-clean: 1.63% |
+| Streaming @ 2.08s latency | **2.21% avg / 1.79% aggregate WER** | — |
 | Parakeet v2 (English, our docs) | ~2.1% | baseline to beat |
 | Parakeet v3 (multilingual, our docs) | ~2.5% | — |
 
-So Unified offline is genuinely **~0.25–0.3pt better than v2** on the same
-metric — "slightly better than v2 offline" is honest. Streaming is real
-(single model jointly trained for offline + streaming). The issue's "1.86%"
-is slightly off (actual 1.82–1.83%). The "better than Nemotron for dictation"
-claim is **speculative** — our own benchmark (task #7) will test it.
+So Unified offline is a strong, competitive English opt-in with
+punctuation/capitalization, not a silent replacement for v3 and not something to
+overclaim as universally better than v2 on every WER metric. Streaming is real
+(single model jointly trained for offline + streaming). The "better than
+Nemotron for dictation" claim is **speculative** — our own benchmark (task #7)
+will test it.
 
 **Caveats to design around:**
 1. **No word-level timestamps** on the offline `transcribe([Float])->String`
@@ -58,9 +59,9 @@ for the routing fork.
 
 **Scope (Phase 1, this PR):** Unified **offline** only — `UnifiedAsrManager`
 (`parakeet-unified-offline-15s`, int8) for **all** transcription jobs (file,
-meeting, dictation paste). This is the headline 1.82% value, a single model
-download (~565 MB), and the lowest-risk slice. Live dictation paste already
-comes from the stop-time batch path, so it gets the full 1.82% quality.
+meeting, dictation paste). This uses FluidAudio's benchmarked batch path, a
+single model download (~565 MB), and the lowest-risk slice. Live dictation paste
+already comes from the stop-time batch path, so it gets the same offline output.
 
 **Out of scope (Phase 2, follow-up, documented not built):** native
 low-latency streaming via `StreamingUnifiedAsrManager` (true 2.08s partials +

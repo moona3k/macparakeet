@@ -294,8 +294,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
 /// faster on English and — crucially — cannot mis-detect English speech as
 /// another language, which `v3`'s auto-detection occasionally does (issues
 /// #311, #398). `unified` is English-only NVIDIA Parakeet Unified EN 0.6B,
-/// a *different* runtime (its own CoreML chain, no `AsrModelVersion`) with the
-/// best English offline accuracy of the three (issue #520).
+/// a *different* runtime (its own CoreML chain, no `AsrModelVersion`) with
+/// strong English offline accuracy plus punctuation/capitalization (issue #520).
 ///
 /// The FluidAudio `AsrModelVersion` bridge lives in the STT layer
 /// (`ParakeetModelVariant+ASR.swift`) so this preference type stays
@@ -308,8 +308,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     /// Unified-FastConformer-RNNT — a *different* FluidAudio runtime from the TDT
     /// v2/v3 builds (its own preprocessor/encoder/decoder chain, no
     /// `AsrModelVersion`), so it is routed to ``ParakeetUnifiedEngine`` instead
-    /// of the shared `AsrManager`. Offline batch WER on LibriSpeech test-clean
-    /// is ~1.83% (int8) — a touch better than v2's ~2.1% (issue #520).
+    /// of the shared `AsrManager`. The offline batch path is competitive with
+    /// v2 on English and adds punctuation/capitalization (issue #520).
     case unified
 
     /// Short label for the variant's language posture.
@@ -338,7 +338,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2:
             "English only. A touch faster, and never mis-hears English as another language."
         case .unified:
-            "English only. The highest offline accuracy on English — a touch better than v2."
+            "English only. Strong offline accuracy with punctuation and capitalization."
         }
     }
 

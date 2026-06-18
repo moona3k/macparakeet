@@ -92,8 +92,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   0.6B — English-only, ~565 MB int8). It is a selectable Parakeet build
   alongside `parakeet-v3`/`parakeet-v2`:
   - `transcribe --parakeet-model unified` transcribes the run with the Unified
-    offline build (highest English offline accuracy; ~1.83% WER on LibriSpeech
-    test-clean). `app-default`/`v3`/`v2` are unchanged.
+    offline build (strong English offline accuracy with punctuation and
+    capitalization). `app-default`/`v3`/`v2` are unchanged.
   - `config set parakeet-model unified` persists it as the default Parakeet
     build (aliases: `english-unified`, `unified-offline`). `config get
     parakeet-model` returns `unified`.

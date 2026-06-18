@@ -26,7 +26,7 @@ struct ConfigCommand: ParsableCommand {
           speech-engine             parakeet|nemotron|whisper       default: parakeet
           parakeet-model            v3|v2|unified                   default: v3
                                     (v3=multilingual, v2=English,
-                                    unified=English best-offline)
+                                    unified=English punctuated)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
                                     english-1120ms (English-only)
           nemotron-language         auto|<Nemotron language code>   default: auto
@@ -359,7 +359,7 @@ struct ConfigCommand: ParsableCommand {
         case "unified", "english-unified", "unified-offline":
             return .unified
         default:
-            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), or unified (English-only, best offline accuracy).")
+            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), or unified (English-only with punctuation/capitalization).")
         }
     }
 

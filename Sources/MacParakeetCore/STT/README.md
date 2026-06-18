@@ -2,7 +2,7 @@
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
 > CoreML) is default, with v3 multilingual as the default build, v2
-> English-only and Parakeet Unified (English-only, highest offline accuracy)
+> English-only and Parakeet Unified (English-only, punctuated offline output)
 > as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
@@ -41,8 +41,7 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   int8). Selected when `ParakeetModelVariant == .unified`. Two-lane
   (interactive/background) like the Nemotron English engine, but offline-only:
   it resamples the finished buffer and runs FluidAudio's overlapping 15 s window
-  batch transcription (the path that yields ~1.83% test-clean WER). No word
-  timings; `language` fixed to `en`. Native low-latency streaming
+  batch transcription. No word timings; `language` fixed to `en`. Native low-latency streaming
   (`StreamingUnifiedAsrManager`) is a documented follow-up, not wired here.
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.

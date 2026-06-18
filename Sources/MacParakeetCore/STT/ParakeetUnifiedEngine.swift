@@ -10,12 +10,11 @@ import os
 /// routes the `.unified` `ParakeetModelVariant` here, exactly as the Nemotron
 /// engine routes its English variant to `NemotronEnglishEngine`.
 ///
-/// Phase 1 is offline-only: the headline 1.82% (int8 1.83%) LibriSpeech
-/// test-clean WER comes from the offline overlapping-window batch path, which
-/// is exactly MacParakeet's access pattern (file/meeting/dictation all
-/// transcribe a finished buffer at stop time). The model's native
-/// low-latency streaming (`StreamingUnifiedAsrManager`, ~2.08 s partials +
-/// token timings) is a documented follow-up, not wired here.
+/// Phase 1 is offline-only: FluidAudio's best Unified CoreML benchmark uses the
+/// offline overlapping-window batch path, which is exactly MacParakeet's access
+/// pattern (file/meeting/dictation all transcribe a finished buffer at stop
+/// time). The model's native low-latency streaming (`StreamingUnifiedAsrManager`,
+/// ~2.08 s partials + token timings) is a documented follow-up, not wired here.
 ///
 /// Two lanes (interactive for dictation, background for file/meeting) each get
 /// their own `UnifiedAsrManager` so concurrent dictation + file/meeting work
@@ -25,9 +24,9 @@ import os
 public actor ParakeetUnifiedEngine: STTTranscribing {
     public static let modelVariant = ParakeetModelVariant.unified
 
-    /// int8 is FluidAudio's default and WER-lossless vs fp16 on test-clean
-    /// (1.83% vs 1.82%), at ~half the download. Kept explicit so the choice is
-    /// visible at the callsite that owns the model's disk + battery posture.
+    /// int8 is FluidAudio's default and WER-lossless vs fp16 within benchmark
+    /// noise, at ~half the download. Kept explicit so the choice is visible at
+    /// the callsite that owns the model's disk + battery posture.
     private static let encoderPrecision = UnifiedEncoderPrecision.int8
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ParakeetUnifiedEngine")
@@ -80,9 +79,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing {
 
             try Task.checkCancellation()
             // The offline manager runs its own overlapping 15 s windows over the
-            // whole buffer (the merge that yields the 1.82% WER), so the call is
-            // atomic — progress is coarse and cancellation is checked at the
-            // boundaries rather than mid-window.
+            // whole buffer, so the call is atomic — progress is coarse and
+            // cancellation is checked at the boundaries rather than mid-window.
             let text = try await manager.transcribe(samples)
             onProgress?(100, 100)
 
