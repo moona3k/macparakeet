@@ -12,6 +12,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
         try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone.m4a"))
         try Data("system".utf8).write(to: folderURL.appendingPathComponent("system.m4a"))
+        try Data("{}".utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: folderURL))
     }
 
     override func tearDownWithError() throws {
@@ -38,12 +39,31 @@ final class MeetingArtifactStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.meetingID, transcription.id)
+        XCTAssertEqual(snapshot.schema, MeetingArtifactStore.schema)
+        XCTAssertEqual(snapshot.schemaVersion, MeetingArtifactStore.schemaVersion)
         XCTAssertEqual(snapshot.folderPath, folderURL.path)
+        XCTAssertEqual(snapshot.manifestPath, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(snapshot.transcriptPath, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
+        XCTAssertEqual(snapshot.notesPath, MeetingNotesFile.fileURL(for: folderURL).path)
+        XCTAssertEqual(snapshot.promptResultsPath, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
+        XCTAssertEqual(snapshot.promptResultsDirectoryPath, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
         XCTAssertEqual(snapshot.promptResultCount, 1)
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.manifestPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.transcriptPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.promptResultsPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.promptResultsDirectoryPath))
+        let folderEntries = Set(try FileManager.default.contentsOfDirectory(atPath: folderURL.path))
+        XCTAssertTrue(folderEntries.isSuperset(of: [
+            "meeting.m4a",
+            "microphone.m4a",
+            "system.m4a",
+            MeetingRecordingMetadataStore.metadataURL(for: folderURL).lastPathComponent,
+            MeetingArtifactStore.manifestFileName,
+            MeetingArtifactStore.transcriptFileName,
+            MeetingNotesFile.fileURL(for: folderURL).lastPathComponent,
+            MeetingArtifactStore.promptResultsFileName,
+            MeetingArtifactStore.promptResultsDirectoryName,
+        ]))
 
         let notes = try String(contentsOf: MeetingNotesFile.fileURL(for: folderURL), encoding: .utf8)
         XCTAssertEqual(notes, "# Design Review\n\nDecision: ship\nOwner: Dana\n")
@@ -52,16 +72,34 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(transcript["id"] as? String, transcription.id.uuidString)
         XCTAssertEqual(transcript["title"] as? String, "Design Review")
         XCTAssertEqual(transcript["transcript"] as? String, "Clean transcript.")
+        XCTAssertEqual(transcript["sourceType"] as? String, "meeting")
+        XCTAssertEqual(transcript["userNotes"] as? String, "Decision: ship\nOwner: Dana")
 
         let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
         XCTAssertEqual(manifest["schema"] as? String, MeetingArtifactStore.schema)
+        XCTAssertEqual(manifest["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
         let files = try XCTUnwrap(manifest["files"] as? [String: Any])
+        XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(files["mixedAudioPath"] as? String, transcription.filePath)
+        XCTAssertEqual(files["microphoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone.m4a").path)
+        XCTAssertEqual(files["systemAudioPath"] as? String, folderURL.appendingPathComponent("system.m4a").path)
+        XCTAssertEqual(files["metadataPath"] as? String, MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)
+        XCTAssertEqual(files["manifestPath"] as? String, snapshot.manifestPath)
+        XCTAssertEqual(files["transcriptPath"] as? String, snapshot.transcriptPath)
         XCTAssertEqual(files["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
+        XCTAssertEqual(files["promptResultsPath"] as? String, snapshot.promptResultsPath)
+        XCTAssertEqual(files["promptResultsDirectoryPath"] as? String, snapshot.promptResultsDirectoryPath)
+
+        let promptResults = try jsonArray(at: URL(fileURLWithPath: snapshot.promptResultsPath))
+        let promptResult = try XCTUnwrap(promptResults.first)
+        XCTAssertEqual(promptResults.count, 1)
+        XCTAssertEqual(promptResult["index"] as? Int, 1)
+        XCTAssertEqual(promptResult["name"] as? String, "Executive Summary")
 
         let resultFiles = try XCTUnwrap(manifest["promptResults"] as? [[String: Any]])
         XCTAssertEqual(resultFiles.count, 1)
         let resultMarkdownPath = try XCTUnwrap(resultFiles.first?["path"] as? String)
+        XCTAssertEqual(URL(fileURLWithPath: resultMarkdownPath).lastPathComponent, "01-Executive Summary.md")
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
@@ -81,6 +119,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
             ]
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: MeetingNotesFile.fileURL(for: folderURL).path))
+        let staleMarkdownURL = folderURL
+            .appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName)
+            .appendingPathComponent("01-Old Result.md")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleMarkdownURL.path))
 
         var updated = initial
         updated.userNotes = nil
@@ -100,6 +142,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
             atPath: snapshot.promptResultsDirectoryPath
         )
         XCTAssertTrue(resultFiles.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleMarkdownURL.path))
     }
 
     func testMaterializeRejectsNonMeetingRows() async throws {
@@ -150,6 +193,12 @@ final class MeetingArtifactStoreTests: XCTestCase {
     private func jsonObject(at url: URL) throws -> [String: Any] {
         try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+    }
+
+    private func jsonArray(at url: URL) throws -> [[String: Any]] {
+        try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [[String: Any]]
         )
     }
 }

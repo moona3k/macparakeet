@@ -47,6 +47,9 @@ regardless of exit code. When `--json` is passed, both success and post-parse
 failure print a JSON object to stdout; the exit code remains the source of
 truth for branching.
 
+The canonical automation contract for stdout/stderr, envelopes, exit codes,
+and `spec --json` lives in `spec/contracts/cli-json-v1.md`.
+
 ### `--json` failure envelope
 
 Any command that accepts `--json` emits this envelope on stdout when the
@@ -156,7 +159,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   first-class meeting session folder contract and returns a
   `MeetingArtifactSnapshot`. The folder contains `manifest.json`,
   `transcript.json`, `notes.md` when notes exist, `prompt-results.json`, and
-  per-result Markdown files under `prompt-results/`.
+  per-result Markdown files under `prompt-results/`. The canonical folder
+  contract lives in `spec/contracts/meeting-artifacts-v1.md`.
 - `config get|set|list` now includes `meeting-artifacts-folder`, which controls
   the root for future meeting session folders. Use `default` to clear the
   override and return to Application Support.

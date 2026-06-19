@@ -71,10 +71,44 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: external.id)?.filePath, externalPath)
     }
 
+    func testSweepSkipsAnyRecordingLockFileEvenWhenUnreadable() throws {
+        let zeroByte = try makeMeeting(ageDays: 31, rawLockData: Data())
+        let corrupt = try makeMeeting(ageDays: 31, rawLockData: Data("{not-json".utf8))
+        let futureSchema = try makeMeeting(ageDays: 31, rawLockData: Data("""
+        {
+          "schemaVersion": 999,
+          "sessionId": "\(UUID().uuidString)",
+          "startedAt": "2026-06-19T12:00:00Z",
+          "pid": -1,
+          "displayName": "Future Session",
+          "state": "awaitingTranscription"
+        }
+        """.utf8))
+        let eligible = try makeMeeting(ageDays: 31)
+        for meeting in [zeroByte, corrupt, futureSchema, eligible] {
+            try repo.save(meeting.transcription)
+        }
+
+        let result = try MeetingAudioRetentionSweeper(repository: repo)
+            .sweep(retention: .deleteAfterDays(30), now: now)
+
+        XCTAssertEqual(result.evaluatedCount, 4)
+        XCTAssertEqual(result.skippedLockedCount, 3)
+        XCTAssertEqual(result.eligibleCount, 1)
+        XCTAssertEqual(result.detachedCount, 1)
+        for locked in [zeroByte, corrupt, futureSchema] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: locked.folderURL.path))
+            XCTAssertEqual(try repo.fetch(id: locked.transcription.id)?.filePath, locked.audioURL.path)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: eligible.folderURL.path))
+        XCTAssertNil(try repo.fetch(id: eligible.transcription.id)?.filePath)
+    }
+
     private func makeMeeting(
         ageDays: Int,
         recoveredFromCrash: Bool = false,
-        lockState: MeetingRecordingLockState? = nil
+        lockState: MeetingRecordingLockState? = nil,
+        rawLockData: Data? = nil
     ) throws -> (transcription: Transcription, folderURL: URL, audioURL: URL) {
         let folderURL = rootURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
@@ -96,6 +130,9 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
                 ),
                 folderURL: folderURL
             )
+        }
+        if let rawLockData {
+            try rawLockData.write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
         }
 
         return (

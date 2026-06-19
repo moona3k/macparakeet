@@ -93,6 +93,9 @@ have subsystem rules.
   privacy/telemetry, and concurrency need stronger coverage than copy edits.
 - Update docs when user-visible behavior, public CLI behavior, persistence,
   privacy, or release framing changes.
+- Boundary contract changes must update the matching
+  [`spec/contracts/`](./spec/contracts/) document and focused tests in the same
+  PR.
 
 The old manual requirements/traceability workflow is retired. The legacy
 requirements index is archived at

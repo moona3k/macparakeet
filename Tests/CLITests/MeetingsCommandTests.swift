@@ -279,7 +279,14 @@ final class MeetingsCommandTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot["meetingID"] as? String, meeting.id.uuidString)
+        XCTAssertEqual(snapshot["schema"] as? String, MeetingArtifactStore.schema)
+        XCTAssertEqual(snapshot["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
         XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
+        XCTAssertEqual(snapshot["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(snapshot["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
+        XCTAssertEqual(snapshot["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
+        XCTAssertEqual(snapshot["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
+        XCTAssertEqual(snapshot["promptResultsDirectoryPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
         XCTAssertEqual(snapshot["promptResultCount"] as? Int, 1)
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
@@ -330,6 +337,13 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(envelope["command"] as? String, "meetings artifact")
         let data = try XCTUnwrap(envelope["data"] as? [String: Any])
         XCTAssertEqual(data["meetingID"] as? String, meeting.id.uuidString)
+        XCTAssertEqual(data["schema"] as? String, MeetingArtifactStore.schema)
+        XCTAssertEqual(data["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
+        XCTAssertEqual(data["folderPath"] as? String, folderURL.path)
+        XCTAssertEqual(data["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(data["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
+        XCTAssertEqual(data["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
+        XCTAssertEqual(data["promptResultsDirectoryPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
         let meta = try XCTUnwrap(envelope["meta"] as? [String: Any])
         XCTAssertEqual(meta["schemaVersion"] as? Int, 1)
     }

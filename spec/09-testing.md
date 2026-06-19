@@ -134,7 +134,7 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - `transforms` saved-prompt CRUD/run JSON envelopes and local history commands
 - `vocab` process/words/snippets command parsing and JSON output
 
-**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database.
+**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. For DEBUG app-level smoke runs, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory before launching the app so the database, meeting artifacts, AppPaths-managed helper caches, and logs stay away from real user state.
 
 ### LLM Metadata + Transforms Tests
 

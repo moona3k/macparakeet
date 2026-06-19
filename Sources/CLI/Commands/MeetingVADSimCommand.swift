@@ -30,28 +30,30 @@ struct MeetingVADSimCommand: AsyncParsableCommand {
     var json: Bool = false
 
     func run() async throws {
-        let url = URL(fileURLWithPath: (audioPath as NSString).expandingTildeInPath)
-        let modes = try parseModes()
-        let batchSamples = max(1, batchMs) * 16  // 16 samples per ms @ 16kHz
+        try await emitJSONOrRethrow(json: json) {
+            let url = URL(fileURLWithPath: (audioPath as NSString).expandingTildeInPath)
+            let modes = try parseModes()
+            let batchSamples = max(1, batchMs) * 16  // 16 samples per ms @ 16kHz
 
-        let samples = try MeetingVADChunkingSimulator.loadSamples16k(url: url)
-        let level = amplitude(samples)
-        if !json {
-            print(String(format: "audio level     : peak=%@ dBFS  rms=%@ dBFS  (%@)",
-                         dbfsString(level.peakDbfs), dbfsString(level.rmsDbfs), loudnessVerdict(level.rmsDbfs)))
-        }
+            let samples = try MeetingVADChunkingSimulator.loadSamples16k(url: url)
+            let level = amplitude(samples)
+            if !json {
+                print(String(format: "audio level     : peak=%@ dBFS  rms=%@ dBFS  (%@)",
+                             dbfsString(level.peakDbfs), dbfsString(level.rmsDbfs), loudnessVerdict(level.rmsDbfs)))
+            }
 
-        var reports: [MeetingVADChunkingSimulator.Report] = []
-        for m in modes {
-            reports.append(await MeetingVADChunkingSimulator.simulate(
-                samples16k: samples, mode: m, batchSamples: batchSamples))
-        }
+            var reports: [MeetingVADChunkingSimulator.Report] = []
+            for m in modes {
+                reports.append(await MeetingVADChunkingSimulator.simulate(
+                    samples16k: samples, mode: m, batchSamples: batchSamples))
+            }
 
-        if json {
-            try printJSON(reports.map(JSONReport.init))
-        } else {
-            for report in reports { printHuman(report) }
-            if reports.count > 1 { printComparison(reports) }
+            if json {
+                try printJSON(reports.map(JSONReport.init))
+            } else {
+                for report in reports { printHuman(report) }
+                if reports.count > 1 { printComparison(reports) }
+            }
         }
     }
 

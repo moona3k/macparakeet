@@ -178,6 +178,13 @@ The lock file embeds `schemaVersion: 1` and a small state enum
 existing in-flight recordings on a user's machine across an app
 update.
 
+The current lock-file, recovery-discovery, active-session refusal, and
+retention-sweep safety contract is maintained in
+[`spec/contracts/meeting-recovery-retention.md`](../contracts/meeting-recovery-retention.md).
+In particular, automatic destructive sweeps treat any file named
+`recording.lock` as protective, even when the file is corrupt, zero-byte, or a
+future schema.
+
 ### 4. Phased rollout
 
 **Phase 1 (smaller, ships first):** Lock file + recovery flow only,

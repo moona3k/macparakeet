@@ -60,6 +60,19 @@ final class MeetingAudioRetentionPolicyTests: XCTestCase {
         )
     }
 
+    func testHasRecoveryLockRepresentsAnyRecordingLockFilePresence() {
+        let parseableOrNot = candidate(ageDays: 90, hasRecoveryLock: true)
+
+        XCTAssertEqual(
+            MeetingAudioRetentionPolicy.sweep(
+                [parseableOrNot],
+                config: .deleteAfterDays(30),
+                now: now
+            ),
+            []
+        )
+    }
+
     func testCompletedSilentMeetingIsEligible() {
         let silentCompleted = candidate(ageDays: 90)
 

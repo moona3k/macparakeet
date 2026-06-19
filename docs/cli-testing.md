@@ -121,7 +121,9 @@ scripts; the alias remains documented here only while the CLI still exposes it.
 > `jq` or any JSON tool. Side-effect commands generally print a confirmation line;
 > meeting artifact, note, and result commands also accept JSON modes for agent
 > workflows. Commands that support `--envelope` return `{ ok, command, data,
-> meta }` on success without changing their existing `--json` shape.
+> meta }` on success without changing their existing `--json` shape. The
+> canonical automation contract lives in
+> [`spec/contracts/cli-json-v1.md`](../spec/contracts/cli-json-v1.md).
 
 > **Telemetry convention**: CLI telemetry uses the same opt-out preference as
 > the GUI and does not change stdout/stderr contracts. After argument parsing

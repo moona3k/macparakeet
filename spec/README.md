@@ -24,6 +24,13 @@
 | 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, v0.5 implementation contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
 
+## Boundary Contracts
+
+[`spec/contracts/`](contracts/) is the canonical home for tested public and
+semi-public boundaries such as meeting artifact folders, recovery/retention
+safety, and CLI JSON output. Update the matching contract doc and focused tests
+when changing one of those surfaces.
+
 ## Design References
 
 - [UI Patterns](04-ui-patterns.md) is the active product UI contract.

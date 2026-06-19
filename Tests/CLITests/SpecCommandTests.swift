@@ -48,6 +48,45 @@ final class SpecCommandTests: XCTestCase {
         }
     }
 
+    func testSpecJSONDocumentsCLIJSONConventions() throws {
+        let payload = try specPayload()
+        let conventions = try XCTUnwrap(payload["conventions"] as? [String: Any])
+
+        XCTAssertEqual(conventions["jsonDateFormat"] as? String, "iso8601")
+        XCTAssertEqual(conventions["stdout"] as? String, "Machine-readable payloads are written to stdout.")
+        XCTAssertEqual(conventions["stderr"] as? String, "Human progress/status messages are written to stderr.")
+
+        let failureEnvelope = try XCTUnwrap(conventions["failureEnvelope"] as? [String: Any])
+        XCTAssertEqual(Set(try XCTUnwrap(failureEnvelope["fields"] as? [String])), [
+            "ok",
+            "error",
+            "errorType",
+            "fix",
+            "meta",
+        ])
+        XCTAssertEqual(failureEnvelope["okValueOnFailure"] as? Bool, false)
+        XCTAssertEqual(failureEnvelope["appliesAfterArgumentParsing"] as? Bool, true)
+    }
+
+    func testSpecJSONDocumentsPublicExitCodes() throws {
+        let payload = try specPayload()
+        let conventions = try XCTUnwrap(payload["conventions"] as? [String: Any])
+        let exitCodes = try XCTUnwrap(conventions["exitCodes"] as? [[String: Any]])
+        let meaningsByCode = Dictionary(uniqueKeysWithValues: exitCodes.compactMap { entry -> (Int, String)? in
+            guard let code = entry["code"] as? Int,
+                  let meaning = entry["meaning"] as? String else {
+                return nil
+            }
+            return (code, meaning)
+        })
+
+        XCTAssertEqual(Set(meaningsByCode.keys), [0, 1, 2, 130])
+        XCTAssertEqual(meaningsByCode[0], "success")
+        XCTAssertEqual(meaningsByCode[1], "runtime failure after work was attempted")
+        XCTAssertEqual(meaningsByCode[2], "validation or invocation misuse")
+        XCTAssertEqual(meaningsByCode[130], "interrupted by SIGINT")
+    }
+
     func testSpecCatalogDocumentsRegisteredAgentFacingRoots() throws {
         let payload = try specPayload()
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])

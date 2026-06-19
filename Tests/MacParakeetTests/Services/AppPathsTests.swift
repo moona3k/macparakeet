@@ -54,6 +54,39 @@ final class AppPathsTests: XCTestCase {
         XCTAssertEqual(AppPaths.configuredMeetingRecordingsDir(defaults: defaults), custom)
     }
 
+    #if DEBUG
+    func testDebugAppStateDirOverridesAppSupport() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+
+        XCTAssertEqual(AppPaths.resolvedAppSupportDir(environment: environment), root.path)
+        XCTAssertEqual(AppPaths.defaultMeetingRecordingsDir(environment: environment), root.appendingPathComponent("meeting-recordings").path)
+    }
+
+    func testDebugAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {
+        let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let realLookingCustom = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("MacParakeetRealArtifacts")
+            .path
+        defaults.set(realLookingCustom, forKey: AppPaths.meetingArtifactsFolderKey)
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+
+        XCTAssertEqual(
+            AppPaths.configuredMeetingRecordingsDir(defaults: defaults, environment: environment),
+            root.appendingPathComponent("meeting-recordings").path
+        )
+    }
+    #endif
+
     func testLogsDirIsInsideUserLogs() {
         XCTAssertTrue(AppPaths.logsDir.contains("Library/Logs"))
         XCTAssertTrue(AppPaths.logsDir.hasSuffix("MacParakeet"))

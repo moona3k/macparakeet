@@ -130,6 +130,36 @@ final class LLMJSONOutputTests: XCTestCase {
         )
     }
 
+    func testCLIErrorEnvelopeEncodesOptionalFixAndMetaShape() throws {
+        let envelope = CLIErrorEnvelope(
+            ok: false,
+            error: "Bad flag combination.",
+            errorType: "validation",
+            fix: "Run the command with --help.",
+            meta: CLIEnvelopeMeta(
+                schemaVersion: 1,
+                generatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                warnings: ["retry not attempted"]
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .sortedKeys
+        let data = try encoder.encode(envelope)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        XCTAssertEqual(object["ok"] as? Bool, false)
+        XCTAssertEqual(object["error"] as? String, "Bad flag combination.")
+        XCTAssertEqual(object["errorType"] as? String, "validation")
+        XCTAssertEqual(object["fix"] as? String, "Run the command with --help.")
+        let meta = try XCTUnwrap(object["meta"] as? [String: Any])
+        XCTAssertEqual(meta["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(meta["generatedAt"] as? String, "2027-01-15T08:00:00Z")
+        XCTAssertEqual(meta["warnings"] as? [String], ["retry not attempted"])
+    }
+
     func testCLIErrorEnvelopeUsesLocalizedDescriptionFromLLMError() {
         let envelope = CLIErrorEnvelope(error: LLMError.rateLimited)
         XCTAssertFalse(envelope.ok)

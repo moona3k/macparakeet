@@ -55,6 +55,18 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertNil(try store.read(folderURL: folderURL))
     }
 
+    func testReadReturnsAwaitingTranscriptionLockRegardlessOfPID() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let lockFile = makeLockFile(pid: 42, state: .awaitingTranscription)
+        try store.write(lockFile, folderURL: folderURL)
+
+        let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
+
+        XCTAssertEqual(readLockFile.state, .awaitingTranscription)
+        XCTAssertEqual(readLockFile.pid, 42)
+        XCTAssertEqual(readLockFile.folderURL?.standardizedFileURL, folderURL.standardizedFileURL)
+    }
+
     func testDeleteRemovesFile() throws {
         let folderURL = tempRoot.appendingPathComponent("session")
         try store.write(makeLockFile(), folderURL: folderURL)
@@ -145,6 +157,22 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         let active = try store.discoverActiveSessions(meetingsRoot: tempRoot)
 
         XCTAssertTrue(active.isEmpty)
+    }
+
+    func testDiscoverActiveSessionsIsNotRetentionSafetyPredicate() throws {
+        let folderURL = tempRoot.appendingPathComponent("awaiting-transcription")
+        let store = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [])
+        )
+        let awaiting = makeLockFile(pid: 42, state: .awaitingTranscription)
+        try store.write(awaiting, folderURL: folderURL)
+
+        let active = try store.discoverActiveSessions(meetingsRoot: tempRoot)
+        let any = try store.discoverAnySessions(meetingsRoot: tempRoot)
+
+        XCTAssertTrue(active.isEmpty, "active sessions are PID-live only")
+        XCTAssertEqual(any.map(\.sessionId), [awaiting.sessionId])
+        XCTAssertEqual(any.first?.state, .awaitingTranscription)
     }
 
     func testDiscoverActiveSessionsReturnsEmptyForMissingRoot() throws {

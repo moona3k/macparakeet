@@ -4,9 +4,21 @@ import Foundation
 public enum AppPaths {
     public static let preferencesSuiteName = "com.macparakeet.MacParakeet"
     public static let meetingArtifactsFolderKey = "meetingArtifactsFolder"
+    #if DEBUG
+    public static let debugAppStateDirEnvironmentKey = "MACPARAKEET_DEBUG_APP_STATE_DIR"
+    #endif
 
     /// Application Support directory
     public static var appSupportDir: String {
+        resolvedAppSupportDir(environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func resolvedAppSupportDir(environment: [String: String]) -> String {
+        #if DEBUG
+        if let override = debugAppStateDir(environment: environment) {
+            return override
+        }
+        #endif
         let path = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first?
@@ -35,17 +47,36 @@ public enum AppPaths {
         "\(appSupportDir)/meeting-recordings"
     }
 
+    static func defaultMeetingRecordingsDir(environment: [String: String]) -> String {
+        "\(resolvedAppSupportDir(environment: environment))/meeting-recordings"
+    }
+
     /// Audio/artifact storage directory for meeting recordings.
     public static var meetingRecordingsDir: String {
         configuredMeetingRecordingsDir()
     }
 
     public static func configuredMeetingRecordingsDir(defaults: UserDefaults = .standard) -> String {
+        configuredMeetingRecordingsDir(
+            defaults: defaults,
+            environment: ProcessInfo.processInfo.environment
+        )
+    }
+
+    static func configuredMeetingRecordingsDir(
+        defaults: UserDefaults = .standard,
+        environment: [String: String]
+    ) -> String {
+        #if DEBUG
+        if debugAppStateDir(environment: environment) != nil {
+            return defaultMeetingRecordingsDir(environment: environment)
+        }
+        #endif
         if let raw = defaults.string(forKey: meetingArtifactsFolderKey),
            let path = normalizedMeetingArtifactsFolder(raw) {
             return path
         }
-        return defaultMeetingRecordingsDir
+        return defaultMeetingRecordingsDir(environment: environment)
     }
 
     public static func sharedAppDefaults() -> UserDefaults {
@@ -62,6 +93,11 @@ public enum AppPaths {
 
     /// Local diagnostic logs directory.
     public static var logsDir: String {
+        #if DEBUG
+        if let override = debugAppStateDir(environment: ProcessInfo.processInfo.environment) {
+            return "\(override)/logs"
+        }
+        #endif
         let path = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
             .first?
@@ -125,4 +161,20 @@ public enum AppPaths {
         let ffmpegPath = (resourcePath as NSString).appendingPathComponent("ffmpeg")
         return FileManager.default.isExecutableFile(atPath: ffmpegPath) ? ffmpegPath : nil
     }
+
+    #if DEBUG
+    private static func debugAppStateDir(environment: [String: String]) -> String? {
+        guard let raw = environment[debugAppStateDirEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else {
+            return nil
+        }
+        let expanded = (raw as NSString).expandingTildeInPath
+        guard (expanded as NSString).isAbsolutePath else {
+            fatalError("\(debugAppStateDirEnvironmentKey) must be an absolute path")
+        }
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    }
+    #endif
 }
