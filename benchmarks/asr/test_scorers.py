@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import score
 import score_multi
+import paired_delta
 
 _fails: list[str] = []
 
@@ -126,6 +127,10 @@ def test_normalizer_contract():
     check("curly apostrophe -> contraction", canon("it’s"), ["it", "is"])
     check("simple keeps intra-word apostrophe", simple("don't"), ["don't"])
     check("simple strips edge apostrophes/punct", simple("'Quoted,'"), ["quoted"])
+    # the simple normalizer must also fold curly apostrophes (else contractions
+    # split and WER inflates) — same contract as canonical.
+    check("simple folds curly apostrophe", simple("don’t"), simple("don't"))
+    check("simple curly -> single token", simple("don’t"), ["don't"])
 
 
 # --- 5. CER for CJK + Korean ----------------------------------------------
@@ -138,6 +143,9 @@ def test_cer():
     check("is_cer ko_kr", score_multi.is_cer("ko_kr"), True)
     check("is_cer en (WER)", score_multi.is_cer("en"), False)
     check("is_cer de (WER)", score_multi.is_cer("de"), False)
+    check("is_cer zho (639-3)", score_multi.is_cer("zho"), True)
+    check("is_cer zh-Hans", score_multi.is_cer("zh-Hans"), True)
+    check("is_cer kor (639-3)", score_multi.is_cer("kor"), True)
     # char tokenization + spacing robustness
     check("CJK char tokens", score_multi.tokens("我喜欢", "zh"),
           ["我", "喜", "欢"])
@@ -176,9 +184,26 @@ def test_bootstrap():
           score.bootstrap_ci(pairs, 500, 1234))
 
 
+def test_paired_bootstrap():
+    print("paired bootstrap (engine-vs-engine delta):")
+    # A consistently better (1 vs 3 edits / 10 words) -> Δ = -20pt, CI all negative
+    rows = [(1, 3, 10)] * 50
+    p, lo, hi = paired_delta.paired_bootstrap(rows, 500, seed=1234)
+    approx("paired point estimate (A-B)", p, -20.0)
+    check("paired CI excludes 0 (A better)", hi < 0, True)
+    # identical engines -> Δ = 0, zero-width CI
+    rows2 = [(2, 2, 10), (0, 0, 8), (1, 1, 5)]
+    p2, lo2, hi2 = paired_delta.paired_bootstrap(rows2, 500, seed=1234)
+    approx("paired identical -> 0", p2, 0.0)
+    check("paired identical CI is (0,0)", (round(lo2, 6), round(hi2, 6)), (0.0, 0.0))
+    check("paired deterministic (same seed)",
+          paired_delta.paired_bootstrap(rows, 300, 7), paired_delta.paired_bootstrap(rows, 300, 7))
+    check("paired off when n_boot=0", paired_delta.paired_bootstrap(rows, 0, 1)[1], None)
+
+
 def main() -> int:
     for t in (test_edit_counts, test_total_edits_match_levenshtein, test_wer_end_to_end,
-              test_normalizer_contract, test_cer, test_bootstrap):
+              test_normalizer_contract, test_cer, test_bootstrap, test_paired_bootstrap):
         t()
     print()
     if _fails:

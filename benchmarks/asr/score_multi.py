@@ -44,7 +44,8 @@ def lang_base(lang: str) -> str:
 
 def is_cer(lang: str) -> bool:
     l = lang_base(lang)
-    return l in _CER_LANGS or l.split("_")[0] in {"ja", "zh", "cmn", "yue", "th"}
+    head = l.replace("-", "_").split("_")[0]  # ko_kr / zh-Hans / zho -> ko / zh / zho
+    return l in _CER_LANGS or head in {"ja", "zh", "zho", "cmn", "yue", "th", "ko", "kor"}
 
 
 def normalize(text: str, lang: str) -> str:

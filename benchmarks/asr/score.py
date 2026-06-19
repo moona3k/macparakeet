@@ -44,6 +44,8 @@ _CURLY = {"’": "'", "‘": "'", "“": '"', "”": '"'}
 
 
 def _simple_tokens(text: str) -> list[str]:
+    for k, v in _CURLY.items():  # fold curly quotes first, like the canonical path
+        text = text.replace(k, v)
     text = _PUNCT.sub(" ", text.lower())
     out = []
     for tok in text.split():
@@ -69,6 +71,10 @@ def make_normalizer(mode: str):
 
 
 # --- edit distance ---------------------------------------------------------
+# NOTE: the total edits (I+D+S) are canonical and path-independent; the
+# individual I/D/S split can differ between the jiwer and pure-Python paths when
+# multiple equal-cost alignments exist (different tie-breaking). Every reported
+# metric (WER, p90, failure-rate, CI) uses the total, so they are unaffected.
 
 try:
     import jiwer

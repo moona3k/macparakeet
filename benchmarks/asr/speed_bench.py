@@ -94,7 +94,8 @@ def measure_macparakeet(engine: str, cli: Path, files: list[Path], n: int) -> di
         # warm batch: fresh process, N files (model loads once, then N inferences)
         wN, rss = run_mp(cli, flags, files[:n], work / "b")
         aN = sum(audio_seconds(f) for f in files[:n])
-        steady = (aN - a1) / (wN - w1) if wN > w1 else None
+        # guard a tiny denominator (measurement jitter) from exploding the ratio
+        steady = (aN - a1) / (wN - w1) if (wN - w1) >= 0.05 else None
         return dict(engine=engine, method="mp-cli diff(1,N)", n_files=n,
                     cold_start_s=round(w1, 2), steady_rtfx=round(steady, 1) if steady else None,
                     peak_rss_mb=round(rss) if rss else None,

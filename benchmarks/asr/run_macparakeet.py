@@ -46,7 +46,7 @@ def load_refs(dataset: Path) -> dict[str, str]:
     for trans in sorted(dataset.glob("*/*/*.trans.txt")):
         for line in trans.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                utt, text = line.split(" ", 1)
+                utt, _, text = line.partition(" ")  # tolerate id-only lines
                 refs[utt] = text
     return refs
 
