@@ -35,7 +35,13 @@ struct ConfigCommand: ParsableCommand {
           speaker-detection         on|off                          default: off
           auto-meeting-titles       on|off                          default: on
           save-transcription-audio  on|off                          default: on
-          save-meeting-audio        on|off                          default: on
+          meeting-audio-retention   keep-forever|                   default: keep-forever
+                                    delete-after-7-days|
+                                    delete-after-14-days|
+                                    delete-after-30-days|
+                                    delete-after-90-days|
+                                    delete-immediately
+          save-meeting-audio        on|off                          legacy alias
           youtube-audio-quality     m4a|best-available              default: m4a
           meeting-artifacts-folder  absolute path|default           default: app support
           meeting-hook-enabled      on|off                          default: off
@@ -66,6 +72,7 @@ struct ConfigCommand: ParsableCommand {
         "speaker-detection",
         "auto-meeting-titles",
         "save-transcription-audio",
+        "meeting-audio-retention",
         "save-meeting-audio",
         "youtube-audio-quality",
         "meeting-artifacts-folder",
@@ -197,8 +204,10 @@ struct ConfigCommand: ParsableCommand {
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
+        case "meeting-audio-retention":
+            return UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: store).configurationValue
         case "save-meeting-audio":
-            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool ?? true
+            let on = UserDefaultsAppRuntimePreferences(defaults: store).shouldSaveMeetingAudio
             return on ? "on" : "off"
         case "youtube-audio-quality":
             return displayYouTubeAudioQuality(YouTubeAudioQuality.current(defaults: store))
@@ -272,9 +281,16 @@ struct ConfigCommand: ParsableCommand {
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)
             return parsed ? "on" : "off"
+        case "meeting-audio-retention":
+            let retention = try parseMeetingAudioRetention(value)
+            UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(retention, defaults: store)
+            return retention.configurationValue
         case "save-meeting-audio":
             let parsed = try parseBool(value, key: key)
-            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+            UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(
+                parsed ? .keepForever : .deleteImmediately,
+                defaults: store
+            )
             return parsed ? "on" : "off"
         case "youtube-audio-quality":
             let quality = try parseYouTubeAudioQuality(value)
@@ -433,6 +449,13 @@ struct ConfigCommand: ParsableCommand {
         case .bestAvailable:
             return "best-available"
         }
+    }
+
+    static func parseMeetingAudioRetention(_ value: String) throws -> MeetingAudioRetention {
+        guard let retention = MeetingAudioRetention.parseConfigurationValue(value) else {
+            throw ValidationError("Invalid value for meeting-audio-retention: '\(value)'. Use keep-forever, delete-immediately, or delete-after-7-days/delete-after-14-days/delete-after-30-days/delete-after-90-days.")
+        }
+        return retention
     }
 
     static func parseMeetingArtifactsFolder(_ value: String) throws -> String? {

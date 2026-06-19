@@ -322,11 +322,25 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .saveTranscriptionAudio))
         }
     }
-    public var saveMeetingAudio: Bool {
+    public var meetingAudioRetention: MeetingAudioRetention {
         didSet {
-            defaults.set(saveMeetingAudio, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
-            Telemetry.send(.settingChanged(setting: .saveMeetingAudio))
+            guard meetingAudioRetention != oldValue else { return }
+            UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(
+                meetingAudioRetention,
+                defaults: defaults
+            )
+            NotificationCenter.default.post(name: .macParakeetMeetingAudioRetentionDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .meetingAudioRetention))
         }
+    }
+    public var saveMeetingAudio: Bool {
+        get { meetingAudioRetention.shouldSaveFreshAudio }
+        set {
+            setMeetingAudioRetention(newValue ? .keepForever : .deleteImmediately)
+        }
+    }
+    public var savedMeetingAudioRetentionDays: Int {
+        UserDefaultsAppRuntimePreferences.meetingAudioRetentionDeleteAfterDays(defaults: defaults)
     }
 
     // Transcription
@@ -627,7 +641,7 @@ public final class SettingsViewModel {
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
-        saveMeetingAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool ?? true
+        meetingAudioRetention = UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults)
         youtubeAudioQuality = YouTubeAudioQuality.current(defaults: defaults)
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
         // Ensure auto-save folders are configured before reading paths.
@@ -714,6 +728,26 @@ public final class SettingsViewModel {
 
         let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
         if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }
+    }
+
+    public func setMeetingAudioRetention(_ retention: MeetingAudioRetention) {
+        meetingAudioRetention = MeetingAudioRetention.make(
+            mode: retention.mode,
+            days: retention.mode == .deleteAfterDays
+                ? retention.deleteAfterDays
+                : savedMeetingAudioRetentionDays
+        )
+    }
+
+    public func requiresMeetingAudioRetentionConfirmation(for retention: MeetingAudioRetention) -> Bool {
+        retention.automaticallyDeletesAudio
+            && !meetingAudioRetention.automaticallyDeletesAudio
+            && !defaults.bool(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionAutoDeleteConfirmedKey)
+    }
+
+    public func confirmMeetingAudioRetentionChange(_ retention: MeetingAudioRetention) {
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionAutoDeleteConfirmedKey)
+        setMeetingAudioRetention(retention)
     }
 
     private static func resolveCalendarAutoStartMode(defaults: UserDefaults) -> CalendarAutoStartMode {
