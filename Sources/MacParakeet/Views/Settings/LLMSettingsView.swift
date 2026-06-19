@@ -173,6 +173,10 @@ struct LLMSettingsView: View {
 
             Divider()
 
+            meetingTitlesSection
+
+            Divider()
+
             aiFormatterSection
         }
     }
@@ -385,6 +389,33 @@ struct LLMSettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .id("ai.transcriptContext")
+    }
+
+    private var meetingTitlesSection: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Meeting titles")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                Text("Use the saved AI provider to replace timestamp-only meeting names with short topic titles after transcription.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Toggle("Auto-title meetings", isOn: $viewModel.autoGenerateMeetingTitles)
+                .toggleStyle(.switch)
+                .font(DesignSystem.Typography.caption.weight(.medium))
+                .fixedSize()
+                .disabled(!viewModel.isConfigured)
+                .help(
+                    viewModel.isConfigured
+                        ? "Generate a meeting title from the completed transcript."
+                        : "Set up an AI provider to generate meeting titles."
+                )
+        }
+        .id("ai.meetingTitles")
     }
 
     @ViewBuilder

@@ -215,6 +215,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let shouldAutoGenerateMeetingTitles: @Sendable () -> Bool
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
@@ -242,6 +243,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
@@ -267,6 +269,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.shouldAutoGenerateMeetingTitles = shouldAutoGenerateMeetingTitles ?? { false }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
         self.youtubeDownloader = youtubeDownloader
@@ -1594,6 +1597,15 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             excluding: transcription.derivedTitle
         ) ?? ""
 
+        if persistResult, source == .meeting,
+           let generatedTitle = try await generateMeetingTitleIfNeeded(
+               transcriptText: derivationSource,
+               currentTitle: transcription.fileName
+           ) {
+            transcription.fileName = generatedTitle
+            transcription.derivedTitle = generatedTitle
+        }
+
         transcription.status = .completed
         transcription.updatedAt = Date()
         if persistResult {
@@ -1637,6 +1649,22 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         )
 
         return transcription
+    }
+
+    private func generateMeetingTitleIfNeeded(
+        transcriptText: String?,
+        currentTitle: String
+    ) async throws -> String? {
+        guard let transcriptText else { return nil }
+        let generator = MeetingTitleGenerator(
+            llmService: llmService,
+            shouldGenerate: shouldAutoGenerateMeetingTitles,
+            logger: logger
+        )
+        return try await generator.generateTitle(
+            transcript: transcriptText,
+            currentTitle: currentTitle
+        )
     }
 
     private func materializeMeetingArtifactIfPossible(_ transcription: Transcription) async {

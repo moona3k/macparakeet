@@ -86,6 +86,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `config get|set|list` now includes `auto-meeting-titles`, the shared
+  on/off preference for LLM-generated meeting recording titles.
+
 ### Changed
 
 - `models download parakeet-unified` now prepares both Parakeet Unified int8

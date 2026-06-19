@@ -139,6 +139,16 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingTitleQueriesFindMeetingTitlesEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingTitles" })
+        XCTAssertEqual(entry.cardAnchor, "ai.meetingTitles")
+
+        for query in ["meeting title", "auto-title", "automatic title", "recording title"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("ai.meetingTitles"), "Query \(query) should find Meeting Titles")
+        }
+    }
+
     func testAIFormatterSmartDefaultsQueriesFindFormatterEntry() {
         // "formatter" must find the always-visible card in both flag states;
         // profile-specific queries only resolve when profiles are enabled.

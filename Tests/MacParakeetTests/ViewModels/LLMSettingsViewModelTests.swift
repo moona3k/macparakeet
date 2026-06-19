@@ -87,6 +87,25 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(reloaded.aiFormatterEnabledForTranscriptions)
     }
 
+    func testAutoGenerateMeetingTitlesDefaultsToTrue() {
+        XCTAssertTrue(viewModel.autoGenerateMeetingTitles)
+    }
+
+    func testAutoGenerateMeetingTitlesPersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey
+
+        viewModel.autoGenerateMeetingTitles = false
+
+        XCTAssertEqual(defaults.object(forKey: key) as? Bool, false)
+        XCTAssertFalse(LLMSettingsViewModel(defaults: defaults).autoGenerateMeetingTitles)
+    }
+
+    func testAutoGenerateMeetingTitlesLoadsStoredValueOnInit() {
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey)
+        let reloaded = LLMSettingsViewModel(defaults: defaults)
+        XCTAssertFalse(reloaded.autoGenerateMeetingTitles)
+    }
+
     func testSaveConfigurationPreservesTranscriptsOptOut() throws {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -140,6 +159,22 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(
             defaults.object(
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
+            ) as? Bool,
+            true
+        )
+    }
+
+    func testClearConfigurationRestoresMeetingTitlesDefault() {
+        mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.autoGenerateMeetingTitles = false
+
+        viewModel.clearConfiguration()
+
+        XCTAssertTrue(viewModel.autoGenerateMeetingTitles)
+        XCTAssertEqual(
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey
             ) as? Bool,
             true
         )
