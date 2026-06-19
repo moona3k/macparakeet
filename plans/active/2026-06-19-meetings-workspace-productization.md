@@ -42,7 +42,7 @@ indexing, and cross-meeting Ask.
 | Suggestion | Verdict | MacParakeet-shaped interpretation |
 |------------|---------|-----------------------------------|
 | Turn Meetings into the daily workspace | Valid and near-term | Keep the existing native `MeetingsView`, but make it more compact and scannable: live status, next meetings, needs attention, previous meetings, All Notes entry point, search, and quick start in one workspace. |
-| Add folders/tags/projects for meeting notes | Valid, but staged | Store organization in SQLite, not filesystem folders. Start with folders/projects as user-visible collections; add tags once the collection model is proven. Mirror metadata into artifacts as a snapshot, not the source of truth. |
+| Add folders/tags/projects for meeting notes | Valid, but staged | Store organization in SQLite, not filesystem folders. Start with folders/projects as user-visible collections; add tags once the collection model is proven. Enforce exclusive folder/project assignment in the persistence layer, not only in UI state. Mirror metadata into artifacts as a refreshable snapshot, not the source of truth. |
 | Add cross-meeting Ask after local indexing | Valid later | Current Ask is per transcript. Build a local FTS/index layer over transcripts, notes, summaries, and prompt results first; then add Ask with bounded citations and explicit privacy behavior. |
 | Make artifacts more visible | Valid and small | The artifact store already writes `manifest.json`, `transcript.json`, `notes.md`, and prompt-result files. The UI should expose "Open Meeting Folder" and "Copy Artifact Path" independently from audio-file availability. |
 | Add full-app meeting smoke tests | Valid, with harness work | Existing coverage is strong at unit/integration level, but there is no UI-test target. Add a DEBUG/test launch seam and smoke harness before relying on Steno-style app workflow proof. |
@@ -108,7 +108,7 @@ indexing, and cross-meeting Ask.
 - Add a full-app smoke foundation for meeting workflows using throwaway app
   state, debug launch seams, or an equivalent safe harness.
 - Add DB-backed organization for meeting notes and recordings, with artifacts
-  mirroring organization metadata as a snapshot.
+  mirroring organization metadata as a refreshable snapshot.
 - Add a local meeting index over transcript, notes, summaries, and prompt
   results before cross-meeting Ask.
 - Add cross-meeting Ask only after the local index exists and privacy behavior
@@ -170,6 +170,14 @@ indexing, and cross-meeting Ask.
   membership and cannot show conflicting organization state.
 - R9. Artifact manifests may include organization metadata as a snapshot, but
   the DB remains canonical.
+- R9a. If folders/projects are exclusive, exclusivity is enforced by the
+  repository and, where the chosen schema permits it, by SQLite constraints.
+  Tags may remain many-to-many, but folder/project assignment cannot rely only
+  on SwiftUI selection state.
+- R9b. Collection rename, delete, reorder, and membership changes define a
+  manifest refresh strategy. UI reads current organization from SQLite; artifact
+  manifests are last-materialized snapshots refreshed during materialization,
+  export/open-folder actions, or an explicit best-effort batch refresh.
 
 ### Local index and cross-meeting Ask
 
@@ -183,6 +191,10 @@ indexing, and cross-meeting Ask.
   strand meetings outside Ask/search.
 - R13. Cross-meeting Ask responses cite source meetings and let users open the
   source meeting detail.
+- R13a. Citations use stable meeting IDs and a typed local route, not
+  title-only text or filesystem paths. A renderer may expose that route as a
+  Markdown link such as `macparakeet://meetings/<uuid>?snippet=<snippet-id>`
+  after URL handling exists, but the model contract is the typed route.
 - R14. Cross-meeting Ask assembles a bounded context from local search results,
   never all meeting history.
 - R15. Privacy behavior is explicit: local indexing is always on-device; remote
@@ -224,6 +236,16 @@ indexing, and cross-meeting Ask.
   model can support folder/project/tag kinds, but the first UI should stay
   simple. If the implementation proves a unified model adds risk, ship folders
   first and add tags later without blocking the workspace improvements.
+- **Make organization constraints explicit.** If the product rule is "one
+  folder" or "one project" per meeting, that rule belongs in persistence and
+  repository tests. For a unified collection model, prefer membership rows that
+  carry `collectionKind`, a composite foreign key to the collection identity,
+  and a partial unique index for exclusive kinds; otherwise choose a narrower
+  folder/project schema that encodes exclusivity directly.
+- **Treat artifact organization as a snapshot.** Manifests can help automation
+  and support, but they cannot be the source of current folder/project state.
+  Collection writes should either refresh affected manifests best-effort or
+  guarantee the next materialization/export/open-folder action refreshes them.
 - **Index before Ask.** The current scan-based repository search is not the
   right foundation for cross-meeting Ask. Add a local FTS/index service first,
   then use it for retrieval, citations, and bounded prompt context.
@@ -404,12 +426,22 @@ from local retrieval.
     unified model.
   - If using a unified model, include a constrained `kind` such as `folder`,
     `project`, and `tag`, but expose only the kinds that have finished UX.
+  - Encode exclusive folder/project semantics below the UI. For a unified
+    schema, membership rows should include the collection kind, validate it
+    against the collection via repository code and preferably a composite
+    foreign key, and use a partial unique index so a meeting cannot have two
+    active memberships for the same exclusive kind. If that is too much
+    migration risk, use a narrower folder/project schema that makes one active
+    assignment per kind structurally obvious.
   - Enforce source-type rules in repository/service code: only meeting
     transcriptions can be assigned.
   - Preserve deletion semantics with foreign keys or explicit cleanup when a
     meeting or collection is deleted.
   - Mirror collection names/IDs into `manifest.json` as a snapshot after
-    materialization, but keep the DB canonical.
+    materialization, but keep the DB canonical. Collection rename/delete/reorder
+    and membership changes should trigger either best-effort rematerialization
+    for affected existing artifact folders or a clearly documented lazy refresh
+    on next materialize/export/open-folder action.
 - **Patterns to follow:**
   - One repository per table from `Sources/MacParakeetCore/Database/README.md`.
   - GRDB `fetchOne(key:)` and Codable-aware predicates for UUID lookups.
@@ -417,13 +449,18 @@ from local retrieval.
 - **Test scenarios:**
   - Creating, renaming, archiving/deleting, and reordering collections persists
     across reopening a file-backed database.
-  - Assigning a meeting to multiple supported collection kinds returns the same
-    membership from repository fetch and filtered library queries.
+  - Assigning a meeting to a second folder or project replaces the prior
+    assignment or returns an explicit validation result, according to the
+    chosen UX. Assigning tags remains many-to-many only if tags ship.
+  - Repository tests prove folder/project exclusivity at the lowest layer that
+    the chosen schema supports.
   - Assigning a non-meeting transcription fails or is ignored with an explicit
     result.
   - Deleting a meeting removes memberships without deleting the collection.
   - Materializing artifacts after collection changes writes a manifest snapshot
-    without making the manifest canonical.
+    without making the manifest canonical; rename/delete/membership changes are
+    either rematerialized best-effort or refreshed by the next documented
+    artifact action.
 - **Verification:** In-memory and file-backed DB tests cover migration,
   repository behavior, and artifact snapshot updates.
 
@@ -525,7 +562,11 @@ from local retrieval.
   - Add an Ask surface in Meetings after the index can return cited snippets.
   - Retrieve top matching snippets locally, group by meeting, and assemble a
     bounded prompt context with meeting title/date/source anchors.
-  - Show citations in the answer so users can open source meetings.
+  - Show citations in the answer so users can open source meetings. The
+    citation model should carry meeting UUID, optional snippet ID/range, display
+    title, and date. Rendering may use a local URL like
+    `macparakeet://meetings/<uuid>?snippet=<snippet-id>`, but routing tests
+    should target the typed route so the app is not coupled to Markdown text.
   - Reuse provider setup status from existing LLM settings. If no provider is
     configured, show setup state rather than pretending local index alone can
     answer.
@@ -543,6 +584,8 @@ from local retrieval.
   - If retrieval returns no snippets, Ask responds with a grounded empty state
     and does not send an empty all-history prompt.
   - Answer citations open the correct meeting detail.
+  - Citation routing uses stable meeting IDs, rejects missing/deleted meetings
+    gracefully, and never depends on a title string or artifact path.
   - Telemetry/LLM run metadata records provider/model/timing only and no
     transcript or notes content.
 - **Verification:** ViewModel and service tests cover prompt assembly,

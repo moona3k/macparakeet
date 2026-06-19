@@ -59,7 +59,10 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
   `awaitingTranscription` lock when a completed transcript already exists.
 - `plans/active/2026-06-18-meeting-audio-retention-ndays.md:75-86` already
   states the key retention safety rule: skip any `recording.lock` in any state,
-  live or dead PID.
+  live or dead PID. This plan tightens that into a file-presence rule for
+  automatic destructive sweeps: zero-byte, corrupt, or otherwise unreadable
+  lock files are still retention-protected until recovery or explicit user
+  action resolves them.
 - `Sources/CLI/CHANGELOG.md:35-85` documents exit codes and the `--json`
   failure envelope; `:142-166` documents meeting artifact and meeting audio CLI
   additions; `:331-332` says `spec --json` prints the machine-readable CLI
@@ -112,8 +115,9 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
   files/tests that enforce it.
 - The DB row stays canonical for meetings. The session folder is the durable
   local artifact surface, not the source of truth for all meeting metadata.
-- Recovery input is protected. Any `recording.lock` means "do not sweep this
-  folder automatically" until recovery or explicit user action resolves it.
+- Recovery input is protected. Any file named `recording.lock` means "do not
+  sweep this folder automatically" until recovery or explicit user action
+  resolves it, even if the lock file cannot be parsed.
 - CLI stdout remains machine-readable in JSON mode. Human progress/status stays
   on stderr.
 - Contract docs describe stable and non-stable fields separately so additive
@@ -147,8 +151,10 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
 - R7. The recovery/retention contract documents `recording.lock` fields,
   `recording` vs `awaitingTranscription`, PID-liveness semantics, and the
   difference between recovery orphan discovery and retention sweep safety.
-- R8. The contract requires retention-like code to skip any valid
-  `recording.lock` in any state, regardless of PID liveness.
+- R8. The contract requires retention-like code to skip any file named
+  `recording.lock` in any state, regardless of PID liveness or parse success.
+  Corrupt, truncated, zero-byte, future-schema, and otherwise unreadable lock
+  files are protective barriers for automatic destructive sweeps.
 - R9. Tests assert `MeetingRecordingLockFileStore.read(folderURL:)` returns
   dead-PID `awaitingTranscription` locks and that `discoverActiveSessions` is
   not the generic "safe to mutate" predicate.
@@ -187,9 +193,11 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
 - **Keep `spec --json` as the CLI machine contract.** Do not create a second
   JSON catalog in docs. `spec/contracts/cli-json-v1.md` explains the public
   rules and points to `SpecCommand` as the generated/encoded surface.
-- **Treat any lock as retention-protected.** PID liveness is useful for
-  recovery discovery and active-session CLI refusal, but destructive automatic
-  sweeps must skip valid lock files even when the owner PID is dead.
+- **Treat any lock file as retention-protected.** PID liveness and lock parsing
+  are useful for recovery discovery and active-session CLI refusal, but
+  destructive automatic sweeps must skip the folder whenever `recording.lock`
+  exists. A malformed lock is a recovery/diagnostic problem, not permission to
+  delete audio.
 - **Document non-stable values.** Contract tests should avoid freezing
   generated timestamps, absolute user paths, or incidental pretty-printing
   beyond the existing CLI encoder conventions.
@@ -264,7 +272,8 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
   - State the three predicates separately:
     - recovery orphan discovery: valid lock plus dead owner PID
     - active-session CLI refusal: valid lock plus live owner PID
-    - automatic destructive safety: any valid lock, live or dead PID
+    - automatic destructive safety: any `recording.lock` file, parseable or
+      not, live or dead PID
   - State that `awaitingTranscription` means finalized audio waiting for
     transcription/recovery and is not safe for retention sweep deletion.
   - Add a pointer from ADR-019 or the audio-pipeline spec to the contract
@@ -274,6 +283,9 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
     `awaitingTranscription` lock is still returned by `read(folderURL:)`.
   - Add a test name/comment making clear `discoverActiveSessions` is PID-live
     only and must not be reused as a retention safety predicate.
+  - Add retention-policy coverage, once the policy exists, that zero-byte,
+    corrupt/unparseable, and future-schema `recording.lock` files all block
+    automatic sweep deletion.
   - Keep or tighten the existing recovery tests that completed
     `awaitingTranscription` sessions delete the lock but keep the completed
     meeting folder/audio.
@@ -338,7 +350,9 @@ meeting artifacts, recovery/retention safety, and CLI JSON/spec output.
 - **AE2. Retention safety drift:** A future retention sweep tries to use
   `discoverActiveSessions(...)` as its only in-flight guard. The contract says
   that is PID-live only, and the lock-store tests demonstrate why dead-PID
-  `awaitingTranscription` locks still matter.
+  `awaitingTranscription` locks still matter. A separate retention-policy test
+  proves that a corrupt or zero-byte `recording.lock` also blocks automatic
+  deletion.
 - **AE3. CLI automation drift:** A future command writes human progress to
   stdout in JSON mode or changes the failure-envelope fields. CLI tests fail,
   and `spec/contracts/cli-json-v1.md` points to the public compatibility rule.

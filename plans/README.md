@@ -70,7 +70,8 @@
 
 1. **Ship dictation-first onboarding (Part A).** Biggest activation lever, low risk, telemetry-backed. Plan is executor-grade as of 2026-06-13 — dispatchable now. (Funnel is already instrumented via `onboarding_step`; the lift is confirmed by post-ship analysis, not new telemetry — see the plan's "Verifying the lift".)
 2. **Dispatch the two P1/P2 executor-ready test plans** (onboarding-stall-watchdog → june-churn regression). They close the named coverage gaps in the highest-incident area.
-3. **Land the telemetry-allowlist CI guard**, then add the `WEBSITE_REPO_TOKEN` secret to enforce it.
+3. **Dispatch boundary contract docs + contract tests** before destructive meeting-retention work or broader meeting workspace automation. It makes artifact, recovery/retention, and CLI JSON boundaries explicit and test-linked.
+4. **Land the telemetry-allowlist CI guard**, then add the `WEBSITE_REPO_TOKEN` secret to enforce it.
 
 ## Dependency notes
 
