@@ -108,8 +108,11 @@ def measure_cohere(fa: Path, model_dir: Path, n: int) -> dict:
     work = Path(tempfile.mkdtemp(prefix="speed-cohere-"))
     out = work / "cohere.json"
     try:
-        cmd = [str(fa), "cohere-benchmark", "--model-dir", str(model_dir),
-               "--subset", "test-clean", "--max-files", str(n), "--output", str(out)]
+        # --dataset librispeech matters: it defaults to fleurs, which would
+        # silently measure a different dataset than the accuracy run.
+        cmd = [str(fa), "cohere-benchmark", "--dataset", "librispeech",
+               "--subset", "test-clean", "--model-dir", str(model_dir),
+               "--max-files", str(n), "--output", str(out)]
         wall, stderr, rc = time_l(cmd)
         if rc != 0 or not out.exists():
             raise SystemExit(f"cohere-benchmark exit {rc}, json={out.exists()}\n{stderr[-800:]}")
