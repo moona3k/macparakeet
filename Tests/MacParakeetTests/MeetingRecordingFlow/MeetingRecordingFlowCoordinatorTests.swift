@@ -309,8 +309,6 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 
     func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {}
 
-    func discardStoppedRecording(_ recording: MeetingRecordingOutput) async {}
-
     func cancelRecording() async {}
 
     func pauseRecording() async {}

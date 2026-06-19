@@ -17,7 +17,7 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .idle, .finishing:
             return false
-        case .checkingPermissions, .starting, .recording, .stopping, .transcribing:
+        case .checkingPermissions, .starting, .recording, .stopping:
             return true
         }
     }
@@ -34,7 +34,7 @@ final class MeetingRecordingFlowCoordinator {
             return .starting
         case .recording:
             return .recording
-        case .stopping, .transcribing:
+        case .stopping:
             return .finishing
         }
     }
@@ -75,12 +75,6 @@ final class MeetingRecordingFlowCoordinator {
     private var transcriptObservationTask: Task<Void, Never>?
     private var speechWarmUpObservationTask: Task<Void, Never>?
     private var activeFlowSettlementWaiters: [CheckedContinuation<Void, Never>] = []
-    private var completedTranscription: Transcription?
-    /// The finalized recording whose final transcription is currently in
-    /// flight. Published by the `.stopRecordingAndTranscribe` task the moment
-    /// `stopRecording()` returns, so the abort path (issue #487) knows which
-    /// session to keep or delete. Cleared on completion and flow teardown.
-    private var currentTranscribingOutput: MeetingRecordingOutput?
     private var currentMeetingOperationContext: ObservabilityOperationContext?
     private var currentMeetingTrigger: TelemetryMeetingOperationTrigger?
     private var pendingAudioSourceMode: MeetingAudioSourceMode?
@@ -219,7 +213,7 @@ final class MeetingRecordingFlowCoordinator {
             startRecording(trigger: trigger)
         case .recording, .starting, .stopping:
             stopRecording(trigger: trigger)
-        case .checkingPermissions, .transcribing, .finishing:
+        case .checkingPermissions, .finishing:
             break
         }
     }
@@ -236,7 +230,7 @@ final class MeetingRecordingFlowCoordinator {
             currentMeetingTrigger = trigger
             sendEvent(.stopRequested)
             return true
-        case .idle, .checkingPermissions, .stopping, .transcribing, .finishing:
+        case .idle, .checkingPermissions, .stopping, .finishing:
             return false
         }
     }
@@ -420,12 +414,9 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showRecordingPill:
-            currentTranscribingOutput = nil
             let vm = pillViewModel
             vm.onStop = { [weak self] in self?.toggleRecording() }
             vm.onPauseToggle = { [weak self] in self?.togglePause() }
-            vm.onAbortTranscription = { [weak self] in self?.confirmAndAbortTranscription() }
-            vm.canAbortTranscription = false
             vm.elapsedSeconds = 0
             vm.micLevel = 0
             vm.systemLevel = 0
@@ -485,9 +476,6 @@ final class MeetingRecordingFlowCoordinator {
             }
             pillController?.onPauseToggle = { [weak self] in
                 self?.togglePause()
-            }
-            pillController?.onStopTranscription = { [weak self] in
-                self?.confirmAndAbortTranscription()
             }
             if panelController == nil {
                 let controller = MeetingRecordingPanelController(viewModel: panelVM)
@@ -569,20 +557,9 @@ final class MeetingRecordingFlowCoordinator {
             pillController?.refreshState()
             pillViewModel.onCompletionAnimationFinished = { [weak self] in
                 guard let self, self.pillViewModel.state == .completing else { return }
-                // Flower collapsed — show merkaba spinner (or checkmark if already done)
-                if self.completedTranscription != nil {
-                    self.pillViewModel.state = .completed
-                    // Auto-dismiss was skipped during collapse — start it now
-                    self.autoDismissTask?.cancel()
-                    let gen = self.stateMachine.generation
-                    self.autoDismissTask = Task { @MainActor [weak self] in
-                        try? await Task.sleep(for: .seconds(2))
-                        guard !Task.isCancelled else { return }
-                        self?.sendEvent(.autoDismissExpired(generation: gen))
-                    }
-                } else {
-                    self.pillViewModel.state = .transcribing
-                }
+                // Flower collapsed — show the merkaba spinner while the durable
+                // stop boundary finishes queueing the background transcription.
+                self.pillViewModel.state = .transcribing
                 self.pillController?.refreshState()
             }
             panelViewModel?.state = .transcribing
@@ -627,15 +604,11 @@ final class MeetingRecordingFlowCoordinator {
                     }
                     self.currentMeetingOperationContext = nil
                     self.currentMeetingTrigger = nil
-                    self.currentTranscribingOutput = nil
-                    self.pillViewModel.canAbortTranscription = false
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
                     if let stoppedOutput {
                         await meetingRecordingService.finishTranscriptionAttempt(for: stoppedOutput)
                     }
-                    self.currentTranscribingOutput = nil
-                    self.pillViewModel.canAbortTranscription = false
                     if error is CancellationError {
                         self.sendMeetingOperation(
                             outcome: .cancelled,
@@ -666,18 +639,6 @@ final class MeetingRecordingFlowCoordinator {
                 }
             }
 
-        case .showCompleted:
-            stopPillPolling()
-            stopTranscriptObservation()
-            stopSpeechWarmUpObservation()
-            // If flower is still collapsing, the callback will check completedTranscription
-            // If spinner is showing, transition to checkmark now
-            if pillViewModel.state == .transcribing {
-                pillViewModel.state = .completed
-                pillController?.refreshState()
-            }
-            panelViewModel?.state = .hidden
-
         case .cancelRecording:
             let durationSeconds = Double(panelViewModel?.elapsedSeconds ?? 0)
             let notesVM = panelViewModel?.notesViewModel
@@ -703,27 +664,6 @@ final class MeetingRecordingFlowCoordinator {
                 )
                 self.currentMeetingOperationContext = nil
                 self.currentMeetingTrigger = nil
-            }
-
-        case .abortTranscription(let keepAudio):
-            let cancelledTask = actionTask
-            let output = currentTranscribingOutput
-            currentTranscribingOutput = nil
-            cancelledTask?.cancel()
-            actionTask = Task { @MainActor in
-                // Drain the cancelled stop+transcribe task first so its catch
-                // block has released the speech-engine lease and persisted the
-                // row's `.cancelled` status before any cleanup below. Also
-                // keeps the quit path honest — quitting mid-abort waits for
-                // this cleanup via `actionTask.value`.
-                await cancelledTask?.value
-                guard !keepAudio, let output else {
-                    // Keep Audio: the recovery lock and session folder stay on
-                    // disk (ADR-019), so the recording remains retryable from
-                    // the Library row and the launch recovery dialog.
-                    return
-                }
-                await self.deleteAbortedRecording(output)
             }
 
         case .showError(let message):
@@ -754,9 +694,7 @@ final class MeetingRecordingFlowCoordinator {
             // the next `.showRecordingPill` action.
             pillViewModel.onStop = nil
             pillViewModel.onPauseToggle = nil
-            pillViewModel.onAbortTranscription = nil
             pillViewModel.onCompletionAnimationFinished = nil
-            pillViewModel.canAbortTranscription = false
             pillViewModel.elapsedSeconds = 0
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
@@ -764,8 +702,6 @@ final class MeetingRecordingFlowCoordinator {
             panelController?.close()
             panelController = nil
             panelViewModel = nil
-            completedTranscription = nil
-            currentTranscribingOutput = nil
             onFlowReturnedToIdle()
 
         case .updateMenuBar(let state):
@@ -775,25 +711,6 @@ final class MeetingRecordingFlowCoordinator {
             case .processing: .processing
             }
             onMenuBarIconUpdate(iconState)
-
-        case .navigateToTranscription(let id):
-            guard completedTranscription?.id == id, let transcription = completedTranscription else { return }
-            // Cancel any in-flight assistant response BEFORE binding. If the panel
-            // chat VM is destroyed (.hidePill, ~2s after this) while a stream is
-            // still arriving, the streamingTask's [weak self] kills it mid-write
-            // and the response is lost in a non-deterministic spot. Cancelling now
-            // gives a clean state to persist; the user loses an unfinished reply
-            // but the data on disk is consistent.
-            panelViewModel?.chatViewModel.cancelStreaming()
-            // If the user chatted while recording, promote the in-memory thread to a
-            // real ChatConversation linked to the finalized transcription so the live
-            // conversation appears on TranscriptResultView's Chat tab unbroken.
-            panelViewModel?.chatViewModel.bindPersistedConversation(
-                transcriptionId: transcription.id,
-                transcriptionRepo: transcriptionRepo,
-                conversationRepo: conversationRepo
-            )
-            onTranscriptionReady(transcription)
 
         case .presentPermissionAlert(let reason):
             onFlowReturnedToIdle()
@@ -833,77 +750,6 @@ final class MeetingRecordingFlowCoordinator {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             sendEvent(.cancelRequested)
-        }
-    }
-
-    /// Stop-transcription confirmation (issue #487). Keep Audio is the safe
-    /// default: the recording stays retryable from the Library and the launch
-    /// recovery dialog. Delete Recording removes the session audio and its
-    /// transcription rows entirely.
-    private func confirmAndAbortTranscription() {
-        guard stateMachine.state == .transcribing, currentTranscribingOutput != nil else { return }
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Stop transcribing this meeting?"
-        alert.informativeText = "The recording is saved on this Mac. Keep the audio to transcribe it later from your Library, or delete the recording entirely.\n\nDeleting cannot be undone."
-        alert.addButton(withTitle: "Keep Audio")
-        alert.addButton(withTitle: "Delete Recording")
-        alert.addButton(withTitle: "Cancel")
-        if alert.buttons.indices.contains(1) {
-            alert.buttons[1].hasDestructiveAction = true
-        }
-
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-
-        // Transcription may have completed or failed while the dialog was up;
-        // aborting is only meaningful if the flow is still transcribing. When
-        // it completed meanwhile, the pill/tile show "Saved to Library" and
-        // the transcript window opens — the user can delete from there.
-        guard stateMachine.state == .transcribing, currentTranscribingOutput != nil else { return }
-        switch response {
-        case .alertFirstButtonReturn:
-            sendEvent(.abortTranscriptionRequested(keepAudio: true))
-        case .alertSecondButtonReturn:
-            sendEvent(.abortTranscriptionRequested(keepAudio: false))
-        default:
-            break
-        }
-    }
-
-    /// Delete-everything arm of the abort flow. Folder first: if this is
-    /// interrupted partway, a lingering recovery lock would resurrect a
-    /// recording the user explicitly deleted, whereas an orphaned `.cancelled`
-    /// row is inert (retry guards on file existence) and deletable from the
-    /// Library.
-    private func deleteAbortedRecording(_ output: MeetingRecordingOutput) async {
-        await meetingRecordingService.discardStoppedRecording(output)
-        do {
-            // Match rows by the exact path `transcribeMeeting` persisted.
-            // Status is deliberately ignored: if the STT runtime ignored
-            // cancellation and completed the save mid-abort, the user still
-            // asked for this recording to be gone.
-            let rows = try transcriptionRepo.fetchByFilePath(
-                output.mixedAudioURL.path,
-                sourceType: .meeting
-            )
-            // Best-effort per row: the folder is already gone, so a single
-            // failed delete must not strand its siblings as `.cancelled` rows
-            // pointing at deleted audio after the user chose Delete Recording.
-            for row in rows {
-                do {
-                    _ = try transcriptionRepo.delete(id: row.id)
-                } catch {
-                    logger.error(
-                        "meeting_abort_row_delete_failed session=\(output.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
-                    )
-                }
-            }
-        } catch {
-            logger.error(
-                "meeting_abort_row_cleanup_failed session=\(output.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
-            )
         }
     }
 
@@ -1170,7 +1016,7 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .starting, .recording:
             break
-        case .idle, .checkingPermissions, .stopping, .transcribing, .finishing:
+        case .idle, .checkingPermissions, .stopping, .finishing:
             return
         }
         panelController?.show()

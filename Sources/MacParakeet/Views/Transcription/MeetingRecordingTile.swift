@@ -261,15 +261,6 @@ struct MeetingRecordingTile: View {
             }
 
             Spacer()
-
-            // Mid-flight escape hatch (issue #487). Appears once the recording
-            // is finalized on disk and the abort path is safe; opens the
-            // Keep Audio / Delete Recording confirmation.
-            if viewModel.canAbortTranscription, viewModel.onAbortTranscription != nil {
-                StopTranscribingButton {
-                    viewModel.onAbortTranscription?()
-                }
-            }
         }
     }
 
@@ -498,60 +489,6 @@ private struct TilePauseResumeButton: View {
                 : "Pause recording — audio resumes when you click play"
         )
         .accessibilityLabel(isPaused ? "Resume recording" : "Pause recording")
-    }
-}
-
-// MARK: - Stop Transcribing button (issue #487)
-
-/// Capsule button shown while the post-stop final transcription runs. Neutral
-/// at rest (the tile's spinner row shouldn't shout), red on hover to declare
-/// that it halts the work in progress. No inline countdown confirm — the
-/// click opens a dialog where keep/delete is decided, so a second inline
-/// confirmation step would just stack ceremony.
-private struct StopTranscribingButton: View {
-    var onTap: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(isHovered ? Color.white : DesignSystem.Colors.textSecondary)
-                    .frame(width: 8, height: 8)
-                Text("Stop")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-            }
-            .foregroundStyle(isHovered ? Color.white : DesignSystem.Colors.textSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule()
-                    .fill(isHovered
-                        ? DesignSystem.Colors.errorRed
-                        : DesignSystem.Colors.surfaceElevated.opacity(0.7))
-                    .overlay(
-                        Capsule()
-                            .stroke(
-                                isHovered
-                                    ? DesignSystem.Colors.errorRed
-                                    : DesignSystem.Colors.border.opacity(0.7),
-                                lineWidth: 0.6
-                            )
-                    )
-            )
-            .scaleEffect(isHovered ? 1.03 : 1.0)
-            .animation(.easeOut(duration: 0.15), value: isHovered)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
-        .help("Stop transcribing — keep or delete the recording")
-        .accessibilityLabel("Stop transcribing")
-        .accessibilityHint("Asks whether to keep the recorded audio or delete the recording.")
-        .transition(.opacity)
     }
 }
 

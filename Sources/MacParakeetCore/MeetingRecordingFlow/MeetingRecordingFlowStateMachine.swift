@@ -11,12 +11,10 @@ public enum MeetingRecordingFlowState: Equatable, Sendable {
     case starting
     case recording
     case stopping
-    case transcribing
     case finishing(outcome: MeetingRecordingFlowFinishOutcome)
 }
 
 public enum MeetingRecordingFlowFinishOutcome: Equatable, Sendable {
-    case completed(UUID)
     case error(String)
 }
 
@@ -35,13 +33,7 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     /// stop+transcribe path as `.stopRequested` so whatever audio was
     /// captured before the failure still becomes a saved Transcription.
     case captureFailed(generation: Int)
-    /// User-confirmed abort of the in-flight final transcription (issue #487).
-    /// `keepAudio: true` leaves the session folder + recovery lock intact so
-    /// the recording stays retryable from Library / launch recovery;
-    /// `keepAudio: false` deletes the recording entirely.
-    case abortTranscriptionRequested(keepAudio: Bool)
     case recordingQueued(generation: Int, transcriptionID: UUID)
-    case transcriptionCompleted(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
     case dismissRequested
     case autoDismissExpired(generation: Int)
@@ -53,16 +45,10 @@ public enum MeetingRecordingFlowEffect: Equatable, Sendable {
     case startRecording
     case showTranscribingState
     case stopRecordingAndTranscribe
-    case showCompleted
     case showError(String)
     case cancelRecording
-    /// Cancel the in-flight stop+transcribe task. The handler must wait for
-    /// the cancelled task to drain, then — when `keepAudio` is false — delete
-    /// the session's transcription rows and recording folder.
-    case abortTranscription(keepAudio: Bool)
     case hidePill
     case updateMenuBar(DictationFlowMenuBarState)
-    case navigateToTranscription(UUID)
     case presentPermissionAlert(MeetingRecordingPermissionFailure)
     case startAutoDismissTimer(seconds: Double)
     case cancelAutoDismissTimer
@@ -146,25 +132,6 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             state = .stopping
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 
-        case (.transcribing, .abortTranscriptionRequested(let keepAudio)):
-            state = .idle
-            return [.abortTranscription(keepAudio: keepAudio), .hidePill, .updateMenuBar(.idle)]
-
-        case (.transcribing, .transcriptionCompleted(let gen, let transcriptionID)):
-            guard gen == generation else { return [] }
-            state = .finishing(outcome: .completed(transcriptionID))
-            return [
-                .showCompleted,
-                .updateMenuBar(.idle),
-                .navigateToTranscription(transcriptionID),
-                .startAutoDismissTimer(seconds: 1),
-            ]
-
-        case (.transcribing, .transcriptionFailed(let gen, let message)):
-            guard gen == generation else { return [] }
-            state = .finishing(outcome: .error(message))
-            return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
-
         case (.finishing, .dismissRequested):
             state = .idle
             return [.cancelAutoDismissTimer, .hidePill]
@@ -177,7 +144,6 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
         case (.recording, .dismissRequested),
              (.starting, .dismissRequested),
              (.stopping, .dismissRequested),
-             (.transcribing, .dismissRequested),
              (.checkingPermissions, .dismissRequested):
             return []
 

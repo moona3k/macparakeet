@@ -42,12 +42,6 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// Mark the final transcription attempt as ended without deleting the
     /// recovery lock, leaving it available for retry.
     func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async
-    /// Delete a *stopped* recording's session folder and recovery lock after
-    /// the user aborts the final transcription and chooses not to keep the
-    /// audio (issue #487). Unlike `cancelRecording`, this never touches live
-    /// capture state — it must only be called once `stopRecording` has returned
-    /// the output being discarded.
-    func discardStoppedRecording(_ recording: MeetingRecordingOutput) async
     func cancelRecording() async
     /// Pause an active recording. No-op when no session is active or when
     /// already paused. The OS-level capture stays running (mic + ScreenCaptureKit
@@ -685,26 +679,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     public func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {
         // The speech-engine lease is released at the durable stop boundary.
         // Queue completion may happen while another meeting is recording.
-    }
-
-    public func discardStoppedRecording(_ recording: MeetingRecordingOutput) async {
-        // Guard against a stale output: if a new session is already recording
-        // into a different folder this is safe either way (folders are
-        // per-session UUIDs), but never delete the folder of the *live*
-        // session.
-        if let session = currentSession, session.folderURL == recording.folderURL {
-            logger.error("meeting_recording_discard_refused_live_session session=\(recording.sessionID.uuidString, privacy: .public)")
-            return
-        }
-        try? lockFileStore.delete(folderURL: recording.folderURL)
-        do {
-            try fileManager.removeItem(at: recording.folderURL)
-        } catch {
-            logger.error("meeting_recording_discard_failed session=\(recording.sessionID.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-        }
-        AudioCaptureDiagnostics.append(
-            "meeting_recording_discarded_after_stop session=\(recording.sessionID.uuidString)"
-        )
     }
 
     public func updateNotes(_ notes: String) async {
