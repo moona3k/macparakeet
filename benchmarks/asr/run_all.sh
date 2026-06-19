@@ -28,8 +28,9 @@ verify() {
   if ls results/full/*.jsonl >/dev/null 2>&1; then
     "$PY" score.py results/full/*.jsonl --ci "$BOOT" --seed "$SEED"
   elif [ -f results/full/full_hypotheses.tar.gz ]; then
-    tmp="$(mktemp -d)"; tar -xzf results/full/full_hypotheses.tar.gz -C "$tmp"
-    "$PY" score.py "$tmp"/*.jsonl --ci "$BOOT" --seed "$SEED"; rm -rf "$tmp"
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    tar -xzf results/full/full_hypotheses.tar.gz -C "$tmp"
+    "$PY" score.py "$tmp"/*.jsonl --ci "$BOOT" --seed "$SEED"
   else
     echo "  (no full-set per-file data; see results/full/_summary_full.json)"
   fi

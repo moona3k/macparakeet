@@ -41,6 +41,7 @@ def paired_bootstrap(rows: list[tuple[int, int, int]], n_boot: int, seed: int,
     point = delta(rows)
     if not rows or n_boot <= 0:
         return point, None, None
+    # explicit randrange loop (not random.choices) so committed CIs stay stable
     rng = random.Random(seed)
     m = len(rows)
     samples = sorted(delta([rows[rng.randrange(m)] for _ in range(m)]) for _ in range(n_boot))
@@ -49,14 +50,15 @@ def paired_bootstrap(rows: list[tuple[int, int, int]], n_boot: int, seed: int,
 
 def load(path: str, lang: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if not line:
-            continue
-        r = json.loads(line)
-        if lang and r.get("lang") and r["lang"] != lang:
-            continue
-        out[r["id"]] = r
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            if lang and r.get("lang") and r["lang"] != lang:
+                continue
+            out[r["id"]] = r
     return out
 
 
@@ -79,8 +81,8 @@ def main() -> int:
         ref = score_multi.tokens(A[i]["ref"], args.lang)
         if not ref:
             continue
-        ha = score_multi.tokens(A[i].get("hyp", ""), args.lang)
-        hb = score_multi.tokens(B[i].get("hyp", ""), args.lang)
+        ha = score_multi.tokens(A[i].get("hyp") or "", args.lang)
+        hb = score_multi.tokens(B[i].get("hyp") or "", args.lang)
         rows.append((sum(score_multi.edits(ref, ha)), sum(score_multi.edits(ref, hb)), len(ref)))
 
     point, lo, hi = paired_bootstrap(rows, args.ci, args.seed)

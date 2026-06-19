@@ -121,10 +121,11 @@ def measure_cohere(fa: Path, model_dir: Path, n: int) -> dict:
         rtfx = [r["rtfx"] for r in results if r.get("rtfx")]
         cold = results[0].get("processingTime") if results else None
         steady = statistics.median(rtfx[1:]) if len(rtfx) > 1 else None
+        rss = peak_rss_mb(stderr)
         return dict(engine="cohere", method="fluidaudio per-file (drop file0)", n_files=len(results),
                     cold_start_s=round(cold, 2) if cold else None,
                     steady_rtfx=round(steady, 1) if steady else None,
-                    peak_rss_mb=round(peak_rss_mb(stderr)) if peak_rss_mb(stderr) else None,
+                    peak_rss_mb=round(rss) if rss else None,
                     total_wall_s=round(wall, 1))
     finally:
         shutil.rmtree(work, ignore_errors=True)

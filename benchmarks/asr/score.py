@@ -145,6 +145,7 @@ def bootstrap_ci(pairs: list[tuple[int, int]], n_boot: int, seed: int,
     """
     if not pairs or n_boot <= 0:
         return None
+    # explicit randrange loop (not random.choices) so committed CIs stay stable
     rng = random.Random(seed)
     m = len(pairs)
     samples = []
@@ -195,7 +196,7 @@ def main() -> int:
                 engine = rec.get("engine") or default_engine or "engine?"
                 dataset = rec.get("dataset") or default_dataset or "dataset?"
                 ref = normalize(rec["ref"])
-                hyp = normalize(rec.get("hyp", ""))
+                hyp = normalize(rec.get("hyp") or "")
                 if not ref:
                     continue
                 i, d, s = edit_counts(hyp, ref)

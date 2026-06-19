@@ -118,6 +118,7 @@ def bootstrap_ci(pairs: list[tuple[int, int]], n_boot: int, seed: int,
     """
     if not pairs or n_boot <= 0:
         return None
+    # explicit randrange loop (not random.choices) so committed CIs stay stable
     rng = random.Random(seed)
     m = len(pairs)
     samples = []
@@ -144,23 +145,24 @@ def main() -> int:
     groups: dict[tuple[str, str], dict] = defaultdict(
         lambda: dict(ins=0, dele=0, sub=0, ref=0, n=0, per=[], pairs=[]))
     for path in args.files:
-        for line in open(path, encoding="utf-8"):
-            line = line.strip()
-            if not line:
-                continue
-            r = json.loads(line)
-            engine = r.get("engine", "engine?")
-            lang = r.get("lang") or r.get("language") or "und"
-            ref = tokens(r["ref"], lang)
-            hyp = tokens(r.get("hyp", ""), lang)
-            if not ref:
-                continue
-            i, d, s = edits(ref, hyp)
-            g = groups[(engine, lang)]
-            g["ins"] += i; g["dele"] += d; g["sub"] += s
-            g["ref"] += len(ref); g["n"] += 1
-            g["per"].append((i + d + s) / len(ref))
-            g["pairs"].append((i + d + s, len(ref)))
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                engine = r.get("engine", "engine?")
+                lang = r.get("lang") or r.get("language") or "und"
+                ref = tokens(r["ref"], lang)
+                hyp = tokens(r.get("hyp") or "", lang)
+                if not ref:
+                    continue
+                i, d, s = edits(ref, hyp)
+                g = groups[(engine, lang)]
+                g["ins"] += i; g["dele"] += d; g["sub"] += s
+                g["ref"] += len(ref); g["n"] += 1
+                g["per"].append((i + d + s) / len(ref))
+                g["pairs"].append((i + d + s, len(ref)))
 
     rows = []
     ci_hdr = f" {'95% CI':>14s}" if args.ci else ""
@@ -179,7 +181,8 @@ def main() -> int:
         rows.append(row)
 
     if args.json_out:
-        json.dump(rows, open(args.json_out, "w"), indent=2)
+        with open(args.json_out, "w") as fh:
+            json.dump(rows, fh, indent=2)
         print(f"\nwrote {args.json_out}")
     return 0
 
