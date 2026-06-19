@@ -70,6 +70,19 @@ Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (m
 
 Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. Nemotron is the faster experimental path (multilingual default build, English-only opt-in build); WhisperKit solves mature broad coverage while preserving the local-first speech boundary.
 
+### Cohere Transcribe (Evaluated Candidate — Not Yet Integrated)
+
+Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and is **recommended as a future opt-in engine, not yet shipped** (ADR-001 amendment 2026-06-19). It runs on-device through the **same FluidAudio CoreML SDK** as Parakeet/Nemotron — FluidAudio ≥ 0.15.4 exposes a public `CoherePipeline`; q8 model repo `FluidInference/cohere-transcribe-03-2026-coreml` — so **no MLX or new runtime is required**, unlike the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
+
+| Property | Value |
+|----------|-------|
+| Status | Evaluated + recommended; **not integrated** |
+| Accuracy | Most accurate on-device: English macro WER 2.07% (full LibriSpeech); best Japanese (FLEURS CER 5.56). Significant lead only on noisy English + Japanese; clean EN/KO/ZH are statistical ties (paired-bootstrap CIs) |
+| Cost | **~11 GB peak RSS**, ~73 s one-time ANE compile, ~11× realtime, ~2.3 GB model |
+| If integrated | Opt-in Beta engine gated to ≥16 GB RAM, via a `CohereEngine` wrapping FluidAudio's `CoherePipeline` routed in `STTRuntime` (the Nemotron/Unified pattern) |
+
+Recommendation: Parakeet v3 stays the default and WhisperKit the light multilingual option; Cohere would be surfaced for accuracy-critical / noisy / Japanese transcription on 16 GB+ Macs. Full methodology, CIs, and speed/memory tables: `benchmarks/asr/README.md`.
+
 ### Three-Chip Architecture
 
 Each ML workload runs on the chip it was designed for:

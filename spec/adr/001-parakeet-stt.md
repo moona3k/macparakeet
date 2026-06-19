@@ -10,6 +10,7 @@
 > Amendment (2026-06-11): Nemotron Speech Streaming EN 0.6B (`english-1120ms`) is added as a second opt-in Beta build under the Nemotron engine, a peer of the multilingual build the way Parakeet v2 is a peer of v3. Parakeet v3 remains the primary/default STT engine; promotion of either Nemotron build still requires real MacParakeet corpus benchmarks.
 > Amendment (2026-06-17): NVIDIA Parakeet Unified EN 0.6B (`unified`) is added as a third opt-in Parakeet build (English-only). Unlike the v2/v3 TDT builds it is a separate FluidAudio runtime (`UnifiedAsrManager`, no `AsrModelVersion`) served by a dedicated `ParakeetUnifiedEngine`, but it is presented to users as a Parakeet model. Parakeet v3 remains the primary/default; Unified provides strong English offline accuracy with punctuation/capitalization (FluidAudio v0.15.4 CoreML benchmark: 2.15% average / 1.68% aggregate WER on LibriSpeech test-clean; NVIDIA upstream card: 1.63% offline WER). Phase 1 ships offline-only; FluidAudio's native low-latency streaming build (`parakeet-unified-2080ms`) is the planned follow-up. Issue #520.
 > Amendment (2026-06-18): Parakeet Unified Phase 2 wires FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) into live dictation preview while keeping file transcription, meeting finalization, and the final dictation paste on the higher-quality offline batch path. Unified remains English-only, opt-in, and non-default; it still exposes no word-level timings through MacParakeet.
+> Amendment (2026-06-19): Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) is **evaluated and recommended as a future opt-in engine — not yet integrated**. It runs fully on-device through the **FluidAudio CoreML** SDK already vendored here (FluidAudio ≥ 0.15.4 exposes a public `CoherePipeline`/`CohereAsrConfig` and a q8 CoreML repo); **no MLX runtime or other new dependency is required** — unlike the MLX-only candidates (Qwen3-ASR, Moonshine), which stay deferred. The gold-standard benchmark (`benchmarks/asr/`, hardened + independently verified in PR #568) found Cohere the most accurate on-device engine (full-LibriSpeech macro WER 2.07% vs 2.38% Parakeet-unified; best Japanese), but with a decisive cost — **~11 GB peak RSS**, ~73 s one-time ANE compile, ~11× realtime, ~2.3 GB model — and, under paired-bootstrap CIs, a *significant* accuracy lead only on noisy English and Japanese (clean English, Korean, Chinese are ties). Decision: Parakeet v3 remains the primary/default; **if integrated, Cohere ships as an opt-in Beta engine gated to ≥16 GB RAM**, via a `CohereEngine` wrapping FluidAudio's `CoherePipeline` routed in `STTRuntime` (the Nemotron/Unified pattern). Integration is a separate, ADR-gated change. See the Cohere addendum below.
 
 ## Context
 
@@ -209,6 +210,49 @@ upstream model is under the NVIDIA Open Model License Agreement, so — like eve
 other model — it stays a user-triggered download, never bundled. Fresh installs
 still default to Parakeet v3.
 
+## Addendum: Cohere Transcribe — Evaluated Candidate, Not Yet Integrated (June 2026)
+
+> Date: 2026-06-19
+> Status: **Recommendation** (benchmark outcome; not implemented)
+
+A gold-standard cross-engine benchmark (`benchmarks/asr/`, hardened and
+independently verified in PR #568) evaluated Cohere Transcribe
+(`cohere-transcribe-03-2026`, 2B params, Apache-2.0, #1 on the HF Open ASR
+Leaderboard) as a candidate on-device engine.
+
+**It is FluidAudio CoreML, not MLX.** FluidAudio ≥ 0.15.4 — the exact SDK
+MacParakeet already depends on — ships a public `CoherePipeline` actor and a q8
+CoreML model repo (`FluidInference/cohere-transcribe-03-2026-coreml`). So Cohere
+needs **no new runtime**: it would be integrated exactly like the Nemotron and
+Parakeet-Unified engines — a `CohereEngine` wrapping the FluidAudio pipeline,
+routed inside `STTRuntime`, with a user-triggered model download. This is what
+distinguishes it from the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
+
+**Findings** (Apple M4 Pro; full LibriSpeech + FLEURS; one canonical normalizer;
+paired-bootstrap significance):
+- Most accurate on-device engine — English macro WER **2.07%** (vs 2.38%
+  Parakeet-unified, 3.00% Whisper); best Japanese (FLEURS CER 5.56 vs Whisper 13.42).
+- The accuracy lead is *statistically significant* only on **noisy English**
+  (`test-other`) and **Japanese**; clean English, Korean, and Chinese are ties
+  with the best alternative.
+- Cost is the decisive factor: **~11 GB peak resident memory** (constant across
+  file counts → model-resident, measured via the FluidAudio reference harness),
+  **~73 s one-time ANE compile**, **~11× realtime** (vs ~70× / ~120 MB for
+  Parakeet), ~2.3 GB download.
+
+**Recommendation (not a locked decision yet):** keep Parakeet v3 the default and
+WhisperKit the light multilingual option. **If** integrated, ship Cohere as an
+**opt-in Beta engine gated to ≥16 GB RAM** with a clear download-size /
+cold-start warning, surfaced for accuracy-critical, noisy, or Japanese
+transcription. Both Nemotron builds are dominated by this benchmark (settling
+#520). Actual integration — engine wrapper, model-download UX, Settings/CLI
+surfacing, the RAM gate, telemetry — is a separate, ADR-gated change, and like
+every model the weights stay a user-triggered download, never bundled.
+
+See `benchmarks/asr/README.md` (PR #568) for the full methodology, CIs, and
+speed/memory tables; `plans/active/asr-benchmark-and-model-expansion.md` for the
+candidate landscape.
+
 ## References
 
 - [NVIDIA Parakeet TDT 0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
@@ -218,4 +262,5 @@ still default to Parakeet v3.
 - [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port (original runtime, superseded)
 - [ADR-021: WhisperKit as Optional Multilingual STT Engine](021-whisperkit-multilingual-stt.md)
 - [Nemotron 3.5 ASR Streaming 0.6B](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b)
+- [FluidInference/cohere-transcribe-03-2026-coreml](https://huggingface.co/FluidInference/cohere-transcribe-03-2026-coreml) -- q8 CoreML conversion of Cohere Transcribe (the on-device path; evaluated in PR #568, not yet integrated)
 - Oatmeal project ADR-011 (prior art for Parakeet selection)
