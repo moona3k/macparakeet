@@ -32,17 +32,18 @@ Match the ceremony to the risk. Most changes are not "substantial."
 | Tier | Examples | Treatment |
 |------|----------|-----------|
 | **Trivial** | Typos, doc edits, copy tweaks, a single obvious line | Commit direct to `main`. No PR, no agents. |
-| **Small** | A contained bug fix with a test, a self-evident refactor | Branch + PR optional; at least one fresh-eye agent pass on the diff. Self-merge once green. |
+| **Small** | A contained bug fix with a test, a self-evident refactor | Branch + PR optional; focused verification. A fresh-eye pass is useful when the failure mode is subtle. |
 | **Substantial** | New feature, new abstraction, auth/payments/data/migrations, public surface (CLI, telemetry, API), >~50 changed lines, anything user-visible | Full loop below. |
 
-When unsure, ask the owner which tier — don't default to elaborate.
+When unsure, choose the lightest tier that still protects correctness and user
+trust.
 
 ## The full loop (substantial changes)
 
 1. **Branch first.** Create the branch *before* writing code, base it on
-   `origin/main` (not local `main`, which lags — see
-   `memory/feedback_worktree_base_origin_main`). Open a real PR so "merge"
-   actually merges. **Do not** push to `main` and then retrofit a review gate
+   `origin/main` (not local `main`, which often lags; see `AGENTS.md`
+   Worktrees). Open a real PR so "merge" actually merges. **Do not** push to
+   `main` and then retrofit a review gate
    — that forces force-pushes, throwaway base branches, and close-instead-of-
    merge. (We learned this the awkward way.)
 2. **Define the context zone** before coding: in-scope behavior, must-not-
@@ -98,8 +99,7 @@ in parallel, each with a distinct lens. Choose by what the diff touches:
 Give each agent the diff, the intent, and the *specific* invariants to attack
 (e.g. "prove the raw URL cannot reach telemetry"). Their job is to *break* the
 change, not bless it. Convergence between independent agents + the PR bots is
-the strongest readiness signal we have. (See
-`memory/feedback_multi_llm_review`.)
+the strongest readiness signal we have.
 
 ## What makes a good PR description
 
@@ -124,7 +124,9 @@ Write it for a smart reader who wasn't in the room.
       resolved or explicitly declined with reasoning
 - [ ] Fresh-eye agent pass(es) done; findings converged to trivial
 - [ ] No overengineering — simplest design that holds; dead code deleted
-- [ ] Docs updated if behavior changed (spec, README, CLAUDE.md, CHANGELOG)
+- [ ] Docs updated if behavior changed: governing spec/ADR, README or CLI
+      changelog when public-facing, and AGENTS.md/CLAUDE.md only when agent
+      workflow guidance changes
 - [ ] PR description is audience-friendly and complete
 - [ ] Merged into `main`; branch deleted
 

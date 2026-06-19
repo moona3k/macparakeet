@@ -115,7 +115,7 @@ Two events:
 
 Custom-Transform names are never transmitted (every non-built-in maps to `custom` in telemetry). This protects users who name a Transform after the company they're using it for, etc.
 
-Both events must be added to `ALLOWED_EVENTS` in `macparakeet-website/functions/api/telemetry.ts` before they fire in production (per `memory/feedback_telemetry_allowlist.md` — the Worker drops the entire batch on any unknown event). This is a two-repo coordination point baked into the rollout plan.
+Both events must be added to `ALLOWED_EVENTS` in `macparakeet-website/functions/api/telemetry.ts` before they fire in production; the Worker drops the entire batch on any unknown event. This is a two-repo coordination point baked into the rollout plan.
 
 ### 9. Feature-flag rollout (`AppFeatures.transformsEnabled`)
 

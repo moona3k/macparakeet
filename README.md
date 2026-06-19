@@ -241,7 +241,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; optional N
 - **Discuss new work first** — For features or behavior changes, open an issue before starting a PR so we can agree on scope and product fit.
 - **Submit scoped PRs** — Once the issue direction is clear, fork, make the scoped changes, run `swift test`, and link the issue in the PR.
 - **Read the specs** — Architecture decisions and feature specs live in `spec/`
-- **Using a coding agent?** Point it at [`AGENTS.md`](AGENTS.md) — build/test commands, code style, and repo conventions for Claude Code, Codex, and friends. Deeper project context is in [`CLAUDE.md`](CLAUDE.md).
+- **Using a coding agent?** Point it at [`AGENTS.md`](AGENTS.md) — the canonical build/test commands, code style, repo conventions, and links to deeper context for Claude Code, Codex, and friends.
 
 ## Support
 
