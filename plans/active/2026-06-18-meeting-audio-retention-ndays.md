@@ -73,8 +73,12 @@ which *only ever touch the audio file and always keep the transcript*.
 - **Recovered meetings are exempt** from automatic retention (same exemption the
   immediate-delete path already honors via `applyMeetingRetention: false`); the
   user made an explicit recover/discard choice for those.
-- **Never delete the audio of an active or in-flight recording.** Skip any
-  meeting whose session still holds a live `recording.lock` (PID alive).
+- **Never delete untranscribed or in-flight audio.** The sweep only detaches audio
+  for completed meeting transcripts. Skip any meeting whose row is still
+  non-completed / transcript-empty, and skip any session folder that still has a
+  `recording.lock` in *any* state (`recording` or `awaitingTranscription`),
+  regardless of whether the PID is still alive. A dead-PID `awaitingTranscription`
+  lock is crash-recovery input, not sweepable storage.
 - **No surprise.** First time an auto-delete policy is enabled, confirm with copy
   that states transcripts are kept and audio older than N days will be removed.
 - Idle-CPU hygiene: the sweep runs at launch + a gated daily/foreground check
@@ -108,6 +112,10 @@ which *only ever touch the audio file and always keep the transcript*.
   **No `audioSavedAt` column** — see Open Questions for the anchor decision.
 - Active-recording guard precedent: `clear-meeting-audio` already refuses while a
   live `recording.lock` exists (`MeetingRecordingLockFileStore`, #508 message).
+- Cross-plan recovery guard: `MeetingRecordingLockFileStore` models both
+  `.recording` and `.awaitingTranscription` states. The back-to-back plan creates
+  pre-transcription Library rows and `awaitingTranscription` locks, so retention
+  cannot use PID liveness alone as the in-flight signal.
 - CLI config: `Sources/CLI/Commands/ConfigCommand.swift` (`save-meeting-audio` ~66; add `meeting-audio-retention`).
 
 ## Design
@@ -139,9 +147,10 @@ public enum MeetingAudioRetentionPolicy {
     public struct Candidate: Sendable, Equatable {
         public var id: UUID
         public var hasAudioOnDisk: Bool        // filePath != nil
+        public var hasCompletedTranscript: Bool // status == .completed + transcript text present
         public var ageReferenceDate: Date      // createdAt (see Open Questions)
         public var isRecovered: Bool
-        public var hasLiveLock: Bool
+        public var hasRecoveryLock: Bool       // any recording.lock, live or dead PID
     }
     /// Returns the ids whose AUDIO should be detached now. Pure; no I/O.
     public static func sweep(_ candidates: [Candidate],
@@ -149,8 +158,9 @@ public enum MeetingAudioRetentionPolicy {
                              now: Date) -> [UUID]
 }
 ```
-Rules: skip `!hasAudioOnDisk`, `isRecovered`, `hasLiveLock`; `.keepForever` -> [];
-`.deleteAfterDays(n)` include where `now - ageReferenceDate > n days`;
+Rules: skip `!hasAudioOnDisk`, `!hasCompletedTranscript`, `isRecovered`,
+`hasRecoveryLock`; `.keepForever` -> []; `.deleteAfterDays(n)` include where
+`now - ageReferenceDate > n days`;
 **`.deleteImmediately` is treated as `.deleteAfterDays(0)` by the sweep** so that
 switching *into* delete-immediately also reclaims already-transcribed audio. The
 post-transcription hook only fires for freshly-finished recordings, so without
@@ -159,10 +169,15 @@ be left with a library of audio they believe is gone. [Greptile P1]
 
 ### Sweep runner (app layer)
 A small `@MainActor`/service shim invoked from `AppStartupBootstrapper`:
-1. Load meeting transcriptions + their lock/recovery status.
-2. Call the pure policy.
-3. For each id, `TranscriptionAssetCleanup.detachOwnedMeetingAudio()` (guarded).
-4. Emit one privacy-safe telemetry count (`{swept: Int}`), log a single line.
+1. Run only after launch crash-recovery has scanned/re-enqueued recoverable
+   sessions. If ordering changes later, the policy is still conservative because
+   any remaining `recording.lock` excludes the candidate.
+2. Load meeting transcriptions + transcript completion + lock/recovery status.
+   Lock status is "any lock exists", not "PID is alive": dead-PID
+   `awaitingTranscription` sessions belong to recovery.
+3. Call the pure policy.
+4. For each id, `TranscriptionAssetCleanup.detachOwnedMeetingAudio()` (guarded).
+5. Emit one privacy-safe telemetry count (`{swept: Int}`), log a single line.
 
 **Cadence (not launch-only):** MacParakeet is a persistent menu-bar app that can
 run for weeks, so a once-per-launch sweep could effectively never fire. Run it at
@@ -187,19 +202,29 @@ Replace the bare "Keep meeting audio" toggle with a labeled control:
    `AppRuntimePreferences` (+ derive from `saveMeetingAudio`, keep in sync),
    `SettingsViewModel` binding + telemetry case, `AppRuntimePreferencesTests`.
 2. **Pure policy + tests** — `MeetingAudioRetentionPolicy` with exhaustive
-   table tests (boundaries at exactly N days, recovered/locked/no-audio skips).
+   table tests (boundaries at exactly N days, `deleteImmediately` ==
+   `deleteAfterDays(0)`, non-completed/no-transcript skip, recovered skip,
+   any-recovery-lock skip, no-audio skip).
 3. **Sweep runner + launch hook** — wire into `AppStartupBootstrapper`; integration
    test against an in-memory repo + temp folders proving transcript survives and
-   only eligible audio is detached.
+   only eligible audio is detached. Launch wiring must run after crash-recovery
+   scanning/re-enqueue, and tests must plant a dead-PID `awaitingTranscription`
+   lock to prove untranscribed audio is not swept.
 4. **Settings UI + first-enable confirmation** — Storage card control; verify in dev app.
 5. **CLI parity** — `config get/set meeting-audio-retention`; `ConfigCommandTests`; `Sources/CLI/CHANGELOG.md`.
 6. **Docs** — `spec/05-audio-pipeline.md` retention section, `spec/README.md`/`02-features.md` progress, register REQ-MEET-019.
 
 ## Testing
 - Policy unit tests (pure, deterministic): N-day boundary, keep-forever,
-  immediate (no-op for sweep), recovered exemption, live-lock skip, no-audio skip.
+  immediate behaves as `deleteAfterDays(0)`, non-completed/no-transcript skip,
+  recovered exemption, any `recording.lock` skip (`recording` and
+  `awaitingTranscription`, live and dead PID), no-audio skip.
 - Repo/integration: detach keeps the transcription row and nulls `filePath`;
   managed-path guard refuses a planted out-of-root path.
+- Recovery ordering: a launch scenario with a dead-PID `awaitingTranscription`
+  lock and a pre-transcription Library row must re-enqueue/recover before the
+  retention sweep, or be skipped by the lock/transcript guards if recovery has
+  not run yet.
 - ViewModel: enabling a mode persists + emits telemetry; first-enable confirmation gating.
 - CLI: round-trip `config set/get meeting-audio-retention`.
 - `swift test` before merge.
@@ -213,7 +238,9 @@ Replace the bare "Keep meeting audio" toggle with a labeled control:
 (Resolved during PR #556 review: `deleteImmediately` is swept as
 `deleteAfterDays(0)` so a mode switch reclaims existing audio; legacy
 `saveMeetingAudio` readers are migrated to the tri-state in-PR; the sweep runs at
-launch + a gated daily/foreground check rather than launch-only.)
+launch + a gated daily/foreground check rather than launch-only; retention skips
+non-completed/untranscribed meetings and any session with a recovery lock so it
+cannot delete queued back-to-back audio before crash recovery re-enqueues it.)
 
 ## Docs to update on completion
 `spec/05-audio-pipeline.md`, `spec/02-features.md`, `spec/README.md`,

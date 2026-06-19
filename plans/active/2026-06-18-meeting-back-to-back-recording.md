@@ -84,6 +84,10 @@ finishes on its own and lands in the Library when ready.
 - **Crash recovery handles N sessions.** Recovering must enumerate every session
   folder (one recording-in-progress at crash time + any awaiting-transcription),
   not assume a single active session.
+- **One Library row per stopped meeting.** The stop path creates the visible
+  `.processing` / "Transcribing..." row once, and the queued finalize updates
+  that same row to completed/error. It must not call a path that creates a second
+  `Transcription` row for the same audio.
 
 ## Verified current state (file:line)
 
@@ -125,10 +129,14 @@ finishes on its own and lands in the Library when ready.
 2. Finalize (the STT pass) is handed to a new
    **`MeetingTranscriptionQueue`** (app-layer, `@MainActor` shell over the
    background-slot scheduler) that owns `[QueuedFinalize]` and drives each via the
-   existing `transcribeMeeting` path. Completion materializes the Library row /
-   summary exactly as today, and clears the lock.
+   existing meeting transcription pipeline. Completion updates the pre-created
+   Library row / summary exactly as today, and clears the lock.
 3. The Library row is created in a **`.transcribing` presentation state at stop
-   time** (not at completion), so the meeting is visibly safe immediately.
+   time** (not at completion), so the meeting is visibly safe immediately. The
+   queue item carries that row id; current `TranscriptionService.transcribeMeeting`
+   creates and saves its own processing row, so implementation must either
+   refactor it to accept an existing row id or add a sibling finalize method that
+   fills the existing stub instead of inserting a duplicate.
 
 ### State-machine change (minimal)
 Split the current monolithic `.transcribing` recorder phase: the **recorder**
@@ -158,10 +166,10 @@ re-enqueue any `awaitingTranscription` sessions and offer recovery for a
    site that assumes `.transcribing` blocks start. Resolve the enum surgery.
 2. **`MeetingTranscriptionQueue`** — app-layer queue over the background slot;
    ordered, supports ≥1 pending; unit-tested with a mock scheduler (ordering,
-   completion materialization, failure isolation).
+   completion materialization onto the original stub row, failure isolation).
 3. **Wire stop → finalize-to-disk → idle + enqueue** — recorder returns to idle
    on durable finalize; lock = `awaitingTranscription`; Library row appears as
-   transcribing at stop time.
+   transcribing at stop time; queued finalize updates that same row by id.
 4. **UI** — idle-on-stop tile/pill + the "previous meeting transcribing" badge +
    Library row transcribing→done in place.
 5. **Crash-recovery multi-session audit** — recovery enumerates all sessions;
@@ -172,7 +180,8 @@ re-enqueue any `awaitingTranscription` sessions and offer recovery for a
 
 ## Testing
 - Queue unit tests: FIFO by stop order, ≥2 pending, one failing finalize doesn't
-  block the next, completion materializes the row.
+  block the next, completion updates the original stub row without inserting a
+  duplicate.
 - State-machine tests: stop → idle transition happens at finalize-to-disk, not at
   STT completion; `startRecording` succeeds while a finalize is queued; start
   still refused while actively capturing.
