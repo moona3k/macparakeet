@@ -7,6 +7,8 @@ private let sharedThumbnailCache = ThumbnailCacheService.shared
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
     var searchText: String = ""
+    var isSelected: Bool = false
+    var showsSelectionControls: Bool = false
     var onTap: () -> Void
     @ViewBuilder var menuContent: () -> MenuContent
 
@@ -20,18 +22,28 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .fill(DesignSystem.Colors.cardBackground)
+                    .fill(isSelected ? DesignSystem.Colors.accentLight : DesignSystem.Colors.cardBackground)
                     .cardShadow(hovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
+                    .strokeBorder(
+                        isSelected ? DesignSystem.Colors.accent.opacity(0.72) : DesignSystem.Colors.border.opacity(0.75),
+                        lineWidth: isSelected ? 1.25 : 0.5
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
             .scaleEffect(hovered ? 1.02 : 1.0)
             .animation(DesignSystem.Animation.hoverTransition, value: hovered)
+            .animation(DesignSystem.Animation.hoverTransition, value: isSelected)
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .topLeading) {
+            if showsSelectionControls {
+                selectionBadge
+                    .padding(8)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             moreButton
                 .opacity(hovered ? 1 : 0)
@@ -49,6 +61,8 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                 }
             }
         }
+        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
+        .accessibilityHint(showsSelectionControls ? "Toggles selection" : "Opens transcription")
     }
 
     @State private var moreHovered = false
@@ -80,6 +94,26 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                 .contentShape(Rectangle())
                 .onHover { moreHovered = $0 }
         )
+    }
+
+    private var selectionBadge: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.surface.opacity(0.92))
+                .frame(width: 22, height: 22)
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.accent.opacity(0.7),
+                            lineWidth: 1.2
+                        )
+                }
+
+            Image(systemName: isSelected ? "checkmark" : "circle")
+                .font(.system(size: isSelected ? 10 : 8, weight: .bold))
+                .foregroundStyle(isSelected ? DesignSystem.Colors.onAccent : DesignSystem.Colors.accent.opacity(0.75))
+        }
+        .accessibilityHidden(true)
     }
 
     // MARK: - Thumbnail
