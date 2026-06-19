@@ -4,111 +4,143 @@
     "lang": "cmn_hans_cn",
     "metric": "CER",
     "files": 150,
-    "err": 12.49102656137832
+    "err": 12.49102656137832,
+    "ci_low": 9.786453806364078,
+    "ci_high": 15.257848414198207
   },
   {
     "engine": "cohere",
     "lang": "en_us",
     "metric": "WER",
     "files": 150,
-    "err": 4.690491384811742
+    "err": 4.690491384811742,
+    "ci_low": 3.7061093024263556,
+    "ci_high": 5.689641212928518
   },
   {
     "engine": "cohere",
     "lang": "ja_jp",
     "metric": "CER",
     "files": 150,
-    "err": 5.564472980203317
+    "err": 5.564472980203317,
+    "ci_low": 4.144552806763078,
+    "ci_high": 7.098934576736686
   },
   {
     "engine": "cohere",
     "lang": "ko_kr",
     "metric": "CER",
     "files": 150,
-    "err": 7.1490467937608315
+    "err": 7.1490467937608315,
+    "ci_low": 5.433778603278237,
+    "ci_high": 9.146807795808733
   },
   {
     "engine": "nemotron-multi",
     "lang": "cmn_hans_cn",
     "metric": "CER",
     "files": 150,
-    "err": 19.47236180904523
+    "err": 19.47236180904523,
+    "ci_low": 16.617553086492414,
+    "ci_high": 22.302655799611628
   },
   {
     "engine": "nemotron-multi",
     "lang": "en_us",
     "metric": "WER",
     "files": 150,
-    "err": 7.083599234205488
+    "err": 7.083599234205488,
+    "ci_low": 6.110690812876576,
+    "ci_high": 8.13938229128196
   },
   {
     "engine": "nemotron-multi",
     "lang": "ja_jp",
     "metric": "CER",
     "files": 150,
-    "err": 15.28892455858748
+    "err": 15.28892455858748,
+    "ci_low": 13.682930061980679,
+    "ci_high": 16.9756041880977
   },
   {
     "engine": "nemotron-multi",
     "lang": "ko_kr",
     "metric": "CER",
     "files": 150,
-    "err": 9.315424610051993
+    "err": 9.315424610051993,
+    "ci_low": 7.643600700442207,
+    "ci_high": 11.168678363322021
   },
   {
     "engine": "parakeet-v3",
     "lang": "cmn_hans_cn",
     "metric": "CER",
     "files": 150,
-    "err": 124.13854989231874
+    "err": 124.13854989231874,
+    "ci_low": 117.75926356538615,
+    "ci_high": 131.40411098108814
   },
   {
     "engine": "parakeet-v3",
     "lang": "en_us",
     "metric": "WER",
     "files": 150,
-    "err": 4.403318442884493
+    "err": 4.403318442884493,
+    "ci_low": 3.5889228508770192,
+    "ci_high": 5.271644489695607
   },
   {
     "engine": "parakeet-v3",
     "lang": "ja_jp",
     "metric": "CER",
     "files": 150,
-    "err": 159.24291064740504
+    "err": 159.24291064740504,
+    "ci_low": 153.1266923775139,
+    "ci_high": 165.66627439095166
   },
   {
     "engine": "parakeet-v3",
     "lang": "ko_kr",
     "metric": "CER",
     "files": 150,
-    "err": 171.18717504332756
+    "err": 171.18717504332756,
+    "ci_low": 163.93967898196829,
+    "ci_high": 178.2898858867565
   },
   {
     "engine": "whisper",
     "lang": "cmn_hans_cn",
     "metric": "CER",
     "files": 150,
-    "err": 11.557788944723619
+    "err": 11.557788944723619,
+    "ci_low": 9.320659789240434,
+    "ci_high": 13.960670583281582
   },
   {
     "engine": "whisper",
     "lang": "en_us",
     "metric": "WER",
     "files": 150,
-    "err": 5.7115507338864075
+    "err": 5.7115507338864075,
+    "ci_low": 4.82691841483902,
+    "ci_high": 6.6982974363787084
   },
   {
     "engine": "whisper",
     "lang": "ja_jp",
     "metric": "CER",
     "files": 150,
-    "err": 13.416265382557519
+    "err": 13.416265382557519,
+    "ci_low": 11.334226947788343,
+    "ci_high": 15.587752710780954
   },
   {
     "engine": "whisper",
     "lang": "ko_kr",
     "metric": "CER",
     "files": 150,
-    "err": 6.369150779896014
+    "err": 6.369150779896014,
+    "ci_low": 4.811704523630777,
+    "ci_high": 8.087330567432282
   }
 ]
