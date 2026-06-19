@@ -844,12 +844,10 @@ public final class TranscriptionViewModel {
         loadTranscriptions()
         if autoSave {
             autoSaveIfEnabled(transcription)
-            // `applyMeetingRetention` lets a caller opt a meeting out of the
-            // keep-meeting-audio policy. Crash-recovered meetings pass `false`:
-            // the recovery dialog already offered Discard (delete) vs Recover
-            // (keep), so a user who chose Recover has explicitly opted to keep
-            // this audio — the global toggle must not silently override that
-            // per-session choice.
+            // Crash-recovered meetings pass `false` so recovery can turn the
+            // interrupted audio into a transcript before immediate-delete
+            // retention runs. Once the recovery lock is gone, scheduled
+            // retention applies normally.
             if applyMeetingRetention {
                 applyMeetingAudioRetentionIfNeeded(transcription)
             }

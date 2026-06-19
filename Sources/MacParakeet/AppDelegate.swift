@@ -94,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Coordinators
 
     private let startupBootstrapper = AppStartupBootstrapper()
+    private let meetingAudioRetentionSweepCoordinator = MeetingAudioRetentionSweepCoordinator()
 
     private lazy var environmentConfigurer = AppEnvironmentConfigurer(
         transcriptionViewModel: transcriptionViewModel,
@@ -171,9 +172,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onPresentRecoveredTranscription: { [weak self] transcription in
             guard let self else { return }
-            // Recovered meetings are exempt from keep-meeting-audio deletion:
-            // choosing Recover (over Discard) in the recovery dialog is an
-            // explicit "keep this" — see presentCompletedTranscription.
+            // Keep recovery input intact while it is turned back into a
+            // transcript; the scheduled retention sweep can apply after the
+            // lock is gone.
             self.transcriptionViewModel.presentCompletedTranscription(
                 transcription,
                 autoSave: true,
@@ -327,6 +328,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onMicrophoneSelectionChanged: { [weak self] in
             self?.applyInstantDictationPreference(refreshWarmCapture: true)
+        },
+        onMeetingAudioRetentionChanged: { [weak self] in
+            self?.scheduleMeetingAudioRetentionSweepForPreferenceChange()
         }
     )
 
@@ -426,6 +430,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         onboardingCoordinator.handleApplicationDidBecomeActive(environment: appEnvironment)
+        if let appEnvironment {
+            meetingAudioRetentionSweepCoordinator.scheduleForegroundSweepIfDue(environment: appEnvironment)
+        }
     }
 
     // MARK: - Startup
@@ -535,7 +542,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
         scheduleDeferredSpeechPreWarm(environment: env)
-        meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
+        let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
+        meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)
+    }
+
+    private func scheduleMeetingAudioRetentionSweepForPreferenceChange() {
+        guard let appEnvironment else { return }
+        meetingAudioRetentionSweepCoordinator.schedulePreferenceChangeSweep(environment: appEnvironment)
     }
 
     private func scheduleDeferredSpeechPreWarm(environment env: AppEnvironment) {

@@ -620,6 +620,77 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: regularFile.id)?.filePath, managedAudio.path)
     }
 
+    func testFetchMeetingAudioRetentionCandidatesFiltersInSQL() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let oldMeeting = Transcription(
+            createdAt: now.addingTimeInterval(-31 * 24 * 60 * 60),
+            fileName: "old meeting",
+            filePath: "/tmp/old-meeting/meeting.m4a",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-31 * 24 * 60 * 60)
+        )
+        let emptyTranscriptMeeting = Transcription(
+            createdAt: now.addingTimeInterval(-32 * 24 * 60 * 60),
+            fileName: "silent meeting",
+            filePath: "/tmp/silent-meeting/meeting.m4a",
+            rawTranscript: "",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-32 * 24 * 60 * 60)
+        )
+        let tooNew = Transcription(
+            createdAt: now.addingTimeInterval(-5 * 24 * 60 * 60),
+            fileName: "new meeting",
+            filePath: "/tmp/new-meeting/meeting.m4a",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-5 * 24 * 60 * 60)
+        )
+        let noAudio = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "detached meeting",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let processing = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "processing meeting",
+            filePath: "/tmp/processing-meeting/meeting.m4a",
+            status: .processing,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let fileTranscription = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "file",
+            filePath: "/tmp/file.m4a",
+            status: .completed,
+            sourceType: .file,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let youtube = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "youtube",
+            filePath: "/tmp/youtube.m4a",
+            status: .completed,
+            sourceURL: "https://youtu.be/example",
+            sourceType: .youtube,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+
+        for transcription in [oldMeeting, emptyTranscriptMeeting, tooNew, noAudio, processing, fileTranscription, youtube] {
+            try repo.save(transcription)
+        }
+
+        let candidates = try repo.fetchMeetingAudioRetentionCandidates(
+            createdAtOrBefore: now.addingTimeInterval(-30 * 24 * 60 * 60)
+        )
+
+        XCTAssertEqual(candidates.map(\.id), [emptyTranscriptMeeting.id, oldMeeting.id])
+    }
+
     func testChatMessagesRoundTrip() throws {
         let transcription = Transcription(fileName: "test.mp3", status: .completed)
         try repo.save(transcription)

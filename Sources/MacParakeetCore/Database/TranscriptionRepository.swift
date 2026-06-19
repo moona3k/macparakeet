@@ -7,6 +7,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
     func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
+    func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
     func search(query: String, limit: Int?) throws -> [Transcription]
@@ -31,6 +32,15 @@ extension TranscriptionRepositoryProtocol {
         try fetchAll(limit: nil).filter {
             $0.filePath == filePath
                 && (sourceType == nil || $0.sourceType == sourceType)
+        }
+    }
+
+    public func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription] {
+        try fetchAll(limit: nil).filter {
+            $0.sourceType == .meeting
+                && !($0.filePath?.isEmpty ?? true)
+                && $0.status == .completed
+                && $0.createdAt <= cutoff
         }
     }
 
@@ -303,6 +313,19 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 request = request.filter(Transcription.Columns.sourceType == sourceType.rawValue)
             }
             return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription] {
+        try dbQueue.read { db in
+            try Transcription
+                .filter(Transcription.Columns.sourceType == Transcription.SourceType.meeting.rawValue)
+                .filter(Transcription.Columns.filePath != nil)
+                .filter(Transcription.Columns.filePath != "")
+                .filter(Transcription.Columns.status == Transcription.TranscriptionStatus.completed.rawValue)
+                .filter(Transcription.Columns.createdAt <= cutoff)
+                .order(Transcription.Columns.createdAt.asc)
+                .fetchAll(db)
         }
     }
 

@@ -725,6 +725,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
+| Meeting audio retention | Keep forever / Delete after 7, 14, 30, or 90 days / Delete after transcription | Keep forever |
 | Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
 | Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
 | Whisper language | Auto-detect or language code | Auto-detect |
@@ -734,7 +735,8 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
 - [x] Hotkey can be changed to bare modifiers, standalone keys, modifier+key chords, and modifier-only chords via record-a-shortcut UI; Command chords warn on common system conflicts
 - [x] Stop mode switch works correctly for both modes
-- [x] Storage toggle controls whether audio files are saved
+- [x] Storage controls whether dictation audio is saved
+- [x] Meeting audio retention keeps transcripts while allowing audio to be kept forever, deleted after N days, or deleted after transcription
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state

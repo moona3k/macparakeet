@@ -7,6 +7,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
     var shouldSaveTranscriptionAudio: Bool { get }
+    var meetingAudioRetention: MeetingAudioRetention { get }
     var shouldSaveMeetingAudio: Bool { get }
     var shouldAutoGenerateMeetingTitles: Bool { get }
     var youtubeAudioQuality: YouTubeAudioQuality { get }
@@ -30,6 +31,128 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     /// subsequent call.
     @discardableResult
     func markFirstDictationCompleted() -> Bool
+}
+
+public enum MeetingAudioRetentionMode: String, CaseIterable, Identifiable, Hashable, Sendable, Equatable {
+    case keepForever = "keep_forever"
+    case deleteAfterDays = "delete_after_days"
+    case deleteImmediately = "delete_immediately"
+
+    public var id: String { rawValue }
+
+    public var displayTitle: String {
+        switch self {
+        case .keepForever:
+            return "Keep forever"
+        case .deleteAfterDays:
+            return "Delete after..."
+        case .deleteImmediately:
+            return "Delete after transcription"
+        }
+    }
+}
+
+public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
+    public static let allowedDeleteAfterDays = [7, 14, 30, 90]
+    public static let defaultDeleteAfterDays = 30
+
+    case keepForever
+    case deleteAfterDays(Int)
+    case deleteImmediately
+
+    public var mode: MeetingAudioRetentionMode {
+        switch self {
+        case .keepForever:
+            return .keepForever
+        case .deleteAfterDays:
+            return .deleteAfterDays
+        case .deleteImmediately:
+            return .deleteImmediately
+        }
+    }
+
+    public var deleteAfterDays: Int {
+        switch self {
+        case .deleteAfterDays(let days):
+            return Self.normalizedDeleteAfterDays(days)
+        case .keepForever, .deleteImmediately:
+            return Self.defaultDeleteAfterDays
+        }
+    }
+
+    public var shouldSaveFreshAudio: Bool {
+        self != .deleteImmediately
+    }
+
+    public var automaticallyDeletesAudio: Bool {
+        self != .keepForever
+    }
+
+    public var storageRawValue: String {
+        switch self {
+        case .keepForever:
+            return MeetingAudioRetentionMode.keepForever.rawValue
+        case .deleteAfterDays:
+            return MeetingAudioRetentionMode.deleteAfterDays.rawValue
+        case .deleteImmediately:
+            return MeetingAudioRetentionMode.deleteImmediately.rawValue
+        }
+    }
+
+    public var configurationValue: String {
+        switch self {
+        case .keepForever:
+            return "keep-forever"
+        case .deleteAfterDays(let days):
+            return "delete-after-\(Self.normalizedDeleteAfterDays(days))-days"
+        case .deleteImmediately:
+            return "delete-immediately"
+        }
+    }
+
+    public static func make(mode: MeetingAudioRetentionMode, days: Int = defaultDeleteAfterDays) -> MeetingAudioRetention {
+        switch mode {
+        case .keepForever:
+            return .keepForever
+        case .deleteAfterDays:
+            return .deleteAfterDays(normalizedDeleteAfterDays(days))
+        case .deleteImmediately:
+            return .deleteImmediately
+        }
+    }
+
+    public static func normalizedDeleteAfterDays(_ days: Int) -> Int {
+        allowedDeleteAfterDays.contains(days) ? days : defaultDeleteAfterDays
+    }
+
+    public static func parseConfigurationValue(_ value: String) -> MeetingAudioRetention? {
+        let raw = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+
+        switch raw {
+        case "keep-forever", "forever", "keep", "on", "true":
+            return .keepForever
+        case "delete-immediately", "immediate", "delete-after-transcription", "after-transcription", "off", "false":
+            return .deleteImmediately
+        default:
+            break
+        }
+
+        for days in allowedDeleteAfterDays {
+            let day = "\(days)"
+            if raw == day
+                || raw == "\(day)d"
+                || raw == "\(day)-days"
+                || raw == "after-\(day)-days"
+                || raw == "delete-after-\(day)-days" {
+                return .deleteAfterDays(days)
+            }
+        }
+        return nil
+    }
 }
 
 public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -220,6 +343,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
     public static let saveMeetingAudioKey = "saveMeetingAudio"
+    public static let meetingAudioRetentionKey = "meetingAudioRetention"
+    public static let meetingAudioRetentionDeleteAfterDaysKey = "meetingAudioRetentionDeleteAfterDays"
+    public static let meetingAudioRetentionAutoDeleteConfirmedKey = "meetingAudioRetentionAutoDeleteConfirmed"
+    public static let lastMeetingAudioRetentionSweepAtKey = "lastMeetingAudioRetentionSweepAt"
     public static let autoGenerateMeetingTitlesKey = "autoGenerateMeetingTitles"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
@@ -282,8 +409,12 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: Self.saveTranscriptionAudioKey) as? Bool ?? true
     }
 
+    public var meetingAudioRetention: MeetingAudioRetention {
+        Self.meetingAudioRetention(defaults: defaults)
+    }
+
     public var shouldSaveMeetingAudio: Bool {
-        defaults.object(forKey: Self.saveMeetingAudioKey) as? Bool ?? true
+        meetingAudioRetention.shouldSaveFreshAudio
     }
 
     public var shouldAutoGenerateMeetingTitles: Bool {
@@ -365,5 +496,42 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         guard !hasCompletedFirstDictation else { return false }
         defaults.set(true, forKey: Self.hasCompletedFirstDictationKey)
         return true
+    }
+
+    public static func meetingAudioRetention(defaults: UserDefaults = .standard) -> MeetingAudioRetention {
+        if let raw = defaults.string(forKey: meetingAudioRetentionKey),
+           let mode = MeetingAudioRetentionMode(rawValue: raw) {
+            return MeetingAudioRetention.make(
+                mode: mode,
+                days: defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) as? Int
+                    ?? MeetingAudioRetention.defaultDeleteAfterDays
+            )
+        }
+
+        let migrated: MeetingAudioRetention = (defaults.object(forKey: saveMeetingAudioKey) as? Bool ?? true)
+            ? .keepForever
+            : .deleteImmediately
+        saveMeetingAudioRetention(migrated, defaults: defaults)
+        return migrated
+    }
+
+    public static func saveMeetingAudioRetention(
+        _ retention: MeetingAudioRetention,
+        defaults: UserDefaults = .standard
+    ) {
+        let normalized = MeetingAudioRetention.make(
+            mode: retention.mode,
+            days: retention.deleteAfterDays
+        )
+        defaults.set(normalized.storageRawValue, forKey: meetingAudioRetentionKey)
+        if case .deleteAfterDays(let days) = normalized {
+            defaults.set(days, forKey: meetingAudioRetentionDeleteAfterDaysKey)
+        } else if defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) == nil {
+            defaults.set(
+                MeetingAudioRetention.defaultDeleteAfterDays,
+                forKey: meetingAudioRetentionDeleteAfterDaysKey
+            )
+        }
+        defaults.set(normalized.shouldSaveFreshAudio, forKey: saveMeetingAudioKey)
     }
 }
