@@ -229,6 +229,12 @@ final class ConfigCommandTests: XCTestCase {
         // Underscore-aliased key resolves too.
         XCTAssertEqual(try ConfigCommand.write(key: "parakeet_model", value: "v2", defaults: defaults), "v2")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v2")
+
+        // Unified (issue #520) persists and its aliases canonicalize.
+        XCTAssertEqual(try ConfigCommand.write(key: "parakeet-model", value: "unified", defaults: defaults), "unified")
+        XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .unified)
+        XCTAssertEqual(try ConfigCommand.write(key: "parakeet-model", value: "english-unified", defaults: defaults), "unified")
+        XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "unified")
     }
 
     func testWriteParakeetModelRejectsInvalidValue() {

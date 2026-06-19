@@ -241,9 +241,9 @@ main local engine.
 - DONE: `spec/adr/001-parakeet-stt.md` (header amendment line 2026-06-11 +
   full "Addendum: Nemotron English Beta Build (June 2026)" section).
 - DONE: `spec/adr/016-centralized-stt-runtime-scheduler.md` (amendment line).
-- DONE: `spec/kernel/requirements.yaml` → REQ-STT-004 (version: v0.7 — flag
-  to owner in PR; v0.6 is the last closed batch).
-- DONE: `spec/kernel/traceability.md` → REQ-STT-004 row.
+- DONE: legacy `REQ-STT-004` entry was added during the now-retired
+  requirements workflow. Do not update the archived requirements index for
+  follow-up work; use ADR/spec updates instead.
 
 ## REMAINING WORK (in order)
 

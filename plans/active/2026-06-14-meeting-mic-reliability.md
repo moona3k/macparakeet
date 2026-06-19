@@ -46,7 +46,7 @@ This plan implements ADR-025's two halves — a mic-health watchdog (REQ-MEET-01
 
 ## REQ-MEET-013 reconciliation (read before Phase C)
 
-REQ-MEET-013 says VAD-guided live chunking leaves "final post-stop transcription … unchanged." That refers to **how an individual chunk is transcribed** — unchanged whether VAD live chunking is on or off. This plan does **not** touch per-chunk STT, the chunker, or the assembler. It **adds a completeness-repair stage** that re-runs STT **only for speech the live path missed**. For a healthy meeting (coverage high → Accept) the repair stage is a no-op and the final transcript is byte-identical to today's. When Phase C lands, the coordinator narrows REQ-MEET-013's wording in `spec/kernel/requirements.yaml` accordingly (this plan does not edit `requirements.yaml`).
+REQ-MEET-013 says VAD-guided live chunking leaves "final post-stop transcription … unchanged." That refers to **how an individual chunk is transcribed** — unchanged whether VAD live chunking is on or off. This plan does **not** touch per-chunk STT, the chunker, or the assembler. It **adds a completeness-repair stage** that re-runs STT **only for speech the live path missed**. For a healthy meeting (coverage high → Accept) the repair stage is a no-op and the final transcript is byte-identical to today's. When Phase C lands, narrow that old REQ framing in ADR-025 and the narrative specs; the legacy requirements index is archived and no longer updated.
 
 ## Phased rollout
 
@@ -144,7 +144,8 @@ The completeness-repair stage. Pure planner + offline VAD + selective re-transcr
 - [ ] Full-fallback tier handles systemic failure; crash-recovered sessions get coverage repair
 - [ ] Original live transcript + retained `.m4a` never destroyed by repair
 - [ ] Both telemetry events mirrored in `macparakeet-website/functions/api/telemetry.ts` and deployed before flag-on
-- [x] REQ-MEET-017 Phase A status updated by the coordinator; REQ-MEET-013 narrowing and REQ-MEET-018 status remain for Phase C
+- [x] ADR/spec status updated for Phase A; coverage-repair wording remains for
+  Phase C
 - [x] `swift test` exits 0; docs/spec progress updated (`spec/README.md`, `spec/02-features.md`)
 - [ ] Plan archived to `plans/completed/` on completion
 

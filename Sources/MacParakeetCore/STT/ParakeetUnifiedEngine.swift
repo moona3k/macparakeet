@@ -3,34 +3,41 @@ import FluidAudio
 import Foundation
 import os
 
-/// Wraps FluidAudio's English-only `StreamingNemotronAsrManager`
-/// (Nemotron Speech Streaming EN 0.6B). Sibling of `NemotronEngine`, which
-/// wraps the multilingual manager — the two FluidAudio managers share no API
-/// surface for language hints, shared weights, or cache layout, so each build
-/// gets its own engine actor and `STTRuntime` routes on the persisted
-/// `NemotronModelVariant`.
+/// Wraps FluidAudio's Parakeet Unified managers (NVIDIA Parakeet Unified
+/// EN 0.6B). Parakeet Unified is a separate
+/// FluidAudio runtime from the TDT v2/v3 builds — it has its own
+/// preprocessor/encoder/decoder CoreML chain and no `AsrModelVersion`/
+/// `AsrManager` surface — so it gets its own engine actor and `STTRuntime`
+/// routes the `.unified` `ParakeetModelVariant` here, exactly as the Nemotron
+/// engine routes its English variant to `NemotronEnglishEngine`.
 ///
-/// File/batch transcription is driven batch-at-stop: the whole file is
-/// resampled, then fed through the streaming manager in bounded slices and
-/// finalized. Live dictation drives the same streaming manager incrementally,
-/// emitting partials through `setPartialCallback` exactly like the multilingual
-/// sibling (see `NativeLiveDictating`).
-public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
-    public static let modelVariant = NemotronModelVariant.english1120
+/// File, meeting, and recorded-file dictation use FluidAudio's offline
+/// `parakeet-unified-offline-15s` path because that remains the best-quality
+/// stop-time transcription mode. Live dictation uses the native
+/// `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) on the interactive
+/// lane to emit partial transcripts while capture is active; if that live path
+/// fails, `DictationService` falls back to the recorded-file offline result.
+///
+/// Two lanes (interactive for dictation, background for file/meeting) each get
+/// their own `UnifiedAsrManager` so concurrent dictation + file/meeting work
+/// (ADR-015) never collides on one actor's buffers. Both instances load the
+/// same compiled artifacts, which CoreML maps read-only, so the dominant
+/// encoder weights are shared via the page cache rather than duplicated.
+public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
+    public static let modelVariant = ParakeetModelVariant.unified
 
-    /// Samples per feed slice (10 s at 16 kHz). The manager's internal buffer
-    /// drains with `removeFirst` per 1120 ms chunk, so slice size bounds both
-    /// peak buffer copies and the O(buffer) memmove cost per chunk; it also
-    /// sets the cancellation-check and progress granularity.
-    private static let sliceSampleCount = 160_000
-    private static let targetSampleRate = 16_000.0
+    /// int8 is FluidAudio's default and WER-lossless vs fp16 within benchmark
+    /// noise, at ~half the download. Kept explicit so the choice is visible at
+    /// the callsite that owns the model's disk + battery posture.
+    private static let encoderPrecision = UnifiedEncoderPrecision.int8
 
-    private let logger = Logger(subsystem: "com.macparakeet.core", category: "NemotronEnglishEngine")
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "ParakeetUnifiedEngine")
 
-    private var interactiveManager: StreamingNemotronAsrManager?
-    private var backgroundManager: StreamingNemotronAsrManager?
+    private var interactiveManager: UnifiedAsrManager?
+    private var backgroundManager: UnifiedAsrManager?
+    private var liveStreamingManager: StreamingUnifiedAsrManager?
     private var initializationTask: Task<Void, Error>?
-    private var activeLanes: Set<NemotronEnglishRuntimeLane> = []
+    private var activeLanes: Set<ParakeetUnifiedRuntimeLane> = []
 
     public init() {}
 
@@ -62,39 +69,33 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
             guard let manager = manager(for: lane) else {
                 throw STTError.modelNotLoaded
             }
-            // Fresh session: clears encoder caches, decoder LSTM state, and any
-            // buffered audio a cancelled prior job may have left behind.
-            await manager.reset()
+            // Fresh session: drop any buffered audio a cancelled prior job may
+            // have left behind on this lane's manager.
+            try await manager.reset()
 
             onProgress?(0, 100)
             try Task.checkCancellation()
             let samples = try await Task.detached(priority: .userInitiated) {
                 try AudioConverter().resampleAudioFile(audioURL)
             }.value
-            onProgress?(25, 100)
+            onProgress?(20, 100)
 
-            var offset = 0
-            while offset < samples.count {
-                try Task.checkCancellation()
-                let end = min(offset + Self.sliceSampleCount, samples.count)
-                let buffer = try Self.makePCMBuffer(samples: samples[offset..<end])
-                _ = try await manager.process(audioBuffer: buffer)
-                offset = end
-                let fraction = Double(offset) / Double(samples.count)
-                onProgress?(25 + Int(fraction * 65), 100)
-            }
-            let text = try await manager.finish()
+            try Task.checkCancellation()
+            // The offline manager runs its own overlapping 15 s windows over the
+            // whole buffer, so the call is atomic — progress is coarse and
+            // cancellation is checked at the boundaries rather than mid-window.
+            let text = try await manager.transcribe(samples)
             onProgress?(100, 100)
 
-            // `language` reflects the build's fixed configuration (the model is
-            // English-only), mirroring the Parakeet attribution posture. No
-            // word timings: the streaming RNN-T path exposes none (same
-            // posture as the multilingual Nemotron build).
+            // No word timings: the offline `transcribe(_:) -> String` path
+            // surfaces none (same posture as the Nemotron builds). `language`
+            // reflects the build's fixed configuration — the model is
+            // English-only.
             return STTResult(
                 text: text,
                 words: [],
                 language: "en",
-                engine: .nemotron,
+                engine: .parakeet,
                 engineVariant: Self.modelVariant.rawValue
             )
         } catch {
@@ -104,28 +105,24 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
 
     // MARK: - Live dictation
 
-    /// Begins a live dictation session on the interactive lane. The build is
-    /// English-only, so `language` is intentionally ignored. Mirrors
-    /// `NemotronEngine.beginLiveDictation`, adapted to the buffer-based manager.
+    /// Begins a native streaming dictation session on the interactive lane.
+    /// Unified is English-only, so `language` is intentionally ignored.
     public func beginLiveDictation(
         language: String?,
         onPartial: @escaping @Sendable (String) -> Void
     ) async throws {
-        let lane: NemotronEnglishRuntimeLane = .interactive
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
         guard beginTranscription(on: lane) else {
             throw STTError.engineBusy
         }
 
         do {
             try await prepare(onProgress: nil)
-            guard let manager = manager(for: lane) else {
+            guard let manager = liveStreamingManager else {
                 throw STTError.modelNotLoaded
             }
-            // Fresh session: clears encoder caches, decoder LSTM state, and any
-            // buffered audio a cancelled prior job may have left behind (same
-            // pre-roll reset the batch path performs).
-            await manager.reset()
-            await manager.setPartialCallback { partial in
+            try await manager.reset()
+            await manager.setPartialTranscriptCallback { partial in
                 onPartial(partial)
             }
         } catch {
@@ -136,39 +133,36 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
 
     public func processLiveDictationSamples(_ samples: [Float]) async throws {
         guard !samples.isEmpty else { return }
-        guard let manager = manager(for: .interactive),
+        guard let manager = liveStreamingManager,
               activeLanes.contains(.interactive) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
         do {
             try Task.checkCancellation()
-            // The manager consumes `AVAudioPCMBuffer`s; the live samples are
-            // already 16 kHz mono Float32, so `makePCMBuffer` wraps them in the
-            // manager's target format and `resampleBuffer` skips a second
-            // resample.
             let buffer = try Self.makePCMBuffer(samples: samples[...])
-            _ = try await manager.process(audioBuffer: buffer)
+            try await manager.appendAudio(buffer)
+            try await manager.processBufferedAudio()
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
     }
 
     public func finishLiveDictation() async throws -> STTResult {
-        let lane: NemotronEnglishRuntimeLane = .interactive
-        guard let manager = manager(for: lane),
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
+        guard let manager = liveStreamingManager,
               activeLanes.contains(lane) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
         defer { endTranscription(on: lane) }
 
         do {
-            await manager.setPartialCallback { _ in }
+            await manager.setPartialTranscriptCallback { _ in }
             let text = try await manager.finish()
             return STTResult(
                 text: text,
                 words: [],
                 language: "en",
-                engine: .nemotron,
+                engine: .parakeet,
                 engineVariant: Self.modelVariant.rawValue
             )
         } catch {
@@ -177,14 +171,11 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     }
 
     public func cancelLiveDictation() async {
-        let lane: NemotronEnglishRuntimeLane = .interactive
+        let lane: ParakeetUnifiedRuntimeLane = .interactive
         guard activeLanes.contains(lane) else { return }
-        // Release the lane even if unload() already dropped the manager —
-        // otherwise a cancel that races shutdown would leave the interactive
-        // lane claimed forever on this engine instance.
-        if let manager = manager(for: lane) {
-            await manager.setPartialCallback { _ in }
-            await manager.reset()
+        if let manager = liveStreamingManager {
+            await manager.setPartialTranscriptCallback { _ in }
+            try? await manager.reset()
         }
         endTranscription(on: lane)
     }
@@ -193,7 +184,11 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
         if isLoaded { return }
 
         if let initializationTask {
-            try await initializationTask.value
+            do {
+                try await initializationTask.value
+            } catch {
+                throw try Self.mapWarmUpError(error)
+            }
             return
         }
 
@@ -218,16 +213,21 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
 
         let interactiveManager = self.interactiveManager
         let backgroundManager = self.backgroundManager
+        let liveStreamingManager = self.liveStreamingManager
         self.interactiveManager = nil
         self.backgroundManager = nil
+        self.liveStreamingManager = nil
 
         await interactiveManager?.cleanup()
         await backgroundManager?.cleanup()
+        await liveStreamingManager?.cleanup()
     }
 
     public func isReady() -> Bool {
         isLoaded
     }
+
+    // MARK: - Model cache / download / delete (statics)
 
     /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
     /// `loadModels(to:)` resolves when no directory is passed.
@@ -243,28 +243,39 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
             .appendingPathComponent("Models", isDirectory: true)
     }
 
-    /// The 1120 ms tier directory (`…/Models/nemotron-streaming/1120ms`).
-    /// Unlike the multilingual build there is no language dimension — one flat
-    /// per-tier folder, keyed by `Repo.nemotronStreaming1120.folderName`.
+    /// `.../Models/parakeet-unified-en-0.6b` - keyed off FluidAudio's own
+    /// `Repo.parakeetUnified.folderName` so the path can never drift from where
+    /// the manager actually downloads.
     public nonisolated static func defaultCacheRoot() -> URL {
         modelsBaseDirectory()
-            .appendingPathComponent(Repo.nemotronStreaming1120.folderName, isDirectory: true)
+            .appendingPathComponent(Repo.parakeetUnified.folderName, isDirectory: true)
     }
 
     public nonisolated static func isModelCached() -> Bool {
         isModelCached(cacheRoot: defaultCacheRoot())
     }
 
-    /// Cached only when both `metadata.json` and the int8 encoder are present:
-    /// the encoder is the manager's own download gate, and without metadata the
-    /// manager would silently fall back to `NemotronStreamingConfig()`'s 2240 ms
-    /// chunk geometry — the wrong tier for this build.
+    nonisolated static func requiredModelFiles() -> Set<String> {
+        ModelNames.ParakeetUnified.requiredModels(variant: downloadVariant)
+    }
+
+    nonisolated static func requiredStreamingModelFiles() -> Set<String> {
+        ModelNames.ParakeetUnified.requiredModels(variant: streamingDownloadVariant)
+    }
+
+    nonisolated static func requiredAllModelFiles() -> Set<String> {
+        requiredModelFiles().union(requiredStreamingModelFiles())
+    }
+
+    /// Cached only when every file FluidAudio needs for both Unified access
+    /// paths is present. FluidAudio's own `loadModels(to:)` gates only on the
+    /// manager-specific encoder, so MacParakeet must be stricter to let explicit
+    /// downloads repair interrupted or partially deleted caches.
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
         let fileManager = FileManager.default
-        let metadata = cacheRoot.appendingPathComponent(ModelNames.NemotronStreaming.metadata)
-        let encoder = cacheRoot.appendingPathComponent(ModelNames.NemotronStreaming.encoderInt8File)
-        return fileManager.fileExists(atPath: metadata.path)
-            && fileManager.fileExists(atPath: encoder.path)
+        return requiredAllModelFiles().allSatisfy { fileName in
+            fileManager.fileExists(atPath: cacheRoot.appendingPathComponent(fileName).path)
+        }
     }
 
     @discardableResult
@@ -281,71 +292,110 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
         } catch {
             return false
         }
-        removeIfEmpty(cacheRoot.deletingLastPathComponent(), fileManager: fileManager)
         return !fileManager.fileExists(atPath: cacheRoot.path)
     }
 
-    private nonisolated static func removeIfEmpty(_ directory: URL, fileManager: FileManager) {
-        guard let children = try? fileManager.contentsOfDirectory(atPath: directory.path),
-              children.isEmpty else {
-            return
-        }
-        try? fileManager.removeItem(at: directory)
-    }
-
-    /// Pre-fetches the model to its cache without loading it. A cached model is
-    /// a cheap no-op, mirroring `NemotronEngine.downloadModel`.
+    /// Pre-fetches the offline model to its cache without loading it. A cached
+    /// model is a cheap no-op, mirroring the Nemotron engines' `downloadModel`.
     @discardableResult
     public nonisolated static func downloadModel(
         onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws -> URL {
         let cacheRoot = defaultCacheRoot()
-        guard !isModelCached(cacheRoot: cacheRoot) else { return cacheRoot }
-        onProgress?("Preparing Nemotron model download...")
-        let progressHandler = makeDownloadProgressHandler(onProgress)
-        try await DownloadUtils.downloadRepo(
-            .nemotronStreaming1120,
-            to: modelsBaseDirectory(),
-            progressHandler: progressHandler
-        )
+        try await downloadModelFilesIfNeeded(cacheRoot: cacheRoot, onProgress: onProgress)
         return cacheRoot
     }
 
+    // MARK: - Internals
+
     private var isLoaded: Bool {
-        interactiveManager != nil && backgroundManager != nil
+        interactiveManager != nil && backgroundManager != nil && liveStreamingManager != nil
+    }
+
+    private nonisolated static var downloadVariant: String {
+        encoderPrecision == .fp16 ? "offline-fp16" : "offline"
+    }
+
+    private nonisolated static var streamingDownloadVariant: String? {
+        // nil selects FluidAudio's default streaming export, which is the int8
+        // encoder. The fp16 export lives under the explicit "fp16" variant key.
+        encoderPrecision == .fp16 ? "fp16" : nil
+    }
+
+    private nonisolated static func downloadModelFilesIfNeeded(
+        cacheRoot: URL,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        let progressHandler = makeDownloadProgressHandler(onProgress)
+        if !requiredModelFiles().allSatisfy({
+            FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
+        }) {
+            onProgress?("Preparing Parakeet Unified model download...")
+            try await DownloadUtils.downloadRepo(
+                .parakeetUnified,
+                to: modelsBaseDirectory(),
+                variant: downloadVariant,
+                progressHandler: progressHandler
+            )
+        }
+        if !requiredStreamingModelFiles().allSatisfy({
+            FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
+        }) {
+            onProgress?("Preparing Parakeet Unified streaming model download...")
+            try await DownloadUtils.downloadRepo(
+                .parakeetUnified,
+                to: modelsBaseDirectory(),
+                variant: streamingDownloadVariant,
+                progressHandler: progressHandler
+            )
+        }
     }
 
     private func loadManagers(onProgress: (@Sendable (String) -> Void)?) async throws {
-        if !Self.isModelCached() {
-            onProgress?("Preparing Nemotron model download...")
-        }
+        try await Self.downloadModelFilesIfNeeded(
+            cacheRoot: Self.defaultCacheRoot(),
+            onProgress: onProgress
+        )
         let progressHandler = Self.makeDownloadProgressHandler(onProgress)
 
-        // No shared-weights API on the English manager (unlike the multilingual
-        // `loadFromShared` path); both lanes load the same compiled artifacts,
-        // which CoreML maps read-only, so the dominant encoder weights are
-        // shared via the page cache rather than duplicated per instance.
-        let loadedInteractiveManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
-        let loadedBackgroundManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
-        try await loadedInteractiveManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
-        try await loadedBackgroundManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
+        let loadedInteractiveManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        let loadedBackgroundManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        let loadedLiveStreamingManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        do {
+            try await loadedInteractiveManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
+            try await loadedBackgroundManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
+            try await loadedLiveStreamingManager.loadModels(
+                to: nil,
+                configuration: nil,
+                progressHandler: progressHandler
+            )
+            try Task.checkCancellation()
+        } catch {
+            await loadedInteractiveManager.cleanup()
+            await loadedBackgroundManager.cleanup()
+            await loadedLiveStreamingManager.cleanup()
+            throw error
+        }
 
         self.interactiveManager = loadedInteractiveManager
         self.backgroundManager = loadedBackgroundManager
-        logger.notice("nemotron_english_model_prepare_complete variant=\(Self.modelVariant.rawValue, privacy: .public)")
-        AudioCaptureDiagnostics.append("nemotron_english_model_prepare_complete variant=\(Self.modelVariant.rawValue)")
+        self.liveStreamingManager = loadedLiveStreamingManager
+        logger.notice("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue, privacy: .public)")
+        AudioCaptureDiagnostics.append("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue)")
         onProgress?("Ready")
     }
 
-    private func manager(for lane: NemotronEnglishRuntimeLane) -> StreamingNemotronAsrManager? {
+    private func manager(for lane: ParakeetUnifiedRuntimeLane) -> UnifiedAsrManager? {
         switch lane {
         case .interactive:
             interactiveManager
@@ -354,7 +404,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
         }
     }
 
-    private func route(for job: STTJobKind) -> NemotronEnglishRuntimeLane {
+    private func route(for job: STTJobKind) -> ParakeetUnifiedRuntimeLane {
         switch job {
         case .dictation:
             .interactive
@@ -363,30 +413,27 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
         }
     }
 
-    private func beginTranscription(on lane: NemotronEnglishRuntimeLane) -> Bool {
+    private func beginTranscription(on lane: ParakeetUnifiedRuntimeLane) -> Bool {
         guard !activeLanes.contains(lane) else { return false }
         activeLanes.insert(lane)
         return true
     }
 
-    private func endTranscription(on lane: NemotronEnglishRuntimeLane) {
+    private func endTranscription(on lane: ParakeetUnifiedRuntimeLane) {
         activeLanes.remove(lane)
     }
 
-    /// Wraps one resampled slice in the manager's target format
-    /// (16 kHz mono Float32, non-interleaved), so `resampleBuffer`'s fast path
-    /// extracts the samples without a second resample.
     private nonisolated static func makePCMBuffer(samples: ArraySlice<Float>) throws -> AVAudioPCMBuffer {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
-            sampleRate: targetSampleRate,
+            sampleRate: 16_000,
             channels: 1,
             interleaved: false
         ), let buffer = AVAudioPCMBuffer(
             pcmFormat: format,
             frameCapacity: AVAudioFrameCount(samples.count)
         ), let channelData = buffer.floatChannelData else {
-            throw STTError.transcriptionFailed("Failed to allocate audio buffer for Nemotron streaming")
+            throw STTError.transcriptionFailed("Failed to allocate audio buffer for Parakeet Unified streaming")
         }
         samples.withUnsafeBufferPointer { source in
             guard let baseAddress = source.baseAddress else { return }
@@ -427,13 +474,13 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     private nonisolated static func progressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
-            return "Preparing Nemotron model download..."
+            return "Preparing Parakeet Unified model download..."
         case .downloading(let completedFiles, let totalFiles):
             guard totalFiles > 0 else { return nil }
             let percent = max(0, min(100, Int(progress.fractionCompleted * 100.0)))
-            return "Downloading Nemotron model... \(percent)% (\(completedFiles)/\(totalFiles))"
+            return "Downloading Parakeet Unified model... \(percent)% (\(completedFiles)/\(totalFiles))"
         case .compiling:
-            return "Compiling Nemotron model..."
+            return "Compiling Parakeet Unified model..."
         }
     }
 
@@ -490,7 +537,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     }
 }
 
-private enum NemotronEnglishRuntimeLane: Hashable, Sendable {
+private enum ParakeetUnifiedRuntimeLane: Hashable, Sendable {
     case interactive
     case background
 }

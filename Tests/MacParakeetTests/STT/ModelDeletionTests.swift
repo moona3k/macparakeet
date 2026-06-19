@@ -47,6 +47,63 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: v3Dir.path))
     }
 
+    // MARK: - Parakeet Unified cache validation
+
+    func testParakeetUnifiedRequiredModelFilesTrackOfflineDownloadSet() {
+        let requiredFiles = ParakeetUnifiedEngine.requiredModelFiles()
+
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_int8.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("vocab.json"))
+        XCTAssertTrue(requiredFiles.contains("metadata.json"))
+    }
+
+    func testParakeetUnifiedRequiredStreamingModelFilesTrackStreamingDownloadSet() {
+        let requiredFiles = ParakeetUnifiedEngine.requiredStreamingModelFiles()
+
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("vocab.json"))
+        XCTAssertTrue(requiredFiles.contains("metadata.json"))
+    }
+
+    func testParakeetUnifiedIsModelCachedFalseWhenOnlyMetadataAndEncoderExist() throws {
+        let cacheRoot = tempRoot.appendingPathComponent("parakeet-unified-en-0.6b-coreml", isDirectory: true)
+        try writeUnifiedModelFile("metadata.json", in: cacheRoot)
+        try writeUnifiedModelFile("parakeet_unified_encoder_int8.mlmodelc", in: cacheRoot)
+
+        XCTAssertFalse(ParakeetUnifiedEngine.isModelCached(cacheRoot: cacheRoot))
+    }
+
+    func testParakeetUnifiedIsModelCachedFalseWhenAnyRequiredFileIsMissing() throws {
+        let requiredFiles = ParakeetUnifiedEngine.requiredAllModelFiles()
+        for missingFile in requiredFiles {
+            let cacheRoot = tempRoot
+                .appendingPathComponent("parakeet-unified-\(missingFile)-\(UUID().uuidString)", isDirectory: true)
+            for fileName in requiredFiles where fileName != missingFile {
+                try writeUnifiedModelFile(fileName, in: cacheRoot)
+            }
+
+            XCTAssertFalse(
+                ParakeetUnifiedEngine.isModelCached(cacheRoot: cacheRoot),
+                "Cache should be invalid when \(missingFile) is missing"
+            )
+        }
+    }
+
+    func testParakeetUnifiedIsModelCachedTrueWhenAllRequiredFilesExist() throws {
+        let cacheRoot = tempRoot.appendingPathComponent("parakeet-unified-en-0.6b-coreml", isDirectory: true)
+        for fileName in ParakeetUnifiedEngine.requiredAllModelFiles() {
+            try writeUnifiedModelFile(fileName, in: cacheRoot)
+        }
+
+        XCTAssertTrue(ParakeetUnifiedEngine.isModelCached(cacheRoot: cacheRoot))
+    }
+
     // MARK: - Nemotron repo file removal
 
     func testRemoveNemotronModelFilesDeletesWholeRepoRoot() throws {
@@ -294,6 +351,16 @@ final class ModelDeletionTests: XCTestCase {
             defaults: defaults
         )
         XCTAssertFalse(removed)
+    }
+
+    private func writeUnifiedModelFile(_ fileName: String, in cacheRoot: URL) throws {
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+        let fileURL = cacheRoot.appendingPathComponent(fileName, isDirectory: fileName.hasSuffix(".mlmodelc"))
+        if fileName.hasSuffix(".mlmodelc") {
+            try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true)
+        } else {
+            try "{}".write(to: fileURL, atomically: true, encoding: .utf8)
+        }
     }
 }
 

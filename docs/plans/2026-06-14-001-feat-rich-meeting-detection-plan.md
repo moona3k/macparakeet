@@ -455,11 +455,10 @@ stateDiagram-v2
 - **Files:**
   - `Tests/MacParakeetTests/MeetingActivity/MeetingActivityIntegrationTests.swift`
   - `spec/adr/024-activity-based-meeting-detection.md`
-  - `spec/kernel/requirements.yaml`
   - `docs/qa/meeting-activity-detection.md`
 - **Approach:** Add a small integration-style test layer over fake collectors
   and document a manual QA matrix for real OS behavior. Update ADR-024 and
-  REQ-MEET-016 status only after implementation lands.
+  the narrative specs only after implementation lands.
 - **Patterns to follow:** Existing coordinator integration tests under
   `Tests/MacParakeetTests/Calendar` and
   `Tests/MacParakeetTests/MeetingRecordingFlow`.
@@ -512,8 +511,7 @@ QA matrix is clean.
 ## Documentation and Rollout Notes
 
 - Update ADR-024 only after the implementation lands, not before.
-- Update `spec/kernel/requirements.yaml` status text once Phase C is actually
-  implemented.
+- Update the narrative specs once Phase C is actually implemented.
 - Add `docs/qa/meeting-activity-detection.md` with the real-device test matrix.
 - Keep `AppFeatures.meetingActivityDetectionEnabled = false` until targeted
   tests, full `swift test`, and manual QA pass.
@@ -526,8 +524,8 @@ QA matrix is clean.
 
 - `spec/adr/024-activity-based-meeting-detection.md` defines the intended
   activity-detection architecture and staged rollout.
-- `spec/kernel/requirements.yaml` tracks REQ-MEET-016 as active and describes
-  Phases A+B as foundation only.
+- The legacy `REQ-MEET-016` entry is historical; current status belongs in
+  ADR-024 and the narrative specs.
 - `Sources/MacParakeetCore/MeetingDetection/MeetingActivityDetector.swift`
   shows the current coarse detector contract that this plan replaces.
 - `Sources/MacParakeetCore/MeetingDetection/CameraActivityCollector.swift`

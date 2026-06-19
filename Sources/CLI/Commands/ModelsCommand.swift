@@ -133,7 +133,7 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var variant: String
 
         func run() async throws {
@@ -141,7 +141,7 @@ extension ModelsCommand {
             if let parakeetVariant = parakeetDownloadVariant(from: lowered) {
                 print("Parakeet: downloading \(parakeetVariant.modelName)...")
                 let lastMessage = OSAllocatedUnfairLock(initialState: "")
-                try await STTRuntime.downloadParakeetModel(version: parakeetVariant.asrModelVersion) { message in
+                try await downloadParakeetVariant(parakeetVariant) { message in
                     let shouldPrint = lastMessage.withLock { last in
                         guard last != message else { return false }
                         last = message
@@ -267,7 +267,7 @@ extension ModelsCommand {
                 """
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
         var id: String
 
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
@@ -291,11 +291,11 @@ extension ModelsCommand {
 
             switch target.kind {
             case .parakeet(let variant):
-                guard STTClient.isModelCached(version: variant.asrModelVersion) else {
+                guard isParakeetVariantCached(variant) else {
                     print("\(variant.modelName) is not downloaded — nothing to delete.")
                     return
                 }
-                let removed = STTRuntime.deleteParakeetModel(version: variant.asrModelVersion)
+                let removed = deleteParakeetVariant(variant)
                 guard removed else {
                     throw ModelDeletionError.deleteFailed("Could not delete \(variant.modelName). It may be missing or in use by another process.")
                 }
@@ -349,6 +349,40 @@ func parakeetDownloadVariant(
         return SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
     }
     return parseParakeetSelectionVariant(lowered)
+}
+
+/// Whether the on-disk model for `variant` is cached. Dispatches the Unified
+/// build to ``ParakeetUnifiedEngine`` (it has no `AsrModelVersion`); the TDT
+/// builds use the shared `AsrManager` cache.
+func isParakeetVariantCached(_ variant: ParakeetModelVariant) -> Bool {
+    if variant.usesUnifiedEngine {
+        return ParakeetUnifiedEngine.isModelCached()
+    }
+    guard let version = variant.asrModelVersion else { return false }
+    return STTClient.isModelCached(version: version)
+}
+
+/// Deletes the on-disk model for `variant`, dispatching Unified to its own engine.
+@discardableResult
+func deleteParakeetVariant(_ variant: ParakeetModelVariant) -> Bool {
+    if variant.usesUnifiedEngine {
+        return ParakeetUnifiedEngine.deleteModel()
+    }
+    guard let version = variant.asrModelVersion else { return false }
+    return STTRuntime.deleteParakeetModel(version: version)
+}
+
+/// Downloads the on-disk model for `variant`, dispatching Unified to its own engine.
+func downloadParakeetVariant(
+    _ variant: ParakeetModelVariant,
+    onProgress: @escaping @Sendable (String) -> Void
+) async throws {
+    if variant.usesUnifiedEngine {
+        _ = try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
+        return
+    }
+    guard let version = variant.asrModelVersion else { return }
+    try await STTRuntime.downloadParakeetModel(version: version, onProgress: onProgress)
 }
 
 func nemotronDownloadVariant(
@@ -443,7 +477,7 @@ func validatedAttempts(_ attempts: Int) throws -> Int {
 /// so `warm-up`/`repair`/`status` exercise the engine the user selected.
 func makeConfiguredSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) -> STTClient {
     STTClient(
-        modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
+        parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
         speechEngine: SpeechEnginePreference.current(defaults: defaults),
         nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
         whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
@@ -453,7 +487,7 @@ func makeConfiguredSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) 
 
 func makeParakeetSTTClient(defaults: UserDefaults = macParakeetAppDefaults()) -> STTClient {
     STTClient(
-        modelVersion: SpeechEnginePreference.parakeetModelVariant(defaults: defaults).asrModelVersion,
+        parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
         speechEngine: .parakeet,
         defaults: defaults
     )
@@ -475,7 +509,7 @@ func loadSpeechStackStatus(
     let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
     let whisperModelVariant = whisperModelVariant ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
     let parakeetDownloaded = (isParakeetModelCached ?? { variant in
-        STTClient.isModelCached(version: variant.asrModelVersion)
+        isParakeetVariantCached(variant)
     })(parakeetModelVariant)
     let nemotronDownloaded = (isNemotronModelDownloaded ?? { variant in
         STTClient.isNemotronModelCached(modelVariant: variant, language: nemotronLanguage)
@@ -556,7 +590,7 @@ func loadSelectableSpeechModels(
     isWhisperModelDownloaded: ((String) -> Bool)? = nil
 ) -> [SelectableSpeechModel] {
     let checkParakeetModelCached = isParakeetModelCached ?? {
-        STTClient.isModelCached(version: $0.asrModelVersion)
+        isParakeetVariantCached($0)
     }
     let currentEngine = SpeechEnginePreference.current(defaults: defaults)
     let currentParakeetVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
@@ -807,6 +841,8 @@ private func parseParakeetSelectionVariant(_ lowered: String) -> ParakeetModelVa
         return .v3
     case "v2", "english", "english-only", "en":
         return .v2
+    case "unified", "english-unified", "unified-offline":
+        return .unified
     default:
         return nil
     }

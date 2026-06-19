@@ -4,10 +4,16 @@ import FluidAudio
 /// FluidAudio `AsrModelVersion` the runtime actually loads. Kept in the STT
 /// layer so `SpeechEnginePreference.swift` never has to import CoreML/FluidAudio.
 extension ParakeetModelVariant {
-    public var asrModelVersion: AsrModelVersion {
+    /// The FluidAudio TDT `AsrModelVersion` this variant loads, or `nil` for
+    /// ``unified`` — Parakeet Unified is a separate FluidAudio runtime with no
+    /// `AsrModelVersion` (see ``usesUnifiedEngine``). Returning an optional
+    /// makes the compiler flag every `AsrManager`-keyed site that must special-
+    /// case the unified build instead of silently mishandling it.
+    public var asrModelVersion: AsrModelVersion? {
         switch self {
         case .v3: .v3
         case .v2: .v2
+        case .unified: nil
         }
     }
 

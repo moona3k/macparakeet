@@ -1,290 +1,165 @@
-# 10 - AI Coding Method
+# 10 - Agent Working Method
 
 > Status: **ACTIVE** - Authoritative, current
 
 ## Purpose
 
-This document defines how MacParakeet uses specs to drive implementation with coding agents.
+This document explains how agents and humans should use MacParakeet's specs,
+plans, tests, and review loops without turning process into the product.
 
-Goal: reduce ambiguity, prevent drift, and make generated code maintainable over time.
+The goal is simple: keep changes grounded, verifiable, and easy for the next
+person or agent to continue.
 
-## Philosophy
+Rationale and external references for this approach live in
+[`../docs/research/coding-agent-instructions-2026-06.md`](../docs/research/coding-agent-instructions-2026-06.md).
 
-1. ADRs record locked decisions; do not second-guess them without a new ADR.
+## Principles
+
+1. ADRs record accepted decisions. Do not second-guess them casually.
 2. Narrative specs explain product behavior, architecture, and rationale.
-3. Plans capture active implementation work and should be reconciled back into specs before merge.
-4. The kernel is a lightweight, optional feature/status index, not a parallel contract system or a coverage map.
-5. Determinism beats cleverness for core product flows.
+3. Plans are working memory for substantial or long-running tasks, not a
+   mandatory ceremony for every edit.
+4. Tests, current code, and `git` history are the reliable source for
+   implementation and coverage discovery.
+5. Use the lightest process that still protects correctness, privacy, user
+   data, and product quality.
 
-## Context Zone (Probability Control)
+## Source Of Truth
 
-Coding agents sample actions from context. In practice: weak context spreads probability mass across many plausible edits; strong context concentrates probability mass on valid edits.
-
-The "context zone" is the bounded set of behavior allowed by current ADRs, specs, active plans, and tests.
-
-For every behavior change, define zone boundaries up front:
-
-1. Governing ADRs and spec sections.
-2. Target requirement IDs in `spec/kernel/requirements.yaml` when the change maps to an existing notable feature (adding new IDs is optional).
-3. "Must not change" invariants for public interfaces, persistence formats, privacy boundaries, and stateful/concurrent flows.
-4. Focused tests that verify in-zone behavior and reject out-of-zone drift.
-
-Any out-of-zone behavior change must be explicitly called out and reflected in the highest-precedence artifact it affects.
-
-## External Evidence (Rationale)
-
-The context-zone model is consistent with current research and vendor guidance:
-
-1. Long-context reliability degrades with poor information placement ("lost in the middle").
-   - https://arxiv.org/abs/2307.03172
-2. Prompt structure and query placement materially affect long-context performance.
-   - https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/long-context-tips
-3. Simpler, structured SWE workflows can outperform heavier autonomous setups.
-   - https://arxiv.org/abs/2407.01489
-4. Tool-grounded reasoning loops improve error recovery and reduce hallucination-style failures.
-   - https://arxiv.org/abs/2210.03629
-5. SWE benchmark results can be inflated by memorization/contamination; eval hygiene matters.
-   - https://openai.com/index/introducing-swe-bench-verified/
-   - https://arxiv.org/abs/2506.12286
-
-Inference: strong boundary artifacts improve the probability that agent actions remain in-zone. Use heavier artifacts only where they materially reduce ambiguity.
-
-## Decision
-
-Adopt a pragmatic spec model:
-
-1. **Decision layer:** accepted ADRs in `spec/adr/` for locked architectural and product decisions.
-2. **Narrative layer:** `spec/00-*` docs for product behavior, architecture, data model, UI, testing, and release status.
-3. **Plan layer:** `plans/active/` for in-flight implementation details; completed plans are historical records.
-4. **Kernel support layer:** `spec/kernel/requirements.yaml` as an optional, compact feature/status index. (The former manual feature -> source -> test map, `traceability.md`, was retired: it was a write-only hand-index with no machine consumer, and tests plus `git` are the authoritative coverage and history record.)
-
-Optional contracts and state machines may be added for high-risk seams, but they are not required repo-wide.
-
-## Source-of-Truth Order
-
-When artifacts conflict, precedence is:
+When artifacts conflict, use this order:
 
 1. Accepted ADRs in `spec/adr/`
-2. Narrative specs in `spec/00-*`
-3. Active implementation plans in `plans/active/`
-4. Kernel feature/status index (`spec/kernel/requirements.yaml`)
-5. Existing code/comments
+2. Narrative specs listed in `spec/README.md`
+3. Active plans, when the task is executing that plan
+4. Current code and tests
 
-If conflict is found, update the lower-precedence artifact in the same change. If the higher-precedence artifact is wrong, update it deliberately and explain why.
+If a lower-precedence artifact is stale, update it when it matters to the
+change. If a higher-precedence artifact is wrong, update it deliberately and
+explain why in the PR/commit.
 
-## Kernel Artifacts
+## Retired Kernel Workflow
 
-Maintain the artifacts that currently provide value:
+The old manual requirements and traceability workflow is retired.
+`spec/kernel/traceability.md` was removed, and the legacy requirements index now
+lives at [`../docs/historical/requirements-legacy.yaml`](../docs/historical/requirements-legacy.yaml).
 
-- `spec/kernel/requirements.yaml` (optional feature/status index)
+That file exists only so old plans, ADRs, audits, and commits that mention
+`REQ-*` IDs remain understandable. Do not add new REQ IDs as part of normal
+work. For current implementation discovery, use code search, tests, and git
+history.
 
-### Requirement Index
+## Context Zone
 
-`requirements.yaml` is a compact feature/status index. Each top-level key is the stable requirement ID. Each entry should include:
+For behavior changes, define the context zone before editing:
 
-- `description`
-- `version` or release/train marker
-- `status`
+1. What behavior is in scope.
+2. What must not change.
+3. Which ADRs/specs/code paths govern the work.
+4. Which tests or runtime checks will prove the change.
 
-Allowed `status` values:
+This does not need a long document. A few bullets in a plan, PR, or working
+notes are enough when the scope is clear.
 
-- `status`: `proposed | active | implemented | deprecated | historical`
+## Plans
 
-Requirement ID format:
+Use plans when they help the work stay coherent:
 
-- `REQ-<area>-<nnn>` where `<area>` is stable (`DICT`, `TRANS`, `MEET`, `CLI`, etc.) and `<nnn>` is zero-padded when practical.
+- New features
+- Multi-file refactors
+- Architecture or data-model changes
+- Long-running agent tasks
+- Work likely to be resumed by another agent
 
-Example:
+Skip plans for typos, copy edits, simple bug fixes, small internal refactors,
+and obvious one-file changes.
 
-```yaml
-REQ-YT-001:
-  description: YouTube URL transcription via yt-dlp
-  version: v0.3
-  status: implemented
+Plans should be useful to agents: state the goal, constraints, phases,
+verification, and current status. Archive or mark them historical when they stop
+representing active work.
+
+## Documentation Updates
+
+Update docs when the change affects:
+
+- User-visible behavior
+- Public CLI behavior or JSON/error contracts
+- Persistence, migrations, import/export, or retained local artifacts
+- Privacy, telemetry, network surfaces, or local-first guarantees
+- Release framing, feature flags, onboarding, or support guidance
+- ADR/spec decisions
+
+Do not update docs just to satisfy a checklist. Stale mechanical docs are worse
+than no docs.
+
+## Testing
+
+During development, run focused tests for the touched area. Before merge or
+completion, run broader tests proportional to risk.
+
+Default expectation for code changes:
+
+```bash
+swift test
 ```
 
-Optional fields such as `source`, `priority`, and `acceptance` are allowed when they clarify active or high-risk work, but they are not required for every historical entry.
+Use focused filters for iteration:
 
-### Finding Source and Tests
-
-There is no manual requirement -> source -> test map. To find what implements or tests a feature, use `git grep`, test names, and `git log`/`git blame` — all always-accurate and free. An always-green suite is stronger evidence of coverage than a hand-maintained table that merely claims it.
-
-### Optional Contracts
-
-Create `spec/kernel/contracts/*.yaml` only when a stable interface needs machine-checkable clarity, such as:
-
-- CLI JSON envelopes and exit/error contracts
-- Import/export bundle schemas
-- Database migration compatibility contracts
-- Telemetry/privacy event schemas
-- External-process invocation boundaries
-
-Each contract should include:
-
-- `name`
-- `input`
-- `output`
-- `errors` (stable error codes)
-- `invariants`
-
-Example:
-
-```yaml
-name: transcribe_url
-input:
-  url: string
-  onProgress: optional_callback_string
-output:
-  transcription:
-    id: uuid
-    status: completed
-errors:
-  - invalid_url
-  - video_not_found
-  - download_failed
-  - timed_out
-invariants:
-  - sourceURL must equal request url for URL-based transcriptions
+```bash
+swift test --filter TextProcessingPipelineTests
+scripts/dev/check.sh [TestFilter]
 ```
 
-### Optional State Machines
+Higher-risk areas need stronger proof: audio capture, meeting recovery,
+database migrations, CLI contracts, telemetry/privacy, concurrency, and shared
+runtime scheduling.
 
-Create `spec/kernel/state_machines/*.yaml` only for flows where explicit transitions reduce real risk, such as:
+## Review
 
-- Dictation lifecycle
-- Meeting recording lifecycle and crash recovery
-- STT scheduler/lease behavior
-- Calendar auto-start
-- Destructive import/replace flows
+Review rigor should match the risk:
 
-Each state machine should include:
+- Trivial changes can go straight in after a quick check.
+- Small contained fixes need focused verification and, when useful, one
+  fresh-eye review.
+- Substantial changes should use the full PR loop in
+  [`../docs/pr-review-workflow.md`](../docs/pr-review-workflow.md): branch from
+  `origin/main`, run CI, get independent review, address valid findings, and
+  stop when findings converge to trivial or duplicative.
 
-- `name`
-- `initial`
-- `states`
-- `events`
-- `transitions`
-- `terminal_states`
+Model review is input, not authority. Fix valid issues, decline wrong findings
+with evidence, and avoid worse designs just to satisfy a reviewer.
 
-Example:
+## Agent Discretion
 
-```yaml
-name: dictation_flow
-initial: idle
-states: [idle, recording, processing, success, error]
-events: [start_recording, stop_recording, stt_ok, stt_fail]
-transitions:
-  - { from: idle, event: start_recording, to: recording }
-  - { from: recording, event: stop_recording, to: processing }
-  - { from: processing, event: stt_ok, to: success }
-  - { from: processing, event: stt_fail, to: error }
-terminal_states: [success, error]
-```
+Agents are expected to choose the simplest path that preserves correctness and
+quality. Good discretion looks like:
 
-## Implementation Workflow
-
-For any behavior change:
-
-1. Read the governing ADRs, spec sections, and active plans.
-2. Identify existing requirement IDs to anchor the change; adding a new ID is optional and reserved for naming a genuinely new user-visible capability, persistence format, or CLI surface.
-3. Define must-not-change invariants before editing.
-4. Add/update tests for changed behavior.
-5. Add/update optional contracts or state machines only if the change touches a high-risk seam listed above.
-6. Run tests per test-scope policy.
-
-Small bug fixes, copy changes, internal refactors, and straightforward UI polish may skip new requirement IDs when the existing specs and tests already bound the work.
-
-## Test-Scope Policy
-
-During development:
-
-1. Run focused tests for touched requirements (fast loop).
-2. Run broader local suite when touching shared/core flows.
-
-Before merge:
-
-1. Run `swift test` locally or in CI for full-suite verification.
-
-## Definition of Done
-
-### PR-Ready DoD
-
-A change is PR-ready only when all are true:
-
-1. Governing ADR/spec/plan context was checked.
-2. Requirement entries are updated when the change adds or changes a notable feature/public behavior (optional — see Kernel Artifacts).
-3. Optional contracts/state machines are updated when they exist for the touched seam.
-4. Focused tests pass for affected behavior.
-5. Precedence conflicts are reconciled.
-
-### Merge Gate
-
-A change is merge-complete only when all are true:
-
-1. PR-Ready DoD is satisfied.
-2. Full test suite (`swift test`) passes in CI.
-3. Relevant docs and plan status markers are updated.
-
-## Coding Rules for Agents
-
-1. Do not treat kernel files as higher precedence than ADRs or narrative specs.
-2. Do not introduce major user-visible behavior without updating the relevant spec/plan and, when appropriate, `requirements.yaml`.
-3. Prefer explicit error codes over free-form strings for public CLI, import/export, and core flow errors.
-4. Preserve local-first/privacy ADR constraints unless an ADR changes.
-5. Requirement IDs do not need to appear in Swift source or test names unless that improves clarity.
-
-### Agent Discretion (Bounded)
-
-Agents are expected to use judgment, but within explicit constraints:
-
-1. For behavior changes, documentation updates should be proportional to risk and user visibility.
-2. For non-behavioral changes (formatting, comments, renames, internal refactors with unchanged behavior), agents may use a lighter process.
-3. If a materially better third approach is identified, propose it and update this method before adopting it broadly.
-4. Prefer the simplest process that preserves correctness, test coverage, and ADR constraints.
+- Reading the local subsystem README before touching a load-bearing subsystem.
+- Using the existing architecture instead of inventing a parallel one.
+- Adding tests where failure would matter.
+- Keeping plans and docs proportional to the work.
+- Calling out out-of-scope behavior explicitly.
+- Preserving user worktree changes you did not make.
 
 ## Anti-Patterns
 
 Avoid:
 
-1. Treating optional contracts/state machines as if they already exist.
-2. Claiming CI enforces a process gate (coverage, requirement mapping) unless a CI check actually does.
-3. Requirement IDs that change over time.
-4. Silent behavior changes not reflected in the relevant ADR/spec/plan/kernel docs.
-5. Retrofitting heavy YAML artifacts for low-risk historical features just to satisfy process.
+1. Treating old `REQ-*` IDs as required workflow.
+2. Creating plans that only restate obvious steps.
+3. Updating release or feature status in multiple places instead of linking to
+   the source.
+4. Shipping behavior changes without updating the governing ADR/spec when they
+   conflict.
+5. Running elaborate review loops for trivial edits.
+6. Obeying review comments without deciding whether they are correct.
+7. Leaving dead code from abandoned approaches.
 
-## Rollout Plan
+## Definition Of Done
 
-### Current Operating Mode
+A change is done when:
 
-1. Keep `requirements.yaml` accurate as an optional, compact feature/status index.
-2. Add optional contracts/state machines only when they reduce ambiguity at high-risk seams.
-
-Success metric:
-
-- A new agent can quickly find the source and test surface for a shipped feature via `git grep`, test names, and history.
-- Kernel docs do not contradict ADRs, narrative specs, or current code.
-
-### Targeted Investment
-
-When repeatedly editing a high-risk flow, add the smallest durable artifact that would have prevented the last ambiguity:
-
-- A contract for stable I/O/error schemas.
-- A state machine for tricky lifecycle/concurrency behavior.
-
-Non-goals:
-
-- 100% active-feature kernel coverage.
-- CI failure on unmapped requirements without first building and maintaining that check.
-- Repo-wide retroactive contracts for simple or historical behavior.
-
-## Relationship to Existing Specs
-
-Narrative docs remain the human-facing product and architecture guide. ADRs remain the locked decision record. The kernel supports implementation discovery and review; it is not the primary implementation authority.
-
-Use each artifact for what it is good at:
-
-- ADRs: decisions and constraints.
-- Narrative specs: product behavior and architecture.
-- Plans: active implementation detail.
-- Kernel requirements: compact, optional status/index.
-- Optional contracts/state machines: targeted clarity for high-risk seams.
+1. The implementation matches the governing ADR/spec or deliberately updates it.
+2. The relevant tests or runtime checks pass.
+3. User-visible/public-contract docs are updated when needed.
+4. Plans are updated or archived when they were part of the work.
+5. The final explanation names what changed and what was verified.

@@ -75,6 +75,12 @@
 - No hard blockers between active plans. Soft sequencing: land the onboarding-stall watchdog test (#2) before/with the onboarding rework (#1) so the warm-up path has a safety net under it.
 - The two engine-switch plans are a pair: `ux-revamp` (Stage A, partial) is the parent; `stage-b` is its on-hold continuation. Both gate on the A3 cold-switch telemetry before the reactive flow is greenlit.
 
+## Recently archived → `completed/` (2026-06-18)
+
+- **parakeet-unified-engine** → Phase 1 shipped as #552 (`656031f11`):
+  selectable English-only Parakeet Unified model in Settings and CLI, routed
+  through `ParakeetUnifiedEngine`; native Unified streaming remains a follow-up.
+
 ## Recently archived → `completed/` (2026-06-13 reconcile)
 
 These were merged/resolved but left in `active/`; moved with a ship-evidence note in each header:

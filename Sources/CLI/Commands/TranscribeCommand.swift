@@ -38,6 +38,7 @@ enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Senda
     case appDefault = "app-default"
     case v3
     case v2
+    case unified
 }
 
 enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -94,7 +95,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only). app-default follows the saved preference; ignored for Nemotron and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization). app-default follows the saved preference; ignored for Nemotron and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
     @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms (English-only Beta). app-default follows the saved preference; ignored for Parakeet and Whisper. The English build ignores --language.")
@@ -244,6 +245,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .v3
         case .v2:
             return .v2
+        case .unified:
+            return .unified
         }
     }
 
@@ -463,7 +466,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     storedVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
                 )
                 let createdSTTClient = STTClient(
-                    modelVersion: parakeetVariant.asrModelVersion,
+                    parakeetModelVariant: parakeetVariant,
                     defaults: defaults
                 )
                 sttClient = createdSTTClient

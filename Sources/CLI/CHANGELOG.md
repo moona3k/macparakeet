@@ -91,6 +91,33 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `config get|set|list` now includes `auto-meeting-titles`, the shared
   on/off preference for LLM-generated meeting recording titles.
 
+### Changed
+
+- `models download parakeet-unified` now prepares both Parakeet Unified int8
+  encoder exports: the offline 15s batch path used by CLI transcription and
+  the native 2080ms streaming path used by app live dictation preview.
+  `transcribe --parakeet-model unified` is unchanged and still uses the offline
+  build for best stop-time quality.
+
+## [2.10.0] -- 2026-06-17
+
+### Added
+
+- New Parakeet model id **`parakeet-unified`** (NVIDIA Parakeet Unified EN
+  0.6B — English-only, ~565 MB int8). It is a selectable Parakeet build
+  alongside `parakeet-v3`/`parakeet-v2`:
+  - `transcribe --parakeet-model unified` transcribes the run with the Unified
+    offline build (strong English offline accuracy with punctuation and
+    capitalization). `app-default`/`v3`/`v2` are unchanged.
+  - `config set parakeet-model unified` persists it as the default Parakeet
+    build (aliases: `english-unified`, `unified-offline`). `config get
+    parakeet-model` returns `unified`.
+  - `models list`/`status` show it; `models download parakeet-unified`,
+    `models select parakeet-unified`, and `models delete parakeet-unified`
+    manage it. Alias spellings (`parakeet:unified`, `parakeet-english-unified`)
+    resolve the same. `models select` requires the model downloaded first.
+  - Additive only — no existing flag, id, or default behavior changes.
+
 ## [2.9.0] -- 2026-06-11
 
 ### Added

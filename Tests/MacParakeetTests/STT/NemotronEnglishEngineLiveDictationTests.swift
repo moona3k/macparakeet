@@ -4,7 +4,7 @@ import XCTest
 /// Guards the wiring that lets the English-only Nemotron build drive live
 /// dictation partials, just like the multilingual build. The happy path needs
 /// real CoreML models, so these tests cover the model-free invariants: the
-/// `NemotronLiveDictating` conformance (so `STTRuntime` can route to it) and the
+/// `NativeLiveDictating` conformance (so `STTRuntime` can route to it) and the
 /// session guards that reject append/finish without an active session.
 ///
 /// Regression target: the English build used to be rejected from the live path
@@ -12,10 +12,10 @@ import XCTest
 /// that exclusion or the conformance is reintroduced, these fail to compile or
 /// fail at runtime.
 final class NemotronEnglishEngineLiveDictationTests: XCTestCase {
-    func testConformsToNemotronLiveDictating() {
+    func testConformsToNativeLiveDictating() {
         // Compile-time proof the runtime can hold this build as the active
         // live-dictation engine.
-        let engine: any NemotronLiveDictating = NemotronEnglishEngine()
+        let engine: any NativeLiveDictating = NemotronEnglishEngine()
         XCTAssertNotNil(engine)
     }
 

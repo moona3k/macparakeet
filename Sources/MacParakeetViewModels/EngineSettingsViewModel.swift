@@ -21,9 +21,10 @@ public final class EngineSettingsViewModel {
             applySpeechEngineChange(speechEnginePreference)
         }
     }
-    /// Which Parakeet build (multilingual `v3` vs English-only `v2`) is active.
-    /// Changing it live-reloads the model when Parakeet is the selected engine
-    /// (downloading the target on first use); see `applyParakeetModelVariantChange`.
+    /// Which Parakeet build (multilingual `v3`, English-only `v2`, or Unified)
+    /// is active. Changing it live-reloads the model when Parakeet is the selected
+    /// engine (downloading the target on first use); see
+    /// `applyParakeetModelVariantChange`.
     public var parakeetModelVariant: ParakeetModelVariant {
         didSet {
             guard !isApplyingParakeetVariantState else { return }
@@ -117,13 +118,17 @@ public final class EngineSettingsViewModel {
     public init(
         defaults: UserDefaults = .standard,
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
-            STTRuntime.isModelCached(version: $0.asrModelVersion)
+            if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
+            guard let version = $0.asrModelVersion else { return false }
+            return STTRuntime.isModelCached(version: version)
         },
         nemotronModelVariantCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
             STTRuntime.isNemotronModelCached(modelVariant: $0, language: $1)
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
-            STTRuntime.deleteParakeetModel(version: $0.asrModelVersion)
+            if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
+            guard let version = $0.asrModelVersion else { return false }
+            return STTRuntime.deleteParakeetModel(version: version)
         },
         deleteNemotronModelOnDisk: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
             STTRuntime.deleteNemotronModel(modelVariant: $0, language: $1)

@@ -179,6 +179,33 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(ParakeetModelVariant.v2.alternative, .v3)
     }
 
+    // MARK: - Parakeet Unified variant (issue #520)
+
+    func testParakeetUnifiedVariantRoundTrips() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .unified)
+        XCTAssertEqual(ParakeetModelVariant(rawValue: "unified"), .unified)
+    }
+
+    func testParakeetUnifiedHasNoAsrModelVersionAndUsesUnifiedEngine() {
+        // Unified is a separate FluidAudio runtime — no TDT `AsrModelVersion`.
+        XCTAssertNil(ParakeetModelVariant.unified.asrModelVersion)
+        XCTAssertTrue(ParakeetModelVariant.unified.usesUnifiedEngine)
+        XCTAssertFalse(ParakeetModelVariant.v2.usesUnifiedEngine)
+        XCTAssertFalse(ParakeetModelVariant.v3.usesUnifiedEngine)
+    }
+
+    func testParakeetUnifiedIsEnglishOnlyAndListed() {
+        XCTAssertTrue(ParakeetModelVariant.unified.isEnglishOnly)
+        // Surfaced as a selectable Parakeet build everywhere `.allCases` drives a
+        // picker (Settings, `models list`).
+        XCTAssertTrue(ParakeetModelVariant.allCases.contains(.unified))
+        XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
+    }
+
     // MARK: - Nemotron model variant
 
     func testNemotronModelVariantDefaultsToMultilingual1120() {

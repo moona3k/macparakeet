@@ -1,8 +1,10 @@
 # STT
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
-> CoreML) is default, with v3 multilingual as the default build and v2
-> English-only as an opt-in Parakeet variant; Nemotron is an opt-in Beta
+> CoreML) is default, with v3 multilingual as the default build, v2
+> English-only and Parakeet Unified (English-only, punctuated offline output
+> plus native live dictation partials)
+> as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
 > WhisperKit is optional for languages outside Parakeet/Nemotron
@@ -21,11 +23,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 **Speech control plane**
 - `STTScheduler.swift` — public broker. Job admission, slot scheduling,
   engine routing, session leases for active meetings.
-- `STTRuntime.swift` — sole owner of the Parakeet `AsrManager`s, the
-  optional Beta `NemotronEngine`/`NemotronEnglishEngine` pair (routed
-  by the persisted `NemotronModelVariant`), and the optional
-  `WhisperEngine`. Handles warm-up, model init, cache clearing,
-  shutdown, and Parakeet/Nemotron build swaps.
+- `STTRuntime.swift` — sole owner of the Parakeet TDT `AsrManager`s, the
+  optional `ParakeetUnifiedEngine` (routed when the persisted
+  `ParakeetModelVariant` is `.unified`), the optional Beta
+  `NemotronEngine`/`NemotronEnglishEngine` pair (routed by the persisted
+  `NemotronModelVariant`), and the optional `WhisperEngine`. Handles warm-up,
+  model init, cache clearing, shutdown, and Parakeet/Nemotron build swaps.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -34,6 +37,14 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   (text, word-level timing, optional detected language, the engine
   that produced the result, and an optional engine-specific model
   variant).
+- `ParakeetUnifiedEngine.swift` — FluidAudio `UnifiedAsrManager` +
+  `StreamingUnifiedAsrManager` wrapper for NVIDIA Parakeet Unified EN 0.6B
+  (English-only, int8). Selected when `ParakeetModelVariant == .unified`.
+  File, meeting, and recorded-file dictation use FluidAudio's overlapping 15 s
+  offline batch transcription (`parakeet-unified-offline-15s`) because that is
+  the best stop-time quality path. Live dictation uses the native low-latency
+  streaming build (`parakeet-unified-2080ms`) to emit partials while capture is
+  active. No word timings; `language` fixed to `en`.
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.
 - `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the
@@ -45,9 +56,9 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   load the same compiled artifacts). File/meeting jobs feed batch-at-stop
   through the streaming manager in bounded slices; live dictation drives
   the same manager incrementally and emits partials (see below).
-- `NemotronLiveDictating.swift` — internal protocol both Nemotron builds
-  conform to so `STTRuntime` can route a live dictation session to
-  whichever build is active without knowing the concrete engine type.
+- `NativeLiveDictating.swift` — internal protocol the native streaming engines
+  conform to so `STTRuntime` can route a live dictation session to the active
+  Nemotron or Parakeet Unified build without knowing the concrete engine type.
 
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined
@@ -100,12 +111,13 @@ background slot, with explicit priority: meeting finalize
 > meeting live chunk > file transcription. Backpressure on the
 shared slot drops the lowest-priority pending work.
 
-**Live dictation sessions (Nemotron only).** When the selected engine
-is Nemotron — either build, multilingual or English-only — dictation can
-hold a live streaming session via `beginLiveDictationTranscription` /
-`appendLiveDictationSamples` / `finishLiveDictationTranscription` /
-`cancelLiveDictationTranscription`. The runtime routes the session to the
-active build through `NemotronLiveDictating`.
+**Native live dictation sessions (Nemotron and Parakeet Unified).** When the
+selected engine is Nemotron — either build, multilingual or English-only — or
+Parakeet with the `.unified` variant, dictation can hold a live streaming
+session via `beginLiveDictationTranscription` / `appendLiveDictationSamples` /
+`finishLiveDictationTranscription` / `cancelLiveDictationTranscription`. The
+runtime routes the session to the active native streaming build through
+`NativeLiveDictating`.
 The session owns the interactive slot for its duration: competing
 dictation transcribe jobs are rejected with `engineBusy`, engine-switch
 availability reports `transcribing`, and quiesce/shutdown cancels the
@@ -119,14 +131,15 @@ drops samples, or finishes empty.
 Dictation can request a single-flight tail-window preview via
 `transcribeDictationPreview`. This does not reserve a scheduler slot and
 does not replace the recorded-file final transcript; it is only for the
-floating overlay text while capture is active. Engine switches, variant
-switches, and dictation stop/cancel paths cancel the preview with bounded
-drain. If a cancelled preview still has runtime work in flight, engine/variant
-switches fail fast with `engineBusy` rather than reloading under active
-inference; the final paste path still proceeds after its bounded display-preview
-drain. Runtime quiesce paths such as shutdown and cache clear wait for preview
-drain under the unhealthy-runtime watchdog before unloading or clearing model
-state.
+floating overlay text while capture is active. Parakeet v2/v3 use this
+tail-window batch preview; Parakeet Unified and Nemotron use native streaming
+partials instead, and Whisper remains default-off. Engine switches, variant
+switches, and dictation stop/cancel paths cancel the preview with bounded drain.
+If a cancelled preview still has runtime work in flight, engine/variant switches
+fail fast with `engineBusy` rather than reloading under active inference; the
+final paste path still proceeds after its bounded display-preview drain. Runtime
+quiesce paths such as shutdown and cache clear wait for preview drain under the
+unhealthy-runtime watchdog before unloading or clearing model state.
 
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI

@@ -79,10 +79,23 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var initializationTask: Task<Void, Error>?
     private var initializationGeneration: UInt64 = 0
     private var warmUpProgressHandler: (@Sendable (String) -> Void)?
-    /// The active Parakeet build. Mutable because the user can switch between
-    /// the multilingual `v3` and English-only `v2` variants at runtime
-    /// (`setParakeetModelVariant`); `ensureInitialized()` reads it when loading.
+    /// The active Parakeet TDT build (`v2`/`v3`). Mutable because the user can
+    /// switch variants at runtime (`setParakeetModelVariant`);
+    /// `ensureInitialized()` reads it when loading the shared `AsrManager`.
+    /// Only meaningful while ``currentParakeetVariant`` is a TDT build — when the
+    /// active variant is `.unified` the TDT path never runs, so this holds a
+    /// harmless `.v3` placeholder.
     private var modelVersion: AsrModelVersion
+    /// The active user-facing Parakeet variant, the source of truth for which
+    /// runtime serves Parakeet work. `.v2`/`.v3` route to the shared
+    /// `AsrManager` (TDT) path keyed by ``modelVersion``; `.unified` routes to
+    /// ``parakeetUnifiedEngine``. Mirrors how ``nemotronModelVariant`` selects
+    /// between the two Nemotron engines.
+    private var currentParakeetVariant: ParakeetModelVariant
+    /// Owns FluidAudio's offline Parakeet Unified runtime. Lazily created the
+    /// first time the `.unified` variant is used; sibling of the TDT
+    /// `interactiveManager`/`backgroundManager` pair.
+    private var parakeetUnifiedEngine: ParakeetUnifiedEngine?
     private var speechEngine: SpeechEnginePreference
     private var nemotronEngine: NemotronEngine?
     private var nemotronEngineLanguage: String?
@@ -106,10 +119,10 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
     private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
-    /// The Nemotron build driving the active live dictation session. Captured at
-    /// `begin` so `append`/`finish`/`cancel` route to the same engine the
-    /// session started on, regardless of which build is selected.
-    private var liveDictationEngine: (any NemotronLiveDictating)?
+    /// The native streaming engine driving the active live dictation session.
+    /// Captured at `begin` so `append`/`finish`/`cancel` route to the same
+    /// loaded engine the session started on, regardless of later preferences.
+    private var liveDictationEngine: (any NativeLiveDictating)?
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -117,13 +130,17 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var backgroundWarmUpGeneration: UInt64 = 0
 
     public init(
-        modelVersion: AsrModelVersion = .v3,
+        parakeetModelVariant: ParakeetModelVariant = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
         defaults: UserDefaults = .standard
     ) {
-        self.modelVersion = modelVersion
+        self.currentParakeetVariant = parakeetModelVariant
+        // `.unified` has no TDT version; the TDT path is never taken for it, so a
+        // `.v3` placeholder keeps `modelVersion` non-optional without affecting
+        // behavior.
+        self.modelVersion = parakeetModelVariant.asrModelVersion ?? .v3
         self.speechEngine = speechEngine
         self.nemotronModelVariant = nemotronModelVariant
         self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
@@ -198,27 +215,37 @@ public actor STTRuntime: STTRuntimeProtocol {
         guard liveDictationSession == nil else {
             throw STTError.engineBusy
         }
-        guard speechEngine == .nemotron else {
-            throw STTLiveDictationTranscriptionError.unsupportedEngine(speechEngine)
-        }
-        // Both Nemotron builds wrap FluidAudio streaming managers that emit
-        // partials, so live dictation routes to whichever build is active. The
-        // English build ignores the language hint (it is English-only); the
-        // multilingual build honors the persisted default.
-        let engine: any NemotronLiveDictating
+        let engine: any NativeLiveDictating
         let language: String?
-        if nemotronModelVariant.isEnglishOnly {
-            guard let englishEngine = nemotronEnglishEngine else {
+        switch speechEngine {
+        case .parakeet where currentParakeetVariant.usesUnifiedEngine:
+            guard let unifiedEngine = parakeetUnifiedEngine else {
                 throw STTLiveDictationTranscriptionError.modelNotReady
             }
-            engine = englishEngine
+            engine = unifiedEngine
             language = nil
-        } else {
-            guard let multilingualEngine = nemotronEngine else {
-                throw STTLiveDictationTranscriptionError.modelNotReady
+        case .parakeet:
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.parakeet)
+        case .nemotron:
+            // Both Nemotron builds wrap FluidAudio streaming managers that emit
+            // partials, so live dictation routes to whichever build is active.
+            // The English build ignores the language hint; the multilingual
+            // build honors the persisted default.
+            if nemotronModelVariant.isEnglishOnly {
+                guard let englishEngine = nemotronEnglishEngine else {
+                    throw STTLiveDictationTranscriptionError.modelNotReady
+                }
+                engine = englishEngine
+                language = nil
+            } else {
+                guard let multilingualEngine = nemotronEngine else {
+                    throw STTLiveDictationTranscriptionError.modelNotReady
+                }
+                engine = multilingualEngine
+                language = defaultLanguage(for: .nemotron)
             }
-            engine = multilingualEngine
-            language = defaultLanguage(for: .nemotron)
+        case .whisper:
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.whisper)
         }
         guard await engine.isReady() else {
             throw STTLiveDictationTranscriptionError.modelNotReady
@@ -351,6 +378,16 @@ public actor STTRuntime: STTRuntimeProtocol {
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
+        // Parakeet Unified is a separate FluidAudio runtime — delegate before
+        // touching the shared TDT `AsrManager` path.
+        if currentParakeetVariant.usesUnifiedEngine {
+            return try await ensureParakeetUnifiedEngine().transcribe(
+                audioPath: audioPath,
+                job: job,
+                onProgress: onProgress
+            )
+        }
+
         try await ensureInitialized()
 
         let slot = route(for: job)
@@ -412,6 +449,19 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func transcribeParakeetPreview(samples: [Float]) async throws -> STTResult {
+        // Parakeet Unified drives live dictation through its native streaming
+        // manager. This display-preview batch path is for the TDT builds only;
+        // return an empty preview if a stale caller reaches it.
+        if currentParakeetVariant.usesUnifiedEngine {
+            return STTResult(
+                text: "",
+                words: [],
+                language: "en",
+                engine: .parakeet,
+                engineVariant: ParakeetModelVariant.unified.rawValue
+            )
+        }
+
         try await ensureInitialized()
 
         guard let manager = manager(for: .interactive) else {
@@ -598,6 +648,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         if speechEngine == .whisper {
             return await whisperEngine?.isReady() ?? false
+        }
+
+        // Parakeet engine: Unified reports through its own engine actor.
+        if currentParakeetVariant.usesUnifiedEngine {
+            return await parakeetUnifiedEngine?.isReady() ?? false
         }
 
         guard let interactiveManager, let backgroundManager else { return false }
@@ -787,13 +842,15 @@ public actor STTRuntime: STTRuntimeProtocol {
         _ variant: ParakeetModelVariant,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        let targetVersion = variant.asrModelVersion
-        guard targetVersion != modelVersion else { return }
+        // Compare on the user-facing variant so unified↔v2/v3 switches register
+        // even though `.unified` has no `AsrModelVersion`.
+        guard variant != currentParakeetVariant else { return }
 
         guard initializationTask == nil, activeTranscriptionCount == 0 else {
             throw STTError.engineBusy
         }
 
+        let previousVariant = currentParakeetVariant
         let previousVersion = modelVersion
         let startedAt = Date()
         logger.notice("parakeet_variant_switch_start to=\(variant.rawValue, privacy: .public) engine=\(self.speechEngine.rawValue, privacy: .public)")
@@ -803,7 +860,10 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         guard speechEngine == .parakeet else {
             // Inactive engine: record the choice; it loads on the next Parakeet use.
-            modelVersion = targetVersion
+            currentParakeetVariant = variant
+            if let targetVersion = variant.asrModelVersion {
+                modelVersion = targetVersion
+            }
             logger.notice("parakeet_variant_switch_deferred to=\(variant.rawValue, privacy: .public) reason=engine_inactive")
             AudioCaptureDiagnostics.append("parakeet_variant_switch_deferred to=\(variant.rawValue) reason=engine_inactive")
             return
@@ -814,11 +874,20 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         do {
             onProgress?("Preparing \(variant.modelName)...")
-            try await downloadParakeetModels(version: targetVersion, onProgress: onProgress)
+            // Download the target build first so the current model keeps serving
+            // until the fetch completes. Unified and TDT live in different repos.
+            if variant.usesUnifiedEngine {
+                try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
+            } else if let targetVersion = variant.asrModelVersion {
+                try await downloadParakeetModels(version: targetVersion, onProgress: onProgress)
+            }
 
             onProgress?("Loading \(variant.modelName) with Core ML...")
             await unloadParakeet()
-            modelVersion = targetVersion
+            currentParakeetVariant = variant
+            if let targetVersion = variant.asrModelVersion {
+                modelVersion = targetVersion
+            }
             try await ensureInitialized()
 
             onProgress?("\(variant.modelName) is ready")
@@ -829,9 +898,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             )
         } catch {
             let switchError = error
-            // Restore the previous version so the in-memory runtime matches the
+            // Restore the previous variant so the in-memory runtime matches the
             // persisted preference; callers only save the new selection on
             // success.
+            currentParakeetVariant = previousVariant
             modelVersion = previousVersion
             do {
                 try await ensureInitialized()
@@ -1225,6 +1295,12 @@ public actor STTRuntime: STTRuntimeProtocol {
             interactiveManager: interactiveManager,
             backgroundManager: backgroundManager
         )
+
+        // The Unified engine is the other half of "Parakeet" — tear it down here
+        // too so engine swaps and shutdown release its CoreML models.
+        let unifiedEngine = self.parakeetUnifiedEngine
+        self.parakeetUnifiedEngine = nil
+        await unifiedEngine?.unload()
     }
 
     private func unloadWhisper() async {
@@ -1278,6 +1354,22 @@ public actor STTRuntime: STTRuntimeProtocol {
         return engine
     }
 
+    /// Mirrors `ensureNemotronEnglishEngine` for the Parakeet Unified build.
+    /// There is no construction key, so an existing engine is always reusable.
+    private func ensureParakeetUnifiedEngine() throws -> ParakeetUnifiedEngine {
+        if let parakeetUnifiedEngine {
+            return parakeetUnifiedEngine
+        }
+
+        guard activeTranscriptionCount <= 1 else {
+            throw STTError.engineBusy
+        }
+
+        let engine = ParakeetUnifiedEngine()
+        parakeetUnifiedEngine = engine
+        return engine
+    }
+
     private func beginBackgroundWarmUp() -> UInt64 {
         backgroundWarmUpGeneration &+= 1
         return backgroundWarmUpGeneration
@@ -1319,6 +1411,14 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func ensureInitialized() async throws {
+        // Parakeet Unified runs on its own engine actor, not the shared TDT
+        // `AsrManager` pair — preparing it satisfies "Parakeet is initialized"
+        // for warm-up and readiness without ever loading the TDT models.
+        if currentParakeetVariant.usesUnifiedEngine {
+            try await ensureParakeetUnifiedEngine().prepare(onProgress: warmUpProgressHandler)
+            return
+        }
+
         if interactiveManager != nil, backgroundManager != nil {
             return
         }
@@ -1461,9 +1561,12 @@ public actor STTRuntime: STTRuntimeProtocol {
     private func telemetryEngineVariant(for engine: SpeechEnginePreference) -> String? {
         switch engine {
         case .parakeet:
-            // Surface the active Parakeet build (v2/v3) so model-load telemetry
-            // can measure variant adoption and impact (issues #311, #398).
-            ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+            // Surface the active Parakeet build (v2/v3/unified) so model-load
+            // telemetry can measure variant adoption and impact (issues #311,
+            // #398, #520). Read the source-of-truth variant directly so unified —
+            // which has no `AsrModelVersion` — is attributed correctly rather than
+            // collapsing to the `modelVersion` placeholder.
+            currentParakeetVariant.rawValue
         case .nemotron:
             nemotronModelVariant.rawValue
         case .whisper:

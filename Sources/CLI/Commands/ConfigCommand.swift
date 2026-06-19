@@ -24,8 +24,9 @@ struct ConfigCommand: ParsableCommand {
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
           speech-engine             parakeet|nemotron|whisper       default: parakeet
-          parakeet-model            v3|v2 (v3=multilingual,         default: v3
-                                    v2=English-only)
+          parakeet-model            v3|v2|unified                   default: v3
+                                    (v3=multilingual, v2=English,
+                                    unified=English punctuated)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
                                     english-1120ms (English-only)
           nemotron-language         auto|<Nemotron language code>   default: auto
@@ -353,7 +354,7 @@ struct ConfigCommand: ParsableCommand {
         return engine
     }
 
-    /// Accepts the canonical `v3`/`v2` ids plus the friendlier
+    /// Accepts the canonical `v3`/`v2`/`unified` ids plus the friendlier
     /// `multilingual`/`english` aliases so users can express intent either way.
     static func parseParakeetModelVariant(_ value: String) throws -> ParakeetModelVariant {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -364,8 +365,10 @@ struct ConfigCommand: ParsableCommand {
             return .v3
         case "v2", "english", "english-only", "en":
             return .v2
+        case "unified", "english-unified", "unified-offline":
+            return .unified
         default:
-            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual) or v2 (English-only).")
+            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), or unified (English-only with punctuation/capitalization).")
         }
     }
 

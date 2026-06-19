@@ -54,7 +54,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
             isWhisperModelDownloaded: { $0 == "large-v3-v20240930_turbo_632MB" }
         )
 
-        XCTAssertEqual(models.count, 5)
+        XCTAssertEqual(models.count, 6)
         XCTAssertEqual(models[0], SelectableSpeechModel(
             id: "parakeet-v3",
             name: "Parakeet TDT 0.6B v3 (Multilingual)",
@@ -76,6 +76,16 @@ final class ModelLifecycleCommandTests: XCTestCase {
             language: "en"
         ))
         XCTAssertEqual(models[2], SelectableSpeechModel(
+            id: "parakeet-unified",
+            name: "Parakeet Unified 0.6B (English (Unified))",
+            engine: "parakeet",
+            variant: "unified",
+            size: "~565 MB",
+            installed: false,
+            selected: false,
+            language: "en"
+        ))
+        XCTAssertEqual(models[3], SelectableSpeechModel(
             id: "nemotron-multilingual-1120ms",
             name: "Nemotron 3.5 ASR Streaming 0.6B (Multilingual Beta)",
             engine: "nemotron",
@@ -85,7 +95,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
             selected: false,
             language: "auto"
         ))
-        XCTAssertEqual(models[3], SelectableSpeechModel(
+        XCTAssertEqual(models[4], SelectableSpeechModel(
             id: "nemotron-english-1120ms",
             name: "Nemotron Speech Streaming EN 0.6B (English Beta)",
             engine: "nemotron",
@@ -95,7 +105,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
             selected: false,
             language: "en"
         ))
-        XCTAssertEqual(models[4], SelectableSpeechModel(
+        XCTAssertEqual(models[5], SelectableSpeechModel(
             id: "whisper-large-v3-v20240930-turbo-632MB",
             name: "Whisper Large v3 Turbo",
             engine: "whisper",
@@ -271,6 +281,10 @@ final class ModelLifecycleCommandTests: XCTestCase {
         // Underscore spellings normalize to hyphens, matching `config set`.
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet_v2", defaults: defaults), .v2)
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet_english", defaults: defaults), .v2)
+        // Unified (issue #520) resolves from its id and aliases.
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet-unified", defaults: defaults), .unified)
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet:unified", defaults: defaults), .unified)
+        XCTAssertEqual(parakeetModelID(for: .unified), "parakeet-unified")
         // Bare "parakeet" resolves to the persisted build.
         SpeechEnginePreference.saveParakeetModelVariant(.v2, defaults: defaults)
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet", defaults: defaults), .v2)

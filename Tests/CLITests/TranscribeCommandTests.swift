@@ -44,6 +44,11 @@ final class TranscribeCommandTests: XCTestCase {
             TranscribeCommand.resolveParakeetModelVariant(.v3, storedVariant: .v2),
             .v3
         )
+        // Unified (issue #520) is selectable per-call via --parakeet-model unified.
+        XCTAssertEqual(
+            TranscribeCommand.resolveParakeetModelVariant(.unified, storedVariant: .v3),
+            .unified
+        )
     }
 
     func testResolveNemotronModelVariantFollowsStoredForAppDefault() {
