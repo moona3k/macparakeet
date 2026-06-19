@@ -1,118 +1,211 @@
 # MacParakeet ASR Benchmark
 
-A reusable, **apples-to-apples** benchmark for comparing on-device ASR engines
-on accuracy and speed. Every engine's hypotheses are scored through **one
-canonical normalizer** (Whisper `EnglishTextNormalizer` / `BasicTextNormalizer`,
-the HF Open ASR Leaderboard standard) so cross-engine numbers are directly
-comparable — the single most important property a multi-model benchmark must have.
+A reusable, **apples-to-apples** benchmark for choosing on-device ASR engines on
+Apple Silicon. Every engine's hypotheses are scored through **one canonical
+normalizer** (Whisper `EnglishTextNormalizer` / `BasicTextNormalizer`, the HF
+Open ASR Leaderboard standard), so cross-engine numbers are directly comparable —
+the single most important property a multi-model benchmark must have. It measures
+three axes: **accuracy** (English + multilingual), **speed**, and **memory**.
+
+Engines are the four families MacParakeet ships or is evaluating: **Parakeet**
+(v2 / v3 / unified), **Nemotron** (English / multilingual, Beta), **WhisperKit**
+(large-v3-turbo), and **Cohere** Transcribe (`cohere-transcribe-03-2026`, q8) —
+the model flagged after #520 / #552 / #554 and confirmed runnable on-device via
+the FluidAudio CoreML SDK MacParakeet already ships.
 
 > Supersedes the LibriSpeech-`test-clean`-only `benchmarks/parakeet-unified/`
-> evidence (kept for history). English numbers below are the **full** test sets;
-> multilingual is a capped FLEURS first pass (see "Status").
+> evidence. English numbers below are the **full** test sets; multilingual is a
+> capped FLEURS pass (see "Status & limitations").
+
+## TL;DR (what the evidence says)
+
+- **Cohere is the most accurate on-device engine** — but at a steep cost: it
+  needs **~11 GB of RAM** at runtime (vs ~120 MB for Parakeet), a one-time **~73 s**
+  ANE compile, and runs **~11× realtime** (vs ~70× for Parakeet). Its accuracy
+  lead is *statistically real* only on noisy English (`test-other`) and Japanese;
+  on clean English, Korean, and Chinese it ties the best alternative within 95%
+  CIs. → **Add Cohere as an opt-in accuracy / noisy-audio / Japanese engine for
+  16 GB+ Macs, not a default.**
+- **Parakeet stays the right default** for fast dictation (best speed, ~120 MB
+  RAM, English WER within noise of Cohere on clean speech). **Unified ≈ v2**
+  statistically; unified adds punctuation/capitalization, so it's the better
+  *English* Parakeet build on features, not on WER.
+- **Parakeet-v3 (the multilingual default) cannot transcribe CJK/Korean at all**
+  (CER > 100% — it romanizes into gibberish). A multilingual engine is required
+  there; today that's WhisperKit (light, competitive on Korean/Chinese), with
+  Cohere the premium option for Japanese.
+- **Both Nemotron builds are dominated** — worse English WER than Parakeet, worse
+  multilingual than Whisper/Cohere, no word timestamps. The "Beta" label is
+  warranted; nothing here argues for promoting them.
 
 ## Methodology
 
-Modeled on the HuggingFace **Open ASR Leaderboard** (arXiv 2510.06961), `jiwer`,
-`whisper-normalizer`, and the WhisperKit/Soniqo Apple-Silicon harnesses:
+Modeled on the HuggingFace **Open ASR Leaderboard** (arXiv 2510.06961), using
+`jiwer` and `whisper-normalizer`, plus the WhisperKit/FluidAudio Apple-Silicon
+harness conventions.
 
-- **Datasets:** English — LibriSpeech `test-clean` (clean read speech, a near-
+- **Datasets.** English — LibriSpeech `test-clean` (clean read speech, a near-
   saturated *ceiling*) + `test-other` (noisier; exposes clean-only tuning), full
-  sets (2620 + 2939). Multilingual — **FLEURS** en/ko/ja/zh (`FluidInference/fleurs-full`).
-  Roadmap: a spontaneous/meeting set (AMI/GigaSpeech) and an accented set.
-- **Normalizer:** Whisper `EnglishTextNormalizer` for English (`whisper-normalizer==0.1.12`;
-  lowercase, strip punct, expand contractions, fold number words, British→American),
-  `BasicTextNormalizer` for other languages — applied identically to ref and hyp
-  for **every** engine. A `--simple` fallback reads ~0.16pt higher.
-- **Metric:** **WER** = `(S+D+I)/N` for space-delimited languages (en, EU);
-  **CER** (character error rate) for ko/ja/zh, where word boundaries are
-  unreliable (Korean spacing is inconsistent → CER, the standard choice; word-WER
-  is dominated by segmentation noise). Levenshtein via `jiwer`/RapidFuzz. We report
-  **corpus** error per dataset, **macro-average** across datasets, and the
-  **per-utterance** distribution (p90, failure-rate = share with WER > 20%).
-- **RTFx** = `audio_seconds / wall_seconds` (higher = faster). M4 Pro-specific;
-  batch numbers include one-time model load/compile.
-- **Hardware:** Apple **M4 Pro**, 48 GB, macOS 15. ANE via FluidAudio CoreML
+  sets (2620 + 2939 utterances; 53,029 + 52,884 reference words). Multilingual —
+  **FLEURS** en/ko/ja/zh, 150 utterances/language (`FluidInference/fleurs-full`).
+- **Normalizer.** Whisper `EnglishTextNormalizer` for English (lowercase, strip
+  punctuation, expand contractions, fold number words, British→American),
+  `BasicTextNormalizer` for other languages — applied identically to reference
+  and hypothesis for **every** engine. A `--simple` fallback reads ~0.16 pt
+  higher. Curly apostrophes are folded to straight first (without this, the
+  normalizer mis-splits contractions and inflates WER — see `test_scorers.py`).
+- **Metric.** **WER** = `(S+D+I)/N` for space-delimited languages (en, EU);
+  **CER** (character error rate) for **ko/ja/zh**, where word boundaries are
+  unreliable (Korean spacing is inconsistent → CER is the conventional, spacing-
+  robust choice; word-WER there is dominated by segmentation noise). We report
+  **corpus** error per dataset, **macro-average** across datasets, the per-utt
+  **p90** / failure-rate (WER > 20%), and a **bootstrap 95% CI** on the corpus
+  metric (resampling whole utterances; 2000 resamples, seed 1234).
+- **Speed/memory** (separate micro-benchmark, one engine at a time, uncontended):
+  **cold start** = wall to first transcript from a cold process (model load + ANE
+  compile); **steady RTFx** = audio_s/wall with the one-time load removed;
+  **peak RSS** = `/usr/bin/time -l` maximum resident set size of the isolated
+  child. RTFx is throughput (audio_seconds / wall_seconds; higher = faster).
+- **Hardware.** Apple **M4 Pro**, 48 GB, macOS 15. ANE via FluidAudio CoreML
   (Parakeet / Nemotron / Cohere) and WhisperKit (Whisper).
 
 ## Harness
 
 | File | Role |
 |------|------|
-| `score.py` | English scorer — canonical normalizer + jiwer → per-(engine,dataset) WER, macro-avg, p90, failure-rate, RTFx. `--simple` fallback. |
-| `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) with `BasicTextNormalizer`. |
-| `run_macparakeet.py` | Drives `macparakeet-cli transcribe --output-dir` for integrated engines on LibriSpeech (real shipping path). |
+| `score.py` | English scorer — canonical normalizer + jiwer → corpus WER, macro-avg, p90, failure-rate, RTFx. `--ci N` adds a bootstrap 95% CI; `--simple` fallback. |
+| `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) via `BasicTextNormalizer`; `--ci N`. |
+| `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. |
+| `test_scorers.py` | 38 correctness tests for the scorers (run: `python3 test_scorers.py`). |
+| `run_macparakeet.py` | Drives `macparakeet-cli transcribe` for integrated engines on LibriSpeech (the real shipping path). |
 | `run_macparakeet_fleurs.py` | Same, over a FLEURS language subset (multilingual). |
-| `fa_json_to_jsonl.py` | Converts a FluidAudio CLI benchmark JSON (asr / cohere-benchmark) → the same JSONL, so non-integrated engines score through the same scorer. |
-| `results/` | Committed evidence: `multilingual/` (FLEURS per-file), `*.jsonl` (first-200) + `stride200/` (sampling check), and `full/_summary_full.json` (authoritative full-set English; the 13 MB of per-file hypotheses are git-ignored — regenerate via `run_macparakeet.py` with no `--limit`). |
+| `fa_json_to_jsonl.py` | Converts a FluidAudio CLI benchmark JSON → the same JSONL, so non-integrated engines (Cohere) score through the same scorer. |
+| `run_all.sh` | Driver: `verify` (repo-only: tests + re-score committed evidence with CIs), `speed`, `transcribe`. |
+| `requirements.txt` | Pinned scorer dependencies. |
+| `results/` | Committed evidence (see "Verification & reproducibility"). |
 
-Setup: `python3 -m venv venv && venv/bin/pip install whisper-normalizer==0.1.12 jiwer mutagen`
+Setup: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`
 
 ## Results — English (full sets, authoritative)
 
-LibriSpeech `test-clean` (2620) + `test-other` (2939), one canonical normalizer.
-Ordered by macro WER. RTFx is M4 Pro batch throughput (incl. model load).
+LibriSpeech `test-clean` (2620) + `test-other` (2939), one canonical normalizer,
+ordered by macro WER. Brackets are the bootstrap 95% CI on that dataset's corpus
+WER. RTFx here is full-set *batch* throughput (model load amortized over
+thousands of files); see the speed table for steady-state and cold-start.
 
-| Engine | Runtime | macro WER | test-clean | test-other | RTFx | Size | License |
-|--------|---------|----------:|-----------:|-----------:|-----:|-----:|---------|
-| **cohere-transcribe-03-2026** (q8) | FluidAudio CoreML | **2.07%** | 1.49 | **2.65** | ~12× | 2.3 GB | Apache-2.0 |
-| **parakeet-unified** (EN) | FluidAudio CoreML | 2.38% | 1.64 | 3.13 | ~73× | ~565 MB | CC-BY-4.0 |
-| parakeet-v2 (EN) | FluidAudio CoreML | 2.57% | 1.86 | 3.27 | ~73× | ~465 MB | CC-BY-4.0 |
-| whisper-large-v3-turbo | WhisperKit | 3.00% | 1.96 | 4.04 | ~12× | 632 MB | MIT |
-| parakeet-v3 (default, multiling.) | FluidAudio CoreML | 3.22% | 2.31 | 4.14 | ~71× | ~465 MB | CC-BY-4.0 |
-| nemotron-en (Beta) | FluidAudio CoreML | 3.70% | 2.40 | 5.01 | ~50× | ~600 MB | CC-BY-4.0 |
-| nemotron-multi (Beta) | FluidAudio CoreML | 5.17% | 3.17 | 7.16 | ~52× | ~1.5 GB | CC-BY-4.0 |
+| Engine | Runtime | macro WER | test-clean (95% CI) | test-other (95% CI) | batch RTFx | Bundle | License |
+|--------|---------|----------:|--------------------:|--------------------:|-----------:|-------:|---------|
+| **cohere-transcribe-03-2026** (q8) | FluidAudio CoreML | **2.07%** | 1.49 [1.28–1.73] | **2.65 [2.40–2.92]** | ~11×† | 2.3 GB | Apache-2.0 |
+| **parakeet-unified** (EN) | FluidAudio CoreML | 2.38% | 1.64 [1.50–1.80] | 3.13 [2.92–3.34] | ~73× | ~565 MB | CC-BY-4.0 |
+| parakeet-v2 (EN) | FluidAudio CoreML | 2.57% | 1.86 [1.70–2.04] | 3.27 [3.06–3.49] | ~73× | ~465 MB | CC-BY-4.0 |
+| whisper-large-v3-turbo | WhisperKit | 3.00% | 1.96 [1.81–2.12] | 4.04 [3.81–4.29] | ~12× | 632 MB | MIT |
+| parakeet-v3 (default, multiling.) | FluidAudio CoreML | 3.22% | 2.31 [2.11–2.54] | 4.14 [3.86–4.40] | ~71× | ~465 MB | CC-BY-4.0 |
+| nemotron-en (Beta) | FluidAudio CoreML | 3.70% | 2.40 [2.22–2.58] | 5.01 [4.74–5.29] | ~50× | ~600 MB | CC-BY-4.0 |
+| nemotron-multi (Beta) | FluidAudio CoreML | 5.17% | 3.17 [2.98–3.37] | 7.16 [6.81–7.51] | ~52× | ~1.5 GB | CC-BY-4.0 |
 
-Cohere also pays a one-time ~74s ANE compile per process (warm RTFx ~10–15×).
-Its `test-other` leg ran under CPU/ANE contention from concurrent jobs, so its
-RTFx is cited from the uncontended `test-clean` leg.
+† Cohere's full-set `test-other` batch RTFx in the raw run was contention-poisoned
+(0.5×); the real figure is the clean steady-state ~11× (see speed table).
+
+**Reading the CIs.** On noisy `test-other`, Cohere (2.65 [2.40–2.92]) is
+separated from parakeet-unified (3.13 [2.92–3.34]) — a *real* lead. On clean
+`test-clean`, Cohere (1.49) and unified (1.64) **overlap** — a statistical tie.
+parakeet-unified vs parakeet-v2 overlap on **both** sets — indistinguishable on
+WER.
 
 ## Results — Multilingual (FLEURS, 150 utts/lang)
 
-English = WER; ko/ja/zh = CER. Same first-150 utterances per language for every engine.
+English = WER; ko/ja/zh = CER. Same first-150 utterances/language for every
+engine. Brackets are the bootstrap 95% CI.
 
 | Engine | en (WER) | ko (CER) | ja (CER) | zh (CER) | Runtime |
 |--------|---------:|---------:|---------:|---------:|---------|
-| **cohere-transcribe-03-2026** | 4.69 | 7.15 | **5.56** | 12.49 | FluidAudio CoreML |
-| whisper-large-v3-turbo | 5.71 | **6.37** | 13.42 | **11.56** | WhisperKit |
-| nemotron-multi (Beta) | 7.08 | 9.32 | 15.29 | 19.47 | FluidAudio CoreML |
-| parakeet-v3 (default) | **4.40** | 171.2 | 159.2 | 124.1 | FluidAudio CoreML |
-| SenseVoice-Small* | ~3.2 (WER) | — | — | ~3.1 | FluidAudio CoreML |
+| **cohere-transcribe-03-2026** | 4.69 [3.71–5.69] | 7.15 [5.43–9.15] | **5.56 [4.14–7.10]** | 12.49 [9.79–15.26] | FluidAudio CoreML |
+| whisper-large-v3-turbo | 5.71 [4.83–6.70] | **6.37 [4.81–8.09]** | 13.42 [11.33–15.59] | **11.56 [9.32–13.96]** | WhisperKit |
+| nemotron-multi (Beta) | 7.08 [6.11–8.14] | 9.32 [7.64–11.17] | 15.29 [13.68–16.98] | 19.47 [16.62–22.30] | FluidAudio CoreML |
+| parakeet-v3 (default) | **4.40 [3.59–5.27]** | 171.2 ❌ | 159.2 ❌ | 124.1 ❌ | FluidAudio CoreML |
 
-\* SenseVoice numbers are **FluidAudio-published** (different harness/normalizer),
-not reproduced here — its `sensevoice-benchmark` logs only to Apple `os_log`,
-which isn't capturable via stdout. Listed for context only; not apples-to-apples.
+Cohere wins Japanese decisively (CIs don't overlap Whisper's). Korean and Chinese
+are statistical ties between Cohere and Whisper. parakeet-v3 ties Cohere on
+English but is unusable on CJK/Korean.
 
-## Findings
+## Results — Speed & Memory (M4 Pro, uncontended)
 
-**English**
-- **Cohere is the accuracy leader on-device** (2.07% macro), strongest on noisy
-  `test-other` (2.65% vs 3.1–4.0% for the next tier). It runs on the **same
-  FluidAudio CoreML SDK MacParakeet already ships** (q8, ANE) → *no new runtime
-  to integrate it*. Cost: ~6× slower than Parakeet, +74s one-time compile, 2.3 GB.
-  → *Parakeet for fast dictation; Cohere as an opt-in accuracy / noisy-audio engine.*
-- **Unified edges v2** on the full set (2.38 vs 2.57); both beat Whisper and
-  **both Nemotron builds** — settling issue #520's open "better than Nemotron"
-  question (and Parakeet is far faster than either Nemotron or Whisper).
-- The owner's "Cohere is incredible" tip was correct — a March-2026 release,
-  Apache-2.0, #1 on the Open ASR Leaderboard.
+| Engine | cold start | steady RTFx | peak RSS |
+|--------|-----------:|------------:|---------:|
+| parakeet-v2 | 0.55 s | ~90× | 123 MB |
+| parakeet-v3 | 0.38 s | ~81× | 131 MB |
+| parakeet-unified | 0.93 s | ~93× | 115 MB |
+| nemotron-en | 0.87 s | ~57× | 141 MB |
+| nemotron-multi | 0.70 s | ~61× | 142 MB |
+| whisper-large-v3-turbo | 2.29 s | ~14× | 274 MB |
+| **cohere-transcribe-03-2026** | **73 s** | **~11×** | **~11.6 GB** |
 
-**Multilingual** (the Korea→WhisperKit gap)
-- **Parakeet-v3, the default, cannot do CJK/Korean at all** (CER > 100% = garbage;
-  it's English/European-only). This is *why* a multilingual engine is required.
-- **Cohere vs Whisper is a real contest:** Cohere crushes Japanese (5.6 vs 13.4
-  CER) and wins English; Whisper edges Korean (6.4 vs 7.2) and Chinese (11.6 vs
-  12.5). Cohere is a credible, often-better multilingual engine — not a sweep.
-- Nemotron-multilingual is the weakest real multilingual option.
+The Cohere peak RSS is **constant at 2 / 8 / 12 files** → it's the model's
+resident working set, not harness accumulation. This is the decisive practical
+caveat: an autoregressive 2B transformer in CoreML needs ~11 GB resident, so
+Cohere is viable only on 16 GB+ Macs (comfortable at 24 GB+). Parakeet/Whisper
+fit comfortably on any supported Mac. (Cohere's steady RTFx is ~11× on
+LibriSpeech / ~16× on shorter FLEURS-en utterances; cold start is dominated by
+the one-time ANE compile.)
+
+## Findings & recommendation
+
+**Accuracy.** Cohere is the on-device accuracy leader, but the win is narrow and
+domain-specific once CIs are honored: clearly best on noisy English and Japanese,
+a statistical tie elsewhere. The owner's "Cohere is incredible" tip holds — a
+March-2026 release, Apache-2.0, #1 on the Open ASR Leaderboard — but the on-device
+*cost* reframes it from "obvious default" to "premium opt-in."
+
+**Issue #520 settled.** Parakeet unified/v2 beat *both* Nemotron builds on English
+and are far faster; unified vs v2 is a WER tie (unified's edge is
+punctuation/capitalization, not accuracy).
+
+**Recommendation (evidence-based):**
+1. Keep **Parakeet** the default (speed + memory + clean-English parity).
+2. Add **Cohere** as an **opt-in** engine surfaced for noisy audio, Japanese, and
+   accuracy-critical work, gated to **16 GB+ RAM** with a clear cold-start/size
+   warning. Reuses the existing FluidAudio SDK — no new runtime.
+3. Keep **WhisperKit** as the pragmatic multilingual engine (light, competitive
+   Korean/Chinese); it remains the better default for CJK on memory grounds.
+4. No action on **Nemotron** — dominated; Beta status is justified.
+
+## Verification & reproducibility
+
+- **Independent reproduction.** Re-transcribing fixed subsets through a clean
+  `macparakeet-cli` and scoring on *identical utterance IDs* against the committed
+  data gives **Δ = 0.00 pt** for all six integrated engines (stride-60 test-clean)
+  and for Cohere (first-40 LibriSpeech). The committed hypotheses are faithful and
+  the pipeline is deterministic.
+- **Self-contained re-score.** `./run_all.sh verify` (repo-only, no datasets or
+  models) runs the 38 scorer tests and re-scores the committed evidence with CIs,
+  reproducing the headline macro WER (2.07 / 2.38 / 2.57 / 3.00 / 3.22 / 3.70 /
+  5.17). The 13 MB of full per-file English hypotheses are git-ignored but backed
+  up compressed at `results/full/full_hypotheses.tar.gz` (4 MB) and auto-extracted
+  by the driver.
+- **Committed evidence:** `results/full/_summary_full.json` (authoritative
+  English + CIs), `results/multilingual/` (FLEURS per-file + summary + CIs),
+  `results/speed/` (raw + curated speed/memory), `results/{*.jsonl, stride200/}`
+  (first-200 + sampling-sensitivity check).
+- **Determinism:** the scorers are deterministic; the bootstrap uses a fixed seed
+  (1234). Same inputs → same numbers.
+
+**Provenance.** macparakeet-cli **2.9.0**; FluidAudio **v0.15.4**; CPython
+**3.14.5** with pinned deps; LibriSpeech test-clean/test-other (OpenSLR SLR12);
+FLEURS via `FluidInference/fleurs-full` (HF); Cohere model
+`FluidInference/cohere-transcribe-03-2026-coreml` (q8); Apple M4 Pro / 48 GB /
+macOS 15.
 
 ## Status & limitations
 
-- **English: full sets, final-grade.** Multilingual: **capped** FLEURS (150/lang)
-  first pass — fine for ranking, expand for publishable absolutes.
+- **English: full sets, final-grade.** Multilingual: **capped** FLEURS (150/lang),
+  fine for ranking; expand for publishable absolutes.
 - **Sampling matters** (validated): a capped LibriSpeech subset shifts macro WER
-  by up to ~1.5pt vs the full set and can reorder mid-pack engines. `results/`
-  keeps the first-200 + `stride200/` evidence that motivated the full run.
-- **Not benchmarked here:** SenseVoice/Paraformer reproduced locally (os_log
-  capture gap), Qwen3-ASR & Moonshine (need an MLX runtime — deferred by owner).
-  See `plans/active/asr-benchmark-and-model-expansion.md`.
-- RTFx is M4 Pro-specific and batch-amortized; a warmup + median-of-N + peak-RSS
-  micro-benchmark is the follow-up for headline speed claims.
+  by up to ~1.5 pt vs the full set and can reorder mid-pack engines — hence the
+  full-set English run. `results/{*.jsonl, stride200/}` keep the first-200 +
+  stride-200 evidence that motivated it.
+- **Cohere speed/memory** is measured via the FluidAudio CLI (the same SDK
+  MacParakeet would integrate); in-app figures should match but aren't yet
+  measured through MacParakeet's own runtime (Cohere isn't an integrated engine).
+- **Not benchmarked:** Qwen3-ASR and Moonshine (need an MLX runtime — deferred).
+  Integrating any winner (e.g. Cohere as an opt-in FluidAudio engine) is a
+  separate ADR-gated change.
