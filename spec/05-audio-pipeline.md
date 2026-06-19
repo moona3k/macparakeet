@@ -165,7 +165,8 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                                           ▼ (on stop)
                                               AudioFileConverter (FFmpeg mix)
                                               → meeting.m4a (stereo dual-source when both tracks exist)
-                                              → separate source-file STT + aligned merge
+                                              → awaiting-transcription lock + Library stub
+                                              → background source-file STT + aligned merge
 ```
 
 - **System audio** is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`), which avoids owning or clocking a HAL aggregate output device.
@@ -175,8 +176,8 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 - Mic conditioning is pass-through. Raw capture applies no capture-time AEC/noise suppression/AGC; transcript-layer system-dominance suppression remains the default guard against obvious speaker bleed. When VPIO is explicitly requested and engages, macOS applies AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
-- After recording stops, microphone + system M4As are merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono.
-- Final meeting STT does **not** transcribe `meeting.m4a`. It transcribes `microphone.m4a` and `system.m4a` separately with the engine captured at recording start, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
+- After recording stops, microphone + system M4As are finalized and merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery lock is then rewritten to `awaitingTranscription`, and a processing Library row is saved before the recorder returns to idle.
+- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue transcribes `microphone.m4a` and `system.m4a` separately with the engine captured at recording start, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
 - Live chunk enqueue keeps a conservative guard: when recent system energy strongly dominates processed mic energy for a short freshness window, mic chunks are skipped for live transcription only. Mic audio is still written to disk and included in final mix/output.
 - Joiner queue overflow, long-session sync lag, and runtime capture failures are emitted as diagnostics for observability (`MeetingAudioCaptureEvent.error` where available).
 
@@ -194,6 +195,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `MeetingAudioStorageWriter` | Writes separate M4A files per source (mic + system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
 | `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured speech engine for crash recovery |
+| `MeetingTranscriptionQueue` | Owns FIFO background finalization for stopped meetings after audio + lock + Library stub are durable |
 | `MeetingTranscriptFinalizer` | Merges fresh per-source STT results into the final meeting transcript |
 
 ### Meeting Recording Flow
@@ -211,15 +213,24 @@ User clicks "Start Meeting Recording"
     → Stop capture, finalize `microphone.m4a` + `system.m4a`
     → Persist `meeting-recording-metadata.json` with source alignment and speech engine
     → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
-    → Convert `microphone.m4a` → 16kHz mono WAV via FFmpeg
+    → Atomically rewrite `recording.lock` to `awaitingTranscription`
+    → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting.m4a`
+    → Enqueue background finalization and return recorder to idle
+    → User may immediately start the next meeting recording
+    → Background queue converts `microphone.m4a` → 16kHz mono WAV via FFmpeg
     → Send mic WAV to captured local STT engine
-    → Convert `system.m4a` → 16kHz mono WAV via FFmpeg
+    → Background queue converts `system.m4a` → 16kHz mono WAV via FFmpeg
     → Send system WAV to captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
     → Optionally refine the isolated system side with diarization
-    → Save as Transcription with sourceType = .meeting
-    → Navigate to transcription detail view
+    → Update the existing Transcription row and delete `recording.lock`
+    → Navigate to transcription detail view only if no newer meeting recording is active
 ```
+
+The foreground stop path is intentionally sequential, not concurrent: Meeting
+B can start only after Meeting A's source audio, mixed playback artifact,
+`awaitingTranscription` lock, and processing Library row are durable. Meeting
+A's final STT then continues in the queue-owned background path.
 
 ### Storage
 
@@ -229,7 +240,7 @@ User clicks "Start Meeting Recording"
     ├── system.m4a        # System audio (AAC, 48kHz mono)
     ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
     ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine for post-stop merge
-    ├── recording.lock     # In-progress recovery state, including notes and speech engine
+    ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine
     └── chunks/            # Live-preview scratch chunks
 ```
 
@@ -240,7 +251,9 @@ deletion clears the transcript's stored `filePath` and removes the
 `meeting-recordings/{uuid}` folder, but keeps the transcript row. If the
 preference is off, the app deletes managed meeting audio after the final
 transcript has been saved; interrupted recovery recordings remain governed by
-the recovery flow unless the user explicitly clears all meeting audio.
+the recovery flow. Any session folder with `recording.lock` present is protected
+from retention and manual clear-all cleanup, including dead-owner
+`awaitingTranscription` locks whose audio has not yet been transcribed.
 
 ### Concurrent Operation with Dictation (ADR-015)
 

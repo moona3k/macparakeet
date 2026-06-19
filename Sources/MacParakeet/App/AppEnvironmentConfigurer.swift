@@ -317,6 +317,21 @@ final class AppEnvironmentConfigurer {
                 self.mainWindowState.navigateToTranscription(from: .library)
                 callbacks.onOpenMainWindow()
             },
+            onQueuedTranscriptionReady: { [weak self] transcription, selectTranscription in
+                guard let self else { return }
+                self.transcriptionViewModel.presentCompletedTranscription(
+                    transcription,
+                    autoSave: true,
+                    runAutoPrompts: true,
+                    selectTranscription: selectTranscription
+                )
+                self.libraryViewModel.loadTranscriptions()
+                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
+                if selectTranscription {
+                    self.mainWindowState.navigateToTranscription(from: .library)
+                    callbacks.onOpenMainWindow()
+                }
+            },
             onRecordingBegan: {
                 coordinatorRefs.dictation?.hideIdlePill()
                 isMeetingAutoStopObservingRecording = true

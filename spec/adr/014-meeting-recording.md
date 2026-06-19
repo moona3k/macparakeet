@@ -72,8 +72,14 @@ A shared state machine would make both harder to understand. `MeetingRecordingFl
 
 ```
 idle → checkingPermissions → starting → recording(elapsedSeconds)
-  → stopping → transcribing → completed(transcriptionID) | error
+  → stopping → queued(transcriptionID) → idle | error
 ```
+
+2026-06 amendment: `queued(transcriptionID)` is not a long-lived UI state.
+It marks the durable stop boundary: source audio, `meeting.m4a`,
+`recording.lock(state=awaitingTranscription)`, and the processing Library row
+exist on disk, so the recorder returns to idle and another meeting can start.
+Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
 
 ### 5. New MeetingAudioCaptureService, not an extension of AudioProcessor
 
@@ -101,7 +107,7 @@ Keeping mic and system audio as separate streams enables source-aware attributio
 
 ### 9. Speech engine captured at recording start
 
-The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active.
+The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active. For back-to-back recording, that lease ends at the durable stop boundary; queued finalization still uses the captured selection through the routed STT job.
 
 ### 10. Meeting mic echo mitigation (v0.6 hardening)
 

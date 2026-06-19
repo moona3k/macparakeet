@@ -29,6 +29,37 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
     }
 
+    func testMeetingDeletionRefusesLockedAwaitingTranscriptionFolder() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 99,
+                displayName: "Queued Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+
+        let transcription = Transcription(
+            fileName: "Queued Meeting",
+            filePath: mixedURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+
+        XCTAssertThrowsError(try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folderURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+    }
+
     func testRemoveOwnedMeetingAudioReturnsTrueForStaleManagedPath() throws {
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

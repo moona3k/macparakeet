@@ -206,7 +206,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// `cleanupState` / `cancelRecording`.
     private var currentLockFile: MeetingRecordingLockFile?
     private var currentSpeechEngineLease: SpeechEngineLease?
-    private var stoppedSpeechEngineLeases: [UUID: SpeechEngineLease] = [:]
     /// Keeps replacement starts out while `audioCaptureService.start()` is still
     /// unwinding after cancellation. `currentSession` may already be nil then.
     private var startingSessionID: UUID?
@@ -650,7 +649,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
 
         await liveChunkTranscriber.finishSession()
-        retainSpeechEngineLeaseForTranscription(sessionID: session.id)
+        await releaseSpeechEngineLease()
         logger.info("Meeting recording finalized: \(session.id.uuidString, privacy: .public)")
         AudioCaptureDiagnostics.append(
             "meeting_recording_stopped session=\(session.id.uuidString) duration_s=\(String(format: "%.3f", durationSeconds))"
@@ -680,7 +679,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     public func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {
-        await releaseStoppedSpeechEngineLease(sessionID: recording.sessionID)
+        await releaseSpeechEngineLease()
     }
 
     public func discardStoppedRecording(_ recording: MeetingRecordingOutput) async {
@@ -692,7 +691,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             logger.error("meeting_recording_discard_refused_live_session session=\(recording.sessionID.uuidString, privacy: .public)")
             return
         }
-        await releaseStoppedSpeechEngineLease(sessionID: recording.sessionID)
+        await releaseSpeechEngineLease()
         try? lockFileStore.delete(folderURL: recording.folderURL)
         do {
             try fileManager.removeItem(at: recording.folderURL)
@@ -836,17 +835,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func releaseSpeechEngineLease() async {
         guard let lease = currentSpeechEngineLease else { return }
         currentSpeechEngineLease = nil
-        await speechEngineSessionManager?.endSpeechEngineSession(lease)
-    }
-
-    private func retainSpeechEngineLeaseForTranscription(sessionID: UUID) {
-        guard let lease = currentSpeechEngineLease else { return }
-        currentSpeechEngineLease = nil
-        stoppedSpeechEngineLeases[sessionID] = lease
-    }
-
-    private func releaseStoppedSpeechEngineLease(sessionID: UUID) async {
-        guard let lease = stoppedSpeechEngineLeases.removeValue(forKey: sessionID) else { return }
         await speechEngineSessionManager?.endSpeechEngineSession(lease)
     }
 

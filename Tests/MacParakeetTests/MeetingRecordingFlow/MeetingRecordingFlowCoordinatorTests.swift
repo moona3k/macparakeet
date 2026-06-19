@@ -23,17 +23,18 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let output = makeRecordingOutput()
         let recordingService = MeetingRecordingServiceSpy(output: output)
         let transcriptionService = MockTranscriptionService()
-        let expectedTranscription = Transcription(
-            id: UUID(),
+        await transcriptionService.holdMeetingFinalization()
+        let completedTranscription = Transcription(
             fileName: output.displayName,
             filePath: output.mixedAudioURL.path,
             rawTranscript: "Auto-stopped meeting",
             status: .completed,
             sourceType: .meeting
         )
-        await transcriptionService.configure(result: expectedTranscription)
+        await transcriptionService.configure(result: completedTranscription)
 
         var readyTranscriptions: [Transcription] = []
+        var readySelections: [Bool] = []
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
@@ -47,6 +48,10 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { transcription in
                 readyTranscriptions.append(transcription)
+            },
+            onQueuedTranscriptionReady: { transcription, selectTranscription in
+                readyTranscriptions.append(transcription)
+                readySelections.append(selectTranscription)
             }
         )
         coordinator.testHook_enterRecording()
@@ -56,12 +61,26 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         let recordingSnapshot = await recordingService.snapshot()
         let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertFalse(coordinator.isMeetingRecordingActive)
         XCTAssertEqual(recordingSnapshot.stopCallCount, 1)
-        XCTAssertEqual(recordingSnapshot.completedTranscriptionSessionIDs, [output.sessionID])
-        XCTAssertEqual(transcriptionSnapshot.transcribeCallCount, 1)
-        XCTAssertEqual(transcriptionSnapshot.lastMeetingRecording, output)
-        XCTAssertEqual(readyTranscriptions.map(\.id), [expectedTranscription.id])
-        XCTAssertEqual(readyTranscriptions.map(\.filePath), [expectedTranscription.filePath])
+        XCTAssertTrue(recordingSnapshot.completedTranscriptionSessionIDs.isEmpty)
+        XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
+        XCTAssertEqual(transcriptionSnapshot.finalizeMeetingCallCount, 1)
+        XCTAssertEqual(transcriptionSnapshot.transcribeCallCount, 0)
+        XCTAssertEqual(transcriptionSnapshot.preparedMeetingRecordings, [output])
+        XCTAssertEqual(transcriptionSnapshot.finalizedMeetingRecordings, [output])
+        XCTAssertTrue(readyTranscriptions.isEmpty)
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        let completedSnapshot = await recordingService.snapshot()
+        let completedTranscriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(completedSnapshot.completedTranscriptionSessionIDs, [output.sessionID])
+        XCTAssertEqual(readyTranscriptions.map(\.id), completedTranscriptionSnapshot.finalizedMeetingTranscriptionIDs)
+        XCTAssertEqual(readyTranscriptions.map(\.filePath), [completedTranscription.filePath])
+        XCTAssertEqual(readySelections, [true])
 
         let operation = try XCTUnwrap(telemetry.snapshot().compactMap(\.meetingOperationPayload).last)
         XCTAssertEqual(operation.outcome, .success)
@@ -69,6 +88,56 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.durationSeconds, output.durationSeconds)
         XCTAssertEqual(operation.microphoneTrackPresent, true)
         XCTAssertEqual(operation.systemTrackPresent, true)
+    }
+
+    func testCanStartNextRecordingWhilePreviousFinalizeIsQueued() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+
+        var queuedSelections: [Bool] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            onQueuedTranscriptionReady: { _, selectTranscription in
+                queuedSelections.append(selectTranscription)
+            }
+        )
+        coordinator.testHook_enterRecording()
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+
+        let nextGeneration = coordinator.startRecording(trigger: .manual)
+        XCTAssertNotNil(nextGeneration)
+        await coordinator.testHook_waitForActionTask()
+
+        let recordingSnapshot = await recordingService.snapshot()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertEqual(recordingSnapshot.startCallCount, 1)
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+        XCTAssertEqual(queuedSelections, [false])
+    }
+
+    func testStartRecordingWhileActivelyRecordingIsRefused() {
+        let coordinator = makeQuitTeardownCoordinator()
+        coordinator.testHook_enterRecording()
+
+        XCTAssertNil(coordinator.startRecording(trigger: .manual))
+        XCTAssertEqual(coordinator.testHook_state, .recording)
     }
 
     // MARK: - Quit-time pill teardown (fix/meeting-pill-lingers-on-quit)
@@ -153,6 +222,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
 private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private let output: MeetingRecordingOutput
+    var startCallCount = 0
     var stopCallCount = 0
     var completedTranscriptionSessionIDs: [UUID] = []
 
@@ -160,7 +230,9 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         self.output = output
     }
 
-    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {}
+    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {
+        startCallCount += 1
+    }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
         stopCallCount += 1
@@ -213,8 +285,9 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         }
     }
 
-    func snapshot() -> (stopCallCount: Int, completedTranscriptionSessionIDs: [UUID]) {
+    func snapshot() -> (startCallCount: Int, stopCallCount: Int, completedTranscriptionSessionIDs: [UUID]) {
         (
+            startCallCount: startCallCount,
             stopCallCount: stopCallCount,
             completedTranscriptionSessionIDs: completedTranscriptionSessionIDs
         )
@@ -222,10 +295,23 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 }
 
 private extension MockTranscriptionService {
-    func meetingFlowSnapshot() -> (transcribeCallCount: Int, lastMeetingRecording: MeetingRecordingOutput?) {
+    func meetingFlowSnapshot() -> (
+        transcribeCallCount: Int,
+        prepareMeetingCallCount: Int,
+        finalizeMeetingCallCount: Int,
+        lastMeetingRecording: MeetingRecordingOutput?,
+        preparedMeetingRecordings: [MeetingRecordingOutput],
+        finalizedMeetingRecordings: [MeetingRecordingOutput],
+        finalizedMeetingTranscriptionIDs: [UUID]
+    ) {
         (
             transcribeCallCount: transcribeCallCount,
-            lastMeetingRecording: lastMeetingRecording
+            prepareMeetingCallCount: prepareMeetingCallCount,
+            finalizeMeetingCallCount: finalizeMeetingCallCount,
+            lastMeetingRecording: lastMeetingRecording,
+            preparedMeetingRecordings: preparedMeetingRecordings,
+            finalizedMeetingRecordings: finalizedMeetingRecordings,
+            finalizedMeetingTranscriptionIDs: finalizedMeetingTranscriptionIDs
         )
     }
 }

@@ -52,9 +52,11 @@ final class MeetingRecordingFlowCoordinator {
     private var llmService: LLMServiceProtocol?
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
+    private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
     private let onRecordingBegan: () -> Void
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
+    private let meetingTranscriptionQueue: MeetingTranscriptionQueue
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
     private var pillController: MeetingRecordingPillController?
@@ -96,8 +98,10 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
+        meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
+        onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
@@ -114,11 +118,24 @@ final class MeetingRecordingFlowCoordinator {
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
         self.llmService = llmService
         self.pillViewModel = pillViewModel
+        self.meetingTranscriptionQueue = meetingTranscriptionQueue ?? MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            meetingRecordingService: meetingRecordingService
+        )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
+        self.onQueuedTranscriptionReady = onQueuedTranscriptionReady ?? { transcription, _ in
+            onTranscriptionReady(transcription)
+        }
         self.onRecordingBegan = onRecordingBegan
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
+        self.meetingTranscriptionQueue.onStateChanged = { [weak self] snapshot in
+            self?.pillViewModel.backgroundTranscriptionCount = snapshot.totalCount
+        }
+        self.meetingTranscriptionQueue.onCompletion = { [weak self] completion in
+            self?.handleQueuedMeetingTranscriptionCompletion(completion)
+        }
     }
 
     /// Updates the LLM service when the user changes providers. Mirrors what
@@ -578,50 +595,39 @@ final class MeetingRecordingFlowCoordinator {
             let liveTranscriptLagged = panelViewModel?.isTranscriptionLagging ?? false
             let notesVM = panelViewModel?.notesViewModel
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
+            let operationTrigger = currentMeetingTrigger
             currentMeetingOperationContext = operationContext
             actionTask = Task { @MainActor in
                 var stoppedOutput: MeetingRecordingOutput?
-                var transcriptionFinished = false
                 do {
-                    let transcription = try await Observability.withOperationContext(operationContext) {
+                    let prepared = try await Observability.withOperationContext(operationContext) {
                         // Flush any keystrokes typed in the last < 250 ms so
                         // they make it onto the lock file and into the saved
                         // Transcription.userNotes (ADR-020 §8).
                         await notesVM?.commit()
                         let output = try await meetingRecordingService.stopRecording()
                         stoppedOutput = output
-                        self.currentTranscribingOutput = output
-                        // Recording is finalized on disk — the in-flight
-                        // transcription can now be aborted safely (issue #487).
-                        // Skip when this task was already cancelled mid-stop so
-                        // a stale flag can't re-arm the affordance after the
-                        // abort path reset the pill view model.
-                        if !Task.isCancelled {
-                            self.pillViewModel.canAbortTranscription = true
-                        }
                         Telemetry.send(.meetingRecordingCompleted(
                             durationSeconds: output.durationSeconds,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged
                         ))
-                        let transcription = try await transcriptionService.transcribeMeeting(recording: output, onProgress: nil)
-                        transcriptionFinished = true
-                        await meetingRecordingService.completeTranscription(for: output)
-                        return transcription
+                        let prepared = try await transcriptionService.prepareMeetingTranscription(recording: output)
+                        meetingTranscriptionQueue.enqueue(MeetingTranscriptionQueue.Item(
+                            recording: output,
+                            transcriptionID: prepared.id,
+                            operationContext: operationContext,
+                            trigger: operationTrigger,
+                            liveWordCount: liveWordCount,
+                            liveTranscriptLagged: liveTranscriptLagged
+                        ))
+                        return prepared
                     }
-                    self.sendMeetingOperation(
-                        outcome: .success,
-                        output: stoppedOutput,
-                        stage: .completeTranscription,
-                        liveWordCount: liveWordCount,
-                        liveTranscriptLagged: liveTranscriptLagged
-                    )
                     self.currentMeetingOperationContext = nil
                     self.currentMeetingTrigger = nil
-                    self.completedTranscription = transcription
                     self.currentTranscribingOutput = nil
                     self.pillViewModel.canAbortTranscription = false
-                    self.sendEvent(.transcriptionCompleted(generation: gen, transcriptionID: transcription.id))
+                    self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
                     if let stoppedOutput {
                         await meetingRecordingService.finishTranscriptionAttempt(for: stoppedOutput)
@@ -629,17 +635,10 @@ final class MeetingRecordingFlowCoordinator {
                     self.currentTranscribingOutput = nil
                     self.pillViewModel.canAbortTranscription = false
                     if error is CancellationError {
-                        // Deliberate abort (issue #487) — the only path that
-                        // cancels this task. The transcription layer already
-                        // emitted cancelled telemetry and persisted the row's
-                        // `.cancelled` status, and the state machine returned
-                        // to idle, so no failure state is surfaced. The
-                        // `.abortTranscription` handler owns keep/delete
-                        // cleanup of the session folder and rows.
                         self.sendMeetingOperation(
                             outcome: .cancelled,
                             output: stoppedOutput,
-                            stage: stoppedOutput == nil ? .stopRecording : .transcription,
+                            stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged
                         )
@@ -653,7 +652,7 @@ final class MeetingRecordingFlowCoordinator {
                         self.sendMeetingOperation(
                             outcome: .failure,
                             output: stoppedOutput,
-                            stage: stoppedOutput == nil ? .stopRecording : (transcriptionFinished ? .completeTranscription : .transcription),
+                            stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged,
                             errorType: TelemetryErrorClassifier.classify(error)
@@ -1179,6 +1178,38 @@ final class MeetingRecordingFlowCoordinator {
         panelController?.hide()
     }
 
+    private func handleQueuedMeetingTranscriptionCompletion(_ completion: MeetingTranscriptionQueue.Completion) {
+        switch completion {
+        case .success(let item, let transcription):
+            sendMeetingOperation(
+                operationContext: item.operationContext,
+                outcome: .success,
+                trigger: item.trigger,
+                output: item.recording,
+                stage: .completeTranscription,
+                liveWordCount: item.liveWordCount,
+                liveTranscriptLagged: item.liveTranscriptLagged
+            )
+            onQueuedTranscriptionReady(transcription, stateMachine.state == .idle)
+
+        case .failure(let item, let error):
+            Telemetry.send(.meetingRecordingFailed(
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
+            sendMeetingOperation(
+                operationContext: item.operationContext,
+                outcome: .failure,
+                trigger: item.trigger,
+                output: item.recording,
+                stage: .transcription,
+                liveWordCount: item.liveWordCount,
+                liveTranscriptLagged: item.liveTranscriptLagged,
+                errorType: TelemetryErrorClassifier.classify(error)
+            )
+        }
+    }
+
     private func sendMeetingOperation(
         outcome: ObservabilityOutcome,
         trigger: TelemetryMeetingOperationTrigger? = nil,
@@ -1189,13 +1220,37 @@ final class MeetingRecordingFlowCoordinator {
         liveTranscriptLagged: Bool? = nil,
         errorType: String? = nil
     ) {
-        guard let operationContext = currentMeetingOperationContext else { return }
+        sendMeetingOperation(
+            operationContext: currentMeetingOperationContext,
+            outcome: outcome,
+            trigger: trigger ?? currentMeetingTrigger,
+            output: output,
+            stage: stage,
+            durationSeconds: durationSeconds,
+            liveWordCount: liveWordCount,
+            liveTranscriptLagged: liveTranscriptLagged,
+            errorType: errorType
+        )
+    }
+
+    private func sendMeetingOperation(
+        operationContext: ObservabilityOperationContext?,
+        outcome: ObservabilityOutcome,
+        trigger: TelemetryMeetingOperationTrigger? = nil,
+        output: MeetingRecordingOutput? = nil,
+        stage: TelemetryMeetingOperationStage? = nil,
+        durationSeconds: Double? = nil,
+        liveWordCount: Int? = nil,
+        liveTranscriptLagged: Bool? = nil,
+        errorType: String? = nil
+    ) {
+        guard let operationContext else { return }
         let notes = output?.userNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         Telemetry.send(.meetingOperation(
             operationID: operationContext.operationID,
             operationContext: operationContext,
             outcome: outcome,
-            trigger: trigger ?? currentMeetingTrigger,
+            trigger: trigger,
             stage: stage,
             durationSeconds: output?.durationSeconds ?? durationSeconds,
             liveWordCount: liveWordCount,
@@ -1235,5 +1290,9 @@ extension MeetingRecordingFlowCoordinator {
 
     func testHook_waitForActionTask() async {
         await actionTask?.value
+    }
+
+    func testHook_waitForMeetingTranscriptionQueue() async {
+        await meetingTranscriptionQueue.waitUntilIdle()
     }
 }

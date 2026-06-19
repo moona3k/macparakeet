@@ -1332,6 +1332,45 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, file.path)
     }
 
+    func testClearMeetingAudioRefusesAwaitingTranscriptionLockEvenWhenOwnerIsDead() throws {
+        let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x5, count: 1024)))
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 0,
+                displayName: "Awaiting Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folder
+        )
+
+        let meeting = Transcription(
+            fileName: "meeting",
+            filePath: file.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        mockTranscriptionRepo.transcriptions = [meeting]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.clearMeetingAudio()
+
+        XCTAssertNotNil(viewModel.storageCleanupError)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(mockTranscriptionRepo.transcriptions.first?.filePath, file.path)
+    }
+
     // MARK: - Local Models
 
     func testRefreshModelStatusMarksSpeechNotDownloadedWhenCacheMissing() async throws {

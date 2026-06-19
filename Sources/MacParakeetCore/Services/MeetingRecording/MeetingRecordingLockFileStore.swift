@@ -233,6 +233,14 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
         try sortedSessions(meetingsRoot: meetingsRoot) { processChecker.isAlive(pid: $0.pid) }
     }
 
+    /// Every readable recording lock under `meetingsRoot`, regardless of PID
+    /// liveness or state. Destructive retention paths use this stricter scan:
+    /// a dead-owner `.awaitingTranscription` lock still represents saved audio
+    /// that has not been finalized into a transcript yet.
+    public func discoverAnySessions(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
+        try sortedSessions(meetingsRoot: meetingsRoot) { _ in true }
+    }
+
     private func sortedSessions(
         meetingsRoot: URL,
         where predicate: (MeetingRecordingLockFile) -> Bool

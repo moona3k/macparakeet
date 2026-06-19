@@ -40,6 +40,7 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     /// the recording stays retryable from Library / launch recovery;
     /// `keepAudio: false` deletes the recording entirely.
     case abortTranscriptionRequested(keepAudio: Bool)
+    case recordingQueued(generation: Int, transcriptionID: UUID)
     case transcriptionCompleted(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
     case dismissRequested
@@ -110,10 +111,20 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
 
         case (.stopping, .recordingStarted(let gen)):
             guard gen == generation else { return [] }
-            state = .transcribing
+            state = .stopping
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 
         case (.stopping, .startFailed(let gen, let message)):
+            guard gen == generation else { return [] }
+            state = .finishing(outcome: .error(message))
+            return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
+
+        case (.stopping, .recordingQueued(let gen, _)):
+            guard gen == generation else { return [] }
+            state = .idle
+            return [.hidePill, .updateMenuBar(.idle)]
+
+        case (.stopping, .transcriptionFailed(let gen, let message)):
             guard gen == generation else { return [] }
             state = .finishing(outcome: .error(message))
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
@@ -127,12 +138,12 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             return [.cancelRecording, .hidePill, .updateMenuBar(.idle)]
 
         case (.recording, .stopRequested):
-            state = .transcribing
+            state = .stopping
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 
         case (.recording, .captureFailed(let gen)):
             guard gen == generation else { return [] }
-            state = .transcribing
+            state = .stopping
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 
         case (.transcribing, .abortTranscriptionRequested(let keepAudio)):

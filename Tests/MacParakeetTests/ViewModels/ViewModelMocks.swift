@@ -356,6 +356,13 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var lastURLString: String?
     var transcribeURLProgressPhases: [TranscriptionProgress] = []
     var transcribeURLDelayMs: UInt64 = 0
+    var prepareMeetingCallCount = 0
+    var finalizeMeetingCallCount = 0
+    var preparedMeetingRecordings: [MeetingRecordingOutput] = []
+    var finalizedMeetingRecordings: [MeetingRecordingOutput] = []
+    var finalizedMeetingTranscriptionIDs: [UUID] = []
+    private var meetingFinalizationHeld = false
+    private var meetingFinalizationContinuations: [CheckedContinuation<Void, Never>] = []
     /// Per-file overrides for batch tests, keyed by `fileURL.lastPathComponent`.
     /// `errorsByFileName` wins over `resultsByFileName`, which wins over the
     /// shared `transcribeError`/`transcribeResult`.
@@ -392,6 +399,19 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
 
     func configureURLDelay(milliseconds: UInt64) {
         self.transcribeURLDelayMs = milliseconds
+    }
+
+    func holdMeetingFinalization() {
+        meetingFinalizationHeld = true
+    }
+
+    func releaseMeetingFinalization() {
+        meetingFinalizationHeld = false
+        let continuations = meetingFinalizationContinuations
+        meetingFinalizationContinuations = []
+        for continuation in continuations {
+            continuation.resume()
+        }
     }
 
     func transcribe(
@@ -465,6 +485,70 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             status: .completed,
             sourceType: .meeting
         )
+    }
+
+    func prepareMeetingTranscription(
+        recording: MeetingRecordingOutput
+    ) async throws -> Transcription {
+        prepareMeetingCallCount += 1
+        preparedMeetingRecordings.append(recording)
+        lastMeetingRecording = recording
+        lastSource = .meeting
+
+        if let error = transcribeError {
+            throw error
+        }
+
+        return Transcription(
+            fileName: recording.displayName,
+            filePath: recording.mixedAudioURL.path,
+            durationMs: Int((recording.durationSeconds * 1000).rounded()),
+            rawTranscript: nil,
+            status: .processing,
+            sourceType: .meeting
+        )
+    }
+
+    func finalizeMeetingTranscription(
+        recording: MeetingRecordingOutput,
+        updating transcriptionID: UUID,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        finalizeMeetingCallCount += 1
+        finalizedMeetingRecordings.append(recording)
+        finalizedMeetingTranscriptionIDs.append(transcriptionID)
+        lastMeetingRecording = recording
+        lastSource = .meeting
+
+        for phase in transcribeProgressPhases {
+            onProgress?(phase)
+        }
+
+        if meetingFinalizationHeld {
+            await withCheckedContinuation { continuation in
+                meetingFinalizationContinuations.append(continuation)
+            }
+        }
+
+        if transcribeDelayMs > 0 {
+            try await Task.sleep(nanoseconds: transcribeDelayMs * 1_000_000)
+        }
+
+        if let error = transcribeError {
+            throw error
+        }
+
+        var result = transcribeResult ?? Transcription(
+            fileName: recording.displayName,
+            filePath: recording.mixedAudioURL.path,
+            rawTranscript: "Mock meeting transcription",
+            status: .completed,
+            sourceType: .meeting
+        )
+        result.id = transcriptionID
+        result.filePath = result.filePath ?? recording.mixedAudioURL.path
+        result.sourceType = .meeting
+        return result
     }
 
     func retranscribe(

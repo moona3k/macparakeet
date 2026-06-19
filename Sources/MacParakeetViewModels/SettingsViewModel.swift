@@ -1329,6 +1329,23 @@ public final class SettingsViewModel {
 
         let dir = meetingRecordingsDirPath()
         let fm = FileManager.default
+        do {
+            let protectedSessions = try MeetingRecordingLockFileStore().discoverAnySessions(
+                meetingsRoot: URL(fileURLWithPath: dir, isDirectory: true)
+            )
+            guard protectedSessions.isEmpty else {
+                storageCleanupError = "Finish or discard pending meeting recording recovery before clearing meeting audio."
+                refreshStats()
+                refreshPendingMeetingRecoveries()
+                return
+            }
+        } catch {
+            logger.error("Failed to inspect meeting recording locks error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not verify pending meeting recordings: \(error.localizedDescription)"
+            refreshStats()
+            refreshPendingMeetingRecoveries()
+            return
+        }
 
         if fm.fileExists(atPath: dir) {
             do {

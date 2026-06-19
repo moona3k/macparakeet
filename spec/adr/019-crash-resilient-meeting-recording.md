@@ -134,10 +134,12 @@ On `stopRecording()` (success path), the marker is rewritten to
 `state: "awaitingTranscription"` after the writers have been
 finalized, `meeting-recording-metadata.json` is on disk, and `meeting.m4a` has been
 mixed. The marker is **atomically deleted** only after the post-stop
-`Transcription` row has been saved. This keeps the audio recoverable
-if the app crashes in the clean-stop window between mixing and
-transcription persistence. On capture or mix failure, the marker
-stays in place and the session is treated as recoverable.
+`Transcription` row has been completed. The stopped-session path first saves a
+processing Library row, then queues final transcription; the lock stays in
+place while that row is awaiting transcription. This keeps the audio
+recoverable if the app crashes in the clean-stop window between mixing and
+transcription completion. On capture or mix failure, the marker stays in place
+and the session is treated as recoverable.
 `cancelRecording()` deletes the marker and the session folder because
 user-initiated cancel is not a crash.
 
@@ -158,8 +160,9 @@ post-stop pipeline:
    for legacy lock files that predate ADR-021.
 3. Run `MeetingTranscriptFinalizer.finalize` via `STTScheduler` as a
    normal background job (recovery transcription is just another
-   meeting-finalize task per ADR-016's slot model).
-4. Persist as a `Transcription` record with a `recoveredFromCrash:
+   meeting-finalize task per ADR-016's slot model), updating an existing
+   incomplete Library row for the mixed audio when one already exists.
+4. Persist/update the `Transcription` record with a `recoveredFromCrash:
    true` flag (new column or boolean in metadata).
 5. Delete `recording.lock` after successful save.
 

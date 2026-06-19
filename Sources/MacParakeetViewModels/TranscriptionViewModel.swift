@@ -838,9 +838,12 @@ public final class TranscriptionViewModel {
         _ transcription: Transcription,
         autoSave: Bool,
         runAutoPrompts: Bool,
-        applyMeetingRetention: Bool = true
+        applyMeetingRetention: Bool = true,
+        selectTranscription: Bool = true
     ) {
-        currentTranscription = transcription
+        if selectTranscription {
+            currentTranscription = transcription
+        }
         loadTranscriptions()
         if autoSave {
             autoSaveIfEnabled(transcription)

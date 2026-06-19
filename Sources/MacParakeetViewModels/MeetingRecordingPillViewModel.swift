@@ -18,6 +18,7 @@ public final class MeetingRecordingPillViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
+    public var backgroundTranscriptionCount: Int = 0
     /// True once the stop+transcribe flow has a finalized recording on disk,
     /// i.e. the in-flight final transcription can be safely aborted (issue
     /// #487). Gates the tile's Stop button and the pill menu item so neither

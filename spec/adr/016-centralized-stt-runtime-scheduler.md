@@ -113,7 +113,7 @@ This means:
 - file transcription yields to meeting work
 - file transcription does not receive dedicated always-on capacity
 
-Meeting recordings use `meetingFinalize` both immediately after stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
+Meeting recordings use `meetingFinalize` from the background finalization queue after durable stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
 Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact.
 
 Reference shape:
@@ -232,7 +232,8 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 ### Service boundaries
 
 - `DictationService` submits interactive dictation jobs
-- `MeetingRecordingService` submits live chunk and immediate post-stop meeting-finalization jobs
+- `MeetingRecordingService` submits live chunk jobs and persists the captured engine into stopped-session metadata/locks
+- `MeetingTranscriptionQueue` submits post-stop meeting-finalization jobs after the recorder has durably finalized audio and returned to idle
 - `TranscriptionService` submits batch file / YouTube jobs plus saved-item retranscribes, including archived meetings that reconstruct into the dual-source `meetingFinalize` path when metadata is available
 
 ### Migration path

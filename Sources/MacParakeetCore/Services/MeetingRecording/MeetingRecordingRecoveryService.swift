@@ -138,7 +138,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             await writeNotesSidecar(for: lock, folderURL: folderURL)
             return try completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
         }
-        try deleteIncompleteTranscriptions(for: mixedURL)
+        let incompleteRows = try existingIncompleteTranscriptions(for: mixedURL)
+        let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
+        try deleteDuplicateIncompleteTranscriptions(incompleteRows, keeping: rowToUpdate?.id)
 
         var recoveredSources: [RecoverableSource] = []
         for (source, url) in [(AudioSource.microphone, microphoneURL), (.system, systemURL)] {
@@ -205,7 +207,16 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         )
 
         do {
-            let transcription = try await transcriptionService.transcribeMeeting(recording: recording, onProgress: nil)
+            let transcription: Transcription
+            if let rowToUpdate {
+                transcription = try await transcriptionService.finalizeMeetingTranscription(
+                    recording: recording,
+                    updating: rowToUpdate.id,
+                    onProgress: nil
+                )
+            } else {
+                transcription = try await transcriptionService.transcribeMeeting(recording: recording, onProgress: nil)
+            }
             return try completeRecovery(transcription, folderURL: folderURL, lock: lock)
         } catch {
             logger.error("meeting_recovery_transcription_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
@@ -295,10 +306,41 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         return paths
     }
 
-    private func deleteIncompleteTranscriptions(for mixedURL: URL) throws {
-        let incomplete = try existingTranscriptions(for: mixedURL)
+    private func existingIncompleteTranscriptions(for mixedURL: URL) throws -> [Transcription] {
+        try existingTranscriptions(for: mixedURL)
             .filter { $0.status != .completed }
+    }
+
+    private func selectedIncompleteTranscription(from rows: [Transcription]) -> Transcription? {
+        rows.sorted { lhs, rhs in
+            let lhsPriority = incompleteRecoveryPriority(lhs.status)
+            let rhsPriority = incompleteRecoveryPriority(rhs.status)
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+            return lhs.createdAt > rhs.createdAt
+        }.first
+    }
+
+    private func incompleteRecoveryPriority(_ status: Transcription.TranscriptionStatus) -> Int {
+        switch status {
+        case .processing:
+            return 0
+        case .error:
+            return 1
+        case .cancelled:
+            return 2
+        case .completed:
+            return 3
+        }
+    }
+
+    private func deleteDuplicateIncompleteTranscriptions(
+        _ incomplete: [Transcription],
+        keeping keptID: UUID?
+    ) throws {
         for transcription in incomplete {
+            guard transcription.id != keptID else { continue }
             _ = try transcriptionRepo.delete(id: transcription.id)
         }
     }

@@ -164,6 +164,34 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(notesContent, "# Recovered Team Sync\n\nexisting transcript note\n")
     }
 
+    func testRecoverUpdatesExistingAwaitingTranscriptionStub() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let stub = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: mixedURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(stub)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertEqual(recovered.id, stub.id)
+        XCTAssertTrue(recovered.recoveredFromCrash)
+        XCTAssertEqual(transcriptionService.recordings.count, 0)
+        XCTAssertEqual(transcriptionService.finalizedRecordings.count, 1)
+        XCTAssertEqual(transcriptionService.finalizedTranscriptionIDs, [stub.id])
+
+        let rows = try transcriptionRepo.fetchAll(limit: nil).filter {
+            $0.sourceType == .meeting && $0.filePath == mixedURL.path
+        }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.id, stub.id)
+        XCTAssertEqual(rows.first?.status, .completed)
+        XCTAssertTrue(rows.first?.recoveredFromCrash == true)
+    }
+
     func testDiscardRemovesEverything() async throws {
         let fixture = try makeRecoverableSession()
 
@@ -192,7 +220,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNotNil(try transcriptionRepo.fetch(id: existing.id))
     }
 
-    func testRecoverRetryRemovesPreviousIncompleteRecoveryRow() async throws {
+    func testRecoverRetryUpdatesPreviousIncompleteRecoveryRow() async throws {
         let fixture = try makeRecoverableSession()
         let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
         let stale = Transcription(
@@ -211,7 +239,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         }
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows.first?.id, recovered.id)
-        XCTAssertNotEqual(rows.first?.id, stale.id)
+        XCTAssertEqual(rows.first?.id, stale.id)
         XCTAssertEqual(rows.first?.status, .completed)
         XCTAssertTrue(rows.first?.recoveredFromCrash == true)
     }
@@ -537,6 +565,8 @@ private final class RecoveryMockAudioConverter: AudioFileConverting, @unchecked 
 private final class RecoveryMockTranscriptionService: TranscriptionServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var recordings: [MeetingRecordingOutput] = []
+    private(set) var finalizedRecordings: [MeetingRecordingOutput] = []
+    private(set) var finalizedTranscriptionIDs: [UUID] = []
     var errorToThrow: Error?
 
     func transcribe(
@@ -564,6 +594,29 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             recordings.append(recording)
         }
         return Transcription(
+            fileName: recording.displayName,
+            filePath: recording.mixedAudioURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+    }
+
+    func prepareMeetingTranscription(recording: MeetingRecordingOutput) async throws -> Transcription {
+        fatalError("Not used")
+    }
+
+    func finalizeMeetingTranscription(
+        recording: MeetingRecordingOutput,
+        updating transcriptionID: UUID,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        if let errorToThrow { throw errorToThrow }
+        lock.withLock {
+            finalizedRecordings.append(recording)
+            finalizedTranscriptionIDs.append(transcriptionID)
+        }
+        return Transcription(
+            id: transcriptionID,
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
             status: .completed,

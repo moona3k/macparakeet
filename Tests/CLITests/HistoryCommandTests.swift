@@ -294,6 +294,51 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: meeting.id)?.filePath, audioURL.path)
     }
 
+    func testClearMeetingAudioCommandRefusesAwaitingTranscriptionLockEvenWhenOwnerIsDead() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meetingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: meetingRoot) }
+        let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 0,
+                displayName: "Awaiting Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folder
+        )
+
+        let meeting = Transcription(
+            fileName: "meeting.m4a",
+            filePath: audioURL.path,
+            rawTranscript: nil,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(meeting)
+
+        let command = try ClearMeetingAudioSubcommand.parse([
+            "--database", dbURL.path,
+            "--meeting-recordings-directory", meetingRoot.path,
+        ])
+        XCTAssertThrowsError(try command.run()) { error in
+            XCTAssertTrue(error is ValidationError, "Expected a ValidationError, got \(error)")
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(try repo.fetch(id: meeting.id)?.filePath, audioURL.path)
+    }
+
     // MARK: - Favorites
 
     func testFavoriteAndUnfavoriteTranscription() throws {

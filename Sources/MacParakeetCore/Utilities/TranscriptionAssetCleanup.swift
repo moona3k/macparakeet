@@ -105,6 +105,16 @@ public enum TranscriptionAssetCleanup {
             )
             return false
         }
+        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+        guard !fileManager.fileExists(atPath: lockURL.path) else {
+            logger.warning(
+                "Refusing to remove locked meeting folder: \(folderURL.path, privacy: .private)"
+            )
+            throw TranscriptionAssetCleanupError.removalFailed(
+                path: folderURL.path,
+                reason: "meeting audio is still awaiting transcription or recovery"
+            )
+        }
         try removeItem(at: folderURL, fileManager: fileManager)
         return true
     }

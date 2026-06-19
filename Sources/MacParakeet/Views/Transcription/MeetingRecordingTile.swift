@@ -150,6 +150,7 @@ struct MeetingRecordingTile: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .lineLimit(2)
+                backgroundTranscriptionBadge
             }
 
             Spacer()
@@ -202,6 +203,7 @@ struct MeetingRecordingTile: View {
                 Text(viewModel.formattedElapsed)
                     .font(.system(size: 15, weight: .semibold).monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
+                backgroundTranscriptionBadge
             }
 
             Spacer()
@@ -213,6 +215,29 @@ struct MeetingRecordingTile: View {
                 stopButton
             }
         }
+    }
+
+    @ViewBuilder
+    private var backgroundTranscriptionBadge: some View {
+        if viewModel.backgroundTranscriptionCount > 0 {
+            HStack(spacing: 5) {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.55)
+                    .frame(width: 12, height: 12)
+                Text(backgroundTranscriptionText)
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel(backgroundTranscriptionText)
+        }
+    }
+
+    private var backgroundTranscriptionText: String {
+        let count = viewModel.backgroundTranscriptionCount
+        return count == 1 ? "Finishing 1 meeting" : "Finishing \(count) meetings"
     }
 
     private var transcribingContent: some View {

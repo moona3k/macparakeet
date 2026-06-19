@@ -153,6 +153,40 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertTrue(try store.discoverActiveSessions(meetingsRoot: missing).isEmpty)
     }
 
+    // MARK: - discoverAnySessions (retention guard)
+
+    func testDiscoverAnySessionsReturnsLiveAndDeadOwners() throws {
+        let liveFolderURL = tempRoot.appendingPathComponent("live")
+        let deadFolderURL = tempRoot.appendingPathComponent("dead")
+        let store = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42])
+        )
+        let live = makeLockFile(
+            sessionId: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            pid: 42,
+            folderURL: liveFolderURL
+        )
+        let deadAwaiting = makeLockFile(
+            sessionId: UUID(uuidString: "66666666-7777-8888-9999-000000000000")!,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_001),
+            pid: 99,
+            state: .awaitingTranscription,
+            folderURL: deadFolderURL
+        )
+        try store.write(live, folderURL: liveFolderURL)
+        try store.write(deadAwaiting, folderURL: deadFolderURL)
+
+        let sessions = try store.discoverAnySessions(meetingsRoot: tempRoot)
+
+        XCTAssertEqual(sessions.map(\.sessionId), [live.sessionId, deadAwaiting.sessionId])
+        XCTAssertEqual(sessions.map(\.state), [.recording, .awaitingTranscription])
+        XCTAssertEqual(sessions.map { $0.folderURL?.standardizedFileURL }, [
+            liveFolderURL.standardizedFileURL,
+            deadFolderURL.standardizedFileURL,
+        ])
+    }
+
     // MARK: - ADR-020 §9 — notes field
 
     func testWriteThenReadRoundTripsNotes() throws {
@@ -245,6 +279,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         startedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
         pid: Int32 = 123,
         displayName: String = "Team Sync",
+        state: MeetingRecordingLockState = .recording,
         folderURL: URL? = nil
     ) -> MeetingRecordingLockFile {
         MeetingRecordingLockFile(
@@ -253,6 +288,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
             startedAt: startedAt,
             pid: pid,
             displayName: displayName,
+            state: state,
             folderURL: folderURL
         )
     }

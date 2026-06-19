@@ -1251,6 +1251,61 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(diarizationApplied)
     }
 
+    func testPrepareMeetingTranscriptionCreatesProcessingStubBeforeSTT() async throws {
+        let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let stub = try await service.prepareMeetingTranscription(recording: recording)
+        let sttCallCount = await mockSTT.transcribeCallCount
+
+        XCTAssertEqual(sttCallCount, 0)
+        XCTAssertEqual(stub.fileName, "Queued Meeting")
+        XCTAssertEqual(stub.filePath, recording.mixedAudioURL.path)
+        XCTAssertEqual(stub.fileSizeBytes, 5)
+        XCTAssertEqual(stub.durationMs, 3000)
+        XCTAssertNil(stub.rawTranscript)
+        XCTAssertEqual(stub.status, .processing)
+        XCTAssertEqual(stub.sourceType, .meeting)
+        XCTAssertEqual(stub.engine, SpeechEnginePreference.parakeet.rawValue)
+
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
+        XCTAssertEqual(fetched.status, .processing)
+        XCTAssertEqual(fetched.filePath, recording.mixedAudioURL.path)
+        XCTAssertEqual(try transcriptionRepo.count(), 1)
+    }
+
+    func testFinalizeMeetingTranscriptionUpdatesExistingStubWithoutDuplicatingLibraryRow() async throws {
+        let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configure(result: STTResult(
+            text: "Queued meeting finished",
+            words: [
+                TimestampedWord(word: "Queued", startMs: 0, endMs: 250, confidence: 0.95),
+                TimestampedWord(word: "meeting", startMs: 280, endMs: 520, confidence: 0.95),
+                TimestampedWord(word: "finished", startMs: 560, endMs: 900, confidence: 0.95),
+            ]
+        ))
+
+        let stub = try await service.prepareMeetingTranscription(recording: recording)
+        let result = try await service.finalizeMeetingTranscription(
+            recording: recording,
+            updating: stub.id,
+            onProgress: nil
+        )
+
+        XCTAssertEqual(result.id, stub.id)
+        XCTAssertEqual(result.status, .completed)
+        XCTAssertEqual(result.rawTranscript, "Queued meeting finished")
+        XCTAssertEqual(result.filePath, recording.mixedAudioURL.path)
+        XCTAssertEqual(result.sourceType, .meeting)
+        XCTAssertEqual(try transcriptionRepo.count(), 1)
+
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertEqual(fetched.rawTranscript, "Queued meeting finished")
+        XCTAssertEqual(fetched.id, stub.id)
+    }
+
     func testTranscribeMeetingAppliesEnabledCustomWordsToTextAndWordTokens() async throws {
         // Seed the user's Vocabulary with company-context corrections (issue #550).
         let dbManager = try DatabaseManager()

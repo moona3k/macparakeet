@@ -262,14 +262,14 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(metadata.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
         XCTAssertEqual(lockStore.writes.last?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
         let activeLeaseCountAfterStop = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterStop, 1)
+        XCTAssertEqual(activeLeaseCountAfterStop, 0)
 
         await service.completeTranscription(for: output)
         let activeLeaseCountAfterCompletion = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterCompletion, 0)
     }
 
-    func testFailedTranscriptionAttemptReleasesRetainedSpeechEngineLeaseWithoutDeletingLock() async throws {
+    func testFailedTranscriptionAttemptDoesNotDeleteAwaitingTranscriptionLock() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
         let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
@@ -292,7 +292,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
         let activeLeaseCountAfterStop = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterStop, 1)
+        XCTAssertEqual(activeLeaseCountAfterStop, 0)
 
         await service.finishTranscriptionAttempt(for: output)
         let activeLeaseCountAfterFailure = await sttClient.activeLeaseCount
@@ -303,8 +303,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
     func testDiscardStoppedRecordingDeletesFolderAndLockAndReleasesLease() async throws {
         // Delete arm of the stop-transcription flow (issue #487): after an
         // aborted final transcription, discarding must remove the session
-        // folder + recovery lock and release the retained engine lease so
-        // nothing resurrects the recording at next launch.
+        // folder + recovery lock so nothing resurrects the recording at next
+        // launch. The engine lease is already released at durable stop.
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
         let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
