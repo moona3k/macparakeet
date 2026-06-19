@@ -14,6 +14,10 @@ final class MeetingTitleGeneratorTests: XCTestCase {
         XCTAssertFalse(MeetingTitleGenerator.shouldReplaceFallbackMeetingTitle("Weekly Product Sync"))
         XCTAssertFalse(MeetingTitleGenerator.shouldReplaceFallbackMeetingTitle("Meeting Notes for Acme"))
         XCTAssertFalse(MeetingTitleGenerator.shouldReplaceFallbackMeetingTitle("Meeting Product Review"))
+        // A deliberate calendar/custom title that merely contains a year must not
+        // be mistaken for the timestamp fallback and overwritten.
+        XCTAssertFalse(MeetingTitleGenerator.shouldReplaceFallbackMeetingTitle("Meeting 2026 Budget Planning"))
+        XCTAssertFalse(MeetingTitleGenerator.shouldReplaceFallbackMeetingTitle("Meeting Q1 2026 Kickoff"))
     }
 
     func testValidatedTitleNormalizesSimpleProviderResponses() {

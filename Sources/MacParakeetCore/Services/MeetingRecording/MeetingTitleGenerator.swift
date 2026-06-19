@@ -55,7 +55,12 @@ struct MeetingTitleGenerator: Sendable {
         }
         guard normalized.lowercased().hasPrefix("meeting ") else { return false }
 
-        let fallbackDatePattern = #"(?i)\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b|\b20\d{2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
+        // The generated fallback ("Meeting Jun 17, 2026 at 09:59") always carries a
+        // month name AND a clock time, so we match on those (plus slash dates) and
+        // deliberately omit a bare-year pattern: a real calendar/custom title like
+        // "Meeting 2026 Budget Planning" must not be treated as a fallback and
+        // silently overwritten.
+        let fallbackDatePattern = #"(?i)\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
         return normalized.range(of: fallbackDatePattern, options: .regularExpression) != nil
     }
 
