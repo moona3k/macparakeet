@@ -232,6 +232,12 @@ B can start only after Meeting A's source audio, mixed playback artifact,
 `awaitingTranscription` lock, and processing Library row are durable. Meeting
 A's final STT then continues in the queue-owned background path.
 
+This is a recorder-availability guarantee, not an instant-transcript guarantee.
+Queued meeting finalization still uses the shared `STTScheduler` background
+slot. If file, folder, YouTube, podcast, or media URL STT is already running,
+the stopped meeting waits for that job to finish; once the slot is free,
+`meetingFinalize` outranks later queued `fileTranscription` work.
+
 ### Storage
 
 ```text

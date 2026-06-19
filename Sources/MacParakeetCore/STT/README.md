@@ -111,6 +111,16 @@ background slot, with explicit priority: meeting finalize
 > meeting live chunk > file transcription. Backpressure on the
 shared slot drops the lowest-priority pending work.
 
+**Meeting stop does not create a second ASR lane.** Back-to-back meeting
+recording is implemented by returning the recorder to idle after the stopped
+meeting's audio files, `awaitingTranscription` lock, and processing Library row
+are durable. The queued final STT still enters the shared background slot as
+`meetingFinalize`. If a file, folder, YouTube, podcast, or media URL
+transcription is already running, it is not preempted; the stopped meeting
+waits for that job to finish. Once the slot is free, `meetingFinalize` outranks
+queued `fileTranscription` work. URL download and metadata extraction do not
+occupy STT; only the post-download transcription job does.
+
 **Native live dictation sessions (Nemotron and Parakeet Unified).** When the
 selected engine is Nemotron — either build, multilingual or English-only — or
 Parakeet with the `.unified` variant, dictation can hold a live streaming

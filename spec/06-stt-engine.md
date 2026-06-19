@@ -314,6 +314,11 @@ Backpressure and queueing rules:
 - Legacy meeting rows without archived source metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact
 - Dictation must not be queued behind meeting or batch work
 - File transcription is intentionally queued and single-job in v1; a running long batch job may delay meeting STT on the background slot
+- Back-to-back meeting recording does not add a second ASR lane. The meeting
+  stop path returns the recorder to idle after durable audio, lock, and
+  Library-row materialization; the queued final STT still waits for any
+  currently running `fileTranscription` job, then `meetingFinalize` priority
+  puts it ahead of later queued file work
 - Long-running batch work should be segmented into bounded work units in a future iteration if we want it to yield more gracefully
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
@@ -335,6 +340,9 @@ YouTube (v0.4+):
   yt-dlp → .m4a → FFmpeg → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
                                                                                                         → OfflineDiarizerManager.process() → DiarizationResult
                                                                                                         → Merge word timestamps + speaker segments
+
+  Download and metadata extraction happen before STT admission. Only the
+  post-download `.fileTranscription` job contends with meeting finalization.
 
 Meeting live preview (v0.6):
   MicrophoneCapture (raw default)/SystemAudioStream
