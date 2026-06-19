@@ -366,7 +366,11 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
             .appendingPathComponent("library-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let microphoneURL = folder.appendingPathComponent("microphone.m4a")
+        let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("mic".utf8)))
+        try "meeting notes".write(to: notesURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let t = Transcription(
@@ -384,7 +388,10 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNil(fetched.filePath)
         XCTAssertEqual(vm.transcriptions.first?.id, t.id)
         XCTAssertNil(vm.transcriptions.first?.filePath)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: microphoneURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
     }
 
     func testBulkDeleteSelectedItemsRemovesRowsAndExitsMode() async throws {
@@ -447,13 +454,51 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    func testBulkDeleteFailureDoesNotOverwriteNewSelectionAfterSuspension() async throws {
+        let failing = Transcription(fileName: "failing.mp3", status: .completed, sourceType: .file)
+        let newSelection = Transcription(fileName: "new.mp3", status: .completed, sourceType: .file)
+        let deleteGate = DeleteGate()
+        let blockingRepo = MockTranscriptionRepository()
+        blockingRepo.transcriptions = [failing, newSelection]
+        blockingRepo.deleteResult = false
+        blockingRepo.onDelete = { _ in
+            deleteGate.blockUntilAllowed()
+        }
+        let blockingVM = TranscriptionLibraryViewModel()
+        blockingVM.configure(transcriptionRepo: blockingRepo)
+        await load(blockingVM)
+
+        blockingVM.beginBulkSelection(startingWith: failing)
+        blockingVM.requestDeleteSelectedItems()
+
+        let operation = Task {
+            await blockingVM.confirmPendingBulkOperation()
+        }
+        await Task.detached {
+            deleteGate.waitForDeleteStarted()
+        }.value
+
+        blockingVM.beginBulkSelection(startingWith: newSelection)
+        deleteGate.allowFinish()
+        let result = await operation.value
+
+        XCTAssertEqual(result, BulkOperationResult(succeeded: 0, failed: 1))
+        XCTAssertTrue(blockingVM.isBulkSelectionModeEnabled)
+        XCTAssertEqual(blockingVM.selectedTranscriptionIDs, [newSelection.id])
+        XCTAssertNotNil(blockingVM.errorMessage)
+    }
+
     func testBulkDeleteAudioOnlyClearsMeetingAudioAndSkipsIneligibleSelection() async throws {
         try AppPaths.ensureDirectories()
         let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent("library-bulk-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let systemURL = folder.appendingPathComponent("system.m4a")
+        let manifestURL = folder.appendingPathComponent(MeetingArtifactStore.manifestFileName)
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
+        try Data(#"{"schema":"com.macparakeet.meeting-session"}"#.utf8).write(to: manifestURL)
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let meeting = Transcription(
@@ -487,6 +532,27 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNotNil(try repo.fetch(id: local.id))
         XCTAssertEqual(vm.transcriptions.count, 3)
         XCTAssertNil(vm.transcriptions.first(where: { $0.id == meeting.id })?.filePath)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: systemURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: manifestURL.path))
+    }
+}
+
+private final class DeleteGate: @unchecked Sendable {
+    private let deleteStarted = DispatchSemaphore(value: 0)
+    private let allowDelete = DispatchSemaphore(value: 0)
+
+    func blockUntilAllowed() {
+        deleteStarted.signal()
+        allowDelete.wait()
+    }
+
+    func waitForDeleteStarted() {
+        deleteStarted.wait()
+    }
+
+    func allowFinish() {
+        allowDelete.signal()
     }
 }

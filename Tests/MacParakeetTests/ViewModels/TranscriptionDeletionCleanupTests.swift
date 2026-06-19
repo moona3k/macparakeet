@@ -77,6 +77,33 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(removed)
     }
 
+    func testDetachMeetingAudioPreservesAudioWhenRepositoryUpdateFails() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+        repo.updateFilePathError = NSError(domain: "test", code: 1)
+
+        XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+    }
+
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

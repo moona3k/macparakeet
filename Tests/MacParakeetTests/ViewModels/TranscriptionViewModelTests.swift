@@ -751,7 +751,9 @@ final class TranscriptionViewModelTests: XCTestCase {
             .appendingPathComponent("vm-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        try "notes".write(to: notesURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let t = Transcription(
@@ -767,7 +769,9 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         viewModel.presentCompletedTranscription(t, autoSave: true)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         XCTAssertNil(viewModel.currentTranscription?.filePath)
         XCTAssertNil(mockRepo.transcriptions.first?.filePath)
         XCTAssertEqual(viewModel.errorMessage, "Prior load warning")
