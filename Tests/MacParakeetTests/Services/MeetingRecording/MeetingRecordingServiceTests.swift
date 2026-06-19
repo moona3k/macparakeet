@@ -231,6 +231,45 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(lockStore.deletes, [output.folderURL])
     }
 
+    func testStopRecordingFailsIfAwaitingTranscriptionLockWriteFails() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let originalFolder = try XCTUnwrap(lockStore.writes.first?.folderURL)
+        defer { try? FileManager.default.removeItem(at: originalFolder) }
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        lockStore.errorToThrow = TestError.lockWriteFailed
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected awaiting-transcription lock write failure")
+        } catch let error as MeetingAudioError {
+            guard case .storageFailed = error else {
+                return XCTFail("Expected storageFailed, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(lockStore.writeAttempts.last?.file.state, .awaitingTranscription)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
+        let isRecordingAfterFailure = await service.isRecording
+        XCTAssertFalse(isRecordingAfterFailure)
+
+        lockStore.errorToThrow = nil
+        try await service.startRecording()
+        await service.cancelRecording()
+    }
+
     func testRecordingCapturesSpeechEngineSelectionAtStart() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()

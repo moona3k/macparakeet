@@ -16,9 +16,12 @@ public protocol TranscriptionServiceProtocol: Sendable {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
+    /// Creates and persists the pre-STT meeting row. Must not run speech-to-text.
     func prepareMeetingTranscription(
         recording: MeetingRecordingOutput
     ) async throws -> Transcription
+    /// Finalizes the existing meeting row. Must update `transcriptionID`
+    /// rather than inserting another row.
     func finalizeMeetingTranscription(
         recording: MeetingRecordingOutput,
         updating transcriptionID: UUID,
@@ -107,20 +110,6 @@ extension TranscriptionServiceProtocol {
 
     public func transcribeMeeting(recording: MeetingRecordingOutput) async throws -> Transcription {
         try await transcribeMeeting(recording: recording, onProgress: nil)
-    }
-
-    public func prepareMeetingTranscription(
-        recording: MeetingRecordingOutput
-    ) async throws -> Transcription {
-        try await transcribeMeeting(recording: recording, onProgress: nil)
-    }
-
-    public func finalizeMeetingTranscription(
-        recording: MeetingRecordingOutput,
-        updating transcriptionID: UUID,
-        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
-        try await transcribeMeeting(recording: recording, onProgress: onProgress)
     }
 
     public func retranscribe(

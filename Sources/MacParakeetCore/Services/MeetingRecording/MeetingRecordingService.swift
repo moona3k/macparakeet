@@ -622,7 +622,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         ))
             .withNotes(finalNotes)
             .withState(.awaitingTranscription)
-        try? lockFileStore.write(awaitingLock, folderURL: session.folderURL)
+        do {
+            try lockFileStore.write(awaitingLock, folderURL: session.folderURL)
+        } catch {
+            await liveChunkTranscriber.finishSession()
+            await releaseSpeechEngineLease()
+            cleanupState()
+            throw MeetingAudioError.storageFailed(error.localizedDescription)
+        }
         currentLockFile = awaitingLock
 
         // Stop while paused: settle the in-flight pause interval into the
