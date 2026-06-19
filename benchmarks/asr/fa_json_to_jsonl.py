@@ -29,6 +29,7 @@ def main() -> int:
     ap.add_argument("json_file", type=Path)
     ap.add_argument("--engine", required=True)
     ap.add_argument("--dataset", required=True)
+    ap.add_argument("--lang", help="force this lang code on every record (FLEURS: read per-file 'language' instead)")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -45,6 +46,9 @@ def main() -> int:
             stem = Path(str(name)).stem or str(name)
             rec = {"id": stem, "ref": ref, "hyp": hyp,
                    "dataset": args.dataset, "engine": args.engine}
+            lang = args.lang or first(r, "language", "lang")
+            if lang:
+                rec["lang"] = lang
             audio = first(r, "audioLength", "audio_s", "duration", "audioDuration")
             proc = first(r, "processingTime", "proc_s")
             rtfx = first(r, "rtfx", "rtf")

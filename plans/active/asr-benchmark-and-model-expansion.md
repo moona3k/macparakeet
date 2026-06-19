@@ -20,8 +20,16 @@
 >    robustness on test-other, but ~9× slower than Parakeet (≈10–15× RTFx warm,
 >    +74s one-time compile, 2.3 GB). Verdict: *Parakeet for fast dictation,
 >    Cohere as an opt-in accuracy/noisy-audio engine.*
-> Remaining: full-set run, multilingual (FLEURS KO/JA/ZH), SenseVoice/Paraformer,
-> and the MLX models.
+> **Update 2026-06-19 (full-set + multilingual done).** English finalized on the
+> FULL test-clean+test-other: Cohere 2.07% macro / unified 2.38 / v2 2.57 /
+> whisper 3.00 / v3 3.22 / nemotron-en 3.70 / nemotron-multi 5.17. Multilingual
+> FLEURS (en WER, ko/ja/zh CER): Cohere en 4.69 / ko 7.15 / ja 5.56 / zh 12.49;
+> Whisper 5.71 / 6.37 / 13.42 / 11.56; **Parakeet-v3 fails CJK (>100% CER)** —
+> confirming the default can't serve KO/JA/ZH. Cohere ≈/> Whisper multilingually
+> (crushes Japanese, ties KO/ZH). Cohere is the strongest single on-device engine
+> on accuracy in both English and multilingual, via the existing FluidAudio SDK.
+> Remaining: SenseVoice/Paraformer reproduced locally (os_log capture gap; cited
+> from FluidAudio's published numbers for now), Qwen3-ASR & Moonshine (MLX, deferred).
 
 ## North Star tie-in
 
