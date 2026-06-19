@@ -244,7 +244,7 @@ paired-bootstrap significance):
 WhisperKit the light multilingual option. **If** integrated, ship Cohere as an
 **opt-in Beta engine gated to ≥16 GB RAM** with a clear download-size /
 cold-start warning, surfaced for accuracy-critical, noisy, or Japanese
-transcription. Both Nemotron builds are dominated by this benchmark (settling
+transcription. Both Nemotron builds are dominated by Parakeet in this benchmark (settling
 #520). Actual integration — engine wrapper, model-download UX, Settings/CLI
 surfacing, the RAM gate, telemetry — is a separate, ADR-gated change, and like
 every model the weights stay a user-triggered download, never bundled.

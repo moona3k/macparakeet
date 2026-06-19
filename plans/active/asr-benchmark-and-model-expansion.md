@@ -162,7 +162,7 @@ multilingual + EN (Beta), WhisperKit large-v3-turbo. All reachable via
 - **Kyutai STT 2.6B** — CC-BY-4.0, English, streaming (2.5s delay), MLX weights
   + moshi-swift. Larger; watch FluidAudio for a CoreML conversion.
 
-**Tier 3 — accuracy leaders, integration unproven on-device:**
+**Tier 3 — accuracy leaders (integration cost varies per model):**
 - **Cohere Transcribe (cohere-transcribe-03-2026)** — Apache-2.0, 2B, **#1 on
   the Open ASR Leaderboard at 5.42% avg** (LibriSpeech-clean 1.25%), 14 langs
   incl. KO/JA/ZH/AR, Conformer enc + Transformer dec. **Runs on-device via
@@ -198,8 +198,10 @@ Small 24B (too large), all cloud APIs (Deepgram/AssemblyAI/ElevenLabs/Speechmati
 1. Tier 1: run SenseVoice/Paraformer via the FluidAudio CLI (already built at
    `~/asr-bench/FluidAudio-0154`). Near-free.
 2. Tier 2/3: standalone MLX/Python runners (not integrated) for Qwen3-ASR,
-   Moonshine, Kyutai, Cohere Transcribe — accuracy on the suite + on-device
-   speed/RSS on this machine. Score through the same normalizer.
+   Moonshine, Kyutai — accuracy on the suite + on-device speed/RSS on this
+   machine. (Cohere Transcribe is **done** — it ran via the FluidAudio CLI, not a
+   standalone MLX runner; see the 2026-06-19 outcome.) Score through the same
+   normalizer.
 3. Publish the full matrix: model | langs | WER (per dataset + macro) | streaming |
    license | size | RTFx | peak RSS | on-device runtime | verdict.
 
