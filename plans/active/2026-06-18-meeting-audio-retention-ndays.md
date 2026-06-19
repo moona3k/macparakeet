@@ -29,8 +29,8 @@ Three issues converge on this:
 
 Net new surface: a **retention policy** with three user-facing choices —
 **Keep forever** / **Delete after N days** / **Delete immediately after
-transcription** — plus a once-per-launch background sweep, all of which *only
-ever touch the audio file and always keep the transcript*.
+transcription** — plus a launch + gated-daily/foreground background sweep, all of
+which *only ever touch the audio file and always keep the transcript*.
 
 ## Scope boundaries
 
@@ -39,14 +39,17 @@ ever touch the audio file and always keep the transcript*.
   delete-after-N-days (N configurable), delete-immediately.
 - A pure, testable retention policy (given a list of meetings + clock + config,
   return the set whose audio is eligible for deletion).
-- A once-per-app-launch background sweep that detaches audio (keeps transcript)
-  for eligible meetings, reusing the existing `TranscriptionAssetCleanup`
+- A background sweep (launch + gated daily/foreground) that detaches audio (keeps
+  transcript) for eligible meetings, reusing the existing `TranscriptionAssetCleanup`
   managed-path-guarded detach.
 - Settings Storage card UI: the three-way retention control + the existing
   stats; a one-time confirmation when the user first enables an auto-delete
   policy (because it deletes user data on a schedule).
 - CLI `config` key (`meeting-audio-retention`) for headless parity.
-- Telemetry: a `settingChanged` case + a privacy-safe sweep-result count.
+- Telemetry: a `settingChanged` case + a privacy-safe sweep-result count
+  (**both new `TelemetryEventName` cases must be mirrored in the website
+  `ALLOWED_EVENTS` allowlist in the same change, or the Worker drops the whole
+  batch** — two-repo gotcha).
 
 ### Out of scope (deferred, by owner decision)
 - **True transcript-only / stream-and-discard mode** (never assemble a full
@@ -74,8 +77,9 @@ ever touch the audio file and always keep the transcript*.
   meeting whose session still holds a live `recording.lock` (PID alive).
 - **No surprise.** First time an auto-delete policy is enabled, confirm with copy
   that states transcripts are kept and audio older than N days will be removed.
-- Idle-CPU hygiene: the sweep is a one-shot detached task at launch, not a
-  resident timer.
+- Idle-CPU hygiene: the sweep runs at launch + a gated daily/foreground check
+  (a `lastSweptAt` timestamp prevents redundant runs); no resident
+  high-frequency timer.
 
 ## Verified current state (file:line)
 
@@ -118,9 +122,12 @@ public enum MeetingAudioRetention: Equatable, Sendable {
 ```
 - Backward-compat: derive the initial value from the existing
   `saveMeetingAudio` bool (true -> `.keepForever`, false -> `.deleteImmediately`)
-  on first read, then persist the richer key. Keep `saveMeetingAudio` writing in
-  sync so #508's CLI/Settings reads don't regress (or migrate readers — decide
-  in Phase 1).
+  once on first read, then persist the richer key. **Migrate #508's legacy
+  readers (Settings + CLI `save-meeting-audio`) to the tri-state in the same PR**
+  rather than faking the bool — `deleteAfterDays(N)` has no honest boolean
+  (`true` would read as "keep forever" to a legacy consumer), so a sync shim
+  would silently mislead. Keep a one-way read shim only if an external consumer
+  is found that cannot be migrated. [Greptile P2]
 - N choices: a small, opinionated stepper/menu — **7 / 14 / 30 / 90 days**
   (matches the mental model in #478; avoids a free-form field). Default N when
   switching into the mode: **30**.
@@ -142,10 +149,13 @@ public enum MeetingAudioRetentionPolicy {
                              now: Date) -> [UUID]
 }
 ```
-Rules: skip `!hasAudioOnDisk`, `isRecovered`, `hasLiveLock`; for
+Rules: skip `!hasAudioOnDisk`, `isRecovered`, `hasLiveLock`; `.keepForever` -> [];
 `.deleteAfterDays(n)` include where `now - ageReferenceDate > n days`;
-`.keepForever` -> []; `.deleteImmediately` is handled by the existing
-post-transcription path, not the sweep.
+**`.deleteImmediately` is treated as `.deleteAfterDays(0)` by the sweep** so that
+switching *into* delete-immediately also reclaims already-transcribed audio. The
+post-transcription hook only fires for freshly-finished recordings, so without
+this the sweep would return `[]` for that mode and a privacy-motivated user would
+be left with a library of audio they believe is gone. [Greptile P1]
 
 ### Sweep runner (app layer)
 A small `@MainActor`/service shim invoked from `AppStartupBootstrapper`:
@@ -153,6 +163,12 @@ A small `@MainActor`/service shim invoked from `AppStartupBootstrapper`:
 2. Call the pure policy.
 3. For each id, `TranscriptionAssetCleanup.detachOwnedMeetingAudio()` (guarded).
 4. Emit one privacy-safe telemetry count (`{swept: Int}`), log a single line.
+
+**Cadence (not launch-only):** MacParakeet is a persistent menu-bar app that can
+run for weeks, so a once-per-launch sweep could effectively never fire. Run it at
+launch **and** on a lightweight daily cadence — a `lastMeetingRetentionSweepAt`
+timestamp gates re-runs, checked at launch and on foreground/wake
+(`NSApplication.didBecomeActiveNotification`). No resident high-frequency timer. [Gemini]
 
 ### UI (Storage card)
 Replace the bare "Keep meeting audio" toggle with a labeled control:
@@ -193,12 +209,11 @@ Replace the bare "Keep meeting audio" toggle with a labeled control:
    audio-finalized time vs. on-disk mtime. `createdAt` is within minutes of the
    recording and needs no migration — **recommended**; only add an `audioSavedAt`
    column if drift proves to matter. Decide before Phase 2.
-2. **`saveMeetingAudio` coexistence:** keep the old bool in sync for one release
-   (safer for #508's CLI/readers) vs. migrate all readers to the new enum now.
-   Lean: keep in sync this release, migrate later.
-3. **Sweep cadence:** once-per-launch is simplest and proposed. A long-running
-   app could go many days without a sweep — acceptable for v1? (Add a
-   foreground-return check only if field data shows it matters.)
+
+(Resolved during PR #556 review: `deleteImmediately` is swept as
+`deleteAfterDays(0)` so a mode switch reclaims existing audio; legacy
+`saveMeetingAudio` readers are migrated to the tri-state in-PR; the sweep runs at
+launch + a gated daily/foreground check rather than launch-only.)
 
 ## Docs to update on completion
 `spec/05-audio-pipeline.md`, `spec/02-features.md`, `spec/README.md`,

@@ -21,8 +21,9 @@ The good news: **Dictation History already implements a complete, shipped
 bulk-select pattern** (selection state, mode toggle, an action bar with
 count / Select All / Clear / Delete, batched deletion). This plan ports that
 proven pattern into the Library (both the thumbnail grid and the meetings list)
-rather than inventing a new interaction — and layers on keyboard affordances and
-a brief undo, which Dictation does not yet have.
+rather than inventing a new interaction — and layers on keyboard affordances
+Dictation does not yet have. (No undo in v1 — see Out of scope for why a row-only
+undo would be a data-loss trap here.)
 
 This plan also creates the selection substrate that the **auto-title backlog**
 follow-up (`2026-06-18-meeting-auto-title-followups.md`) rides on: once rows are
@@ -42,15 +43,21 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
 - Keyboard: `⌫`/`Delete` triggers the bulk-delete confirmation when items are
   selected; `⌘A` selects all currently-filtered items; `Esc` exits select mode.
 - A single confirmation alert stating the count and permanence; copy adapts when
-  the selection includes meetings (audio is unrecoverable).
-- A brief **undo toast** after a bulk delete (industry-best given there is no
-  trash today). Undo restores DB rows; audio files removed from disk are gone —
-  so undo restores transcripts/metadata and is honest that detached audio
-  stays gone.
+  the selection includes meetings (audio **and** AI summaries/chats are
+  unrecoverable — see Invariants).
+- The batch delete runs off the main thread (`Task.detached`), mirroring
+  `DictationHistoryViewModel.deleteTargets`, so deleting many items never
+  beachballs the UI. [Gemini]
 
 ### Out of scope
-- Bulk delete in Dictation History (already exists) and a true trash/recycle bin
-  (a larger, separate feature).
+- Bulk delete in Dictation History (already exists).
+- **Undo / trash for bulk delete.** Deferred for v1 by design: `delete(id:)`
+  cascade-deletes a transcription's `prompt_results`, `chat_conversations`, and
+  LLM-run rows (`foreignKeysEnabled` + `onDelete: .cascade`,
+  `DatabaseManager.swift:227-229, 404-406, 807-810`), so a row-only undo would
+  silently lose every AI summary and Ask-tab chat — strictly worse than no undo.
+  A real undo needs a full-object-graph snapshot/restore or a soft-delete trash;
+  both are a separate future feature. v1 relies on a precise confirmation instead.
 - Bulk **audio-only detach** (the single-item "Delete Audio" stays single-item;
   bulk = full delete). Revisit if requested.
 - Bulk operations other than delete (move, export, favorite) — selection
@@ -67,10 +74,15 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
 - **No partial-silent failure.** If one item in the batch fails to delete, the
   batch continues and the result surfaces (count succeeded / failed), never a
   silent drop.
-- **Meeting audio permanence is explicit.** When the selection contains
-  meetings, the confirmation says audio cannot be recovered.
+- **Deletion is permanent and total.** A delete removes the transcript, its
+  on-disk audio, **and** its cascaded `prompt_results` / `chat_conversations` /
+  LLM-run rows. There is no undo (see Out of scope), so the confirmation must
+  state this plainly — especially that meeting audio and AI summaries can't be
+  recovered.
 - **Filter-aware Select All.** `⌘A` / "Select All" selects only the currently
   filtered + searched set, never hidden rows.
+- **Accessibility parity.** The action bar and selection controls carry VoiceOver
+  labels (count, selected state, actions), consistent with the active a11y sprint.
 - Idle hygiene: selection state is torn down on mode exit and on filter change.
 
 ## Verified current state (file:line)
@@ -99,7 +111,13 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
   `deleteMeetingAudio(_:)` (~167-188). No selection state today.
 - `MeetingsWorkspaceViewModel` delegates recents to a `TranscriptionLibraryViewModel`
   (`recentMeetingsViewModel`) — selection lives in that VM so both surfaces share it.
-- No undo anywhere today (deletes are permanent) — the toast is net new.
+- Delete cascade: `TranscriptionRepository.delete(id:)` (~357) is a bare
+  `Transcription.deleteOne` and the DB has `foreignKeysEnabled = true` with
+  `prompt_results`, `chat_conversations`, and the LLM-run table all
+  `references("transcriptions", onDelete: .cascade)`
+  (`DatabaseManager.swift:31, 227-229, 404-406, 807-810`) — so a delete takes the
+  AI content with it. This is why undo is out of scope.
+- No undo anywhere today (deletes are permanent).
 
 ## Design
 
@@ -116,11 +134,10 @@ func clearSelection()
 func exitBulkSelection()
 func requestDeleteSelected()
 func confirmDeleteSelected() async -> BulkDeleteResult   // {succeeded, failed}
-func undoLastBulkDelete() async                      // restores DB rows
 ```
-- `confirmDeleteSelected` loops the existing per-item cleanup+delete, accumulates
-  a result, exits mode, and stages an undo snapshot (the deleted `Transcription`
-  rows; note which had audio detached so undo copy is honest).
+- `confirmDeleteSelected` runs the per-item cleanup+delete in a `Task.detached`
+  loop (off the main actor), accumulates a `{succeeded, failed}` result, and exits
+  mode. No snapshot (no undo in v1).
 
 ### Interaction
 - **Entry:** a row context-menu item "Select Multiple…" (matches Dictation),
@@ -132,40 +149,41 @@ func undoLastBulkDelete() async                      // restores DB rows
 - **Keyboard:** `⌘A` select-all-visible, `⌫`/`Delete` → confirmation,
   `Esc` → exit. (Use SwiftUI `.onKeyPress` / commands on the focused Library
   view; verify focus behavior in the dev app.)
-- **Confirmation copy:**
+- **Confirmation copy (no undo, so it must be precise):**
   - files only: *"Delete N items? This permanently deletes them and their files."*
-  - includes meetings: *"Delete N items? Meeting audio cannot be recovered."*
-- **Undo toast:** *"Deleted N items. [Undo]"* — visible ~6s; Undo restores
-  transcript rows (and notes that already-removed audio files are not restored).
+  - includes meetings: *"Delete N items, including M meetings? Audio and AI
+    summaries can't be recovered."*
 
 ## Phases
 1. **ViewModel selection + batch delete + tests** — port the Dictation API onto
-   `TranscriptionLibraryViewModel`; unit tests for select-all-visible (respects
-   filter/search), batch success/partial-failure result, mode teardown.
-2. **Grid + list UI** — selection overlays/checkboxes, action bar; both surfaces.
+   `TranscriptionLibraryViewModel`; off-main-thread (`Task.detached`) batch
+   delete; unit tests for select-all-visible (respects filter/search), batch
+   success/partial-failure result, mode teardown.
+2. **Grid + list UI** — selection overlays/checkboxes, action bar (with VoiceOver
+   labels); both surfaces.
 3. **Keyboard** — ⌘A / Delete / Esc; dev-app verification of focus + that Delete
    doesn't fire when not in select mode.
-4. **Undo toast** — snapshot + restore; honest copy about detached audio.
-5. **Docs** — `spec/04-ui-patterns.md` (Library multi-select), `spec/02-features.md`,
+4. **Docs** — `spec/04-ui-patterns.md` (Library multi-select), `spec/02-features.md`,
    register REQ-LIB-002.
 
 ## Testing
 - ViewModel unit tests: selection toggling, `selectAllVisible` excludes
   filtered-out/searched-out rows, batch delete returns correct succeeded/failed,
-  undo restores rows, mode teardown clears state.
+  off-main-thread execution, mode teardown clears state.
 - Asset-cleanup parity test: a batch delete invokes the same cleanup as the
   single-item path (no orphaned files; meeting folders removed).
 - `swift test` before merge. (SwiftUI views themselves untested per repo policy —
   logic lives in the ViewModel.)
 
 ## Open questions (resolve in Phase 1)
-1. **Undo depth:** single-level "undo last bulk delete" (proposed) vs. none.
-   Single-level is cheap and a big safety win; confirm it's worth the snapshot
-   bookkeeping or defer to a future trash feature.
-2. **Favorites in Select All:** include favorited rows in `⌘A` (simplest) vs.
+1. **Favorites in Select All:** include favorited rows in `⌘A` (simplest) vs.
    warn/exclude. Lean: include, but the confirmation count makes scale visible.
-3. **Toolbar "Select" vs. context-menu-only entry:** ship both for discoverability,
+2. **Toolbar "Select" vs. context-menu-only entry:** ship both for discoverability,
    or context-menu-only to match Dictation exactly? Lean: both.
+
+(Resolved during PR #556 review: no undo/trash in v1 — a row-only undo would lose
+cascade-deleted AI summaries/chats; rely on a precise confirmation. The batch
+delete runs off the main thread.)
 
 ## Docs to update on completion
 `spec/04-ui-patterns.md`, `spec/02-features.md`, `spec/README.md`,

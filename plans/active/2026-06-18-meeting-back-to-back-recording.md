@@ -62,19 +62,25 @@ finishes on its own and lands in the Library when ready.
   and its existing priority ranking).
 
 ### Invariants
-- **Never lose a recording.** The recorder only returns to `.idle` *after* audio
-  is durably finalized on disk and enqueued for transcription (and a recovery
-  lock reflects `awaitingTranscription`). A crash between stop and finalize is
-  already covered by ADR-019 recovery; this plan must not widen that window.
+- **Never lose a recording — strict ordering.** The recorder returns to `.idle`
+  only after, and in this exact order: (1) audio is flushed/durably finalized on
+  disk, (2) the recovery lock is written as `awaitingTranscription`, (3) the
+  state machine transitions to `.idle`. If (3) preceded (2), a crash in the gap
+  would leave a stale `.recording` lock over finished audio and recovery could
+  misdiagnose or lose the session. Today's single-session path has the same
+  window; rapid back-to-back stops make it likelier to bite, so this ordering is
+  a hard invariant — not an open question. [Greptile P2]
 - **One live capture at a time** (sequential scope) — the new "start" still
   refuses while a recording is actively capturing.
 - **Finalize ordering is deterministic.** Queued transcriptions run in stop order
   on the background slot; a new recording's live-preview chunks
   (`.meetingLiveChunk`, p1) yield to a prior meeting's `.meetingFinalize` (p0)
   per ADR-016 — accepted, since live preview is display-only.
-- **Engine lease integrity** (ADR-021). The engine/language captured at *record
-  start* drives that meeting's finalize regardless of what the next meeting
-  selects; engine switching stays guarded while any meeting work is in flight.
+- **Engine lease integrity, without over-locking** (ADR-021). The engine/language
+  captured at *record start* drives that meeting's finalize regardless of what the
+  next meeting selects. The lease is **per in-flight job** — a queued finalize must
+  *not* globally block the user from selecting a different engine for the *next*
+  recording; only a switch that would disrupt an active job is guarded. [Gemini]
 - **Crash recovery handles N sessions.** Recovering must enumerate every session
   folder (one recording-in-progress at crash time + any awaiting-transcription),
   not assume a single active session.
@@ -181,9 +187,12 @@ re-enqueue any `awaitingTranscription` sessions and offer recovery for a
    recorder-idle while a separate queue badge owns the transcribing indicator.
    Confirm we don't want the pill itself to keep showing transcribing (which
    would re-block the mental model of "free to record").
-2. **Durability boundary for "idle":** return to idle on `finalize-to-disk`
-   (audio written + lock=awaitingTranscription) — confirm this is the safe point
-   and doesn't widen the ADR-019 crash window vs. today.
+2. **Cross-engine model thrash:** if B records with live preview on a *different*
+   engine than A's in-flight finalize, the `STTRuntime` may load/unload models on
+   the ANE repeatedly. Confirm the runtime serializes/holds model leases sanely,
+   or add a guard (e.g. let A's finalize finish its model lease before B's
+   live-preview model loads — preview can degrade gracefully). Newly raised by
+   this review; not flagged by the bots.
 3. **Queue depth cap:** unbounded queue (serialized by the slot) vs. a soft cap
    with UI feedback if a user stops many meetings rapidly. Lean: unbounded; the
    slot serializes and each row shows its own state.
@@ -191,7 +200,15 @@ re-enqueue any `awaitingTranscription` sessions and offer recovery for a
    p1-live-chunks (B's preview pauses briefly) — confirm acceptable, or special-
    case ordering. Lean: accept (preview is display-only).
 
+(Resolved during PR #556 review: the durability boundary is now a hard invariant —
+audio flush → lock=`awaitingTranscription` → state→idle, in that order; and the
+engine lease is per-job and must not globally block selecting a different engine
+for the next recording.)
+
 ## Docs to update on completion
 `spec/adr/016-centralized-stt-runtime-scheduler.md` (decoupling note),
 `spec/05-audio-pipeline.md`, `spec/02-features.md`, `spec/README.md`,
 `spec/kernel/requirements.yaml` (REQ-MEET-020), and an issue reply on #535.
+Any new `TelemetryEventName` case added here must be mirrored in the website
+`ALLOWED_EVENTS` allowlist in the same change, or the Worker drops the whole
+batch (two-repo gotcha).

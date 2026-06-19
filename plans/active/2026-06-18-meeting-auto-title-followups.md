@@ -42,10 +42,16 @@ generator and #498's selection.
 - A **single-row "Generate title"** context-menu action on meeting rows (Library
   meetings list + meeting detail) that runs the same generator on demand.
 - A **bulk "Generate titles"** action in the Library multi-select action bar
-  (depends on `2026-06-18-library-bulk-delete.md`).
-- Behavioral rule: **automatic** path only overwrites fallback timestamp names;
-  **manual** path is an explicit user action so it regenerates whatever the
-  current title is (this is also how a user re-rolls a title they dislike).
+  (depends on `2026-06-18-library-bulk-delete.md`) that **only targets
+  fallback timestamp-named meetings in the selection** (skips calendar/custom
+  names) and runs with a **bounded concurrency cap of 3–5 in-flight LLM calls**;
+  a large cloud-key batch shows a one-line spend heads-up before starting.
+  [Gemini, Greptile P2]
+- Behavioral rule on overwrite: **automatic** and **bulk** paths only replace
+  fallback timestamp names (never clobber a calendar/custom name); the
+  **single-row** "Generate title" is an explicit per-item action, so it
+  regenerates whatever the current title is (this is also how a user re-rolls a
+  title they dislike).
 
 ### Out of scope
 - **Automatic backlog sweep** (silently titling all old meetings) — rejected;
@@ -57,9 +63,11 @@ generator and #498's selection.
 ### Invariants
 - **No silent spend.** Manual/bulk generation is explicit; automatic is gated by
   the (default-on) preference + a configured provider; no provider → no-op.
-- **Never clobber a deliberate name automatically.** Calendar event titles and
-  user renames survive the automatic path (#553 already guarantees this);
-  only the *manual* action overwrites them, by intent.
+- **Never clobber a deliberate name except by explicit single-item intent.**
+  Calendar event titles and user renames survive both the automatic path (#553
+  guarantees this) and the **bulk** path (which targets fallback names only);
+  only the **single-row** action overwrites a deliberate name, because the user
+  asked for that specific one. [Gemini]
 - **Graceful degradation.** Generation failure leaves the existing title intact;
   surfaces a quiet error on the manual path, silent on the automatic path.
 - Bulk generation reports succeeded/failed counts; one failure never aborts the batch.
@@ -108,11 +116,13 @@ generator and #498's selection.
   list + meeting detail action bar). Shows a brief in-row progress state; on
   success the row title updates in place with a gentle transition.
 - **Bulk:** a "Generate titles" button in the multi-select action bar; iterates
-  the selection (meetings only), runs generation with bounded concurrency,
-  reports `{titled, skipped, failed}`. Skips rows with no LLM configured with a
-  single explanatory note rather than N errors.
-- Manual path overwrites the current title (explicit intent); automatic path
-  retains #553's fallback-only rule.
+  the **fallback-named meetings in the selection** (skips calendar/custom names
+  and non-meetings), runs generation with a **3–5 in-flight concurrency cap**,
+  and reports `{titled, skipped, failed}`. No LLM configured → a single
+  explanatory note rather than N errors; a large cloud batch → a one-line spend
+  heads-up first.
+- **Single-row** path overwrites the current title (explicit intent); **automatic**
+  and **bulk** paths retain #553's fallback-only rule.
 
 ## Phases
 1. **Merge PR #553** — rebase/de-conflict, review, confirm defaults, merge.
@@ -145,6 +155,11 @@ generator and #498's selection.
 3. **Default-on with a cloud key = silent (tiny) spend.** #553 defaults the pref
    on. Confirm comfort, or gate default-on to local providers and prompt for cloud.
    Lean: keep default-on (spend is negligible, matches category norms like Granola).
+
+(Resolved during PR #556 review: bulk "Generate titles" targets fallback-named
+meetings only — never clobbers calendar/custom names — and caps in-flight LLM
+calls at 3–5 with a spend heads-up for large cloud batches. Single-row stays
+overwrite-anything.)
 
 ## Docs to update on completion
 `spec/02-features.md`, `spec/README.md`, `spec/kernel/requirements.yaml`
