@@ -159,9 +159,9 @@ reconciliation:
   stage is a no-op and the final transcript is byte-identical to today's.
 - So the precise updated framing: *the per-chunk transcription is
   unchanged; a coverage-repair stage may additionally re-transcribe
-  speech regions the live path failed to cover.* REQ-MEET-013's wording
-  is narrowed accordingly when REQ-MEET-018 lands (the coordinator owns
-  that requirements.yaml edit, not this ADR).
+  speech regions the live path failed to cover.* The old `REQ-MEET-*`
+  references are historical anchors only; current wording belongs in this
+  ADR and the narrative specs.
 
 ### 4. Crash-recovery path benefits from the same repair (ADR-019)
 
@@ -401,7 +401,8 @@ deliver value without later ones.
    `MeetingVADService` wiring in the post-stop path; selective re-
    transcription of uncovered gaps on the `STTScheduler` background slot;
    write-back to the saved row; `meeting_transcript_repair` telemetry.
-   Reconcile REQ-MEET-013 wording in `requirements.yaml` (coordinator).
+   Reconcile the old REQ-MEET-013 framing in this ADR and the narrative
+   specs; the legacy requirements index is archived and no longer updated.
 4. **Phase D — Full-fallback tier + crash-recovery integration.** Add the
    `.fullReTranscribe` tier for systemic-failure coverage, and apply the
    coverage-repair stage to crash-recovered sessions (ADR-019). Optional:

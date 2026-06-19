@@ -19,7 +19,7 @@
 | 07 | [Text Processing](07-text-processing.md) | Clean pipeline, custom words, snippets | Active |
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
-| 10 | [AI Coding Method](10-ai-coding-method.md) | Spec-driven coding philosophy and kernel methodology | Active |
+| 10 | [Agent Working Method](10-ai-coding-method.md) | Pragmatic agent workflow, spec precedence, plans, tests, and review | Active |
 | 11 | [LLM Integration](11-llm-integration.md) | LLM providers, summary, chat, transforms | Implemented (§1 summary superseded by spec/12) |
 | 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, v0.5 implementation contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
@@ -47,6 +47,30 @@ These decisions are final. Do not second-guess them.
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6 language mode (tools-version 5.9) |
 | Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
+
+## Release Channels And Feature Flags
+
+> Canonical release-status block for agents and docs. Update this section when
+> release channel framing changes or an `AppFeatures` flag flips.
+
+| Channel | Status | Notes |
+|---------|--------|-------|
+| Stable DMG | User-facing release, recommended for normal use | Dictation, file/media URL transcription, meeting recording, calendar auto-start (opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
+| `main` | Development | Latest stable release plus untagged fixes and the flag delta below |
+
+Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
+
+| Flag | Value | Release note |
+|------|-------|--------------|
+| `meetingRecordingEnabled` | `true` | Shipping meeting-recording surface |
+| `calendarEnabled` | `true` | Shipping calendar reminders/auto-start; per-user auto-start defaults off |
+| `meetingAutoStopEnabled` | `true` | `main` dogfood flag for ADR-023; per-user setting defaults off and is not yet in a tagged release |
+| `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 Phase A mic-health telemetry watchdog |
+| `meetingActivityDetectionEnabled` | `false` | ADR-024 collectors/detector are compiled but runtime coordinator/UI remain gated |
+| `transformsEnabled` | `true` | Productized Transforms shipping surface |
+| `meetingVadLiveChunkingEnabled` | `true` | VAD-guided meeting live-preview chunking; final post-stop transcript path unchanged |
+| `liveDictationStreamingEnabled` | `true` | Display-only live dictation preview enabled on `main`; final paste remains stop-time transcription |
+| `aiFormatterProfilesEnabled` | `false` | App-aware AI Formatter profiles are code-complete but held out of the current tagged release train |
 
 ## Architecture Decision Records (ADRs)
 
@@ -252,21 +276,13 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Local Transform history with input/output/source-app/timing stored in `transform_history`
 - [x] CLI `transforms` and `transforms history` command trees for headless provisioning and verification
 
-## For AI Coding Assistants
+## For Coding Agents
 
-### Key Rules
+Start with [`../AGENTS.md`](../AGENTS.md) for build commands, repo conventions,
+and the active agent workflow. This spec index is the map to product behavior,
+architecture, and accepted decisions.
 
-1. **Specs are authoritative.** If code and spec disagree, the spec is correct (then fix the code).
-2. **ADRs are locked.** Do not propose alternatives to locked decisions.
-3. **Version order matters.** Implement v0.1 before v0.2. Do not jump ahead.
-4. **Never lose user data.** Graceful degradation over silent failure.
-5. **Local-first.** Audio stays on-device for STT. Optional AI sends transcript text only to the user-configured provider or CLI tool. Telemetry is opt-out and self-hosted.
-6. **`swift test` is the gate.** All tests must pass before and after changes.
-7. **Kernel is supporting context.** `spec/kernel/requirements.yaml` is an optional, compact feature/status index. ADRs and narrative specs stay higher precedence; tests and `git` are the authoritative coverage and history record.
-
-### Where to Start
-
-1. Read this file (you're here)
-2. Read `CLAUDE.md` in the project root for build instructions and codebase patterns
-3. Check `plans/active/` for in-progress work
-4. Check the version progress above for what needs doing next
+Old `REQ-*` IDs are historical. The manual requirements/traceability workflow
+is retired; the legacy index lives at
+[`../docs/historical/requirements-legacy.yaml`](../docs/historical/requirements-legacy.yaml)
+for old references only.
