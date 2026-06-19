@@ -114,7 +114,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), plus other follow-up polish | **Planned** |
+| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting audio N-day retention, plus other follow-up polish | **Planned** |
 
 ## Version Progress
 

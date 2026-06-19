@@ -250,16 +250,24 @@ the stopped meeting waits for that job to finish; once the slot is free,
     └── chunks/            # Live-preview scratch chunks
 ```
 
-Audio files are kept by default (`saveMeetingAudio = true`). Users can reveal,
-save a copy, or delete managed meeting audio from the meeting detail view,
-Library/Meetings row menus, Settings > Storage, and CLI support commands. Audio
-deletion clears the transcript's stored `filePath` and removes the
-`meeting-recordings/{uuid}` folder, but keeps the transcript row. If the
-preference is off, the app deletes managed meeting audio after the final
-transcript has been saved; interrupted recovery recordings remain governed by
-the recovery flow. Any session folder with `recording.lock` present is protected
-from retention and manual clear-all cleanup, including dead-owner
-`awaitingTranscription` locks whose audio has not yet been transcribed.
+Audio files are kept forever by default. Settings > Storage exposes a meeting
+audio retention policy: keep forever, delete after 7/14/30/90 days, or delete
+immediately after transcription. Users can also reveal, save a copy, or delete
+managed meeting audio from the meeting detail view, Library/Meetings row menus,
+Settings > Storage, and CLI support commands. Audio deletion clears the
+transcript's stored `filePath` and removes the `meeting-recordings/{uuid}`
+folder, but keeps the transcript row.
+
+Scheduled retention only detaches audio for completed meeting rows with stored
+audio paths. It skips any session folder that still has `recording.lock`, live
+or dead PID, because those files are active or recoverable recording input.
+Crash-recovered meetings are protected while recovery runs; once the lock is
+removed and the recovered row is completed, normal retention applies. The same
+lock guard protects manual cleanup: both `TranscriptionAssetCleanup` and the
+`clear-meeting-audio` CLI refuse to remove a session folder while a
+`recording.lock` is present, including dead-owner `awaitingTranscription` locks
+whose audio is still queued for background transcription (back-to-back meeting
+recording).
 
 ### Concurrent Operation with Dictation (ADR-015)
 

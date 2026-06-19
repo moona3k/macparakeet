@@ -159,6 +159,7 @@ struct SettingsView: View {
     /// Which downloaded model a destructive confirmation is pending for. Drives
     /// the shared delete-confirmation alert on the Engine tab.
     @State private var pendingModelDeletion: PendingModelDeletion?
+    @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
 
     init(
         viewModel: SettingsViewModel,
@@ -511,6 +512,12 @@ struct SettingsView: View {
         }
     }
 
+    private struct PendingMeetingAudioRetention: Identifiable, Equatable {
+        let retention: MeetingAudioRetention
+
+        var id: String { retention.configurationValue }
+    }
+
     /// Names the model in the alert title; falls back to a generic title once
     /// the alert is dismissed and `pendingModelDeletion` is nil.
     private var modelDeletionAlertTitle: String {
@@ -591,6 +598,22 @@ struct SettingsView: View {
             onboardingCard.id("system.onboarding")
             aboutCard.id("system.about")
             resetCleanupCard.id("system.reset")
+        }
+        .alert(
+            "Delete meeting audio automatically?",
+            isPresented: Binding(
+                get: { pendingMeetingAudioRetention != nil },
+                set: { if !$0 { pendingMeetingAudioRetention = nil } }
+            ),
+            presenting: pendingMeetingAudioRetention
+        ) { pending in
+            Button("Cancel", role: .cancel) { pendingMeetingAudioRetention = nil }
+            Button("Enable Auto-Delete", role: .destructive) {
+                viewModel.confirmMeetingAudioRetentionChange(pending.retention)
+                pendingMeetingAudioRetention = nil
+            }
+        } message: { pending in
+            Text(meetingAudioRetentionConfirmationMessage(for: pending.retention))
         }
     }
 
@@ -1827,11 +1850,7 @@ struct SettingsView: View {
 
                 Divider()
 
-                settingsToggleRow(
-                    title: "Keep meeting audio",
-                    detail: "Turn off to remove meeting audio after the final transcript is saved.",
-                    isOn: $viewModel.saveMeetingAudio
-                )
+                meetingAudioRetentionRow
 
                 Divider()
 
@@ -1858,6 +1877,91 @@ struct SettingsView: View {
                     )
                 }
             }
+        }
+    }
+
+    private var meetingAudioRetentionRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                rowText(
+                    title: "Meeting audio retention",
+                    detail: "Choose how long MacParakeet keeps meeting recordings after transcription."
+                )
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker("Meeting audio retention", selection: meetingAudioRetentionModeBinding) {
+                    ForEach(MeetingAudioRetentionMode.allCases) { mode in
+                        Text(mode.displayTitle).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 210)
+            }
+
+            if viewModel.meetingAudioRetention.mode == .deleteAfterDays {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Delete after")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Meeting audio retention days", selection: meetingAudioRetentionDaysBinding) {
+                        ForEach(MeetingAudioRetention.allowedDeleteAfterDays, id: \.self) { days in
+                            Text("\(days)").tag(days)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 76)
+                    Text("days")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Text("Transcripts are always kept. Only the audio recording is removed.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var meetingAudioRetentionModeBinding: Binding<MeetingAudioRetentionMode> {
+        Binding(
+            get: { viewModel.meetingAudioRetention.mode },
+            set: { mode in
+                requestMeetingAudioRetentionChange(
+                    MeetingAudioRetention.make(
+                        mode: mode,
+                        days: viewModel.savedMeetingAudioRetentionDays
+                    )
+                )
+            }
+        )
+    }
+
+    private var meetingAudioRetentionDaysBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.meetingAudioRetention.deleteAfterDays },
+            set: { days in
+                requestMeetingAudioRetentionChange(.deleteAfterDays(days))
+            }
+        )
+    }
+
+    private func requestMeetingAudioRetentionChange(_ retention: MeetingAudioRetention) {
+        guard viewModel.requiresMeetingAudioRetentionConfirmation(for: retention) else {
+            viewModel.setMeetingAudioRetention(retention)
+            return
+        }
+        pendingMeetingAudioRetention = PendingMeetingAudioRetention(retention: retention)
+    }
+
+    private func meetingAudioRetentionConfirmationMessage(for retention: MeetingAudioRetention) -> String {
+        switch retention {
+        case .keepForever:
+            return ""
+        case .deleteAfterDays(let days):
+            return "Transcripts, summaries, and notes are always kept. Meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days will be removed automatically."
+        case .deleteImmediately:
+            return "Transcripts, summaries, and notes are always kept. Meeting audio will be removed automatically after each final transcript is saved."
         }
     }
 

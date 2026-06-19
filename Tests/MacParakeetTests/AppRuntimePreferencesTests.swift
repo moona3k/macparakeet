@@ -39,16 +39,63 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
-    func testSaveMeetingAudioDefaultsToTrueAndReadsStoredValue() {
+    func testSaveMeetingAudioDefaultsToTrueAndReadsLegacyValueBeforeMigration() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldSaveMeetingAudio)
 
+        let legacySuite = "app-runtime-prefs-\(UUID().uuidString)"
+        let legacyDefaults = UserDefaults(suiteName: legacySuite)!
+        defer { legacyDefaults.removePersistentDomain(forName: legacySuite) }
+        legacyDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: legacyDefaults).shouldSaveMeetingAudio)
+    }
+
+    func testMeetingAudioRetentionDefaultsToKeepForeverAndPersistsMigratedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+
+        XCTAssertEqual(preferences.meetingAudioRetention, .keepForever)
+        XCTAssertTrue(preferences.shouldSaveMeetingAudio)
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey),
+            MeetingAudioRetentionMode.keepForever.rawValue
+        )
+    }
+
+    func testMeetingAudioRetentionMigratesLegacyOffToDeleteImmediately() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
 
-        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldSaveMeetingAudio)
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+
+        XCTAssertEqual(preferences.meetingAudioRetention, .deleteImmediately)
+        XCTAssertFalse(preferences.shouldSaveMeetingAudio)
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey),
+            MeetingAudioRetentionMode.deleteImmediately.rawValue
+        )
+    }
+
+    func testMeetingAudioRetentionDeleteAfterDaysKeepsFreshAudioCompatibilityView() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(.deleteAfterDays(14), defaults: defaults)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.meetingAudioRetention, .deleteAfterDays(14))
+        XCTAssertTrue(preferences.shouldSaveMeetingAudio)
+        XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, true)
     }
 
     func testDictationInsertionStyleDefaultsToSentenceAndReadsPersistedValue() {

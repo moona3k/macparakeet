@@ -153,6 +153,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
+        XCTAssertEqual(viewModel.meetingAudioRetention, .keepForever)
         XCTAssertTrue(viewModel.saveMeetingAudio, "saveMeetingAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
         XCTAssertFalse(viewModel.speakerDiarization, "speakerDiarization should default to false")
@@ -181,7 +182,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
-        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+        UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(.deleteImmediately, defaults: testDefaults)
         testDefaults.set(
             YouTubeAudioQuality.bestAvailable.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey
@@ -211,6 +212,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.dictationInsertionStyle, .inline)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
+        XCTAssertEqual(vm.meetingAudioRetention, .deleteImmediately)
         XCTAssertFalse(vm.saveMeetingAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
         XCTAssertTrue(vm.speakerDiarization)
@@ -713,18 +715,71 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(testDefaults.bool(forKey: "saveTranscriptionAudio"))
     }
 
-    func testSettingSaveMeetingAudioPersists() {
+    func testSettingMeetingAudioRetentionPersistsEmitsTelemetryAndPostsNotification() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetMeetingAudioRetentionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in notificationCount += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
 
-        viewModel.saveMeetingAudio = false
+        viewModel.setMeetingAudioRetention(.deleteAfterDays(14))
 
-        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey),
+            MeetingAudioRetentionMode.deleteAfterDays.rawValue
+        )
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionDeleteAfterDaysKey) as? Int,
+            14
+        )
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
+        XCTAssertEqual(notificationCount, 1)
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
             guard case .settingChanged(let setting) = event else { return nil }
             return setting
         }
-        XCTAssertEqual(settings, [.saveMeetingAudio])
+        XCTAssertEqual(settings, [.meetingAudioRetention])
+    }
+
+    func testLegacySaveMeetingAudioSetterMapsToDeleteImmediately() {
+        viewModel.saveMeetingAudio = false
+
+        XCTAssertEqual(viewModel.meetingAudioRetention, .deleteImmediately)
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey),
+            MeetingAudioRetentionMode.deleteImmediately.rawValue
+        )
+    }
+
+    func testMeetingAudioRetentionKeepsSavedDayChoiceAcrossModeChanges() {
+        viewModel.setMeetingAudioRetention(.deleteAfterDays(14))
+        viewModel.setMeetingAudioRetention(.keepForever)
+
+        XCTAssertEqual(viewModel.savedMeetingAudioRetentionDays, 14)
+
+        viewModel.setMeetingAudioRetention(
+            MeetingAudioRetention.make(
+                mode: .deleteAfterDays,
+                days: viewModel.savedMeetingAudioRetentionDays
+            )
+        )
+
+        XCTAssertEqual(viewModel.meetingAudioRetention, .deleteAfterDays(14))
+    }
+
+    func testMeetingAudioRetentionConfirmationRequiredOnlyForFirstAutoDeleteTransition() {
+        XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteAfterDays(30)))
+
+        viewModel.confirmMeetingAudioRetentionChange(.deleteAfterDays(30))
+
+        XCTAssertEqual(viewModel.meetingAudioRetention, .deleteAfterDays(30))
+        viewModel.setMeetingAudioRetention(.keepForever)
+        XCTAssertFalse(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteImmediately))
     }
 
     func testSettingYouTubeAudioQualityPersists() {
@@ -2355,6 +2410,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm2.silenceDelay, 5.0)
         XCTAssertFalse(vm2.saveAudioRecordings)
         XCTAssertFalse(vm2.saveTranscriptionAudio)
+        XCTAssertEqual(vm2.meetingAudioRetention, .deleteImmediately)
         XCTAssertFalse(vm2.saveMeetingAudio)
         XCTAssertTrue(vm2.speakerDiarization)
     }

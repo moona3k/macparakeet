@@ -486,6 +486,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case hidePill = "hide_pill"
     case saveTranscriptionAudio = "save_transcription_audio"
     case saveMeetingAudio = "save_meeting_audio"
+    case meetingAudioRetention = "meeting_audio_retention"
     case youtubeAudioQuality = "youtube_audio_quality"
     case speakerDiarization = "speaker_diarization"
     case parakeetModelVariant = "parakeet_model_variant"

@@ -1,9 +1,9 @@
 # Meeting Audio Auto-Delete After N Days
 
-**Status:** ACTIVE PLAN — not started
+**Status:** COMPLETED — implemented in `feat/meeting-audio-retention`
 **Date:** 2026-06-18
 **ADRs:** ADR-014/015/016 (meeting recording, concurrency, scheduler), ADR-019 (crash-resilient recording — recovered-meeting handling)
-**Requirement:** REQ-MEET-019 (proposed — register in `spec/kernel/requirements.yaml` at implementation kickoff; extends the #508 retention controls)
+**Requirement:** REQ-MEET-019 (tracked here; no `spec/kernel/requirements.yaml` exists in this repo)
 **Issues:** #547, #462, #478
 **Decision (owner, 2026-06-18):** N-day + immediate-delete only. **No** true transcript-only / stream-and-discard mode in this plan (deferred). **No** size-based "max disk, delete oldest" eviction (unpredictable; out of scope).
 
@@ -276,7 +276,9 @@ Replace the bare "Keep meeting audio" toggle with a labeled control:
   lock and a pre-transcription Library row must run recovery discovery before
   the retention sweep, or be skipped by the lock/status guards if the user defers
   recovery.
-- ViewModel: enabling a mode persists + emits telemetry; first-enable confirmation gating.
+- ViewModel: enabling a mode persists + emits telemetry; first-enable
+  confirmation gating; switching away from and back to N-day retention preserves
+  the last selected day count.
 - CLI: round-trip `config set/get meeting-audio-retention`; legacy
   `save-meeting-audio` maps `off -> deleteImmediately`, `on -> keepForever`,
   and is documented as an alias.
@@ -307,5 +309,31 @@ need website allowlist updates.)
 
 ## Docs to update on completion
 `spec/05-audio-pipeline.md`, `spec/02-features.md`, `spec/README.md`,
-`Sources/CLI/CHANGELOG.md`, `spec/kernel/requirements.yaml` (REQ-MEET-019),
-plus issue replies on #547/#462/#478.
+and `Sources/CLI/CHANGELOG.md`.
+
+## Completion notes
+- Added `MeetingAudioRetention` with keep-forever, bounded N-day auto-delete
+  (7/14/30/90), and delete-immediately modes. The legacy `saveMeetingAudio`
+  preference migrates into the tri-state and remains as a compatibility view.
+- Added a pure policy plus a managed-path-guarded sweeper that only detaches
+  completed meeting audio, never deletes transcription rows, and skips any
+  folder with a `recording.lock`.
+- Wired launch, foreground, and preference-change sweeps after
+  `AppEnvironment` setup. Launch, foreground, and preference-change sweeps wait
+  for pending launch recovery before evaluating the retention clock.
+- Replaced the Storage card's meeting-audio toggle with a tri-state control and
+  first-enable auto-delete confirmation.
+- Added CLI parity with `config get/set meeting-audio-retention` while keeping
+  `save-meeting-audio` as a documented legacy alias.
+- Reused existing `setting_changed` telemetry with a new
+  `meeting_audio_retention` setting value. No new telemetry event name was
+  introduced, so no website allowlist change was required.
+
+## Verification
+- Focused retention suite:
+  `swift test --filter 'MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingAudioRetentionPolicyTests'`
+- Fresh-eye fix suite:
+  `swift test --filter 'MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingAudioRetentionPolicyTests|SettingsViewModelTests/testMeetingAudioRetentionKeepsSavedDayChoiceAcrossModeChanges|SettingsViewModelTests/testSettingMeetingAudioRetention|SettingsViewModelTests/testLegacySaveMeetingAudio'`
+- Broader focused suite:
+  `swift test --filter 'AppRuntimePreferencesTests|MeetingAudioRetention|TranscriptionRepositoryTests/testFetchMeetingAudioRetentionCandidatesFiltersInSQL|SettingsViewModelTests/testSettingMeetingAudioRetention|SettingsViewModelTests/testLegacySaveMeetingAudio|SettingsViewModelTests/testMeetingAudioRetentionConfirmation|ConfigCommandTests|TranscriptionViewModelTests/testPresentCompletedMeetingDeletesAudioWhenRetentionIsOff|TranscriptionViewModelTests/testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff'`
+- Final merge gate: `git diff --check`, `swift test`.

@@ -18,6 +18,7 @@ final class AppSettingsObserverCoordinator {
     private let onShowIdlePillChanged: () -> Void
     private let onInstantDictationChanged: () -> Void
     private let onMicrophoneSelectionChanged: () -> Void
+    private let onMeetingAudioRetentionChanged: () -> Void
 
     private var observerTokens: [NSObjectProtocol] = []
 
@@ -33,6 +34,7 @@ final class AppSettingsObserverCoordinator {
             (.macParakeetShowIdlePillDidChange, { $0.onShowIdlePillChanged() }),
             (.macParakeetInstantDictationDidChange, { $0.onInstantDictationChanged() }),
             (.macParakeetMicrophoneSelectionDidChange, { $0.onMicrophoneSelectionChanged() }),
+            (.macParakeetMeetingAudioRetentionDidChange, { $0.onMeetingAudioRetentionChanged() }),
         ]
 
     init(
@@ -48,7 +50,8 @@ final class AppSettingsObserverCoordinator {
         onMenuBarOnlyModeChanged: @escaping () -> Void,
         onShowIdlePillChanged: @escaping () -> Void,
         onInstantDictationChanged: @escaping () -> Void,
-        onMicrophoneSelectionChanged: @escaping () -> Void
+        onMicrophoneSelectionChanged: @escaping () -> Void,
+        onMeetingAudioRetentionChanged: @escaping () -> Void
     ) {
         self.notificationCenter = notificationCenter
         self.onOpenOnboarding = onOpenOnboarding
@@ -63,6 +66,7 @@ final class AppSettingsObserverCoordinator {
         self.onShowIdlePillChanged = onShowIdlePillChanged
         self.onInstantDictationChanged = onInstantDictationChanged
         self.onMicrophoneSelectionChanged = onMicrophoneSelectionChanged
+        self.onMeetingAudioRetentionChanged = onMeetingAudioRetentionChanged
     }
 
     func startObserving() {

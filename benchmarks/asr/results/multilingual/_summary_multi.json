@@ -1,0 +1,114 @@
+[
+  {
+    "engine": "cohere",
+    "lang": "cmn_hans_cn",
+    "metric": "CER",
+    "files": 150,
+    "err": 12.49102656137832
+  },
+  {
+    "engine": "cohere",
+    "lang": "en_us",
+    "metric": "WER",
+    "files": 150,
+    "err": 4.690491384811742
+  },
+  {
+    "engine": "cohere",
+    "lang": "ja_jp",
+    "metric": "CER",
+    "files": 150,
+    "err": 5.564472980203317
+  },
+  {
+    "engine": "cohere",
+    "lang": "ko_kr",
+    "metric": "CER",
+    "files": 150,
+    "err": 7.1490467937608315
+  },
+  {
+    "engine": "nemotron-multi",
+    "lang": "cmn_hans_cn",
+    "metric": "CER",
+    "files": 150,
+    "err": 19.47236180904523
+  },
+  {
+    "engine": "nemotron-multi",
+    "lang": "en_us",
+    "metric": "WER",
+    "files": 150,
+    "err": 7.083599234205488
+  },
+  {
+    "engine": "nemotron-multi",
+    "lang": "ja_jp",
+    "metric": "CER",
+    "files": 150,
+    "err": 15.28892455858748
+  },
+  {
+    "engine": "nemotron-multi",
+    "lang": "ko_kr",
+    "metric": "CER",
+    "files": 150,
+    "err": 9.315424610051993
+  },
+  {
+    "engine": "parakeet-v3",
+    "lang": "cmn_hans_cn",
+    "metric": "CER",
+    "files": 150,
+    "err": 124.13854989231874
+  },
+  {
+    "engine": "parakeet-v3",
+    "lang": "en_us",
+    "metric": "WER",
+    "files": 150,
+    "err": 4.403318442884493
+  },
+  {
+    "engine": "parakeet-v3",
+    "lang": "ja_jp",
+    "metric": "CER",
+    "files": 150,
+    "err": 159.24291064740504
+  },
+  {
+    "engine": "parakeet-v3",
+    "lang": "ko_kr",
+    "metric": "CER",
+    "files": 150,
+    "err": 171.18717504332756
+  },
+  {
+    "engine": "whisper",
+    "lang": "cmn_hans_cn",
+    "metric": "CER",
+    "files": 150,
+    "err": 11.557788944723619
+  },
+  {
+    "engine": "whisper",
+    "lang": "en_us",
+    "metric": "WER",
+    "files": 150,
+    "err": 5.7115507338864075
+  },
+  {
+    "engine": "whisper",
+    "lang": "ja_jp",
+    "metric": "CER",
+    "files": 150,
+    "err": 13.416265382557519
+  },
+  {
+    "engine": "whisper",
+    "lang": "ko_kr",
+    "metric": "CER",
+    "files": 150,
+    "err": 6.369150779896014
+  }
+]

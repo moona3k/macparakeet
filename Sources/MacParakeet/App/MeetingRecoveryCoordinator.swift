@@ -25,16 +25,19 @@ final class MeetingRecoveryCoordinator {
         self.onPresentRecoveredTranscription = onPresentRecoveredTranscription
     }
 
-    func scheduleLaunchRecoveryScanIfReady(environment env: AppEnvironment) {
+    @discardableResult
+    func scheduleLaunchRecoveryScanIfReady(environment env: AppEnvironment) -> Task<Void, Never>? {
         let onboardingDone = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
-        guard onboardingDone else { return }
+        guard onboardingDone else { return nil }
 
-        Task { [weak self] in
-            await self?.discoverAndPresentRecoveries(
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.discoverAndPresentRecoveries(
                 recoveryService: env.meetingRecordingRecoveryService,
                 source: .launch
             )
         }
+        return task
     }
 
     func presentPendingMeetingRecoveryDialog() {
