@@ -241,8 +241,9 @@ macOS 15.
   full-set English run. `results/{*.jsonl, stride200/}` keep the first-200 +
   stride-200 evidence that motivated it.
 - **Cohere speed/memory** is measured via the FluidAudio CLI (the same SDK
-  MacParakeet would integrate); in-app figures should match but aren't yet
-  measured through MacParakeet's own runtime (Cohere isn't an integrated engine).
+  MacParakeet would integrate), not yet through MacParakeet's own runtime (Cohere
+  isn't an integrated engine) — treat the figures as a lower bound and confirm
+  in-app before shipping.
 - **Not benchmarked:** Qwen3-ASR and Moonshine (need an MLX runtime — deferred).
   Integrating any winner (e.g. Cohere as an opt-in FluidAudio engine) is a
   separate ADR-gated change.
