@@ -39,17 +39,14 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
     func completeTranscription(for recording: MeetingRecordingOutput) async
-    /// Release any retained speech-engine lease for a stopped recording after
-    /// the final transcription attempt has ended. Use `completeTranscription`
-    /// on success so the recovery lock is deleted; call this directly on failure
-    /// to leave the lock available for retry.
+    /// Mark the final transcription attempt as ended without deleting the
+    /// recovery lock, leaving it available for retry.
     func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async
     /// Delete a *stopped* recording's session folder and recovery lock after
     /// the user aborts the final transcription and chooses not to keep the
-    /// audio (issue #487). Also releases any retained speech-engine lease for
-    /// the session (idempotent with `finishTranscriptionAttempt`). Unlike
-    /// `cancelRecording`, this never touches live capture state — it must only
-    /// be called once `stopRecording` has returned the output being discarded.
+    /// audio (issue #487). Unlike `cancelRecording`, this never touches live
+    /// capture state — it must only be called once `stopRecording` has returned
+    /// the output being discarded.
     func discardStoppedRecording(_ recording: MeetingRecordingOutput) async
     func cancelRecording() async
     /// Pause an active recording. No-op when no session is active or when
@@ -686,7 +683,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     public func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {
-        await releaseSpeechEngineLease()
+        // The speech-engine lease is released at the durable stop boundary.
+        // Queue completion may happen while another meeting is recording.
     }
 
     public func discardStoppedRecording(_ recording: MeetingRecordingOutput) async {
@@ -698,7 +696,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             logger.error("meeting_recording_discard_refused_live_session session=\(recording.sessionID.uuidString, privacy: .public)")
             return
         }
-        await releaseSpeechEngineLease()
         try? lockFileStore.delete(folderURL: recording.folderURL)
         do {
             try fileManager.removeItem(at: recording.folderURL)
