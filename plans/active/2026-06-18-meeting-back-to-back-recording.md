@@ -138,6 +138,31 @@ finishes on its own and lands in the Library when ready.
    refactor it to accept an existing row id or add a sibling finalize method that
    fills the existing stub instead of inserting a duplicate.
 
+### Cross-surface STT contention
+
+This PR deliberately does **not** introduce a universal user-facing queue for
+file, folder, YouTube, podcast, or generic media URL transcription. Those flows
+already submit STT work through the process-wide `STTScheduler`, and broadening
+their UI/ownership model would be separate product work.
+
+Expected behavior when a file or media URL is already using the ASR engine:
+
+- A stopped meeting still crosses the durable boundary immediately: audio is
+  finalized, the lock is written as `awaitingTranscription`, and the Library
+  stub row exists before the recorder returns to idle.
+- The queued meeting finalize then waits on the shared background STT slot if a
+  file/URL transcription is already running. Running STT is not preempted.
+- Once the running background job finishes, `.meetingFinalize` outranks queued
+  `.fileTranscription` work, so the stopped meeting is processed before later
+  queued file jobs or the next item in a local-file batch.
+- YouTube/media download and metadata work do not occupy the speech engine; only
+  the post-download STT phase contends with meeting finalize.
+
+So the back-to-back guarantee is about recorder availability, not instant final
+STT. If the background slot is busy, the previous meeting's Library row remains
+processing and the Meeting tile badge shows queued/finalizing work while the
+next meeting can start.
+
 ### State-machine change (minimal)
 Split the current monolithic `.transcribing` recorder phase: the **recorder**
 flow becomes `recording → stopping → idle` (it no longer waits on STT). The STT
@@ -185,6 +210,10 @@ re-enqueue any `awaitingTranscription` sessions and offer recovery for a
 - State-machine tests: stop → idle transition happens at finalize-to-disk, not at
   STT completion; `startRecording` succeeds while a finalize is queued; start
   still refused while actively capturing.
+- Scheduler contention tests: a meeting finalize waits behind an already-running
+  file transcription, but beats queued file transcription once the background
+  slot is free (`STTSchedulerTests.testMeetingFinalizeWaitsBehindRunningFileTranscriptionOnSharedBackgroundSlot`,
+  `testMeetingFinalizeBeatsQueuedFileTranscriptionWithinBackgroundSlot`).
 - Recovery integration: two session folders recovered correctly.
 - Manual dev-app: record → stop → immediately record again; confirm first
   transcript still lands; confirm a real call (live preview of B vs finalize of A
