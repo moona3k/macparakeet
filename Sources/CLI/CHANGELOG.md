@@ -98,6 +98,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   the native 2080ms streaming path used by app live dictation preview.
   `transcribe --parakeet-model unified` is unchanged and still uses the offline
   build for best stop-time quality.
+- `history clear-meeting-audio` now refuses to run while **any** meeting
+  recording lock file is present, including dead-owner sessions still
+  `.awaitingTranscription` in the background queue or pending crash recovery.
+  Previously it only refused while a recording's owning process was still
+  alive. This protects captured audio that has not yet been finalized into a
+  transcript (back-to-back meeting recording stops the recorder while final
+  transcription runs in the background). Stop, finish, or discard the pending
+  recording before clearing.
 
 ## [2.10.0] -- 2026-06-17
 
