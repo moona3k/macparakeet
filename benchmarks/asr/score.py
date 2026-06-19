@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 import statistics
 import sys
@@ -127,6 +128,31 @@ def percentile(values: list[float], pct: float) -> float:
     return s[lo] + (s[hi] - s[lo]) * (k - lo)
 
 
+def bootstrap_ci(pairs: list[tuple[int, int]], n_boot: int, seed: int,
+                 alpha: float = 0.05) -> tuple[float, float] | None:
+    """95% CI on corpus error rate by resampling utterances with replacement.
+
+    Each pair is (edits, ref_len); corpus rate = sum(edits)/sum(ref_len). We
+    resample whole utterances (the independent unit), so the interval reflects
+    how much the ranking depends on which utterances happened to be in the set.
+    Deterministic for a fixed seed.
+    """
+    if not pairs or n_boot <= 0:
+        return None
+    rng = random.Random(seed)
+    m = len(pairs)
+    samples = []
+    for _ in range(n_boot):
+        num = den = 0
+        for _ in range(m):
+            e, r = pairs[rng.randrange(m)]
+            num += e
+            den += r
+        samples.append(num / den * 100 if den else 0.0)
+    samples.sort()
+    return percentile(samples, alpha / 2), percentile(samples, 1 - alpha / 2)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
@@ -134,6 +160,9 @@ def main() -> int:
     ap.add_argument("--simple", action="store_true", help="alias for --normalizer simple")
     ap.add_argument("--label", help="engine:dataset to apply to records lacking those fields")
     ap.add_argument("--fail-threshold", type=float, default=0.20, help="per-utt WER above this = failure")
+    ap.add_argument("--ci", type=int, default=0, metavar="N",
+                    help="bootstrap N resamples for a 95%% CI on corpus WER (0 = off)")
+    ap.add_argument("--seed", type=int, default=1234, help="bootstrap RNG seed (determinism)")
     ap.add_argument("--json", dest="json_out", help="write machine-readable summary JSON")
     args = ap.parse_args()
 
@@ -147,7 +176,7 @@ def main() -> int:
     # group[(engine, dataset)] = accumulator
     groups: dict[tuple[str, str], dict] = defaultdict(
         lambda: dict(ins=0, dele=0, sub=0, ref=0, n=0, audio=0.0, proc=0.0,
-                     per_utt=[], rtfx=[])
+                     per_utt=[], rtfx=[], pairs=[])
     )
 
     for path in args.files:
@@ -168,6 +197,7 @@ def main() -> int:
                 g["ins"] += i; g["dele"] += d; g["sub"] += s
                 g["ref"] += len(ref); g["n"] += 1
                 g["per_utt"].append((i + d + s) / len(ref))
+                g["pairs"].append((i + d + s, len(ref)))
                 a, p = rec.get("audio_s"), rec.get("proc_s")
                 if a and p:
                     g["audio"] += a; g["proc"] += p
@@ -183,7 +213,7 @@ def main() -> int:
         pu = g["per_utt"]
         fail = sum(1 for w in pu if w > args.fail_threshold) / len(pu) * 100 if pu else 0.0
         rtfx = (g["audio"] / g["proc"]) if g["proc"] else None
-        rows.append(dict(
+        row = dict(
             engine=engine, dataset=dataset, files=g["n"], ref_words=g["ref"],
             wer=wer, I=g["ins"], D=g["dele"], S=g["sub"],
             mean=statistics.mean(pu) * 100 if pu else 0.0,
@@ -191,14 +221,21 @@ def main() -> int:
             p90=percentile(pu, 0.90) * 100,
             fail_rate=fail, rtfx=rtfx,
             median_rtfx=statistics.median(g["rtfx"]) if g["rtfx"] else None,
-        ))
+        )
+        ci = bootstrap_ci(g["pairs"], args.ci, args.seed)
+        if ci:
+            row["ci_low"], row["ci_high"] = ci
+        rows.append(row)
 
     print(f"normalizer = {mode}\n")
-    hdr = f"{'engine':22s} {'dataset':12s} {'files':>5s} {'WER%':>7s} {'p90%':>6s} {'fail%':>6s} {'RTFx':>7s}   I/D/S"
+    ci_hdr = f" {'95% CI WER':>14s}" if args.ci else ""
+    hdr = (f"{'engine':22s} {'dataset':12s} {'files':>5s} {'WER%':>7s}{ci_hdr} "
+           f"{'p90%':>6s} {'fail%':>6s} {'RTFx':>7s}   I/D/S")
     print(hdr); print("-" * len(hdr))
     for r in rows:
         rtfx = f"{r['rtfx']:.1f}" if r["rtfx"] else "   -"
-        print(f"{r['engine']:22s} {r['dataset']:12s} {r['files']:5d} {r['wer']:7.2f} "
+        ci = f" [{r['ci_low']:5.2f},{r['ci_high']:5.2f}]" if args.ci else ""
+        print(f"{r['engine']:22s} {r['dataset']:12s} {r['files']:5d} {r['wer']:7.2f}{ci} "
               f"{r['p90']:6.1f} {r['fail_rate']:6.1f} {rtfx:>7s}   {r['I']}/{r['D']}/{r['S']}")
 
     print("\nmacro-average WER across datasets (per engine):")

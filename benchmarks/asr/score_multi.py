@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import statistics
 import sys
 from collections import defaultdict
@@ -107,14 +108,40 @@ def percentile(values: list[float], pct: float) -> float:
     return s[lo] + (s[hi] - s[lo]) * (k - lo)
 
 
+def bootstrap_ci(pairs: list[tuple[int, int]], n_boot: int, seed: int,
+                 alpha: float = 0.05) -> tuple[float, float] | None:
+    """95% CI on corpus error rate by resampling utterances with replacement.
+
+    Each pair is (edits, ref_len); corpus rate = sum(edits)/sum(ref_len).
+    Deterministic for a fixed seed.
+    """
+    if not pairs or n_boot <= 0:
+        return None
+    rng = random.Random(seed)
+    m = len(pairs)
+    samples = []
+    for _ in range(n_boot):
+        num = den = 0
+        for _ in range(m):
+            e, r = pairs[rng.randrange(m)]
+            num += e
+            den += r
+        samples.append(num / den * 100 if den else 0.0)
+    samples.sort()
+    return percentile(samples, alpha / 2), percentile(samples, 1 - alpha / 2)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
+    ap.add_argument("--ci", type=int, default=0, metavar="N",
+                    help="bootstrap N resamples for a 95%% CI on corpus WER/CER (0 = off)")
+    ap.add_argument("--seed", type=int, default=1234, help="bootstrap RNG seed (determinism)")
     ap.add_argument("--json", dest="json_out")
     args = ap.parse_args()
 
     groups: dict[tuple[str, str], dict] = defaultdict(
-        lambda: dict(ins=0, dele=0, sub=0, ref=0, n=0, per=[]))
+        lambda: dict(ins=0, dele=0, sub=0, ref=0, n=0, per=[], pairs=[]))
     for path in args.files:
         for line in open(path, encoding="utf-8"):
             line = line.strip()
@@ -132,16 +159,23 @@ def main() -> int:
             g["ins"] += i; g["dele"] += d; g["sub"] += s
             g["ref"] += len(ref); g["n"] += 1
             g["per"].append((i + d + s) / len(ref))
+            g["pairs"].append((i + d + s, len(ref)))
 
     rows = []
-    hdr = f"{'engine':24s} {'lang':14s} {'metric':6s} {'files':>5s} {'err%':>7s} {'p90%':>6s}"
+    ci_hdr = f" {'95% CI':>14s}" if args.ci else ""
+    hdr = (f"{'engine':24s} {'lang':14s} {'metric':6s} {'files':>5s} {'err%':>7s}{ci_hdr} {'p90%':>6s}")
     print(hdr); print("-" * len(hdr))
     for (engine, lang), g in sorted(groups.items()):
         metric = "CER" if is_cer(lang) else "WER"
         err = (g["ins"] + g["dele"] + g["sub"]) / g["ref"] * 100 if g["ref"] else 0.0
         p90 = percentile(g["per"], 0.90) * 100
-        print(f"{engine:24s} {lang:14s} {metric:6s} {g['n']:5d} {err:7.2f} {p90:6.1f}")
-        rows.append(dict(engine=engine, lang=lang, metric=metric, files=g["n"], err=err))
+        ci = bootstrap_ci(g["pairs"], args.ci, args.seed)
+        ci_str = f" [{ci[0]:5.2f},{ci[1]:5.2f}]" if ci else ""
+        print(f"{engine:24s} {lang:14s} {metric:6s} {g['n']:5d} {err:7.2f}{ci_str} {p90:6.1f}")
+        row = dict(engine=engine, lang=lang, metric=metric, files=g["n"], err=err)
+        if ci:
+            row["ci_low"], row["ci_high"] = ci
+        rows.append(row)
 
     if args.json_out:
         json.dump(rows, open(args.json_out, "w"), indent=2)
