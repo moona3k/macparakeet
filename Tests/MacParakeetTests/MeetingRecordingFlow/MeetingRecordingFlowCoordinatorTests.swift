@@ -132,6 +132,70 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(queuedSelections, [false])
     }
 
+    func testLiveAskChatPersistsBeforeQueuedFinalizeTearsDownPanel() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+        let completedTranscription = Transcription(
+            fileName: output.displayName,
+            filePath: output.mixedAudioURL.path,
+            rawTranscript: "Queued meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        await transcriptionService.configure(result: completedTranscription)
+        let conversationRepo = MockChatConversationRepository()
+        let llmService = MockLLMService()
+        llmService.streamTokens = ["Answer saved"]
+
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: conversationRepo,
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: llmService,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        await coordinator.testHook_waitForActionTask()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+
+        let chatViewModel = try XCTUnwrap(coordinator.testHook_panelChatViewModel)
+        chatViewModel.inputText = "What did I miss?"
+        chatViewModel.sendMessage()
+        for _ in 0..<20 where chatViewModel.isStreaming {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertFalse(chatViewModel.isStreaming)
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNil(coordinator.testHook_panelChatViewModel)
+        XCTAssertEqual(conversationRepo.conversations.count, 1)
+        let savedConversation = try XCTUnwrap(conversationRepo.conversations.first)
+        XCTAssertEqual(savedConversation.title, "What did I miss?")
+        XCTAssertEqual(savedConversation.messages, [
+            ChatMessage(role: .user, content: "What did I miss?"),
+            ChatMessage(role: .assistant, content: "Answer saved"),
+        ])
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(transcriptionSnapshot.finalizedMeetingTranscriptionIDs, [savedConversation.transcriptionId])
+    }
+
     func testStartRecordingWhileActivelyRecordingIsRefused() {
         let coordinator = makeQuitTeardownCoordinator()
         coordinator.testHook_enterRecording()

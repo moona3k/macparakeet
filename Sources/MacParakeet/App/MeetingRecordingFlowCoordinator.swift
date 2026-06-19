@@ -445,7 +445,8 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
-            // Promotion to a persisted ChatConversation happens in .navigateToTranscription.
+            // Promotion to a persisted ChatConversation happens after stop-time
+            // stub creation, before the panel is torn down for queued finalize.
             panelVM.chatViewModel.configure(
                 llmService: llmService,
                 transcriptText: panelVM.chatTranscript,
@@ -613,6 +614,7 @@ final class MeetingRecordingFlowCoordinator {
                             liveTranscriptLagged: liveTranscriptLagged
                         ))
                         let prepared = try await transcriptionService.prepareMeetingTranscription(recording: output)
+                        self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
                         meetingTranscriptionQueue.enqueue(MeetingTranscriptionQueue.Item(
                             recording: output,
                             transcriptionID: prepared.id,
@@ -1210,6 +1212,16 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    private func persistLiveAskConversationIfNeeded(transcriptionID: UUID) {
+        guard let chatViewModel = panelViewModel?.chatViewModel else { return }
+        chatViewModel.cancelStreaming()
+        chatViewModel.bindPersistedConversation(
+            transcriptionId: transcriptionID,
+            transcriptionRepo: transcriptionRepo,
+            conversationRepo: conversationRepo
+        )
+    }
+
     private func sendMeetingOperation(
         outcome: ObservabilityOutcome,
         trigger: TelemetryMeetingOperationTrigger? = nil,
@@ -1294,5 +1306,9 @@ extension MeetingRecordingFlowCoordinator {
 
     func testHook_waitForMeetingTranscriptionQueue() async {
         await meetingTranscriptionQueue.waitUntilIdle()
+    }
+
+    var testHook_panelChatViewModel: TranscriptChatViewModel? {
+        panelViewModel?.chatViewModel
     }
 }
