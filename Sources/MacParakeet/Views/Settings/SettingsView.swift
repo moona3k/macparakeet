@@ -1903,17 +1903,22 @@ struct SettingsView: View {
                     Text("Delete after")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
-                    Picker("Meeting audio retention days", selection: meetingAudioRetentionDaysBinding) {
-                        ForEach(MeetingAudioRetention.allowedDeleteAfterDays, id: \.self) { days in
-                            Text("\(days)").tag(days)
-                        }
-                    }
+                    TextField("30", value: meetingAudioRetentionDaysBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                    Stepper(
+                        "Meeting audio retention days",
+                        value: meetingAudioRetentionDaysBinding,
+                        in: MeetingAudioRetention.deleteAfterDaysRange
+                    )
                     .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 76)
-                    Text("days")
+                    Text(viewModel.meetingAudioRetention.deleteAfterDays == 1 ? "day" : "days")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
+                    Text("1-365")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
 
@@ -1941,8 +1946,15 @@ struct SettingsView: View {
         Binding(
             get: { viewModel.meetingAudioRetention.deleteAfterDays },
             set: { days in
-                requestMeetingAudioRetentionChange(.deleteAfterDays(days))
+                requestMeetingAudioRetentionChange(.deleteAfterDays(clampedMeetingAudioRetentionDays(days)))
             }
+        )
+    }
+
+    private func clampedMeetingAudioRetentionDays(_ days: Int) -> Int {
+        min(
+            max(days, MeetingAudioRetention.minDeleteAfterDays),
+            MeetingAudioRetention.maxDeleteAfterDays
         )
     }
 

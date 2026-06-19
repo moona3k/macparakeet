@@ -36,10 +36,8 @@ struct ConfigCommand: ParsableCommand {
           auto-meeting-titles       on|off                          default: on
           save-transcription-audio  on|off                          default: on
           meeting-audio-retention   keep-forever|                   default: keep-forever
-                                    delete-after-7-days|
-                                    delete-after-14-days|
-                                    delete-after-30-days|
-                                    delete-after-90-days|
+                                    delete-after-<1-365>-days|
+                                    <1-365>d|
                                     delete-immediately
           save-meeting-audio        on|off                          legacy alias
           youtube-audio-quality     m4a|best-available              default: m4a
@@ -453,7 +451,7 @@ struct ConfigCommand: ParsableCommand {
 
     static func parseMeetingAudioRetention(_ value: String) throws -> MeetingAudioRetention {
         guard let retention = MeetingAudioRetention.parseConfigurationValue(value) else {
-            throw ValidationError("Invalid value for meeting-audio-retention: '\(value)'. Use keep-forever, delete-immediately, or delete-after-7-days/delete-after-14-days/delete-after-30-days/delete-after-90-days.")
+            throw ValidationError("Invalid value for meeting-audio-retention: '\(value)'. Use keep-forever, delete-immediately, delete-after-<1-365>-days, or <1-365>d.")
         }
         return retention
     }

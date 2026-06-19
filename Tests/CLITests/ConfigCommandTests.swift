@@ -182,9 +182,44 @@ final class ConfigCommandTests: XCTestCase {
         )
     }
 
-    func testMeetingAudioRetentionRejectsUnsupportedDayCount() {
+    func testMeetingAudioRetentionAcceptsAnyDayCountInRange() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-retention", value: "delete-after-13-days", defaults: defaults),
+            "delete-after-13-days"
+        )
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults),
+            .deleteAfterDays(13)
+        )
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-retention", value: "1d", defaults: defaults),
+            "delete-after-1-day"
+        )
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults),
+            .deleteAfterDays(1)
+        )
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-retention", value: "365", defaults: defaults),
+            "delete-after-365-days"
+        )
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults),
+            .deleteAfterDays(365)
+        )
+    }
+
+    func testMeetingAudioRetentionRejectsOutOfRangeDayCount() {
         XCTAssertThrowsError(
-            try ConfigCommand.write(key: "meeting-audio-retention", value: "delete-after-13-days", defaults: defaults)
+            try ConfigCommand.write(key: "meeting-audio-retention", value: "delete-after-0-days", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "meeting-audio-retention", value: "delete-after-366-days", defaults: defaults)
         ) { error in
             XCTAssertTrue(error is ValidationError)
         }

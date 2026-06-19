@@ -98,6 +98,38 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, true)
     }
 
+    func testMeetingAudioRetentionPersistsCustomDayCountInRange() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(.deleteAfterDays(13), defaults: defaults)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.meetingAudioRetention, .deleteAfterDays(13))
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionDeleteAfterDaysKey) as? Int,
+            13
+        )
+    }
+
+    func testMeetingAudioRetentionDefaultsInvalidStoredDayCount() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(
+            MeetingAudioRetentionMode.deleteAfterDays.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey
+        )
+        defaults.set(366, forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionDeleteAfterDaysKey)
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioRetention,
+            .deleteAfterDays(MeetingAudioRetention.defaultDeleteAfterDays)
+        )
+    }
+
     func testDictationInsertionStyleDefaultsToSentenceAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

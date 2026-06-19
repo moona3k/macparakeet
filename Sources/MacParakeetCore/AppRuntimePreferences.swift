@@ -53,8 +53,10 @@ public enum MeetingAudioRetentionMode: String, CaseIterable, Identifiable, Hasha
 }
 
 public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
-    public static let allowedDeleteAfterDays = [7, 14, 30, 90]
+    public static let minDeleteAfterDays = 1
+    public static let maxDeleteAfterDays = 365
     public static let defaultDeleteAfterDays = 30
+    public static let deleteAfterDaysRange = minDeleteAfterDays...maxDeleteAfterDays
 
     case keepForever
     case deleteAfterDays(Int)
@@ -104,7 +106,8 @@ public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
         case .keepForever:
             return "keep-forever"
         case .deleteAfterDays(let days):
-            return "delete-after-\(Self.normalizedDeleteAfterDays(days))-days"
+            let normalizedDays = Self.normalizedDeleteAfterDays(days)
+            return "delete-after-\(normalizedDays)-\(Self.dayUnit(for: normalizedDays))"
         case .deleteImmediately:
             return "delete-immediately"
         }
@@ -122,7 +125,14 @@ public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
     }
 
     public static func normalizedDeleteAfterDays(_ days: Int) -> Int {
-        allowedDeleteAfterDays.contains(days) ? days : defaultDeleteAfterDays
+        guard deleteAfterDaysRange.contains(days) else {
+            return defaultDeleteAfterDays
+        }
+        return days
+    }
+
+    public static func isValidDeleteAfterDays(_ days: Int) -> Bool {
+        deleteAfterDaysRange.contains(days)
     }
 
     public static func parseConfigurationValue(_ value: String) -> MeetingAudioRetention? {
@@ -141,17 +151,29 @@ public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
             break
         }
 
-        for days in allowedDeleteAfterDays {
-            let day = "\(days)"
-            if raw == day
-                || raw == "\(day)d"
-                || raw == "\(day)-days"
-                || raw == "after-\(day)-days"
-                || raw == "delete-after-\(day)-days" {
-                return .deleteAfterDays(days)
-            }
+        var dayValue = raw
+        if dayValue.hasSuffix("-days") {
+            dayValue = String(dayValue.dropLast("-days".count))
+        } else if dayValue.hasSuffix("-day") {
+            dayValue = String(dayValue.dropLast("-day".count))
+        } else if dayValue.hasSuffix("d") {
+            dayValue = String(dayValue.dropLast())
+        }
+        if dayValue.hasPrefix("delete-after-") {
+            dayValue = String(dayValue.dropFirst("delete-after-".count))
+        } else if dayValue.hasPrefix("after-") {
+            dayValue = String(dayValue.dropFirst("after-".count))
+        }
+
+        if let days = Int(dayValue),
+           isValidDeleteAfterDays(days) {
+            return .deleteAfterDays(days)
         }
         return nil
+    }
+
+    private static func dayUnit(for days: Int) -> String {
+        days == 1 ? "day" : "days"
     }
 }
 

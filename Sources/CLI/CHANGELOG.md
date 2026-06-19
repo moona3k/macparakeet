@@ -91,8 +91,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `config get|set|list` now includes `auto-meeting-titles`, the shared
   on/off preference for LLM-generated meeting recording titles.
 - `config get|set|list` now includes `meeting-audio-retention`:
-  `keep-forever`, `delete-after-7-days`, `delete-after-14-days`,
-  `delete-after-30-days`, `delete-after-90-days`, or `delete-immediately`.
+  `keep-forever`, `delete-after-<1-365>-days`, `<1-365>d`, or
+  `delete-immediately`.
   The older `save-meeting-audio` key remains supported as a legacy alias:
   `on` maps to `keep-forever`, and `off` maps to `delete-immediately`.
 
