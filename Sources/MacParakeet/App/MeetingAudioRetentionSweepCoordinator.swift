@@ -67,7 +67,7 @@ final class MeetingAudioRetentionSweepCoordinator {
         repository: TranscriptionRepositoryProtocol,
         retention: MeetingAudioRetention
     ) {
-        scheduleSweep(repository: repository, retention: retention, force: false)
+        scheduleSweep(repository: repository, retention: retention, force: false, after: launchRecoveryTask)
     }
 
     func schedulePreferenceChangeSweep(
@@ -97,6 +97,7 @@ final class MeetingAudioRetentionSweepCoordinator {
         sweepTask = Task.detached(priority: .utility) { [weak self, repository, retention, nowProvider, recoveryTask] in
             if let recoveryTask {
                 await recoveryTask.value
+                await self?.clearLaunchRecoveryTask()
             }
             guard !Task.isCancelled else { return }
 
@@ -128,6 +129,10 @@ final class MeetingAudioRetentionSweepCoordinator {
 
     private func markSweepCompleted(at date: Date) {
         defaults.set(date, forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
+    }
+
+    private func clearLaunchRecoveryTask() {
+        launchRecoveryTask = nil
     }
 
     private func logSweepResult(_ result: MeetingAudioRetentionSweepResult) {

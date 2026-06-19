@@ -1930,7 +1930,7 @@ struct SettingsView: View {
                 requestMeetingAudioRetentionChange(
                     MeetingAudioRetention.make(
                         mode: mode,
-                        days: viewModel.meetingAudioRetention.deleteAfterDays
+                        days: viewModel.savedMeetingAudioRetentionDays
                     )
                 )
             }

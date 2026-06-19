@@ -304,7 +304,7 @@ protocol TranscriptionServiceProtocol: Sendable {
 }
 ```
 
-**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`, `saveMeetingAudio`)
+**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`, `meetingAudioRetention`)
 
 **Data Flow:**
 ```

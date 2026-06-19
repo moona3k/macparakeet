@@ -64,6 +64,38 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
         XCTAssertEqual(repository.cutoffs.first, sweepNow)
     }
 
+    func testForegroundSweepWaitsForPendingLaunchRecovery() async {
+        let defaults = makeDefaults()
+        let repository = RecordingTranscriptionRepository()
+        let recoveryGate = AsyncGate()
+        let recoveryTask = Task { await recoveryGate.wait() }
+        let sweepNow = Date(timeIntervalSince1970: 4_000_000)
+        let coordinator = MeetingAudioRetentionSweepCoordinator(
+            defaults: defaults,
+            now: { sweepNow },
+            minimumSweepInterval: 24 * 60 * 60
+        )
+
+        coordinator.scheduleLaunchSweep(
+            repository: repository,
+            retention: .deleteAfterDays(7),
+            after: recoveryTask
+        )
+        coordinator.scheduleForegroundSweepIfDue(
+            repository: repository,
+            retention: .deleteAfterDays(7)
+        )
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(repository.cutoffs.isEmpty)
+
+        await recoveryGate.open()
+
+        let didFetchAfterRecovery = await waitForFetch(repository)
+        XCTAssertTrue(didFetchAfterRecovery)
+        XCTAssertEqual(repository.cutoffs.first, sweepNow.addingTimeInterval(-7 * 24 * 60 * 60))
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suite = "meeting-audio-retention-sweep-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

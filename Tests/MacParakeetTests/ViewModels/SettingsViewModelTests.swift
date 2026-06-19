@@ -756,6 +756,22 @@ final class SettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testMeetingAudioRetentionKeepsSavedDayChoiceAcrossModeChanges() {
+        viewModel.setMeetingAudioRetention(.deleteAfterDays(14))
+        viewModel.setMeetingAudioRetention(.keepForever)
+
+        XCTAssertEqual(viewModel.savedMeetingAudioRetentionDays, 14)
+
+        viewModel.setMeetingAudioRetention(
+            MeetingAudioRetention.make(
+                mode: .deleteAfterDays,
+                days: viewModel.savedMeetingAudioRetentionDays
+            )
+        )
+
+        XCTAssertEqual(viewModel.meetingAudioRetention, .deleteAfterDays(14))
+    }
+
     func testMeetingAudioRetentionConfirmationRequiredOnlyForFirstAutoDeleteTransition() {
         XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteAfterDays(30)))
 

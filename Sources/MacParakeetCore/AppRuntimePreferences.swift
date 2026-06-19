@@ -503,8 +503,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
            let mode = MeetingAudioRetentionMode(rawValue: raw) {
             return MeetingAudioRetention.make(
                 mode: mode,
-                days: defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) as? Int
-                    ?? MeetingAudioRetention.defaultDeleteAfterDays
+                days: meetingAudioRetentionDeleteAfterDays(defaults: defaults)
             )
         }
 
@@ -513,6 +512,13 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
             : .deleteImmediately
         saveMeetingAudioRetention(migrated, defaults: defaults)
         return migrated
+    }
+
+    public static func meetingAudioRetentionDeleteAfterDays(defaults: UserDefaults = .standard) -> Int {
+        MeetingAudioRetention.normalizedDeleteAfterDays(
+            defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) as? Int
+                ?? MeetingAudioRetention.defaultDeleteAfterDays
+        )
     }
 
     public static func saveMeetingAudioRetention(

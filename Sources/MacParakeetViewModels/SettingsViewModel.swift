@@ -339,6 +339,9 @@ public final class SettingsViewModel {
             setMeetingAudioRetention(newValue ? .keepForever : .deleteImmediately)
         }
     }
+    public var savedMeetingAudioRetentionDays: Int {
+        UserDefaultsAppRuntimePreferences.meetingAudioRetentionDeleteAfterDays(defaults: defaults)
+    }
 
     // Transcription
     public var youtubeAudioQuality: YouTubeAudioQuality {
@@ -730,7 +733,9 @@ public final class SettingsViewModel {
     public func setMeetingAudioRetention(_ retention: MeetingAudioRetention) {
         meetingAudioRetention = MeetingAudioRetention.make(
             mode: retention.mode,
-            days: retention.deleteAfterDays
+            days: retention.mode == .deleteAfterDays
+                ? retention.deleteAfterDays
+                : savedMeetingAudioRetentionDays
         )
     }
 

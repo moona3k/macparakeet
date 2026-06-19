@@ -276,7 +276,9 @@ Replace the bare "Keep meeting audio" toggle with a labeled control:
   lock and a pre-transcription Library row must run recovery discovery before
   the retention sweep, or be skipped by the lock/status guards if the user defers
   recovery.
-- ViewModel: enabling a mode persists + emits telemetry; first-enable confirmation gating.
+- ViewModel: enabling a mode persists + emits telemetry; first-enable
+  confirmation gating; switching away from and back to N-day retention preserves
+  the last selected day count.
 - CLI: round-trip `config set/get meeting-audio-retention`; legacy
   `save-meeting-audio` maps `off -> deleteImmediately`, `on -> keepForever`,
   and is documented as an alias.
@@ -317,8 +319,8 @@ and `Sources/CLI/CHANGELOG.md`.
   completed meeting audio, never deletes transcription rows, and skips any
   folder with a `recording.lock`.
 - Wired launch, foreground, and preference-change sweeps after
-  `AppEnvironment` setup. Launch and preference-change sweeps wait for pending
-  launch recovery before evaluating the retention clock.
+  `AppEnvironment` setup. Launch, foreground, and preference-change sweeps wait
+  for pending launch recovery before evaluating the retention clock.
 - Replaced the Storage card's meeting-audio toggle with a tri-state control and
   first-enable auto-delete confirmation.
 - Added CLI parity with `config get/set meeting-audio-retention` while keeping
@@ -330,6 +332,8 @@ and `Sources/CLI/CHANGELOG.md`.
 ## Verification
 - Focused retention suite:
   `swift test --filter 'MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingAudioRetentionPolicyTests'`
+- Fresh-eye fix suite:
+  `swift test --filter 'MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingAudioRetentionPolicyTests|SettingsViewModelTests/testMeetingAudioRetentionKeepsSavedDayChoiceAcrossModeChanges|SettingsViewModelTests/testSettingMeetingAudioRetention|SettingsViewModelTests/testLegacySaveMeetingAudio'`
 - Broader focused suite:
   `swift test --filter 'AppRuntimePreferencesTests|MeetingAudioRetention|TranscriptionRepositoryTests/testFetchMeetingAudioRetentionCandidatesFiltersInSQL|SettingsViewModelTests/testSettingMeetingAudioRetention|SettingsViewModelTests/testLegacySaveMeetingAudio|SettingsViewModelTests/testMeetingAudioRetentionConfirmation|ConfigCommandTests|TranscriptionViewModelTests/testPresentCompletedMeetingDeletesAudioWhenRetentionIsOff|TranscriptionViewModelTests/testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff'`
 - Final merge gate: `git diff --check`, `swift test`.
