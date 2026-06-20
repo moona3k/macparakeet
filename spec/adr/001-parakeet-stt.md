@@ -128,6 +128,12 @@ Parakeet remains the default engine for dictation, file transcription, and meeti
 
 Nemotron is labeled Beta because the first MacParakeet smoke benchmark showed strong warm-path speed but weaker English-heavy transcript quality than Parakeet on the synthetic corpus. It should not replace Parakeet as the default without a larger real-world dictation/meeting benchmark.
 
+> Amendment (2026-06-20): MacParakeet now preserves FluidAudio's Nemotron token
+> timings through `finishWithTokenTimings()` and maps them into `STTResult.words`
+> for both Nemotron builds. Timed transcript views, subtitle exports, and
+> meeting speaker-turn assembly can therefore use Nemotron timestamps when the
+> upstream manager reports them; the engine remains Beta for quality reasons.
+
 ## Addendum: Nemotron English Beta Build (June 2026)
 
 > Date: 2026-06-11
@@ -149,9 +155,9 @@ Nemotron model preference (Settings build picker, `config set nemotron-model`,
   `research/stt-models-voice-personalization` branch pending merge).
 
 Scope notes: file and meeting jobs run batch-at-stop through the streaming
-manager; the EN build exposes no word-level timestamps or confidence scores
-(the established Nemotron posture), and only the 1120 ms tier is surfaced.
-Build swaps follow the same scheduler guards as
+manager; MacParakeet maps FluidAudio token timings into word-level timestamps
+when the EN build reports them, and only the 1120 ms tier is surfaced. Build
+swaps follow the same scheduler guards as
 Parakeet v2/v3 swaps (ADR-016). License posture: FluidAudio and its CoreML
 conversion are Apache-2.0, but upstream NVIDIA model terms are not publicly
 verifiable, so the model stays a user-triggered download — never bundled.

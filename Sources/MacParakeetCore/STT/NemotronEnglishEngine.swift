@@ -83,16 +83,14 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
                 let fraction = Double(offset) / Double(samples.count)
                 onProgress?(25 + Int(fraction * 65), 100)
             }
-            let text = try await manager.finish()
+            let final = try await manager.finishWithTokenTimings()
             onProgress?(100, 100)
 
             // `language` reflects the build's fixed configuration (the model is
-            // English-only), mirroring the Parakeet attribution posture. No
-            // word timings: the streaming RNN-T path exposes none (same
-            // posture as the multilingual Nemotron build).
+            // English-only), mirroring the Parakeet attribution posture.
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: "en",
                 engine: .nemotron,
                 engineVariant: Self.modelVariant.rawValue
@@ -163,10 +161,10 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let text = try await manager.finish()
+            let final = try await manager.finishWithTokenTimings()
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: "en",
                 engine: .nemotron,
                 engineVariant: Self.modelVariant.rawValue

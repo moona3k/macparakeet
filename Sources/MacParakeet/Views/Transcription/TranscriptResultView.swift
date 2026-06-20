@@ -617,29 +617,36 @@ struct TranscriptResultView: View {
         for option: TranscriptionViewModel.RetranscriptionEngineOption
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            Text("Retranscribe with")
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Label("Retranscribe with", systemImage: "arrow.trianglehead.2.clockwise")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                Spacer(minLength: 8)
+
+                Button {
+                    showingRetranscribeOptions = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close retranscribe options")
+            }
 
             VStack(spacing: DesignSystem.Spacing.sm) {
-                EngineOptionCard(
-                    selection: option.primaryEngine,
-                    nemotronVariant: option.nemotronVariant,
-                    isPrimary: true,
-                    isAvailable: true,
-                    unavailableReason: nil
-                ) {
-                    selectRetranscribeEngine(option.primaryEngine, in: option)
-                }
-
-                EngineOptionCard(
-                    selection: option.alternativeEngine,
-                    nemotronVariant: option.nemotronVariant,
-                    isPrimary: false,
-                    isAvailable: option.isAlternativeAvailable,
-                    unavailableReason: option.unavailableReason
-                ) {
-                    selectRetranscribeEngine(option.alternativeEngine, in: option)
+                ForEach(option.choices) { choice in
+                    EngineOptionCard(
+                        selection: choice.selection,
+                        nemotronVariant: option.nemotronVariant,
+                        isPrimary: choice.isPrimary,
+                        isAvailable: choice.isAvailable,
+                        unavailableReason: choice.unavailableReason,
+                        advisory: choice.advisory
+                    ) {
+                        selectRetranscribeEngine(choice)
+                    }
                 }
             }
 
@@ -649,14 +656,13 @@ struct TranscriptResultView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(DesignSystem.Spacing.md)
-        .frame(width: 360)
+        .frame(width: 390)
     }
 
     private func selectRetranscribeEngine(
-        _ selection: SpeechEngineSelection,
-        in option: TranscriptionViewModel.RetranscriptionEngineOption
+        _ choice: TranscriptionViewModel.RetranscriptionEngineOption.Choice
     ) {
-        let override: SpeechEngineSelection? = (selection == option.primaryEngine) ? nil : selection
+        let override: SpeechEngineSelection? = choice.isPrimary ? nil : choice.selection
         pendingRetranscribePick = RetranscribePick(transcriptionID: transcription.id, override: override)
         showingRetranscribeOptions = false
         // Confirmation alert is presented from the .onChange handler that
@@ -2970,6 +2976,7 @@ private struct EngineOptionCard: View {
     let isPrimary: Bool
     let isAvailable: Bool
     let unavailableReason: String?
+    let advisory: String?
     let onSelect: () -> Void
 
     @State private var hovering = false
@@ -3021,10 +3028,12 @@ private struct EngineOptionCard: View {
                             .foregroundStyle(titleColor)
                         if isPrimary {
                             EngineBadge(text: "Current", tint: DesignSystem.Colors.accent)
-                        } else if !isAvailable {
+                        }
+                        if !isAvailable {
                             EngineBadge(text: "Unavailable", tint: DesignSystem.Colors.warningAmber)
                         }
                     }
+                    .lineLimit(1)
 
                     Text(subtitle)
                         .font(DesignSystem.Typography.caption)
@@ -3036,6 +3045,14 @@ private struct EngineOptionCard: View {
                         Text(languageDetail)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    }
+
+                    if let advisory, isAvailable {
+                        Text(advisory)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if let unavailableReason, !isAvailable {
@@ -3080,6 +3097,9 @@ private struct EngineOptionCard: View {
         if !isAvailable {
             return unavailableReason ?? "Unavailable for this rerun."
         }
+        if let advisory {
+            return "\(advisory) Rerun with \(selection.engine.displayName)."
+        }
         return "Rerun with \(selection.engine.displayName)."
     }
 
@@ -3116,6 +3136,9 @@ private struct EngineOptionCard: View {
     private var accessibilityHint: String {
         if !isAvailable {
             return unavailableReason ?? "Unavailable for this rerun."
+        }
+        if let advisory {
+            return "\(advisory) Reruns this transcription with \(selection.engine.displayName)."
         }
         return "Reruns this transcription with \(selection.engine.displayName)."
     }

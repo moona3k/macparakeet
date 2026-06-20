@@ -7,16 +7,26 @@ import SwiftUI
 @Observable
 public final class TranscriptionViewModel {
     public struct RetranscriptionEngineOption: Equatable, Sendable {
+        public struct Choice: Identifiable, Equatable, Sendable {
+            public let selection: SpeechEngineSelection
+            public let isPrimary: Bool
+            public let isAvailable: Bool
+            public let unavailableReason: String?
+            public let advisory: String?
+
+            public var id: String {
+                "\(selection.engine.rawValue)-\(selection.language ?? "none")"
+            }
+        }
+
         public let primaryEngine: SpeechEngineSelection
-        public let alternativeEngine: SpeechEngineSelection
-        public let isAlternativeAvailable: Bool
-        public let unavailableReason: String?
+        public let choices: [Choice]
         /// Persisted Nemotron build a Nemotron rerun would load (STTRuntime
         /// resolves the persisted variant at run start).
         public let nemotronVariant: NemotronModelVariant
 
         public var title: String {
-            "Try with \(alternativeEngine.engine.displayName)"
+            "Retranscribe with speech engine"
         }
     }
 
@@ -428,33 +438,58 @@ public final class TranscriptionViewModel {
             primaryEngine = SpeechEngineSelection.current(defaults: defaults)
         }
 
-        let alternativePreference = retranscriptionAlternativePreference(for: primaryEngine.engine)
-        let alternativeEngine = SpeechEngineSelection(
-            engine: alternativePreference,
-            language: Self.retranscriptionLanguage(for: alternativePreference, defaults: defaults)
-        )
-        let unavailableReason: String?
-        if alternativePreference == .nemotron && !isNemotronModelDownloaded() {
-            unavailableReason = "Download the Nemotron model in Settings before trying Nemotron."
-        } else if alternativePreference == .whisper && !isWhisperModelDownloaded() {
-            unavailableReason = "Download the Whisper model in Settings before trying Whisper."
-        } else {
-            unavailableReason = nil
+        let choices = retranscriptionEngineOrder(primary: primaryEngine.engine).map { engine in
+            let selection = SpeechEngineSelection(
+                engine: engine,
+                language: Self.retranscriptionLanguage(for: engine, defaults: defaults)
+            )
+            let unavailableReason = retranscriptionUnavailableReason(for: engine)
+            return RetranscriptionEngineOption.Choice(
+                selection: engine == primaryEngine.engine ? primaryEngine : selection,
+                isPrimary: engine == primaryEngine.engine,
+                isAvailable: unavailableReason == nil,
+                unavailableReason: unavailableReason,
+                advisory: retranscriptionAdvisory(for: engine, unavailableReason: unavailableReason)
+            )
         }
 
         return RetranscriptionEngineOption(
             primaryEngine: primaryEngine,
-            alternativeEngine: alternativeEngine,
-            isAlternativeAvailable: unavailableReason == nil,
-            unavailableReason: unavailableReason,
+            choices: choices,
             nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         )
     }
 
-    private func retranscriptionAlternativePreference(
-        for primaryEngine: SpeechEnginePreference
-    ) -> SpeechEnginePreference {
-        return primaryEngine.alternative
+    private func retranscriptionEngineOrder(primary: SpeechEnginePreference) -> [SpeechEnginePreference] {
+        let defaultOrder: [SpeechEnginePreference] = [.parakeet, .nemotron, .whisper]
+        return [primary] + defaultOrder.filter { $0 != primary }
+    }
+
+    private func retranscriptionUnavailableReason(for engine: SpeechEnginePreference) -> String? {
+        switch engine {
+        case .parakeet:
+            return nil
+        case .nemotron:
+            return isNemotronModelDownloaded()
+                ? nil
+                : "Download the Nemotron model in Settings before trying Nemotron."
+        case .whisper:
+            return isWhisperModelDownloaded()
+                ? nil
+                : "Download the Whisper model in Settings before trying Whisper."
+        }
+    }
+
+    private func retranscriptionAdvisory(
+        for engine: SpeechEnginePreference,
+        unavailableReason: String?
+    ) -> String? {
+        guard engine == .whisper,
+              unavailableReason == nil,
+              SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults) else {
+            return nil
+        }
+        return "First run may spend a few minutes preparing this Whisper model."
     }
 
     private static func retranscriptionLanguage(

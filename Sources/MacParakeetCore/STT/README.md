@@ -50,12 +50,15 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the
   Beta local multilingual engine. Uses separate interactive/background
   managers backed by shared model weights so it fits the scheduler lanes.
+  Preserves FluidAudio token timings as MacParakeet word timestamps when
+  available.
 - `NemotronEnglishEngine.swift` — FluidAudio Nemotron Speech Streaming
   EN 0.6B wrapper (English-only Beta build, `english-1120ms`). Same
   two-lane shape; no language hints, no shared-weights API (both lanes
   load the same compiled artifacts). File/meeting jobs feed batch-at-stop
   through the streaming manager in bounded slices; live dictation drives
-  the same manager incrementally and emits partials (see below).
+  the same manager incrementally and emits partials (see below). Preserves
+  FluidAudio token timings as MacParakeet word timestamps when available.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.

@@ -719,7 +719,7 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 | Model | Nemotron 3.5 ASR Streaming 0.6B (`nemotron-multilingual-1120ms`, default) / Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, English-only) |
 | Runtime | FluidAudio CoreML streaming path |
 | Sizes | ~1.5 GB (multilingual) / ~600 MB (English) |
-| Output | Text + detected/specified language; no word-level timestamps surfaced |
+| Output | Text + token-derived word-level timestamps when FluidAudio reports token timings + detected/specified language |
 | Model cache | FluidAudio cache (`nemotron-multilingual/` and `nemotron-streaming/<tier>ms`) |
 | Selection | Settings speech-engine + Nemotron Model picker, or CLI `--engine nemotron --nemotron-model <id>` |
 

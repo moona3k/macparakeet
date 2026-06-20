@@ -1707,13 +1707,30 @@ final class TranscriptionViewModelTests: XCTestCase {
         try await waitUntil { !self.viewModel.isTranscribing }
     }
 
+    private func retranscriptionChoice(
+        _ engine: SpeechEnginePreference,
+        in option: TranscriptionViewModel.RetranscriptionEngineOption,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> TranscriptionViewModel.RetranscriptionEngineOption.Choice {
+        try XCTUnwrap(
+            option.choices.first { $0.selection.engine == engine },
+            "Missing retranscription choice for \(engine.rawValue)",
+            file: file,
+            line: line
+        )
+    }
+
     func testRetranscriptionEngineOptionUsesCapturedMeetingEngine() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .whisper, language: "KO")
         )
         defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
 
-        viewModel = TranscriptionViewModel(isWhisperModelDownloaded: { true })
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
         let original = Transcription(
             id: UUID(),
             fileName: "Korean Meeting",
@@ -1727,10 +1744,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
-        XCTAssertEqual(option.title, "Try with Parakeet")
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.whisper, .parakeet, .nemotron])
+        XCTAssertTrue(try retranscriptionChoice(.whisper, in: option).isPrimary)
+        XCTAssertTrue(try retranscriptionChoice(.parakeet, in: option).isAvailable)
+        XCTAssertTrue(try retranscriptionChoice(.nemotron, in: option).isAvailable)
+        XCTAssertEqual(option.title, "Retranscribe with speech engine")
     }
 
     func testRetranscriptionEngineOptionUsesCurrentSettingsForLegacyMeetingMetadata() throws {
@@ -1740,7 +1758,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ja", defaults: defaults)
         SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
-        viewModel = TranscriptionViewModel(defaults: defaults, isWhisperModelDownloaded: { true })
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
 
         let archivedMeeting = try makeArchivedMeetingRecording(speechEngine: nil)
         defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
@@ -1758,11 +1780,15 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.whisper, .parakeet, .nemotron])
+        XCTAssertEqual(
+            try retranscriptionChoice(.parakeet, in: option).selection,
+            SpeechEngineSelection(engine: .parakeet)
+        )
         XCTAssertEqual(option.nemotronVariant, .english1120)
     }
 
-    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsMissing() throws {
+    func testRetranscriptionEngineOptionIncludesNemotronButDisablesItWhenMissing() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
         )
@@ -1784,12 +1810,18 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.parakeet, .nemotron, .whisper])
+        XCTAssertTrue(try retranscriptionChoice(.parakeet, in: option).isPrimary)
+        XCTAssertTrue(try retranscriptionChoice(.whisper, in: option).isAvailable)
+        let nemotron = try retranscriptionChoice(.nemotron, in: option)
+        XCTAssertFalse(nemotron.isAvailable)
+        XCTAssertEqual(
+            nemotron.unavailableReason,
+            "Download the Nemotron model in Settings before trying Nemotron."
+        )
     }
 
-    func testRetranscriptionEngineOptionKeepsWhisperForParakeetWhenNemotronIsDownloaded() throws {
+    func testRetranscriptionEngineOptionIncludesNemotronWhenDownloaded() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
         )
@@ -1811,9 +1843,51 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.parakeet, .nemotron, .whisper])
+        XCTAssertTrue(try retranscriptionChoice(.nemotron, in: option).isAvailable)
+        XCTAssertNil(try retranscriptionChoice(.nemotron, in: option).unavailableReason)
+        XCTAssertTrue(try retranscriptionChoice(.whisper, in: option).isAvailable)
+    }
+
+    func testRetranscriptionEngineOptionAdvisesColdWhisperSwitch() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(
+            SpeechEnginePreference.defaultWhisperModelVariant,
+            defaults: defaults
+        )
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-engine-cold-whisper-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Audio File",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .file
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+        let whisper = try retranscriptionChoice(.whisper, in: option)
+
+        XCTAssertTrue(whisper.isAvailable)
+        XCTAssertNil(whisper.unavailableReason)
+        XCTAssertEqual(
+            whisper.advisory,
+            "First run may spend a few minutes preparing this Whisper model."
+        )
     }
 
     func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {
@@ -1838,9 +1912,16 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
-        XCTAssertFalse(option.isAlternativeAvailable)
-        XCTAssertEqual(option.unavailableReason, "Download the Whisper model in Settings before trying Whisper.")
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.nemotron, .parakeet, .whisper])
+        XCTAssertTrue(try retranscriptionChoice(.nemotron, in: option).isPrimary)
+        let whisper = try retranscriptionChoice(.whisper, in: option)
+        XCTAssertFalse(whisper.isAvailable)
+        XCTAssertEqual(
+            whisper.unavailableReason,
+            "Download the Whisper model in Settings before trying Whisper."
+        )
+        XCTAssertNil(whisper.advisory)
+        XCTAssertTrue(try retranscriptionChoice(.parakeet, in: option).isAvailable)
     }
 
     func testRetranscriptionEngineOptionAvailableForYouTubeSource() throws {
@@ -1873,9 +1954,13 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.parakeet, .nemotron, .whisper])
+        XCTAssertEqual(
+            try retranscriptionChoice(.nemotron, in: option).selection,
+            SpeechEngineSelection(engine: .nemotron, language: "en-US")
+        )
+        XCTAssertTrue(try retranscriptionChoice(.nemotron, in: option).isAvailable)
+        XCTAssertTrue(try retranscriptionChoice(.whisper, in: option).isAvailable)
     }
 
     func testRetranscriptionEngineOptionAvailableForFileSource() throws {
@@ -1884,7 +1969,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ko", defaults: defaults)
-        viewModel = TranscriptionViewModel(defaults: defaults, isWhisperModelDownloaded: { true })
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
 
         let tmpFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("retranscribe-engine-file-\(UUID().uuidString).mp3")
@@ -1904,8 +1993,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertEqual(option.choices.map(\.selection.engine), [.whisper, .parakeet, .nemotron])
+        XCTAssertEqual(
+            try retranscriptionChoice(.parakeet, in: option).selection,
+            SpeechEngineSelection(engine: .parakeet)
+        )
+        XCTAssertTrue(try retranscriptionChoice(.nemotron, in: option).isAvailable)
     }
 
     func testRetranscriptionEngineOptionNilWhenFileMissing() {

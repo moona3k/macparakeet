@@ -67,13 +67,13 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
             try Task.checkCancellation()
             _ = try await manager.process(samples: samples)
             onProgress?(90, 100)
-            let text = try await manager.finish()
+            let final = try await manager.finishWithTokenTimings()
             let detectedLanguage = await manager.detectedLanguage()
             onProgress?(100, 100)
 
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: detectedLanguage ?? requestedLanguage,
                 engine: .nemotron,
                 engineVariant: modelVariant.rawValue
@@ -137,11 +137,11 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let text = try await manager.finish()
+            let final = try await manager.finishWithTokenTimings()
             let detectedLanguage = await manager.detectedLanguage()
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: detectedLanguage ?? requestedLanguage,
                 engine: .nemotron,
                 engineVariant: modelVariant.rawValue

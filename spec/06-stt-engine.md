@@ -46,7 +46,7 @@ Unified build, all exposed to the user as selectable Parakeet models:
 | Model | Nemotron 3.5 ASR Streaming 0.6B (`multilingual-1120ms`, default) / Nemotron Speech Streaming EN 0.6B (`english-1120ms`, English-only, ~600 MB) |
 | Runtime | FluidAudio streaming Nemotron CoreML path |
 | Model cache | FluidAudio model cache under `~/Library/Application Support/FluidAudio/Models/` |
-| Output | Text and detected/specified language when reported; word timestamps are not currently surfaced through MacParakeet |
+| Output | Text, token-derived word timestamps when FluidAudio reports token timings, and detected/specified language when reported |
 | Languages | Multilingual build: 40 language-locales upstream; English build: English only (ignores the `nemotron-language` hint); both exposed as opt-in Beta while MacParakeet benchmarks quality on real product audio |
 | Selection | Explicit in Settings or CLI (`--engine nemotron --language <code>`); build via the Settings *Nemotron Model* card, `config set nemotron-model`, or `transcribe --nemotron-model`; no automatic fallback |
 | Download | ~1.5 GB (multilingual) / ~600 MB (English), explicit Settings/CLI download before selecting as the shared default |

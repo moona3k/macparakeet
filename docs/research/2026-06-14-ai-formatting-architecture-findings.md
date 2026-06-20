@@ -152,9 +152,10 @@ substantive gap behind "should meetings get special treatment" — it's
 structural (the LLM rewrite breaks word-timestamp alignment that attribution
 depends on), not a prompt-wording issue.
 
-**Engine nuance:** Nemotron surfaces **no word-level timestamps**, so a Nemotron
-meeting has no `wordTimestamps` → no `.timed` mode and effectively **no speaker
-turns at all**. Parakeet (default) and Whisper do produce word timestamps.
+**Engine nuance, historical:** at the time of this note, Nemotron did not
+surface word-level timestamps, so Nemotron meetings had no `.timed` mode or
+speaker turns. Issue #497 follow-up changed the wrappers to preserve
+FluidAudio token timings as `wordTimestamps` when available.
 
 **Already speaker-aware:** the *LLM-context* path
 (`TranscriptAIContextFormatter` rich mode) builds speaker+timestamp-labeled
@@ -191,8 +192,8 @@ speaker-attributed input. It's the *cleanup formatter* and the *default display
 - Remove dead `rawTranscriptText` accessor.
 - Transcript revert is one-way vs dictation's reversible toggle — unify via the
   planned viewer.
-- Nemotron meetings get no speaker turns (word-timestamp limitation) — document
-  or warn?
+- Nemotron meeting speaker turns depended on surfacing upstream token timings;
+  issue #497 follow-up changed the wrappers to preserve them when available.
 
 ## 10. File map (where each concern lives)
 
