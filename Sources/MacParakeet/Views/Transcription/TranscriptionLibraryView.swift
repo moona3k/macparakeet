@@ -98,7 +98,8 @@ struct TranscriptionLibraryView: View {
                 selectionKeyboardFocused = true
             }
         }
-        .onKeyPress(keys: ["a", .delete, .deleteForward, .escape]) { press in
+        .animation(.easeInOut(duration: 0.16), value: viewModel.isBulkSelectionModeEnabled)
+        .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
             handleSelectionKeyPress(press)
         }
         .onAppear {
@@ -190,6 +191,9 @@ struct TranscriptionLibraryView: View {
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled
                         ) {
+                            if viewModel.isBulkOperationInProgress {
+                                return
+                            }
                             if viewModel.isBulkSelectionModeEnabled {
                                 viewModel.toggleSelection(for: transcription)
                             } else {
@@ -222,6 +226,9 @@ struct TranscriptionLibraryView: View {
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             onTap: {
+                                if viewModel.isBulkOperationInProgress {
+                                    return
+                                }
                                 if viewModel.isBulkSelectionModeEnabled {
                                     viewModel.toggleSelection(for: transcription)
                                 } else {
@@ -321,6 +328,7 @@ struct TranscriptionLibraryView: View {
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
             isMeetingContext: isMeetingListMode,
             areAllLoadedSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.isBulkOperationInProgress,
             onSelectLoaded: { viewModel.selectLoadedVisibleTranscriptions() },
             onClear: { viewModel.clearSelection() },
             onCancel: { viewModel.exitBulkSelection() },
@@ -469,17 +477,13 @@ struct TranscriptionLibraryView: View {
     }
 
     private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
-        guard viewModel.isBulkSelectionModeEnabled else { return .ignored }
-        if press.key == .escape {
-            viewModel.exitBulkSelection()
-            return .handled
-        }
+        guard viewModel.isBulkSelectionModeEnabled, !viewModel.isBulkOperationInProgress else { return .ignored }
         if press.key == .delete || press.key == .deleteForward {
             guard viewModel.hasSelectedTranscriptions else { return .ignored }
             viewModel.requestDeleteSelectedItems()
             return .handled
         }
-        if press.key == "a", press.modifiers.contains(.command) {
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
             viewModel.selectLoadedVisibleTranscriptions()
             return .handled
         }

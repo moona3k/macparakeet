@@ -91,8 +91,8 @@ public enum TranscriptionAssetCleanup {
             return MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: true)
         }
 
-        try repository.updateFilePath(id: transcription.id, filePath: nil)
         try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
+        try repository.updateFilePath(id: transcription.id, filePath: nil)
         return MeetingAudioDetachResult(removedOwnedAudio: true, hadAudioPath: true)
     }
 

@@ -121,6 +121,7 @@ public final class TranscriptionLibraryViewModel {
     public var searchDebounceInterval: Duration = .milliseconds(300)
     public private(set) var selectedTranscriptionIDs: Set<UUID> = []
     public private(set) var isBulkSelectionModeEnabled = false
+    public private(set) var isBulkOperationInProgress = false
     public private(set) var pendingBulkOperation: BulkTranscriptionOperation?
 
     /// Override for tests; production code uses `Date()`.
@@ -222,6 +223,7 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public func toggleSelection(for transcription: Transcription) {
+        guard !isBulkOperationInProgress else { return }
         bulkSelectionGeneration += 1
         if selectedTranscriptionIDs.contains(transcription.id) {
             selectedTranscriptionIDs.remove(transcription.id)
@@ -231,16 +233,19 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public func selectLoadedVisibleTranscriptions() {
+        guard !isBulkOperationInProgress else { return }
         bulkSelectionGeneration += 1
         selectedTranscriptionIDs = loadedVisibleTranscriptionIDs
     }
 
     public func clearSelection() {
+        guard !isBulkOperationInProgress else { return }
         bulkSelectionGeneration += 1
         selectedTranscriptionIDs = []
     }
 
     public func beginBulkSelection(startingWith transcription: Transcription? = nil) {
+        guard !isBulkOperationInProgress else { return }
         bulkSelectionGeneration += 1
         isBulkSelectionModeEnabled = true
         if let transcription {
@@ -249,6 +254,11 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public func exitBulkSelection() {
+        guard !isBulkOperationInProgress else { return }
+        finishBulkSelection()
+    }
+
+    private func finishBulkSelection() {
         bulkSelectionGeneration += 1
         isBulkSelectionModeEnabled = false
         selectedTranscriptionIDs = []
@@ -256,10 +266,12 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public func cancelPendingBulkOperation() {
+        guard !isBulkOperationInProgress else { return }
         pendingBulkOperation = nil
     }
 
     public func requestDeleteSelectedItems() {
+        guard !isBulkOperationInProgress else { return }
         let targets = selectedLoadedTranscriptions
         guard !targets.isEmpty else {
             clearSelection()
@@ -269,6 +281,7 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public func requestDeleteSelectedMeetingAudio() {
+        guard !isBulkOperationInProgress else { return }
         let selected = selectedLoadedTranscriptions
         let targets = selected.filter(Self.hasAvailableMeetingAudio)
         guard !targets.isEmpty else {
@@ -293,8 +306,8 @@ public final class TranscriptionLibraryViewModel {
 
         bulkSelectionGeneration += 1
         let operationGeneration = bulkSelectionGeneration
-        isBulkSelectionModeEnabled = false
-        selectedTranscriptionIDs = []
+        isBulkSelectionModeEnabled = true
+        isBulkOperationInProgress = true
         errorMessage = nil
 
         switch operation {
@@ -309,8 +322,12 @@ public final class TranscriptionLibraryViewModel {
                 removeLoadedTranscriptions(withIDs: Set(result.succeededIDs))
             }
             if !result.failedIDs.isEmpty {
+                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkDeleteFailureMessage(succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
+            } else {
+                isBulkOperationInProgress = false
+                finishBulkSelection()
             }
             return BulkOperationResult(
                 succeeded: result.succeededIDs.count,
@@ -325,12 +342,16 @@ public final class TranscriptionLibraryViewModel {
                 clearLoadedMeetingAudio(forIDs: Set(result.succeededIDs))
             }
             if !result.failedIDs.isEmpty {
+                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkAudioDeleteFailureMessage(
                     succeeded: result.succeededIDs.count,
                     failed: result.failedIDs.count,
                     skipped: skipped
                 )
+            } else {
+                isBulkOperationInProgress = false
+                finishBulkSelection()
             }
             return BulkOperationResult(
                 succeeded: result.succeededIDs.count,

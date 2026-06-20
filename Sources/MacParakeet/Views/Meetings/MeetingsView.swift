@@ -51,7 +51,8 @@ struct MeetingsView: View {
                 recentMeetingsSelectionFocused = true
             }
         }
-        .onKeyPress(keys: ["a", .delete, .deleteForward, .escape]) { press in
+        .animation(.easeInOut(duration: 0.16), value: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
+        .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
             handleRecentMeetingsSelectionKeyPress(press)
         }
         .onChange(of: viewModel.settingsViewModel.calendarAutoStartMode) { _, _ in
@@ -518,6 +519,9 @@ struct MeetingsView: View {
                         isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
                         showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
                         onTap: {
+                            if viewModel.recentMeetingsViewModel.isBulkOperationInProgress {
+                                return
+                            }
                             if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
                                 viewModel.recentMeetingsViewModel.toggleSelection(for: transcription)
                             } else {
@@ -590,6 +594,7 @@ struct MeetingsView: View {
             selectedMeetingAudioCount: viewModel.recentMeetingsViewModel.selectedMeetingAudioCount,
             isMeetingContext: true,
             areAllLoadedSelected: viewModel.recentMeetingsViewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.recentMeetingsViewModel.isBulkOperationInProgress,
             onSelectLoaded: { viewModel.recentMeetingsViewModel.selectLoadedVisibleTranscriptions() },
             onClear: { viewModel.recentMeetingsViewModel.clearSelection() },
             onCancel: { viewModel.recentMeetingsViewModel.exitBulkSelection() },
@@ -736,17 +741,13 @@ struct MeetingsView: View {
 
     private func handleRecentMeetingsSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
         let recentVM = viewModel.recentMeetingsViewModel
-        guard recentVM.isBulkSelectionModeEnabled else { return .ignored }
-        if press.key == .escape {
-            recentVM.exitBulkSelection()
-            return .handled
-        }
+        guard recentVM.isBulkSelectionModeEnabled, !recentVM.isBulkOperationInProgress else { return .ignored }
         if press.key == .delete || press.key == .deleteForward {
             guard recentVM.hasSelectedTranscriptions else { return .ignored }
             recentVM.requestDeleteSelectedItems()
             return .handled
         }
-        if press.key == "a", press.modifiers.contains(.command) {
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
             recentVM.selectLoadedVisibleTranscriptions()
             return .handled
         }

@@ -5,6 +5,7 @@ struct BulkTranscriptionSelectionBar: View {
     let selectedMeetingAudioCount: Int
     let isMeetingContext: Bool
     let areAllLoadedSelected: Bool
+    let isPerformingOperation: Bool
     let onSelectLoaded: () -> Void
     let onClear: () -> Void
     let onCancel: () -> Void
@@ -36,7 +37,7 @@ struct BulkTranscriptionSelectionBar: View {
         .background(DesignSystem.Colors.surfaceElevated)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(selectedCount) selected")
+        .accessibilityLabel(isPerformingOperation ? "Deleting selected items" : "\(selectedCount) selected")
     }
 
     private var horizontalBar: some View {
@@ -62,11 +63,16 @@ struct BulkTranscriptionSelectionBar: View {
 
     private var selectionSummary: some View {
         HStack(spacing: 7) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.accent)
+            if isPerformingOperation {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+            }
 
-            Text("\(selectedCount) selected")
+            Text(isPerformingOperation ? "Deleting..." : "\(selectedCount) selected")
                 .font(DesignSystem.Typography.bodySmall.weight(.medium))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
         }
@@ -78,13 +84,14 @@ struct BulkTranscriptionSelectionBar: View {
             Button("Cancel", action: onCancel)
                 .parakeetAction(.subtle)
                 .keyboardShortcut(.escape, modifiers: [])
+                .disabled(isPerformingOperation)
 
             Button {
                 onSelectLoaded()
             } label: {
                 Label("Select Loaded", systemImage: "checkmark.circle")
             }
-            .disabled(areAllLoadedSelected)
+            .disabled(areAllLoadedSelected || isPerformingOperation)
             .parakeetAction(.secondary)
 
             Button {
@@ -92,7 +99,7 @@ struct BulkTranscriptionSelectionBar: View {
             } label: {
                 Label("Clear", systemImage: "xmark.circle")
             }
-            .disabled(selectedCount == 0)
+            .disabled(selectedCount == 0 || isPerformingOperation)
             .parakeetAction(.secondary)
         }
     }
@@ -105,7 +112,7 @@ struct BulkTranscriptionSelectionBar: View {
                 } label: {
                     Label(deleteAudioTitle, systemImage: "waveform.slash")
                 }
-                .disabled(selectedMeetingAudioCount == 0)
+                .disabled(selectedMeetingAudioCount == 0 || isPerformingOperation)
                 .parakeetAction(.destructive)
             }
 
@@ -114,7 +121,7 @@ struct BulkTranscriptionSelectionBar: View {
             } label: {
                 Label(deleteItemsTitle, systemImage: "trash")
             }
-            .disabled(selectedCount == 0)
+            .disabled(selectedCount == 0 || isPerformingOperation)
             .parakeetAction(.destructive)
         }
     }

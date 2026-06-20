@@ -411,6 +411,7 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: first.id))
         XCTAssertNil(try repo.fetch(id: second.id))
         XCTAssertTrue(vm.transcriptions.isEmpty)
+        XCTAssertFalse(vm.isBulkOperationInProgress)
         XCTAssertFalse(vm.isBulkSelectionModeEnabled)
         XCTAssertTrue(vm.selectedTranscriptionIDs.isEmpty)
     }
@@ -449,12 +450,13 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: good.id))
         XCTAssertNotNil(try repo.fetch(id: failing.id))
         XCTAssertEqual(vm.transcriptions.map(\.id), [failing.id])
+        XCTAssertFalse(vm.isBulkOperationInProgress)
         XCTAssertTrue(vm.isBulkSelectionModeEnabled)
         XCTAssertEqual(vm.selectedTranscriptionIDs, [failing.id])
         XCTAssertNotNil(vm.errorMessage)
     }
 
-    func testBulkDeleteFailureDoesNotOverwriteNewSelectionAfterSuspension() async throws {
+    func testBulkDeleteKeepsSelectionModeAndIgnoresSelectionChangesWhileInProgress() async throws {
         let failing = Transcription(fileName: "failing.mp3", status: .completed, sourceType: .file)
         let newSelection = Transcription(fileName: "new.mp3", status: .completed, sourceType: .file)
         let deleteGate = DeleteGate()
@@ -478,13 +480,21 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
             deleteGate.waitForDeleteStarted()
         }.value
 
+        XCTAssertTrue(blockingVM.isBulkOperationInProgress)
+        XCTAssertTrue(blockingVM.isBulkSelectionModeEnabled)
+        XCTAssertEqual(blockingVM.selectedTranscriptionIDs, [failing.id])
+
         blockingVM.beginBulkSelection(startingWith: newSelection)
+        blockingVM.toggleSelection(for: newSelection)
+        XCTAssertEqual(blockingVM.selectedTranscriptionIDs, [failing.id])
+
         deleteGate.allowFinish()
         let result = await operation.value
 
         XCTAssertEqual(result, BulkOperationResult(succeeded: 0, failed: 1))
+        XCTAssertFalse(blockingVM.isBulkOperationInProgress)
         XCTAssertTrue(blockingVM.isBulkSelectionModeEnabled)
-        XCTAssertEqual(blockingVM.selectedTranscriptionIDs, [newSelection.id])
+        XCTAssertEqual(blockingVM.selectedTranscriptionIDs, [failing.id])
         XCTAssertNotNil(blockingVM.errorMessage)
     }
 
@@ -527,6 +537,9 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         let result = await vm.confirmPendingBulkOperation()
 
         XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0, skipped: 2))
+        XCTAssertFalse(vm.isBulkOperationInProgress)
+        XCTAssertFalse(vm.isBulkSelectionModeEnabled)
+        XCTAssertTrue(vm.selectedTranscriptionIDs.isEmpty)
         XCTAssertNil(try repo.fetch(id: meeting.id)?.filePath)
         XCTAssertNotNil(try repo.fetch(id: meetingWithoutAudio.id))
         XCTAssertNotNil(try repo.fetch(id: local.id))

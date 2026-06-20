@@ -77,7 +77,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(removed)
     }
 
-    func testDetachMeetingAudioPreservesAudioWhenRepositoryUpdateFails() throws {
+    func testDetachMeetingAudioRemovesAudioBeforeRepositoryUpdate() throws {
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
@@ -99,6 +99,33 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
             for: transcription,
             repository: repo
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+    }
+
+    func testDetachMeetingAudioKeepsFilePathWhenFileRemovalFails() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+
+        XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo,
+            fileManager: ThrowingRemoveFileManager(failingURLs: [mixedURL])
         ))
         XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
@@ -225,4 +252,20 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: currentDirectory.path))
     }
 
+}
+
+private final class ThrowingRemoveFileManager: FileManager {
+    private let failingPaths: Set<String>
+
+    init(failingURLs: [URL]) {
+        failingPaths = Set(failingURLs.map { $0.standardizedFileURL.path })
+        super.init()
+    }
+
+    override func removeItem(at url: URL) throws {
+        if failingPaths.contains(url.standardizedFileURL.path) {
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        try super.removeItem(at: url)
+    }
 }
