@@ -166,7 +166,11 @@ final class HistoryCommandTests: XCTestCase {
             .appendingPathComponent("macparakeet-cli-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let systemAudioURL = folder.appendingPathComponent("system.m4a")
+        let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: systemAudioURL.path, contents: Data("system".utf8)))
+        try "notes".write(to: notesURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let transcription = Transcription(
@@ -188,7 +192,10 @@ final class HistoryCommandTests: XCTestCase {
 
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
         XCTAssertNil(fetched.filePath)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: systemAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         XCTAssertTrue(output.contains("Detached managed meeting audio"))
     }
 

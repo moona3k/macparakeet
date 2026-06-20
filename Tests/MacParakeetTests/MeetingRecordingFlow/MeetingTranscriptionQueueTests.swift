@@ -286,7 +286,6 @@ private actor QueueRecordingServiceSpy: MeetingRecordingServiceProtocol {
         finishedAttemptSessionIDs.append(recording.sessionID)
     }
 
-    func discardStoppedRecording(_ recording: MeetingRecordingOutput) async {}
     func cancelRecording() async {}
     func pauseRecording() async {}
     func resumeRecording() async {}

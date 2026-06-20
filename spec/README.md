@@ -199,6 +199,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Transcription library view with thumbnail grid
 - [x] Library filter bar (All/YouTube/Local/Favorites)
 - [x] Library search and sort
+- [x] Library multi-select cleanup with loaded-row selection and contextual delete confirmations
 
 #### Prompt Library & Multi-Summary
 
@@ -229,6 +230,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Screen Recording permission handling (required, no mic-only fallback)
 - [x] Batch transcription after recording stops (local STT using the pinned engine)
 - [x] Meeting recordings get prompt library, multi-summary, chat, and export automatically
+- [x] Meeting cleanup supports full deletion or stored-audio-only removal from Library and Meetings
 - [x] Live transcript preview (chunked transcription during recording)
 - [x] VAD-guided speech-boundary live-preview chunking with fixed 5s / 1s fallback (flag-on release candidate on `main`; final post-stop transcript unchanged)
 - [x] Joined mic/system frame pairing with raw meeting mic capture by default

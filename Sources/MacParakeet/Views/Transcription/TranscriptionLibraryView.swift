@@ -15,6 +15,7 @@ struct TranscriptionLibraryView: View {
     @State private var pendingDelete: Transcription?
     @State private var pendingDeleteAudio: Transcription?
     @State private var audioSaveErrorMessage: String?
+    @FocusState private var selectionKeyboardFocused: Bool
 
     private var visibleLibraryFilters: [LibraryFilter] {
         LibraryFilter.allCases.filter { filter in
@@ -31,6 +32,12 @@ struct TranscriptionLibraryView: View {
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
+
+                if showsSelectManyButton {
+                    LibrarySelectManyButton {
+                        viewModel.beginBulkSelection()
+                    }
+                }
 
                 if let primaryActionTitle, let onPrimaryAction {
                     LibraryPrimaryActionButton(title: primaryActionTitle, action: onPrimaryAction)
@@ -64,6 +71,11 @@ struct TranscriptionLibraryView: View {
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
+            if viewModel.isBulkSelectionModeEnabled {
+                selectionActionsBar
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             // Content — date-grouped list for meetings, thumbnail grid otherwise.
             // Reason: meetings have no thumbnail-worthy visual asset, so a list with
             // preview text + speaker count is denser and more useful than a wall of
@@ -79,11 +91,22 @@ struct TranscriptionLibraryView: View {
             }
         }
         .searchable(text: $viewModel.searchText, prompt: "Search transcriptions")
+        .focusable(viewModel.isBulkSelectionModeEnabled)
+        .focused($selectionKeyboardFocused)
+        .onChange(of: viewModel.isBulkSelectionModeEnabled) { _, enabled in
+            if enabled {
+                selectionKeyboardFocused = true
+            }
+        }
+        .animation(.easeInOut(duration: 0.16), value: viewModel.isBulkSelectionModeEnabled)
+        .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
+            handleSelectionKeyPress(press)
+        }
         .onAppear {
             viewModel.loadTranscriptions()
         }
         .alert(
-            "Delete Transcription?",
+            pendingDelete.map(singleDeleteTitle) ?? "Delete Transcription?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
@@ -92,7 +115,7 @@ struct TranscriptionLibraryView: View {
             Button("Cancel", role: .cancel) {
                 pendingDelete = nil
             }
-            Button("Delete", role: .destructive) {
+            Button(pendingDelete.map(singleDeleteConfirmTitle) ?? "Delete", role: .destructive) {
                 if let transcription = pendingDelete {
                     viewModel.deleteTranscription(transcription)
                     pendingDelete = nil
@@ -100,7 +123,7 @@ struct TranscriptionLibraryView: View {
             }
         } message: {
             if let pending = pendingDelete {
-                Text("\"\(pending.fileName)\" will be permanently deleted.")
+                Text(singleDeleteMessage(for: pending))
             }
         }
         .alert(
@@ -111,13 +134,33 @@ struct TranscriptionLibraryView: View {
             )
         ) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete Audio", role: .destructive) {
+            Button("Delete Audio Only", role: .destructive) {
                 if let transcription = pendingDeleteAudio {
                     viewModel.deleteMeetingAudio(transcription)
                 }
             }
         } message: {
-            Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
+            Text("The transcript, notes, AI results, and chats stay in Library if they exist. Playback and retranscription will be unavailable unless you saved a copy.")
+        }
+        .alert(
+            bulkOperationTitle,
+            isPresented: Binding(
+                get: { viewModel.pendingBulkOperation != nil },
+                set: { if !$0 { viewModel.cancelPendingBulkOperation() } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                viewModel.cancelPendingBulkOperation()
+            }
+            Button(bulkOperationConfirmTitle, role: .destructive) {
+                Task {
+                    await viewModel.confirmPendingBulkOperation()
+                }
+            }
+        } message: {
+            if let operation = viewModel.pendingBulkOperation {
+                Text(bulkOperationMessage(for: operation))
+            }
         }
         .alert(
             "Save Failed",
@@ -142,8 +185,20 @@ struct TranscriptionLibraryView: View {
                     spacing: DesignSystem.Spacing.md
                 ) {
                     ForEach(viewModel.filteredTranscriptions) { transcription in
-                        TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
-                            onSelect(transcription)
+                        TranscriptionThumbnailCard(
+                            transcription: transcription,
+                            searchText: viewModel.searchText,
+                            isSelected: viewModel.isTranscriptionSelected(transcription),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled
+                        ) {
+                            if viewModel.isBulkOperationInProgress {
+                                return
+                            }
+                            if viewModel.isBulkSelectionModeEnabled {
+                                viewModel.toggleSelection(for: transcription)
+                            } else {
+                                onSelect(transcription)
+                            }
                         } menuContent: {
                             libraryMenuItems(for: transcription)
                         }
@@ -168,7 +223,18 @@ struct TranscriptionLibraryView: View {
                         MeetingRowCard(
                             transcription: transcription,
                             searchText: viewModel.searchText,
-                            onTap: { onSelect(transcription) },
+                            isSelected: viewModel.isTranscriptionSelected(transcription),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            onTap: {
+                                if viewModel.isBulkOperationInProgress {
+                                    return
+                                }
+                                if viewModel.isBulkSelectionModeEnabled {
+                                    viewModel.toggleSelection(for: transcription)
+                                } else {
+                                    onSelect(transcription)
+                                }
+                            },
                             menuContent: { libraryMenuItems(for: transcription) }
                         )
                         if idx < section.items.count - 1 {
@@ -190,6 +256,14 @@ struct TranscriptionLibraryView: View {
             onSelect(transcription)
         } label: {
             Label("Open", systemImage: "doc.text")
+        }
+
+        if !viewModel.isBulkSelectionModeEnabled {
+            Button {
+                viewModel.beginBulkSelection(startingWith: transcription)
+            } label: {
+                Label("Select Many...", systemImage: "checklist")
+            }
         }
 
         if transcription.sourceType == .meeting {
@@ -220,11 +294,11 @@ struct TranscriptionLibraryView: View {
             Button(role: .destructive) {
                 pendingDeleteAudio = transcription
             } label: {
-                Label("Delete Audio", systemImage: "waveform.slash")
+                Label("Delete Audio Only", systemImage: "waveform.slash")
             }
             .disabled(!audioAvailable)
             .help(audioAvailable
-                  ? "Delete the stored meeting audio while keeping the transcript"
+                  ? "Delete the stored meeting audio while keeping the transcript and notes"
                   : "Audio file is not available yet")
         }
 
@@ -244,8 +318,27 @@ struct TranscriptionLibraryView: View {
         Button(role: .destructive) {
             pendingDelete = transcription
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label(transcription.sourceType == .meeting ? "Delete Meeting" : "Delete", systemImage: "trash")
         }
+    }
+
+    private var selectionActionsBar: some View {
+        BulkTranscriptionSelectionBar(
+            selectedCount: viewModel.selectedTranscriptionCount,
+            selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
+            isMeetingContext: isMeetingListMode,
+            areAllLoadedSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.isBulkOperationInProgress,
+            onSelectLoaded: { viewModel.selectLoadedVisibleTranscriptions() },
+            onClear: { viewModel.clearSelection() },
+            onCancel: { viewModel.exitBulkSelection() },
+            onDeleteAudioOnly: { viewModel.requestDeleteSelectedMeetingAudio() },
+            onDeleteItems: { viewModel.requestDeleteSelectedItems() }
+        )
+    }
+
+    private var showsSelectManyButton: Bool {
+        !viewModel.isBulkSelectionModeEnabled && !viewModel.filteredTranscriptions.isEmpty
     }
 
     private func saveMeetingAudio(_ transcription: Transcription) {
@@ -325,6 +418,76 @@ struct TranscriptionLibraryView: View {
 
     private var isMeetingListMode: Bool {
         viewModel.scope == .meetings || viewModel.filter == .meeting
+    }
+
+    private var bulkOperationTitle: String {
+        guard let operation = viewModel.pendingBulkOperation else { return "Delete Items?" }
+        if operation.isDeleteAudioOnly {
+            return "Delete Meeting Audio?"
+        }
+        if operation.meetingCount == operation.targetCount, operation.targetCount == 1 {
+            return "Delete Meeting?"
+        }
+        if operation.meetingCount == operation.targetCount {
+            return "Delete Meetings?"
+        }
+        return "Delete Items?"
+    }
+
+    private var bulkOperationConfirmTitle: String {
+        guard let operation = viewModel.pendingBulkOperation else { return "Delete" }
+        if operation.isDeleteAudioOnly {
+            return "Delete Audio Only"
+        }
+        if operation.meetingCount == operation.targetCount {
+            return operation.targetCount == 1 ? "Delete Meeting" : "Delete Meetings"
+        }
+        return "Delete Items"
+    }
+
+    private func bulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
+        if operation.isDeleteAudioOnly {
+            var message = "Delete audio for \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? Transcripts, notes, AI results, and chats stay in Library if they exist. Playback and retranscription will be unavailable unless you saved a copy."
+            if operation.skippedCount > 0 {
+                message += " \(operation.skippedCount) selected \(operation.skippedCount == 1 ? "item will be skipped" : "items will be skipped")."
+            }
+            return message
+        }
+
+        if operation.meetingCount > 0 {
+            return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items"), including \(operation.meetingCount) \(operation.meetingCount == 1 ? "meeting" : "meetings")? This permanently removes the selected rows, transcripts, stored audio, and any notes, AI results, or chats for those meetings. Original local source files are not removed."
+        }
+
+        return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
+    }
+
+    private func singleDeleteTitle(for transcription: Transcription) -> String {
+        transcription.sourceType == .meeting ? "Delete Meeting?" : "Delete Transcription?"
+    }
+
+    private func singleDeleteConfirmTitle(for transcription: Transcription) -> String {
+        transcription.sourceType == .meeting ? "Delete Meeting" : "Delete"
+    }
+
+    private func singleDeleteMessage(for transcription: Transcription) -> String {
+        if transcription.sourceType == .meeting {
+            return "This permanently removes \"\(transcription.fileName)\", its transcript, stored audio, and any notes, AI results, or chats for this meeting."
+        }
+        return "\"\(transcription.fileName)\" will be permanently deleted. Original local source files are not removed."
+    }
+
+    private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
+        guard viewModel.isBulkSelectionModeEnabled, !viewModel.isBulkOperationInProgress else { return .ignored }
+        if press.key == .delete || press.key == .deleteForward {
+            guard viewModel.hasSelectedTranscriptions else { return .ignored }
+            viewModel.requestDeleteSelectedItems()
+            return .handled
+        }
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
+            viewModel.selectLoadedVisibleTranscriptions()
+            return .handled
+        }
+        return .ignored
     }
 
     private var emptyStateIcon: String {
@@ -430,5 +593,19 @@ private struct LibraryPrimaryActionButton: View {
         }
         .accessibilityLabel(title)
         .accessibilityHint("Starts a new transcription")
+    }
+}
+
+private struct LibrarySelectManyButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Select Many", systemImage: "checklist")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+        }
+        .parakeetAction(.secondary)
+        .help("Select multiple visible Library items")
+        .accessibilityHint("Shows selection controls for bulk cleanup")
     }
 }

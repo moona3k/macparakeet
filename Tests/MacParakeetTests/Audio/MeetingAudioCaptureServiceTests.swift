@@ -215,6 +215,48 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTFail("Timed out waiting for system-only capture events")
     }
 
+    func testMicrophoneOnlyModeStartsMicrophoneWithoutSystemCapture() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemFactoryCallCount = FactoryInvocationBox()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: {
+                systemFactoryCallCount.increment()
+                throw MeetingAudioError.unsupportedPlatform
+            },
+            sourceModeProvider: { .microphoneOnly }
+        )
+
+        let capturedEvents = CapturedMeetingCaptureEvents()
+        let report = try await service.start { event in
+            Task {
+                await capturedEvents.append(event)
+            }
+        }
+        defer { Task { await service.stop() } }
+
+        XCTAssertEqual(report.sourceMode, .microphoneOnly)
+        XCTAssertTrue(report.microphoneStarted)
+        XCTAssertEqual(microphone.requestedModes, [.raw])
+        XCTAssertEqual(systemFactoryCallCount.get(), 0)
+
+        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
+            sampleRate: 48_000,
+            samples: [0.25, 0.25, 0.25, 0.25]
+        ))
+        microphone.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+
+        for _ in 0..<20 {
+            let events = await capturedEvents.values()
+            if events.microphoneBufferCount == 1 {
+                XCTAssertEqual(events.systemBufferCount, 0)
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out waiting for microphone-only capture events")
+    }
+
     func testMicHealthTelemetryReportsMissingMicOnce() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()

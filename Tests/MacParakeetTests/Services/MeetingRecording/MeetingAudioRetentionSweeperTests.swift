@@ -39,7 +39,11 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         XCTAssertEqual(result.eligibleCount, 1)
         XCTAssertEqual(result.detachedCount, 1)
         XCTAssertEqual(result.skippedLockedCount, 2)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: eligible.folderURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: eligible.folderURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: eligible.audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: MeetingRecordingMetadataStore.metadataURL(for: eligible.folderURL).path
+        ))
         XCTAssertNil(try repo.fetch(id: eligible.transcription.id)?.filePath)
         XCTAssertNotNil(try repo.fetch(id: eligible.transcription.id))
         XCTAssertTrue(FileManager.default.fileExists(atPath: lockedRecording.folderURL.path))
@@ -98,9 +102,11 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         XCTAssertEqual(result.detachedCount, 1)
         for locked in [zeroByte, corrupt, futureSchema] {
             XCTAssertTrue(FileManager.default.fileExists(atPath: locked.folderURL.path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: locked.audioURL.path))
             XCTAssertEqual(try repo.fetch(id: locked.transcription.id)?.filePath, locked.audioURL.path)
         }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: eligible.folderURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: eligible.folderURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: eligible.audioURL.path))
         XCTAssertNil(try repo.fetch(id: eligible.transcription.id)?.filePath)
     }
 

@@ -169,15 +169,43 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                               → background source-file STT + aligned merge
 ```
 
-- **System audio** is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`), which avoids owning or clocking a HAL aggregate output device.
-- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` with a typed policy (`MeetingMicProcessingMode`): `raw` (default), `vpioPreferred`, or `vpioRequired`.
-- MacParakeet ships meeting capture with raw mic capture and ScreenCaptureKit for system audio. VPIO remains available for explicit experiments, but it is not the shipped default because live-call testing showed that engaging it can muffle the user's outgoing mic in Zoom/Meet. The older Core Audio process-tap path also remains out of production because it does not reliably coexist with VPIO in-process. See `docs/research/vpio-process-tap-conflict.md`.
-- Both streams are captured within the same meeting session and aligned by host time. `CaptureOrchestrator` owns join + offset + live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source `MeetingLiveAudioChunking` strategies.
+- **Source mode** is user-configurable per recording start: microphone +
+  system audio (default), microphone only, or system audio only. The selected
+  mode controls both permission prompts and which capture streams are started.
+- **System audio** is captured via ScreenCaptureKit `SCStream` audio
+  (`SCStreamConfiguration.capturesAudio = true`) only when the source mode
+  includes system audio, which avoids owning or clocking a HAL aggregate output
+  device.
+- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` only
+  when the source mode includes microphone audio, with a typed policy
+  (`MeetingMicProcessingMode`): `raw` (default), `vpioPreferred`, or
+  `vpioRequired`.
+- MacParakeet ships meeting capture with raw mic capture and ScreenCaptureKit
+  for system audio when both sources are selected. VPIO remains available for
+  explicit experiments, but it is not the shipped default because live-call
+  testing showed that engaging it can muffle the user's outgoing mic in
+  Zoom/Meet. The older Core Audio process-tap path also remains out of
+  production because it does not reliably coexist with VPIO in-process. See
+  `docs/research/vpio-process-tap-conflict.md`.
+- When both streams are selected, they are captured within the same meeting
+  session and aligned by host time. `CaptureOrchestrator` owns join + offset +
+  live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source
+  `MeetingLiveAudioChunking` strategies. Single-source sessions skip the
+  unselected stream and produce a mono `meeting.m4a`.
 - Mic conditioning is pass-through. Raw capture applies no capture-time AEC/noise suppression/AGC; transcript-layer system-dominance suppression remains the default guard against obvious speaker bleed. When VPIO is explicitly requested and engages, macOS applies AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
-- After recording stops, microphone + system M4As are finalized and merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery lock is then rewritten to `awaitingTranscription`, and a processing Library row is saved before the recorder returns to idle.
-- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue transcribes `microphone.m4a` and `system.m4a` separately with the engine captured at recording start, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
+- After recording stops, the captured source M4As are finalized and merged into
+  `meeting.m4a`. Dual-input sessions preserve source separation as stereo
+  (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery
+  lock is then rewritten to `awaitingTranscription`, and a processing Library
+  row is saved before the recorder returns to idle.
+- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue
+  transcribes the captured source files separately with the engine captured at
+  recording start, then merges those fresh results by persisted
+  `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export
+  artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md`
+  for the full pipeline and tradeoffs.
 - Recovery locks and retention safety are a tested boundary contract. See [`spec/contracts/meeting-recovery-retention.md`](contracts/meeting-recovery-retention.md) before changing lock-file predicates or automatic meeting-audio deletion.
 - Live chunk enqueue keeps a conservative guard: when recent system energy strongly dominates processed mic energy for a short freshness window, mic chunks are skipped for live transcription only. Mic audio is still written to disk and included in final mix/output.
 - Joiner queue overflow, long-session sync lag, and runtime capture failures are emitted as diagnostics for observability (`MeetingAudioCaptureEvent.error` where available).
@@ -203,25 +231,25 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 
 ```text
 User clicks "Start Meeting Recording"
-    → Check Screen Recording permission (CGPreflightScreenCaptureAccess)
-    → If denied: show error + "Open System Settings" button, block recording
+    → Resolve source mode
+    → Check microphone permission only when the mode includes mic audio
+    → Check Screen & System Audio Recording permission only when the mode includes system audio
+    → If a required permission is denied: show error + "Open System Settings" button, block recording
     → Acquire speech-engine lease from STTScheduler and capture current engine/language
-    → Start MeetingAudioCaptureService (both streams)
+    → Start MeetingAudioCaptureService with the selected source mode
     → Show recording pill (red dot + elapsed timer + stop button)
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
       and keep `recording.lock` current with session state/notes/speech engine
     → User clicks Stop
-    → Stop capture, finalize `microphone.m4a` + `system.m4a`
+    → Stop capture and finalize the captured source file(s)
     → Persist `meeting-recording-metadata.json` with source alignment and speech engine
     → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
     → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting.m4a`
     → Enqueue background finalization and return recorder to idle
     → User may immediately start the next meeting recording
-    → Background queue converts `microphone.m4a` → 16kHz mono WAV via FFmpeg
-    → Send mic WAV to captured local STT engine
-    → Background queue converts `system.m4a` → 16kHz mono WAV via FFmpeg
-    → Send system WAV to captured local STT engine
+    → Background queue converts each captured source M4A → 16kHz mono WAV via FFmpeg
+    → Send each source WAV to the captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
     → Optionally refine the isolated system side with diarization
     → Update the existing Transcription row and delete `recording.lock`
@@ -243,8 +271,8 @@ the stopped meeting waits for that job to finish; once the slot is free,
 
 ```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
-    ├── microphone.m4a    # Mic audio (AAC, 48kHz mono)
-    ├── system.m4a        # System audio (AAC, 48kHz mono)
+    ├── microphone.m4a    # Mic audio when captured (AAC, 48kHz mono)
+    ├── system.m4a        # System audio when captured (AAC, 48kHz mono)
     ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
     ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine for post-stop merge
     ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine
@@ -330,9 +358,9 @@ alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 
 | Permission | Why | When Requested | Fallback |
 |------------|-----|----------------|----------|
-| Microphone | Dictation recording | Onboarding or first dictation attempt | Show permission dialog with instructions |
+| Microphone | Dictation recording and meeting modes that include mic audio | Onboarding, first dictation attempt, or first mic-capturing meeting attempt | Show permission dialog with instructions |
 | Accessibility | Global shortcut detection + text insertion | Onboarding or first dictation attempt | Show System Settings deep link |
-| Screen & System Audio Recording | Meeting recording (system audio capture via ScreenCaptureKit) | Optional onboarding step or first meeting recording attempt | Show error + "Open System Settings" button, block recording |
+| Screen & System Audio Recording | Meeting modes that include system audio capture via ScreenCaptureKit | Optional onboarding step or first system-audio meeting attempt | Show error + "Open System Settings" button, block recording |
 
 ### Permission Flow
 

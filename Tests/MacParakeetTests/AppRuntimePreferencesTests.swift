@@ -130,6 +130,46 @@ final class AppRuntimePreferencesTests: XCTestCase {
         )
     }
 
+    func testMeetingAudioSourceModeDefaultsToMicrophoneAndSystemAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
+
+        defaults.set(
+            MeetingAudioSourceMode.microphoneOnly.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
+        )
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneOnly)
+
+        defaults.set("not-a-source-mode", forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey)
+
+        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
+    }
+
+    func testMeetingAudioSourceModeCaptureBooleansAndConfigurationParsing() {
+        XCTAssertTrue(MeetingAudioSourceMode.microphoneAndSystem.capturesMicrophone)
+        XCTAssertTrue(MeetingAudioSourceMode.microphoneAndSystem.capturesSystemAudio)
+        XCTAssertTrue(MeetingAudioSourceMode.microphoneOnly.capturesMicrophone)
+        XCTAssertFalse(MeetingAudioSourceMode.microphoneOnly.capturesSystemAudio)
+        XCTAssertFalse(MeetingAudioSourceMode.systemOnly.capturesMicrophone)
+        XCTAssertTrue(MeetingAudioSourceMode.systemOnly.capturesSystemAudio)
+
+        XCTAssertEqual(
+            MeetingAudioSourceMode.parseConfigurationValue("microphone-and-system"),
+            .microphoneAndSystem
+        )
+        XCTAssertEqual(
+            MeetingAudioSourceMode.parseConfigurationValue("Microphone + system audio"),
+            .microphoneAndSystem
+        )
+        XCTAssertEqual(MeetingAudioSourceMode.parseConfigurationValue("mic"), .microphoneOnly)
+        XCTAssertEqual(MeetingAudioSourceMode.parseConfigurationValue("computer audio"), .systemOnly)
+        XCTAssertNil(MeetingAudioSourceMode.parseConfigurationValue("echo-cancelled"))
+    }
+
     func testDictationInsertionStyleDefaultsToSentenceAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

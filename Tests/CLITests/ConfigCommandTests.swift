@@ -38,6 +38,7 @@ final class ConfigCommandTests: XCTestCase {
             "auto-meeting-titles",
             "save-transcription-audio",
             "meeting-audio-retention",
+            "meeting-audio-source",
             "save-meeting-audio",
             "youtube-audio-quality",
             "meeting-artifacts-folder",
@@ -74,6 +75,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-retention", defaults: defaults), "keep-forever")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-source", defaults: defaults), "microphone-and-system")
         XCTAssertEqual(try ConfigCommand.read(key: "save-meeting-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), AppPaths.defaultMeetingRecordingsDir)
@@ -85,6 +87,11 @@ final class ConfigCommandTests: XCTestCase {
     func testReadCanonicalizesUnderscoreKeys() throws {
         defaults.set(YouTubeAudioQuality.bestAvailable.rawValue, forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
         XCTAssertEqual(try ConfigCommand.read(key: "youtube_audio_quality", defaults: defaults), "best-available")
+        defaults.set(
+            MeetingAudioSourceMode.microphoneOnly.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
+        )
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting_audio_source", defaults: defaults), "microphone-only")
     }
 
     func testCanonicalKeyNormalizesUnderscoreAliases() throws {
@@ -153,6 +160,15 @@ final class ConfigCommandTests: XCTestCase {
         )
         XCTAssertEqual(try ConfigCommand.read(key: "save-meeting-audio", defaults: defaults), "on")
 
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "microphone-only", defaults: defaults),
+            "microphone-only"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
+            MeetingAudioSourceMode.microphoneOnly.rawValue
+        )
+
         XCTAssertEqual(try ConfigCommand.write(key: "save-meeting-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, false)
         XCTAssertEqual(
@@ -179,6 +195,10 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(
             try ConfigCommand.write(key: "meeting_audio_retention", value: "30d", defaults: defaults),
             "delete-after-30-days"
+        )
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting_audio_source", value: "system-only", defaults: defaults),
+            "system-only"
         )
     }
 
@@ -220,6 +240,45 @@ final class ConfigCommandTests: XCTestCase {
 
         XCTAssertThrowsError(
             try ConfigCommand.write(key: "meeting-audio-retention", value: "delete-after-366-days", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+    }
+
+    func testMeetingAudioSourceAcceptsAliasesAndRejectsUnknownValues() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "both", defaults: defaults),
+            "microphone-and-system"
+        )
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "Microphone + system audio", defaults: defaults),
+            "microphone-and-system"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
+            MeetingAudioSourceMode.microphoneAndSystem.rawValue
+        )
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "mic", defaults: defaults),
+            "microphone-only"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
+            MeetingAudioSourceMode.microphoneOnly.rawValue
+        )
+
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "computer-audio", defaults: defaults),
+            "system-only"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
+            MeetingAudioSourceMode.systemOnly.rawValue
+        )
+
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "echo-cancelled", defaults: defaults)
         ) { error in
             XCTAssertTrue(error is ValidationError)
         }

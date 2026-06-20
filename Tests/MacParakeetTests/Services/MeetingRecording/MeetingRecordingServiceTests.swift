@@ -378,77 +378,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(activeLeaseCountAfterSecondCancel, 0)
     }
 
-    func testDiscardStoppedRecordingDoesNotReleaseActiveNextRecordingLease() async throws {
-        let captureService = MockMeetingAudioCaptureService()
-        let lockStore = RecordingLockFileStore()
-        let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
-        let sttClient = LeasingMeetingSTTClient(selection: speechEngine)
-        let service = MeetingRecordingService(
-            audioCaptureService: captureService,
-            audioConverter: MockMeetingAudioFileConverter(),
-            sttTranscriber: sttClient,
-            lockFileStore: lockStore
-        )
-
-        try await service.startRecording()
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        let firstOutput = try await service.stopRecording()
-
-        try await service.startRecording()
-        let activeLeaseCountAfterSecondStart = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterSecondStart, 1)
-
-        await service.discardStoppedRecording(firstOutput)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: firstOutput.folderURL.path))
-        XCTAssertEqual(lockStore.deletes, [firstOutput.folderURL])
-        let activeLeaseCountAfterDiscard = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterDiscard, 1)
-
-        await service.cancelRecording()
-        let activeLeaseCountAfterSecondCancel = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterSecondCancel, 0)
-    }
-
-    func testDiscardStoppedRecordingDeletesFolderAndLock() async throws {
-        // Delete arm of the stop-transcription flow (issue #487): after an
-        // aborted final transcription, discarding must remove the session
-        // folder + recovery lock so nothing resurrects the recording at next
-        // launch. The engine lease is already released at durable stop.
-        let captureService = MockMeetingAudioCaptureService()
-        let lockStore = RecordingLockFileStore()
-        let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
-        let sttClient = LeasingMeetingSTTClient(selection: speechEngine)
-        let service = MeetingRecordingService(
-            audioCaptureService: captureService,
-            audioConverter: MockMeetingAudioFileConverter(),
-            sttTranscriber: sttClient,
-            lockFileStore: lockStore
-        )
-
-        try await service.startRecording()
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-
-        let output = try await service.stopRecording()
-        defer { try? FileManager.default.removeItem(at: output.folderURL) }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: output.folderURL.path))
-
-        await service.discardStoppedRecording(output)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: output.folderURL.path))
-        XCTAssertEqual(lockStore.deletes, [output.folderURL])
-        let activeLeaseCountAfterDiscard = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterDiscard, 0)
-    }
-
     func testLivePreviewUsesCapturedSpeechEngineSelection() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
@@ -1111,6 +1040,41 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let counts = await sttClient.callCounts
         XCTAssertEqual(counts.microphone, 0)
         XCTAssertGreaterThanOrEqual(counts.system, 1)
+    }
+
+    func testMicrophoneOnlyCaptureProducesMicrophoneSourceOnly() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .microphoneOnly)
+        )
+        let audioConverter = RecordingMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording(sourceMode: .microphoneOnly)
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await waitForMeetingSTTCall(sttClient) { $0.microphone >= 1 }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNotNil(output.sourceAlignment.microphone)
+        XCTAssertNil(output.sourceAlignment.system)
+        XCTAssertEqual(audioConverter.capturedMixedInputs(), [output.microphoneAudioURL])
+
+        let requestedSourceModes = await captureService.requestedSourceModes
+        XCTAssertEqual(requestedSourceModes, [.microphoneOnly])
+        let counts = await sttClient.callCounts
+        XCTAssertGreaterThanOrEqual(counts.microphone, 1)
+        XCTAssertEqual(counts.system, 0)
     }
 
     func testStopRecordingMixesDualSourcesInMicrophoneThenSystemOrder() async throws {

@@ -15,8 +15,10 @@ struct MeetingsView: View {
 
     @State private var audioSaveErrorMessage: String?
     @State private var pendingDeleteAudio: Transcription?
+    @State private var pendingDeleteMeeting: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
+    @FocusState private var recentMeetingsSelectionFocused: Bool
 
     private static let rightRailWidth: CGFloat = 280
     private static let twoColumnMinimumWidth: CGFloat = 1_100
@@ -41,6 +43,17 @@ struct MeetingsView: View {
         }
         .onAppear {
             viewModel.refreshIfNeeded()
+        }
+        .focusable(viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
+        .focused($recentMeetingsSelectionFocused)
+        .onChange(of: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled) { _, enabled in
+            if enabled {
+                recentMeetingsSelectionFocused = true
+            }
+        }
+        .animation(.easeInOut(duration: 0.16), value: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
+        .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
+            handleRecentMeetingsSelectionKeyPress(press)
         }
         .onChange(of: viewModel.settingsViewModel.calendarAutoStartMode) { _, _ in
             viewModel.refreshUpcomingEvents()
@@ -78,13 +91,54 @@ struct MeetingsView: View {
             )
         ) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete Audio", role: .destructive) {
+            Button("Delete Audio Only", role: .destructive) {
                 if let transcription = pendingDeleteAudio {
                     viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
                 }
             }
         } message: {
-            Text("The transcript stays in Meetings. Playback and retranscription will be unavailable unless you saved a copy.")
+            Text("The transcript, notes, AI results, and chats stay in Meetings if they exist. Playback and retranscription will be unavailable unless you saved a copy.")
+        }
+        .alert(
+            "Delete Meeting?",
+            isPresented: Binding(
+                get: { pendingDeleteMeeting != nil },
+                set: { if !$0 { pendingDeleteMeeting = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteMeeting = nil
+            }
+            Button("Delete Meeting", role: .destructive) {
+                if let transcription = pendingDeleteMeeting {
+                    viewModel.recentMeetingsViewModel.deleteTranscription(transcription)
+                    pendingDeleteMeeting = nil
+                }
+            }
+        } message: {
+            if let pendingDeleteMeeting {
+                Text("This permanently removes \"\(pendingDeleteMeeting.fileName)\", its transcript, stored audio, and any notes, AI results, or chats for this meeting.")
+            }
+        }
+        .alert(
+            recentMeetingsBulkOperationTitle,
+            isPresented: Binding(
+                get: { viewModel.recentMeetingsViewModel.pendingBulkOperation != nil },
+                set: { if !$0 { viewModel.recentMeetingsViewModel.cancelPendingBulkOperation() } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                viewModel.recentMeetingsViewModel.cancelPendingBulkOperation()
+            }
+            Button(recentMeetingsBulkOperationConfirmTitle, role: .destructive) {
+                Task {
+                    await viewModel.recentMeetingsViewModel.confirmPendingBulkOperation()
+                }
+            }
+        } message: {
+            if let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation {
+                Text(recentMeetingsBulkOperationMessage(for: operation))
+            }
         }
         .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
             viewModel.quickPromptsViewModel.cancelCreating()
@@ -410,6 +464,12 @@ struct MeetingsView: View {
                     recentMeetingSearchField
                 }
 
+                if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+                    recentMeetingsSelectionBar
+                } else if showsRecentMeetingsSelectManyButton {
+                    recentMeetingsSelectManyRow
+                }
+
                 if viewModel.recentMeetingsViewModel.isLoading
                     && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
                     MeetingsLoadingRow(title: "Loading meetings")
@@ -456,7 +516,18 @@ struct MeetingsView: View {
                     MeetingRowCard(
                         transcription: transcription,
                         searchText: viewModel.recentMeetingsViewModel.searchText,
-                        onTap: { onSelectMeeting(transcription) },
+                        isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
+                        showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
+                        onTap: {
+                            if viewModel.recentMeetingsViewModel.isBulkOperationInProgress {
+                                return
+                            }
+                            if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+                                viewModel.recentMeetingsViewModel.toggleSelection(for: transcription)
+                            } else {
+                                onSelectMeeting(transcription)
+                            }
+                        },
                         menuContent: { recentMeetingMenu(for: transcription) }
                     )
                     if idx < section.items.count - 1 {
@@ -473,6 +544,14 @@ struct MeetingsView: View {
             onSelectMeeting(transcription)
         } label: {
             Label("Open", systemImage: "doc.text")
+        }
+
+        if !viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+            Button {
+                viewModel.recentMeetingsViewModel.beginBulkSelection(startingWith: transcription)
+            } label: {
+                Label("Select Many...", systemImage: "checklist")
+            }
         }
 
         let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
@@ -496,9 +575,49 @@ struct MeetingsView: View {
         Button(role: .destructive) {
             pendingDeleteAudio = transcription
         } label: {
-            Label("Delete Audio", systemImage: "waveform.slash")
+            Label("Delete Audio Only", systemImage: "waveform.slash")
         }
         .disabled(!audioAvailable)
+
+        Divider()
+
+        Button(role: .destructive) {
+            pendingDeleteMeeting = transcription
+        } label: {
+            Label("Delete Meeting", systemImage: "trash")
+        }
+    }
+
+    private var recentMeetingsSelectionBar: some View {
+        BulkTranscriptionSelectionBar(
+            selectedCount: viewModel.recentMeetingsViewModel.selectedTranscriptionCount,
+            selectedMeetingAudioCount: viewModel.recentMeetingsViewModel.selectedMeetingAudioCount,
+            isMeetingContext: true,
+            areAllLoadedSelected: viewModel.recentMeetingsViewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.recentMeetingsViewModel.isBulkOperationInProgress,
+            onSelectLoaded: { viewModel.recentMeetingsViewModel.selectLoadedVisibleTranscriptions() },
+            onClear: { viewModel.recentMeetingsViewModel.clearSelection() },
+            onCancel: { viewModel.recentMeetingsViewModel.exitBulkSelection() },
+            onDeleteAudioOnly: { viewModel.recentMeetingsViewModel.requestDeleteSelectedMeetingAudio() },
+            onDeleteItems: { viewModel.recentMeetingsViewModel.requestDeleteSelectedItems() }
+        )
+    }
+
+    private var recentMeetingsSelectManyRow: some View {
+        HStack {
+            Spacer()
+            Button {
+                viewModel.recentMeetingsViewModel.beginBulkSelection()
+            } label: {
+                Label("Select Many", systemImage: "checklist")
+            }
+            .parakeetAction(.secondary)
+            .help("Select multiple recent meetings")
+            .accessibilityHint("Shows selection controls for bulk cleanup")
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var recentMeetingSearchField: some View {
@@ -588,6 +707,51 @@ struct MeetingsView: View {
         return {
             viewModel.recentMeetingsViewModel.searchText = ""
         }
+    }
+
+    private var showsRecentMeetingsSelectManyButton: Bool {
+        !viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
+    }
+
+    private var recentMeetingsBulkOperationTitle: String {
+        guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
+            return "Delete Meetings?"
+        }
+        return operation.isDeleteAudioOnly ? "Delete Meeting Audio?" : "Delete Meetings?"
+    }
+
+    private var recentMeetingsBulkOperationConfirmTitle: String {
+        guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
+            return "Delete"
+        }
+        return operation.isDeleteAudioOnly ? "Delete Audio Only" : "Delete Meetings"
+    }
+
+    private func recentMeetingsBulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
+        if operation.isDeleteAudioOnly {
+            var message = "Delete audio for \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? Transcripts, notes, AI results, and chats stay in Meetings if they exist. Playback and retranscription will be unavailable unless you saved a copy."
+            if operation.skippedCount > 0 {
+                message += " \(operation.skippedCount) selected \(operation.skippedCount == 1 ? "meeting does" : "meetings do") not have stored audio and will be skipped."
+            }
+            return message
+        }
+
+        return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? This permanently removes the selected rows, transcripts, stored audio, and any notes, AI results, or chats for those meetings."
+    }
+
+    private func handleRecentMeetingsSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
+        let recentVM = viewModel.recentMeetingsViewModel
+        guard recentVM.isBulkSelectionModeEnabled, !recentVM.isBulkOperationInProgress else { return .ignored }
+        if press.key == .delete || press.key == .deleteForward {
+            guard recentVM.hasSelectedTranscriptions else { return .ignored }
+            recentVM.requestDeleteSelectedItems()
+            return .handled
+        }
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
+            recentVM.selectLoadedVisibleTranscriptions()
+            return .handled
+        }
+        return .ignored
     }
 
     private func calendarEmptyDetail(for mode: CalendarAutoStartMode) -> String {

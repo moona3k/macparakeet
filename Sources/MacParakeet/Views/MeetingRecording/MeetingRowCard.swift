@@ -7,6 +7,8 @@ import SwiftUI
 struct MeetingRowCard<MenuContent: View>: View {
     let transcription: Transcription
     var searchText: String = ""
+    var isSelected: Bool = false
+    var showsSelectionControls: Bool = false
     var onTap: () -> Void
     @ViewBuilder var menuContent: () -> MenuContent
 
@@ -15,6 +17,10 @@ struct MeetingRowCard<MenuContent: View>: View {
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    selectionBadge
+                        .padding(.top, 1)
+                }
                 contentColumn
                 trailingColumn
             }
@@ -30,19 +36,49 @@ struct MeetingRowCard<MenuContent: View>: View {
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
         .contextMenu { menuContent() }
         .accessibilityElement(children: .combine)
-        .accessibilityHint(hoverTooltip)
+        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
+        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
     }
 
     // MARK: - Backgrounds
 
     @ViewBuilder
     private var rowBackground: some View {
-        if hovered {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(DesignSystem.Colors.accentLight)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(DesignSystem.Colors.accent.opacity(0.38), lineWidth: 0.8)
+                }
+        } else if hovered {
             RoundedRectangle(cornerRadius: 6)
                 .fill(DesignSystem.Colors.rowHoverBackground)
         } else {
             Color.clear
         }
+    }
+
+    private var selectionBadge: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? DesignSystem.Colors.accent : Color.clear)
+                .frame(width: 18, height: 18)
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary.opacity(0.7),
+                            lineWidth: 1.2
+                        )
+                }
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.onAccent)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     // MARK: - Content

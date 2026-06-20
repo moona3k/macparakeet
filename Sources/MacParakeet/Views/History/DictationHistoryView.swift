@@ -675,7 +675,7 @@ private struct CardMenuButton: View {
         // already in bulk mode (it would be redundant). Named to read as a
         // non-destructive selection gesture, not a delete.
         if showsBulkSelectionEntry {
-            menu.addItem(CallbackMenuItem(title: "Select Multiple…", icon: "checklist", action: onBeginBulkSelection))
+            menu.addItem(CallbackMenuItem(title: "Select Many...", icon: "checklist", action: onBeginBulkSelection))
         }
 
         if !menu.items.isEmpty {

@@ -1168,12 +1168,20 @@ struct TranscriptResultView: View {
                 .parakeetAction(.primaryProminent)
                 .disabled(transcriptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } else {
+                // Editing operates on the plain text transcript only; the Timed
+                // view is derived from word timestamps and has no editable text.
+                // Disable Edit in Timed mode rather than silently dropping the
+                // user into the raw text view when they click it.
                 Button {
                     beginTranscriptEdit()
                 } label: {
                     Label("Edit", systemImage: "pencil")
                 }
                 .parakeetAction(.secondary)
+                .disabled(transcriptDisplayMode != .text)
+                .help(transcriptDisplayMode == .text
+                    ? "Edit the transcript text"
+                    : "Switch to Text to edit. Edits apply to the text transcript; timestamps are preserved.")
             }
         }
     }

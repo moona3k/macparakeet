@@ -154,7 +154,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
 
         let effects = machine.handle(.transcriptionFailed(generation: 1, message: "Boom"))
 
-        XCTAssertEqual(machine.state, .finishing(outcome: .error("Boom")))
+        XCTAssertEqual(machine.state, .finishing(error: "Boom"))
         XCTAssertEqual(
             effects,
             [.showError("Boom"), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
@@ -233,7 +233,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.isEmpty)
     }
 
-    // MARK: - Abort transcription (issue #487)
+    // MARK: - Durable stop boundary
 
     private func makeStoppingMachine() -> MeetingRecordingFlowStateMachine {
         var machine = MeetingRecordingFlowStateMachine()
@@ -244,46 +244,12 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         return machine
     }
 
-    func testAbortTranscriptionWhileDurableStopIsInProgressIsNoOp() {
-        var machine = makeStoppingMachine()
-
-        let effects = machine.handle(.abortTranscriptionRequested(keepAudio: false))
-
-        XCTAssertEqual(machine.state, .stopping)
-        XCTAssertTrue(effects.isEmpty)
-    }
-
-    func testAbortTranscriptionOutsideTranscribingIsNoOp() {
-        // The confirmation dialog can race the transcription finishing — the
-        // abort event must be inert in every non-transcribing state.
-        var idleMachine = MeetingRecordingFlowStateMachine()
-        XCTAssertTrue(idleMachine.handle(.abortTranscriptionRequested(keepAudio: false)).isEmpty)
-        XCTAssertEqual(idleMachine.state, .idle)
-
-        var recordingMachine = MeetingRecordingFlowStateMachine()
-        _ = recordingMachine.handle(.startRequested)
-        _ = recordingMachine.handle(.permissionsGranted(generation: 1))
-        _ = recordingMachine.handle(.recordingStarted(generation: 1))
-        XCTAssertTrue(recordingMachine.handle(.abortTranscriptionRequested(keepAudio: false)).isEmpty)
-        XCTAssertEqual(recordingMachine.state, .recording)
-
-        var finishedMachine = makeStoppingMachine()
-        let transcriptionID = UUID()
-        _ = finishedMachine.handle(.recordingQueued(generation: 1, transcriptionID: transcriptionID))
-        XCTAssertTrue(finishedMachine.handle(.abortTranscriptionRequested(keepAudio: false)).isEmpty)
-        XCTAssertEqual(finishedMachine.state, .idle)
-    }
-
-    func testLateTranscriptionOutcomeAfterRecordingQueuedIsIgnored() {
+    func testLateTranscriptionFailureAfterRecordingQueuedIsIgnored() {
         var machine = makeStoppingMachine()
         _ = machine.handle(.recordingQueued(generation: 1, transcriptionID: UUID()))
 
         let failureEffects = machine.handle(.transcriptionFailed(generation: 1, message: "cancelled"))
         XCTAssertEqual(machine.state, .idle)
         XCTAssertTrue(failureEffects.isEmpty)
-
-        let completionEffects = machine.handle(.transcriptionCompleted(generation: 1, transcriptionID: UUID()))
-        XCTAssertEqual(machine.state, .idle)
-        XCTAssertTrue(completionEffects.isEmpty)
     }
 }
