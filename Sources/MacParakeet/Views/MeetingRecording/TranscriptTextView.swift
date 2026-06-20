@@ -14,6 +14,14 @@ struct TranscriptTextView: NSViewRepresentable {
         Coordinator()
     }
 
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: NSScrollView,
+        context: Context
+    ) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
         let textView = NSTextView()
         textView.isEditable = false
@@ -25,7 +33,14 @@ struct TranscriptTextView: NSViewRepresentable {
         textView.isAutomaticLinkDetectionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
         textView.textContainer?.lineFragmentPadding = 0
+        // Keep widthTracksTextView so the text container re-flows when the
+        // text view width changes. But the default text view frame is zero;
+        // a zero-width container wraps every character to its own line —
+        // text is technically present but invisible. Seed a reasonable
+        // fallback width and let `updateNSView` tighten it to the real
+        // scroll-view width once SwiftUI has assigned the frame.
         textView.textContainer?.widthTracksTextView = true
+        textView.frame = NSRect(x: 0, y: 0, width: 360, height: 0)
 
         let scrollView = NSScrollView()
         scrollView.documentView = textView
@@ -44,6 +59,27 @@ struct TranscriptTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView,
               let storage = textView.textStorage else { return }
+
+        // The NSTextView is the scroll view's document view. SwiftUI assigns
+        // the scroll view a frame during layout, but that width does not
+        // automatically propagate to the document view — the text view stays
+        // at its seed width (or zero). When `widthTracksTextView` is true the
+        // text container width mirrors the text view frame; a zero-width frame
+        // wraps every character and makes text invisible. Sync the text view
+        // width to the actual scroll view content width so lines flow at the
+        // correct width.
+        let availableWidth = scrollView.bounds.width
+        if availableWidth > 0, abs(textView.frame.width - availableWidth) > 1 {
+            textView.frame.size.width = availableWidth
+            // Explicitly invalidate the text container size so the layout
+            // manager re-flows text at the new width on this display cycle.
+            if let container = textView.textContainer {
+                container.containerSize = NSSize(
+                    width: availableWidth,
+                    height: CGFloat.greatestFiniteMagnitude
+                )
+            }
+        }
 
         let coordinator = context.coordinator
         if let firstChangedIndex = firstChangedLineIndex(
