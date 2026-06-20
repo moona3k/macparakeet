@@ -43,9 +43,12 @@ enum MeetingDeletionCopy {
         var message =
             "\(prefix)This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
         if skippedCount > 0 {
-            let skippedWord = skippedCount == 1 ? "meeting" : "meetings"
-            message +=
-                " \(skippedCount) selected \(skippedWord) already have no saved audio, so they will be skipped."
+            if skippedCount == 1 {
+                message += " 1 selected meeting already has no saved audio, so it will be skipped."
+            } else {
+                message +=
+                    " \(skippedCount) selected meetings already have no saved audio, so they will be skipped."
+            }
         }
         return message
     }

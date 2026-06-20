@@ -51,4 +51,16 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertFalse(message.contains("3 selected meetings"))
         XCTAssertTrue(message.contains("removes saved audio from 3 meetings"))
     }
+
+    func testBulkAudioOnlyCopyUsesSingularSkippedGrammar() {
+        let message = MeetingDeletionCopy.bulkAudioOnlyMessage(
+            count: 1,
+            skippedCount: 1,
+            surface: .meetings
+        )
+
+        XCTAssertTrue(message.contains("2 selected meetings"))
+        XCTAssertTrue(message.contains("1 selected meeting already has no saved audio"))
+        XCTAssertTrue(message.contains("it will be skipped"))
+    }
 }
