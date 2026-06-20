@@ -204,6 +204,10 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         // picker (Settings, `models list`).
         XCTAssertTrue(ParakeetModelVariant.allCases.contains(.unified))
         XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
+        XCTAssertEqual(
+            ParakeetModelVariant.unified.coverageSummary,
+            "English only. Excellent accuracy and speed."
+        )
     }
 
     // MARK: - Nemotron model variant

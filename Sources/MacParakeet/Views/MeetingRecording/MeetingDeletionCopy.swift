@@ -33,16 +33,18 @@ enum MeetingDeletionCopy {
         skippedCount: Int,
         surface: Surface
     ) -> String {
+        let selectedCount = count + skippedCount
+        let selectedWord = selectedCount == 1 ? "meeting" : "meetings"
         let meetingWord = count == 1 ? "meeting" : "meetings"
         let meetingSubject = count == 1 ? "The meeting stays" : "The meetings stay"
         let transcriptObject = count == 1 ? "its transcript" : "their transcripts"
         let savedCopy = count == 1 ? "a copy" : "copies"
         var message =
-            "This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
+            "\(selectedCount) selected \(selectedWord). This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
         if skippedCount > 0 {
-            let skippedWord = skippedCount == 1 ? "item" : "items"
+            let skippedWord = skippedCount == 1 ? "meeting" : "meetings"
             message +=
-                " \(skippedCount) selected \(skippedWord) will be skipped because no saved meeting audio is available."
+                " \(skippedCount) selected \(skippedWord) already have no saved audio, so they will be skipped."
         }
         return message
     }

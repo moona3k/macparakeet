@@ -89,7 +89,7 @@ struct BulkTranscriptionSelectionBar: View {
             Button {
                 onSelectLoaded()
             } label: {
-                Label("Select Loaded", systemImage: "checkmark.circle")
+                Label("Select All", systemImage: "checkmark.circle")
             }
             .disabled(areAllLoadedSelected || isPerformingOperation)
             .parakeetAction(.secondary)
