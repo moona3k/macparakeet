@@ -110,7 +110,7 @@ The database row stays canonical. Do not teach features to treat the folder as
 the source of truth for mutable meeting metadata unless the contract is updated
 with a migration and conflict-resolution rule.
 
-Audio retention and "Delete Audio Only" clear `transcriptions.filePath` but
+Audio retention and "Remove Audio Only" clear `transcriptions.filePath` but
 must preserve `transcriptions.meetingArtifactFolderPath` and leave the folder's
 non-audio artifact files in place. Full meeting deletion removes the artifact
 folder even when retained audio was already deleted.
