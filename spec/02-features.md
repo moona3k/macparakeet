@@ -725,7 +725,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
-| Meeting audio retention | Keep forever / Remove after N days / Transcript only after processing | Keep forever |
+| Meeting audio retention | Keep forever / Remove after N days / Remove audio after transcription | Keep forever |
 | Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
 | Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
 | Whisper language | Auto-detect or language code | Auto-detect |

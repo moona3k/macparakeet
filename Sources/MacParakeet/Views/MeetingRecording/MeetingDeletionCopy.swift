@@ -72,6 +72,7 @@ enum MeetingDeletionCopy {
     static func audioUnavailableHelp(for state: MeetingAudioFile.State) -> String {
         switch state {
         case .saved:
+            assertionFailure("audioUnavailableHelp called for .saved state; callers should show positive help text instead.")
             return "Meeting audio is available"
         case .removed:
             return "Saved meeting audio has been removed"

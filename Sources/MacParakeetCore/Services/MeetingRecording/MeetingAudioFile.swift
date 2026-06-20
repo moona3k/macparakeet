@@ -34,16 +34,8 @@ public enum MeetingAudioFile {
         return URL(fileURLWithPath: path)
     }
 
-    /// Whether the mixed-track audio file is reachable on disk. Returns
-    /// false for non-meeting transcriptions or when the recorded file is
-    /// missing (deleted, moved, or recovery still in progress).
-    ///
-    /// **Status-agnostic by design.** Returns true for `.processing`,
-    /// `.error`, or `.cancelled` meetings as long as the file is on
-    /// disk. The audio is written incrementally as fragmented MP4 (see
-    /// ADR-019), so a user looking at a failed-transcription row can
-    /// still grab the captured audio. Don't add a status gate here
-    /// without an explicit product reason.
+    /// Whether finalized meeting audio is reachable on disk. Returns false for
+    /// non-meeting rows, actively processing rows, and missing audio files.
     public static func isAvailable(
         for transcription: Transcription,
         fileManager: FileManager = .default
@@ -61,7 +53,10 @@ public enum MeetingAudioFile {
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) -> State {
-        guard transcription.sourceType == .meeting else { return .notMeeting }
+        guard transcription.sourceType == .meeting,
+              transcription.status != .processing else {
+            return .notMeeting
+        }
         guard let url = mixedAudioURL(for: transcription) else { return .removed }
         var isDirectory: ObjCBool = false
         let exists = fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)

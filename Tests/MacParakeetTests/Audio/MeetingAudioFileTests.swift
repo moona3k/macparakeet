@@ -96,6 +96,23 @@ final class MeetingAudioFileTests: XCTestCase {
 
     // MARK: - state
 
+    func testStateReturnsNotMeetingWhenStatusIsProcessing() throws {
+        let directory = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let audioURL = directory.appendingPathComponent("meeting.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+
+        let transcription = makeTranscription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            sourceType: .meeting,
+            status: .processing
+        )
+
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .notMeeting)
+        XCTAssertFalse(MeetingAudioFile.isAvailable(for: transcription))
+    }
+
     func testStateReturnsNotMeetingForNonMeetingSource() {
         let transcription = makeTranscription(
             fileName: "lecture.mp3",
@@ -304,6 +321,7 @@ final class MeetingAudioFileTests: XCTestCase {
         fileName: String,
         filePath: String? = nil,
         sourceType: Transcription.SourceType,
+        status: Transcription.TranscriptionStatus = .completed,
         derivedTitle: String? = nil,
         createdAt: Date = Date()
     ) -> Transcription {
@@ -311,7 +329,7 @@ final class MeetingAudioFileTests: XCTestCase {
             createdAt: createdAt,
             fileName: fileName,
             filePath: filePath,
-            status: .completed,
+            status: status,
             sourceType: sourceType,
             derivedTitle: derivedTitle
         )

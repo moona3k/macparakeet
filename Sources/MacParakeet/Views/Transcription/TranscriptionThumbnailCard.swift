@@ -143,8 +143,11 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             }
             .overlay(alignment: .bottomLeading) {
                 if transcription.sourceType == .meeting {
-                    MeetingAudioStateChip(state: MeetingAudioFile.state(for: transcription))
-                        .padding(8)
+                    let state = MeetingAudioFile.state(for: transcription)
+                    if state != .notMeeting {
+                        MeetingAudioStateChip(state: state)
+                            .padding(8)
+                    }
                 }
             }
             .clipShape(Rectangle())

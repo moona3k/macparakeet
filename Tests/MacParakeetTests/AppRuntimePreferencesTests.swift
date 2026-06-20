@@ -133,7 +133,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testMeetingAudioRetentionModeDisplayTitlesUseLifecycleCopy() {
         XCTAssertEqual(MeetingAudioRetentionMode.keepForever.displayTitle, "Keep forever")
         XCTAssertEqual(MeetingAudioRetentionMode.deleteAfterDays.displayTitle, "Remove after...")
-        XCTAssertEqual(MeetingAudioRetentionMode.deleteImmediately.displayTitle, "Transcript only after processing")
+        XCTAssertEqual(MeetingAudioRetentionMode.deleteImmediately.displayTitle, "Remove audio after transcription")
     }
 
     func testMeetingAudioSourceModeDefaultsToMicrophoneAndSystemAndReadsPersistedValue() {

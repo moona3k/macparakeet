@@ -4,19 +4,22 @@ import SwiftUI
 struct MeetingAudioStateChip: View {
     let state: MeetingAudioFile.State
 
+    @ViewBuilder
     var body: some View {
-        Label(title, systemImage: systemImage)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(foreground)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(background)
-            )
-            .accessibilityLabel(accessibilityLabel)
+        if state != .notMeeting {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(foreground)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(background)
+                )
+                .accessibilityLabel(accessibilityLabel)
+        }
     }
 
     private var title: String {
@@ -41,7 +44,7 @@ struct MeetingAudioStateChip: View {
         case .missing:
             return "exclamationmark.triangle"
         case .notMeeting:
-            return "waveform"
+            return ""
         }
     }
 

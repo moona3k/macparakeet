@@ -132,7 +132,7 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     @ViewBuilder
     private var audioInline: some View {
-        if audioState != .notMeeting {
+        if showsAudioInline {
             MeetingAudioStateChip(state: audioState)
         }
     }
@@ -226,6 +226,11 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     private var audioState: MeetingAudioFile.State {
         MeetingAudioFile.state(for: transcription)
+    }
+
+    private var showsAudioInline: Bool {
+        guard audioState != .notMeeting else { return false }
+        return transcription.status != .error && transcription.status != .cancelled
     }
 
     private func statusLine(_ prefix: String) -> String {
