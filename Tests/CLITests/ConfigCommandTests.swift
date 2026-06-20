@@ -251,6 +251,10 @@ final class ConfigCommandTests: XCTestCase {
             "microphone-and-system"
         )
         XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-audio-source", value: "Microphone + system audio", defaults: defaults),
+            "microphone-and-system"
+        )
+        XCTAssertEqual(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
             MeetingAudioSourceMode.microphoneAndSystem.rawValue
         )

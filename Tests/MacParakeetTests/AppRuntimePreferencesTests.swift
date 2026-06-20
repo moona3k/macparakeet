@@ -161,6 +161,10 @@ final class AppRuntimePreferencesTests: XCTestCase {
             MeetingAudioSourceMode.parseConfigurationValue("microphone-and-system"),
             .microphoneAndSystem
         )
+        XCTAssertEqual(
+            MeetingAudioSourceMode.parseConfigurationValue("Microphone + system audio"),
+            .microphoneAndSystem
+        )
         XCTAssertEqual(MeetingAudioSourceMode.parseConfigurationValue("mic"), .microphoneOnly)
         XCTAssertEqual(MeetingAudioSourceMode.parseConfigurationValue("computer audio"), .systemOnly)
         XCTAssertNil(MeetingAudioSourceMode.parseConfigurationValue("echo-cancelled"))

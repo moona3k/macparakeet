@@ -231,25 +231,25 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 
 ```text
 User clicks "Start Meeting Recording"
-    → Check Screen Recording permission (CGPreflightScreenCaptureAccess)
-    → If denied: show error + "Open System Settings" button, block recording
+    → Resolve source mode
+    → Check microphone permission only when the mode includes mic audio
+    → Check Screen & System Audio Recording permission only when the mode includes system audio
+    → If a required permission is denied: show error + "Open System Settings" button, block recording
     → Acquire speech-engine lease from STTScheduler and capture current engine/language
-    → Start MeetingAudioCaptureService (both streams)
+    → Start MeetingAudioCaptureService with the selected source mode
     → Show recording pill (red dot + elapsed timer + stop button)
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
       and keep `recording.lock` current with session state/notes/speech engine
     → User clicks Stop
-    → Stop capture, finalize `microphone.m4a` + `system.m4a`
+    → Stop capture and finalize the captured source file(s)
     → Persist `meeting-recording-metadata.json` with source alignment and speech engine
     → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
     → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting.m4a`
     → Enqueue background finalization and return recorder to idle
     → User may immediately start the next meeting recording
-    → Background queue converts `microphone.m4a` → 16kHz mono WAV via FFmpeg
-    → Send mic WAV to captured local STT engine
-    → Background queue converts `system.m4a` → 16kHz mono WAV via FFmpeg
-    → Send system WAV to captured local STT engine
+    → Background queue converts each captured source M4A → 16kHz mono WAV via FFmpeg
+    → Send each source WAV to the captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
     → Optionally refine the isolated system side with diarization
     → Update the existing Transcription row and delete `recording.lock`
@@ -271,8 +271,8 @@ the stopped meeting waits for that job to finish; once the slot is free,
 
 ```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
-    ├── microphone.m4a    # Mic audio (AAC, 48kHz mono)
-    ├── system.m4a        # System audio (AAC, 48kHz mono)
+    ├── microphone.m4a    # Mic audio when captured (AAC, 48kHz mono)
+    ├── system.m4a        # System audio when captured (AAC, 48kHz mono)
     ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
     ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine for post-stop merge
     ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine
@@ -358,9 +358,9 @@ alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 
 | Permission | Why | When Requested | Fallback |
 |------------|-----|----------------|----------|
-| Microphone | Dictation recording | Onboarding or first dictation attempt | Show permission dialog with instructions |
+| Microphone | Dictation recording and meeting modes that include mic audio | Onboarding, first dictation attempt, or first mic-capturing meeting attempt | Show permission dialog with instructions |
 | Accessibility | Global shortcut detection + text insertion | Onboarding or first dictation attempt | Show System Settings deep link |
-| Screen & System Audio Recording | Meeting recording (system audio capture via ScreenCaptureKit) | Optional onboarding step or first meeting recording attempt | Show error + "Open System Settings" button, block recording |
+| Screen & System Audio Recording | Meeting modes that include system audio capture via ScreenCaptureKit | Optional onboarding step or first system-audio meeting attempt | Show error + "Open System Settings" button, block recording |
 
 ### Permission Flow
 

@@ -378,11 +378,22 @@ public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Eq
         let raw = value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-            .replacingOccurrences(of: "_", with: "-")
-            .replacingOccurrences(of: " ", with: "-")
+            .components(separatedBy: CharacterSet(charactersIn: "_-+&").union(.whitespacesAndNewlines))
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
 
         switch raw {
-        case "microphone-and-system", "mic-and-system", "mic-system", "both", "all", "default":
+        case "microphone-and-system",
+             "microphone-and-system-audio",
+             "microphone-system",
+             "microphone-system-audio",
+             "mic-and-system",
+             "mic-and-system-audio",
+             "mic-system",
+             "mic-system-audio",
+             "both",
+             "all",
+             "default":
             return .microphoneAndSystem
         case "microphone-only", "mic-only", "microphone", "mic":
             return .microphoneOnly
