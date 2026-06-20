@@ -461,7 +461,7 @@ public final class TranscriptionViewModel {
     }
 
     private func retranscriptionEngineOrder(primary: SpeechEnginePreference) -> [SpeechEnginePreference] {
-        let defaultOrder: [SpeechEnginePreference] = [.parakeet, .nemotron, .whisper]
+        let defaultOrder: [SpeechEnginePreference] = [.parakeet, .nemotron, .whisper, .cohere]
         return [primary] + defaultOrder.filter { $0 != primary }
     }
 
@@ -477,6 +477,10 @@ public final class TranscriptionViewModel {
             return isWhisperModelDownloaded()
                 ? nil
                 : "Download the Whisper model in Settings before trying Whisper."
+        case .cohere:
+            return CohereTranscribeEngine.isModelCached()
+                ? nil
+                : "Download the Cohere model in Settings before trying Cohere."
         }
     }
 
@@ -503,6 +507,8 @@ public final class TranscriptionViewModel {
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            return nil
         }
     }
 
@@ -1088,6 +1094,8 @@ public final class TranscriptionViewModel {
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Local Core ML"
+            case .cohere:
+                return "Cohere Transcribe \u{00B7} Local Core ML"
             }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."

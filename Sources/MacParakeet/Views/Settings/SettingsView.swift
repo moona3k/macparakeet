@@ -570,6 +570,8 @@ struct SettingsView: View {
             return "Preparing Whisper can take several minutes the first time while Core ML optimizes it for this Mac. Dictation, file transcription, and meetings pause until the switch finishes."
         case .parakeet:
             return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
+        case .cohere:
+            return "Cohere is a high-accuracy dictation engine (~2.1 GB on-device model). The first transcription after each launch may take a moment while Core ML prepares the model; after that, dictation is fast. Dictation, file transcription, and meetings pause until the switch finishes."
         }
     }
 
@@ -2235,6 +2237,25 @@ struct SettingsView: View {
                             && !viewModel.engine.whisperHasBeenOptimized,
                         onSelect: { handleWhisperTileTap() }
                     )
+
+                    if AppFeatures.cohereEngineEnabled {
+                        EngineOptionTile(
+                            icon: "waveform",
+                            name: "Cohere",
+                            tagline: "Highest-accuracy engine",
+                            strengths: [
+                                "State-of-the-art accuracy (Cohere Transcribe)",
+                                "Fully on-device Core ML — audio never leaves your Mac",
+                                "Powers dictation, files, and meetings (English)"
+                            ],
+                            helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and a brief one-time prepare after each launch. Powers dictation, file transcription, and meetings. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
+                            modelStatus: displayedCohereModelStatus,
+                            isSelected: viewModel.engine.speechEnginePreference == .cohere,
+                            isBusy: viewModel.engine.speechEngineSwitching,
+                            unavailableReason: engineSwitchUnavailableReason(for: .cohere),
+                            onSelect: { selectEngine(.cohere) }
+                        )
+                    }
                 }
 
                 if let banner = nemotronDownloadBannerState {
@@ -2599,6 +2620,8 @@ struct SettingsView: View {
             return "Preparing Nemotron"
         case .whisper:
             return "Preparing Whisper"
+        case .cohere:
+            return "Preparing Cohere"
         }
     }
 
@@ -2607,6 +2630,7 @@ struct SettingsView: View {
             parakeet: displayedParakeetModelStatus,
             nemotron: displayedNemotronModelStatus,
             whisper: displayedWhisperModelStatus,
+            cohere: displayedCohereModelStatus,
             activeEngine: viewModel.engine.speechEnginePreference
         )
     }
@@ -2656,6 +2680,17 @@ struct SettingsView: View {
         guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .nemotron else {
             return viewModel.engine.nemotronModelStatus
+        }
+        return .preparing
+    }
+
+    /// Phase-1 lightweight Cohere status: there is no reactive download-state
+    /// pipeline yet, so derive presence directly from disk. Reflects "preparing"
+    /// while switching to Cohere, otherwise downloaded-or-not.
+    private var displayedCohereModelStatus: SettingsViewModel.LocalModelStatus {
+        guard viewModel.engine.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .cohere else {
+            return CohereTranscribeEngine.isModelCached() ? .ready : .notDownloaded
         }
         return .preparing
     }

@@ -739,6 +739,8 @@ struct TranscriptResultView: View {
                 return "Whisper"
             }
             return "Whisper \(SpeechEnginePreference.friendlyVariantName(variant))"
+        case .cohere:
+            return "Cohere Transcribe"
         }
     }
 
@@ -2986,6 +2988,7 @@ private struct EngineOptionCard: View {
         case .parakeet: "bolt.fill"
         case .nemotron: "sparkles"
         case .whisper: "globe"
+        case .cohere: "waveform"
         }
     }
 
@@ -2999,6 +3002,8 @@ private struct EngineOptionCard: View {
                 : "Beta • Nemotron 3.5 multilingual streaming"
         case .whisper:
             "Broader languages • Korean, Chinese, Japanese, and more"
+        case .cohere:
+            "High accuracy • Cohere Transcribe, on-device (English)"
         }
     }
 

@@ -288,6 +288,9 @@ final class AppEnvironment {
                     return SpeechEnginePreference.parakeetModelVariant().usesUnifiedEngine
                 case .whisper:
                     return false
+                case .cohere:
+                    // Batch engine — record-then-transcribe, no live partials.
+                    return false
                 }
             },
             shouldShowDictationPreview: { [runtimePreferences] in
@@ -304,6 +307,9 @@ final class AppEnvironment {
                 case .nemotron:
                     return nil
                 case .whisper:
+                    return nil
+                case .cohere:
+                    // No display-preview path; Cohere finalizes on stop.
                     return nil
                 }
             },

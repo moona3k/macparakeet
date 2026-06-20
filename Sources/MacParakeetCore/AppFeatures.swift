@@ -61,6 +61,15 @@ public enum AppFeatures {
     /// `transform_executed` / `transform_failed` (ADR-022 §9).
     public static let transformsEnabled: Bool = true
 
+    /// Cohere Transcribe dictation engine. When `true`, Settings offers Cohere
+    /// as a selectable speech engine (on-device Core ML via FluidAudio's
+    /// `CoherePipeline`). When `false`, the engine type, runtime routing, and
+    /// model plumbing remain compiled and intact — only the Settings surface
+    /// that lets a user select it is hidden, so flipping the flag is a no-data
+    /// operation. Gated separately because the model is a ~2.1 GB download and
+    /// the engine is dictation-only (batch, no live partials/word timestamps).
+    public static let cohereEngineEnabled: Bool = true
+
     /// VAD-guided meeting live chunking
     /// (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md`). When
     /// `false`, meeting live-preview chunks use the fixed 5s / 1s-overlap

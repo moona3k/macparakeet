@@ -1059,6 +1059,8 @@ public final class EngineSettingsViewModel {
                 : "Loading Nemotron 3.5 Beta with Core ML..."
         case .whisper:
             "Optimizing Whisper for this Mac..."
+        case .cohere:
+            "Loading Cohere with Core ML..."
         }
     }
 

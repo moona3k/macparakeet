@@ -524,6 +524,8 @@ func loadSpeechStackStatus(
         nemotronDownloaded
     case .whisper:
         whisperDownloaded
+    case .cohere:
+        CohereTranscribeEngine.isModelCached()
     }
 
     async let speechRuntimeReady = sttClient.isReady()

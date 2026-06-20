@@ -222,6 +222,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 explicitLanguage ?? storedNemotronLanguage
             case .whisper:
                 explicitLanguage ?? storedLanguage
+            case .cohere:
+                explicitLanguage
             }
         case .parakeet:
             preference = .parakeet
@@ -416,6 +418,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         var nemotronEngine: NemotronEngine?
         var nemotronEnglishEngine: NemotronEnglishEngine?
         var whisperEngine: WhisperEngine?
+        var cohereEngine: CohereTranscribeEngine?
         let runResult: Result<Void, Error>
         do {
             guard podcastQuery != nil || !resolvedInputs.isEmpty else {
@@ -494,6 +497,12 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
+            case .cohere:
+                let createdCohereEngine = CohereTranscribeEngine(
+                    computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults)
+                )
+                cohereEngine = createdCohereEngine
+                sttTranscriber = createdCohereEngine
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {
@@ -581,6 +590,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         await nemotronEngine?.unload()
         await nemotronEnglishEngine?.unload()
         await whisperEngine?.unload()
+        await cohereEngine?.unload()
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
         }

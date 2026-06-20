@@ -82,3 +82,6 @@ Assets/local-videos/
 
 # Data recovery
 recup_dir*/
+
+# Phase-0 Cohere latency spike (throwaway)
+spike/
