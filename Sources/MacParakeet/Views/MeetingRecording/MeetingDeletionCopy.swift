@@ -39,8 +39,9 @@ enum MeetingDeletionCopy {
         let meetingSubject = count == 1 ? "The meeting stays" : "The meetings stay"
         let transcriptObject = count == 1 ? "its transcript" : "their transcripts"
         let savedCopy = count == 1 ? "a copy" : "copies"
+        let prefix = skippedCount > 0 ? "\(selectedCount) selected \(selectedWord). " : ""
         var message =
-            "\(selectedCount) selected \(selectedWord). This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
+            "\(prefix)This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
         if skippedCount > 0 {
             let skippedWord = skippedCount == 1 ? "meeting" : "meetings"
             message +=
