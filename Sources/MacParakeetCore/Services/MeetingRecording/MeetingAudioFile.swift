@@ -12,6 +12,12 @@ import Foundation
 /// "Save Audio As…") and that on-disk layout, so future changes to the
 /// folder structure only ripple through one file.
 public enum MeetingAudioFile {
+    public enum State: Equatable, Sendable {
+        case notMeeting
+        case saved
+        case removed
+        case missing
+    }
 
     // MARK: - URL resolution
 
@@ -42,10 +48,27 @@ public enum MeetingAudioFile {
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard let url = mixedAudioURL(for: transcription) else { return false }
+        state(for: transcription, fileManager: fileManager) == .saved
+    }
+
+    /// User-facing availability state for a meeting's stored audio.
+    ///
+    /// `removed` means the DB no longer points at meeting audio, usually
+    /// because the user chose audio-only cleanup or a retention policy removed
+    /// it after final transcription. `missing` means the DB still points at a
+    /// path, but that path is no longer a file on disk.
+    public static func state(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> State {
+        guard transcription.sourceType == .meeting else { return .notMeeting }
+        guard let url = mixedAudioURL(for: transcription) else { return .removed }
         var isDirectory: ObjCBool = false
         let exists = fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
-        return exists && !isDirectory.boolValue
+        if exists && !isDirectory.boolValue {
+            return .saved
+        }
+        return .missing
     }
 
     // MARK: - Safe copy

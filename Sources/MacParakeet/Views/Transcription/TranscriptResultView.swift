@@ -458,7 +458,8 @@ struct TranscriptResultView: View {
             }
 
             if activeTranscription.sourceType == .meeting {
-                let audioAvailable = MeetingAudioFile.isAvailable(for: activeTranscription)
+                let audioState = MeetingAudioFile.state(for: activeTranscription)
+                let audioAvailable = audioState == .saved
                 Menu {
                     Button {
                         MeetingAudioActions.revealInFinder(activeTranscription)
@@ -476,7 +477,7 @@ struct TranscriptResultView: View {
                     Button(role: .destructive) {
                         pendingDeleteMeetingAudio = true
                     } label: {
-                        Label("Delete Audio", systemImage: "waveform.slash")
+                        Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
                     }
                 } label: {
                     Label("Audio", systemImage: "waveform")
@@ -485,7 +486,7 @@ struct TranscriptResultView: View {
                 .disabled(!audioAvailable)
                 .help(audioAvailable
                       ? "Reveal or save the meeting audio file"
-                      : "Audio file is not available yet")
+                      : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
                 let artifactAvailable = MeetingArtifactActions.folderURL(for: activeTranscription) != nil
                 Menu {
@@ -588,13 +589,13 @@ struct TranscriptResultView: View {
         } message: { confirmation in
             Text(confirmation.message)
         }
-        .alert("Delete Meeting Audio?", isPresented: $pendingDeleteMeetingAudio) {
+        .alert(MeetingDeletionCopy.audioOnlyAlertTitle, isPresented: $pendingDeleteMeetingAudio) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete Audio", role: .destructive) {
+            Button(MeetingDeletionCopy.audioOnlyConfirmTitle, role: .destructive) {
                 deleteMeetingAudioFromActionBar()
             }
         } message: {
-            Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
+            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .library))
         }
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)

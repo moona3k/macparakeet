@@ -141,6 +141,12 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                         .padding(8)
                 }
             }
+            .overlay(alignment: .bottomLeading) {
+                if transcription.sourceType == .meeting {
+                    MeetingAudioStateChip(state: MeetingAudioFile.state(for: transcription))
+                        .padding(8)
+                }
+            }
             .clipShape(Rectangle())
     }
 

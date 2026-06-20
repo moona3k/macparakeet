@@ -18,9 +18,9 @@ struct BulkTranscriptionSelectionBar: View {
 
     private var deleteAudioTitle: String {
         if isMeetingContext {
-            return "Delete Audio Only..."
+            return "Remove Audio Only..."
         }
-        return "Delete Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
+        return "Remove Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
     }
 
     private var deleteItemsTitle: String {

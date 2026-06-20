@@ -103,13 +103,16 @@ struct MeetingRowCard<MenuContent: View>: View {
 
             highlightedTitle
                 .font(.system(size: 15, weight: .semibold))
-                .tracking(-0.15)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
+                .layoutPriority(1)
 
             speakerInline
+                .layoutPriority(0)
+
+            audioInline
                 .layoutPriority(0)
 
             Spacer(minLength: 0)
@@ -128,6 +131,13 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     @ViewBuilder
+    private var audioInline: some View {
+        if audioState != .notMeeting {
+            MeetingAudioStateChip(state: audioState)
+        }
+    }
+
+    @ViewBuilder
     private var snippetRow: some View {
         if let snippet = displayedSnippet {
             highlightedText(snippet)
@@ -141,14 +151,14 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .lineLimit(1)
         } else if transcription.status == .error {
-            Text("Transcription failed")
+            Text(statusLine("Transcription failed"))
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.errorRed.opacity(0.85))
                 .lineLimit(1)
         } else if transcription.status == .cancelled {
             // Keep-Audio outcome of the stop-transcription flow (issue #487):
             // the audio is intact and retranscribable from the detail view.
-            Text("Transcription stopped — audio saved")
+            Text(statusLine("Transcription stopped"))
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .lineLimit(1)
@@ -214,16 +224,42 @@ struct MeetingRowCard<MenuContent: View>: View {
         return count >= 2 ? count : nil
     }
 
+    private var audioState: MeetingAudioFile.State {
+        MeetingAudioFile.state(for: transcription)
+    }
+
+    private func statusLine(_ prefix: String) -> String {
+        guard let suffix = audioStateSuffix else { return prefix }
+        return "\(prefix) · \(suffix)"
+    }
+
+    private var audioStateSuffix: String? {
+        switch audioState {
+        case .saved:
+            return "audio saved"
+        case .removed:
+            return "audio removed"
+        case .missing:
+            return "audio missing"
+        case .notMeeting:
+            return nil
+        }
+    }
+
     private var timeOfDayString: String {
         transcription.createdAt.formatted(date: .omitted, time: .shortened)
     }
 
     private var hoverTooltip: String {
         let absolute = transcription.createdAt.formatted(date: .abbreviated, time: .shortened)
-        if let engineLabel = engineLabel {
-            return "\(absolute) · \(engineLabel)"
+        var parts = [absolute]
+        if let engineLabel {
+            parts.append(engineLabel)
         }
-        return absolute
+        if let audioStateSuffix {
+            parts.append(audioStateSuffix)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var engineLabel: String? {

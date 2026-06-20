@@ -725,7 +725,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
-| Meeting audio retention | Keep forever / Delete after 7, 14, 30, or 90 days / Delete after transcription | Keep forever |
+| Meeting audio retention | Keep forever / Remove after N days / Transcript only after processing | Keep forever |
 | Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
 | Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
 | Whisper language | Auto-detect or language code | Auto-detect |
@@ -1558,7 +1558,7 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Search across transcription titles and content
 - [x] Sort by date (newest/oldest)
 - [x] Multi-select cleanup with `Select Many...`, `Select Loaded`, clear/cancel, and contextual destructive confirmations
-- [x] Meeting cleanup supports both full deletion and `Delete Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
+- [x] Meeting cleanup supports both full deletion and `Remove Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
 ### F27: Home Page Redesign
 

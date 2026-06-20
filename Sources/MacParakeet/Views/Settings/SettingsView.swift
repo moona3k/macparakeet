@@ -600,7 +600,7 @@ struct SettingsView: View {
             resetCleanupCard.id("system.reset")
         }
         .alert(
-            "Delete meeting audio automatically?",
+            "Remove meeting audio automatically?",
             isPresented: Binding(
                 get: { pendingMeetingAudioRetention != nil },
                 set: { if !$0 { pendingMeetingAudioRetention = nil } }
@@ -608,7 +608,7 @@ struct SettingsView: View {
             presenting: pendingMeetingAudioRetention
         ) { pending in
             Button("Cancel", role: .cancel) { pendingMeetingAudioRetention = nil }
-            Button("Enable Auto-Delete", role: .destructive) {
+            Button("Enable Auto-Removal", role: .destructive) {
                 viewModel.confirmMeetingAudioRetentionChange(pending.retention)
                 pendingMeetingAudioRetention = nil
             }
@@ -1885,7 +1885,7 @@ struct SettingsView: View {
             HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
                 rowText(
                     title: "Meeting audio retention",
-                    detail: "Choose how long MacParakeet keeps meeting recordings after transcription."
+                    detail: "Choose how long MacParakeet keeps meeting audio after the transcript is saved."
                 )
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker("Meeting audio retention", selection: meetingAudioRetentionModeBinding) {
@@ -1895,7 +1895,7 @@ struct SettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 210)
+                .frame(width: 250)
             }
 
             if viewModel.meetingAudioRetention.mode == .deleteAfterDays {
@@ -1922,7 +1922,7 @@ struct SettingsView: View {
                 }
             }
 
-            Text("Transcripts are always kept. Only the audio recording is removed.")
+            Text("Transcripts stay. Removing audio disables playback and retranscription unless you saved a copy.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -1971,9 +1971,9 @@ struct SettingsView: View {
         case .keepForever:
             return ""
         case .deleteAfterDays(let days):
-            return "Transcripts, summaries, and notes are always kept. Meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days will be removed automatically."
+            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and retranscription will no longer be available for meetings whose audio has been removed."
         case .deleteImmediately:
-            return "Transcripts, summaries, and notes are always kept. Meeting audio will be removed automatically after each final transcript is saved."
+            return "MacParakeet will remove saved audio after each final transcript is saved. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and retranscription will no longer be available unless you saved a copy of the audio."
         }
     }
 

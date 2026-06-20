@@ -130,6 +130,12 @@ final class AppRuntimePreferencesTests: XCTestCase {
         )
     }
 
+    func testMeetingAudioRetentionModeDisplayTitlesUseLifecycleCopy() {
+        XCTAssertEqual(MeetingAudioRetentionMode.keepForever.displayTitle, "Keep forever")
+        XCTAssertEqual(MeetingAudioRetentionMode.deleteAfterDays.displayTitle, "Remove after...")
+        XCTAssertEqual(MeetingAudioRetentionMode.deleteImmediately.displayTitle, "Transcript only after processing")
+    }
+
     func testMeetingAudioSourceModeDefaultsToMicrophoneAndSystemAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

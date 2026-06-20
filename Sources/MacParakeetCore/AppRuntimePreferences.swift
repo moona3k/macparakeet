@@ -45,9 +45,9 @@ public enum MeetingAudioRetentionMode: String, CaseIterable, Identifiable, Hasha
         case .keepForever:
             return "Keep forever"
         case .deleteAfterDays:
-            return "Delete after..."
+            return "Remove after..."
         case .deleteImmediately:
-            return "Delete after transcription"
+            return "Transcript only after processing"
         }
     }
 }

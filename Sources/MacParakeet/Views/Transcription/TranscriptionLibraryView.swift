@@ -127,20 +127,23 @@ struct TranscriptionLibraryView: View {
             }
         }
         .alert(
-            "Delete Meeting Audio?",
+            MeetingDeletionCopy.audioOnlyAlertTitle,
             isPresented: Binding(
                 get: { pendingDeleteAudio != nil },
                 set: { if !$0 { pendingDeleteAudio = nil } }
             )
         ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Audio Only", role: .destructive) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAudio = nil
+            }
+            Button(MeetingDeletionCopy.audioOnlyConfirmTitle, role: .destructive) {
                 if let transcription = pendingDeleteAudio {
                     viewModel.deleteMeetingAudio(transcription)
+                    pendingDeleteAudio = nil
                 }
             }
         } message: {
-            Text("The transcript, notes, AI results, and chats stay in Library if they exist. Playback and retranscription will be unavailable unless you saved a copy.")
+            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .library))
         }
         .alert(
             bulkOperationTitle,
@@ -267,7 +270,8 @@ struct TranscriptionLibraryView: View {
         }
 
         if transcription.sourceType == .meeting {
-            let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+            let audioState = MeetingAudioFile.state(for: transcription)
+            let audioAvailable = audioState == .saved
             let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
 
             Divider()
@@ -302,7 +306,7 @@ struct TranscriptionLibraryView: View {
             .disabled(!audioAvailable)
             .help(audioAvailable
                   ? "Reveal the meeting audio file in Finder"
-                  : "Audio file is not available yet")
+                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button {
                 saveMeetingAudio(transcription)
@@ -312,17 +316,17 @@ struct TranscriptionLibraryView: View {
             .disabled(!audioAvailable)
             .help(audioAvailable
                   ? "Save a copy of the meeting audio to a chosen location"
-                  : "Audio file is not available yet")
+                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button(role: .destructive) {
                 pendingDeleteAudio = transcription
             } label: {
-                Label("Delete Audio Only", systemImage: "waveform.slash")
+                Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
             }
             .disabled(!audioAvailable)
             .help(audioAvailable
-                  ? "Delete the stored meeting audio while keeping the transcript and notes"
-                  : "Audio file is not available yet")
+                  ? "Remove the saved meeting audio while keeping the meeting"
+                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
         }
 
         Divider()
@@ -341,7 +345,7 @@ struct TranscriptionLibraryView: View {
         Button(role: .destructive) {
             pendingDelete = transcription
         } label: {
-            Label(transcription.sourceType == .meeting ? "Delete Meeting" : "Delete", systemImage: "trash")
+            Label(transcription.sourceType == .meeting ? MeetingDeletionCopy.fullDeleteMenuTitle : "Delete", systemImage: "trash")
         }
     }
 
@@ -446,10 +450,10 @@ struct TranscriptionLibraryView: View {
     private var bulkOperationTitle: String {
         guard let operation = viewModel.pendingBulkOperation else { return "Delete Items?" }
         if operation.isDeleteAudioOnly {
-            return "Delete Meeting Audio?"
+            return MeetingDeletionCopy.audioOnlyAlertTitle
         }
         if operation.meetingCount == operation.targetCount, operation.targetCount == 1 {
-            return "Delete Meeting?"
+            return MeetingDeletionCopy.fullDeleteAlertTitle
         }
         if operation.meetingCount == operation.targetCount {
             return "Delete Meetings?"
@@ -460,25 +464,31 @@ struct TranscriptionLibraryView: View {
     private var bulkOperationConfirmTitle: String {
         guard let operation = viewModel.pendingBulkOperation else { return "Delete" }
         if operation.isDeleteAudioOnly {
-            return "Delete Audio Only"
+            return MeetingDeletionCopy.audioOnlyConfirmTitle
         }
         if operation.meetingCount == operation.targetCount {
-            return operation.targetCount == 1 ? "Delete Meeting" : "Delete Meetings"
+            return operation.targetCount == 1 ? MeetingDeletionCopy.fullDeleteConfirmTitle : "Delete Meetings"
         }
         return "Delete Items"
     }
 
     private func bulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
         if operation.isDeleteAudioOnly {
-            var message = "Delete audio for \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? Transcripts, notes, AI results, and chats stay in Library if they exist. Playback and retranscription will be unavailable unless you saved a copy."
-            if operation.skippedCount > 0 {
-                message += " \(operation.skippedCount) selected \(operation.skippedCount == 1 ? "item will be skipped" : "items will be skipped")."
-            }
-            return message
+            return MeetingDeletionCopy.bulkAudioOnlyMessage(
+                count: operation.targetCount,
+                skippedCount: operation.skippedCount,
+                surface: .library
+            )
         }
 
         if operation.meetingCount > 0 {
-            return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items"), including \(operation.meetingCount) \(operation.meetingCount == 1 ? "meeting" : "meetings")? This permanently removes the selected rows, transcripts, stored audio, and any notes, AI results, or chats for those meetings. Original local source files are not removed."
+            if operation.meetingCount == operation.targetCount {
+                return MeetingDeletionCopy.bulkFullDeleteMessage(count: operation.targetCount)
+            }
+            return MeetingDeletionCopy.mixedBulkFullDeleteMessage(
+                totalCount: operation.targetCount,
+                meetingCount: operation.meetingCount
+            )
         }
 
         return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
@@ -494,7 +504,7 @@ struct TranscriptionLibraryView: View {
 
     private func singleDeleteMessage(for transcription: Transcription) -> String {
         if transcription.sourceType == .meeting {
-            return "This permanently removes \"\(transcription.fileName)\", its transcript, stored audio, and any notes, AI results, or chats for this meeting."
+            return MeetingDeletionCopy.singleFullDeleteMessage(title: transcription.fileName)
         }
         return "\"\(transcription.fileName)\" will be permanently deleted. Original local source files are not removed."
     }

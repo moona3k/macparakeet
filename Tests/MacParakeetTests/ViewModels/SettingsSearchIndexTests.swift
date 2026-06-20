@@ -74,6 +74,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         XCTAssertTrue(results.contains(where: { $0.id == "system.storage" }))
     }
 
+    func testTranscriptOnlyQueryFindsStorageRetention() {
+        let results = SettingsSearchIndex.matches("transcript only")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "system.storage" }),
+            "Transcript-only meeting audio retention should land on Storage"
+        )
+    }
+
     func testCalendarQueriesHonorCalendarFeatureFlag() {
         for query in ["calendar", "auto-start", "auto start", "reminders"] {
             let results = SettingsSearchIndex.matches(query)

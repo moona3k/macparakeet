@@ -84,23 +84,26 @@ struct MeetingsView: View {
             Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
         }
         .alert(
-            "Delete Meeting Audio?",
+            MeetingDeletionCopy.audioOnlyAlertTitle,
             isPresented: Binding(
                 get: { pendingDeleteAudio != nil },
                 set: { if !$0 { pendingDeleteAudio = nil } }
             )
         ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Audio Only", role: .destructive) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAudio = nil
+            }
+            Button(MeetingDeletionCopy.audioOnlyConfirmTitle, role: .destructive) {
                 if let transcription = pendingDeleteAudio {
                     viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
+                    pendingDeleteAudio = nil
                 }
             }
         } message: {
-            Text("The transcript, notes, AI results, and chats stay in Meetings if they exist. Playback and retranscription will be unavailable unless you saved a copy.")
+            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .meetings))
         }
         .alert(
-            "Delete Meeting?",
+            MeetingDeletionCopy.fullDeleteAlertTitle,
             isPresented: Binding(
                 get: { pendingDeleteMeeting != nil },
                 set: { if !$0 { pendingDeleteMeeting = nil } }
@@ -109,7 +112,7 @@ struct MeetingsView: View {
             Button("Cancel", role: .cancel) {
                 pendingDeleteMeeting = nil
             }
-            Button("Delete Meeting", role: .destructive) {
+            Button(MeetingDeletionCopy.fullDeleteConfirmTitle, role: .destructive) {
                 if let transcription = pendingDeleteMeeting {
                     viewModel.recentMeetingsViewModel.deleteTranscription(transcription)
                     pendingDeleteMeeting = nil
@@ -117,7 +120,7 @@ struct MeetingsView: View {
             }
         } message: {
             if let pendingDeleteMeeting {
-                Text("This permanently removes \"\(pendingDeleteMeeting.fileName)\", its transcript, stored audio, and any notes, AI results, or chats for this meeting.")
+                Text(MeetingDeletionCopy.singleFullDeleteMessage(title: pendingDeleteMeeting.fileName))
             }
         }
         .alert(
@@ -554,7 +557,8 @@ struct MeetingsView: View {
             }
         }
 
-        let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+        let audioState = MeetingAudioFile.state(for: transcription)
+        let audioAvailable = audioState == .saved
         let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
 
         Divider()
@@ -581,6 +585,9 @@ struct MeetingsView: View {
             Label("Show Audio in Finder", systemImage: "waveform")
         }
         .disabled(!audioAvailable)
+        .help(audioAvailable
+              ? "Reveal the meeting audio file in Finder"
+              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button {
             saveMeetingAudio(transcription)
@@ -588,20 +595,26 @@ struct MeetingsView: View {
             Label("Save Audio As…", systemImage: "square.and.arrow.down")
         }
         .disabled(!audioAvailable)
+        .help(audioAvailable
+              ? "Save a copy of the meeting audio to a chosen location"
+              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button(role: .destructive) {
             pendingDeleteAudio = transcription
         } label: {
-            Label("Delete Audio Only", systemImage: "waveform.slash")
+            Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
         }
         .disabled(!audioAvailable)
+        .help(audioAvailable
+              ? "Remove the saved meeting audio while keeping the meeting"
+              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Divider()
 
         Button(role: .destructive) {
             pendingDeleteMeeting = transcription
         } label: {
-            Label("Delete Meeting", systemImage: "trash")
+            Label(MeetingDeletionCopy.fullDeleteMenuTitle, systemImage: "trash")
         }
     }
 
@@ -734,26 +747,26 @@ struct MeetingsView: View {
         guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
             return "Delete Meetings?"
         }
-        return operation.isDeleteAudioOnly ? "Delete Meeting Audio?" : "Delete Meetings?"
+        return operation.isDeleteAudioOnly ? MeetingDeletionCopy.audioOnlyAlertTitle : "Delete Meetings?"
     }
 
     private var recentMeetingsBulkOperationConfirmTitle: String {
         guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
             return "Delete"
         }
-        return operation.isDeleteAudioOnly ? "Delete Audio Only" : "Delete Meetings"
+        return operation.isDeleteAudioOnly ? MeetingDeletionCopy.audioOnlyConfirmTitle : "Delete Meetings"
     }
 
     private func recentMeetingsBulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
         if operation.isDeleteAudioOnly {
-            var message = "Delete audio for \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? Transcripts, notes, AI results, and chats stay in Meetings if they exist. Playback and retranscription will be unavailable unless you saved a copy."
-            if operation.skippedCount > 0 {
-                message += " \(operation.skippedCount) selected \(operation.skippedCount == 1 ? "meeting does" : "meetings do") not have stored audio and will be skipped."
-            }
-            return message
+            return MeetingDeletionCopy.bulkAudioOnlyMessage(
+                count: operation.targetCount,
+                skippedCount: operation.skippedCount,
+                surface: .meetings
+            )
         }
 
-        return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "meeting" : "meetings")? This permanently removes the selected rows, transcripts, stored audio, and any notes, AI results, or chats for those meetings."
+        return MeetingDeletionCopy.bulkFullDeleteMessage(count: operation.targetCount)
     }
 
     private func handleRecentMeetingsSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {

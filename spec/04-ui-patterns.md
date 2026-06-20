@@ -121,13 +121,13 @@ The tile body is informational. Only the visible Start and Stop capsules are rea
 
 ### Library Meetings Filter
 
-When `Library.filter == .meeting`, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard` instead of the thumbnail grid the other filters use.
+When `Library.filter == .meeting`, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard` instead of the thumbnail grid the other filters use. Meeting rows surface saved-audio state directly (`Audio saved`, `Audio removed`, or `Audio missing`) so playback/retranscription expectations are visible before the user opens a menu.
 
 ### Library Multi-Select Cleanup
 
-Library offers a `Select Many...` secondary action when there are visible rows. Selection mode keeps actions in a contextual bar above the content: `Cancel`, `Select Loaded`, `Clear`, `Delete Audio Only...` for selected meetings with stored audio, and `Delete Items...` / `Delete Meetings...` for full deletion.
+Library offers a `Select Many...` secondary action when there are visible rows. Selection mode keeps actions in a contextual bar above the content: `Cancel`, `Select Loaded`, `Clear`, `Remove Audio Only...` for selected meetings with stored audio, and `Delete Items...` / `Delete Meetings...` for full deletion.
 
-Selected cards and meeting rows use the app accent/coral selected state. Destructive red is reserved for confirmation actions and destructive menu items, not for the selected state itself. Meeting full deletion removes the meeting row, transcript, stored audio, notes, AI results, and chats when those optional artifacts exist. `Delete Audio Only...` removes only stored meeting audio and leaves the transcript plus optional notes, AI results, and chats.
+Selected cards and meeting rows use the app accent/coral selected state. Destructive red is reserved for confirmation actions and destructive menu items, not for the selected state itself. Meeting full deletion removes the meeting row, transcript, stored audio, notes, AI results, and chats when those optional artifacts exist. `Remove Audio Only...` removes only stored meeting audio and leaves the transcript plus optional notes, AI results, and chats. Confirmation copy must state that playback and retranscription become unavailable unless the user saved a copy of the audio.
 
 The dedicated Meetings workspace mirrors the Library meeting cleanup model for Recent Meetings, using the same top contextual action bar, keyboard handling, and confirmation copy.
 

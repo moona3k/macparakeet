@@ -94,6 +94,53 @@ final class MeetingAudioFileTests: XCTestCase {
         XCTAssertFalse(MeetingAudioFile.isAvailable(for: transcription))
     }
 
+    // MARK: - state
+
+    func testStateReturnsNotMeetingForNonMeetingSource() {
+        let transcription = makeTranscription(
+            fileName: "lecture.mp3",
+            filePath: "/tmp/lecture.mp3",
+            sourceType: .file
+        )
+
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .notMeeting)
+    }
+
+    func testStateReturnsRemovedForMeetingWithoutFilePath() {
+        let transcription = makeTranscription(
+            fileName: "Meeting",
+            filePath: nil,
+            sourceType: .meeting
+        )
+
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .removed)
+    }
+
+    func testStateReturnsMissingWhenMeetingPathDoesNotExist() {
+        let transcription = makeTranscription(
+            fileName: "Meeting",
+            filePath: "/tmp/macparakeet-tests-missing-\(UUID().uuidString).m4a",
+            sourceType: .meeting
+        )
+
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .missing)
+    }
+
+    func testStateReturnsSavedWhenMeetingAudioExists() throws {
+        let directory = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let audioURL = directory.appendingPathComponent("meeting.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+
+        let transcription = makeTranscription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            sourceType: .meeting
+        )
+
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .saved)
+    }
+
     // MARK: - suggestedExportStem
 
     func testSuggestedExportStemPrefersDerivedTitleWithDate() {

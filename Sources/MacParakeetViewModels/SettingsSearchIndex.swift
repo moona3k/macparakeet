@@ -418,7 +418,8 @@ public enum SettingsSearchIndex {
             keywords: [
                 "storage", "retention", "disk", "history",
                 "save dictation", "save audio", "keep youtube audio", "youtube",
-                "keep meeting audio", "meeting audio", "meeting recordings", "clear audio"
+                "keep meeting audio", "meeting audio", "meeting recordings",
+                "remove audio", "clear audio", "transcript only", "audio lifecycle"
             ],
             cardAnchor: "system.storage"
         ),
