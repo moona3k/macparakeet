@@ -1,13 +1,13 @@
-# Library Multi-Select Bulk Delete
+# Library Multi-Select Bulk Cleanup
 
-**Status:** ACTIVE PLAN — not started
+**Status:** IMPLEMENTED IN PR #572 — pending review/merge
 **Date:** 2026-06-18
 **ADRs:** none new (UI/data-flow change within existing Library architecture)
-**Requirement:** REQ-LIB-002 (proposed — extends REQ-LIB-001 "Transcription library with thumbnail grid, filters, search")
 **Issues:** #498
 **Decision (owner, 2026-06-18):** Reuse the existing Dictation History
-"Select Multiple" pattern **plus keyboard support** (Delete key, ⌘A). Not
-Finder-style modifier-click selection (keeps the app internally consistent).
+explicit-selection pattern, with the Library/Meetings entry label **"Select
+Many..."**, plus keyboard support (Delete key, ⌘A). Not Finder-style
+modifier-click selection (keeps the app internally consistent).
 
 ## What this plan closes out
 
@@ -19,7 +19,7 @@ bulk.
 
 The good news: **Dictation History already implements a complete, shipped
 bulk-select pattern** (selection state, mode toggle, an action bar with
-count / Select All / Clear / Delete, batched deletion). This plan ports that
+count / Select Loaded / Clear / Delete, batched deletion). This plan ports that
 proven pattern into the Library (both the thumbnail grid and the meetings list)
 rather than inventing a new interaction — and layers on keyboard affordances
 Dictation does not yet have. (No undo in v1 — see Out of scope for why a row-only
@@ -38,14 +38,19 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
   "Recent Meetings").
 - Selection state + batch-delete operations on `TranscriptionLibraryViewModel`,
   mirroring `DictationHistoryViewModel`'s API shape.
-- An action bar (count, Select All, Clear, Cancel, Delete) consistent with the
-  Dictation History bar.
+- An action bar (count, Select Loaded, Clear, Cancel, Delete Audio Only, Delete
+  Items/Delete Meetings) consistent with the Dictation History bar.
 - Keyboard: `⌫`/`Delete` triggers the bulk-delete confirmation when items are
-  selected; `⌘A` selects all currently-filtered items; `Esc` exits select mode.
-- A single confirmation alert stating the count and permanence; copy adapts when
-  the selection includes meetings (audio **and** AI summaries/chats are
-  unrecoverable — see Invariants).
-- The batch delete runs off the main thread (`Task.detached`), mirroring
+  selected; `⌘A` selects all currently loaded filtered items; `Esc` exits select mode.
+- Two bulk cleanup operations:
+  - **Delete Items/Delete Meetings**: permanently removes the selected rows and
+    app-owned assets.
+  - **Delete Audio Only**: removes stored meeting audio only, keeping the
+    meeting row and any transcript, notes, AI results, and chats.
+- Confirmation alerts state the operation, eligible count, and permanence; copy
+  adapts when the selection includes meetings (audio **and** AI summaries/chats
+  are unrecoverable for full deletion — see Invariants).
+- The batch operations run off the main thread (`Task.detached`), mirroring
   `DictationHistoryViewModel.deleteTargets`, so deleting many items never
   beachballs the UI. [Gemini]
 
@@ -58,8 +63,6 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
   silently lose every AI summary and Ask-tab chat — strictly worse than no undo.
   A real undo needs a full-object-graph snapshot/restore or a soft-delete trash;
   both are a separate future feature. v1 relies on a precise confirmation instead.
-- Bulk **audio-only detach** (the single-item "Delete Audio" stays single-item;
-  bulk = full delete). Revisit if requested.
 - Bulk operations other than delete (move, export, favorite) — selection
   substrate enables them later, but only delete (+ the auto-title follow-up's
   "Generate titles") ships here.
@@ -71,16 +74,23 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
 - **Asset cleanup parity.** Each delete in the batch runs the *same*
   `TranscriptionDeletionCleanup.removeOwnedAssets()` + repo `delete(id:)` as the
   single-item path — no shortcut that skips on-disk cleanup.
+- **Audio detach parity.** Bulk "Delete Audio Only" runs the same
+  `TranscriptionAssetCleanup.detachOwnedMeetingAudio()` path as single-row
+  "Delete Audio"; it never deletes the Library/Meetings row, transcript, or any
+  notes, AI results, or chats that exist for that meeting.
 - **No partial-silent failure.** If one item in the batch fails to delete, the
   batch continues and the result surfaces (count succeeded / failed), never a
   silent drop.
-- **Deletion is permanent and total.** A delete removes the transcript, its
-  on-disk audio, **and** its cascaded `prompt_results` / `chat_conversations` /
+- **Deletion is permanent and total.** A full delete removes the row, transcript,
+  on-disk audio, and any associated `prompt_results` / `chat_conversations` /
   LLM-run rows. There is no undo (see Out of scope), so the confirmation must
-  state this plainly — especially that meeting audio and AI summaries can't be
-  recovered.
-- **Filter-aware Select All.** `⌘A` / "Select All" selects only the currently
-  filtered + searched set, never hidden rows.
+  state this plainly without implying optional meeting data always exists.
+- **Audio-only is eligibility-counted.** When a mixed Library selection contains
+  non-meetings or meetings without stored audio, "Delete Audio Only" affects
+  only the selected meetings with available stored audio. The action label and
+  confirmation state the eligible count and skipped count.
+- **Filter-aware Select Loaded.** `⌘A` / "Select Loaded" selects only the
+  currently loaded filtered + searched set, never hidden or unloaded rows.
 - **Accessibility parity.** The action bar and selection controls carry VoiceOver
   labels (count, selected state, actions), consistent with the active a11y sprint.
 - Idle hygiene: selection state is torn down on mode exit and on filter change.
@@ -121,64 +131,105 @@ multi-selectable, "Generate titles" becomes a natural bulk action.
 
 ## Design
 
+### Visual treatment and color
+- **Selection color:** use `DesignSystem.Colors.accent` / `accentLight` for
+  selected rows/cards and checkmarks. This matches the app's coral-orange action
+  language and the Library filter chips.
+- **Destructive color:** reserve `DesignSystem.Colors.errorRed` and
+  `.parakeetAction(.destructive)` for the actual destructive actions:
+  `Delete Audio Only...`, `Delete Items...`, `Delete Meetings...`, and
+  confirmation buttons.
+- **Do not use red for selection state.** Selection is a reversible staging mode;
+  making selected rows red would make the whole surface feel like data is already
+  being destroyed.
+- **Do not introduce a new selection hue.** The sidebar's blue is system/sidebar
+  selection; Library content selection should stay in the product's coral system.
+- Grid cards: selected state gets a subtle `accentLight` wash, a 1-1.5pt accent
+  stroke, and a filled checkmark circle. Avoid heavy fills that compete with
+  thumbnails.
+- Meeting/list rows: selected state gets a leading checkmark circle plus a low
+  opacity accent row background. Keep hover visually subordinate to selected.
+
 ### ViewModel (mirror Dictation, adapt to Transcription)
 On `TranscriptionLibraryViewModel`:
 ```swift
 public private(set) var isBulkSelectionModeEnabled: Bool
 public private(set) var selectedTranscriptionIDs: Set<UUID>
-public var pendingBulkDelete: [Transcription]      // drives the alert
+public var pendingBulkOperation: BulkTranscriptionOperation?
 func beginBulkSelection(startingWith: Transcription?)
 func toggleSelection(_ id: UUID)
 func selectAllVisible()                              // filtered + searched only
 func clearSelection()
 func exitBulkSelection()
-func requestDeleteSelected()
-func confirmDeleteSelected() async -> BulkDeleteResult   // {succeeded, failed}
+func requestDeleteSelectedItems()
+func requestDeleteSelectedMeetingAudio()
+func confirmPendingBulkOperation() async -> BulkOperationResult   // {succeeded, failed, skipped}
 ```
-- `confirmDeleteSelected` runs the per-item cleanup+delete in a `Task.detached`
-  loop (off the main actor), accumulates a `{succeeded, failed}` result, and exits
-  mode. No snapshot (no undo in v1).
+- `BulkTranscriptionOperation` snapshots the selected rows at confirmation time:
+  `.deleteItems([Transcription])` or
+  `.deleteAudioOnly(targets: [Transcription], skipped: Int)`.
+- `confirmPendingBulkOperation` runs the per-item cleanup in a `Task.detached`
+  loop (off the main actor), accumulates `{succeeded, failed, skipped}`, and exits
+  mode after a confirmed operation. No undo in v1.
 
 ### Interaction
-- **Entry:** a row context-menu item "Select Multiple…" (matches Dictation),
-  plus a toolbar "Select" affordance on the Library header.
+- **Entry:** a row context-menu item "Select Many…", plus a toolbar "Select
+  Many" affordance on the Library header.
 - **Selection:** tapping a row toggles its checkmark while in mode; grid cards
   show a selection overlay, list rows a leading checkbox.
 - **Action bar:** appears at the bottom while in mode — `N selected ·
-  Select All · Clear · Cancel · Delete`.
-- **Keyboard:** `⌘A` select-all-visible, `⌫`/`Delete` → confirmation,
+  Select Loaded · Clear · Cancel · Delete Audio Only… · Delete Items…`.
+- **Meetings action bar:** in meeting-only contexts (`Library` Meetings filter
+  and `MeetingsView` Recent Meetings), show the destructive choices plainly:
+  `Delete Audio Only…` and `Delete Meetings…`.
+- **Mixed Library action bar:** always show `Delete Items…`. Show
+  `Delete Audio Only…` only when at least one selected meeting has stored
+  audio; label it with the eligible count where space allows, e.g.
+  `Delete Audio for 3 Meetings…`.
+- **Keyboard:** `⌘A` select loaded visible rows, `⌫`/`Delete` → confirmation,
   `Esc` → exit. (Use SwiftUI `.onKeyPress` / commands on the focused Library
   view; verify focus behavior in the dev app.)
 - **Confirmation copy (no undo, so it must be precise):**
-  - files only: *"Delete N items? This permanently deletes them and their files."*
-  - includes meetings: *"Delete N items, including M meetings? Audio and AI
-    summaries can't be recovered."*
+  - full delete, files only: *"Delete N items? This permanently deletes the
+    Library rows and app-owned files. Original local source files are not
+    removed."*
+  - full delete, includes meetings: *"Delete N items, including M meetings? This
+    permanently removes the selected rows, transcripts, stored audio, and any
+    notes, AI results, or chats for those meetings."*
+  - audio-only: *"Delete audio for M meetings? Transcripts, notes, AI results,
+    and chats stay in Library if they exist. Playback and retranscription will be
+    unavailable unless you saved a copy."*
 
 ## Phases
-1. **ViewModel selection + batch delete + tests** — port the Dictation API onto
-   `TranscriptionLibraryViewModel`; off-main-thread (`Task.detached`) batch
-   delete; unit tests for select-all-visible (respects filter/search), batch
-   success/partial-failure result, mode teardown.
+1. **ViewModel selection + bulk operation model + tests** — port the Dictation
+   API onto `TranscriptionLibraryViewModel`; off-main-thread (`Task.detached`)
+   full delete and audio-only detach; unit tests for select-loaded-visible
+   (respects filter/search and pagination), success/partial-failure/skipped
+   result, mode teardown.
 2. **Grid + list UI** — selection overlays/checkboxes, action bar (with VoiceOver
-   labels); both surfaces.
+   labels); both surfaces; full-delete row menu parity in `MeetingsView`.
 3. **Keyboard** — ⌘A / Delete / Esc; dev-app verification of focus + that Delete
    doesn't fire when not in select mode.
-4. **Docs** — `spec/04-ui-patterns.md` (Library multi-select), `spec/02-features.md`,
-   register REQ-LIB-002.
+4. **Docs** — `spec/04-ui-patterns.md` (Library multi-select) and
+   `spec/02-features.md`.
 
 ## Testing
 - ViewModel unit tests: selection toggling, `selectAllVisible` excludes
-  filtered-out/searched-out rows, batch delete returns correct succeeded/failed,
+  filtered-out/searched-out/unloaded rows, full delete returns correct
+  succeeded/failed, audio-only detach returns correct succeeded/failed/skipped,
   off-main-thread execution, mode teardown clears state.
 - Asset-cleanup parity test: a batch delete invokes the same cleanup as the
   single-item path (no orphaned files; meeting folders removed).
+- Audio-only parity test: selected meeting audio detach keeps the transcription
+  row and clears `filePath`, while selected non-meetings or meetings without
+  audio are skipped and reported.
 - `swift test` before merge. (SwiftUI views themselves untested per repo policy —
   logic lives in the ViewModel.)
 
 ## Open questions (resolve in Phase 1)
-1. **Favorites in Select All:** include favorited rows in `⌘A` (simplest) vs.
+1. **Favorites in Select Loaded:** include favorited rows in `⌘A` (simplest) vs.
    warn/exclude. Lean: include, but the confirmation count makes scale visible.
-2. **Toolbar "Select" vs. context-menu-only entry:** ship both for discoverability,
+2. **Toolbar "Select Many" vs. context-menu-only entry:** ship both for discoverability,
    or context-menu-only to match Dictation exactly? Lean: both.
 
 (Resolved during PR #556 review: no undo/trash in v1 — a row-only undo would lose
@@ -186,5 +237,5 @@ cascade-deleted AI summaries/chats; rely on a precise confirmation. The batch
 delete runs off the main thread.)
 
 ## Docs to update on completion
-`spec/04-ui-patterns.md`, `spec/02-features.md`, `spec/README.md`,
-`spec/kernel/requirements.yaml` (REQ-LIB-002), and an issue reply on #498.
+`spec/04-ui-patterns.md`, `spec/02-features.md`, `spec/README.md`, and an issue
+reply on #498.

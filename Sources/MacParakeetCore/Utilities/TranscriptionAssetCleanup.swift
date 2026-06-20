@@ -29,6 +29,19 @@ public enum TranscriptionAssetCleanup {
         subsystem: "com.macparakeet.core",
         category: "TranscriptionAssetCleanup"
     )
+    private static let standardMeetingAudioFileNames: Set<String> = [
+        "meeting.m4a",
+        "microphone.m4a",
+        "system.m4a",
+    ]
+    private static let managedMeetingAudioExtensions: Set<String> = [
+        "aac",
+        "caf",
+        "flac",
+        "m4a",
+        "mp3",
+        "wav",
+    ]
 
     public static func removeOwnedAssets(
         for transcription: Transcription,
@@ -69,15 +82,73 @@ public enum TranscriptionAssetCleanup {
         fileManager: FileManager = .default
     ) throws -> MeetingAudioDetachResult {
         let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
-        let removedOwnedAudio = try removeOwnedMeetingAudio(for: transcription, fileManager: fileManager)
-        let result = MeetingAudioDetachResult(
-            removedOwnedAudio: removedOwnedAudio,
-            hadAudioPath: hasAudioPath
-        )
-        guard result.detached else { return result }
+        guard hasAudioPath else {
+            let result = MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: false)
+            try repository.updateFilePath(id: transcription.id, filePath: nil)
+            return result
+        }
+        guard let removalPlan = try meetingAudioRemovalPlan(for: transcription, fileManager: fileManager) else {
+            return MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: true)
+        }
 
+        try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
         try repository.updateFilePath(id: transcription.id, filePath: nil)
-        return result
+        return MeetingAudioDetachResult(removedOwnedAudio: true, hadAudioPath: true)
+    }
+
+    private static func meetingAudioRemovalPlan(
+        for transcription: Transcription,
+        fileManager: FileManager
+    ) throws -> MeetingAudioRemovalPlan? {
+        guard transcription.sourceType == .meeting,
+              let filePath = transcription.filePath,
+              !filePath.isEmpty else {
+            return nil
+        }
+
+        let mixedAudioURL = URL(fileURLWithPath: filePath).standardizedFileURL
+        let folderURL = mixedAudioURL.deletingLastPathComponent().standardizedFileURL
+
+        guard isKnownMeetingFolder(folderURL, fileManager: fileManager) else {
+            logger.warning(
+                "Refusing to remove meeting audio outside app support: \(folderURL.path, privacy: .private)"
+            )
+            return nil
+        }
+        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+        guard !fileManager.fileExists(atPath: lockURL.path) else {
+            logger.warning(
+                "Refusing to remove audio from locked meeting folder: \(folderURL.path, privacy: .private)"
+            )
+            throw TranscriptionAssetCleanupError.removalFailed(
+                path: folderURL.path,
+                reason: "meeting audio is still awaiting transcription or recovery"
+            )
+        }
+
+        return MeetingAudioRemovalPlan(
+            candidates: meetingAudioFileCandidates(mixedAudioURL: mixedAudioURL, folderURL: folderURL)
+        )
+    }
+
+    private static func removeMeetingAudioFiles(
+        _ plan: MeetingAudioRemovalPlan,
+        fileManager: FileManager
+    ) throws {
+        for candidate in plan.candidates where fileManager.fileExists(atPath: candidate.path) {
+            try removeItem(at: candidate, fileManager: fileManager)
+        }
+    }
+
+    private static func meetingAudioFileCandidates(mixedAudioURL: URL, folderURL: URL) -> Set<URL> {
+        var candidates = Set(
+            standardMeetingAudioFileNames.map { folderURL.appendingPathComponent($0).standardizedFileURL }
+        )
+        if mixedAudioURL.deletingLastPathComponent().standardizedFileURL == folderURL,
+           managedMeetingAudioExtensions.contains(mixedAudioURL.pathExtension.lowercased()) {
+            candidates.insert(mixedAudioURL)
+        }
+        return candidates
     }
 
     private static func removeDownloadedMediaFile(at fileURL: URL, fileManager: FileManager) throws {
@@ -159,4 +230,8 @@ public enum TranscriptionAssetCleanup {
 
 private struct MeetingArtifactManifestProbe: Decodable {
     let schema: String
+}
+
+private struct MeetingAudioRemovalPlan {
+    let candidates: Set<URL>
 }

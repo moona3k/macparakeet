@@ -594,14 +594,14 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 - Full-width flat chronological list (no split pane, no detail view)
 - Grouped by date (Today, Yesterday, specific dates)
 - Each entry shows: time, duration, full transcript text (no line limit)
-- Hover actions: Play/Pause, Copy (with checkmark confirmation), three-dot menu (Download Audio, Select Multiple…, Delete)
+- Hover actions: Play/Pause, Copy (with checkmark confirmation), three-dot menu (Download Audio, Select Many..., Delete)
 - Currently-playing row has subtle accent tint background
 - Bottom bar audio player (Spotify-style): play/pause, transcript snippet, progress bar, time, close
 - Search bar filters by transcript content (substring match, case-insensitive)
 - Context menu: Play/Pause, Copy, Download Audio, Delete
 - Keyboard shortcut: Cmd+Backspace to delete
 - Text selection enabled on transcript text
-- Multi-select cleanup is an explicit bulk-selection mode: hidden during ordinary browsing, entered via the row three-dot menu's `Select Multiple…` (which preselects that row), surfacing per-row selection circles and a bulk action bar (Cancel, Select All, Clear, Delete). The mode exits on confirmed bulk delete, Cancel, switching to the Stats sub-tab, or leaving the Dictations section.
+- Multi-select cleanup is an explicit bulk-selection mode: hidden during ordinary browsing, entered via the row three-dot menu's `Select Many...` (which preselects that row), surfacing per-row selection circles and a bulk action bar (Cancel, Select All, Clear, Delete). The mode exits on confirmed bulk delete, Cancel, switching to the Stats sub-tab, or leaving the Dictations section.
 - Delete confirmation dialog before permanent removal
 
 **Database schema:**
@@ -1557,6 +1557,8 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Filter bar: All / YouTube / Local / Favorites
 - [x] Search across transcription titles and content
 - [x] Sort by date (newest/oldest)
+- [x] Multi-select cleanup with `Select Many...`, `Select Loaded`, clear/cancel, and contextual destructive confirmations
+- [x] Meeting cleanup supports both full deletion and `Delete Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
 ### F27: Home Page Redesign
 

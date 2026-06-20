@@ -58,6 +58,53 @@ public enum TranscriptionDateGroup: Hashable, Sendable {
     }
 }
 
+public enum BulkTranscriptionOperation: Sendable {
+    case deleteItems([Transcription])
+    case deleteAudioOnly(targets: [Transcription], skipped: Int)
+
+    public var targetCount: Int {
+        switch self {
+        case .deleteItems(let targets), .deleteAudioOnly(let targets, _):
+            return targets.count
+        }
+    }
+
+    public var skippedCount: Int {
+        switch self {
+        case .deleteItems:
+            return 0
+        case .deleteAudioOnly(_, let skipped):
+            return skipped
+        }
+    }
+
+    public var meetingCount: Int {
+        switch self {
+        case .deleteItems(let targets):
+            return targets.filter { $0.sourceType == .meeting }.count
+        case .deleteAudioOnly(let targets, _):
+            return targets.count
+        }
+    }
+
+    public var isDeleteAudioOnly: Bool {
+        if case .deleteAudioOnly = self { return true }
+        return false
+    }
+}
+
+public struct BulkOperationResult: Sendable, Equatable {
+    public let succeeded: Int
+    public let failed: Int
+    public let skipped: Int
+
+    public init(succeeded: Int, failed: Int, skipped: Int = 0) {
+        self.succeeded = succeeded
+        self.failed = failed
+        self.skipped = skipped
+    }
+}
+
 @MainActor @Observable
 public final class TranscriptionLibraryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionLibrary")
@@ -72,6 +119,10 @@ public final class TranscriptionLibraryViewModel {
     public var errorMessage: String?
     public var pageSize = 100
     public var searchDebounceInterval: Duration = .milliseconds(300)
+    public private(set) var selectedTranscriptionIDs: Set<UUID> = []
+    public private(set) var isBulkSelectionModeEnabled = false
+    public private(set) var isBulkOperationInProgress = false
+    public private(set) var pendingBulkOperation: BulkTranscriptionOperation?
 
     /// Override for tests; production code uses `Date()`.
     public var nowProvider: @Sendable () -> Date = { Date() }
@@ -81,6 +132,7 @@ public final class TranscriptionLibraryViewModel {
     private var loadTask: Task<Void, Never>?
     private var searchDebounceTask: Task<Void, Never>?
     private var loadGeneration = 0
+    private var bulkSelectionGeneration = 0
     public let scope: TranscriptionLibraryScope
 
     public init(scope: TranscriptionLibraryScope = .all) {
@@ -89,6 +141,23 @@ public final class TranscriptionLibraryViewModel {
 
     public func configure(transcriptionRepo: TranscriptionRepositoryProtocol) {
         self.transcriptionRepo = transcriptionRepo
+    }
+
+    public var selectedTranscriptionCount: Int {
+        selectedTranscriptionIDs.count
+    }
+
+    public var hasSelectedTranscriptions: Bool {
+        !selectedTranscriptionIDs.isEmpty
+    }
+
+    public var areAllLoadedVisibleTranscriptionsSelected: Bool {
+        let ids = loadedVisibleTranscriptionIDs
+        return !ids.isEmpty && ids.isSubset(of: selectedTranscriptionIDs)
+    }
+
+    public var selectedMeetingAudioCount: Int {
+        selectedLoadedTranscriptions.filter(Self.hasAvailableMeetingAudio).count
     }
 
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
@@ -149,6 +218,149 @@ public final class TranscriptionLibraryViewModel {
         }
     }
 
+    public func isTranscriptionSelected(_ transcription: Transcription) -> Bool {
+        selectedTranscriptionIDs.contains(transcription.id)
+    }
+
+    public func toggleSelection(for transcription: Transcription) {
+        guard !isBulkOperationInProgress else { return }
+        bulkSelectionGeneration += 1
+        if selectedTranscriptionIDs.contains(transcription.id) {
+            selectedTranscriptionIDs.remove(transcription.id)
+        } else {
+            selectedTranscriptionIDs.insert(transcription.id)
+        }
+    }
+
+    public func selectLoadedVisibleTranscriptions() {
+        guard !isBulkOperationInProgress else { return }
+        bulkSelectionGeneration += 1
+        selectedTranscriptionIDs = loadedVisibleTranscriptionIDs
+    }
+
+    public func clearSelection() {
+        guard !isBulkOperationInProgress else { return }
+        bulkSelectionGeneration += 1
+        selectedTranscriptionIDs = []
+    }
+
+    public func beginBulkSelection(startingWith transcription: Transcription? = nil) {
+        guard !isBulkOperationInProgress else { return }
+        bulkSelectionGeneration += 1
+        isBulkSelectionModeEnabled = true
+        if let transcription {
+            selectedTranscriptionIDs.insert(transcription.id)
+        }
+    }
+
+    public func exitBulkSelection() {
+        guard !isBulkOperationInProgress else { return }
+        finishBulkSelection()
+    }
+
+    private func finishBulkSelection() {
+        bulkSelectionGeneration += 1
+        isBulkSelectionModeEnabled = false
+        selectedTranscriptionIDs = []
+        pendingBulkOperation = nil
+    }
+
+    public func cancelPendingBulkOperation() {
+        guard !isBulkOperationInProgress else { return }
+        pendingBulkOperation = nil
+    }
+
+    public func requestDeleteSelectedItems() {
+        guard !isBulkOperationInProgress else { return }
+        let targets = selectedLoadedTranscriptions
+        guard !targets.isEmpty else {
+            clearSelection()
+            return
+        }
+        pendingBulkOperation = .deleteItems(targets)
+    }
+
+    public func requestDeleteSelectedMeetingAudio() {
+        guard !isBulkOperationInProgress else { return }
+        let selected = selectedLoadedTranscriptions
+        let targets = selected.filter(Self.hasAvailableMeetingAudio)
+        guard !targets.isEmpty else {
+            return
+        }
+        pendingBulkOperation = .deleteAudioOnly(
+            targets: targets,
+            skipped: selected.count - targets.count
+        )
+    }
+
+    @discardableResult
+    public func confirmPendingBulkOperation() async -> BulkOperationResult {
+        guard let operation = pendingBulkOperation else {
+            return BulkOperationResult(succeeded: 0, failed: 0)
+        }
+        pendingBulkOperation = nil
+        guard let repo = transcriptionRepo else {
+            errorMessage = "Unable to update Library: database is not available."
+            return BulkOperationResult(succeeded: 0, failed: operation.targetCount, skipped: operation.skippedCount)
+        }
+
+        bulkSelectionGeneration += 1
+        let operationGeneration = bulkSelectionGeneration
+        isBulkSelectionModeEnabled = true
+        isBulkOperationInProgress = true
+        errorMessage = nil
+
+        switch operation {
+        case .deleteItems(let targets):
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.deleteTargets(targets, using: repo)
+            }.value
+            for _ in 0..<result.succeededIDs.count {
+                Telemetry.send(.transcriptionDeleted)
+            }
+            if !result.succeededIDs.isEmpty {
+                removeLoadedTranscriptions(withIDs: Set(result.succeededIDs))
+            }
+            if !result.failedIDs.isEmpty {
+                isBulkOperationInProgress = false
+                restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
+                errorMessage = Self.bulkDeleteFailureMessage(succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
+            } else {
+                isBulkOperationInProgress = false
+                finishBulkSelection()
+            }
+            return BulkOperationResult(
+                succeeded: result.succeededIDs.count,
+                failed: result.failedIDs.count
+            )
+
+        case .deleteAudioOnly(let targets, let skipped):
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.detachMeetingAudioTargets(targets, using: repo)
+            }.value
+            if !result.succeededIDs.isEmpty {
+                clearLoadedMeetingAudio(forIDs: Set(result.succeededIDs))
+            }
+            if !result.failedIDs.isEmpty {
+                isBulkOperationInProgress = false
+                restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
+                errorMessage = Self.bulkAudioDeleteFailureMessage(
+                    succeeded: result.succeededIDs.count,
+                    failed: result.failedIDs.count,
+                    skipped: skipped
+                )
+            } else {
+                isBulkOperationInProgress = false
+                finishBulkSelection()
+            }
+            return BulkOperationResult(
+                succeeded: result.succeededIDs.count,
+                failed: result.failedIDs.count,
+                skipped: skipped
+            )
+        }
+    }
+
     public func deleteTranscription(_ transcription: Transcription) {
         do {
             errorMessage = nil
@@ -156,6 +368,7 @@ public final class TranscriptionLibraryViewModel {
             let deleted = try transcriptionRepo?.delete(id: transcription.id) ?? false
             guard deleted else { return }
             transcriptions.removeAll { $0.id == transcription.id }
+            selectedTranscriptionIDs.remove(transcription.id)
             publishLoadedItems(transcriptions, hasMore: hasMore)
             Telemetry.send(.transcriptionDeleted)
         } catch {
@@ -188,12 +401,14 @@ public final class TranscriptionLibraryViewModel {
     }
 
     private func reloadAfterStateChange() {
+        exitBulkSelection()
         searchDebounceTask?.cancel()
         searchDebounceTask = nil
         loadTranscriptions()
     }
 
     private func debounceSearchReload() {
+        exitBulkSelection()
         searchDebounceTask?.cancel()
         searchDebounceTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -297,5 +512,118 @@ public final class TranscriptionLibraryViewModel {
         filteredTranscriptions = items
         groupedTranscriptions = groupByDate(items)
         self.hasMore = hasMore
+        pruneSelectionToLoadedItems()
     }
+
+    private var loadedVisibleTranscriptionIDs: Set<UUID> {
+        Set(filteredTranscriptions.map(\.id))
+    }
+
+    private var selectedLoadedTranscriptions: [Transcription] {
+        filteredTranscriptions.filter { selectedTranscriptionIDs.contains($0.id) }
+    }
+
+    nonisolated private static func hasAvailableMeetingAudio(_ transcription: Transcription) -> Bool {
+        MeetingAudioFile.isAvailable(for: transcription)
+    }
+
+    private func pruneSelectionToLoadedItems() {
+        selectedTranscriptionIDs = selectedTranscriptionIDs.intersection(loadedVisibleTranscriptionIDs)
+    }
+
+    private func removeLoadedTranscriptions(withIDs ids: Set<UUID>) {
+        transcriptions.removeAll { ids.contains($0.id) }
+        selectedTranscriptionIDs.subtract(ids)
+        publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    private func clearLoadedMeetingAudio(forIDs ids: Set<UUID>) {
+        for index in transcriptions.indices where ids.contains(transcriptions[index].id) {
+            transcriptions[index].filePath = nil
+        }
+        publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    private func restoreFailedSelectionIfCurrent(_ failedIDs: [UUID], operationGeneration: Int) {
+        guard bulkSelectionGeneration == operationGeneration else { return }
+        let visibleFailedIDs = Set(failedIDs).intersection(loadedVisibleTranscriptionIDs)
+        guard !visibleFailedIDs.isEmpty else { return }
+        isBulkSelectionModeEnabled = true
+        selectedTranscriptionIDs = visibleFailedIDs
+    }
+
+    nonisolated private static func deleteTargets(
+        _ targets: [Transcription],
+        using repo: TranscriptionRepositoryProtocol
+    ) -> BatchTargetResult {
+        var succeededIDs: [UUID] = []
+        var failedIDs: [UUID] = []
+
+        for target in targets {
+            do {
+                try TranscriptionDeletionCleanup.removeOwnedAssets(for: target)
+                if try repo.delete(id: target.id) {
+                    succeededIDs.append(target.id)
+                } else {
+                    failedIDs.append(target.id)
+                }
+            } catch {
+                failedIDs.append(target.id)
+            }
+        }
+
+        return BatchTargetResult(succeededIDs: succeededIDs, failedIDs: failedIDs)
+    }
+
+    nonisolated private static func detachMeetingAudioTargets(
+        _ targets: [Transcription],
+        using repo: TranscriptionRepositoryProtocol
+    ) -> BatchTargetResult {
+        var succeededIDs: [UUID] = []
+        var failedIDs: [UUID] = []
+
+        for target in targets {
+            do {
+                let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+                    for: target,
+                    repository: repo
+                )
+                if result.detached {
+                    succeededIDs.append(target.id)
+                } else {
+                    failedIDs.append(target.id)
+                }
+            } catch {
+                failedIDs.append(target.id)
+            }
+        }
+
+        return BatchTargetResult(succeededIDs: succeededIDs, failedIDs: failedIDs)
+    }
+
+    nonisolated private static func bulkDeleteFailureMessage(succeeded: Int, failed: Int) -> String {
+        if succeeded > 0 {
+            return "Deleted \(succeeded) items. \(failed) could not be deleted."
+        }
+        return failed == 1 ? "1 item could not be deleted." : "\(failed) items could not be deleted."
+    }
+
+    nonisolated private static func bulkAudioDeleteFailureMessage(succeeded: Int, failed: Int, skipped: Int) -> String {
+        var parts: [String] = []
+        if succeeded > 0 {
+            parts.append("Deleted audio for \(succeeded) \(succeeded == 1 ? "meeting" : "meetings").")
+        }
+        if failed > 0 {
+            parts.append(failed == 1 ? "1 meeting audio file could not be deleted." : "\(failed) meeting audio files could not be deleted.")
+        }
+        if skipped > 0 {
+            parts.append(skipped == 1 ? "1 selected item was skipped." : "\(skipped) selected items were skipped.")
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
+private struct BatchTargetResult: Sendable {
+    let succeededIDs: [UUID]
+    let failedIDs: [UUID]
 }
