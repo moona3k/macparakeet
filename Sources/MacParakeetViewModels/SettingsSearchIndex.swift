@@ -161,6 +161,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.undo.window",
+            tab: .capture,
+            title: "Undo window",
+            subtitle: "in Dictation",
+            keywords: ["undo", "cancel", "countdown", "timer", "wait", "discard", "off", "disable"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "transcription",
             tab: .capture,
             title: "Transcription",

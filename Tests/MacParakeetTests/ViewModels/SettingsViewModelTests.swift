@@ -146,6 +146,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
         XCTAssertTrue(viewModel.showLiveDictationPreview, "showLiveDictationPreview should default to true")
+        XCTAssertEqual(viewModel.dictationUndoCountdown, .fiveSeconds)
         XCTAssertFalse(
             viewModel.keepDictationOnClipboard,
             "keepDictationOnClipboard should default to false (opt-in)"
@@ -343,6 +344,25 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.liveDictationPreview])
+    }
+
+    func testDictationUndoCountdownDefaultsToFiveSecondsPersistsAndEmitsTelemetry() {
+        XCTAssertEqual(viewModel.dictationUndoCountdown, .fiveSeconds)
+
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationUndoCountdown = .off
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey),
+            DictationUndoCountdown.off.rawValue
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.dictationUndoCountdown])
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {

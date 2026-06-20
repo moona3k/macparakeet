@@ -23,6 +23,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var instantDictationEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
+    var dictationUndoCountdown: DictationUndoCountdown { get }
     var shouldKeepDictationOnClipboard: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
@@ -245,6 +246,44 @@ public enum DictationPreviewTextSize: String, CaseIterable, Hashable, Sendable, 
     }
 }
 
+public enum DictationUndoCountdown: String, CaseIterable, Hashable, Sendable, Equatable {
+    case fiveSeconds = "fiveSeconds"
+    case oneSecond = "oneSecond"
+    case off = "off"
+
+    public var seconds: Double? {
+        switch self {
+        case .fiveSeconds:
+            return 5
+        case .oneSecond:
+            return 1
+        case .off:
+            return nil
+        }
+    }
+
+    public var isDisabled: Bool { seconds == nil }
+
+    public var displayTitle: String {
+        switch self {
+        case .fiveSeconds:
+            return "5 seconds"
+        case .oneSecond:
+            return "1 second"
+        case .off:
+            return "Off"
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> DictationUndoCountdown {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey),
+              let countdown = DictationUndoCountdown(rawValue: raw) else {
+            return .fiveSeconds
+        }
+        return countdown
+    }
+}
+
 public enum TranscriptAIContextMode: String, CaseIterable, Codable, Identifiable, Sendable, Equatable {
     case richTranscript = "rich_transcript"
     case plainTranscript = "plain_transcript"
@@ -452,6 +491,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
+    public static let dictationUndoCountdownKey = "dictationUndoCountdown"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
@@ -564,6 +604,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var dictationPreviewTextSize: DictationPreviewTextSize {
         DictationPreviewTextSize.current(defaults: defaults)
+    }
+
+    public var dictationUndoCountdown: DictationUndoCountdown {
+        DictationUndoCountdown.current(defaults: defaults)
     }
 
     public var shouldKeepDictationOnClipboard: Bool {

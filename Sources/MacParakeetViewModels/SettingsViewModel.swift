@@ -237,6 +237,16 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .liveDictationPreview))
         }
     }
+    public var dictationUndoCountdown: DictationUndoCountdown {
+        didSet {
+            guard dictationUndoCountdown != oldValue else { return }
+            defaults.set(
+                dictationUndoCountdown.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
+            )
+            Telemetry.send(.settingChanged(setting: .dictationUndoCountdown))
+        }
+    }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
     public var microphoneTestState: MicrophoneTestState = .idle
     public var microphoneTestLevel: Float = 0
@@ -634,6 +644,7 @@ public final class SettingsViewModel {
             forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
         ) as? Bool ?? true
         dictationPreviewTextSize = DictationPreviewTextSize.current(defaults: defaults)
+        dictationUndoCountdown = DictationUndoCountdown.current(defaults: defaults)
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))

@@ -232,6 +232,7 @@ final class DictationOverlayViewModel {
 
     /// Cancel countdown value (separate from state enum to avoid view reconstruction jank).
     var cancelTimeRemaining: Double = 5.0
+    var cancelCountdownDuration: Double = 5.0
 
     private var timerTask: Task<Void, Never>?
     private var busyMessageTask: Task<Void, Never>?

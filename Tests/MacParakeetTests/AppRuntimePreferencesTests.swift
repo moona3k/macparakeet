@@ -39,6 +39,38 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testDictationUndoCountdownDefaultsToFiveSeconds() {
+        let preferences = makePreferences()
+        XCTAssertEqual(preferences.dictationUndoCountdown, .fiveSeconds)
+        XCTAssertEqual(preferences.dictationUndoCountdown.seconds, 5)
+    }
+
+    func testDictationUndoCountdownRoundTripsStoredValue() {
+        for countdown in DictationUndoCountdown.allCases {
+            let defaults = UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!
+            defaults.set(
+                countdown.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
+            )
+            XCTAssertEqual(DictationUndoCountdown.current(defaults: defaults), countdown)
+        }
+    }
+
+    func testDictationUndoCountdownFallsBackForUnknownValue() {
+        let defaults = UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!
+        defaults.set(
+            "not-a-real-value",
+            forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
+        )
+        XCTAssertEqual(DictationUndoCountdown.current(defaults: defaults), .fiveSeconds)
+    }
+
+    func testDictationUndoCountdownOffIsDisabled() {
+        XCTAssertTrue(DictationUndoCountdown.off.isDisabled)
+        XCTAssertNil(DictationUndoCountdown.off.seconds)
+        XCTAssertFalse(DictationUndoCountdown.fiveSeconds.isDisabled)
+    }
+
     func testSaveMeetingAudioDefaultsToTrueAndReadsLegacyValueBeforeMigration() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

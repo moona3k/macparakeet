@@ -22,7 +22,7 @@ public enum DictationFlowState: Equatable, Sendable {
     case pendingStop(mode: FnKeyStateMachine.RecordingMode)
     /// Stop called, transcription in progress.
     case processing
-    /// Cancel countdown running (5 seconds). User can undo or confirm.
+    /// Cancel countdown running. User can undo or confirm.
     case cancelCountdown
     /// Terminal display state before returning to idle.
     case finishing(outcome: DictationFlowFinishOutcome)
@@ -132,7 +132,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
     // Timer management
     case startReadyDismissTimer
     case cancelReadyDismissTimer
-    case startCancelCountdown
+    case startCancelCountdown(seconds: Double)
     case cancelCancelCountdown
     case startDisplayDismissTimer(seconds: Double)
     case cancelAllTimers
@@ -151,6 +151,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
 public struct DictationFlowStateMachine: Sendable, Equatable {
     public private(set) var state: DictationFlowState = .idle
     public private(set) var generation: Int = 0
+    public var undoCountdownSeconds: Double? = 5
 
     public init() {}
 
@@ -295,10 +296,29 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return effects
 
         case (.recording, .cancelRequested(let reason)):
+            guard let undoCountdownSeconds else {
+                // Undo window disabled: discard the recording immediately and
+                // return to idle. .confirmCancel performs the full teardown in a
+                // single ordered service operation (it tears down an in-flight
+                // recording itself), so we must NOT also emit .cancelRecording:
+                // the two run as separate async effects and could interleave,
+                // double-stopping capture and racing the cancelled state.
+                // Deliberately omits .notifyHotkeyCancelledByUI: that effect
+                // blocks every hotkey until a later reset, but there is no
+                // countdown to expire on this path, so it would leave dictation
+                // shortcuts stuck. .resetHotkeyStateMachine returns them to idle.
+                state = .idle
+                return [
+                    .cancelRecordingTask, .confirmCancel, .hideOverlay,
+                    .resetHotkeyStateMachine, .updateMenuBar(.idle),
+                    .showIdlePill,
+                ]
+            }
             state = .cancelCountdown
             return [
                 .cancelRecordingTask, .cancelRecording(reason: reason),
-                .showCancelCountdown, .updateMenuBar(.idle), .startCancelCountdown,
+                .showCancelCountdown, .updateMenuBar(.idle),
+                .startCancelCountdown(seconds: undoCountdownSeconds),
                 .notifyHotkeyCancelledByUI,
             ]
 

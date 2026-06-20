@@ -503,6 +503,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case pauseMediaDuringDictation = "pause_media_during_dictation"
     case instantDictation = "instant_dictation"
     case liveDictationPreview = "live_dictation_preview"
+    case dictationUndoCountdown = "dictation_undo_countdown"
     case dictationInsertionStyle = "dictation_insertion_style"
     case transcriptionCompletionNotification = "transcription_completion_notification"
 

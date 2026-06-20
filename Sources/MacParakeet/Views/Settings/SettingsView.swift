@@ -1072,6 +1072,23 @@ struct SettingsView: View {
                 }
 
                 Divider()
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Undo window",
+                        detail: "How long cancel waits before discarding a dictation."
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Picker("Undo window", selection: $viewModel.dictationUndoCountdown) {
+                        ForEach(DictationUndoCountdown.allCases, id: \.self) { countdown in
+                            Text(countdown.displayTitle).tag(countdown)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
+
+                Divider()
 
                 settingsToggleRow(
                     title: "Auto-stop after silence",

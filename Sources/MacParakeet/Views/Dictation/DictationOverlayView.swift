@@ -673,7 +673,10 @@ struct DictationOverlayView: View {
                     .frame(width: 24, height: 24)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(viewModel.cancelTimeRemaining / 5.0))
+                    .trim(
+                        from: 0,
+                        to: CGFloat(viewModel.cancelTimeRemaining / max(viewModel.cancelCountdownDuration, 1.0))
+                    )
                     .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 24, height: 24)
                     .rotationEffect(.degrees(-90))

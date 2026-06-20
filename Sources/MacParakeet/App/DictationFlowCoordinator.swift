@@ -352,6 +352,7 @@ final class DictationFlowCoordinator {
     func cancelDictation(reason: TelemetryDictationCancelReason = .ui) {
         // Map telemetry reason to state machine cancel reason
         let flowReason: DictationFlowCancelReason = reason == .ui ? .ui : .escape
+        stateMachine.undoCountdownSeconds = runtimePreferences.dictationUndoCountdown.seconds
         sendEvent(.cancelRequested(reason: flowReason))
     }
 
@@ -481,8 +482,10 @@ final class DictationFlowCoordinator {
 
         case .showCancelCountdown:
             overlayViewModel?.stopTimer()
-            overlayViewModel?.cancelTimeRemaining = 5.0
-            overlayViewModel?.state = .cancelled(timeRemaining: 5.0)
+            let seconds = stateMachine.undoCountdownSeconds ?? 5.0
+            overlayViewModel?.cancelCountdownDuration = seconds
+            overlayViewModel?.cancelTimeRemaining = seconds
+            overlayViewModel?.state = .cancelled(timeRemaining: seconds)
 
         case .showSuccess:
             dismissCaption(outcome: .success)
@@ -709,11 +712,13 @@ final class DictationFlowCoordinator {
             readyDismissTimer?.cancel()
             readyDismissTimer = nil
 
-        case .startCancelCountdown:
+        case .startCancelCountdown(let seconds):
             let gen = stateMachine.generation
             cancelCountdownTask = Task { @MainActor in
-                // 5-second countdown, updating UI each second
-                for i in stride(from: 4.0, through: 0, by: -1) {
+                self.overlayViewModel?.cancelCountdownDuration = seconds
+                self.overlayViewModel?.cancelTimeRemaining = seconds
+                // Countdown, updating UI each second
+                for i in stride(from: seconds - 1, through: 0, by: -1) {
                     try? await Task.sleep(for: .seconds(1))
                     if Task.isCancelled { return }
                     self.overlayViewModel?.cancelTimeRemaining = i

@@ -372,7 +372,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
         XCTAssertTrue(effects.contains(.cancelRecording(reason: .escape)))
         XCTAssertTrue(effects.contains(.showCancelCountdown))
-        XCTAssertTrue(effects.contains(.startCancelCountdown))
+        XCTAssertTrue(effects.contains(.startCancelCountdown(seconds: 5)))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         // Always emitted (old code always calls notifyCancelledByUI)
         XCTAssertTrue(effects.contains(.notifyHotkeyCancelledByUI))
@@ -384,6 +384,50 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.cancelRequested(reason: .ui))
         XCTAssertEqual(m.state, .cancelCountdown)
         XCTAssertTrue(effects.contains(.notifyHotkeyCancelledByUI))
+    }
+
+    func testRecordingCancelRequestedShortCountdownEmitsConfiguredDuration() {
+        var m = machineInRecording()
+        m.undoCountdownSeconds = 1
+
+        let effects = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .cancelCountdown)
+        XCTAssertTrue(effects.contains(.startCancelCountdown(seconds: 1)))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 5)))
+    }
+
+    func testRecordingCancelRequestedDisabledCountdownSkipsToConfirm() {
+        var m = machineInRecording()
+        m.undoCountdownSeconds = nil
+
+        let effects = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .idle)
+        XCTAssertFalse(effects.contains(.showCancelCountdown))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 5)))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 1)))
+        XCTAssertTrue(effects.contains(.cancelRecordingTask))
+        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.showIdlePill))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        // confirmCancel performs the full teardown itself; emitting cancelRecording
+        // too would race the two async effects.
+        XCTAssertFalse(effects.contains(.cancelRecording(reason: .escape)))
+        // Must NOT block hotkeys: there is no countdown to expire on this path,
+        // so notifyHotkeyCancelledByUI would leave dictation shortcuts stuck.
+        XCTAssertFalse(effects.contains(.notifyHotkeyCancelledByUI))
+    }
+
+    func testCancelCountdownUndoReturnsToProcessing() {
+        var m = machineInRecording()
+        _ = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .cancelCountdown)
+
+        let effects = m.handle(.undoRequested)
+        XCTAssertEqual(m.state, .processing)
+        XCTAssertTrue(effects.contains(.cancelCancelCountdown))
+        XCTAssertTrue(effects.contains(.undoCancelAndTranscribe))
+        XCTAssertTrue(effects.contains(.showProcessingState))
     }
 
     func testRecordingDiscardRequestedShowsReadyPill() {
