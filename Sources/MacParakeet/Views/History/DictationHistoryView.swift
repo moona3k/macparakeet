@@ -6,6 +6,7 @@ import MacParakeetViewModels
 struct DictationHistoryView: View {
     @Bindable var viewModel: DictationHistoryViewModel
     @State private var deleteAlertCount = 0
+    @State private var expandedDictationIDs: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -148,8 +149,10 @@ struct DictationHistoryView: View {
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
                             isSelected: viewModel.isDictationSelected(dictation),
+                            isExpanded: expandedDictationIDs.contains(dictation.id),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             onToggleSelection: { viewModel.toggleSelection(for: dictation) },
+                            onToggleExpanded: { toggleExpanded(dictation) },
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: {
                                 viewModel.copyToClipboard(dictation)
@@ -314,6 +317,37 @@ struct DictationHistoryView: View {
     private var displayedDeleteAlertCount: Int {
         deleteAlertCount > 0 ? deleteAlertCount : viewModel.pendingDeleteCount
     }
+
+    private func toggleExpanded(_ dictation: Dictation) {
+        withAnimation(DesignSystem.Animation.contentSwap) {
+            if expandedDictationIDs.contains(dictation.id) {
+                expandedDictationIDs.remove(dictation.id)
+            } else {
+                expandedDictationIDs.insert(dictation.id)
+            }
+        }
+    }
+}
+
+enum DictationTranscriptPresentation {
+    static let collapsedLineLimit = 3
+    static let expansionCharacterThreshold = 220
+    static let expansionLineBreakThreshold = 3
+    static let expandedBoxMaxHeight: CGFloat = 280
+
+    static func isExpandable(_ text: String) -> Bool {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return false }
+
+        let lineBreakCount = trimmedText.filter(\.isNewline).count
+        return trimmedText.count > expansionCharacterThreshold
+            || lineBreakCount >= expansionLineBreakThreshold
+    }
+
+    static func lineLimit(for text: String, isExpanded: Bool) -> Int? {
+        guard !isExpanded, isExpandable(text) else { return nil }
+        return collapsedLineLimit
+    }
 }
 
 // MARK: - Card Row View
@@ -324,11 +358,13 @@ struct DictationCardRow: View {
     var isPlayingThis: Bool = false
     var isCopied: Bool = false
     var isSelected: Bool = false
+    var isExpanded: Bool = false
     /// Whether the leading per-row selection circle is shown. Only true while
     /// the History list is in bulk-selection mode; hidden during ordinary
     /// browsing so a row doesn't look like a selection target.
     var showsSelectionControls: Bool = false
     var onToggleSelection: (() -> Void)?
+    var onToggleExpanded: (() -> Void)?
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
@@ -430,6 +466,7 @@ struct DictationCardRow: View {
                         CardActionButton(
                             icon: isPlayingThis ? "pause.fill" : "play.fill",
                             color: DesignSystem.Colors.accent,
+                            help: isPlayingThis ? "Pause audio" : "Play audio",
                             action: { onTogglePlayback?() }
                         )
                     }
@@ -437,9 +474,19 @@ struct DictationCardRow: View {
                     CardActionButton(
                         icon: isCopied ? "checkmark" : "doc.on.clipboard",
                         color: isCopied ? DesignSystem.Colors.successGreen : .secondary,
+                        help: isCopied ? "Copied" : "Copy dictation",
                         action: { onCopy() }
                     )
                     .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+
+                    if transcriptIsExpandable {
+                        CardActionButton(
+                            icon: isExpanded ? "chevron.up" : "chevron.down",
+                            color: .secondary,
+                            help: isExpanded ? "Hide full note" : "Show full note",
+                            action: { onToggleExpanded?() }
+                        )
+                    }
 
                     CardMenuButton(
                         hasAudio: dictation.audioPath != nil,
@@ -454,13 +501,7 @@ struct DictationCardRow: View {
                 }
             }
 
-            Text(highlightedTranscript)
-                .font(DesignSystem.Typography.body)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.22), value: dictation.displayRawTranscript)
+            transcriptContent
         }
         .padding(DesignSystem.Spacing.md)
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
@@ -484,6 +525,7 @@ struct DictationCardRow: View {
         }
         .animation(.easeInOut(duration: 0.15), value: isPlayingThis)
         .animation(DesignSystem.Animation.selectionChange, value: isSelected)
+        .animation(DesignSystem.Animation.contentSwap, value: isExpanded)
     }
 
     private var cardFill: Color {
@@ -506,10 +548,79 @@ struct DictationCardRow: View {
         return DesignSystem.Colors.border.opacity(0.5)
     }
 
+    @ViewBuilder
+    private var transcriptContent: some View {
+        let isExpandable = transcriptIsExpandable
+        if isExpanded && isExpandable {
+            ScrollView {
+                transcriptText(lineLimit: nil)
+                    .padding(DesignSystem.Spacing.sm)
+            }
+            .frame(maxHeight: DictationTranscriptPresentation.expandedBoxMaxHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+            }
+            .contentTransition(.opacity)
+        } else {
+            let lineLimit = DictationTranscriptPresentation.lineLimit(
+                for: transcriptPlainText,
+                isExpanded: isExpanded
+            )
+            if isExpandable {
+                transcriptText(lineLimit: lineLimit)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onToggleExpanded?()
+                    }
+                    .help("Click to read full note")
+                    .contentTransition(.opacity)
+            } else {
+                transcriptText(lineLimit: lineLimit)
+                    .contentTransition(.opacity)
+            }
+        }
+    }
+
+    private func transcriptText(lineLimit: Int?) -> some View {
+        let transcript = highlightedTranscript
+        // See PromptLibraryView for the same pattern: selectable macOS Text can
+        // over-expand during line-limit changes, so invisible layout text owns
+        // sizing while the selectable text is clipped to that box.
+        return Text(transcript)
+            .font(DesignSystem.Typography.body)
+            .lineLimit(lineLimit)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .overlay(alignment: .topLeading) {
+                Text(transcript)
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(lineLimit)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            .animation(.easeInOut(duration: 0.22), value: dictation.displayRawTranscript)
+    }
+
+    private var transcriptPlainText: String {
+        dictation.displayText
+    }
+
+    private var transcriptIsExpandable: Bool {
+        DictationTranscriptPresentation.isExpandable(transcriptPlainText)
+    }
+
     // MARK: - Highlighted Transcript
 
     private var highlightedTranscript: AttributedString {
-        let text = dictation.displayText
+        let text = transcriptPlainText
         let attributed = NSMutableAttributedString(string: text)
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -615,6 +726,7 @@ private struct SelectionToggleButton: View {
 private struct CardActionButton: View {
     let icon: String
     let color: Color
+    let help: String
     let action: () -> Void
 
     @State private var isHovered = false
@@ -632,6 +744,8 @@ private struct CardActionButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(isHovered ? .primary : color)
+        .help(help)
+        .accessibilityLabel(help)
         .onHover { isHovered = $0 }
     }
 }
@@ -649,7 +763,7 @@ private struct CardMenuButton: View {
     let onBeginBulkSelection: () -> Void
 
     var body: some View {
-        CardActionButton(icon: "ellipsis", color: .secondary) {
+        CardActionButton(icon: "ellipsis", color: .secondary, help: "More actions") {
             showMenu()
         }
     }
