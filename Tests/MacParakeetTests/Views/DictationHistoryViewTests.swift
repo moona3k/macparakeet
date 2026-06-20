@@ -28,6 +28,20 @@ final class DictationHistoryViewTests: XCTestCase {
         XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: true))
     }
 
+    func testLongDictationTextDoesNotCollapseWithoutToggleSupport() {
+        let text = Array(repeating: "This is a longer dictated note that cannot be expanded in this context.", count: 5)
+            .joined(separator: " ")
+
+        XCTAssertFalse(DictationTranscriptPresentation.isExpandable(text, canToggleExpansion: false))
+        XCTAssertNil(
+            DictationTranscriptPresentation.lineLimit(
+                for: text,
+                isExpanded: false,
+                canToggleExpansion: false
+            )
+        )
+    }
+
     func testMultiParagraphDictationTextIsExpandableEvenWhenBrief() {
         let text = """
         First thought.
@@ -40,6 +54,34 @@ final class DictationHistoryViewTests: XCTestCase {
         XCTAssertEqual(
             DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false),
             DictationTranscriptPresentation.collapsedLineLimit
+        )
+    }
+
+    func testWindowsLineEndingsDoNotDoubleCountParagraphBreaks() {
+        let text = "First paragraph.\r\nSecond paragraph.\r\nThird paragraph."
+
+        XCTAssertFalse(DictationTranscriptPresentation.isExpandable(text))
+        XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false))
+    }
+
+    func testExpandedHeightUsesCapBeforeContentIsMeasured() {
+        XCTAssertEqual(
+            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 0),
+            DictationTranscriptPresentation.expandedBoxMaxHeight
+        )
+    }
+
+    func testExpandedHeightShrinksToMeasuredContentWhenShorterThanCap() {
+        XCTAssertEqual(
+            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 120),
+            120
+        )
+    }
+
+    func testExpandedHeightCapsMeasuredContentWhenTallerThanCap() {
+        XCTAssertEqual(
+            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 640),
+            DictationTranscriptPresentation.expandedBoxMaxHeight
         )
     }
 }

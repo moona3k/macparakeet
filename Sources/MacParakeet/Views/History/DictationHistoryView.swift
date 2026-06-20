@@ -166,6 +166,12 @@ struct DictationHistoryView: View {
                         )
                         .padding(.horizontal, DesignSystem.Spacing.lg)
                         .padding(.bottom, DesignSystem.Spacing.sm)
+                        .onAppear {
+                            collapseExpansionIfUnavailable(for: dictation)
+                        }
+                        .onChange(of: dictation.displayText) { _, _ in
+                            collapseExpansionIfUnavailable(for: dictation)
+                        }
                     }
                 }
             }
@@ -322,9 +328,20 @@ struct DictationHistoryView: View {
         withAnimation(DesignSystem.Animation.contentSwap) {
             if expandedDictationIDs.contains(dictation.id) {
                 expandedDictationIDs.remove(dictation.id)
-            } else {
+            } else if DictationTranscriptPresentation.isExpandable(dictation.displayText) {
                 expandedDictationIDs.insert(dictation.id)
             }
+        }
+    }
+
+    private func collapseExpansionIfUnavailable(for dictation: Dictation) {
+        guard expandedDictationIDs.contains(dictation.id),
+              !DictationTranscriptPresentation.isExpandable(dictation.displayText) else {
+            return
+        }
+
+        withAnimation(DesignSystem.Animation.contentSwap) {
+            _ = expandedDictationIDs.remove(dictation.id)
         }
     }
 }
@@ -335,18 +352,38 @@ enum DictationTranscriptPresentation {
     static let expansionLineBreakThreshold = 3
     static let expandedBoxMaxHeight: CGFloat = 280
 
-    static func isExpandable(_ text: String) -> Bool {
+    static func isExpandable(_ text: String, canToggleExpansion: Bool = true) -> Bool {
+        guard canToggleExpansion else { return false }
+
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return false }
 
-        let lineBreakCount = trimmedText.filter(\.isNewline).count
+        let lineBreakCount = trimmedText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .filter(\.isNewline)
+            .count
         return trimmedText.count > expansionCharacterThreshold
             || lineBreakCount >= expansionLineBreakThreshold
     }
 
-    static func lineLimit(for text: String, isExpanded: Bool) -> Int? {
-        guard !isExpanded, isExpandable(text) else { return nil }
+    static func lineLimit(
+        for text: String,
+        isExpanded: Bool,
+        canToggleExpansion: Bool = true
+    ) -> Int? {
+        guard !isExpanded,
+              isExpandable(text, canToggleExpansion: canToggleExpansion) else {
+            return nil
+        }
         return collapsedLineLimit
+    }
+
+    static func expandedHeight(forMeasuredContentHeight measuredContentHeight: CGFloat) -> CGFloat {
+        guard measuredContentHeight > 0 else {
+            return expandedBoxMaxHeight
+        }
+
+        return min(measuredContentHeight, expandedBoxMaxHeight)
     }
 }
 
@@ -373,6 +410,7 @@ struct DictationCardRow: View {
     var onBeginBulkSelection: (() -> Void)?
 
     @State private var isHovered = false
+    @State private var expandedTranscriptContentHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -526,6 +564,9 @@ struct DictationCardRow: View {
         .animation(.easeInOut(duration: 0.15), value: isPlayingThis)
         .animation(DesignSystem.Animation.selectionChange, value: isSelected)
         .animation(DesignSystem.Animation.contentSwap, value: isExpanded)
+        .onChange(of: transcriptPlainText) { _, _ in
+            expandedTranscriptContentHeight = 0
+        }
     }
 
     private var cardFill: Color {
@@ -555,8 +596,19 @@ struct DictationCardRow: View {
             ScrollView {
                 transcriptText(lineLimit: nil)
                     .padding(DesignSystem.Spacing.sm)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .onAppear {
+                                    expandedTranscriptContentHeight = proxy.size.height
+                                }
+                                .onChange(of: proxy.size.height) { _, height in
+                                    expandedTranscriptContentHeight = height
+                                }
+                        }
+                    }
             }
-            .frame(maxHeight: DictationTranscriptPresentation.expandedBoxMaxHeight)
+            .frame(height: expandedTranscriptHeight)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
@@ -567,10 +619,12 @@ struct DictationCardRow: View {
             }
             .contentTransition(.opacity)
         } else {
-            let lineLimit = DictationTranscriptPresentation.lineLimit(
-                for: transcriptPlainText,
-                isExpanded: isExpanded
-            )
+            let lineLimit = isExpandable
+                ? DictationTranscriptPresentation.lineLimit(
+                    for: transcriptPlainText,
+                    isExpanded: isExpanded
+                )
+                : nil
             if isExpandable {
                 transcriptText(lineLimit: lineLimit)
                     .contentShape(Rectangle())
@@ -584,6 +638,12 @@ struct DictationCardRow: View {
                     .contentTransition(.opacity)
             }
         }
+    }
+
+    private var expandedTranscriptHeight: CGFloat {
+        DictationTranscriptPresentation.expandedHeight(
+            forMeasuredContentHeight: expandedTranscriptContentHeight
+        )
     }
 
     private func transcriptText(lineLimit: Int?) -> some View {
@@ -614,7 +674,10 @@ struct DictationCardRow: View {
     }
 
     private var transcriptIsExpandable: Bool {
-        DictationTranscriptPresentation.isExpandable(transcriptPlainText)
+        DictationTranscriptPresentation.isExpandable(
+            transcriptPlainText,
+            canToggleExpansion: onToggleExpanded != nil
+        )
     }
 
     // MARK: - Highlighted Transcript
