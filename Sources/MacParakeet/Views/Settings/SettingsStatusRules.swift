@@ -4,9 +4,13 @@ import MacParakeetViewModels
 enum SettingsStatusRules {
     static func meetingRecordingCardStatus(
         meetingRecordingEnabled: Bool,
-        screenRecordingGranted: Bool
+        screenRecordingGranted: Bool,
+        meetingAudioSourceMode: MeetingAudioSourceMode
     ) -> SettingsCardStatus? {
         guard meetingRecordingEnabled else { return nil }
+        guard meetingAudioSourceMode.capturesSystemAudio else {
+            return SettingsCardStatus(.ok, label: "Ready")
+        }
         return screenRecordingGranted
             ? SettingsCardStatus(.ok, label: "Ready")
             : SettingsCardStatus(.required, label: "Permission required")
@@ -52,14 +56,19 @@ enum SettingsStatusRules {
         meetingRecordingEnabled: Bool,
         microphoneGranted: Bool,
         accessibilityGranted: Bool,
-        screenRecordingGranted: Bool
+        screenRecordingGranted: Bool,
+        meetingAudioSourceMode: MeetingAudioSourceMode
     ) -> SettingsCardStatus {
         if !microphoneGranted || !accessibilityGranted {
             return SettingsCardStatus(.required, label: "Action required")
         }
 
-        if meetingRecordingEnabled, !screenRecordingGranted {
+        if meetingRecordingEnabled, meetingAudioSourceMode.capturesSystemAudio, !screenRecordingGranted {
             return SettingsCardStatus(.required, label: "Action required")
+        }
+
+        if meetingRecordingEnabled, !meetingAudioSourceMode.capturesSystemAudio, !screenRecordingGranted {
+            return SettingsCardStatus(.ok, label: "Ready")
         }
 
         return SettingsCardStatus(.ok, label: "All granted")

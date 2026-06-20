@@ -269,6 +269,7 @@ swift run macparakeet-cli config set nemotron-model english-1120ms
 swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
+swift run macparakeet-cli config set auto-meeting-titles on
 swift run macparakeet-cli config set save-transcription-audio off
 swift run macparakeet-cli config set meeting-audio-retention keep-forever
 swift run macparakeet-cli config set meeting-audio-source microphone-and-system
@@ -279,9 +280,10 @@ swift run macparakeet-cli config set meeting-hook-enabled off
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
-`speaker-detection`, `save-transcription-audio`, `meeting-audio-retention`,
-`meeting-audio-source`, `youtube-audio-quality`, `meeting-artifacts-folder`,
-`meeting-hook-enabled`, `meeting-hook-path`, `meeting-hook-timeout`.
+`speaker-detection`, `auto-meeting-titles`, `save-transcription-audio`,
+`meeting-audio-retention`, `meeting-audio-source`, `save-meeting-audio`,
+`youtube-audio-quality`, `meeting-artifacts-folder`, `meeting-hook-enabled`,
+`meeting-hook-path`, `meeting-hook-timeout`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.
 

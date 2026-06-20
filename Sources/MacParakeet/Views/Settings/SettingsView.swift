@@ -1204,12 +1204,13 @@ struct SettingsView: View {
     }
 
     /// Header status chip for the Meeting Recording card. Surfaces the
-    /// screen-recording-permission state since system audio capture is
-    /// gated on it.
+    /// screen-recording-permission state only when the selected meeting source
+    /// mode captures system audio.
     private var meetingRecordingCardStatus: SettingsCardStatus? {
         SettingsStatusRules.meetingRecordingCardStatus(
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled,
-            screenRecordingGranted: viewModel.screenRecordingGranted
+            screenRecordingGranted: viewModel.screenRecordingGranted,
+            meetingAudioSourceMode: viewModel.meetingAudioSourceMode
         )
     }
 
@@ -2990,7 +2991,8 @@ struct SettingsView: View {
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled,
             microphoneGranted: viewModel.microphoneGranted,
             accessibilityGranted: viewModel.accessibilityGranted,
-            screenRecordingGranted: viewModel.screenRecordingGranted
+            screenRecordingGranted: viewModel.screenRecordingGranted,
+            meetingAudioSourceMode: viewModel.meetingAudioSourceMode
         )
     }
 
@@ -3026,14 +3028,16 @@ struct SettingsView: View {
                     HStack {
                         rowText(
                             title: "Screen & System Audio Recording",
-                            detail: "Required for meeting audio capture. MacParakeet never records your screen."
+                            detail: "Required for meeting modes that capture system audio. MacParakeet never records your screen."
                         )
                         Spacer()
-                        permissionPill(granted: viewModel.screenRecordingGranted)
+                        screenRecordingPermissionPill
                     }
                 }
 
-                let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled && !viewModel.screenRecordingGranted
+                let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
+                    && viewModel.meetingAudioSourceMode.capturesSystemAudio
+                    && !viewModel.screenRecordingGranted
                 if !viewModel.accessibilityGranted || needsScreenRecordingAction {
                     Divider()
                     HStack(spacing: DesignSystem.Spacing.sm) {
@@ -3513,6 +3517,27 @@ struct SettingsView: View {
             Capsule()
                 .fill(granted ? DesignSystem.Colors.successGreen.opacity(0.1) : DesignSystem.Colors.errorRed.opacity(0.1))
         )
+    }
+
+    @ViewBuilder
+    private var screenRecordingPermissionPill: some View {
+        if viewModel.screenRecordingGranted || viewModel.meetingAudioSourceMode.capturesSystemAudio {
+            permissionPill(granted: viewModel.screenRecordingGranted)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 10))
+                Text("Not needed")
+                    .font(DesignSystem.Typography.micro)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color.secondary.opacity(0.1))
+            )
+        }
     }
 
     @ViewBuilder

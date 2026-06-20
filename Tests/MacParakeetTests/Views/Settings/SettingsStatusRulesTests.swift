@@ -81,23 +81,47 @@ final class SettingsStatusRulesTests: XCTestCase {
         XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Download recommended"))
     }
 
-    func testMeetingRecordingRequiresScreenRecordingPermission() {
+    func testMeetingRecordingRequiresScreenRecordingPermissionForSystemAudioModes() {
         let status = SettingsStatusRules.meetingRecordingCardStatus(
             meetingRecordingEnabled: true,
-            screenRecordingGranted: false
+            screenRecordingGranted: false,
+            meetingAudioSourceMode: .microphoneAndSystem
         )
 
         XCTAssertEqual(status, SettingsCardStatus(.required, label: "Permission required"))
     }
 
-    func testPermissionsRequiresActionWhenScreenRecordingMissingForMeetings() {
+    func testMeetingRecordingReadyWithoutScreenRecordingForMicrophoneOnlyMode() {
+        let status = SettingsStatusRules.meetingRecordingCardStatus(
+            meetingRecordingEnabled: true,
+            screenRecordingGranted: false,
+            meetingAudioSourceMode: .microphoneOnly
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
+    }
+
+    func testPermissionsRequiresActionWhenScreenRecordingMissingForSystemAudioModes() {
         let status = SettingsStatusRules.permissionsCardStatus(
             meetingRecordingEnabled: true,
             microphoneGranted: true,
             accessibilityGranted: true,
-            screenRecordingGranted: false
+            screenRecordingGranted: false,
+            meetingAudioSourceMode: .microphoneAndSystem
         )
 
         XCTAssertEqual(status, SettingsCardStatus(.required, label: "Action required"))
+    }
+
+    func testPermissionsAllGrantedWithoutScreenRecordingForMicrophoneOnlyMode() {
+        let status = SettingsStatusRules.permissionsCardStatus(
+            meetingRecordingEnabled: true,
+            microphoneGranted: true,
+            accessibilityGranted: true,
+            screenRecordingGranted: false,
+            meetingAudioSourceMode: .microphoneOnly
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
     }
 }
