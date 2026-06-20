@@ -173,19 +173,26 @@ public enum TranscriptionAssetCleanup {
             options: [.skipsPackageDescendants]
         )
 
-        for sessionURL in sessionURLs {
-            let values = try sessionURL.resourceValues(forKeys: [.isDirectoryKey])
-            guard values.isDirectory == true else { continue }
+        let sessionFolders = sessionURLs.compactMap { sessionURL -> URL? in
+            guard let values = try? sessionURL.resourceValues(forKeys: [.isDirectoryKey]),
+                  values.isDirectory == true else { return nil }
+            return sessionURL.standardizedFileURL
+        }
 
-            let folderURL = sessionURL.standardizedFileURL
+        for folderURL in sessionFolders {
             let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
             guard !fileManager.fileExists(atPath: lockURL.path) else {
+                logger.warning(
+                    "Refusing bulk audio cleanup while meeting folder is locked: \(folderURL.path, privacy: .private)"
+                )
                 throw TranscriptionAssetCleanupError.removalFailed(
                     path: folderURL.path,
                     reason: "meeting audio is still awaiting transcription or recovery"
                 )
             }
+        }
 
+        for folderURL in sessionFolders {
             let plan = MeetingAudioRemovalPlan(
                 folderURL: folderURL,
                 candidates: Set(standardMeetingAudioFileNames.map {
