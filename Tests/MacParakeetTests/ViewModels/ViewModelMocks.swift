@@ -137,6 +137,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
+    var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
     var updateFilePathError: Error?
     var saveError: Error?
 
@@ -228,6 +229,15 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
+    func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws {
+        updateMeetingArtifactFolderPathCalls.append((id: id, folderPath: folderPath))
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            guard transcriptions[idx].sourceType == .meeting else { return }
+            transcriptions[idx].meetingArtifactFolderPath = folderPath
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
     func clearStoredAudioPathsForURLTranscriptions() throws {
         for i in transcriptions.indices {
             if transcriptions[i].sourceURL != nil {
@@ -243,6 +253,8 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
                   let filePath = transcriptions[i].filePath else { continue }
             let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
             guard target.hasPrefix(root + "/") else { continue }
+            transcriptions[i].meetingArtifactFolderPath = transcriptions[i].meetingArtifactFolderPath
+                ?? URL(fileURLWithPath: filePath).deletingLastPathComponent().standardizedFileURL.path
             transcriptions[i].filePath = nil
         }
     }

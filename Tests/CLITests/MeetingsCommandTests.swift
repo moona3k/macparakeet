@@ -348,6 +348,79 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(meta["schemaVersion"] as? Int, 1)
     }
 
+    func testMeetingJSONSurfacesArtifactFolderAfterAudioIsGone() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-no-audio-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let expectedFolderPath = folderURL.standardizedFileURL.path
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Retained Out Review",
+            meetingArtifactFolderPath: folderURL.path,
+            rawTranscript: "Audio is gone but artifacts remain.",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Keep artifact folder visible."
+        )
+        try transcriptionRepo.save(meeting)
+
+        let listCommand = try MeetingsCommand.ListSubcommand.parse([
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let listOutput = try await captureStandardOutput {
+            try await listCommand.run()
+        }
+        let listPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(listOutput.utf8)) as? [[String: Any]]
+        )
+        let listItem = try XCTUnwrap(listPayload.first)
+        XCTAssertEqual(listItem["artifactFolderPath"] as? String, expectedFolderPath)
+        XCTAssertEqual(listItem["hasArtifactManifest"] as? Bool, false)
+
+        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let showOutput = try await captureStandardOutput {
+            try await showCommand.run()
+        }
+        let showPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertNil(showPayload["filePath"] as? String)
+        XCTAssertEqual(showPayload["artifactFolderPath"] as? String, expectedFolderPath)
+        XCTAssertEqual(
+            showPayload["artifactManifestPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).standardizedFileURL.path
+        )
+
+        let artifactCommand = try MeetingsCommand.ArtifactSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let artifactOutput = try await captureStandardOutput {
+            try await artifactCommand.run()
+        }
+        let artifactPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(artifactPayload["folderPath"] as? String, expectedFolderPath)
+        XCTAssertEqual(artifactPayload["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).standardizedFileURL.path)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+        ))
+    }
+
     func testFormatRawValues() {
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "text"), .text)
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "json"), .json)

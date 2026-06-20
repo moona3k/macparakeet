@@ -691,12 +691,16 @@ public final class TranscriptionViewModel {
                 setError(message: TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
                 return
             }
+            let artifactFolderPath = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
             if let current = currentTranscription, current.id == transcription.id {
                 var updated = current
+                updated.meetingArtifactFolderPath = updated.meetingArtifactFolderPath ?? artifactFolderPath
                 updated.filePath = nil
                 currentTranscription = updated
             }
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index].meetingArtifactFolderPath = transcriptions[index].meetingArtifactFolderPath
+                    ?? artifactFolderPath
                 transcriptions[index].filePath = nil
             }
             if clearExistingErrorOnSuccess {

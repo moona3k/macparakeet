@@ -391,6 +391,8 @@ public final class TranscriptionLibraryViewModel {
                 return
             }
             if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[idx].meetingArtifactFolderPath = transcriptions[idx].meetingArtifactFolderPath
+                    ?? MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore)
             }
@@ -539,6 +541,8 @@ public final class TranscriptionLibraryViewModel {
 
     private func clearLoadedMeetingAudio(forIDs ids: Set<UUID>) {
         for index in transcriptions.indices where ids.contains(transcriptions[index].id) {
+            transcriptions[index].meetingArtifactFolderPath = transcriptions[index].meetingArtifactFolderPath
+                ?? MeetingArtifactStore.sessionFolderURL(for: transcriptions[index])?.standardizedFileURL.path
             transcriptions[index].filePath = nil
         }
         publishLoadedItems(transcriptions, hasMore: hasMore)

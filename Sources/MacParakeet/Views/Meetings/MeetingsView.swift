@@ -555,13 +555,30 @@ struct MeetingsView: View {
         }
 
         let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+        let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+
+        Divider()
+
+        Button {
+            MeetingArtifactActions.openFolder(for: transcription)
+        } label: {
+            Label("Open Meeting Folder", systemImage: "folder")
+        }
+        .disabled(!artifactAvailable)
+
+        Button {
+            MeetingArtifactActions.copyFolderPath(for: transcription)
+        } label: {
+            Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
+        }
+        .disabled(!artifactAvailable)
 
         Divider()
 
         Button {
             MeetingAudioActions.revealInFinder(transcription)
         } label: {
-            Label("Show in Finder", systemImage: "folder")
+            Label("Show Audio in Finder", systemImage: "waveform")
         }
         .disabled(!audioAvailable)
 

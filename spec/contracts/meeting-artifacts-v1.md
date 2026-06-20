@@ -10,6 +10,10 @@ agent workflows to inspect. The database row remains canonical for meeting
 identity and current metadata; files are refreshed views of that row and its
 related prompt results.
 
+For meeting rows, `transcriptions.meetingArtifactFolderPath` is the durable
+folder locator. `transcriptions.filePath` is only the mixed-audio
+playback/export path and may be cleared by user deletion or retention.
+
 ## Producers
 
 - `MeetingRecordingService`: creates session folders and source audio.
@@ -24,7 +28,10 @@ related prompt results.
 
 ## Consumers
 
-- Library and detail-view "Show in Finder" / "Save Audio As..." actions.
+- Library, Meetings, and detail-view "Open Meeting Folder" / "Copy Artifact
+  Folder Path" actions.
+- Audio-specific "Show Audio in Finder" / "Save Audio As..." actions while
+  retained meeting audio is still available.
 - `macparakeet-cli meetings artifact` and `--envelope` output.
 - Meeting automation hooks through `MACPARAKEET_ARTIFACT_DIR` and
   `MACPARAKEET_ARTIFACT_MANIFEST`.
@@ -35,7 +42,7 @@ related prompt results.
 The v1 folder can contain these stable filenames:
 
 - `meeting.m4a`: mixed playback/export audio referenced by
-  `transcriptions.filePath`.
+  `transcriptions.filePath` while retained.
 - `microphone.m4a`: optional source mic audio.
 - `system.m4a`: optional source system audio.
 - `meeting-recording-metadata.json`: optional source-alignment and engine
@@ -103,15 +110,25 @@ The database row stays canonical. Do not teach features to treat the folder as
 the source of truth for mutable meeting metadata unless the contract is updated
 with a migration and conflict-resolution rule.
 
+Audio retention and "Delete Audio Only" clear `transcriptions.filePath` but
+must preserve `transcriptions.meetingArtifactFolderPath` and leave the folder's
+non-audio artifact files in place. Full meeting deletion removes the artifact
+folder even when retained audio was already deleted.
+
 ## Tests that enforce this
 
 - `MeetingArtifactStoreTests`
 - `MeetingsCommandTests`
+- `HistoryCommandTests`
+- `MeetingAudioRetentionSweeperTests`
+- `TranscriptionDeletionCleanupTests`
+- `TranscriptionRepositoryTests`
 
 Focused coverage pins stable filenames, schema/schemaVersion, manifest path
 references, transcript essentials, `notes.md` deletion, refreshed
-`prompt-results/` contents, non-meeting rejection, and CLI artifact envelope
-fields.
+`prompt-results/` contents, non-meeting rejection, CLI artifact envelope fields,
+retained-out audio, full deletion after audio detach, and artifact-folder path
+preservation.
 
 ## When this changes
 

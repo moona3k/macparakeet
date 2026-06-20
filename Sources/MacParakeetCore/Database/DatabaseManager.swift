@@ -995,6 +995,42 @@ public final class DatabaseManager: Sendable {
                 """)
         }
 
+        // v0.22 — Durable meeting artifact folder locator. `filePath` remains
+        // the mixed-audio playback/export path and can be cleared by retention.
+        // This column preserves the session folder for Finder, CLI, and
+        // automation surfaces after audio is intentionally deleted.
+        migrator.registerMigration("v0.22-meeting-artifact-folder-path") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("meetingArtifactFolderPath") {
+                try db.alter(table: "transcriptions") { t in
+                    t.add(column: "meetingArtifactFolderPath", .text)
+                }
+            }
+
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT id, filePath
+                FROM transcriptions
+                WHERE sourceType = ?
+                  AND filePath IS NOT NULL
+                  AND TRIM(filePath) != ''
+                  AND meetingArtifactFolderPath IS NULL
+            """, arguments: [Transcription.SourceType.meeting.rawValue])
+
+            for row in rows {
+                guard let rawID = String.fromDatabaseValue(row["id"] as DatabaseValue),
+                      let filePath = String.fromDatabaseValue(row["filePath"] as DatabaseValue)
+                else { continue }
+                let folderPath = URL(fileURLWithPath: filePath)
+                    .deletingLastPathComponent()
+                    .standardizedFileURL
+                    .path
+                try db.execute(
+                    sql: "UPDATE transcriptions SET meetingArtifactFolderPath = ? WHERE id = ?",
+                    arguments: [folderPath, rawID]
+                )
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

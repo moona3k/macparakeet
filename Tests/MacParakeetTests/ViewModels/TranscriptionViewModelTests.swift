@@ -773,7 +773,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         XCTAssertNil(viewModel.currentTranscription?.filePath)
+        XCTAssertEqual(viewModel.currentTranscription?.meetingArtifactFolderPath, folder.standardizedFileURL.path)
         XCTAssertNil(mockRepo.transcriptions.first?.filePath)
+        XCTAssertEqual(mockRepo.transcriptions.first?.meetingArtifactFolderPath, folder.standardizedFileURL.path)
         XCTAssertEqual(viewModel.errorMessage, "Prior load warning")
     }
 

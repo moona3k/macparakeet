@@ -268,13 +268,36 @@ struct TranscriptionLibraryView: View {
 
         if transcription.sourceType == .meeting {
             let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+            let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+
+            Divider()
+
+            Button {
+                MeetingArtifactActions.openFolder(for: transcription)
+            } label: {
+                Label("Open Meeting Folder", systemImage: "folder")
+            }
+            .disabled(!artifactAvailable)
+            .help(artifactAvailable
+                  ? "Open the meeting artifact folder in Finder"
+                  : "Meeting artifact folder is not available")
+
+            Button {
+                MeetingArtifactActions.copyFolderPath(for: transcription)
+            } label: {
+                Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
+            }
+            .disabled(!artifactAvailable)
+            .help(artifactAvailable
+                  ? "Copy the meeting artifact folder path"
+                  : "Meeting artifact folder is not available")
 
             Divider()
 
             Button {
                 MeetingAudioActions.revealInFinder(transcription)
             } label: {
-                Label("Show in Finder", systemImage: "folder")
+                Label("Show Audio in Finder", systemImage: "waveform")
             }
             .disabled(!audioAvailable)
             .help(audioAvailable

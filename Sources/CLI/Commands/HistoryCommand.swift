@@ -396,10 +396,8 @@ struct ClearMeetingAudioSubcommand: ParsableCommand {
             )
         }
 
-        if fm.fileExists(atPath: dir) {
-            try fm.removeItem(atPath: dir)
-        }
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try TranscriptionAssetCleanup.removeManagedMeetingAudioFiles(under: dir, fileManager: fm)
         try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
 
         print("Deleted all stored meeting audio. Saved meeting transcripts remain.")

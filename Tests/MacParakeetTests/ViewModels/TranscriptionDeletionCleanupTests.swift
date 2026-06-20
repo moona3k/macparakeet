@@ -102,6 +102,56 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         ))
         XCTAssertFalse(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+        XCTAssertEqual(repo.transcriptions.first?.meetingArtifactFolderPath, folderURL.standardizedFileURL.path)
+    }
+
+    func testDetachMeetingAudioStoresArtifactFolderBeforeClearingAudioPath() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+
+        let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        )
+
+        XCTAssertTrue(result.detached)
+        let fetched = try XCTUnwrap(repo.transcriptions.first)
+        XCTAssertNil(fetched.filePath)
+        XCTAssertEqual(fetched.meetingArtifactFolderPath, folderURL.standardizedFileURL.path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folderURL.path))
+    }
+
+    func testMeetingDeletionRemovesArtifactFolderAfterAudioWasDetached() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("notes".utf8).write(to: folderURL.appendingPathComponent("notes.md"))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
     }
 
     func testDetachMeetingAudioKeepsFilePathWhenFileRemovalFails() throws {

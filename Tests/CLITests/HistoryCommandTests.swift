@@ -192,6 +192,7 @@ final class HistoryCommandTests: XCTestCase {
 
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
         XCTAssertNil(fetched.filePath)
+        XCTAssertEqual(fetched.meetingArtifactFolderPath, folder.standardizedFileURL.path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: systemAudioURL.path))
@@ -199,7 +200,7 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(output.contains("Detached managed meeting audio"))
     }
 
-    func testClearMeetingAudioCommandRemovesConfiguredDirectoryAndClearsMeetingPaths() throws {
+    func testClearMeetingAudioCommandRemovesAudioAndPreservesArtifactFolders() throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
         let db = try DatabaseManager(path: dbURL.path)
@@ -210,7 +211,9 @@ final class HistoryCommandTests: XCTestCase {
         let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        try Data("notes".utf8).write(to: notesURL)
 
         let meeting = Transcription(
             fileName: "meeting.m4a",
@@ -246,9 +249,12 @@ final class HistoryCommandTests: XCTestCase {
         }
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRoot.path))
-        let remaining = try FileManager.default.contentsOfDirectory(atPath: meetingRoot.path)
-        XCTAssertTrue(remaining.isEmpty)
-        XCTAssertNil(try repo.fetch(id: meeting.id)?.filePath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
+        let fetchedMeeting = try XCTUnwrap(repo.fetch(id: meeting.id))
+        XCTAssertNil(fetchedMeeting.filePath)
+        XCTAssertEqual(fetchedMeeting.meetingArtifactFolderPath, folder.standardizedFileURL.path)
         XCTAssertEqual(try repo.fetch(id: local.id)?.filePath, local.filePath)
         XCTAssertEqual(try repo.fetch(id: externalMeeting.id)?.filePath, externalMeeting.filePath)
         XCTAssertTrue(output.contains("Deleted all stored meeting audio"))

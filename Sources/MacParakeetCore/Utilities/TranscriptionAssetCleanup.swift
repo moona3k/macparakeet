@@ -43,16 +43,19 @@ public enum TranscriptionAssetCleanup {
         "wav",
     ]
 
+    public static func isStandardMeetingAudioFileName(_ fileName: String) -> Bool {
+        standardMeetingAudioFileNames.contains(fileName)
+    }
+
     public static func removeOwnedAssets(
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) throws {
-        guard let filePath = transcription.filePath, !filePath.isEmpty else { return }
-
         switch transcription.sourceType {
         case .youtube, .podcast:
             // Both downloaded-media sources store their audio under the shared
             // app-managed downloads directory; the same prefix guard applies.
+            guard let filePath = transcription.filePath, !filePath.isEmpty else { return }
             try removeDownloadedMediaFile(at: URL(fileURLWithPath: filePath), fileManager: fileManager)
         case .meeting:
             _ = try removeOwnedMeetingAudio(for: transcription, fileManager: fileManager)
@@ -67,12 +70,11 @@ public enum TranscriptionAssetCleanup {
         fileManager: FileManager = .default
     ) throws -> Bool {
         guard transcription.sourceType == .meeting,
-              let filePath = transcription.filePath,
-              !filePath.isEmpty else {
+              let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL else {
             return false
         }
 
-        return try removeMeetingFolder(containing: URL(fileURLWithPath: filePath), fileManager: fileManager)
+        return try removeMeetingFolder(at: folderURL, fileManager: fileManager)
     }
 
     @discardableResult
@@ -91,6 +93,10 @@ public enum TranscriptionAssetCleanup {
             return MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: true)
         }
 
+        try repository.updateMeetingArtifactFolderPath(
+            id: transcription.id,
+            folderPath: removalPlan.folderURL.path
+        )
         try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
         try repository.updateFilePath(id: transcription.id, filePath: nil)
         return MeetingAudioDetachResult(removedOwnedAudio: true, hadAudioPath: true)
@@ -107,7 +113,9 @@ public enum TranscriptionAssetCleanup {
         }
 
         let mixedAudioURL = URL(fileURLWithPath: filePath).standardizedFileURL
-        let folderURL = mixedAudioURL.deletingLastPathComponent().standardizedFileURL
+        let folderURL = (MeetingArtifactStore.sessionFolderURL(for: transcription)
+            ?? mixedAudioURL.deletingLastPathComponent())
+            .standardizedFileURL
 
         guard isKnownMeetingFolder(folderURL, fileManager: fileManager) else {
             logger.warning(
@@ -127,6 +135,7 @@ public enum TranscriptionAssetCleanup {
         }
 
         return MeetingAudioRemovalPlan(
+            folderURL: folderURL,
             candidates: meetingAudioFileCandidates(mixedAudioURL: mixedAudioURL, folderURL: folderURL)
         )
     }
@@ -151,6 +160,42 @@ public enum TranscriptionAssetCleanup {
         return candidates
     }
 
+    public static func removeManagedMeetingAudioFiles(
+        under directoryPath: String,
+        fileManager: FileManager = .default
+    ) throws {
+        let rootURL = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL
+        guard fileManager.fileExists(atPath: rootURL.path) else { return }
+
+        let sessionURLs = try fileManager.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsPackageDescendants]
+        )
+
+        for sessionURL in sessionURLs {
+            let values = try sessionURL.resourceValues(forKeys: [.isDirectoryKey])
+            guard values.isDirectory == true else { continue }
+
+            let folderURL = sessionURL.standardizedFileURL
+            let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+            guard !fileManager.fileExists(atPath: lockURL.path) else {
+                throw TranscriptionAssetCleanupError.removalFailed(
+                    path: folderURL.path,
+                    reason: "meeting audio is still awaiting transcription or recovery"
+                )
+            }
+
+            let plan = MeetingAudioRemovalPlan(
+                folderURL: folderURL,
+                candidates: Set(standardMeetingAudioFileNames.map {
+                    folderURL.appendingPathComponent($0).standardizedFileURL
+                })
+            )
+            try removeMeetingAudioFiles(plan, fileManager: fileManager)
+        }
+    }
+
     private static func removeDownloadedMediaFile(at fileURL: URL, fileManager: FileManager) throws {
         let downloadsRootURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
             .standardizedFileURL
@@ -167,9 +212,7 @@ public enum TranscriptionAssetCleanup {
     }
 
     @discardableResult
-    private static func removeMeetingFolder(containing fileURL: URL, fileManager: FileManager) throws -> Bool {
-        let folderURL = fileURL.deletingLastPathComponent().standardizedFileURL
-
+    private static func removeMeetingFolder(at folderURL: URL, fileManager: FileManager) throws -> Bool {
         guard isKnownMeetingFolder(folderURL, fileManager: fileManager) else {
             logger.warning(
                 "Refusing to remove meeting folder outside app support: \(folderURL.path, privacy: .private)"
@@ -233,5 +276,6 @@ private struct MeetingArtifactManifestProbe: Decodable {
 }
 
 private struct MeetingAudioRemovalPlan {
+    let folderURL: URL
     let candidates: Set<URL>
 }

@@ -1381,22 +1381,12 @@ public final class SettingsViewModel {
             return
         }
 
-        if fm.fileExists(atPath: dir) {
-            do {
-                try fm.removeItem(atPath: dir)
-            } catch {
-                logger.error("Failed to remove meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
-                storageCleanupError = "Could not clear meeting audio: \(error.localizedDescription)"
-                refreshStats()
-                refreshPendingMeetingRecoveries()
-                return
-            }
-        }
         do {
             try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try TranscriptionAssetCleanup.removeManagedMeetingAudioFiles(under: dir, fileManager: fm)
         } catch {
-            logger.error("Failed to recreate meeting recordings directory error=\(error.localizedDescription, privacy: .public)")
-            storageCleanupError = "Could not recreate the meeting recordings folder: \(error.localizedDescription)"
+            logger.error("Failed to clear meeting audio files error=\(error.localizedDescription, privacy: .public)")
+            storageCleanupError = "Could not clear meeting audio: \(error.localizedDescription)"
             refreshStats()
             refreshPendingMeetingRecoveries()
             return
@@ -1490,40 +1480,38 @@ public final class SettingsViewModel {
             return StorageDirectoryStats(count: 0, sizeBytes: 0)
         }
 
-        let count = contents.reduce(into: 0) { total, url in
-            guard
-                let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                values.isDirectory == true
-            else { return }
-            total += 1
-        }
-
-        return StorageDirectoryStats(count: count, sizeBytes: directorySizeBytes(dirURL))
-    }
-
-    nonisolated private static func directorySizeBytes(_ rootURL: URL) -> Int64 {
-        let fm = FileManager.default
-
-        guard let enumerator = fm.enumerator(
-            at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return 0
-        }
-
+        var count = 0
         var sizeBytes: Int64 = 0
 
-        for case let fileURL as URL in enumerator {
+        for sessionURL in contents {
             guard
-                let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
-                values.isRegularFile == true
+                let sessionValues = try? sessionURL.resourceValues(forKeys: [.isDirectoryKey]),
+                sessionValues.isDirectory == true,
+                let files = try? fm.contentsOfDirectory(
+                    at: sessionURL,
+                    includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+                    options: [.skipsHiddenFiles]
+                )
             else { continue }
 
-            sizeBytes += Int64(values.fileSize ?? 0)
+            var sessionHasAudio = false
+            for fileURL in files {
+                guard
+                    TranscriptionAssetCleanup.isStandardMeetingAudioFileName(fileURL.lastPathComponent),
+                    let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                    values.isRegularFile == true
+                else { continue }
+
+                sessionHasAudio = true
+                sizeBytes += Int64(values.fileSize ?? 0)
+            }
+
+            if sessionHasAudio {
+                count += 1
+            }
         }
 
-        return sizeBytes
+        return StorageDirectoryStats(count: count, sizeBytes: sizeBytes)
     }
 
     private static func normalizedProcessingMode(_ rawValue: String?) -> String {

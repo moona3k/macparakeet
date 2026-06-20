@@ -116,6 +116,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   transcript (back-to-back meeting recording stops the recorder while final
   transcription runs in the background). Stop, finish, or discard the pending
   recording before clearing.
+- `history clear-meeting-audio` now removes retained meeting audio files while
+  preserving meeting artifact folders (`manifest.json`, `transcript.json`,
+  `notes.md`, and prompt-result files) and their discoverability from saved
+  meeting JSON output. `meetings list/show/artifact` continue to report the
+  artifact folder path after `filePath` has been cleared by audio deletion or
+  retention.
 
 ## [2.10.0] -- 2026-06-17
 

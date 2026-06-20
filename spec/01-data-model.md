@@ -111,6 +111,7 @@ CREATE TABLE transcriptions (
     createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
     fileName TEXT NOT NULL,                            -- Original filename (e.g., "interview.mp3")
     filePath TEXT,                                     -- Original file path (nullable, may be moved/deleted)
+    meetingArtifactFolderPath TEXT,                    -- v0.22: Durable meeting artifact folder path
     fileSizeBytes INTEGER,                             -- Original file size
     durationMs INTEGER,                                -- Audio/video duration in milliseconds
     rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
@@ -151,8 +152,8 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
-- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export, while the per-source `microphone.m4a`, `system.m4a`, and `meeting-recording-metadata.json` sidecar remain inside the same session folder. That folder is also the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
-- The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.filePath`.
+- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The per-source `microphone.m4a`, `system.m4a`, and `meeting-recording-metadata.json` sidecar remain inside that same session folder while retained. The folder is the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
+- The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.meetingArtifactFolderPath`, falling back to the parent of `transcriptions.filePath` for legacy rows.
 - Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
 - `thumbnailURL`, `channelName`, `videoDescription` store YouTube metadata fetched during download. Local file imports also reuse `channelName` / `videoDescription` for embedded author / description metadata when present. Added in v0.5.
@@ -584,6 +585,7 @@ struct Transcription: Codable, Identifiable {
     var createdAt: Date
     var fileName: String
     var filePath: String?
+    var meetingArtifactFolderPath: String? // v0.22 — Durable meeting artifact folder
     var fileSizeBytes: Int?
     var durationMs: Int?
     var rawTranscript: String?
@@ -1126,6 +1128,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations` | v0.1 | Core dictation history |
 | ~~`dictations_fts`~~ | ~~v0.1~~ | ~~Full-text search for dictations~~ (dropped in v0.5 — never queried) |
 | `transcriptions` | v0.1 | File transcription records |
+| `transcriptions.meetingArtifactFolderPath` | v0.22 | Durable meeting artifact folder path retained after meeting audio deletion |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

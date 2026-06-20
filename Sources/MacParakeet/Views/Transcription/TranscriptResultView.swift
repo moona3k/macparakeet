@@ -463,7 +463,7 @@ struct TranscriptResultView: View {
                     Button {
                         MeetingAudioActions.revealInFinder(activeTranscription)
                     } label: {
-                        Label("Show in Finder", systemImage: "folder")
+                        Label("Show Audio in Finder", systemImage: "waveform")
                     }
                     Button {
                         saveMeetingAudioFromActionBar()
@@ -486,6 +486,28 @@ struct TranscriptResultView: View {
                 .help(audioAvailable
                       ? "Reveal or save the meeting audio file"
                       : "Audio file is not available yet")
+
+                let artifactAvailable = MeetingArtifactActions.folderURL(for: activeTranscription) != nil
+                Menu {
+                    Button {
+                        MeetingArtifactActions.openFolder(for: activeTranscription)
+                    } label: {
+                        Label("Open Meeting Folder", systemImage: "folder")
+                    }
+
+                    Button {
+                        MeetingArtifactActions.copyFolderPath(for: activeTranscription)
+                    } label: {
+                        Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
+                    }
+                } label: {
+                    Label("Artifacts", systemImage: "folder")
+                }
+                .parakeetAction(.secondary)
+                .disabled(!artifactAvailable)
+                .help(artifactAvailable
+                      ? "Open or copy the meeting artifact folder path"
+                      : "Meeting artifact folder is not available")
             }
 
             if onRetranscribe != nil, let filePath = transcription.filePath,

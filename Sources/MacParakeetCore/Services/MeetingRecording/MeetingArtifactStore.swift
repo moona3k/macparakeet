@@ -146,12 +146,26 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
     }
 
     public static func sessionFolderURL(for transcription: Transcription) -> URL? {
+        guard transcription.sourceType == .meeting else {
+            return nil
+        }
+        if let folderPath = normalizedPath(transcription.meetingArtifactFolderPath) {
+            return URL(fileURLWithPath: folderPath, isDirectory: true)
+        }
         guard let filePath = transcription.filePath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !filePath.isEmpty
         else {
             return nil
         }
         return URL(fileURLWithPath: filePath).deletingLastPathComponent()
+    }
+
+    private static func normalizedPath(_ path: String?) -> String? {
+        guard let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: trimmed).standardizedFileURL.path
     }
 
     private func writePromptResults(

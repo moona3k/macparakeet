@@ -209,6 +209,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testMeetingArtifactFolderPathColumnExistsOnTranscriptions() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(
+                columns.contains("meetingArtifactFolderPath"),
+                "transcriptions should preserve meeting artifact folder identity after audio retention"
+            )
+        }
+    }
+
     func testUserNotesSnapshotColumnExistsOnSummaries() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in

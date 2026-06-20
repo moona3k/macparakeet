@@ -337,6 +337,9 @@ from local retrieval.
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift`
   - `Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift`
 - **Approach:**
+  - Preserve a durable artifact folder locator on the meeting row. `filePath`
+    remains the mixed-audio playback/export path and may be cleared by
+    retention or "Delete Audio Only"; artifact actions use the folder locator.
   - Add a small UI-layer `MeetingArtifactActions` helper or extend the existing
     action helper without making artifact behavior depend on mixed-audio
     availability.
@@ -356,7 +359,13 @@ from local retrieval.
 - **Test scenarios:**
   - A meeting with existing folder but missing `meeting.m4a` exposes artifact
     availability and keeps audio actions unavailable.
-  - A meeting without `filePath` exposes neither audio nor artifact actions.
+  - A meeting without `filePath` but with a durable artifact folder exposes
+    artifact actions and keeps audio actions unavailable.
+  - A meeting without `filePath` and without a durable artifact folder exposes
+    neither audio nor artifact actions.
+  - Audio deletion and retention clear `filePath` but preserve the artifact
+    folder locator; full meeting deletion removes the folder even after audio
+    was already deleted.
   - Copy/open helpers resolve the session folder, not the mixed audio file.
   - Artifact materialization still writes stable snapshot paths after the new
     UI helper reads them.

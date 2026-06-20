@@ -44,7 +44,9 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: MeetingRecordingMetadataStore.metadataURL(for: eligible.folderURL).path
         ))
-        XCTAssertNil(try repo.fetch(id: eligible.transcription.id)?.filePath)
+        let retainedOut = try XCTUnwrap(repo.fetch(id: eligible.transcription.id))
+        XCTAssertNil(retainedOut.filePath)
+        XCTAssertEqual(retainedOut.meetingArtifactFolderPath, eligible.folderURL.standardizedFileURL.path)
         XCTAssertNotNil(try repo.fetch(id: eligible.transcription.id))
         XCTAssertTrue(FileManager.default.fileExists(atPath: lockedRecording.folderURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: lockedAwaiting.folderURL.path))

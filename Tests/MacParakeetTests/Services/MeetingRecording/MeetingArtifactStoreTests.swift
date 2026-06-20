@@ -145,6 +145,26 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleMarkdownURL.path))
     }
 
+    func testMaterializeUsesDurableArtifactFolderWhenAudioPathIsCleared() async throws {
+        var transcription = makeMeeting(notes: "Audio retained out")
+        transcription.filePath = nil
+        transcription.meetingArtifactFolderPath = folderURL.path
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        XCTAssertEqual(snapshot.folderPath, folderURL.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.manifestPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.transcriptPath))
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let files = try XCTUnwrap(manifest["files"] as? [String: Any])
+        XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
+        XCTAssertNil(files["mixedAudioPath"] as? String)
+    }
+
     func testMaterializeRejectsNonMeetingRows() async throws {
         let transcription = Transcription(
             fileName: "File",

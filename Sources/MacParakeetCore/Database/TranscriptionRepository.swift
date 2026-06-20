@@ -18,6 +18,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
     func updateFilePath(id: UUID, filePath: String?) throws
+    func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
     func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws
     func updateFavorite(id: UUID, isFavorite: Bool) throws
@@ -95,6 +96,7 @@ extension TranscriptionRepositoryProtocol {
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
     public func updateFilePath(id: UUID, filePath: String?) throws {}
+    public func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws {}
     public func updateFavorite(id: UUID, isFavorite: Bool) throws {}
     public func fetchFavorites() throws -> [Transcription] { [] }
 }
@@ -450,6 +452,22 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
             transcription.filePath = filePath
+            if transcription.sourceType == .meeting,
+               transcription.meetingArtifactFolderPath == nil,
+               let filePath,
+               let folderPath = Self.artifactFolderPath(forAudioPath: filePath) {
+                transcription.meetingArtifactFolderPath = folderPath
+            }
+            transcription.updatedAt = Date()
+            try transcription.update(db)
+        }
+    }
+
+    public func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws {
+        try dbQueue.write { db in
+            guard var transcription = try Transcription.fetchOne(db, key: id),
+                  transcription.sourceType == .meeting else { return }
+            transcription.meetingArtifactFolderPath = Self.normalizedPath(folderPath)
             transcription.updatedAt = Date()
             try transcription.update(db)
         }
@@ -474,6 +492,9 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 guard let filePath = transcription.filePath,
                       Self.isFilePath(filePath, underDirectory: directoryPath) else {
                     continue
+                }
+                if transcription.meetingArtifactFolderPath == nil {
+                    transcription.meetingArtifactFolderPath = Self.artifactFolderPath(forAudioPath: filePath)
                 }
                 transcription.filePath = nil
                 transcription.updatedAt = now
@@ -504,6 +525,23 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
         let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
         return target.hasPrefix(root + "/")
+    }
+
+    private static func artifactFolderPath(forAudioPath filePath: String) -> String? {
+        let trimmed = filePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return URL(fileURLWithPath: trimmed)
+            .deletingLastPathComponent()
+            .standardizedFileURL
+            .path
+    }
+
+    private static func normalizedPath(_ path: String?) -> String? {
+        guard let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: trimmed).standardizedFileURL.path
     }
 
     private static func libraryOrderClause(for sortOrder: TranscriptionLibrarySortOrder) -> String {

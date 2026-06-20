@@ -417,6 +417,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 ? recording.displayName
                 : transcription.fileName
             transcription.filePath = transcription.filePath ?? recording.mixedAudioURL.path
+            transcription.meetingArtifactFolderPath = transcription.meetingArtifactFolderPath ?? recording.folderURL.path
             transcription.fileSizeBytes = transcription.fileSizeBytes ?? meetingFileSize(for: recording)
             transcription.durationMs = transcription.durationMs ?? Int((recording.durationSeconds * 1000).rounded())
             transcription.sourceType = .meeting
@@ -1055,6 +1056,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         Transcription(
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: recording.folderURL.path,
             fileSizeBytes: meetingFileSize(for: recording),
             durationMs: Int((recording.durationSeconds * 1000).rounded()),
             language: nil,
