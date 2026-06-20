@@ -13,7 +13,7 @@ enum SettingsStatusRules {
     }
 
     /// `parakeet` and `nemotron` carry the status of each engine's *selected*
-    /// build (v3/v2, multilingual/English) — per-build disk badges live in the
+    /// build (Parakeet v3/v2/Unified, Nemotron multilingual/English) — per-build disk badges live in the
     /// engine's model card, not in this rollup.
     static func localModelsCardStatus(
         parakeet: SettingsViewModel.LocalModelStatus,

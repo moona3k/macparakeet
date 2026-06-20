@@ -178,7 +178,7 @@ Most Mac voice apps do one thing. MacParakeet does all three — dictation, file
 *Last verified: 2026-05.*
 
 ### Body paragraph
-MacParakeet is the only Mac voice app that captures meetings (system audio + microphone), transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built on Apple's Neural Engine via FluidAudio's Parakeet CoreML pipeline (v3 default at ≈155× realtime / ≈2.5% WER, v2 English-only opt-in) with optional WhisperKit for non-Parakeet languages.
+MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built on Apple's Neural Engine via FluidAudio's Parakeet CoreML pipeline (v3 default at ≈155× realtime / ≈2.5% WER, v2 and Unified English opt-ins) with optional WhisperKit for non-Parakeet languages.
 
 ## CTA Conventions
 

@@ -54,8 +54,8 @@ for release-gating checks (signing, notarization, first-run onboarding, auto-upd
 ## First-run gotchas for the dev build
 
 - The dev build is a **separate app** to macOS, so it requests its **own permissions** —
-  Microphone, Accessibility, and (for meetings) Screen & System Audio Recording. Grant
-  them when prompted.
+  Microphone, Accessibility, and (for system-audio meeting modes) Screen & System
+  Audio Recording. Grant them when prompted.
 - If permissions act stuck after a re-sign, reset them:
   `tccutil reset All com.macparakeet.dev`.
 - Its history and settings are independent — a clean slate is expected, not a bug.

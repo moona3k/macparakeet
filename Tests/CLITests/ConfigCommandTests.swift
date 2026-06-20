@@ -349,7 +349,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "parakeet-model", value: "v2", defaults: defaults), "v2")
         XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .v2)
 
-        // Friendly aliases canonicalize to the v3/v2 ids.
+        // Friendly aliases canonicalize to the stable Parakeet ids.
         XCTAssertEqual(try ConfigCommand.write(key: "parakeet-model", value: "english", defaults: defaults), "v2")
         XCTAssertEqual(try ConfigCommand.write(key: "parakeet-model", value: "multilingual", defaults: defaults), "v3")
         XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .v3)

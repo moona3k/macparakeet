@@ -13,19 +13,20 @@ authors: Codex/GPT, Daniel Moon
 
 ## TL;DR
 
-MacParakeet meeting recording is a **dual-stream capture pipeline**:
+MacParakeet meeting recording is a **source-aware capture pipeline**. The
+default mode is dual-stream capture:
 
 - **microphone** audio is captured separately
 - **system** audio is captured separately
-- both streams feed the **live transcript UI** during recording
-- both streams are written to disk as separate files
-- after stop, the two source files are mixed into `meeting.m4a` for playback/export
+- selected streams feed the **live transcript UI** during recording
+- selected streams are written to disk as separate files
+- after stop, the selected source files are mixed into `meeting.m4a` for playback/export
 - final post-stop STT does **not** transcribe `meeting.m4a`
 - the speech engine/language is captured at meeting start and reused for live preview, crash recovery, and finalization
-- instead, it runs fresh batch STT separately on:
+- instead, it runs fresh batch STT separately on the selected retained source files:
   - `microphone.m4a`
   - `system.m4a`
-- those fresh results are merged by persisted source-alignment metadata
+- those fresh results are merged by persisted source-alignment metadata. Single-source sessions skip the unselected source and produce a mono `meeting.m4a`.
 
 The important constraints:
 
@@ -176,13 +177,13 @@ Relevant code:
 
 The FFmpeg graph explicitly pans mic to the left channel and system to the right channel before mixing them into a 2-channel AAC output.
 
-For single-input fallback sessions, the output remains mono.
+For single-input sessions, the output remains mono.
 
 Important: `meeting.m4a` is a **playback/export artifact**, not the authoritative STT input.
 
 ## Live transcription path
 
-During recording, both streams feed the live transcript pipeline.
+During recording, the selected source stream(s) feed the live transcript pipeline.
 
 ### Source handling
 
@@ -405,11 +406,11 @@ The current implementation is a good foundation, but there are still real limits
 
 Current MacParakeet meeting recording works like this:
 
-- capture mic + system separately
-- transcribe them live for UI only
-- save separate source files plus a stereo mixed artifact
+- capture selected meeting sources separately
+- transcribe selected sources live for UI only
+- save separate source files plus a mixed playback artifact
 - persist source-alignment metadata
-- after stop, transcribe the two source files separately
+- after stop, transcribe retained source files separately
 - merge those fresh results by shared time origin
 - optionally refine the system side with diarization
 

@@ -51,7 +51,7 @@ Unified build, all exposed to the user as selectable Parakeet models:
 | Selection | Explicit in Settings or CLI (`--engine nemotron --language <code>`); build via the Settings *Nemotron Model* card, `config set nemotron-model`, or `transcribe --nemotron-model`; no automatic fallback |
 | Download | ~1.5 GB (multilingual) / ~600 MB (English), explicit Settings/CLI download before selecting as the shared default |
 
-Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as Parakeet and Whisper rather than creating a feature-owned ASR stack.
+Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as the Parakeet family and WhisperKit rather than creating a feature-owned ASR stack.
 
 Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. (File and meeting jobs on Nemotron still run batch-at-stop.) The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
 

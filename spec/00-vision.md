@@ -32,7 +32,7 @@ Three capture modes plus one optional selected-text AI utility. That is the prod
 
 1. **Dictate anywhere** -- Double-tap Fn for hands-free dictation, or hold Fn for push-to-talk. Text appears where your cursor is.
 2. **Drop a file** -- Drag audio/video in. Get a transcript out.
-3. **Record a meeting** -- Capture system audio + mic, get a transcript when you stop.
+3. **Record a meeting** -- Capture system audio, mic audio, or both, and get a transcript when you stop.
 4. **Transform selected text** -- Press a bound Transform hotkey to rewrite selected text through your configured LLM provider.
 
 Everything else exists to make those capture modes and the selected-text rewrite surface faster, smarter, and more useful.
@@ -54,7 +54,7 @@ No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default and English-only v2 as an opt-in Parakeet build, plus optional local Nemotron Beta and WhisperKit engines for broader language coverage. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default, English-only v2 as an opt-in TDT build, and Parakeet Unified as an opt-in English build with punctuation/capitalization, plus optional local Nemotron Beta and WhisperKit engines for broader language coverage. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
 
 ---
 
@@ -62,7 +62,7 @@ Cloud services send your voice to remote servers, create accounts, charge monthl
 
 ### 1. Speed Is the Feature
 
-Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~23 seconds (155x realtime on the Neural Engine via FluidAudio CoreML). English-only v2 is available for users who prefer a faster no-auto-detect Parakeet path. Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
+Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~23 seconds (155x realtime on the Neural Engine via FluidAudio CoreML). English-only v2 is available for users who prefer a faster no-auto-detect Parakeet path, while Parakeet Unified is available for English users who want the newer punctuation/capitalization-focused build. Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
 
 Speed changes behavior. When transcription takes 30 seconds, you think about whether it is worth doing. When it takes 0.5 seconds, you just talk. MacParakeet makes voice the faster input method for everything: emails, messages, code comments, documents, notes.
 
@@ -83,7 +83,7 @@ MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms
 
 - **Dictate** -- Double-tap Fn or hold Fn, speak, and text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
-- **Record** -- Capture a meeting (system audio + mic), get a transcript.
+- **Record** -- Capture a meeting (system audio, mic audio, or both), get a transcript.
 - **Transform** -- Select text anywhere, press a bound hotkey, rewrite it through your configured LLM provider.
 
 Every feature we add must pass the test: "Does this make dictation, transcription, or meeting recording better?" If not, it does not ship.
@@ -188,11 +188,11 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ```
 +-----------------------------------------------------------------------+
-|  Capture system audio + mic. Transcribe locally.                      |
+|  Capture system audio, mic audio, or both. Transcribe locally.        |
 |                                                                       |
 |  1. Click "Record Meeting" (or press meeting hotkey)                  |
-|  2. Grant Screen Recording permission (first time only)               |
-|  3. Meeting pill appears — recording system audio + mic               |
+|  2. Grant the permissions required by the selected source mode         |
+|  3. Meeting pill appears — recording the selected audio source(s)      |
 |  4. Click Stop when done                                              |
 |  5. Local STT transcribes source audio (Parakeet by default)          |
 |  6. Result saved to library with full export/prompt support            |
@@ -202,10 +202,10 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 +-----------------------------------------------------------------------+
 ```
 
-- Dual-stream capture: system audio (ScreenCaptureKit) + mic (AVAudioEngine)
+- Source-mode capture: system audio (ScreenCaptureKit), mic (AVAudioEngine), or both
 - Floating recording pill with elapsed timer and stop button
 - Results stored as `Transcription` with `sourceType = .meeting` — gets export, prompts, summaries, chat for free
-- Requires Screen Recording permission (macOS 14.2+)
+- Requires Screen & System Audio Recording permission only for modes that capture system audio (macOS 14.2+)
 
 > **Historical note:** This slot was originally "Command Mode (Pro)" which was removed in 2026-02. Meeting recording replaced it as Mode 3 in v0.6.
 
@@ -313,7 +313,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### 1. Parakeet-First Architecture
 
-We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 as an English-only Parakeet option, then added WhisperKit and Nemotron explicitly as local opt-in engines for broader coverage and experimentation.
+We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 and Unified as English-only Parakeet options, then added WhisperKit and Nemotron explicitly as local opt-in engines for broader coverage and experimentation.
 
 - **155x realtime** on the Neural Engine vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
 - **~2.5% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
@@ -473,7 +473,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - System audio + mic capture with fragmented source files and crash recovery
 - Live meeting pill + Notes / Transcript / Ask panel
 - Source-aware final transcription with prompt results and chat in the library
-- Parakeet model selection: v3 multilingual default and v2 English-only opt-in
+- Parakeet model selection: v3 multilingual default, v2 English-only TDT opt-in, and Unified English opt-in
 - Optional local WhisperKit engine for languages outside Parakeet coverage
 - Settings speech-engine picker, Parakeet model picker, Nemotron controls, and Whisper language picker
 - CLI `transcribe --engine parakeet|nemotron|whisper --language --parakeet-model`
@@ -491,7 +491,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Platform** | macOS 14.2+, Apple Silicon only | FluidAudio CoreML requires Apple Silicon. |
-| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 English-only opt-in; optional Nemotron Beta and WhisperKit | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local. |
+| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 and Unified English opt-ins; optional Nemotron Beta and WhisperKit | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local. |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
@@ -514,7 +514,7 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 |---------|--------------|----------------|
 | **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
-| **Meeting Recording** | Capture system audio + mic, transcribe locally | Record any call or meeting without cloud services |
+| **Meeting Recording** | Capture system audio, mic audio, or both; transcribe locally | Record any call or meeting without cloud services |
 | **YouTube Transcription** | Paste a URL, get a transcript | File transcription for the YouTube era |
 | **Local-First STT** | Speech stays on-device; optional networked AI | Strong privacy claim without pretending the app never uses the network |
 | **Clean Pipeline** | Deterministic text cleanup | Professional output without LLM overhead |

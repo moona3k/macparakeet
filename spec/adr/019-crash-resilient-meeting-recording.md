@@ -64,8 +64,8 @@ early-stage choice when 30-second clips were the model.
 
 ### 1. Replace `AVAudioFile` with `AVAssetWriter` configured for fragmented MP4
 
-`MeetingAudioStorageWriter` will use one `AVAssetWriter` per source
-(microphone + system), each configured with:
+`MeetingAudioStorageWriter` will use one `AVAssetWriter` per selected source
+(microphone and/or system), each configured with:
 
 ```swift
 writer.movieFragmentInterval = CMTime(value: 1, timescale: 1)          // 1 s steady-state
@@ -150,9 +150,10 @@ walks `meeting-recordings/` looking for any folder that contains
 sessions are presented as a list). Accepting runs the standard
 post-stop pipeline:
 
-1. Truncate-repair the fragmented `microphone.m4a` and `system.m4a`
-   (no-op for fragmented MP4 — they're already valid up to the last
-   fragment; just verify with `AVAsset.tracks` loadability).
+1. Truncate-repair the fragmented selected-source audio files
+   (`microphone.m4a`, `system.m4a`, or both depending on source mode; no-op
+   for fragmented MP4 — they're already valid up to the last fragment; just
+   verify with `AVAsset.tracks` loadability).
 2. Synthesize `meeting-recording-metadata.json` from the audio file durations
    (`startOffsetMs = 0` for both since we don't have the original
    alignment; acceptable degradation — user knows recording was recovered).

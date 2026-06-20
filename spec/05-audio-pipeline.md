@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-The audio pipeline handles all audio input for MacParakeet: microphone recording for dictation, file input for transcription, and dual-stream capture (system audio + mic) for meeting recording.
+The audio pipeline handles all audio input for MacParakeet: microphone recording for dictation, file input for transcription, and meeting recording with microphone + system audio by default plus microphone-only or system-audio-only source modes.
 
 ---
 
@@ -75,7 +75,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
-- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default and v2 is an English-only opt-in; Nemotron Beta and WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
+- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in; Nemotron Beta and WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
 
 ### Conversion Flow
 
@@ -217,11 +217,11 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `SystemAudioStream` | ScreenCaptureKit system-audio wrapper - creates an audio-only `SCStream`, adapts `CMSampleBuffer` to `AVAudioPCMBuffer`, and emits stall diagnostics |
 | `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, and synchronous buffer fan-out |
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, and stall diagnostics |
-| `MeetingAudioCaptureService` | Actor combining both streams into `AsyncStream<MeetingAudioCaptureEvent>` with `.bufferingNewest(2048)` and runtime error emission where available |
+| `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>` with `.bufferingNewest(2048)` and runtime error emission where available |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
 | `MicConditioner` | Pass-through seam for mic samples; raw capture is the default, with VPIO only when explicitly requested |
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
-| `MeetingAudioStorageWriter` | Writes separate M4A files per source (mic + system) |
+| `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
 | `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured speech engine for crash recovery |
 | `MeetingTranscriptionQueue` | Owns FIFO background finalization for stopped meetings after audio + lock + Library stub are durable |
@@ -284,8 +284,12 @@ audio retention policy: keep forever, delete after 7/14/30/90 days, or delete
 immediately after transcription. Users can also reveal, save a copy, or delete
 managed meeting audio from the meeting detail view, Library/Meetings row menus,
 Settings > Storage, and CLI support commands. Audio deletion clears the
-transcript's stored `filePath` and removes the `meeting-recordings/{uuid}`
-folder, but keeps the transcript row.
+transcript's stored `filePath` and removes top-level app-managed audio files
+from the session folder, including `meeting.m4a`, selected-source
+`microphone.m4a` / `system.m4a`, and other managed audio extensions. It keeps
+the transcript row, `meetingArtifactFolderPath`, and non-audio artifacts such
+as `manifest.json`, `transcript.json`, `notes.md`, and prompt-result files.
+Full meeting deletion is the path that removes the session folder.
 
 Scheduled retention only detaches audio for completed meeting rows with stored
 audio paths. It skips any session folder that still has `recording.lock`, live
@@ -310,7 +314,7 @@ Meeting recording and dictation share one process-wide microphone engine. Both f
 
 `SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while an active non-VPIO capture subscriber is already in flight, so dictation or raw meeting capture does not get a mid-session format flip. Passive warm subscribers do not count as blockers. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
 
-All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only opt-in); Nemotron Beta and WhisperKit can be selected explicitly. That keeps:
+All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only TDT opt-in, `unified` English opt-in); Nemotron Beta and WhisperKit can be selected explicitly. That keeps:
 
 - dictation on its own reserved interactive slot
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot

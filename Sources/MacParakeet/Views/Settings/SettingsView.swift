@@ -443,7 +443,7 @@ struct SettingsView: View {
     ///
     /// 1. `engineSelectorCard` — which engine? (Parakeet vs Nemotron vs Whisper)
     /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
-    ///    multilingual `v3` vs English-only `v2`)
+    ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
     ///    multilingual vs English-only)
     /// 4. `engineLanguageCard` — which language? (Whisper only — Parakeet
@@ -2982,9 +2982,9 @@ struct SettingsView: View {
         }
     }
 
-    /// Roll-up of the three permissions. `.required` if any feature gate is
-    /// missing; Screen Recording is required for meeting recording because the
-    /// runtime has no mic-only meeting fallback.
+    /// Roll-up of the three permissions. `.required` if any core gate is
+    /// missing; Screen Recording is only required by meeting source modes that
+    /// capture system audio.
     private var permissionsCardStatus: SettingsCardStatus? {
         SettingsStatusRules.permissionsCardStatus(
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled,
@@ -2996,7 +2996,7 @@ struct SettingsView: View {
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone and Accessibility are required. Screen Recording is required for meetings."
+            ? "Microphone and Accessibility are required. Screen Recording is needed for system-audio meetings."
             : "Microphone and Accessibility are required."
 
         return SettingsCard(

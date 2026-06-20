@@ -3,7 +3,8 @@
 > Status: **Accepted**
 > Date: 2026-02-13
 > Note: Core decision (FluidAudio CoreML for STT) is implemented and active. GPU/LLM references (Qwen3-8B, "GPU contention") are historical — the old on-device mlx-swift-lm path was removed 2026-02-23.
-> Amendment (2026-05-30): The migration remains the active runtime decision. Current code exposes FluidAudio's Parakeet v3 multilingual build by default and v2 English-only as an opt-in build; this does not change the Python-elimination decision.
+> Amendment (2026-05-30): The migration remains the active runtime decision. MacParakeet exposed FluidAudio's Parakeet v3 multilingual build by default and v2 English-only as an opt-in build; this did not change the Python-elimination decision.
+> Amendment (2026-06-18): Parakeet Unified is also exposed as an opt-in English build through FluidAudio CoreML, with a dedicated runtime path. This preserves the Python-elimination decision.
 
 ## Context
 

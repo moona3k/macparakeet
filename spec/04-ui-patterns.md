@@ -98,7 +98,7 @@ Content transitions between tabs use `DesignSystem.Animation.contentSwap` (0.2s 
 |  +----------------------+  +--------------------------+    |
 |  +------------------------------------------------------+  |
 |  |  o  Record Meeting                          * Start  |  |
-|  |     Capture system audio + mic, transcribed locally  |  |
+|  |     Selected audio sources, transcribed locally         |  |
 |  +------------------------------------------------------+  |
 +------------------------------------------------------------+
 ```

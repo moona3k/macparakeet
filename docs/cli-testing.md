@@ -28,7 +28,7 @@ macparakeet-cli
 │                                         Transcribe files, folders, podcasts, or media URLs
 │   ├── --format text|transcript|json [--no-history] [--database PATH]
 │   └── --engine app-default|parakeet|nemotron|whisper [--language <code>]
-│       --parakeet-model app-default|v3|v2 [--output-dir DIR]
+│       --parakeet-model app-default|v3|v2|unified [--output-dir DIR]
 │       --mode raw|clean|app-default --downloaded-audio app-default|keep|delete
 │       --speaker-detection app-default|on|off
 │       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
@@ -189,9 +189,10 @@ the STT input.
 ### Speech Engine Selection
 
 Parakeet remains the no-flag default for semver stability and ignores
-`--language`. Within Parakeet, v3 is the multilingual default and v2 is the
-English-only opt-in. Use `--parakeet-model app-default|v3|v2` for a single run,
-or `config set parakeet-model v2` / `models select parakeet-v2` to persist it.
+`--language`. Within Parakeet, v3 is the multilingual default, v2 is the
+English-only TDT opt-in, and Unified is the English-only punctuation/capitalization
+opt-in. Use `--parakeet-model app-default|v3|v2|unified` for a single run, or
+`config set parakeet-model unified` / `models select parakeet-unified` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
 speech engine, Parakeet model, and Nemotron/Whisper language defaults.
 Nemotron is an opt-in Beta engine with two builds: the multilingual default
@@ -269,6 +270,8 @@ swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set save-transcription-audio off
+swift run macparakeet-cli config set meeting-audio-retention keep-forever
+swift run macparakeet-cli config set meeting-audio-source microphone-and-system
 swift run macparakeet-cli config set youtube-audio-quality m4a
 swift run macparakeet-cli config set meeting-artifacts-folder ~/Documents/MacParakeet-Meetings
 swift run macparakeet-cli config set meeting-hook-enabled off
@@ -276,10 +279,11 @@ swift run macparakeet-cli config set meeting-hook-enabled off
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
-`speaker-detection`, `save-transcription-audio`, `youtube-audio-quality`,
-`meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
-`meeting-hook-timeout`. Underscore aliases such as `youtube_audio_quality` are
-accepted on input; JSON output uses canonical hyphenated keys.
+`speaker-detection`, `save-transcription-audio`, `meeting-audio-retention`,
+`meeting-audio-source`, `youtube-audio-quality`, `meeting-artifacts-folder`,
+`meeting-hook-enabled`, `meeting-hook-path`, `meeting-hook-timeout`.
+Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
+output uses canonical hyphenated keys.
 
 ### Output Formats
 

@@ -6,6 +6,7 @@
 > Amendment 2026-04-28: The scheduler is now engine-routed. Parakeet remains default; WhisperKit can be selected globally or per routed job. Meeting sessions hold a speech-engine lease so engine changes cannot split a meeting across engines.
 > Amendment 2026-06-08: Nemotron 3.5 joins the same routed scheduler/runtime as an opt-in Beta engine. The one-control-plane rule still holds; Nemotron does not create feature-owned STT runtimes.
 > Amendment 2026-06-11: The Nemotron engine routes between two builds (multilingual `NemotronEngine` / English-only `NemotronEnglishEngine`) on the persisted Nemotron model preference. Nemotron build swaps follow the same scheduler rules as Parakeet v2/v3 swaps — rejected while jobs run or a meeting lease is active.
+> Amendment 2026-06-18: Parakeet Unified routes inside the same control plane through a dedicated `ParakeetUnifiedEngine` selected by the persisted Parakeet model preference. Unified does not create a feature-owned STT runtime; live dictation preview uses its native streaming manager while final paste/file/meeting work stays on the offline path.
 
 ## Context
 
@@ -47,12 +48,13 @@ Feature services submit jobs to the control plane; they do not own their own STT
 
 ### 2. One shared STT runtime owner
 
-The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Nemotron's FluidAudio managers, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
+The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Parakeet Unified's dedicated FluidAudio engine, Nemotron's FluidAudio managers, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
 
 That runtime is the sole owner of:
 
-- slot-scoped Parakeet `AsrManager` instances
-- the optional Beta `NemotronEngine` instance
+- slot-scoped Parakeet v2/v3 `AsrManager` instances
+- the Parakeet Unified engine
+- the optional Beta Nemotron multilingual / English engine instances
 - the optional `WhisperEngine` instance
 - model download / initialization / readiness
 - warm-up progress
@@ -195,7 +197,7 @@ This avoids crosstalk between:
 The control plane supports both unrouted and routed transcription calls:
 
 - Unrouted jobs use the runtime's current `SpeechEnginePreference`.
-- Routed jobs pass a `SpeechEngineSelection` (`parakeet` or `whisper` plus optional Whisper language).
+- Routed jobs pass a `SpeechEngineSelection` (`parakeet`, `nemotron`, or `whisper`, with optional language where the selected engine/build supports it).
 - `setSpeechEngine(_:)` is rejected while jobs are queued/running.
 - `beginSpeechEngineSession()` returns a lease containing the current selection; `endSpeechEngineSession(_:)` releases it.
 - Engine switching is rejected while any lease is active.
@@ -212,7 +214,7 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 - Meeting live preview degrades gracefully under pressure
 - File transcription is intentionally simple and low-risk in v1
 - The architecture leaves room for chunked batch work or a third slot later without returning to per-feature STT ownership
-- Whisper support fits the same control plane instead of creating a parallel scheduler
+- Whisper, Nemotron, and Parakeet Unified support fit the same control plane instead of creating parallel schedulers
 
 ### Negative
 
@@ -226,7 +228,7 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 
 ### Core types
 
-- `STTRuntime` — owns slot-scoped Parakeet `AsrManager` instances, optional `NemotronEngine` / `WhisperEngine` instances, engine dispatch, and model lifecycle
+- `STTRuntime` — owns slot-scoped Parakeet v2/v3 `AsrManager` instances, the dedicated Parakeet Unified engine, optional Nemotron / Whisper engine instances, engine dispatch, and model lifecycle
 - `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, speech-engine sessions, and job execution against the runtime
 
 ### Service boundaries

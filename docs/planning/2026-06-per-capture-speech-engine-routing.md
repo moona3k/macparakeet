@@ -67,7 +67,8 @@ engine matches its latency, punctuation, and timestamp behavior.
 Per-capture routing does not require multiple audio streams, but it can increase
 model residency and switching pressure:
 
-- Parakeet v3/v2 are about 465 MB each on disk.
+- Parakeet v3/v2 are about 465 MB each on disk; Parakeet Unified is about
+  565 MB for its int8 export.
 - Nemotron Beta is about 1.5 GB on disk.
 - Whisper depends on the selected model variant.
 - Keeping multiple engines warm may be fine on 16-48 GB Macs, but lower-memory

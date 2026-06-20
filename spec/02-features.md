@@ -70,12 +70,12 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  v0.6 - "Meeting Recording + Multilingual STT + Transforms"      │
 │  "Record meetings locally, add WhisperKit, rewrite selected text" │
 ├─────────────────────────────────────────────────────────────────┤
-│  • Meeting recording (system audio + mic with echo mitigation)    │
+│  • Meeting recording with selectable audio sources               │
 │  • Concurrent with dictation (ADR-015) — dictate during meetings │
 │  • Recording pill UI (floating timer + stop button)              │
 │  • Results in transcription library (sourceType: meeting)        │
 │  • Prompt library + multi-summary work automatically             │
-│  • Screen Recording permission flow                               │
+│  • Source-scoped permission flow                                  │
 │  • Headphones guidance copy for cleanest speaker separation       │
 │  • VAD-guided live-preview chunking with fixed fallback           │
 │  • Nemotron Beta + WhisperKit engine options                     │
@@ -1616,7 +1616,7 @@ exposes a terminal provider/model/token metadata envelope.
 
 ## v0.6 — Meeting Recording + Multilingual STT
 
-The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option) and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
+The v0.6 scope includes meeting capture with configurable source mode (microphone + system audio by default, microphone-only, or system-audio-only; ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option) and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
 
 Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; Nemotron Beta or WhisperKit can be selected before starting a meeting for broader local multilingual coverage.
 

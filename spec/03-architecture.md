@@ -119,7 +119,7 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
 
 ┌─ Meeting Pipeline ────────────────────────┐
 │ MicrophoneCapture subscriber              │
-│ + SystemAudioStream (ScreenCaptureKit)    │
+│ + SystemAudioStream when selected         │
 │ → MeetingRecordingService                 │
 └───────────────────────────────────────────┘
 
@@ -135,13 +135,13 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
       └── Background slot   → meeting + file transcription
                 │
                 ▼
-     STT Runtime (Parakeet AsrManagers + optional WhisperEngine)
+     STT Runtime (Parakeet/Nemotron/Whisper engines)
 ```
 
 - **Shared microphone engine** — dictation and meeting mic capture subscribe to one process-wide `SharedMicrophoneStream`; downstream feature pipelines stay independent after copying buffers.
 - **Meeting mic processing** — meeting mic capture ships as raw mic capture by default to avoid degrading the live call mic heard by other participants; VPIO remains explicit opt-in plumbing, and consumers extract channel 0 if VPIO is engaged.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
-- **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and Parakeet/Whisper dispatch.
+- **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and speech-engine dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
 - **Meeting engine lease** — a recording pins the active speech engine/language at start and blocks engine switching until stop/cancel.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
@@ -404,7 +404,7 @@ protocol AudioProcessorProtocol: Sendable {
 
 #### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle, the slot-scoped Parakeet `AsrManager` set for the selected Parakeet build (`v3` default, `v2` opt-in), optional `WhisperEngine` lifecycle, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, speech-engine leases, and guarded Parakeet model-variant switching. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
+**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle, the slot-scoped Parakeet TDT `AsrManager` set for the selected v2/v3 build, the dedicated Parakeet Unified engine, the Nemotron engines, optional `WhisperEngine` lifecycle, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, speech-engine leases, and guarded engine/model switching. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
@@ -461,6 +461,12 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
 public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     case v3
     case v2
+    case unified
+}
+
+public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
+    case multilingual1120 = "multilingual-1120ms"
+    case english1120 = "english-1120ms"
 }
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
@@ -476,6 +482,7 @@ public struct SpeechEngineLease: Equatable, Sendable {
 public protocol SpeechEngineSwitching: Sendable {
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
     func setParakeetModelVariant(_ variant: ParakeetModelVariant) async throws
+    func setNemotronModelVariant(_ variant: NemotronModelVariant) async throws
 }
 
 public protocol SpeechEngineSessionManaging: Sendable {
@@ -497,12 +504,12 @@ struct TimestampedWord: Sendable {
 }
 ```
 
-**Dependencies:** FluidAudio SDK (CoreML, runs on ANE) and optional WhisperKit.
+**Dependencies:** FluidAudio SDK (CoreML, runs on ANE) for Parakeet and Nemotron, plus optional WhisperKit.
 
 **Architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
+ANE:  Parakeet/Nemotron STT (via FluidAudio/CoreML) — dedicated ML accelerator
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
@@ -530,8 +537,9 @@ STTScheduler
     │
     ▼
 STTRuntime
-    ├── interactive slot → Parakeet AsrManager
-    ├── background slot  → Parakeet AsrManager
+    ├── Parakeet v2/v3 slot managers
+    ├── Parakeet Unified engine
+    ├── Nemotron multilingual / English engines
     └── optional WhisperEngine selected by routed jobs/preferences
 ```
 
@@ -689,7 +697,7 @@ protocol TranscriptionRepositoryProtocol: Sendable {
 
 ### 3. Local STT Engines
 
-Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine family: v3 is the multilingual default and v2 is an English-only opt-in. Two optional local engines extend coverage: Nemotron 3.5 (Beta), a fast FluidAudio CoreML streaming engine with a multilingual default build and an English-only build, and WhisperKit for broader language coverage.
+Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine family: v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only opt-in with punctuation/capitalization. Two optional local engines extend coverage: Nemotron 3.5 (Beta), a fast FluidAudio CoreML streaming engine with a multilingual default build and an English-only build, and WhisperKit for broader language coverage.
 
 **Responsibility:** Speech-to-text transcription using the user's selected local engine.
 
@@ -697,8 +705,8 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 
 | Property | Value |
 |----------|-------|
-| Model | Parakeet TDT 0.6B (`v3` multilingual default, `v2` English-only opt-in) |
-| WER | ~2.5% (v3) / ~2.1% (v2) |
+| Model | Parakeet TDT 0.6B (`v3` multilingual default, `v2` English-only opt-in) plus Parakeet Unified EN 0.6B (`unified`) |
+| WER | ~2.5% (v3) / ~2.1% (v2) / ~2.15% average WER on LibriSpeech test-clean (Unified) |
 | Speed | ~155x realtime on Apple Silicon |
 | Working RAM | ~66 MB (~130 MB with vocab boosting) |
 | Runs on | Neural Engine (ANE) via CoreML |
@@ -1119,7 +1127,7 @@ Dictation ready
 |------------|--------------|-----------|
 | Microphone | Dictation, onboarding mic test, meeting recording mic capture | Requested during onboarding or first dictation/meeting use |
 | Accessibility | Global hotkey paste simulation | Requested during onboarding or first dictation use |
-| Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting recording | Optional during onboarding; otherwise requested on first meeting recording attempt; recording stays blocked until granted |
+| Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting source modes that include system audio | Optional during onboarding; otherwise requested on first system-audio meeting attempt; system-audio modes stay blocked until granted |
 | Calendar | Calendar reminders and optional meeting auto-start | Requested from onboarding or Settings calendar controls |
 
 ### Sandboxing (App Store)

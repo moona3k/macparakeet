@@ -35,8 +35,8 @@ two correctness gaps remain that ADR-019 does not touch:
    chunker hiccup, a momentary engine stall, a dropped buffer window —
    that speech is **lost permanently**. There is no post-stop pass that
    asks "does the saved transcript actually cover all the speech in the
-   retained audio?" The retained source `.m4a` files (mic + system) hold
-   the truth, but nothing re-reads them for completeness.
+   retained audio?" The retained selected-source `.m4a` files hold the truth,
+   but nothing re-reads them for completeness.
 
 This ADR hardens both. It is framed as a **reliability/correctness
 improvement that ships default-on**, not a user-facing feature toggle.
@@ -109,10 +109,11 @@ After the user stops (`MeetingRecordingService.stopRecording() async
 throws -> MeetingRecordingOutput`), and after the normal finalize pass
 produces the saved transcript, run a **completeness repair stage**:
 
-1. **Offline VAD pass** over the full retained mic + system `.m4a`
-   files (reusing the `MeetingVADService` / Silero machinery already in
-   the codebase, run offline rather than streaming), producing the set
-   of speech regions actually present in the audio.
+1. **Offline VAD pass** over the full retained selected-source `.m4a`
+   files (mic, system, or both depending on source mode; reusing the
+   `MeetingVADService` / Silero machinery already in the codebase, run offline
+   rather than streaming), producing the set of speech regions actually present
+   in the audio.
 2. **Compute the speech-coverage ratio** — how much VAD-detected speech
    the live-captured transcript segments (from
    `MeetingTranscriptAssembler`) actually cover.

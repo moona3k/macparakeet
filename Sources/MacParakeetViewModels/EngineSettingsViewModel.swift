@@ -56,7 +56,7 @@ public final class EngineSettingsViewModel {
     public var speechEngineSwitchTarget: SpeechEnginePreference?
     public var speechEngineSwitchDetail: String?
     public var pendingSpeechEngineSwitchConfirmation: SpeechEnginePreference?
-    /// True while a Parakeet *build* swap (v3 ↔ v2) is in flight, as opposed to
+    /// True while a Parakeet *build* swap is in flight, as opposed to
     /// an engine switch. Both set `speechEngineSwitchTarget = .parakeet`, so the
     /// banner needs this to avoid the misleading "Switching to Parakeet" copy
     /// when the user is already on Parakeet and only changing the build.
@@ -728,8 +728,8 @@ public final class EngineSettingsViewModel {
         }
     }
 
-    /// Applies a Parakeet variant toggle (multilingual `v3` ↔ English-only
-    /// `v2`). Mirrors `applySpeechEngineChange`: validates switch availability,
+    /// Applies a Parakeet variant toggle (`v3`, `v2`, or `unified`). Mirrors
+    /// `applySpeechEngineChange`: validates switch availability,
     /// drives the shared switch banner, persists only after the runtime reload
     /// succeeds, and reverts the published value on block/cancel/failure.
     private func applyParakeetModelVariantChange(_ variant: ParakeetModelVariant) {

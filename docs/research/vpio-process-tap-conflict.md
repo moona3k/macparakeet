@@ -15,7 +15,7 @@ authors: Claude Opus 4.6 (research), Codex/GPT (independent review), Daniel Moon
 
 ## TL;DR
 
-MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (mic + system audio simultaneously). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead and ships raw meeting mic capture by default.
+MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (microphone + system audio by default, with single-source modes available). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead and ships raw meeting mic capture by default.
 
 A refactor on 2026-04-10 (commit `97134e9b` "Refactor meeting recording to VPIO-first pipeline") turned on `AVAudioInputNode.setVoiceProcessingEnabled(true)` (VPIO) for the meeting microphone path to get Apple's hardware acoustic echo cancellation. Motivation: the laptop mic was picking up audio leaking through the speakers from the far-end meeting participant, producing duplicated/echoed content in the mic transcript.
 

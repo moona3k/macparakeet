@@ -49,10 +49,10 @@
 
 | Error | Cause | User Action |
 |-------|-------|-------------|
-| Screen Recording denied | User denied Screen & System Audio Recording permission | Show error + "Open System Settings" button, block recording |
+| Screen Recording denied | User denied Screen & System Audio Recording permission for a meeting source mode that captures system audio | Show error + "Open System Settings" button, block that recording mode |
 | System audio capture failed | ScreenCaptureKit stream setup failed or stopped unexpectedly | "System audio capture failed. Try restarting the app." |
 | Mic capture failed during meeting | AVAudioEngine failed to start for meeting mic | "Microphone capture failed. Check your microphone connection." |
-| Mix failed | FFmpeg failed to mix mic + system M4A files | Log error, attempt transcription of individual streams |
+| Mix failed | FFmpeg failed to produce the meeting playback artifact from the selected source M4A files | Log error, attempt transcription of individual streams |
 | Chunk transcription backpressure | Live transcription can't keep pace with recording | Silent degradation: final batch transcription still produces full result |
 | Meeting hotkey conflict | Meeting hotkey same as dictation hotkey | Block in Settings UI; at runtime, log warning and skip conflicting trigger |
 
