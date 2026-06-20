@@ -1277,12 +1277,32 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertGreaterThan(viewModel.meetingAudioStorageMB, 0)
     }
 
+    func testRefreshStatsIncludesManagedNonStandardMeetingAudioStorage() async throws {
+        let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("source-capture.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x3, count: 2048)))
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transcriptionRepo: mockTranscriptionRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { viewModel.meetingAudioRecordingCount == 1 }
+        XCTAssertGreaterThan(viewModel.meetingAudioStorageMB, 0)
+    }
+
     func testClearMeetingAudioRemovesFilesAndClearsMeetingStoredPaths() async throws {
         let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent("meeting.m4a")
+        let sourceFile = folder.appendingPathComponent("source-capture.wav")
         let notes = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x4, count: 1024)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceFile.path, contents: Data(repeating: 0x4, count: 1024)))
         try Data("notes".utf8).write(to: notes)
 
         let meeting = Transcription(
@@ -1317,6 +1337,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.clearMeetingAudio()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceFile.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: notes.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRecordingsTestDir.path))

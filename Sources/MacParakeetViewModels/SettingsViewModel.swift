@@ -1497,7 +1497,7 @@ public final class SettingsViewModel {
             var sessionHasAudio = false
             for fileURL in files {
                 guard
-                    TranscriptionAssetCleanup.isStandardMeetingAudioFileName(fileURL.lastPathComponent),
+                    TranscriptionAssetCleanup.isManagedMeetingAudioFileName(fileURL.lastPathComponent),
                     let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
                     values.isRegularFile == true
                 else { continue }

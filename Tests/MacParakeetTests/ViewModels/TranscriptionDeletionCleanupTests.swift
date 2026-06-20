@@ -200,6 +200,28 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: failingAudioURL.path))
     }
 
+    func testBulkMeetingAudioCleanupRemovesManagedNonStandardAudioFiles() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folderURL = rootURL.appendingPathComponent("meeting", isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let customAudioURL = folderURL.appendingPathComponent("source-capture.wav")
+        let canonicalAudioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let notesURL = folderURL.appendingPathComponent("notes.md")
+        XCTAssertTrue(FileManager.default.createFile(atPath: customAudioURL.path, contents: Data("wav".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: canonicalAudioURL.path, contents: Data("mix".utf8)))
+        try Data("notes".utf8).write(to: notesURL)
+
+        try TranscriptionAssetCleanup.removeManagedMeetingAudioFiles(under: rootURL.path)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: customAudioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: canonicalAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folderURL.path))
+    }
+
     func testDetachMeetingAudioKeepsFilePathWhenFileRemovalFails() throws {
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -225,6 +247,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         ))
         XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+        XCTAssertEqual(repo.transcriptions.first?.meetingArtifactFolderPath, folderURL.standardizedFileURL.path)
     }
 
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {

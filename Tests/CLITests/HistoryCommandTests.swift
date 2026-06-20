@@ -211,8 +211,10 @@ final class HistoryCommandTests: XCTestCase {
         let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let sourceAudioURL = folder.appendingPathComponent("source-capture.wav")
         let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceAudioURL.path, contents: Data("source".utf8)))
         try Data("notes".utf8).write(to: notesURL)
 
         let meeting = Transcription(
@@ -251,6 +253,7 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: meetingRoot.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceAudioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         let fetchedMeeting = try XCTUnwrap(repo.fetch(id: meeting.id))
         XCTAssertNil(fetchedMeeting.filePath)

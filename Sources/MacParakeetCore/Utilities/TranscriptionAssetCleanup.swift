@@ -47,6 +47,10 @@ public enum TranscriptionAssetCleanup {
         standardMeetingAudioFileNames.contains(fileName)
     }
 
+    public static func isManagedMeetingAudioFileName(_ fileName: String) -> Bool {
+        managedMeetingAudioExtensions.contains(URL(fileURLWithPath: fileName).pathExtension.lowercased())
+    }
+
     public static func removeOwnedAssets(
         for transcription: Transcription,
         fileManager: FileManager = .default
@@ -123,16 +127,11 @@ public enum TranscriptionAssetCleanup {
             )
             return nil
         }
-        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
-        guard !fileManager.fileExists(atPath: lockURL.path) else {
-            logger.warning(
-                "Refusing to remove audio from locked meeting folder: \(folderURL.path, privacy: .private)"
-            )
-            throw TranscriptionAssetCleanupError.removalFailed(
-                path: folderURL.path,
-                reason: "meeting audio is still awaiting transcription or recovery"
-            )
-        }
+        try assertMeetingFolderUnlocked(
+            folderURL,
+            fileManager: fileManager,
+            message: "Refusing to remove audio from locked meeting folder"
+        )
 
         return MeetingAudioRemovalPlan(
             folderURL: folderURL,
@@ -180,24 +179,22 @@ public enum TranscriptionAssetCleanup {
         }
 
         for folderURL in sessionFolders {
-            let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
-            guard !fileManager.fileExists(atPath: lockURL.path) else {
-                logger.warning(
-                    "Refusing bulk audio cleanup while meeting folder is locked: \(folderURL.path, privacy: .private)"
-                )
-                throw TranscriptionAssetCleanupError.removalFailed(
-                    path: folderURL.path,
-                    reason: "meeting audio is still awaiting transcription or recovery"
-                )
-            }
+            try assertMeetingFolderUnlocked(
+                folderURL,
+                fileManager: fileManager,
+                message: "Refusing bulk audio cleanup while meeting folder is locked"
+            )
         }
 
         for folderURL in sessionFolders {
+            try assertMeetingFolderUnlocked(
+                folderURL,
+                fileManager: fileManager,
+                message: "Refusing bulk audio cleanup after meeting folder became locked"
+            )
             let plan = MeetingAudioRemovalPlan(
                 folderURL: folderURL,
-                candidates: Set(standardMeetingAudioFileNames.map {
-                    folderURL.appendingPathComponent($0).standardizedFileURL
-                })
+                candidates: try managedMeetingAudioFiles(in: folderURL, fileManager: fileManager)
             )
             try removeMeetingAudioFiles(plan, fileManager: fileManager)
         }
@@ -226,18 +223,45 @@ public enum TranscriptionAssetCleanup {
             )
             return false
         }
+        try assertMeetingFolderUnlocked(
+            folderURL,
+            fileManager: fileManager,
+            message: "Refusing to remove locked meeting folder"
+        )
+        try removeItem(at: folderURL, fileManager: fileManager)
+        return true
+    }
+
+    private static func managedMeetingAudioFiles(in folderURL: URL, fileManager: FileManager) throws -> Set<URL> {
+        let files = try fileManager.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
+
+        return Set(files.compactMap { fileURL -> URL? in
+            guard
+                isManagedMeetingAudioFileName(fileURL.lastPathComponent),
+                let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]),
+                values.isRegularFile == true
+            else { return nil }
+            return fileURL.standardizedFileURL
+        })
+    }
+
+    private static func assertMeetingFolderUnlocked(
+        _ folderURL: URL,
+        fileManager: FileManager,
+        message: String
+    ) throws {
         let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
         guard !fileManager.fileExists(atPath: lockURL.path) else {
-            logger.warning(
-                "Refusing to remove locked meeting folder: \(folderURL.path, privacy: .private)"
-            )
+            logger.warning("\(message, privacy: .public): \(folderURL.path, privacy: .private)")
             throw TranscriptionAssetCleanupError.removalFailed(
                 path: folderURL.path,
                 reason: "meeting audio is still awaiting transcription or recovery"
             )
         }
-        try removeItem(at: folderURL, fileManager: fileManager)
-        return true
     }
 
     private static func isKnownMeetingFolder(_ folderURL: URL, fileManager: FileManager) -> Bool {
