@@ -11,7 +11,7 @@ import SwiftUI
 /// Stop symmetric tap targets so users learn one rule.
 struct MeetingRecordingTile: View {
     enum PermissionState: Equatable {
-        case ready(capturesMicrophone: Bool)
+        case ready(sourceMode: MeetingAudioSourceMode)
         case missing(microphone: Bool, screenRecording: Bool)
 
         init(
@@ -20,11 +20,11 @@ struct MeetingRecordingTile: View {
             sourceMode: MeetingAudioSourceMode
         ) {
             let needsMicrophone = sourceMode.capturesMicrophone && !microphoneGranted
-            let needsScreenRecording = !screenRecordingGranted
+            let needsScreenRecording = sourceMode.capturesSystemAudio && !screenRecordingGranted
             if needsMicrophone || needsScreenRecording {
                 self = .missing(microphone: needsMicrophone, screenRecording: needsScreenRecording)
             } else {
-                self = .ready(capturesMicrophone: sourceMode.capturesMicrophone)
+                self = .ready(sourceMode: sourceMode)
             }
         }
 
@@ -46,10 +46,15 @@ struct MeetingRecordingTile: View {
 
         var detail: String {
             switch self {
-            case .ready(let capturesMicrophone):
-                return capturesMicrophone
-                    ? "Transcribes the whole conversation, privately on your Mac."
-                    : "Transcribes the call audio, privately on your Mac."
+            case .ready(let sourceMode):
+                switch sourceMode {
+                case .microphoneAndSystem:
+                    return "Transcribes your voice and call audio, privately on your Mac."
+                case .microphoneOnly:
+                    return "Transcribes microphone audio only, privately on your Mac."
+                case .systemOnly:
+                    return "Transcribes system audio only, privately on your Mac."
+                }
             case .missing(let microphone, let screenRecording):
                 switch (microphone, screenRecording) {
                 case (true, true):
@@ -66,7 +71,7 @@ struct MeetingRecordingTile: View {
     }
 
     @Bindable var viewModel: MeetingRecordingPillViewModel
-    var permissionState: PermissionState = .ready(capturesMicrophone: true)
+    var permissionState: PermissionState = .ready(sourceMode: .microphoneAndSystem)
     var onTap: () -> Void
     /// Optional pause/resume handler. When `nil` the tile renders no pause
     /// control — keeps existing call sites unchanged.

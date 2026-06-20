@@ -9,7 +9,7 @@ struct TranscribeView: View {
     @Bindable var promptResultsViewModel: PromptResultsViewModel
     @Bindable var promptsViewModel: PromptsViewModel
     @Bindable var meetingPillViewModel: MeetingRecordingPillViewModel
-    var meetingPermissionState: MeetingRecordingTile.PermissionState = .ready(capturesMicrophone: true)
+    var meetingPermissionState: MeetingRecordingTile.PermissionState = .ready(sourceMode: .microphoneAndSystem)
     @Binding var showingProgressDetail: Bool
     var onRecordMeeting: () -> Void
     var onPauseToggleMeeting: (() -> Void)? = nil

@@ -1042,6 +1042,41 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(counts.system, 1)
     }
 
+    func testMicrophoneOnlyCaptureProducesMicrophoneSourceOnly() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .microphoneOnly)
+        )
+        let audioConverter = RecordingMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording(sourceMode: .microphoneOnly)
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await waitForMeetingSTTCall(sttClient) { $0.microphone >= 1 }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNotNil(output.sourceAlignment.microphone)
+        XCTAssertNil(output.sourceAlignment.system)
+        XCTAssertEqual(audioConverter.capturedMixedInputs(), [output.microphoneAudioURL])
+
+        let requestedSourceModes = await captureService.requestedSourceModes
+        XCTAssertEqual(requestedSourceModes, [.microphoneOnly])
+        let counts = await sttClient.callCounts
+        XCTAssertGreaterThanOrEqual(counts.microphone, 1)
+        XCTAssertEqual(counts.system, 0)
+    }
+
     func testStopRecordingMixesDualSourcesInMicrophoneThenSystemOrder() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = RecordingMeetingAudioFileConverter()

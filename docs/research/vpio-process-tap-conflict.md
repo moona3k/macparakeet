@@ -351,6 +351,8 @@ Current manual verification checklist:
 - Meeting alone with Safari/Zoom/system audio playing -> `system.m4a` contains real system audio and live/final transcript includes the system side.
 - Meeting with built-in speakers -> `microphone.m4a` contains the user's voice; some far-end speaker bleed is acceptable in raw mode, with residual transcript suppression still available.
 - Meeting -> trigger dictation without stopping meeting -> dictation captures and pastes independently; meeting system audio remains continuous.
+- Meeting `microphoneOnly` mode -> microphone audio records without prompting
+  for or starting ScreenCaptureKit system audio.
 - Meeting `systemOnly` mode -> system audio records while the microphone remains free for dictation.
 - Explicit VPIO experiment retry after a failed VPIO start -> the next attempt does not fail with the stale half-VPIO `-10875` state.
 

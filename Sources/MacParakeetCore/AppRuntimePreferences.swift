@@ -320,27 +320,76 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
 
 public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Equatable {
     case microphoneAndSystem = "microphone_and_system"
+    case microphoneOnly = "microphone_only"
     case systemOnly = "system_only"
 
     public var capturesMicrophone: Bool {
-        self == .microphoneAndSystem
+        switch self {
+        case .microphoneAndSystem, .microphoneOnly:
+            return true
+        case .systemOnly:
+            return false
+        }
+    }
+
+    public var capturesSystemAudio: Bool {
+        switch self {
+        case .microphoneAndSystem, .systemOnly:
+            return true
+        case .microphoneOnly:
+            return false
+        }
     }
 
     public var displayTitle: String {
         switch self {
         case .microphoneAndSystem:
-            return "Microphone + System Audio"
+            return "Microphone + system audio"
+        case .microphoneOnly:
+            return "Microphone only"
         case .systemOnly:
-            return "System Audio Only"
+            return "System audio only"
         }
     }
 
     public var detail: String {
         switch self {
         case .microphoneAndSystem:
-            return "Capture your microphone and computer audio. Weak mic bleed is suppressed live."
+            return "Capture your voice and call audio. Best when using headphones."
+        case .microphoneOnly:
+            return "Capture only your microphone. Useful when speaker audio bleeds into the mic."
         case .systemOnly:
-            return "Capture computer audio for meetings. Your microphone is still used for dictation."
+            return "Capture only computer audio. Your microphone stays available for dictation."
+        }
+    }
+
+    public var configurationValue: String {
+        switch self {
+        case .microphoneAndSystem:
+            return "microphone-and-system"
+        case .microphoneOnly:
+            return "microphone-only"
+        case .systemOnly:
+            return "system-only"
+        }
+    }
+
+    public static func parseConfigurationValue(_ value: String) -> MeetingAudioSourceMode? {
+        let raw = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+
+        switch raw {
+        case "microphone-and-system", "mic-and-system", "mic-system", "both", "all", "default":
+            return .microphoneAndSystem
+        case "microphone-only", "mic-only", "microphone", "mic":
+            return .microphoneOnly
+        case "system-only", "system-audio-only", "system", "computer-audio-only", "computer-audio":
+            return .systemOnly
+        default:
+            return nil
         }
     }
 

@@ -244,9 +244,9 @@ public final class SettingsViewModel {
         if selectedMicrophoneDeviceUID == Self.systemDefaultMicrophoneSelection {
             if meetingAudioSourceMode == .systemOnly {
                 if let currentDefault = microphoneDeviceOptions.first(where: \.isDefault) {
-                    return "Using macOS System Default for dictation: \(currentDefault.name). Meeting recording is set to System Audio Only."
+                    return "Using macOS System Default for dictation: \(currentDefault.name). Meeting recording is set to \(MeetingAudioSourceMode.systemOnly.displayTitle)."
                 }
-                return "Using macOS System Default for dictation. Meeting recording is set to System Audio Only."
+                return "Using macOS System Default for dictation. Meeting recording is set to \(MeetingAudioSourceMode.systemOnly.displayTitle)."
             }
             if let currentDefault = microphoneDeviceOptions.first(where: \.isDefault) {
                 return "Using macOS System Default: \(currentDefault.name)."
@@ -260,7 +260,7 @@ public final class SettingsViewModel {
             return "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
         }
         if meetingAudioSourceMode == .systemOnly {
-            return "Using \(selected.name) for dictation. Meeting recording is set to System Audio Only."
+            return "Using \(selected.name) for dictation. Meeting recording is set to \(MeetingAudioSourceMode.systemOnly.displayTitle)."
         }
         return "Using \(selected.name) for dictation and meeting microphone capture."
     }

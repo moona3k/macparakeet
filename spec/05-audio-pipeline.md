@@ -169,15 +169,43 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                               → background source-file STT + aligned merge
 ```
 
-- **System audio** is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`), which avoids owning or clocking a HAL aggregate output device.
-- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` with a typed policy (`MeetingMicProcessingMode`): `raw` (default), `vpioPreferred`, or `vpioRequired`.
-- MacParakeet ships meeting capture with raw mic capture and ScreenCaptureKit for system audio. VPIO remains available for explicit experiments, but it is not the shipped default because live-call testing showed that engaging it can muffle the user's outgoing mic in Zoom/Meet. The older Core Audio process-tap path also remains out of production because it does not reliably coexist with VPIO in-process. See `docs/research/vpio-process-tap-conflict.md`.
-- Both streams are captured within the same meeting session and aligned by host time. `CaptureOrchestrator` owns join + offset + live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source `MeetingLiveAudioChunking` strategies.
+- **Source mode** is user-configurable per recording start: microphone +
+  system audio (default), microphone only, or system audio only. The selected
+  mode controls both permission prompts and which capture streams are started.
+- **System audio** is captured via ScreenCaptureKit `SCStream` audio
+  (`SCStreamConfiguration.capturesAudio = true`) only when the source mode
+  includes system audio, which avoids owning or clocking a HAL aggregate output
+  device.
+- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` only
+  when the source mode includes microphone audio, with a typed policy
+  (`MeetingMicProcessingMode`): `raw` (default), `vpioPreferred`, or
+  `vpioRequired`.
+- MacParakeet ships meeting capture with raw mic capture and ScreenCaptureKit
+  for system audio when both sources are selected. VPIO remains available for
+  explicit experiments, but it is not the shipped default because live-call
+  testing showed that engaging it can muffle the user's outgoing mic in
+  Zoom/Meet. The older Core Audio process-tap path also remains out of
+  production because it does not reliably coexist with VPIO in-process. See
+  `docs/research/vpio-process-tap-conflict.md`.
+- When both streams are selected, they are captured within the same meeting
+  session and aligned by host time. `CaptureOrchestrator` owns join + offset +
+  live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source
+  `MeetingLiveAudioChunking` strategies. Single-source sessions skip the
+  unselected stream and produce a mono `meeting.m4a`.
 - Mic conditioning is pass-through. Raw capture applies no capture-time AEC/noise suppression/AGC; transcript-layer system-dominance suppression remains the default guard against obvious speaker bleed. When VPIO is explicitly requested and engages, macOS applies AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
-- After recording stops, microphone + system M4As are finalized and merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery lock is then rewritten to `awaitingTranscription`, and a processing Library row is saved before the recorder returns to idle.
-- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue transcribes `microphone.m4a` and `system.m4a` separately with the engine captured at recording start, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
+- After recording stops, the captured source M4As are finalized and merged into
+  `meeting.m4a`. Dual-input sessions preserve source separation as stereo
+  (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery
+  lock is then rewritten to `awaitingTranscription`, and a processing Library
+  row is saved before the recorder returns to idle.
+- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue
+  transcribes the captured source files separately with the engine captured at
+  recording start, then merges those fresh results by persisted
+  `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export
+  artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md`
+  for the full pipeline and tradeoffs.
 - Recovery locks and retention safety are a tested boundary contract. See [`spec/contracts/meeting-recovery-retention.md`](contracts/meeting-recovery-retention.md) before changing lock-file predicates or automatic meeting-audio deletion.
 - Live chunk enqueue keeps a conservative guard: when recent system energy strongly dominates processed mic energy for a short freshness window, mic chunks are skipped for live transcription only. Mic audio is still written to disk and included in final mix/output.
 - Joiner queue overflow, long-session sync lag, and runtime capture failures are emitted as diagnostics for observability (`MeetingAudioCaptureEvent.error` where available).

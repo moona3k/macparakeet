@@ -98,6 +98,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `delete-immediately`.
   The older `save-meeting-audio` key remains supported as a legacy alias:
   `on` maps to `keep-forever`, and `off` maps to `delete-immediately`.
+- `config get|set|list` now includes `meeting-audio-source`:
+  `microphone-and-system` (default), `microphone-only`, or `system-only`.
 
 ### Changed
 

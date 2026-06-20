@@ -39,6 +39,9 @@ struct ConfigCommand: ParsableCommand {
                                     delete-after-<1-365>-days|
                                     <1-365>d|
                                     delete-immediately
+          meeting-audio-source      microphone-and-system|          default: microphone-and-system
+                                    microphone-only|
+                                    system-only
           save-meeting-audio        on|off                          legacy alias
           youtube-audio-quality     m4a|best-available              default: m4a
           meeting-artifacts-folder  absolute path|default           default: app support
@@ -71,6 +74,7 @@ struct ConfigCommand: ParsableCommand {
         "auto-meeting-titles",
         "save-transcription-audio",
         "meeting-audio-retention",
+        "meeting-audio-source",
         "save-meeting-audio",
         "youtube-audio-quality",
         "meeting-artifacts-folder",
@@ -204,6 +208,8 @@ struct ConfigCommand: ParsableCommand {
             return on ? "on" : "off"
         case "meeting-audio-retention":
             return UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: store).configurationValue
+        case "meeting-audio-source":
+            return MeetingAudioSourceMode.current(defaults: store).configurationValue
         case "save-meeting-audio":
             let on = UserDefaultsAppRuntimePreferences(defaults: store).shouldSaveMeetingAudio
             return on ? "on" : "off"
@@ -283,6 +289,10 @@ struct ConfigCommand: ParsableCommand {
             let retention = try parseMeetingAudioRetention(value)
             UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(retention, defaults: store)
             return retention.configurationValue
+        case "meeting-audio-source":
+            let mode = try parseMeetingAudioSourceMode(value)
+            store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey)
+            return mode.configurationValue
         case "save-meeting-audio":
             let parsed = try parseBool(value, key: key)
             UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(
@@ -454,6 +464,13 @@ struct ConfigCommand: ParsableCommand {
             throw ValidationError("Invalid value for meeting-audio-retention: '\(value)'. Use keep-forever, delete-immediately, delete-after-<1-365>-days, or <1-365>d.")
         }
         return retention
+    }
+
+    static func parseMeetingAudioSourceMode(_ value: String) throws -> MeetingAudioSourceMode {
+        guard let mode = MeetingAudioSourceMode.parseConfigurationValue(value) else {
+            throw ValidationError("Invalid value for meeting-audio-source: '\(value)'. Use microphone-and-system, microphone-only, or system-only.")
+        }
+        return mode
     }
 
     static func parseMeetingArtifactsFolder(_ value: String) throws -> String? {

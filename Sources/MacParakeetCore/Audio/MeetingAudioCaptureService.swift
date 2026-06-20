@@ -154,12 +154,17 @@ public actor MeetingAudioCaptureService {
             throw MeetingAudioError.alreadyRunning
         }
 
-        let systemCapture = try systemAudioCaptureFactory()
         let sourceMode = sourceModeOverride ?? sourceModeProvider()
-        eventSink.setHandler(handler)
-        micHealthObserver.start(observing: sourceMode.capturesMicrophone)
         var microphoneStartReport: MeetingMicrophoneCaptureStartReport?
         var attemptedMicrophoneStart = false
+        let systemCapture: (any MeetingSystemAudioCapturing)?
+        if sourceMode.capturesSystemAudio {
+            systemCapture = try systemAudioCaptureFactory()
+        } else {
+            systemCapture = nil
+        }
+        eventSink.setHandler(handler)
+        micHealthObserver.start(observing: sourceMode.capturesMicrophone && sourceMode.capturesSystemAudio)
         let systemAudioFailureEvent: @Sendable (MeetingAudioError) -> MeetingAudioCaptureEvent = { error in
             sourceMode.capturesMicrophone
                 ? .sourceInterrupted(source: .system, error: error)
@@ -193,32 +198,34 @@ public actor MeetingAudioCaptureService {
                 )
             }
 
-            try await systemCapture.start(
-                handler: { [weak self] buffer, time in
-                    guard let copy = Self.deepCopyBuffer(buffer) else {
-                        Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
-                            .warning("deepCopyBuffer nil for system capture: format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) ch=\(buffer.format.channelCount) interleaved=\(buffer.format.isInterleaved) frames=\(buffer.frameLength)")
-                        self?.eventSink.emit(
-                            systemAudioFailureEvent(
-                                .captureRuntimeFailure(
-                                    "system buffer copy failed (format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) channels=\(buffer.format.channelCount))"
+            if let systemCapture {
+                try await systemCapture.start(
+                    handler: { [weak self] buffer, time in
+                        guard let copy = Self.deepCopyBuffer(buffer) else {
+                            Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
+                                .warning("deepCopyBuffer nil for system capture: format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) ch=\(buffer.format.channelCount) interleaved=\(buffer.format.isInterleaved) frames=\(buffer.frameLength)")
+                            self?.eventSink.emit(
+                                systemAudioFailureEvent(
+                                    .captureRuntimeFailure(
+                                        "system buffer copy failed (format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) channels=\(buffer.format.channelCount))"
+                                    )
                                 )
                             )
-                        )
-                        return
+                            return
+                        }
+                        self?.micHealthObserver.observeSystemBuffer(copy)
+                        self?.eventSink.emit(.systemBuffer(copy, time))
+                    },
+                    onStall: { [weak self] error in
+                        self?.eventSink.emit(systemAudioFailureEvent(error))
                     }
-                    self?.micHealthObserver.observeSystemBuffer(copy)
-                    self?.eventSink.emit(.systemBuffer(copy, time))
-                },
-                onStall: { [weak self] error in
-                    self?.eventSink.emit(systemAudioFailureEvent(error))
-                }
-            )
+                )
+            }
         } catch {
             if attemptedMicrophoneStart {
                 microphoneCapture.stop()
             }
-            await systemCapture.stop()
+            await systemCapture?.stop()
             finishEventStream()
             eventSink.setHandler(nil)
             micHealthObserver.stop()

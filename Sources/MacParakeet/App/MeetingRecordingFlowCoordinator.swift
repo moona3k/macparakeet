@@ -396,19 +396,21 @@ final class MeetingRecordingFlowCoordinator {
                     Telemetry.send(.permissionGranted(permission: .microphone))
                 }
 
-                let existingScreenGrant = permissionService.checkScreenRecordingPermission()
-                if !existingScreenGrant {
-                    Telemetry.send(.permissionPrompted(permission: .screenRecording))
-                }
-                let screenGranted = existingScreenGrant || permissionService.requestScreenRecordingPermission()
-                if !screenGranted {
-                    Telemetry.send(.permissionDenied(permission: .screenRecording))
-                    self.clearPendingStartContext(failureReason: "permission_denied")
-                    self.sendEvent(.permissionsDenied(generation: gen, reason: .screenRecording))
-                    return
-                }
-                if !existingScreenGrant {
-                    Telemetry.send(.permissionGranted(permission: .screenRecording))
+                if sourceMode.capturesSystemAudio {
+                    let existingScreenGrant = permissionService.checkScreenRecordingPermission()
+                    if !existingScreenGrant {
+                        Telemetry.send(.permissionPrompted(permission: .screenRecording))
+                    }
+                    let screenGranted = existingScreenGrant || permissionService.requestScreenRecordingPermission()
+                    if !screenGranted {
+                        Telemetry.send(.permissionDenied(permission: .screenRecording))
+                        self.clearPendingStartContext(failureReason: "permission_denied")
+                        self.sendEvent(.permissionsDenied(generation: gen, reason: .screenRecording))
+                        return
+                    }
+                    if !existingScreenGrant {
+                        Telemetry.send(.permissionGranted(permission: .screenRecording))
+                    }
                 }
                 self.sendEvent(.permissionsGranted(generation: gen))
             }
