@@ -7,6 +7,8 @@ import SwiftUI
 /// Supports drag-selection across the entire transcript with colored speaker headers.
 /// Uses incremental suffix updates so live transcript changes don't rebuild the full document.
 struct TranscriptTextView: NSViewRepresentable {
+    private static let fallbackLayoutSize = CGSize(width: 360, height: 160)
+
     let lines: [MeetingRecordingPreviewLine]
     let autoScroll: Bool
 
@@ -19,7 +21,10 @@ struct TranscriptTextView: NSViewRepresentable {
         nsView: NSScrollView,
         context: Context
     ) -> CGSize {
-        proposal.replacingUnspecifiedDimensions()
+        CGSize(
+            width: proposal.width ?? max(nsView.bounds.width, Self.fallbackLayoutSize.width),
+            height: proposal.height ?? max(nsView.bounds.height, Self.fallbackLayoutSize.height)
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -33,14 +38,25 @@ struct TranscriptTextView: NSViewRepresentable {
         textView.isAutomaticLinkDetectionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
         textView.textContainer?.lineFragmentPadding = 0
-        // Keep widthTracksTextView so the text container re-flows when the
-        // text view width changes. But the default text view frame is zero;
-        // a zero-width container wraps every character to its own line —
-        // text is technically present but invisible. Seed a reasonable
-        // fallback width and let `updateNSView` tighten it to the real
-        // scroll-view width once SwiftUI has assigned the frame.
+        textView.minSize = NSSize(width: 0, height: Self.fallbackLayoutSize.height)
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
-        textView.frame = NSRect(x: 0, y: 0, width: 360, height: 0)
+        textView.textContainer?.containerSize = NSSize(
+            width: Self.fallbackLayoutSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: Self.fallbackLayoutSize.width,
+            height: Self.fallbackLayoutSize.height
+        )
 
         let scrollView = NSScrollView()
         scrollView.documentView = textView
@@ -59,27 +75,6 @@ struct TranscriptTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView,
               let storage = textView.textStorage else { return }
-
-        // The NSTextView is the scroll view's document view. SwiftUI assigns
-        // the scroll view a frame during layout, but that width does not
-        // automatically propagate to the document view — the text view stays
-        // at its seed width (or zero). When `widthTracksTextView` is true the
-        // text container width mirrors the text view frame; a zero-width frame
-        // wraps every character and makes text invisible. Sync the text view
-        // width to the actual scroll view content width so lines flow at the
-        // correct width.
-        let availableWidth = scrollView.bounds.width
-        if availableWidth > 0, abs(textView.frame.width - availableWidth) > 1 {
-            textView.frame.size.width = availableWidth
-            // Explicitly invalidate the text container size so the layout
-            // manager re-flows text at the new width on this display cycle.
-            if let container = textView.textContainer {
-                container.containerSize = NSSize(
-                    width: availableWidth,
-                    height: CGFloat.greatestFiniteMagnitude
-                )
-            }
-        }
 
         let coordinator = context.coordinator
         if let firstChangedIndex = firstChangedLineIndex(
