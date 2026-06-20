@@ -154,7 +154,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
 
         let effects = machine.handle(.transcriptionFailed(generation: 1, message: "Boom"))
 
-        XCTAssertEqual(machine.state, .finishing(outcome: .error("Boom")))
+        XCTAssertEqual(machine.state, .finishing(error: "Boom"))
         XCTAssertEqual(
             effects,
             [.showError("Boom"), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
@@ -233,7 +233,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.isEmpty)
     }
 
-    // MARK: - Abort transcription (issue #487)
+    // MARK: - Durable stop boundary
 
     private func makeStoppingMachine() -> MeetingRecordingFlowStateMachine {
         var machine = MeetingRecordingFlowStateMachine()

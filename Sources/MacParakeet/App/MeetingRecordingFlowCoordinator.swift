@@ -717,16 +717,13 @@ final class MeetingRecordingFlowCoordinator {
             presentPermissionAlert(for: reason)
 
         case .startAutoDismissTimer(let seconds):
-            // Skip auto-dismiss when flower collapse animation is still playing
-            if pillViewModel.state == .completing {
-                break
-            }
-            // Give checkmark time to animate in and hold before dismissing
-            let adjustedSeconds = pillViewModel.state == .completed ? 2.0 : seconds
+            // Only emitted on the error paths now (start/stop failure), where
+            // `.showError` has already put the pill in `.error` immediately
+            // before this effect, so the dismiss timer always uses `seconds`.
             autoDismissTask?.cancel()
             let gen = stateMachine.generation
             autoDismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(adjustedSeconds))
+                try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.autoDismissExpired(generation: gen))
             }

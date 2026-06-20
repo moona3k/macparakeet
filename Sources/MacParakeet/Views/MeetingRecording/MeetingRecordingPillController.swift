@@ -174,7 +174,7 @@ final class MeetingRecordingPillController {
         // The menu must read honestly in every pill face: the recording menu's
         // items (pause, End & Transcribe, Discard) are silent no-ops once the
         // flow has moved past recording, so post-stop states get their own
-        // menus (issue #487).
+        // menus.
         switch pillViewModel.state {
         case .completing, .transcribing:
             showTranscribingContextMenu(with: event, for: contentView)

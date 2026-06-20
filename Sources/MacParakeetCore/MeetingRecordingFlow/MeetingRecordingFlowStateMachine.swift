@@ -11,11 +11,11 @@ public enum MeetingRecordingFlowState: Equatable, Sendable {
     case starting
     case recording
     case stopping
-    case finishing(outcome: MeetingRecordingFlowFinishOutcome)
-}
-
-public enum MeetingRecordingFlowFinishOutcome: Equatable, Sendable {
-    case error(String)
+    /// The flow only ever finishes by surfacing an error (start/stop failure);
+    /// successful stops return to `.idle` once transcription is queued to the
+    /// background. The message is shown via the `.showError` effect — this
+    /// payload exists so the state stays distinct and equatable in tests.
+    case finishing(error: String)
 }
 
 public enum MeetingRecordingFlowEvent: Equatable, Sendable {
@@ -88,7 +88,7 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
 
         case (.starting, .startFailed(let gen, let message)):
             guard gen == generation else { return [] }
-            state = .finishing(outcome: .error(message))
+            state = .finishing(error: message)
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
 
         case (.starting, .stopRequested):
@@ -102,7 +102,7 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
 
         case (.stopping, .startFailed(let gen, let message)):
             guard gen == generation else { return [] }
-            state = .finishing(outcome: .error(message))
+            state = .finishing(error: message)
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
 
         case (.stopping, .recordingQueued(let gen, _)):
@@ -112,7 +112,7 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
 
         case (.stopping, .transcriptionFailed(let gen, let message)):
             guard gen == generation else { return [] }
-            state = .finishing(outcome: .error(message))
+            state = .finishing(error: message)
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
 
         case (.recording, .cancelRequested):
