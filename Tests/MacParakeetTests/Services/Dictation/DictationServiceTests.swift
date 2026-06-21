@@ -178,6 +178,29 @@ final class DictationServiceTests: XCTestCase {
                 && operation["trigger"] == "hotkey"
                 && operation["mode"] == "hold"
                 && operation["cancel_reason"] == "hotkey"
+            })
+    }
+
+    func testCancelThenConfirmEmitsCancelledTelemetryAndOperationReason() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            guard case .dictationCancelled = event else { return false }
+            return event.props?["reason"] == "escape"
+        })
+
+        let operations = dictationOperationProps(in: events)
+        XCTAssertTrue(operations.contains { operation in
+            operation["outcome"] == "cancelled"
+                && operation["trigger"] == "hotkey"
+                && operation["mode"] == "hold"
+                && operation["cancel_reason"] == "escape"
         })
     }
 

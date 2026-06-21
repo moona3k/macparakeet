@@ -551,9 +551,15 @@ final class DictationFlowCoordinator {
                 )
             }
 
-        case .confirmCancel:
+        case .confirmCancel(let reason):
             let sessionID = serviceSession.currentSessionID
             Task { @MainActor in
+                if let reason {
+                    await self.serviceSession.cancelRecording(
+                        reason: self.telemetryCancelReason(for: reason),
+                        sessionID: sessionID
+                    )
+                }
                 await self.serviceSession.confirmCancel(sessionID: sessionID)
             }
 
@@ -715,8 +721,6 @@ final class DictationFlowCoordinator {
         case .startCancelCountdown(let seconds):
             let gen = stateMachine.generation
             cancelCountdownTask = Task { @MainActor in
-                self.overlayViewModel?.cancelCountdownDuration = seconds
-                self.overlayViewModel?.cancelTimeRemaining = seconds
                 // Countdown, updating UI each second
                 for i in stride(from: seconds - 1, through: 0, by: -1) {
                     try? await Task.sleep(for: .seconds(1))

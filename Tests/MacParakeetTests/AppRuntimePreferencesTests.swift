@@ -65,10 +65,10 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(DictationUndoCountdown.current(defaults: defaults), .fiveSeconds)
     }
 
-    func testDictationUndoCountdownOffIsDisabled() {
-        XCTAssertTrue(DictationUndoCountdown.off.isDisabled)
+    func testDictationUndoCountdownOffMapsToNilSeconds() {
         XCTAssertNil(DictationUndoCountdown.off.seconds)
-        XCTAssertFalse(DictationUndoCountdown.fiveSeconds.isDisabled)
+        XCTAssertEqual(DictationUndoCountdown.oneSecond.seconds, 1)
+        XCTAssertEqual(DictationUndoCountdown.fiveSeconds.seconds, 5)
     }
 
     func testSaveMeetingAudioDefaultsToTrueAndReadsLegacyValueBeforeMigration() {

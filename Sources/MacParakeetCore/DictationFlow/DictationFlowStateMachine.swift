@@ -112,7 +112,9 @@ public enum DictationFlowEffect: Equatable, Sendable {
     case stopRecordingAndTranscribe
     case cancelRecording(reason: DictationFlowCancelReason)
     case discardRecording
-    case confirmCancel
+    /// Confirm a pending cancel. Pass a reason only when cancel telemetry has
+    /// not already been recorded by a preceding `cancelRecording` effect.
+    case confirmCancel(reason: DictationFlowCancelReason?)
     case undoCancelAndTranscribe
 
     // Paste
@@ -297,19 +299,18 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         case (.recording, .cancelRequested(let reason)):
             guard let undoCountdownSeconds else {
-                // Undo window disabled: discard the recording immediately and
-                // return to idle. .confirmCancel performs the full teardown in a
-                // single ordered service operation (it tears down an in-flight
-                // recording itself), so we must NOT also emit .cancelRecording:
-                // the two run as separate async effects and could interleave,
-                // double-stopping capture and racing the cancelled state.
+                // Undo window disabled: record the cancel reason and discard
+                // immediately in one ordered coordinator task. Do not emit a
+                // separate .cancelRecording effect here; separate async effects
+                // could interleave, double-stop capture, and race the cancelled
+                // state.
                 // Deliberately omits .notifyHotkeyCancelledByUI: that effect
                 // blocks every hotkey until a later reset, but there is no
                 // countdown to expire on this path, so it would leave dictation
                 // shortcuts stuck. .resetHotkeyStateMachine returns them to idle.
                 state = .idle
                 return [
-                    .cancelRecordingTask, .confirmCancel, .hideOverlay,
+                    .cancelRecordingTask, .confirmCancel(reason: reason), .hideOverlay,
                     .resetHotkeyStateMachine, .updateMenuBar(.idle),
                     .showIdlePill,
                 ]
@@ -417,7 +418,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .idle
             return [
                 .cancelCancelCountdown, .cancelActionTask,
-                .confirmCancel, .hideOverlay,
+                .confirmCancel(reason: nil), .hideOverlay,
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
@@ -425,7 +426,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             guard gen == generation else { return [] }
             state = .idle
             return [
-                .confirmCancel, .hideOverlay,
+                .confirmCancel(reason: nil), .hideOverlay,
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
@@ -435,7 +436,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .checkingEntitlements(mode: mode)
             return [
                 .cancelCancelCountdown, .cancelActionTask,
-                .confirmCancel, .hideOverlay,
+                .confirmCancel(reason: nil), .hideOverlay,
                 .hideIdlePill, .checkEntitlements, .resetHotkeyStateMachine,
             ]
 
@@ -443,7 +444,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .idle
             return [
                 .cancelAllTimers, .cancelActionTask,
-                .confirmCancel, .hideOverlay,
+                .confirmCancel(reason: nil), .hideOverlay,
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
@@ -452,7 +453,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .idle
             return [
                 .cancelCancelCountdown, .cancelActionTask,
-                .confirmCancel, .hideOverlay,
+                .confirmCancel(reason: nil), .hideOverlay,
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 

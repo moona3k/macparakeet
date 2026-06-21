@@ -262,8 +262,6 @@ public enum DictationUndoCountdown: String, CaseIterable, Hashable, Sendable, Eq
         }
     }
 
-    public var isDisabled: Bool { seconds == nil }
-
     public var displayTitle: String {
         switch self {
         case .fiveSeconds:
