@@ -101,7 +101,28 @@ public enum TranscriptionAssetCleanup {
             id: transcription.id,
             folderPath: removalPlan.folderURL.path
         )
-        try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
+        do {
+            try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
+        } catch let removalError {
+            // The candidate set is unordered, so a mid-loop failure can leave the
+            // canonical mixed file (the one `filePath` points at) already deleted
+            // while a sibling (microphone.m4a/system.m4a) removal throws. Keep the
+            // DB pointer consistent with disk: if the mixed file is gone, clear
+            // `filePath` so the row stops advertising playable audio and the
+            // retention sweeper stops re-selecting and re-failing on it forever.
+            // Re-throw so callers still learn the removal was incomplete.
+            if let mixedAudioURL = removalPlan.mixedAudioURL,
+               !fileManager.fileExists(atPath: mixedAudioURL.path) {
+                do {
+                    try repository.updateFilePath(id: transcription.id, filePath: nil)
+                } catch {
+                    logger.warning(
+                        "Failed to clear stranded meeting audio path after partial removal: \(String(describing: error), privacy: .private)"
+                    )
+                }
+            }
+            throw removalError
+        }
         try repository.updateFilePath(id: transcription.id, filePath: nil)
         return MeetingAudioDetachResult(removedOwnedAudio: true, hadAudioPath: true)
     }
@@ -135,7 +156,8 @@ public enum TranscriptionAssetCleanup {
 
         return MeetingAudioRemovalPlan(
             folderURL: folderURL,
-            candidates: meetingAudioFileCandidates(mixedAudioURL: mixedAudioURL, folderURL: folderURL)
+            candidates: meetingAudioFileCandidates(mixedAudioURL: mixedAudioURL, folderURL: folderURL),
+            mixedAudioURL: mixedAudioURL
         )
     }
 
@@ -309,4 +331,7 @@ private struct MeetingArtifactManifestProbe: Decodable {
 private struct MeetingAudioRemovalPlan {
     let folderURL: URL
     let candidates: Set<URL>
+    /// The audio file `transcription.filePath` points at (the canonical mixed
+    /// recording). `nil` for bulk folder cleanup, which has no single owning row.
+    var mixedAudioURL: URL?
 }

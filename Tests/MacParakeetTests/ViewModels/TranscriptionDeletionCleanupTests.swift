@@ -250,6 +250,45 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertEqual(repo.transcriptions.first?.meetingArtifactFolderPath, folderURL.standardizedFileURL.path)
     }
 
+    func testDetachMeetingAudioClearsFilePathWhenMixedFileGoneButSiblingRemovalFails() throws {
+        // Regression: the canonical mixed recording (meeting.m4a, the file
+        // `filePath` points at) is already gone -- e.g. removed by an earlier
+        // partial detach -- while a sibling (microphone.m4a) remains and fails to
+        // delete. The detach must still heal the DB pointer: clear `filePath` so a
+        // row never advertises playable audio that no longer exists (and the
+        // retention sweeper stops re-selecting and re-failing it every sweep), yet
+        // still surface the partial-failure error to the caller.
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        // filePath points at meeting.m4a, but that file is intentionally absent.
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        let siblingURL = folderURL.appendingPathComponent("microphone.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: siblingURL.path, contents: Data("mic".utf8)))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+
+        XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo,
+            fileManager: ThrowingRemoveFileManager(failingURLs: [siblingURL])
+        ))
+        XCTAssertNil(repo.transcriptions.first?.filePath)
+        XCTAssertEqual(repo.transcriptions.first?.meetingArtifactFolderPath, folderURL.standardizedFileURL.path)
+        // The undeletable sibling is left on disk (the partial-failure residue);
+        // the folder stays visible so the meeting remains recoverable.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: siblingURL.path))
+    }
+
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
