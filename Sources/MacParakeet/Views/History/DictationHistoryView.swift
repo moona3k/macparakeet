@@ -351,6 +351,7 @@ enum DictationTranscriptPresentation {
     static let expansionCharacterThreshold = 220
     static let expansionLineBreakThreshold = 3
     static let expandedBoxMaxHeight: CGFloat = 280
+    static let remeasuringExpandedContentHeight = expandedBoxMaxHeight + 1
 
     static func isExpandable(_ text: String, canToggleExpansion: Bool = true) -> Bool {
         guard canToggleExpansion else { return false }
@@ -378,12 +379,12 @@ enum DictationTranscriptPresentation {
         return collapsedLineLimit
     }
 
-    static func expandedHeight(forMeasuredContentHeight measuredContentHeight: CGFloat) -> CGFloat {
-        guard measuredContentHeight > 0 else {
-            return expandedBoxMaxHeight
-        }
+    static func expandedViewportHeight(forMeasuredContentHeight measuredContentHeight: CGFloat) -> CGFloat? {
+        measuredContentHeight > expandedBoxMaxHeight ? expandedBoxMaxHeight : nil
+    }
 
-        return min(measuredContentHeight, expandedBoxMaxHeight)
+    static func resetMeasuredExpandedContentHeight(isCurrentlyExpanded: Bool) -> CGFloat {
+        isCurrentlyExpanded ? remeasuringExpandedContentHeight : 0
     }
 }
 
@@ -540,6 +541,11 @@ struct DictationCardRow: View {
             }
 
             transcriptContent
+                .background(alignment: .topLeading) {
+                    if transcriptIsExpandable && !isExpanded {
+                        expandedTranscriptMeasurementProbe
+                    }
+                }
         }
         .padding(DesignSystem.Spacing.md)
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
@@ -565,7 +571,11 @@ struct DictationCardRow: View {
         .animation(DesignSystem.Animation.selectionChange, value: isSelected)
         .animation(DesignSystem.Animation.contentSwap, value: isExpanded)
         .onChange(of: transcriptPlainText) { _, _ in
-            expandedTranscriptContentHeight = 0
+            expandedTranscriptContentHeight = DictationTranscriptPresentation
+                .resetMeasuredExpandedContentHeight(isCurrentlyExpanded: isExpanded)
+        }
+        .onPreferenceChange(ExpandedTranscriptHeightKey.self) { height in
+            updateExpandedTranscriptContentHeight(height)
         }
     }
 
@@ -593,31 +603,7 @@ struct DictationCardRow: View {
     private var transcriptContent: some View {
         let isExpandable = transcriptIsExpandable
         if isExpanded && isExpandable {
-            ScrollView {
-                transcriptText(lineLimit: nil)
-                    .padding(DesignSystem.Spacing.sm)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onAppear {
-                                    expandedTranscriptContentHeight = proxy.size.height
-                                }
-                                .onChange(of: proxy.size.height) { _, height in
-                                    expandedTranscriptContentHeight = height
-                                }
-                        }
-                    }
-            }
-            .frame(height: expandedTranscriptHeight)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
-            }
-            .contentTransition(.opacity)
+            expandedTranscriptContent
         } else {
             let lineLimit = isExpandable
                 ? DictationTranscriptPresentation.lineLimit(
@@ -640,10 +626,63 @@ struct DictationCardRow: View {
         }
     }
 
-    private var expandedTranscriptHeight: CGFloat {
-        DictationTranscriptPresentation.expandedHeight(
+    private var expandedTranscriptContent: some View {
+        expandedTranscriptViewport
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+            }
+            .contentTransition(.opacity)
+    }
+
+    @ViewBuilder
+    private var expandedTranscriptViewport: some View {
+        if let viewportHeight = DictationTranscriptPresentation.expandedViewportHeight(
             forMeasuredContentHeight: expandedTranscriptContentHeight
-        )
+        ) {
+            ScrollView {
+                expandedTranscriptText
+            }
+            .frame(height: viewportHeight)
+        } else {
+            expandedTranscriptText
+        }
+    }
+
+    private var expandedTranscriptText: some View {
+        transcriptText(lineLimit: nil)
+            .padding(DesignSystem.Spacing.sm)
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: ExpandedTranscriptHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+    }
+
+    private var expandedTranscriptMeasurementProbe: some View {
+        expandedTranscriptText
+            .opacity(0)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+    }
+
+    private func updateExpandedTranscriptContentHeight(_ height: CGFloat) {
+        guard height > 0,
+              abs(height - expandedTranscriptContentHeight) > 0.5 else {
+            return
+        }
+
+        withAnimation(nil) {
+            expandedTranscriptContentHeight = height
+        }
     }
 
     private func transcriptText(lineLimit: Int?) -> some View {
@@ -751,6 +790,14 @@ struct DictationCardRow: View {
         case .global, nil:
             return ""
         }
+    }
+}
+
+private struct ExpandedTranscriptHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

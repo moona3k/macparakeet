@@ -1114,7 +1114,7 @@ public actor DictationService: DictationServiceProtocol {
 
     private func processCapturedAudio(
         audioURL: URL,
-        formatterContext: AppPromptContext?,
+        formatterContext: AppPromptContext?
     ) async throws -> DictationResult {
         // Track whether the audio file is consumed (moved or explicitly deleted).
         // If an error occurs before that point, clean up the temp file.

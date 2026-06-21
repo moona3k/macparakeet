@@ -64,23 +64,38 @@ final class DictationHistoryViewTests: XCTestCase {
         XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false))
     }
 
-    func testExpandedHeightUsesCapBeforeContentIsMeasured() {
+    func testExpandedViewportDoesNotForceCapBeforeContentIsMeasured() {
+        XCTAssertNil(
+            DictationTranscriptPresentation.expandedViewportHeight(forMeasuredContentHeight: 0)
+        )
+    }
+
+    func testExpandedViewportIsUnfixedWhenMeasuredContentFits() {
+        XCTAssertNil(
+            DictationTranscriptPresentation.expandedViewportHeight(forMeasuredContentHeight: 120)
+        )
+    }
+
+    func testExpandedViewportCapsMeasuredContentWhenTallerThanCap() {
         XCTAssertEqual(
-            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 0),
+            DictationTranscriptPresentation.expandedViewportHeight(forMeasuredContentHeight: 640),
             DictationTranscriptPresentation.expandedBoxMaxHeight
         )
     }
 
-    func testExpandedHeightShrinksToMeasuredContentWhenShorterThanCap() {
+    func testCollapsedTextChangesResetMeasurementToUnknownNaturalHeight() {
         XCTAssertEqual(
-            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 120),
-            120
+            DictationTranscriptPresentation.resetMeasuredExpandedContentHeight(isCurrentlyExpanded: false),
+            0
         )
     }
 
-    func testExpandedHeightCapsMeasuredContentWhenTallerThanCap() {
+    func testExpandedTextChangesStayCappedWhileRemeasuring() {
+        let pendingHeight = DictationTranscriptPresentation
+            .resetMeasuredExpandedContentHeight(isCurrentlyExpanded: true)
+
         XCTAssertEqual(
-            DictationTranscriptPresentation.expandedHeight(forMeasuredContentHeight: 640),
+            DictationTranscriptPresentation.expandedViewportHeight(forMeasuredContentHeight: pendingHeight),
             DictationTranscriptPresentation.expandedBoxMaxHeight
         )
     }
