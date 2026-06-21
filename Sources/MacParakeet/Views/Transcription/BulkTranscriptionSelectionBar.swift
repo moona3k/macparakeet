@@ -64,7 +64,6 @@ struct BulkTranscriptionSelectionBar: View {
             selectionSummary
             actionFlow
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var selectionSummary: some View {
@@ -115,7 +114,9 @@ struct BulkTranscriptionSelectionBar: View {
 
     private var destructiveActions: some View {
         HStack(spacing: 6) {
-            deleteAudioAction
+            if showsAudioAction {
+                deleteAudioAction
+            }
             deleteItemsAction
         }
     }
@@ -125,7 +126,9 @@ struct BulkTranscriptionSelectionBar: View {
             cancelAction
             selectAllAction
             clearAction
-            deleteAudioAction
+            if showsAudioAction {
+                deleteAudioAction
+            }
             deleteItemsAction
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -162,18 +165,15 @@ struct BulkTranscriptionSelectionBar: View {
         )
     }
 
-    @ViewBuilder
     private var deleteAudioAction: some View {
-        if showsAudioAction {
-            SelectionBarActionButton(
-                title: deleteAudioTitle,
-                systemImage: "waveform.slash",
-                tone: .destructive,
-                isDisabled: selectedMeetingAudioCount == 0 || isPerformingOperation,
-                role: .destructive,
-                action: onDeleteAudioOnly
-            )
-        }
+        SelectionBarActionButton(
+            title: deleteAudioTitle,
+            systemImage: "waveform.slash",
+            tone: .destructive,
+            isDisabled: selectedMeetingAudioCount == 0 || isPerformingOperation,
+            role: .destructive,
+            action: onDeleteAudioOnly
+        )
     }
 
     private var deleteItemsAction: some View {
