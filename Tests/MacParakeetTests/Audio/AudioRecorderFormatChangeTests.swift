@@ -44,8 +44,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             permissionProvider: { true }
         )
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800)
+        )
 
         let url = try await recorder.stop()
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
@@ -60,8 +64,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             permissionProvider: { true }
         )
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_799))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_799)
+        )
 
         do {
             _ = try await recorder.stop()
@@ -87,8 +95,13 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             onCancel: { spy.recordCancel() }
         )
 
-        try await recorder.start(sampleSink: sink)
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800),
+            sampleSink: sink
+        )
 
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -111,8 +124,13 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             onCancel: { spy.recordCancel() }
         )
 
-        try await recorder.start(sampleSink: sink)
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_799))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_799),
+            sampleSink: sink
+        )
 
         do {
             _ = try await recorder.stop()
@@ -125,6 +143,117 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
 
         XCTAssertEqual(spy.counts.cancel, 1, "a cancelled capture should cancel the sample sink")
         XCTAssertEqual(spy.counts.finish, 0, "a cancelled capture must not finish the sample sink")
+    }
+
+    func testSharedModeStartRetriesTransientEngineStartFailure() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        platform.enqueueConfigureAndStartErrors([TestMicrophoneStartError.coreAudio10868])
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        let startTask = Task { try await recorder.start() }
+        let retriedAndRunning = await pollUntil(timeout: .seconds(2)) {
+            platform.configureAndStartCallCount >= 2 && platform.isEngineRunning
+        }
+        XCTAssertTrue(retriedAndRunning, "expected recorder to retry once and restart the mock engine")
+
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+        try await startTask.value
+
+        XCTAssertEqual(platform.configureAndStartCallCount, 2)
+        let url = try await recorder.stop()
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func testSharedModeStartFailsWhenFirstBufferNeverArrives() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        do {
+            try await recorder.start()
+            XCTFail("start() should fail when the shared stream never delivers a first buffer")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected start error: \(error)")
+        }
+
+        let isRecording = await recorder.isRecording
+        XCTAssertFalse(isRecording)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 0)
+        XCTAssertFalse(stream.diagnostics.engineRunning)
+    }
+
+    func testSharedModeStopDuringFirstBufferWaitCleansUpRecorder() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        let startTask = Task { try await recorder.start() }
+        let waitingForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.activeSubscriberCount == 1 && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(waitingForFirstBuffer, "expected start() to own a subscriber before first-buffer gate")
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should reject a zero-sample capture")
+        } catch AudioProcessorError.insufficientSamples {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected stop error: \(error)")
+        }
+
+        do {
+            try await startTask.value
+            XCTFail("start() should fail after stop invalidates the first-buffer wait")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected start error: \(error)")
+        }
+
+        let isRecording = await recorder.isRecording
+        XCTAssertFalse(isRecording)
+        let drained = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.subscriberCount == 0 && !stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(drained, "expected stop() to unsubscribe the pending first-buffer capture")
+    }
+
+    func testSharedModeStopFailsSilentLongCaptureBeforeSTT() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 32_000, sampleValue: 0)
+        )
+
+        do {
+            _ = try await recorder.stop()
+            XCTFail("stop() should classify a sustained zero-signal capture as unavailable input")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .silentInput)
+        } catch {
+            XCTFail("Unexpected stop error: \(error)")
+        }
     }
 
     func testInstantDictationPrependsWarmPreRoll() async throws {
@@ -142,8 +271,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
 
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -170,8 +303,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         await recorder.setInstantDictationEnabled(true)
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.8))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
 
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -197,13 +334,21 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.7))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3)
+        )
         let firstURL = try await recorder.stop()
         try? FileManager.default.removeItem(at: firstURL)
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.4))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.4)
+        )
         let secondURL = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: secondURL) }
 
@@ -299,8 +444,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.5))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
 
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -346,8 +495,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         }
         XCTAssertTrue(restarted, "warm capture should restart once only the passive subscriber remains")
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -369,8 +522,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         )
 
         await recorder.setInstantDictationEnabled(true)
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3)
+        )
 
         await recorder.refreshInstantDictationWarmCapture()
 
@@ -523,6 +680,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             XCTFail("Unexpected start #1 error: \(error)")
         }
 
+        let readyForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.activeSubscriberCount >= 1 && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(readyForFirstBuffer, "expected start #2 to hold a subscriber before first-buffer gate")
+        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
+
         do {
             try await task2.value
         } catch {
@@ -540,9 +703,9 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         XCTAssertTrue(drained, "expected exactly one remaining subscriber after #1 unsubscribed")
         XCTAssertTrue(stream.diagnostics.engineRunning)
 
-        // Cleanup stop() throws `insufficientSamples` because the mock platform
-        // never delivers buffers — expected here and unrelated to the race.
-        _ = try? await recorder.stop()
+        if let cleanupURL = try? await recorder.stop() {
+            try? FileManager.default.removeItem(at: cleanupURL)
+        }
     }
 
     // MARK: - Pre-roll discard (issue #474)
@@ -559,8 +722,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
         await recorder.discardPreRollForActiveRecording()
 
         let url = try await recorder.stop()
@@ -590,8 +757,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         // Total = 7,200 pre-roll + 3,200 live ≥ the 4,800 floor, but the
         // post-discard remainder (3,200) is below it: without the discard
         // this capture would transcribe nothing but the paused media audio.
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 3_200, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 3_200, sampleValue: 0.2)
+        )
         await recorder.discardPreRollForActiveRecording()
 
         do {
@@ -621,8 +792,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         // Idle request must be dropped, not pre-armed for the next session.
         await recorder.discardPreRollForActiveRecording()
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
 
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -647,8 +822,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.6))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
         await recorder.discardPreRollForActiveRecording()
         let firstURL = try await recorder.stop()
         try? FileManager.default.removeItem(at: firstURL)
@@ -656,8 +835,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.7))
         try await Task.sleep(for: .milliseconds(50))
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
         let secondURL = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: secondURL) }
 
@@ -677,8 +860,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             permissionProvider: { true }
         )
 
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.3)
+        )
         await recorder.discardPreRollForActiveRecording()
 
         let url = try await recorder.stop()
@@ -705,8 +892,12 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         XCTAssertEqual(stream.diagnostics.subscriberCount, 0)
 
         // Dictation itself still works — cold start, no pre-roll.
-        try await recorder.start()
-        platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2))
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.2)
+        )
         let url = try await recorder.stop()
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -877,6 +1068,34 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         await recorder.setInstantDictationEnabled(false)
     }
 
+    private func startRecorder(
+        _ recorder: AudioRecorder,
+        stream: SharedMicrophoneStream,
+        platform: AudioRecorderBlockingPlatform,
+        firstBuffer: AVAudioPCMBuffer,
+        sampleSink: DictationAudioSampleSink? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let startTask = Task {
+            try await recorder.start(sampleSink: sampleSink)
+        }
+        let readyForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
+            stream.diagnostics.activeSubscriberCount >= 1 && stream.diagnostics.engineRunning
+        }
+        XCTAssertTrue(
+            readyForFirstBuffer,
+            "expected mock platform to start before delivering first buffer",
+            file: file,
+            line: line
+        )
+        if !readyForFirstBuffer {
+            startTask.cancel()
+        }
+        platform.deliverBuffer(firstBuffer)
+        try await startTask.value
+    }
+
     private func pollUntil(
         timeout: Duration,
         condition: @Sendable () -> Bool
@@ -943,6 +1162,14 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
     }
 }
 
+private enum TestMicrophoneStartError: Error, LocalizedError {
+    case coreAudio10868
+
+    var errorDescription: String? {
+        "The operation couldn't be completed. (com.apple.coreaudio.avfaudio error -10868.)"
+    }
+}
+
 private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @unchecked Sendable {
     private let lock = NSLock()
     private let hookLock = NSLock()
@@ -950,6 +1177,7 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
     private var _configureAndStartCallCount = 0
     private var _tapHandler: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
     private var _configureAndStartHook: (@Sendable () -> Void)?
+    private var _configureAndStartErrors: [Error] = []
 
     var configureAndStartHook: (@Sendable () -> Void)? {
         get { hookLock.withLock { _configureAndStartHook } }
@@ -968,14 +1196,28 @@ private final class AudioRecorderBlockingPlatform: MicrophoneEnginePlatform, @un
         AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)
     }
 
+    func enqueueConfigureAndStartErrors(_ errors: [Error]) {
+        lock.withLock {
+            _configureAndStartErrors.append(contentsOf: errors)
+        }
+    }
+
     func configureAndStart(
         vpioEnabled: Bool,
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
+        let queuedError = lock.withLock { () -> Error? in
+            _configureAndStartCallCount += 1
+            guard !_configureAndStartErrors.isEmpty else { return nil }
+            return _configureAndStartErrors.removeFirst()
+        }
+        if let queuedError {
+            throw queuedError
+        }
+
         configureAndStartHook?()
         lock.withLock {
-            _configureAndStartCallCount += 1
             _isRunning = true
             _tapHandler = tapHandler
         }

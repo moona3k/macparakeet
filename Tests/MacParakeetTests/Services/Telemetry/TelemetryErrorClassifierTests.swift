@@ -17,6 +17,8 @@ struct TelemetryErrorClassifierTests {
             == "AudioProcessorError.recordingFailed")
         #expect(TelemetryErrorClassifier.classify(AudioProcessorError.conversionFailed("test"))
             == "AudioProcessorError.conversionFailed")
+        #expect(TelemetryErrorClassifier.classify(AudioProcessorError.inputUnavailable(.noInputBuffers))
+            == "AudioProcessorError.inputUnavailable")
     }
 
     @Test("classifies STTError cases with case name")

@@ -32,6 +32,9 @@ final class DictationServiceErrorTests: XCTestCase {
             (.unsupportedFormat("xyz"), "Unsupported audio format: xyz"),
             (.fileTooLarge("2GB"), "File too large: 2GB"),
             (.insufficientSamples, "Recording too short"),
+            (.inputUnavailable(.engineStartFailed), "Microphone failed to start. Try again."),
+            (.inputUnavailable(.noInputBuffers), "No microphone input detected. Check your input device and try again."),
+            (.inputUnavailable(.silentInput), "No microphone signal detected. Check your input device and try again."),
         ]
 
         for (error, expected) in errors {

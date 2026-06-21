@@ -310,6 +310,99 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "ko")
     }
 
+    func testSilentCaptureHealthFailsBeforeSTTAndEmitsFailureTelemetry() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockAudio.configure(lastCaptureHealth: AudioCaptureHealth(
+            sampleCount: 32_000,
+            audioDurationSeconds: 2,
+            wallDurationSeconds: 2,
+            fileBytes: 128_000,
+            inputBufferCount: 20,
+            outputBufferCount: 20,
+            inputFrameCount: 96_000,
+            maxRMS: 0,
+            maxAudioLevel: 0,
+            nonSilentBufferCount: 0,
+            missingFloatChannelDataBufferCount: 0,
+            invalidFormatBufferCount: 0,
+            noBufferTimeoutFired: false
+        ))
+        await mockSTT.configure(result: STTResult(text: "should not transcribe"))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .persistent))
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected silent capture health to fail before STT")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .silentInput)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(transcribeCallCount, 0)
+        let events = telemetry.snapshot()
+        XCTAssertFalse(events.contains { event in
+            if case .dictationEmpty = event { return true }
+            return false
+        })
+        XCTAssertTrue(events.contains { event in
+            if case .dictationFailed = event { return true }
+            return false
+        })
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable")
+        XCTAssertEqual(operation["trigger"], "hotkey")
+        XCTAssertEqual(operation["mode"], "persistent")
+    }
+
+    func testNoBufferCaptureFailureEmitsFailureTelemetry() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        await mockAudio.configure(lastCaptureHealth: AudioCaptureHealth(
+            sampleCount: 0,
+            audioDurationSeconds: 0,
+            wallDurationSeconds: 3,
+            fileBytes: 4_096,
+            inputBufferCount: 0,
+            outputBufferCount: 0,
+            inputFrameCount: 0,
+            maxRMS: 0,
+            maxAudioLevel: 0,
+            nonSilentBufferCount: 0,
+            missingFloatChannelDataBufferCount: 0,
+            invalidFormatBufferCount: 0,
+            noBufferTimeoutFired: true
+        ))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await mockAudio.configureCaptureError(AudioProcessorError.inputUnavailable(.noInputBuffers))
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected no-buffer capture to fail")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let events = telemetry.snapshot()
+        XCTAssertFalse(events.contains { event in
+            if case .dictationEmpty = event { return true }
+            return false
+        })
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable")
+    }
+
     func testStopRecordingUsesRecordedFileEvenWhenLiveFinalIsAvailable() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
@@ -1336,6 +1429,13 @@ final class DictationServiceTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return await condition()
+    }
+
+    private func makeTemporaryAudioURL() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).wav")
+        try Data([0]).write(to: url)
+        return url
     }
 
     private func allTelemetryProps(in events: [TelemetryEventSpec]) -> [[String: String]] {

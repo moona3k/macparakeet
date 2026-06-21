@@ -6,6 +6,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var convertError: Error?
     public var captureResult: URL?
     public var captureError: Error?
+    public var captureHealth: AudioCaptureHealth?
     private var _audioLevel: Float = 0.0
     private var _isRecording = false
     private var startCaptureDelayMs: UInt64 = 0
@@ -26,6 +27,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public func configure(captureResult: URL) {
         self.captureResult = captureResult
         self.captureError = nil
+    }
+
+    public func configure(lastCaptureHealth: AudioCaptureHealth?) {
+        self.captureHealth = lastCaptureHealth
     }
 
     public func configureConvertError(_ error: Error) {
@@ -54,6 +59,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public var recordingDeviceInfo: RecordingDeviceInfo? {
         nil
+    }
+
+    public var lastCaptureHealth: AudioCaptureHealth? {
+        captureHealth
     }
 
     public func convert(fileURL: URL) async throws -> URL {

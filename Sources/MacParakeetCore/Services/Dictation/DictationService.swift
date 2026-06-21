@@ -424,6 +424,8 @@ public actor DictationService: DictationServiceProtocol {
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
+            let captureHealth = await audioProcessor.lastCaptureHealth
+            try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
             _ = await finishLiveDictationTranscription(sessionID: currentSession)
@@ -634,8 +636,10 @@ public actor DictationService: DictationServiceProtocol {
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let captureHealth = await audioProcessor.lastCaptureHealth
         _state = .processing
         do {
+            try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let result = try await withCurrentObservabilityContextIfAny {
                 try await processCapturedAudio(audioURL: audioURL, formatterContext: formatterContext)
             }
@@ -740,6 +744,21 @@ public actor DictationService: DictationServiceProtocol {
         return try await Observability.withOperationContext(operationContext) {
             try await operation()
         }
+    }
+
+    private func rejectUnavailableCaptureIfNeeded(
+        _ captureHealth: AudioCaptureHealth?,
+        audioURL: URL
+    ) throws {
+        guard let captureHealth, let problem = captureHealth.terminalProblem else {
+            return
+        }
+        logger.warning("dictation_capture_unavailable problem=\(problem.rawValue, privacy: .public)")
+        AudioCaptureDiagnostics.append(
+            "dictation_transcribe_skipped problem=\(problem.rawValue) input_buffers=\(captureHealth.inputBufferCount) non_silent_buffers=\(captureHealth.nonSilentBufferCount) max_level=\(String(format: "%.3f", captureHealth.maxAudioLevel))"
+        )
+        try? FileManager.default.removeItem(at: audioURL)
+        throw AudioProcessorError.inputUnavailable(problem)
     }
 
     private func beginLiveDictationTranscriptionIfAvailable(

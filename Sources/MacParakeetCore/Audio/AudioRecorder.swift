@@ -31,6 +31,7 @@ private struct RecordingRuntimeMetrics: Sendable {
     var nonSilentBufferCount: Int = 0
     var missingFloatChannelDataBufferCount: Int = 0
     var invalidFormatBufferCount: Int = 0
+    var noBufferTimeoutFired: Bool = false
 }
 
 private struct DictationPreRollRingBuffer: Sendable {
@@ -100,8 +101,8 @@ private struct UncheckedSendableFloatSamples: @unchecked Sendable {
 /// fires once if no buffer has been delivered within
 /// `firstBufferTimeoutSeconds` after `dictation_capture_engine_started`; the
 /// heartbeat repeats every `heartbeatIntervalSeconds` while the recording is
-/// active. Both are log-only and generation-guarded, so stale delayed closures
-/// bail out after `stop()` or the next recording starts. See
+/// active. Both are generation-guarded, so stale delayed closures bail out
+/// after `stop()` or the next recording starts. See
 /// `journal/2026-05-03-dictation-silent-stall.md`.
 private struct CaptureDiagnosticsTimers {
     /// Generation that delivered its first buffer. This may be set before
@@ -194,6 +195,8 @@ public actor AudioRecorder {
     private var liveSampleSink: DictationAudioSampleSink?
     private var recording = false
     private var starting = false
+    private var recordingStartedAt: TimeInterval?
+    private var _lastCaptureHealth: AudioCaptureHealth?
     /// Frames of instant-dictation pre-roll prepended to the current
     /// recording's WAV. Reset at every `start()` entry; read by `stop()` to
     /// trim the file head when `discardPreRollRequested` is set.
@@ -216,6 +219,7 @@ public actor AudioRecorder {
 
     private static let outputSampleRate = ASRConstants.sampleRate
     private static let preRollPrependSamples = Int(Double(outputSampleRate) * 0.45)
+    private static let maxStartAttempts = 2
 
     /// Minimum samples before sending to STT. Mirrors FluidAudio's ASR guard,
     /// currently 0.3 seconds at 16 kHz.
@@ -262,6 +266,10 @@ public actor AudioRecorder {
     /// telemetry treats `nil` as "device unknown".
     public var deviceInfo: RecordingDeviceInfo? {
         nil
+    }
+
+    public var lastCaptureHealth: AudioCaptureHealth? {
+        _lastCaptureHealth
     }
 
     public func setInstantDictationEnabled(_ enabled: Bool) async {
@@ -341,7 +349,7 @@ public actor AudioRecorder {
 
     /// Subscribe to the shared microphone stream and start writing converted
     /// buffers to a temp WAV file. Returns once the subscription is owned and
-    /// the watchdog is armed.
+    /// the first real input buffer has arrived.
     public func start() async throws {
         try await start(sampleSink: nil)
     }
@@ -404,6 +412,7 @@ public actor AudioRecorder {
         self.firstBufferLogged.withLock { $0 = false }
         self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
         self.sampleCounter.withLock { $0 = 0 }
+        self._lastCaptureHealth = nil
         // This synchronous section has no suspension points, so a discard
         // request for *this* session cannot interleave before the reset; one
         // arriving for a previous aborted session is correctly cleared here.
@@ -430,14 +439,7 @@ public actor AudioRecorder {
                 sampleSink?.onSamples(preRollSamples)
             }
         } catch {
-            try? FileManager.default.removeItem(at: url)
-            if instantDictationEnabled {
-                let hasWarmSubscriber = warmSubscriberToken != nil
-                preRollCaptureGeneration.withLock { $0 += 1 }
-                preRollConverterCache.reset()
-                preRollBuffer.withLock { $0.clear() }
-                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
-            }
+            cleanupAfterFailedStart(url: url)
             throw error
         }
 
@@ -486,7 +488,7 @@ public actor AudioRecorder {
                 self.runtimeMetrics.withLock { metrics in
                     metrics.maxRMS = max(metrics.maxRMS, rmsValue)
                     metrics.maxAudioLevel = max(metrics.maxAudioLevel, normalizedValue)
-                    if normalizedValue >= 0.02 {
+                    if normalizedValue >= AudioCaptureHealth.silentInputMaximumLevel {
                         metrics.nonSilentBufferCount += 1
                     }
                 }
@@ -578,7 +580,8 @@ public actor AudioRecorder {
         let deathHandler: SharedMicrophoneStream.EngineDeathHandler = { [weak self] in
             // Engine death = recording is dead. Bump the generation so any
             // in-flight buffer handlers bail. The next caller of `stop()`
-            // will surface `insufficientSamples` if no audio was captured.
+            // will surface capture health or `insufficientSamples` if no
+            // usable audio was captured.
             self?.sessionGeneration.withLock { $0 += 1 }
         }
 
@@ -587,25 +590,52 @@ public actor AudioRecorder {
         )
 
         let token: SharedMicrophoneStream.SubscriberToken
-        do {
-            token = try await sharedStream.subscribe(
-                wantsVPIO: false,
-                onEngineDeath: deathHandler,
-                handler: bufferHandler
-            )
-        } catch {
-            try? FileManager.default.removeItem(at: url)
-            if instantDictationEnabled {
-                let hasWarmSubscriber = warmSubscriberToken != nil
-                preRollCaptureGeneration.withLock { $0 += 1 }
-                preRollConverterCache.reset()
-                preRollBuffer.withLock { $0.clear() }
-                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+        var subscribeAttempt = 1
+        while true {
+            do {
+                token = try await sharedStream.subscribe(
+                    wantsVPIO: false,
+                    onEngineDeath: deathHandler,
+                    handler: bufferHandler
+                )
+                break
+            } catch {
+                if error is CancellationError {
+                    cleanupAfterFailedStart(url: url)
+                    throw error
+                }
+
+                let startWasCancelled = preSubscribeGeneration != self.sessionGeneration.withLock { $0 }
+                    || !self.starting
+                    || self.startCallGeneration != myStartCallGeneration
+                if startWasCancelled {
+                    cleanupAfterFailedStart(url: url)
+                    AudioCaptureDiagnostics.append(
+                        "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\""
+                    )
+                    throw AudioProcessorError.recordingFailed("interrupted during subscribe")
+                }
+
+                if subscribeAttempt < Self.maxStartAttempts, Self.isRetryableStartError(error) {
+                    AudioCaptureDiagnostics.append(
+                        "dictation_capture_start_retry attempt=\(subscribeAttempt + 1) reason=engine_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                    )
+                    subscribeAttempt += 1
+                    do {
+                        try await Task.sleep(for: .milliseconds(100))
+                    } catch {
+                        cleanupAfterFailedStart(url: url)
+                        throw error
+                    }
+                    continue
+                }
+
+                cleanupAfterFailedStart(url: url)
+                AudioCaptureDiagnostics.append(
+                    "dictation_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                )
+                throw AudioProcessorError.inputUnavailable(.engineStartFailed)
             }
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_start_failed \(AudioCaptureDiagnostics.errorFields(error))"
-            )
-            throw AudioProcessorError.recordingFailed(error.localizedDescription)
         }
 
         // Actor-reentrancy guard. While we awaited subscribe, another
@@ -623,14 +653,7 @@ public actor AudioRecorder {
         if lostRace {
             let stream = sharedStream
             Task { await stream.unsubscribe(token) }
-            try? FileManager.default.removeItem(at: url)
-            if instantDictationEnabled {
-                let hasWarmSubscriber = warmSubscriberToken != nil
-                preRollCaptureGeneration.withLock { $0 += 1 }
-                preRollConverterCache.reset()
-                preRollBuffer.withLock { $0.clear() }
-                preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
-            }
+            cleanupAfterFailedStart(url: url)
             AudioCaptureDiagnostics.append(
                 "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\""
             )
@@ -640,6 +663,7 @@ public actor AudioRecorder {
         self.audioFile = file
         self.outputURL = url
         self.recording = true
+        self.recordingStartedAt = ProcessInfo.processInfo.systemUptime
         self.sharedSubscriberToken = token
         self.liveSampleSink = sampleSink
         didClaimSampleSink = true
@@ -655,12 +679,25 @@ public actor AudioRecorder {
             "dictation_capture_started"
         )
 
-        // Diagnostic instrumentation. Strictly log-only — these timers fire
-        // observability events and never abort the recording. Treating the
-        // tap-silence condition as "the user's recording is over" would mask
-        // a regression behind a friendlier error message; we want to surface
-        // the regression instead. See journal/2026-05-03-dictation-silent-stall.md.
+        // Diagnostic instrumentation plus first-buffer readiness. The delayed
+        // log still records the stall shape, while start() now refuses to
+        // report a healthy recording until a usable first buffer arrives.
         armCaptureDiagnostics(generation: tapGeneration)
+
+        let firstBufferArrived = await waitForFirstBuffer(
+            generation: tapGeneration,
+            timeoutSeconds: Self.firstBufferTimeoutSeconds
+        )
+        if !firstBufferArrived {
+            await abortStartedCapture(
+                token: token,
+                url: url,
+                generation: tapGeneration,
+                reason: "no_first_buffer"
+            )
+            try Task.checkCancellation()
+            throw AudioProcessorError.inputUnavailable(.noInputBuffers)
+        }
     }
 
     /// Discard the instant-dictation pre-roll from the in-flight recording.
@@ -675,9 +712,9 @@ public actor AudioRecorder {
     }
 
     /// Stop recording and return the path to the recorded WAV file.
-    /// Throws `insufficientSamples` if the recording is shorter than the STT
-    /// minimum — measured after any pre-roll discard, so a capture that is
-    /// effectively media-only dismisses silently instead of transcribing it.
+    /// Throws when the capture is unavailable or shorter than the STT minimum.
+    /// The length gate is measured after any pre-roll discard, so a capture
+    /// that is effectively media-only dismisses instead of transcribing it.
     public func stop() async throws -> URL {
         if starting, !recording {
             // `start()` awaits the stream subscription. A stop/cancel during
@@ -696,11 +733,10 @@ public actor AudioRecorder {
 
         var unsubscribeTask: Task<Void, Never>?
         if let token = sharedSubscriberToken {
-            // Fire-and-forget on the happy path so stop() never waits on the
-            // stream's engine queue, which serializes the unsubscribe behind
-            // any pending operations. The pre-roll discard path below awaits
-            // this task — that is what releases the tap's retain on the
-            // writer AVAudioFile, finalizing the WAV before it is re-read.
+            // Unsubscribe asynchronously after the synchronous state handoff.
+            // We still await it below before returning the URL, because the tap
+            // closure owns the writer AVAudioFile and releasing it finalizes
+            // the WAV for immediate STT or test reads.
             let stream = sharedStream
             unsubscribeTask = Task { await stream.unsubscribe(token) }
             sharedSubscriberToken = nil
@@ -714,6 +750,8 @@ public actor AudioRecorder {
         }
         audioFile = nil
         recording = false
+        let startedAt = recordingStartedAt
+        recordingStartedAt = nil
         let sampleSink = liveSampleSink
         liveSampleSink = nil
         atomicAudioLevel.withLock { $0 = 0.0 }
@@ -744,18 +782,46 @@ public actor AudioRecorder {
             throw AudioProcessorError.recordingFailed("No output file")
         }
 
+        await unsubscribeTask?.value
+        sharedProcessingQueue.sync {}
+
         let sampleCount = sampleCounter.withLock { $0 }
         let metrics = runtimeMetrics.withLock { $0 }
         let fileBytes = Self.fileSizeBytes(at: url)
-        let duration = Double(sampleCount) / Double(Self.outputSampleRate)
+        // Length and silence gates use the post-discard count: a capture whose
+        // remainder is below the STT floor, or sustained silence, should be
+        // judged on the audio that will actually be transcribed.
+        let effectiveSampleCount = max(0, sampleCount - discardFrames)
+        let duration = Double(effectiveSampleCount) / Double(Self.outputSampleRate)
+        let wallDuration = startedAt.map { ProcessInfo.processInfo.systemUptime - $0 } ?? duration
+        let health = AudioCaptureHealth(
+            sampleCount: effectiveSampleCount,
+            audioDurationSeconds: duration,
+            wallDurationSeconds: wallDuration,
+            fileBytes: fileBytes,
+            inputBufferCount: metrics.inputBufferCount,
+            outputBufferCount: metrics.outputBufferCount,
+            inputFrameCount: metrics.inputFrameCount,
+            maxRMS: metrics.maxRMS,
+            maxAudioLevel: metrics.maxAudioLevel,
+            nonSilentBufferCount: metrics.nonSilentBufferCount,
+            missingFloatChannelDataBufferCount: metrics.missingFloatChannelDataBufferCount,
+            invalidFormatBufferCount: metrics.invalidFormatBufferCount,
+            noBufferTimeoutFired: metrics.noBufferTimeoutFired
+        )
+        _lastCaptureHealth = health
         logger.debug("stop sampleCount=\(sampleCount, privacy: .public)")
         AudioCaptureDiagnostics.append(
-            "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount)"
+            "dictation_capture_stop sample_count=\(sampleCount) effective_sample_count=\(effectiveSampleCount) duration_s=\(String(format: "%.3f", duration)) wall_duration_s=\(String(format: "%.3f", wallDuration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount) no_buffer_timeout=\(metrics.noBufferTimeoutFired)"
         )
-        // Length gate uses the post-discard count: a capture whose remainder
-        // is below the STT floor would otherwise transcribe nothing but the
-        // discarded media audio.
-        let effectiveSampleCount = sampleCount - discardFrames
+        if let problem = health.terminalProblem {
+            try? FileManager.default.removeItem(at: url)
+            AudioCaptureDiagnostics.append(
+                "dictation_capture_unavailable problem=\(problem.rawValue) sample_count=\(effectiveSampleCount) input_buffers=\(metrics.inputBufferCount) non_silent_buffers=\(metrics.nonSilentBufferCount) max_level=\(String(format: "%.3f", metrics.maxAudioLevel))"
+            )
+            sampleSink?.onCancel()
+            throw AudioProcessorError.inputUnavailable(problem)
+        }
         guard effectiveSampleCount >= Self.minimumSamples else {
             // Clean up the too-short file
             try? FileManager.default.removeItem(at: url)
@@ -769,16 +835,8 @@ public actor AudioRecorder {
         sampleSink?.onFinish()
 
         if discardFrames > 0 {
-            // Releasing the subscriber drops the tap's retain on the writer
-            // AVAudioFile (the handler closure holds it); draining the
-            // processing queue afterwards releases the copies held by any
-            // already-enqueued blocks. Only then is the WAV finalized on disk
-            // and safe to re-read. Suspending here is safe: every piece of
-            // per-session actor state was reset above, and this path touches
-            // only locals — a reentrant start() begins a fresh session
-            // against a different file.
-            await unsubscribeTask?.value
-            sharedProcessingQueue.sync {}
+            // The file was finalized above, so it is safe to rewrite it in
+            // place before handing it to STT.
             do {
                 try Self.removeLeadingFrames(discardFrames, fromWAVAt: url)
                 let duration = Double(discardFrames) / Double(Self.outputSampleRate)
@@ -851,6 +909,84 @@ public actor AudioRecorder {
     private func logTapError(_ message: String) {
         logger.warning("audio_tap \(message, privacy: .public)")
         AudioCaptureDiagnostics.append("dictation_capture_tap_error \(message)")
+    }
+
+    private func cleanupAfterFailedStart(url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        if instantDictationEnabled {
+            let hasWarmSubscriber = warmSubscriberToken != nil
+            preRollCaptureGeneration.withLock { $0 += 1 }
+            preRollConverterCache.reset()
+            preRollBuffer.withLock { $0.clear() }
+            preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+        }
+    }
+
+    private static func isRetryableStartError(_ error: Error) -> Bool {
+        if case SharedMicrophoneStream.SubscribeError.engineStartFailed = error {
+            return true
+        }
+        return false
+    }
+
+    private func waitForFirstBuffer(
+        generation: Int,
+        timeoutSeconds: TimeInterval
+    ) async -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeoutSeconds
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            if Task.isCancelled {
+                return false
+            }
+            if captureDiagnosticsTimers.withLock({ $0.firstBufferSeenGeneration == generation }) {
+                return true
+            }
+            if sessionGeneration.withLock({ $0 }) != generation || !recording {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        return captureDiagnosticsTimers.withLock { $0.firstBufferSeenGeneration == generation }
+    }
+
+    private func abortStartedCapture(
+        token: SharedMicrophoneStream.SubscriberToken,
+        url: URL,
+        generation: Int,
+        reason: String
+    ) async {
+        let generationStillActive = sessionGeneration.withLock { $0 } == generation
+        let recorderStillOwnsToken = sharedSubscriberToken == token && recording
+        guard generationStillActive || recorderStillOwnsToken else { return }
+
+        sharedSubscriberToken = nil
+        audioFile = nil
+        outputURL = nil
+        recording = false
+        recordingStartedAt = nil
+        let sampleSink = liveSampleSink
+        liveSampleSink = nil
+        atomicAudioLevel.withLock { $0 = 0.0 }
+        preRollCaptureGeneration.withLock { $0 += 1 }
+        preRollConverterCache.reset()
+        preRollBuffer.withLock { $0.clear() }
+        if instantDictationEnabled {
+            let hasWarmSubscriber = warmSubscriberToken != nil
+            preRollAcceptingSamples.withLock { $0 = hasWarmSubscriber }
+            if warmSubscriberToken == nil {
+                Task { await self.startWarmCaptureIfNeeded() }
+            }
+        }
+        sessionGeneration.withLock { $0 += 1 }
+        disarmCaptureDiagnostics()
+        sharedProcessingQueue.sync {}
+
+        AudioCaptureDiagnostics.append(
+            "dictation_capture_start_failed reason=\(reason)"
+        )
+        sampleSink?.onCancel()
+        await sharedStream.unsubscribe(token)
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func writePreRollSamples(
@@ -1038,10 +1174,11 @@ public actor AudioRecorder {
         )!
     )
 
-    // MARK: - Capture diagnostics (log-only)
+    // MARK: - Capture diagnostics
 
-    /// Arm the first-buffer timeout and recording heartbeat. Both are
-    /// log-only; firing them does not affect the recording.
+    /// Arm the first-buffer timeout and recording heartbeat. The first-buffer
+    /// timer records the no-buffer health bit; `start()` owns the user-facing
+    /// readiness gate. Heartbeats remain log-only.
     ///
     /// `armedGeneration` (captured by both closures) is the value of
     /// `sessionGeneration` at the moment `start()` succeeded. If the closure
@@ -1080,6 +1217,7 @@ public actor AudioRecorder {
             }
             guard shouldFire else { return }
             guard self.sessionGeneration.withLock({ $0 }) == armedGeneration else { return }
+            self.runtimeMetrics.withLock { $0.noBufferTimeoutFired = true }
             let isRunning = stream.diagnostics.engineRunning
             let defaultInput = AudioCaptureDiagnostics.defaultInputDeviceSummary()
             AudioCaptureDiagnostics.append(

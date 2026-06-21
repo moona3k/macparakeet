@@ -40,7 +40,10 @@ owned by `AppEnvironment`.
   see "What to know" below). When the Pause Media round-trip confirms media was
   playing at press time, `discardPreRollForActiveRecording()` marks
   the session and `stop()` trims the prepended pre-roll from the WAV —
-  pre-press media audio that no pause can silence (issue #474).
+  pre-press media audio that no pause can silence (issue #474). Active
+  dictation start now waits for the first real input buffer; if the shared
+  engine starts but delivers none within the watchdog window, start aborts with
+  a microphone-input error instead of handing an empty WAV to STT.
 - `MicrophoneCapture.swift` — meeting microphone capture. Subscribes
   with `wantsVPIO: false` by default via `MeetingMicProcessingMode.raw`.
   VPIO modes remain available for explicit experiments, with raw fallback
@@ -196,13 +199,14 @@ debounce (0.5 s in `AppEnvironment`, 0 = disabled for direct
 constructions) keyed by a supersession generation; superseded or
 cancelled sleepers exit before touching any engine or pre-roll state.
 
-**Diagnostic logging is observability-only.** The first-buffer
-watchdog and recording heartbeat in `AudioRecorder` log to
-`dictation-audio.log` but **never** abort the recording. PR #210
-shipped this deliberately; converting any of those signals into a
-user-facing error would mask a regression as a fact of life.
-Telemetry counters can be added separately, but the log path stays
-non-disruptive.
+**Diagnostics stay narrow.** The recording heartbeat in `AudioRecorder`
+remains observability-only. The first-buffer watchdog is now also a
+startup readiness signal: `start()` does not report a healthy recording until
+at least one microphone buffer arrives, and a no-buffer start aborts with a
+microphone-input error. Sustained silent input is classified at `stop()` using
+the capture-health snapshot before STT runs. Keep mid-session heartbeat logs
+non-disruptive; they are still there to diagnose stalls without inventing a
+second recovery path.
 
 **The configuration-change observer self-heals (four-gated restart).** When
 `AVAudioEngine` stops itself after an `AVAudioEngineConfigurationChange`

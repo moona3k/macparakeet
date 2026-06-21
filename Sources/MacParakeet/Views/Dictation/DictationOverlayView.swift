@@ -843,6 +843,15 @@ struct DictationOverlayView: View {
     private func errorInfo(_ message: String) -> (title: String, subtitle: String) {
         let lower = message.lowercased()
 
+        if lower.contains("permission") || lower.contains("access") {
+            if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
+                return ("Permission Required", "Copied to clipboard. Enable Accessibility or press Cmd+V now.")
+            }
+            return ("Permission Required", "Grant access in System Settings > Privacy & Security.")
+        }
+        if lower.contains("microphone") || lower.contains("audio input") {
+            return ("Microphone Unavailable", "Check your mic connection or select a different input.")
+        }
         if lower.contains("stt") || lower.contains("speech engine") || lower.contains("engine")
             || lower.contains("model not loaded")
             || lower.contains("failed to start") {
@@ -851,15 +860,6 @@ struct DictationOverlayView: View {
         if lower.contains("couldn't hear") || lower.contains("empty")
             || lower.contains("too short") || lower.contains("insufficient") {
             return ("No Speech Detected", "Try speaking louder or holding a bit longer.")
-        }
-        if lower.contains("microphone") || lower.contains("audio input") {
-            return ("Microphone Unavailable", "Check your mic connection or select a different input.")
-        }
-        if lower.contains("permission") || lower.contains("access") {
-            if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
-                return ("Permission Required", "Copied to clipboard. Enable Accessibility or press Cmd+V now.")
-            }
-            return ("Permission Required", "Grant access in System Settings > Privacy & Security.")
         }
         if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
             return ("Copied to Clipboard", "Auto-paste wasn't available. Press Cmd+V where you want the text.")
