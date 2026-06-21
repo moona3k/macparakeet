@@ -601,7 +601,7 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 - Context menu: Play/Pause, Copy, Download Audio, Delete
 - Keyboard shortcut: Cmd+Backspace to delete
 - Text selection enabled on transcript text
-- Multi-select cleanup is an explicit bulk-selection mode: hidden during ordinary browsing, entered via the row three-dot menu's `Select Many...` (which preselects that row), surfacing per-row selection circles and a bulk action bar (Cancel, Select All, Clear, Delete). If additional rows are not yet loaded, the bulk action reads `Select Visible` so deletion never silently targets unloaded records. The mode exits on confirmed bulk delete, Cancel, switching to the Stats sub-tab, or leaving the Dictations section.
+- Multi-select cleanup is an explicit bulk-selection mode: hidden during ordinary browsing, entered via the row three-dot menu's `Select Many...` (which preselects that row), surfacing per-row selection circles and a bulk action bar (Cancel, Select All, Clear, Delete). `Select All` targets the loaded rows only, so deletion never silently reaches unloaded records. The mode exits on confirmed bulk delete, Cancel, switching to the Stats sub-tab, or leaving the Dictations section.
 - Delete confirmation dialog before permanent removal
 
 **Database schema:**
@@ -1557,7 +1557,7 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Filter bar: All / YouTube / Local / Favorites
 - [x] Search across transcription titles and content
 - [x] Sort by date (newest/oldest)
-- [x] Multi-select cleanup with `Select Many...`, `Select All` / `Select Visible`, clear/cancel, and contextual destructive confirmations
+- [x] Multi-select cleanup with `Select Many...`, `Select All`, clear/cancel, and contextual destructive confirmations
 - [x] Meeting cleanup supports both full deletion and `Remove Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
 ### F27: Home Page Redesign

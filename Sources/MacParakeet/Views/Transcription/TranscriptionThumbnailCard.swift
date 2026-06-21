@@ -42,6 +42,10 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             if showsSelectionControls {
                 selectionBadge
                     .padding(8)
+                    // Decorative state indicator only — the whole card is the
+                    // tap target. Without this, the filled circle intercepts
+                    // clicks that land directly on it and swallows the toggle.
+                    .allowsHitTesting(false)
             }
         }
         .overlay(alignment: .topTrailing) {

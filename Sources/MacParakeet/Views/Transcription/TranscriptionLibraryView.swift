@@ -93,6 +93,11 @@ struct TranscriptionLibraryView: View {
         .searchable(text: $viewModel.searchText, prompt: "Search transcriptions")
         .focusable(viewModel.isBulkSelectionModeEnabled)
         .focused($selectionKeyboardFocused)
+        // Keep keyboard focus (for ⌘A / Delete) but suppress the system focus
+        // ring. The ring is drawn in the system accent (blue), reads as a
+        // full-width line across the content's top edge on entering selection
+        // mode, and its first-responder draw is the hitch felt as "jank".
+        .focusEffectDisabled()
         .onChange(of: viewModel.isBulkSelectionModeEnabled) { _, enabled in
             if enabled {
                 selectionKeyboardFocused = true
@@ -355,7 +360,6 @@ struct TranscriptionLibraryView: View {
             selectedCount: viewModel.selectedTranscriptionCount,
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
             isMeetingContext: isMeetingListMode,
-            selectVisibleTitle: viewModel.hasMore ? "Select Visible" : "Select All",
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
             isPerformingOperation: viewModel.isBulkOperationInProgress,
             onSelectVisible: { viewModel.selectLoadedVisibleTranscriptions() },

@@ -4,7 +4,6 @@ struct BulkTranscriptionSelectionBar: View {
     let selectedCount: Int
     let selectedMeetingAudioCount: Int
     let isMeetingContext: Bool
-    let selectVisibleTitle: String
     let areAllVisibleSelected: Bool
     let isPerformingOperation: Bool
     let onSelectVisible: () -> Void
@@ -146,9 +145,13 @@ struct BulkTranscriptionSelectionBar: View {
         )
     }
 
+    // Labeled "Select All" but scoped to the loaded rows by design: selection
+    // (and therefore deletion) never reaches rows that aren't loaded yet. The
+    // selected-count chip and the delete confirmation always state the exact
+    // number, so the scope is explicit at the moment of action.
     private var selectVisibleAction: some View {
         SelectionBarActionButton(
-            title: selectVisibleTitle,
+            title: "Select All",
             systemImage: "checkmark.circle",
             tone: .utility,
             isDisabled: areAllVisibleSelected || isPerformingOperation,

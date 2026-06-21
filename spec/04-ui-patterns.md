@@ -125,7 +125,7 @@ When `Library.filter == .meeting`, the view renders a date-grouped list (`Today`
 
 ### Library Multi-Select Cleanup
 
-Library offers a `Select Many...` secondary action when there are visible rows. Selection mode keeps actions in a contextual bar above the content: `Cancel`, `Select All` when all matching rows are loaded or `Select Visible` while more rows can still be loaded, `Clear`, `Remove Audio Only...` for selected meetings with stored audio, and `Delete Items...` / `Delete Meetings...` for full deletion.
+Library offers a `Select Many...` secondary action when there are visible rows. Selection mode keeps actions in a contextual bar above the content: `Cancel`, `Select All` (which targets the loaded rows only, so deletion never reaches unloaded records), `Clear`, `Remove Audio Only...` for selected meetings with stored audio, and `Delete Items...` / `Delete Meetings...` for full deletion.
 
 Selected cards and meeting rows use the app accent/coral selected state. Destructive red is reserved for confirmation actions and destructive menu items, not for the selected state itself. Meeting full deletion removes the meeting row, transcript, stored audio, notes, AI results, and chats when those optional artifacts exist. `Remove Audio Only...` removes only stored meeting audio and leaves the transcript plus optional notes, AI results, and chats. Confirmation copy must state that playback and retranscription become unavailable unless the user saved a copy of the audio.
 

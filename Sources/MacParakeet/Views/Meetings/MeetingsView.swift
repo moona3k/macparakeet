@@ -46,6 +46,9 @@ struct MeetingsView: View {
         }
         .focusable(viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
         .focused($recentMeetingsSelectionFocused)
+        // Keep keyboard focus (for ⌘A / Delete) but suppress the system focus
+        // ring so entering selection mode doesn't flash a blue focus line.
+        .focusEffectDisabled()
         .onChange(of: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled) { _, enabled in
             if enabled {
                 recentMeetingsSelectionFocused = true
@@ -623,7 +626,6 @@ struct MeetingsView: View {
             selectedCount: viewModel.recentMeetingsViewModel.selectedTranscriptionCount,
             selectedMeetingAudioCount: viewModel.recentMeetingsViewModel.selectedMeetingAudioCount,
             isMeetingContext: true,
-            selectVisibleTitle: viewModel.recentMeetingsViewModel.hasMore ? "Select Visible" : "Select All",
             areAllVisibleSelected: viewModel.recentMeetingsViewModel.areAllLoadedVisibleTranscriptionsSelected,
             isPerformingOperation: viewModel.recentMeetingsViewModel.isBulkOperationInProgress,
             onSelectVisible: { viewModel.recentMeetingsViewModel.selectLoadedVisibleTranscriptions() },
