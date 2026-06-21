@@ -34,7 +34,8 @@ struct BulkTranscriptionSelectionBar: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, 10)
-        .background(DesignSystem.Colors.background)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignSystem.Colors.surfaceElevated)
         .overlay(alignment: .top) {
             Divider()
                 .opacity(0.35)
@@ -61,8 +62,9 @@ struct BulkTranscriptionSelectionBar: View {
     private var wrappedBar: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             selectionSummary
-            actionCluster
+            actionFlow
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var selectionSummary: some View {
@@ -105,55 +107,84 @@ struct BulkTranscriptionSelectionBar: View {
 
     private var utilityActions: some View {
         HStack(spacing: 6) {
-            SelectionBarActionButton(
-                title: "Cancel",
-                systemImage: "xmark",
-                tone: .subtle,
-                isDisabled: isPerformingOperation,
-                usesEscapeShortcut: true,
-                action: onCancel
-            )
-
-            SelectionBarActionButton(
-                title: "Select Loaded",
-                systemImage: "checkmark.circle",
-                tone: .utility,
-                isDisabled: areAllLoadedSelected || isPerformingOperation,
-                action: onSelectLoaded
-            )
-
-            SelectionBarActionButton(
-                title: "Clear",
-                systemImage: "xmark.circle",
-                tone: .utility,
-                isDisabled: selectedCount == 0 || isPerformingOperation,
-                action: onClear
-            )
+            cancelAction
+            selectAllAction
+            clearAction
         }
     }
 
     private var destructiveActions: some View {
         HStack(spacing: 6) {
-            if showsAudioAction {
-                SelectionBarActionButton(
-                    title: deleteAudioTitle,
-                    systemImage: "waveform.slash",
-                    tone: .destructive,
-                    isDisabled: selectedMeetingAudioCount == 0 || isPerformingOperation,
-                    role: .destructive,
-                    action: onDeleteAudioOnly
-                )
-            }
+            deleteAudioAction
+            deleteItemsAction
+        }
+    }
 
+    private var actionFlow: some View {
+        FlowLayout(spacing: 6) {
+            cancelAction
+            selectAllAction
+            clearAction
+            deleteAudioAction
+            deleteItemsAction
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var cancelAction: some View {
+        SelectionBarActionButton(
+            title: "Cancel",
+            systemImage: "xmark",
+            tone: .subtle,
+            isDisabled: isPerformingOperation,
+            usesEscapeShortcut: true,
+            action: onCancel
+        )
+    }
+
+    private var selectAllAction: some View {
+        SelectionBarActionButton(
+            title: "Select All",
+            systemImage: "checkmark.circle",
+            tone: .utility,
+            isDisabled: areAllLoadedSelected || isPerformingOperation,
+            action: onSelectLoaded
+        )
+    }
+
+    private var clearAction: some View {
+        SelectionBarActionButton(
+            title: "Clear",
+            systemImage: "xmark.circle",
+            tone: .utility,
+            isDisabled: selectedCount == 0 || isPerformingOperation,
+            action: onClear
+        )
+    }
+
+    @ViewBuilder
+    private var deleteAudioAction: some View {
+        if showsAudioAction {
             SelectionBarActionButton(
-                title: deleteItemsTitle,
-                systemImage: "trash",
+                title: deleteAudioTitle,
+                systemImage: "waveform.slash",
                 tone: .destructive,
-                isDisabled: selectedCount == 0 || isPerformingOperation,
+                isDisabled: selectedMeetingAudioCount == 0 || isPerformingOperation,
                 role: .destructive,
-                action: onDeleteItems
+                action: onDeleteAudioOnly
             )
         }
+    }
+
+    private var deleteItemsAction: some View {
+        SelectionBarActionButton(
+            title: deleteItemsTitle,
+            systemImage: "trash",
+            tone: .destructive,
+            isDisabled: selectedCount == 0 || isPerformingOperation,
+            role: .destructive,
+            action: onDeleteItems
+        )
     }
 }
 

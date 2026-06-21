@@ -1557,7 +1557,7 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Filter bar: All / YouTube / Local / Favorites
 - [x] Search across transcription titles and content
 - [x] Sort by date (newest/oldest)
-- [x] Multi-select cleanup with `Select Many...`, `Select Loaded`, clear/cancel, and contextual destructive confirmations
+- [x] Multi-select cleanup with `Select Many...`, `Select All`, clear/cancel, and contextual destructive confirmations
 - [x] Meeting cleanup supports both full deletion and `Remove Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
 ### F27: Home Page Redesign
