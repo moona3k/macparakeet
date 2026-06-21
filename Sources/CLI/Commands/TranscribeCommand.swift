@@ -916,8 +916,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         guard !noHistory, format == .text || format == .transcript else { return }
         printErr("")
         printErr("Saved to your library (id \(t.id.uuidString)).")
-        printErr("Write a file: re-run with --format vtt (or srt/json) and --output-dir . , "
-            + "or export this one: macparakeet-cli export \(t.id.uuidString) --format vtt")
+        printErr("Turn it into a file: macparakeet-cli export \(t.id.uuidString) --format vtt"
+            + "   (or srt, txt, markdown, json)")
     }
 
     private func printText(_ t: Transcription) {

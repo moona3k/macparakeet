@@ -98,9 +98,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `clip.vtt` in a single step instead of `transcribe` then `export <id>`. A
   single input without `--output-dir` prints the subtitle to stdout (redirect
   with `> clip.vtt`); multiple inputs or `--output-dir` write one file each.
-- `transcribe` now prints a one-line stderr hint after a saved single-input
-  run (text/transcript output), naming the new library record id and showing
-  how to write a file or `export` it. Suppressed for `--no-history`,
+- `transcribe` now prints a short stderr hint after a saved single-input run
+  (text/transcript output), naming the new library record id and the `export`
+  command to turn it into a file. Suppressed for `--no-history`,
   `--format json|srt|vtt`, and batch runs. stdout is unchanged.
 - `config get|set|list` now includes `auto-meeting-titles`, the shared
   on/off preference for LLM-generated meeting recording titles.
