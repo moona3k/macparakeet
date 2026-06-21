@@ -514,8 +514,17 @@ final class LocalCLIExecutorTests: XCTestCase {
         let plantedShell = directory.appendingPathComponent("planted-shell")
         try createExecutable(at: plantedShell)
 
+        let previousShell = getenv("SHELL").map { String(cString: $0) }
+        setenv("SHELL", plantedShell.path, 1)
+        defer {
+            if let previousShell {
+                setenv("SHELL", previousShell, 1)
+            } else {
+                unsetenv("SHELL")
+            }
+        }
+
         let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: ["SHELL": plantedShell.path],
             fileManager: .default
         ).map(\.path)
 
@@ -534,7 +543,6 @@ final class LocalCLIExecutorTests: XCTestCase {
         let fileManager = ExecutablePathFileManager(executablePaths: executablePaths)
 
         let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: ["SHELL": environmentShell],
             fileManager: fileManager
         ).map(\.path)
 
@@ -549,48 +557,37 @@ final class LocalCLIExecutorTests: XCTestCase {
         XCTAssertTrue(paths.contains("/bin/sh"))
     }
 
-    func testCandidatePATHProbeShellURLsExcludeRelativeAndNonExecutableEnvironmentShells() throws {
-        let relativeShell = "relative-shell"
-        let relativePaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: ["SHELL": relativeShell],
-            fileManager: ExecutablePathFileManager(executablePaths: [relativeShell])
-        ).map(\.path)
-        XCTAssertFalse(relativePaths.contains(relativeShell))
+    func testCandidatePATHProbeShellURLsFilterNonExecutableCandidateShells() {
+        let executablePaths: Set<String> = ["/bin/zsh", "/bin/sh"]
+        let fileManager = ExecutablePathFileManager(executablePaths: executablePaths)
 
-        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("localcli-nonexec-shell-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(fileManager: fileManager).map(\.path)
 
-        let nonExecutableShell = directory.appendingPathComponent("non-executable-shell")
-        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: nonExecutableShell)
-        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: nonExecutableShell.path)
+        var seen = Set<String>()
+        let expected = ([LocalCLIExecutor.userLoginShellURL()?.path].compactMap { $0 }
+            + Self.standardPATHProbeShellPaths)
+            .filter { path in
+                executablePaths.contains(path) && seen.insert(path).inserted
+            }
 
-        let nonExecutablePaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: ["SHELL": nonExecutableShell.path],
-            fileManager: .default
-        ).map(\.path)
-        XCTAssertFalse(nonExecutablePaths.contains(nonExecutableShell.path))
+        XCTAssertEqual(paths, expected)
+        XCTAssertTrue(paths.contains("/bin/zsh"))
+        XCTAssertFalse(paths.contains("/bin/bash"))
+        XCTAssertTrue(paths.contains("/bin/sh"))
     }
 
-    func testCandidatePATHProbeShellURLsDeduplicatesEmptyAndUnsetEnvironmentShell() {
+    func testCandidatePATHProbeShellURLsDeduplicatesCandidates() {
         let loginShell = LocalCLIExecutor.userLoginShellURL()?.path
         let executablePaths = Set([loginShell].compactMap { $0 } + Self.standardPATHProbeShellPaths)
         let fileManager = ExecutablePathFileManager(executablePaths: executablePaths)
 
-        let unsetPaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: [:],
-            fileManager: fileManager
-        ).map(\.path)
-        let emptyPaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
-            environment: ["SHELL": ""],
+        let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(
             fileManager: fileManager
         ).map(\.path)
 
-        XCTAssertEqual(emptyPaths, unsetPaths)
-        XCTAssertEqual(unsetPaths.count, Set(unsetPaths).count)
+        XCTAssertEqual(paths.count, Set(paths).count)
         if let loginShell, Self.standardPATHProbeShellPaths.contains(loginShell) {
-            XCTAssertEqual(unsetPaths.filter { $0 == loginShell }.count, 1)
+            XCTAssertEqual(paths.filter { $0 == loginShell }.count, 1)
         }
     }
 

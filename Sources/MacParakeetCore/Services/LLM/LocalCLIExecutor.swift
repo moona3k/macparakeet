@@ -913,7 +913,6 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     static func candidatePATHProbeShellURLs(
-        environment _: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default
     ) -> [URL] {
         let userShell = userLoginShellURL()?.path
