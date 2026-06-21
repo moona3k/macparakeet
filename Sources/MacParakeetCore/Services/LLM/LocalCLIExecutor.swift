@@ -913,12 +913,10 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     static func candidatePATHProbeShellURLs(
-        environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default
     ) -> [URL] {
         let userShell = userLoginShellURL()?.path
         let candidatePaths = [
-            environment["SHELL"],
             userShell,
             "/bin/zsh",
             "/opt/homebrew/bin/zsh",
