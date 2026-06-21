@@ -553,7 +553,9 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         vm.requestDeleteSelectedMeetingAudio()
         let result = await vm.confirmPendingBulkOperation()
 
-        XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0, skipped: 2))
+        // skipped counts only the audio-less meeting; the non-meeting `local`
+        // file is ineligible for meeting-audio removal and must not inflate it.
+        XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0, skipped: 1))
         XCTAssertFalse(vm.isBulkOperationInProgress)
         XCTAssertFalse(vm.isBulkSelectionModeEnabled)
         XCTAssertTrue(vm.selectedTranscriptionIDs.isEmpty)
@@ -570,6 +572,54 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: systemURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: manifestURL.path))
+    }
+
+    func testRequestDeleteAudioOnlySkipCountExcludesNonMeetings() async throws {
+        // Mixed Library selection: meetings and non-meetings together. The
+        // "Remove Audio" skipped count must reflect meetings-without-saved-audio
+        // only, so the confirmation copy never mislabels videos/podcasts/local
+        // files as "selected meetings already with no saved audio."
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("library-mixed-skip-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let meetingWithAudio = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let meetingWithoutAudio = Transcription(fileName: "No Audio", status: .completed, sourceType: .meeting)
+        let youtube = Transcription(
+            fileName: "video",
+            status: .completed,
+            sourceURL: "https://youtube.com/watch?v=abc",
+            sourceType: .youtube
+        )
+        let podcast = Transcription(fileName: "episode", status: .completed, sourceType: .podcast)
+        let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
+        for transcription in [meetingWithAudio, meetingWithoutAudio, youtube, podcast, local] {
+            try repo.save(transcription)
+        }
+        await load()
+
+        vm.beginBulkSelection(startingWith: meetingWithAudio)
+        for transcription in [meetingWithoutAudio, youtube, podcast, local] {
+            vm.toggleSelection(for: transcription)
+        }
+
+        XCTAssertEqual(vm.selectedTranscriptionCount, 5)
+        vm.requestDeleteSelectedMeetingAudio()
+        let operation = try XCTUnwrap(vm.pendingBulkOperation)
+        XCTAssertTrue(operation.isDeleteAudioOnly)
+        XCTAssertEqual(operation.targetCount, 1)
+        // Only the audio-less meeting is skipped — the three non-meeting items
+        // are not counted (the old behavior reported 4).
+        XCTAssertEqual(operation.skippedCount, 1)
     }
 }
 

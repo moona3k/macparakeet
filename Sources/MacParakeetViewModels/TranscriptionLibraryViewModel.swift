@@ -282,14 +282,19 @@ public final class TranscriptionLibraryViewModel {
 
     public func requestDeleteSelectedMeetingAudio() {
         guard !isBulkOperationInProgress else { return }
-        let selected = selectedLoadedTranscriptions
-        let targets = selected.filter(Self.hasAvailableMeetingAudio)
+        // Scope to meetings: "Remove Audio" only applies to meeting rows, so the
+        // skipped count must be meetings-without-saved-audio, not every selected
+        // non-meeting item. Counting all non-targets here mislabels videos/
+        // podcasts/local files as "meetings already with no saved audio" in the
+        // confirmation copy (which is meeting-only by design).
+        let meetings = selectedLoadedTranscriptions.filter { $0.sourceType == .meeting }
+        let targets = meetings.filter(Self.hasAvailableMeetingAudio)
         guard !targets.isEmpty else {
             return
         }
         pendingBulkOperation = .deleteAudioOnly(
             targets: targets,
-            skipped: selected.count - targets.count
+            skipped: meetings.count - targets.count
         )
     }
 
