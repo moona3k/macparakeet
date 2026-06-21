@@ -99,8 +99,8 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     private var selectionBadge: some View {
         ZStack {
             Circle()
-                .fill(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.surface.opacity(0.92))
-                .frame(width: 22, height: 22)
+                .fill(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.surface.opacity(0.94))
+                .frame(width: 24, height: 24)
                 .overlay {
                     Circle()
                         .strokeBorder(
@@ -109,9 +109,11 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                         )
                 }
 
-            Image(systemName: isSelected ? "checkmark" : "circle")
-                .font(.system(size: isSelected ? 10 : 8, weight: .bold))
-                .foregroundStyle(isSelected ? DesignSystem.Colors.onAccent : DesignSystem.Colors.accent.opacity(0.75))
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.onAccent)
+            }
         }
         .accessibilityHidden(true)
     }
