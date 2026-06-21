@@ -315,6 +315,21 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedTranscriptionIDs, [matching.id])
     }
 
+    func testAllLoadedVisibleTranscriptionsSelectedWhenSearchHasNoMatches() async throws {
+        let matching = Transcription(fileName: "Swift Tutorial", status: .completed)
+        try repo.save(matching)
+
+        await load()
+
+        vm.beginBulkSelection(startingWith: matching)
+        vm.searchText = "no matches"
+        await load()
+
+        XCTAssertTrue(vm.filteredTranscriptions.isEmpty)
+        XCTAssertTrue(vm.selectedTranscriptionIDs.isEmpty)
+        XCTAssertTrue(vm.areAllLoadedVisibleTranscriptionsSelected)
+    }
+
     // MARK: - Delete
 
     func testDeleteTranscription() async throws {

@@ -153,7 +153,7 @@ public final class TranscriptionLibraryViewModel {
 
     public var areAllLoadedVisibleTranscriptionsSelected: Bool {
         let ids = loadedVisibleTranscriptionIDs
-        return !ids.isEmpty && ids.isSubset(of: selectedTranscriptionIDs)
+        return ids.isEmpty || ids.isSubset(of: selectedTranscriptionIDs)
     }
 
     public var selectedMeetingAudioCount: Int {

@@ -97,7 +97,7 @@ struct TranscriptionLibraryView: View {
         // ring. The ring is drawn in the system accent (blue), reads as a
         // full-width line across the content's top edge on entering selection
         // mode, and its first-responder draw is the hitch felt as "jank".
-        .focusEffectDisabled()
+        .focusEffectDisabled(viewModel.isBulkSelectionModeEnabled)
         .onChange(of: viewModel.isBulkSelectionModeEnabled) { _, enabled in
             if enabled {
                 selectionKeyboardFocused = true

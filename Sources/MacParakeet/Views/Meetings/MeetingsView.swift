@@ -48,7 +48,7 @@ struct MeetingsView: View {
         .focused($recentMeetingsSelectionFocused)
         // Keep keyboard focus (for ⌘A / Delete) but suppress the system focus
         // ring so entering selection mode doesn't flash a blue focus line.
-        .focusEffectDisabled()
+        .focusEffectDisabled(viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
         .onChange(of: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled) { _, enabled in
             if enabled {
                 recentMeetingsSelectionFocused = true
