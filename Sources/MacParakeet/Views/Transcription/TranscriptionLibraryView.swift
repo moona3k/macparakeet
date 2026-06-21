@@ -213,6 +213,7 @@ struct TranscriptionLibraryView: View {
                 loadMoreFooter
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.top, DesignSystem.Spacing.md)
             .padding(.bottom, DesignSystem.Spacing.lg)
         }
     }
