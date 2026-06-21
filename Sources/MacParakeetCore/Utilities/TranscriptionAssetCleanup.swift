@@ -216,7 +216,8 @@ public enum TranscriptionAssetCleanup {
             )
             let plan = MeetingAudioRemovalPlan(
                 folderURL: folderURL,
-                candidates: try managedMeetingAudioFiles(in: folderURL, fileManager: fileManager)
+                candidates: try managedMeetingAudioFiles(in: folderURL, fileManager: fileManager),
+                mixedAudioURL: nil
             )
             try removeMeetingAudioFiles(plan, fileManager: fileManager)
         }
@@ -333,5 +334,5 @@ private struct MeetingAudioRemovalPlan {
     let candidates: Set<URL>
     /// The audio file `transcription.filePath` points at (the canonical mixed
     /// recording). `nil` for bulk folder cleanup, which has no single owning row.
-    var mixedAudioURL: URL?
+    let mixedAudioURL: URL?
 }
