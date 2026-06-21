@@ -85,6 +85,9 @@ final class MeetingRecordingPillController {
     func show() {
         if let panel {
             panel.orderFront(nil)
+            // Back-to-back recordings can reuse the saved-completion pill; push
+            // the fresh state now instead of waiting for the 1 s view tick.
+            pillView?.refresh()
             return
         }
 
