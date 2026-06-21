@@ -411,6 +411,41 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
     }
 
+    func testConfirmBulkOperationRunsAfterPendingClearedByAlertDismissal() async throws {
+        // Reproduces the alert race: tapping the destructive confirm button
+        // dismisses the alert, whose isPresented setter nils pendingBulkOperation
+        // (via cancelPendingBulkOperation) BEFORE the deferred Task body runs.
+        // The view captures the operation synchronously and calls
+        // confirmBulkOperation(_:), which must still delete even though
+        // pendingBulkOperation is already nil. Re-reading the pending state here
+        // (the old behavior) would no-op and nothing would delete.
+        let first = Transcription(fileName: "first.mp3", status: .completed)
+        let second = Transcription(fileName: "second.mp3", status: .completed)
+        try repo.save(first)
+        try repo.save(second)
+        await load()
+
+        vm.beginBulkSelection(startingWith: first)
+        vm.toggleSelection(for: second)
+        vm.requestDeleteSelectedItems()
+
+        // Snapshot as the view's button action does, then simulate the alert's
+        // dismissal clearing the pending state out from under the deferred Task.
+        let operation = try XCTUnwrap(vm.pendingBulkOperation)
+        vm.cancelPendingBulkOperation()
+        XCTAssertNil(vm.pendingBulkOperation)
+
+        let result = await vm.confirmBulkOperation(operation)
+
+        XCTAssertEqual(result, BulkOperationResult(succeeded: 2, failed: 0))
+        XCTAssertNil(try repo.fetch(id: first.id))
+        XCTAssertNil(try repo.fetch(id: second.id))
+        XCTAssertTrue(vm.transcriptions.isEmpty)
+        XCTAssertFalse(vm.isBulkOperationInProgress)
+        XCTAssertFalse(vm.isBulkSelectionModeEnabled)
+        XCTAssertTrue(vm.selectedTranscriptionIDs.isEmpty)
+    }
+
     func testBulkDeleteSelectedItemsRemovesRowsAndExitsMode() async throws {
         let first = Transcription(fileName: "first.mp3", status: .completed)
         let second = Transcription(fileName: "second.mp3", status: .completed)

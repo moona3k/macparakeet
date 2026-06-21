@@ -161,8 +161,15 @@ struct TranscriptionLibraryView: View {
                 viewModel.cancelPendingBulkOperation()
             }
             Button(bulkOperationConfirmTitle, role: .destructive) {
+                // Capture the operation synchronously. Tapping this button also
+                // dismisses the alert, whose isPresented setter runs
+                // cancelPendingBulkOperation() and nils pendingBulkOperation —
+                // and that dismissal fires before the deferred Task body. Reading
+                // the VM state inside the Task would therefore see nil and
+                // silently no-op (the "delete does nothing" bug). Snapshot here.
+                guard let operation = viewModel.pendingBulkOperation else { return }
                 Task {
-                    await viewModel.confirmPendingBulkOperation()
+                    await viewModel.confirmBulkOperation(operation)
                 }
             }
         } message: {

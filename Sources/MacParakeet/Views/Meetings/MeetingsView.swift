@@ -137,8 +137,15 @@ struct MeetingsView: View {
                 viewModel.recentMeetingsViewModel.cancelPendingBulkOperation()
             }
             Button(recentMeetingsBulkOperationConfirmTitle, role: .destructive) {
+                // Capture the operation synchronously. Tapping this button also
+                // dismisses the alert, whose isPresented setter runs
+                // cancelPendingBulkOperation() and nils pendingBulkOperation —
+                // and that dismissal fires before the deferred Task body. Reading
+                // the VM state inside the Task would therefore see nil and
+                // silently no-op (the "delete does nothing" bug). Snapshot here.
+                guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else { return }
                 Task {
-                    await viewModel.recentMeetingsViewModel.confirmPendingBulkOperation()
+                    await viewModel.recentMeetingsViewModel.confirmBulkOperation(operation)
                 }
             }
         } message: {

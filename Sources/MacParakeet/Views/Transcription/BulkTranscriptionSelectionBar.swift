@@ -46,6 +46,13 @@ struct BulkTranscriptionSelectionBar: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isPerformingOperation ? "Deleting selected items" : "\(selectedCount) selected")
+        // Resolve the bar's internal layout as one unit so the enclosing
+        // selection-mode animation moves it as a cohesive block. Without this,
+        // the container animation interpolates the inner `Spacer` from
+        // collapsed to full width, sweeping the trailing action cluster (Cancel
+        // first) from center to edge — a visible "Cancel flashes mid-bar"
+        // artifact — and re-runs the nested ViewThatFits/FlowLayout every frame.
+        .geometryGroup()
     }
 
     private var horizontalBar: some View {

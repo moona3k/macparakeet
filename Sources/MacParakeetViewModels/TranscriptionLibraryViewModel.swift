@@ -298,10 +298,30 @@ public final class TranscriptionLibraryViewModel {
         )
     }
 
+    /// Snapshot the current pending operation and run it. Convenience for
+    /// callers (and tests) that have just populated `pendingBulkOperation`.
     @discardableResult
     public func confirmPendingBulkOperation() async -> BulkOperationResult {
         guard let operation = pendingBulkOperation else {
             return BulkOperationResult(succeeded: 0, failed: 0)
+        }
+        return await confirmBulkOperation(operation)
+    }
+
+    /// Run a previously captured bulk operation.
+    ///
+    /// The confirm button in the bulk-delete alert MUST capture the operation
+    /// synchronously and call this, rather than re-reading `pendingBulkOperation`
+    /// from inside its deferred `Task`. Tapping that button also dismisses the
+    /// alert, and the alert's `isPresented` setter runs
+    /// `cancelPendingBulkOperation()`, which nils `pendingBulkOperation`. The
+    /// dismissal fires before the Task body, so a re-read would see `nil` and
+    /// silently no-op (the "delete does nothing" bug). Taking the operation by
+    /// value sidesteps the race.
+    @discardableResult
+    public func confirmBulkOperation(_ operation: BulkTranscriptionOperation) async -> BulkOperationResult {
+        guard !isBulkOperationInProgress else {
+            return BulkOperationResult(succeeded: 0, failed: 0, skipped: operation.skippedCount)
         }
         pendingBulkOperation = nil
         guard let repo = transcriptionRepo else {
