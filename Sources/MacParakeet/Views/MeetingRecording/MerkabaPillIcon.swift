@@ -909,6 +909,7 @@ final class MerkabaPillIconView: NSView {
         CATransaction.setDisableActions(true)
         flowerLayer.opacity = 1
         flowerLayer.transform = CATransform3DIdentity
+        glowLayer.opacity = glowBase
         stemLayer.opacity = 1
         stemLayer.strokeEnd = 1
         stemLayer.transform = CATransform3DIdentity
