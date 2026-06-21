@@ -579,10 +579,7 @@ final class MeetingRecordingFlowCoordinator {
             stopTranscriptObservation()
             stopSpeechWarmUpObservation()
             // Begin a fresh saved-completion celebration.
-            meetingDurablySaved = false
-            metatronBloomSettled = false
-            metatronMinDurationTask?.cancel()
-            savedCompletionDismissTask?.cancel()
+            cancelSavedCompletion()
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
             pillViewModel.state = .completing
@@ -768,8 +765,9 @@ final class MeetingRecordingFlowCoordinator {
     private func startMetatronMinimumDisplay() {
         metatronBloomSettled = false
         metatronMinDurationTask?.cancel()
+        let duration = metatronMinimumDisplay
         metatronMinDurationTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.metatronMinimumDisplay ?? .milliseconds(1500))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self else { return }
             self.metatronBloomSettled = true
             self.advanceToSavedCheckmarkIfReady()
@@ -792,8 +790,9 @@ final class MeetingRecordingFlowCoordinator {
 
     private func scheduleSavedDismiss() {
         savedCompletionDismissTask?.cancel()
+        let duration = savedCheckmarkHold
         savedCompletionDismissTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.savedCheckmarkHold ?? .milliseconds(1700))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self else { return }
             // Only tear down if nothing new took over the pill in the meantime.
             guard self.stateMachine.state == .idle, self.pillViewModel.state == .completed else { return }

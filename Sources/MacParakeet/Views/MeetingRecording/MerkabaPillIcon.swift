@@ -96,6 +96,7 @@ final class MerkabaPillIconView: NSView {
     private var currentAnimating = false
     private var currentAudioLevel: Float = -1
     private var currentFace: Face = .rosette
+    private var completionDelayTask: Task<Void, Never>?
     private var smoothedGlow: Float = -1
 
     /// Resting glow before audio lifts it: brighter while actively listening,
@@ -262,8 +263,11 @@ final class MerkabaPillIconView: NSView {
     /// `@MainActor` callback isn't forced through a `@Sendable` parameter —
     /// Swift 6 language-mode clean.)
     private func scheduleCompletion(after delay: Double, _ onFinished: @escaping @MainActor () -> Void) {
-        Task { @MainActor in
+        completionDelayTask?.cancel()
+        completionDelayTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self?.completionDelayTask = nil
             onFinished()
         }
     }
@@ -305,12 +309,15 @@ final class MerkabaPillIconView: NSView {
 
         guard animated else {
             // Reduce Motion: present the fully-bloomed gold figure statically.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             metatronRingsLayer.opacity = 0
             metatronNodesLayer.opacity = 1
             metatronNodesLayer.fillColor = metatronGold.cgColor
             metatronLinesLayer.strokeEnd = 1
             metatronLinesLayer.strokeColor = metatronGold.cgColor
             metatronGlowLayer.opacity = 1
+            CATransaction.commit()
             return
         }
 
@@ -381,9 +388,12 @@ final class MerkabaPillIconView: NSView {
 
         guard animated else {
             stopAnimations()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             setFace(.checkmark)
             checkRingLayer.strokeEnd = 1
             checkMarkLayer.strokeEnd = 1
+            CATransaction.commit()
             return
         }
 
@@ -426,6 +436,10 @@ final class MerkabaPillIconView: NSView {
 
     private func setFace(_ face: Face) {
         guard currentFace != face else { return }
+        if currentFace == .metatron, face != .metatron {
+            completionDelayTask?.cancel()
+            completionDelayTask = nil
+        }
         currentFace = face
         if face != .checkmark {
             checkRingLayer.strokeEnd = 0
@@ -756,7 +770,7 @@ final class MerkabaPillIconView: NSView {
         let dotR = r * 0.05
         func pt(_ dist: CGFloat, _ i: Int) -> CGPoint {
             let a = CGFloat(i) * .pi / 3 - .pi / 2  // pointy-top hexagon
-            return CGPoint(x: c.x + dist * Foundation.cos(a), y: c.y + dist * Foundation.sin(a))
+            return CGPoint(x: c.x + dist * cos(a), y: c.y + dist * sin(a))
         }
         let inner = (0..<6).map { pt(d, $0) }
         let outer = (0..<6).map { pt(2 * d, $0) }
@@ -813,8 +827,8 @@ final class MerkabaPillIconView: NSView {
         for i in 0..<3 {
             let angle = (CGFloat(i) * 120 - 90) * .pi / 180 + rotation
             let point = CGPoint(
-                x: center.x + Foundation.cos(angle) * radius,
-                y: center.y + Foundation.sin(angle) * radius)
+                x: center.x + cos(angle) * radius,
+                y: center.y + sin(angle) * radius)
             if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         path.closeSubpath()
@@ -865,7 +879,13 @@ final class MerkabaPillIconView: NSView {
         spinnerTriCWLayer.removeAnimation(forKey: "spin")
         spinnerTriCCWLayer.removeAnimation(forKey: "spin")
         spinnerCenterLayer.removeAnimation(forKey: "pulse")
-        metatronLayer.removeAnimation(forKey: "metatronSpin")
+        completionDelayTask?.cancel()
+        completionDelayTask = nil
+        metatronLayer.removeAllAnimations()
+        metatronRingsLayer.removeAllAnimations()
+        metatronLinesLayer.removeAllAnimations()
+        metatronNodesLayer.removeAllAnimations()
+        metatronGlowLayer.removeAllAnimations()
     }
 
     // MARK: - Animation builders
