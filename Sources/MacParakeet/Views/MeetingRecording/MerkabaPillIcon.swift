@@ -926,10 +926,6 @@ final class MerkabaPillIconView: NSView {
 
     private func startAnimations() {
         guard !hasRecordingRotationAnimation else { return }
-        // Clear any held collapse transforms from a prior cycle (defensive;
-        // views are normally fresh per session).
-        flowerLayer.removeAnimation(forKey: "completionSpin")
-        flowerLayer.removeAnimation(forKey: "completionScale")
 
         let rotation = spinAnimation(to: CGFloat.pi * 2, duration: 12)
         flowerLayer.add(rotation, forKey: "recordingRotation")
