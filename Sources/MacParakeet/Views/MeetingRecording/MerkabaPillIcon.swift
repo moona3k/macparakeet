@@ -91,6 +91,39 @@ final class MerkabaPillIconView: NSView {
         ]
     }
 
+    private var rosetteCompletionAnimationKeys: [String] {
+        let layers: [(String, CALayer)] = [
+            ("glow", glowLayer),
+            ("flower", flowerLayer),
+            ("stem", stemLayer),
+            ("leftLeafFill", leftLeafFillLayer),
+            ("leftLeafStroke", leftLeafStrokeLayer),
+            ("rightLeafFill", rightLeafFillLayer),
+            ("rightLeafStroke", rightLeafStrokeLayer),
+        ]
+        return layers.flatMap { name, layer in
+            (layer.animationKeys() ?? [])
+                .filter { $0.hasPrefix("completion") }
+                .map { "\(name).\($0)" }
+        }.sorted()
+    }
+
+    private var hasRecordingRotationAnimation: Bool {
+        flowerLayer.animation(forKey: "recordingRotation") != nil
+    }
+
+    var testHook_rosetteCompletionAnimationKeys: [String] {
+        rosetteCompletionAnimationKeys
+    }
+
+    var testHook_hasRecordingRotationAnimation: Bool {
+        hasRecordingRotationAnimation
+    }
+
+    func testHook_removeRecordingRotationAnimation() {
+        flowerLayer.removeAnimation(forKey: "recordingRotation")
+    }
+
     private var didBuildLayers = false
     private var currentShowStem = true
     private var currentAnimating = false
@@ -143,9 +176,14 @@ final class MerkabaPillIconView: NSView {
 
     func update(isAnimating: Bool, audioLevel: Float) {
         buildLayersIfNeeded()
+        let shouldResetRosette = currentFace != .rosette || !rosetteCompletionAnimationKeys.isEmpty
         setFace(.rosette)
+        if shouldResetRosette {
+            resetRosetteAfterCompletion()
+        }
 
-        if currentAnimating != isAnimating {
+        let shouldRestartRecordingAnimation = isAnimating && currentAnimating && !hasRecordingRotationAnimation
+        if currentAnimating != isAnimating || shouldRestartRecordingAnimation {
             currentAnimating = isAnimating
             isAnimating ? startAnimations() : stopAnimations()
         }
@@ -849,12 +887,45 @@ final class MerkabaPillIconView: NSView {
 
     // MARK: - Recording rosette animations
 
-    private func startAnimations() {
-        guard flowerLayer.animation(forKey: "recordingRotation") == nil else { return }
-        // Clear any held collapse transforms from a prior cycle (defensive;
-        // views are normally fresh per session).
+    private func resetRosetteAfterCompletion() {
+        completionDelayTask?.cancel()
+        completionDelayTask = nil
+
         flowerLayer.removeAnimation(forKey: "completionSpin")
         flowerLayer.removeAnimation(forKey: "completionScale")
+        flowerLayer.removeAnimation(forKey: "completionHeadFade")
+        glowLayer.removeAnimation(forKey: "completionWarm")
+        glowLayer.removeAnimation(forKey: "completionGlowFade")
+        stemLayer.removeAnimation(forKey: "completionRetract")
+        stemLayer.removeAnimation(forKey: "completionStemFade")
+        for layer in rosetteLayers {
+            layer.removeAnimation(forKey: "completionFade")
+        }
+        for layer in [leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.removeAnimation(forKey: "completionDrift")
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        flowerLayer.opacity = 1
+        flowerLayer.transform = CATransform3DIdentity
+        glowLayer.opacity = glowBase
+        stemLayer.opacity = 1
+        stemLayer.strokeEnd = 1
+        stemLayer.transform = CATransform3DIdentity
+        for layer in [leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.opacity = 1
+            layer.transform = CATransform3DIdentity
+        }
+        applyRosetteColors()
+        CATransaction.commit()
+
+        currentAudioLevel = -1
+        smoothedGlow = -1
+    }
+
+    private func startAnimations() {
+        guard !hasRecordingRotationAnimation else { return }
 
         let rotation = spinAnimation(to: CGFloat.pi * 2, duration: 12)
         flowerLayer.add(rotation, forKey: "recordingRotation")
