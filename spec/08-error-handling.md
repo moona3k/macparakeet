@@ -95,7 +95,7 @@ Errors in the dictation overlay use a wider rounded-rectangle card (not the comp
 - Two-line text: bold title + actionable subtitle (no truncation needed)
 - Auto-dismiss after 2-5 seconds depending on error path, with Dismiss affordance where available
 - Red icon in tinted circle
-- Technical errors mapped to 6 friendly categories with contextual hints
+- Technical errors mapped to eight friendly categories (plus a generic fallback) with contextual hints
 - Speech-engine failures explicitly direct users to onboarding or `Settings > Speech Recognition` repair/download actions
 
 ### Dictation Stop/Start Race Handling

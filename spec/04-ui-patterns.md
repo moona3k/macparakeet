@@ -177,13 +177,13 @@ Full-width flat chronological list with bottom bar audio player. No split pane �
 
 Components:
 - Timestamp column: 56pt wide, right-aligned — time (caption.monospacedDigit) + duration below (caption2.monospacedDigit, tertiary)
-- Transcript: cleanTranscript ?? rawTranscript, NO line limit, full text always visible
+- Transcript: cleanTranscript ?? rawTranscript; long entries collapse to 3 lines with an expand/collapse toggle, shorter entries show in full
 - Text selection enabled on transcript
 - Hover actions: Play (if audio) + Copy + three-dot Menu (Download Audio, Delete)
 - Currently-playing row: subtle accent tint background (accentColor 6%)
 - Hover background: subtle tint (primary 4%)
 - Context menu: Play/Pause, Copy, Download Audio, Delete (⌘⌫)
-- No selection state — no accent bar, no List(selection:)
+- Bulk-selection mode (mirrors Library): per-row selection circles plus a contextual action bar when active; no accent bar or List(selection:) in the default browsing state
 - Delete shows confirmation alert (shared at view level, not per-row)
 ```
 
@@ -437,6 +437,9 @@ Errors use a wider rounded-rectangle card instead of the compact pill — distin
   STT/CoreML/model   → "Speech Engine Not Ready"
   Microphone/audio  → "Microphone Unavailable"
   Permission/access → "Permission Required"
+  No speech/empty   → "No Speech Detected"
+  Clipboard paste   → "Copied to Clipboard"
+  Not recording     → "Not Recording"
   Timeout           → "Transcription Timed Out"
   Memory/OOM        → "Out of Memory"
   Fallback          → "Something Went Wrong"
@@ -1327,4 +1330,4 @@ MacParakeet follows standard macOS patterns:
 
 ---
 
-*Last updated: 2026-03-14*
+*Last updated: 2026-06-21*

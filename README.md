@@ -55,7 +55,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording, meeting calendar support, Parakeet v3/v2 model selection, optional local Nemotron Beta and WhisperKit recognition, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording with selectable microphone/system capture, meeting calendar support, Parakeet v3/v2/Unified model selection, optional local Nemotron Beta and WhisperKit recognition, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
 
 ## Release status
 
@@ -63,8 +63,8 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes (e.g., a display-only live dictation transcript preview) |
+| Stable DMG | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture and audio-retention controls, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
+| `main` branch | Development | Latest stable release plus untagged in-progress fixes and development changes |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
 
@@ -74,7 +74,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 
 **File & URL transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste any video or podcast link. YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and any other site `yt-dlp` supports all work — there's no fixed list; the card recognizes the platform and shows its mark as you paste. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. The CLI also does **freetext podcast search** — `macparakeet-cli transcribe --podcast "Lex Fridman episode 400"` searches the iTunes directory, parses the show's RSS feed, picks the episode, and transcribes it. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript with word-level timestamps, speaker labels, a completion chime/banner, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or URL transcription from anywhere.
 
-**Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
+**Meeting recording** — Record system audio and microphone together, or pick microphone-only or system-only capture (microphone-only needs no Screen Recording permission). See a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat. Choose how long to keep the source audio: keep it, auto-delete after a set number of days, or remove it right after transcription.
 
 **Meeting calendar support** — Grant Calendar access to get local reminders for upcoming meetings or opt into auto-start. MacParakeet uses calendars already configured in macOS Calendar through EventKit; it does not add Google or Microsoft sign-ins, and recordings still stop manually.
 
@@ -229,7 +229,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; optional N
 - **No cloud STT.** The model runs on-device. No audio is transmitted.
 - **No accounts.** No login, no email, no registration.
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift) — verify it yourself.
-- **Temp files cleaned up.** Audio deleted after transcription unless you save it.
+- **Temp files cleaned up.** Audio deleted after transcription unless you save it. Saved meeting audio follows your retention setting (kept by default).
 
 **What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. Media URL transcription downloads via yt-dlp; Apple Podcasts links query the public iTunes lookup API to find the episode audio, then download it. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
 

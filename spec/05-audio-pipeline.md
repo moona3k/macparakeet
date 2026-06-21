@@ -280,8 +280,11 @@ the stopped meeting waits for that job to finish; once the slot is free,
 ```
 
 Audio files are kept forever by default. Settings > Storage exposes a meeting
-audio retention policy: keep forever, delete after 7/14/30/90 days, or delete
-immediately after transcription. Users can also reveal, save a copy, or delete
+audio retention policy: keep forever, auto-delete after a configurable number of
+days (1–365, default 30), or delete immediately after transcription. Switching
+to an auto-deleting mode is gated behind a one-time confirmation; the legacy
+`saveMeetingAudio` preference migrates to keep-forever (on) or delete-immediately
+(off). Users can also reveal, save a copy, or delete
 managed meeting audio from the meeting detail view, Library/Meetings row menus,
 Settings > Storage, and CLI support commands. Audio deletion clears the
 transcript's stored `filePath` and removes top-level app-managed audio files

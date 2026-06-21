@@ -227,7 +227,9 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] `sourceType` column on `transcriptions` table (file/youtube/meeting)
 - [x] Meeting Recording tile on Transcribe + "Record Meeting" in menu bar
 - [x] Library filter for meeting transcriptions
-- [x] Screen Recording permission handling (required, no mic-only fallback)
+- [x] Meeting source mode: microphone + system audio (default), microphone-only, or system-only; Screen Recording permission requested only when capturing system audio (microphone-only needs only Microphone)
+- [x] Meeting audio retention: keep forever (default), auto-delete after a configurable number of days (1–365), or delete immediately after transcription, behind an opt-in confirmation gate
+- [x] Auto-generated meeting titles when an AI provider is configured
 - [x] Batch transcription after recording stops (local STT using the pinned engine)
 - [x] Meeting recordings get prompt library, multi-summary, chat, and export automatically
 - [x] Meeting cleanup supports full deletion or stored-audio-only removal from Library and Meetings

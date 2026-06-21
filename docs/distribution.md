@@ -527,6 +527,10 @@ codesigning to catch drift before notarization.
 | System audio capture | `NSAudioCaptureUsageDescription` | macOS TCC prompt, no app entitlement |
 | Calendar event read access | `NSCalendarsFullAccessUsageDescription` | `com.apple.security.personal-information.calendars` |
 
+Microphone-only meeting capture uses only the Microphone permission and never
+triggers the System Audio (Screen Recording) prompt; system audio is requested
+only for source modes that capture it.
+
 ### Settings UI
 
 Users can control auto-update behavior in Settings > Updates:
