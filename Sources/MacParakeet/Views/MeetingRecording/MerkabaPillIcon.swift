@@ -108,8 +108,20 @@ final class MerkabaPillIconView: NSView {
         }.sorted()
     }
 
+    private var hasRecordingRotationAnimation: Bool {
+        flowerLayer.animation(forKey: "recordingRotation") != nil
+    }
+
     var testHook_rosetteCompletionAnimationKeys: [String] {
         rosetteCompletionAnimationKeys
+    }
+
+    var testHook_hasRecordingRotationAnimation: Bool {
+        hasRecordingRotationAnimation
+    }
+
+    func testHook_removeRecordingRotationAnimation() {
+        flowerLayer.removeAnimation(forKey: "recordingRotation")
     }
 
     private var didBuildLayers = false
@@ -170,7 +182,8 @@ final class MerkabaPillIconView: NSView {
             resetRosetteAfterCompletion()
         }
 
-        if currentAnimating != isAnimating {
+        let shouldRestartRecordingAnimation = isAnimating && currentAnimating && !hasRecordingRotationAnimation
+        if currentAnimating != isAnimating || shouldRestartRecordingAnimation {
             currentAnimating = isAnimating
             isAnimating ? startAnimations() : stopAnimations()
         }
@@ -911,7 +924,7 @@ final class MerkabaPillIconView: NSView {
     }
 
     private func startAnimations() {
-        guard flowerLayer.animation(forKey: "recordingRotation") == nil else { return }
+        guard !hasRecordingRotationAnimation else { return }
         // Clear any held collapse transforms from a prior cycle (defensive;
         // views are normally fresh per session).
         flowerLayer.removeAnimation(forKey: "completionSpin")
