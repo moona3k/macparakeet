@@ -74,6 +74,20 @@ final class MeetingRecordingFlowCoordinator {
     private var pillGlowPollingTask: Task<Void, Never>?
     private var transcriptObservationTask: Task<Void, Never>?
     private var speechWarmUpObservationTask: Task<Void, Never>?
+    // Saved-completion celebration (Metatron bloom → checkmark). The flow returns
+    // to `.idle` the instant the recording is queued (back-to-back stays instant);
+    // these drive the pill's self-contained, interruptible visual epilogue.
+    private var metatronMinDurationTask: Task<Void, Never>?
+    private var savedCompletionDismissTask: Task<Void, Never>?
+    private var meetingDurablySaved = false
+    private var metatronBloomSettled = false
+    /// Minimum on-screen time for the Metatron "saving" bloom before it may
+    /// resolve to the checkmark, so the flourish always reads even when the
+    /// background queueing finishes instantly (pairs with the ~1 s collapse for
+    /// a ~3 s post-collapse celebration).
+    private let metatronMinimumDisplay: Duration = .milliseconds(1500)
+    /// How long the "saved" checkmark holds before the pill self-dismisses.
+    private let savedCheckmarkHold: Duration = .milliseconds(1700)
     private var activeFlowSettlementWaiters: [CheckedContinuation<Void, Never>] = []
     private var currentMeetingOperationContext: ObservabilityOperationContext?
     private var currentMeetingTrigger: TelemetryMeetingOperationTrigger?
@@ -89,7 +103,9 @@ final class MeetingRecordingFlowCoordinator {
         configStore: LLMConfigStoreProtocol,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
         sttManager: (any STTRuntimeManaging)? = nil,
-        meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
+        meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
+            .microphoneAndSystem
+        },
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
@@ -112,15 +128,18 @@ final class MeetingRecordingFlowCoordinator {
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
         self.llmService = llmService
         self.pillViewModel = pillViewModel
-        self.meetingTranscriptionQueue = meetingTranscriptionQueue ?? MeetingTranscriptionQueue(
-            transcriptionService: transcriptionService,
-            meetingRecordingService: meetingRecordingService
-        )
+        self.meetingTranscriptionQueue =
+            meetingTranscriptionQueue
+            ?? MeetingTranscriptionQueue(
+                transcriptionService: transcriptionService,
+                meetingRecordingService: meetingRecordingService
+            )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
-        self.onQueuedTranscriptionReady = onQueuedTranscriptionReady ?? { transcription, _ in
-            onTranscriptionReady(transcription)
-        }
+        self.onQueuedTranscriptionReady =
+            onQueuedTranscriptionReady ?? { transcription, _ in
+                onTranscriptionReady(transcription)
+            }
         self.onRecordingBegan = onRecordingBegan
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
@@ -416,6 +435,10 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showRecordingPill:
+            // A new recording supersedes any in-flight saved-completion
+            // celebration from the previous meeting (back-to-back): cancel its
+            // dismiss/min-display tasks so they can't tear down this fresh pill.
+            cancelSavedCompletion()
             let vm = pillViewModel
             vm.onStop = { [weak self] in self?.toggleRecording() }
             vm.onPauseToggle = { [weak self] in self?.togglePause() }
@@ -430,7 +453,8 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.systemLevel = 0
             panelVM.isPaused = false
             panelVM.isMicrophoneMuted = false
-            panelVM.canToggleMicrophoneMute = (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
+            panelVM.canToggleMicrophoneMute =
+                (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
@@ -525,10 +549,11 @@ final class MeetingRecordingFlowCoordinator {
                     Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                 } catch {
-                    Telemetry.send(.meetingRecordingFailed(
-                        errorType: TelemetryErrorClassifier.classify(error),
-                        errorDetail: TelemetryErrorClassifier.errorDetail(error)
-                    ))
+                    Telemetry.send(
+                        .meetingRecordingFailed(
+                            errorType: TelemetryErrorClassifier.classify(error),
+                            errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                        ))
                     // If this start was driven by calendar auto-start, emit
                     // the dedicated failure event so analysts can see *why*
                     // (vs just inferring "silent failure" by subtraction
@@ -553,16 +578,22 @@ final class MeetingRecordingFlowCoordinator {
             stopPillPolling()
             stopTranscriptObservation()
             stopSpeechWarmUpObservation()
+            // Begin a fresh saved-completion celebration.
+            meetingDurablySaved = false
+            metatronBloomSettled = false
+            metatronMinDurationTask?.cancel()
+            savedCompletionDismissTask?.cancel()
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
             pillViewModel.state = .completing
             pillController?.refreshState()
             pillViewModel.onCompletionAnimationFinished = { [weak self] in
                 guard let self, self.pillViewModel.state == .completing else { return }
-                // Flower collapsed — show the merkaba spinner while the durable
-                // stop boundary finishes queueing the background transcription.
+                // Flower collapsed → the Metatron "saving" bloom takes over and
+                // holds until the recording is durably queued (`.showSavedCompletion`).
                 self.pillViewModel.state = .transcribing
                 self.pillController?.refreshState()
+                self.startMetatronMinimumDisplay()
             }
             panelViewModel?.state = .transcribing
             panelViewModel?.micLevel = 0
@@ -587,21 +618,23 @@ final class MeetingRecordingFlowCoordinator {
                         await notesVM?.commit()
                         let output = try await meetingRecordingService.stopRecording()
                         stoppedOutput = output
-                        Telemetry.send(.meetingRecordingCompleted(
-                            durationSeconds: output.durationSeconds,
-                            liveWordCount: liveWordCount,
-                            liveTranscriptLagged: liveTranscriptLagged
-                        ))
+                        Telemetry.send(
+                            .meetingRecordingCompleted(
+                                durationSeconds: output.durationSeconds,
+                                liveWordCount: liveWordCount,
+                                liveTranscriptLagged: liveTranscriptLagged
+                            ))
                         let prepared = try await transcriptionService.prepareMeetingTranscription(recording: output)
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
-                        meetingTranscriptionQueue.enqueue(MeetingTranscriptionQueue.Item(
-                            recording: output,
-                            transcriptionID: prepared.id,
-                            operationContext: operationContext,
-                            trigger: operationTrigger,
-                            liveWordCount: liveWordCount,
-                            liveTranscriptLagged: liveTranscriptLagged
-                        ))
+                        meetingTranscriptionQueue.enqueue(
+                            MeetingTranscriptionQueue.Item(
+                                recording: output,
+                                transcriptionID: prepared.id,
+                                operationContext: operationContext,
+                                trigger: operationTrigger,
+                                liveWordCount: liveWordCount,
+                                liveTranscriptLagged: liveTranscriptLagged
+                            ))
                         return prepared
                     }
                     self.currentMeetingOperationContext = nil
@@ -622,10 +655,11 @@ final class MeetingRecordingFlowCoordinator {
                         self.currentMeetingOperationContext = nil
                         self.currentMeetingTrigger = nil
                     } else {
-                        Telemetry.send(.meetingRecordingFailed(
-                            errorType: TelemetryErrorClassifier.classify(error),
-                            errorDetail: TelemetryErrorClassifier.errorDetail(error)
-                        ))
+                        Telemetry.send(
+                            .meetingRecordingFailed(
+                                errorType: TelemetryErrorClassifier.classify(error),
+                                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                            ))
                         self.sendMeetingOperation(
                             outcome: .failure,
                             output: stoppedOutput,
@@ -669,6 +703,7 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showError(let message):
+            cancelSavedCompletion()
             stopPillPolling()
             stopTranscriptObservation()
             stopSpeechWarmUpObservation()
@@ -680,38 +715,28 @@ final class MeetingRecordingFlowCoordinator {
             pillController?.refreshState()
             hideMeetingPanel()
 
+        case .showSavedCompletion:
+            // Durably saved + queued. The expanded panel is already hidden and
+            // its live-Ask chat persisted (in .stopRecordingAndTranscribe), so
+            // tear it down now; the floating pill alone carries the celebration.
+            meetingDurablySaved = true
+            teardownMeetingPanel()
+            // The Metatron resolves to the checkmark once its minimum bloom has
+            // also elapsed, then the pill self-dismisses. Interruptible: a
+            // back-to-back start cancels it.
+            advanceToSavedCheckmarkIfReady()
+
         case .hidePill:
-            stopPillPolling()
-            stopTranscriptObservation()
-            stopSpeechWarmUpObservation()
-            pauseToggleTask?.cancel()
-            pauseToggleTask = nil
-            microphoneMuteToggleTask?.cancel()
-            microphoneMuteToggleTask = nil
-            pillController?.hide()
-            pillController = nil
-            // Pill view model is long-lived (also drives the Transcribe-tab
-            // tile), so we reset its state instead of nilling it. Callbacks
-            // on the VM are owned by the flow coordinator and re-bound on
-            // the next `.showRecordingPill` action.
-            pillViewModel.onStop = nil
-            pillViewModel.onPauseToggle = nil
-            pillViewModel.onCompletionAnimationFinished = nil
-            pillViewModel.elapsedSeconds = 0
-            pillViewModel.micLevel = 0
-            pillViewModel.systemLevel = 0
-            pillViewModel.state = .idle
-            panelController?.close()
-            panelController = nil
-            panelViewModel = nil
-            onFlowReturnedToIdle()
+            cancelSavedCompletion()
+            teardownPillFlow()
 
         case .updateMenuBar(let state):
-            let iconState: BreathWaveIcon.MenuBarState = switch state {
-            case .idle: .idle
-            case .recording: .recording
-            case .processing: .processing
-            }
+            let iconState: BreathWaveIcon.MenuBarState =
+                switch state {
+                case .idle: .idle
+                case .recording: .recording
+                case .processing: .processing
+                }
             onMenuBarIconUpdate(iconState)
 
         case .presentPermissionAlert(let reason):
@@ -736,11 +761,96 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    // MARK: - Saved-completion celebration
+
+    /// Hold the Metatron bloom for a minimum on-screen time before it may resolve
+    /// to the checkmark, so the celebration reads even when queueing is instant.
+    private func startMetatronMinimumDisplay() {
+        metatronBloomSettled = false
+        metatronMinDurationTask?.cancel()
+        metatronMinDurationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: self?.metatronMinimumDisplay ?? .milliseconds(1500))
+            guard !Task.isCancelled, let self else { return }
+            self.metatronBloomSettled = true
+            self.advanceToSavedCheckmarkIfReady()
+        }
+    }
+
+    /// Resolve the bloom into the "saved" checkmark once the recording is durably
+    /// queued AND the bloom has shown for its minimum time, then self-dismiss the
+    /// pill. No-op unless the pill is still showing the bloom (a new recording or
+    /// an error may have taken over in the meantime).
+    private func advanceToSavedCheckmarkIfReady() {
+        guard pillViewModel.state == .transcribing,
+            meetingDurablySaved,
+            metatronBloomSettled
+        else { return }
+        pillViewModel.state = .completed
+        pillController?.refreshState()
+        scheduleSavedDismiss()
+    }
+
+    private func scheduleSavedDismiss() {
+        savedCompletionDismissTask?.cancel()
+        savedCompletionDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: self?.savedCheckmarkHold ?? .milliseconds(1700))
+            guard !Task.isCancelled, let self else { return }
+            // Only tear down if nothing new took over the pill in the meantime.
+            guard self.stateMachine.state == .idle, self.pillViewModel.state == .completed else { return }
+            self.teardownPillFlow()
+        }
+    }
+
+    private func cancelSavedCompletion() {
+        metatronMinDurationTask?.cancel()
+        metatronMinDurationTask = nil
+        savedCompletionDismissTask?.cancel()
+        savedCompletionDismissTask = nil
+        meetingDurablySaved = false
+        metatronBloomSettled = false
+    }
+
+    /// Tear down the floating pill + panel and return the pill view model to
+    /// `.idle`. Shared by the immediate `.hidePill` (cancel/error) and the
+    /// deferred saved-completion dismiss. The pill view model is long-lived (it
+    /// also drives the Transcribe-tab tile), so it is reset rather than nilled;
+    /// its callbacks are re-bound on the next `.showRecordingPill`.
+    private func teardownPillFlow() {
+        stopPillPolling()
+        stopTranscriptObservation()
+        stopSpeechWarmUpObservation()
+        pauseToggleTask?.cancel()
+        pauseToggleTask = nil
+        microphoneMuteToggleTask?.cancel()
+        microphoneMuteToggleTask = nil
+        pillController?.hide()
+        pillController = nil
+        pillViewModel.onStop = nil
+        pillViewModel.onPauseToggle = nil
+        pillViewModel.onCompletionAnimationFinished = nil
+        pillViewModel.elapsedSeconds = 0
+        pillViewModel.micLevel = 0
+        pillViewModel.systemLevel = 0
+        pillViewModel.state = .idle
+        teardownMeetingPanel()
+        onFlowReturnedToIdle()
+    }
+
+    /// Close the expanded meeting panel and release its view model. Safe to call
+    /// repeatedly (the saved-completion path tears the panel down before the pill,
+    /// then the pill teardown calls this again as a no-op).
+    private func teardownMeetingPanel() {
+        panelController?.close()
+        panelController = nil
+        panelViewModel = nil
+    }
+
     private func confirmAndCancelRecording() {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Discard Recording?"
-        alert.informativeText = "This will stop the meeting recording and delete all captured audio. This cannot be undone."
+        alert.informativeText =
+            "This will stop the meeting recording and delete all captured audio. This cannot be undone."
         alert.addButton(withTitle: "Discard")
         alert.addButton(withTitle: "Keep Recording")
         alert.buttons.first?.hasDestructiveAction = true
@@ -763,7 +873,8 @@ final class MeetingRecordingFlowCoordinator {
             alert.informativeText = "Meeting recording needs microphone access to capture your voice."
         case .screenRecording:
             alert.messageText = "Screen Recording Access Required"
-            alert.informativeText = "Meeting recording needs Screen & System Audio Recording access to capture system audio."
+            alert.informativeText =
+                "Meeting recording needs Screen & System Audio Recording access to capture system audio."
         }
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
@@ -834,8 +945,9 @@ final class MeetingRecordingFlowCoordinator {
                 }
                 panelViewModel?.isPaused = serviceIsPaused
                 if captureMode == .stopped,
-                   stateMachine.state == .recording,
-                   pillViewModel.state == .recording || pillViewModel.state == .paused {
+                    stateMachine.state == .recording,
+                    pillViewModel.state == .recording || pillViewModel.state == .paused
+                {
                     // Audio capture stopped while the state machine still
                     // expects a live recording — typically because
                     // `MeetingRecordingService.failCapture` ran (mic unplug,
@@ -980,7 +1092,9 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
-    nonisolated private static func makePreviewLines(from update: MeetingTranscriptUpdate) -> [MeetingRecordingPreviewLine] {
+    nonisolated private static func makePreviewLines(from update: MeetingTranscriptUpdate)
+        -> [MeetingRecordingPreviewLine]
+    {
         let speakerLabels = Dictionary(uniqueKeysWithValues: update.speakers.map { ($0.id, $0.label) })
         let segments = TranscriptSegmenter.groupIntoSegments(words: update.words)
         return segments.map { segment in
@@ -1040,10 +1154,11 @@ final class MeetingRecordingFlowCoordinator {
             onQueuedTranscriptionReady(transcription, stateMachine.state == .idle)
 
         case .failure(let item, let error):
-            Telemetry.send(.meetingRecordingFailed(
-                errorType: TelemetryErrorClassifier.classify(error),
-                errorDetail: TelemetryErrorClassifier.errorDetail(error)
-            ))
+            Telemetry.send(
+                .meetingRecordingFailed(
+                    errorType: TelemetryErrorClassifier.classify(error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
             sendMeetingOperation(
                 operationContext: item.operationContext,
                 outcome: .failure,
@@ -1103,21 +1218,22 @@ final class MeetingRecordingFlowCoordinator {
     ) {
         guard let operationContext else { return }
         let notes = output?.userNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
-        Telemetry.send(.meetingOperation(
-            operationID: operationContext.operationID,
-            operationContext: operationContext,
-            outcome: outcome,
-            trigger: trigger,
-            stage: stage,
-            durationSeconds: output?.durationSeconds ?? durationSeconds,
-            liveWordCount: liveWordCount,
-            liveTranscriptLagged: liveTranscriptLagged,
-            microphoneTrackPresent: output.map { $0.sourceAlignment.microphone != nil },
-            systemTrackPresent: output.map { $0.sourceAlignment.system != nil },
-            notesUsed: notes.map { !$0.isEmpty },
-            notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
-            errorType: errorType
-        ))
+        Telemetry.send(
+            .meetingOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                outcome: outcome,
+                trigger: trigger,
+                stage: stage,
+                durationSeconds: output?.durationSeconds ?? durationSeconds,
+                liveWordCount: liveWordCount,
+                liveTranscriptLagged: liveTranscriptLagged,
+                microphoneTrackPresent: output.map { $0.sourceAlignment.microphone != nil },
+                systemTrackPresent: output.map { $0.sourceAlignment.system != nil },
+                notesUsed: notes.map { !$0.isEmpty },
+                notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
+                errorType: errorType
+            ))
     }
 }
 

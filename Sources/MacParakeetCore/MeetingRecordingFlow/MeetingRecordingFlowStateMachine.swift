@@ -48,6 +48,11 @@ public enum MeetingRecordingFlowEffect: Equatable, Sendable {
     case showError(String)
     case cancelRecording
     case hidePill
+    /// Successful stop: the recording is durably saved + queued and the flow is
+    /// idle (back-to-back can start immediately), but the floating pill plays a
+    /// self-contained "meeting saved" celebration (Metatron bloom → checkmark)
+    /// and self-dismisses, instead of vanishing the instant queueing finishes.
+    case showSavedCompletion
     case updateMenuBar(DictationFlowMenuBarState)
     case presentPermissionAlert(MeetingRecordingPermissionFailure)
     case startAutoDismissTimer(seconds: Double)
@@ -108,7 +113,7 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
         case (.stopping, .recordingQueued(let gen, _)):
             guard gen == generation else { return [] }
             state = .idle
-            return [.hidePill, .updateMenuBar(.idle)]
+            return [.showSavedCompletion, .updateMenuBar(.idle)]
 
         case (.stopping, .transcriptionFailed(let gen, let message)):
             guard gen == generation else { return [] }
@@ -142,9 +147,9 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             return [.hidePill]
 
         case (.recording, .dismissRequested),
-             (.starting, .dismissRequested),
-             (.stopping, .dismissRequested),
-             (.checkingPermissions, .dismissRequested):
+            (.starting, .dismissRequested),
+            (.stopping, .dismissRequested),
+            (.checkingPermissions, .dismissRequested):
             return []
 
         default:

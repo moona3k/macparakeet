@@ -232,7 +232,9 @@ final class MeetingRecordingPillController {
             )
             pauseItem.representedObject = "pauseToggle"
             pauseItem.target = delegate
-            if let pauseImage = NSImage(systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil) {
+            if let pauseImage = NSImage(
+                systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil)
+            {
                 pauseItem.image = pauseImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
                 pauseItem.image?.isTemplate = true
             }
@@ -240,7 +242,8 @@ final class MeetingRecordingPillController {
         }
 
         // End & Transcribe — the flower completes its cycle
-        let stopItem = NSMenuItem(title: "End & Transcribe", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let stopItem = NSMenuItem(
+            title: "End & Transcribe", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         stopItem.representedObject = "stop"
         stopItem.target = delegate
         if let stopImage = NSImage(systemSymbolName: "leaf.fill", accessibilityDescription: nil) {
@@ -249,7 +252,8 @@ final class MeetingRecordingPillController {
         }
         menu.addItem(stopItem)
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         if let openImage = NSImage(systemSymbolName: "bird", accessibilityDescription: nil) {
@@ -261,7 +265,8 @@ final class MeetingRecordingPillController {
         menu.addItem(.separator())
 
         // Discard — destructive, red
-        let cancelItem = NSMenuItem(title: "Discard Recording", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let cancelItem = NSMenuItem(
+            title: "Discard Recording", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         cancelItem.representedObject = "cancel"
         cancelItem.target = delegate
         cancelItem.attributedTitle = NSAttributedString(
@@ -307,7 +312,8 @@ final class MeetingRecordingPillController {
 
         menu.addItem(.separator())
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         openItem.isEnabled = true
@@ -351,7 +357,8 @@ final class MeetingRecordingPillController {
 
         menu.addItem(.separator())
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         openItem.isEnabled = true
@@ -743,7 +750,10 @@ private final class MeetingRecordingAppKitPillView: NSView {
             iconView.alphaValue = 1.0
             setCompactIcon(true)
             applyContainer(compact: true, animated: false)
-            iconView.showSpinner(animated: !reduceMotion)
+            // The post-collapse "saving" state: the Metatron's Cube blooms and
+            // holds (CA-driven) until the recording is durably queued, when the
+            // coordinator advances to `.completed` and the cube resolves to the check.
+            iconView.showMetatron(animated: !reduceMotion)
         case .completed:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0

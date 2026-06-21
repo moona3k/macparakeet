@@ -22,8 +22,9 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
 
         XCTAssertEqual(machine.state, .idle)
         XCTAssertTrue(effects.isEmpty)
-        XCTAssertEqual(machine.generation, 0,
-                       "No generation bump means no recording was started")
+        XCTAssertEqual(
+            machine.generation, 0,
+            "No generation bump means no recording was started")
     }
 
     func testPermissionDeniedReturnsToIdleAndPresentsAlert() {
@@ -138,10 +139,13 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
 
         let effects = machine.handle(.recordingQueued(generation: 1, transcriptionID: transcriptionID))
 
+        // The flow returns to `.idle` immediately (back-to-back can start now),
+        // while the pill plays a self-contained saved-completion celebration via
+        // `.showSavedCompletion` instead of vanishing the instant queueing ends.
         XCTAssertEqual(machine.state, .idle)
         XCTAssertEqual(
             effects,
-            [.hidePill, .updateMenuBar(.idle)]
+            [.showSavedCompletion, .updateMenuBar(.idle)]
         )
     }
 
