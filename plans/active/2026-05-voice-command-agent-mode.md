@@ -4,6 +4,12 @@ Status: **PROPOSED**
 Owner: Core app team
 Updated: 2026-05-10
 
+> **Update (2026-06-21):** the selected-text-rewrite slice — speak an instruction
+> over a selection and have the LLM rewrite it in place — is carved out into the
+> buildable plan [`2026-06-21-spoken-transforms.md`](2026-06-21-spoken-transforms.md).
+> This document now retains only the broader app-action / agent-handoff / macro
+> exploration, which stays parked until the rewrite slice ships and earns it.
+
 ## Objective
 
 Explore a future mode where spoken intent can trigger app actions, selected-text
