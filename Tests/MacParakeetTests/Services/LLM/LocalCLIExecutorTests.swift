@@ -2,8 +2,26 @@ import XCTest
 @testable import MacParakeetCore
 
 final class LocalCLIExecutorTests: XCTestCase {
+    private static let standardPATHProbeShellPaths = [
+        "/bin/zsh",
+        "/opt/homebrew/bin/zsh",
+        "/usr/local/bin/zsh",
+        "/bin/bash",
+        "/opt/homebrew/bin/bash",
+        "/usr/local/bin/bash",
+        "/opt/homebrew/bin/fish",
+        "/usr/local/bin/fish",
+        "/usr/bin/fish",
+        "/bin/sh",
+    ]
+
     private func shellQuote(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
+    }
+
+    private func createExecutable(at url: URL) throws {
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
     private func isProcessRunning(_ pid: Int32) -> Bool {
@@ -487,6 +505,95 @@ final class LocalCLIExecutorTests: XCTestCase {
         XCTAssertEqual(path, "/tmp/discovered/path")
     }
 
+    func testCandidatePATHProbeShellURLsIgnoreExecutableEnvironmentShell() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("localcli-shell-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let plantedShell = directory.appendingPathComponent("planted-shell")
+        try createExecutable(at: plantedShell)
+
+        let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: ["SHELL": plantedShell.path],
+            fileManager: .default
+        ).map(\.path)
+
+        XCTAssertNotEqual(paths.first, plantedShell.path)
+        XCTAssertFalse(paths.contains(plantedShell.path))
+    }
+
+    func testCandidatePATHProbeShellURLsUseLoginShellAndStandardShellsInOrder() {
+        let loginShell = LocalCLIExecutor.userLoginShellURL()?.path
+        let environmentShell = "/tmp/attacker-shell"
+        let executablePaths = Set(
+            [loginShell].compactMap { $0 }
+                + Self.standardPATHProbeShellPaths
+                + [environmentShell]
+        )
+        let fileManager = ExecutablePathFileManager(executablePaths: executablePaths)
+
+        let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: ["SHELL": environmentShell],
+            fileManager: fileManager
+        ).map(\.path)
+
+        var seen = Set<String>()
+        let expected = ([loginShell].compactMap { $0 } + Self.standardPATHProbeShellPaths)
+            .filter { seen.insert($0).inserted }
+
+        XCTAssertEqual(paths, expected)
+        XCTAssertFalse(paths.contains(environmentShell))
+        XCTAssertTrue(paths.contains("/bin/zsh"))
+        XCTAssertTrue(paths.contains("/bin/bash"))
+        XCTAssertTrue(paths.contains("/bin/sh"))
+    }
+
+    func testCandidatePATHProbeShellURLsExcludeRelativeAndNonExecutableEnvironmentShells() throws {
+        let relativeShell = "relative-shell"
+        let relativePaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: ["SHELL": relativeShell],
+            fileManager: ExecutablePathFileManager(executablePaths: [relativeShell])
+        ).map(\.path)
+        XCTAssertFalse(relativePaths.contains(relativeShell))
+
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("localcli-nonexec-shell-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let nonExecutableShell = directory.appendingPathComponent("non-executable-shell")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: nonExecutableShell)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: nonExecutableShell.path)
+
+        let nonExecutablePaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: ["SHELL": nonExecutableShell.path],
+            fileManager: .default
+        ).map(\.path)
+        XCTAssertFalse(nonExecutablePaths.contains(nonExecutableShell.path))
+    }
+
+    func testCandidatePATHProbeShellURLsDeduplicatesEmptyAndUnsetEnvironmentShell() {
+        let loginShell = LocalCLIExecutor.userLoginShellURL()?.path
+        let executablePaths = Set([loginShell].compactMap { $0 } + Self.standardPATHProbeShellPaths)
+        let fileManager = ExecutablePathFileManager(executablePaths: executablePaths)
+
+        let unsetPaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: [:],
+            fileManager: fileManager
+        ).map(\.path)
+        let emptyPaths = LocalCLIExecutor.candidatePATHProbeShellURLs(
+            environment: ["SHELL": ""],
+            fileManager: fileManager
+        ).map(\.path)
+
+        XCTAssertEqual(emptyPaths, unsetPaths)
+        XCTAssertEqual(unsetPaths.count, Set(unsetPaths).count)
+        if let loginShell, Self.standardPATHProbeShellPaths.contains(loginShell) {
+            XCTAssertEqual(unsetPaths.filter { $0 == loginShell }.count, 1)
+        }
+    }
+
     func testPathProbeArgumentsPreferInteractiveLoginForZshAndBash() {
         let script = "echo path"
 
@@ -545,5 +652,18 @@ final class LocalCLIExecutorTests: XCTestCase {
             ]),
             "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
         )
+    }
+}
+
+private final class ExecutablePathFileManager: FileManager {
+    private let executablePaths: Set<String>
+
+    init(executablePaths: Set<String>) {
+        self.executablePaths = executablePaths
+        super.init()
+    }
+
+    override func isExecutableFile(atPath path: String) -> Bool {
+        executablePaths.contains(path)
     }
 }
