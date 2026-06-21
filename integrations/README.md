@@ -159,6 +159,23 @@ macparakeet-cli transcribe /path/to/audio.mp3 --format transcript
 macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history | pbcopy
 ```
 
+To write a subtitle file directly, transcribe with `--format srt|vtt` and an
+`--output-dir` (one command, no separate `export` step):
+
+```bash
+macparakeet-cli transcribe /path/to/audio.mp3 --format vtt --output-dir .
+# -> ./audio.vtt   (same renderer as `export --format vtt`)
+```
+
+A single input without `--output-dir` prints the subtitle to stdout, so you can
+also redirect it: `macparakeet-cli transcribe audio.mp3 --format vtt > audio.vtt`.
+To re-export something already in your library, list it and export by id:
+
+```bash
+macparakeet-cli history transcriptions          # note the subcommand; lists ids
+macparakeet-cli export <id> --format vtt
+```
+
 `--no-history` avoids retaining the completed transcription in the shared
 MacParakeet history. For media URL and podcast inputs, downloaded audio is
 temporary when `--no-history` is set.

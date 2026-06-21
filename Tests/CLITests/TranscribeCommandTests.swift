@@ -628,7 +628,7 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(TranscribeCommand.sanitizedBasename("Q3 2026 review.final"), "Q3 2026 review.final")
     }
 
-    func testWriteOutputWritesTranscriptAndAvoidsOverwrite() throws {
+    func testWriteOutputWritesTranscriptAndAvoidsOverwrite() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cli-write-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -640,16 +640,16 @@ final class TranscribeCommandTests: XCTestCase {
             status: .completed
         )
 
-        let first = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        let first = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
         XCTAssertEqual(first.lastPathComponent, "lecture01.txt")
         XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "hello world")
 
         // A second write of the same name must not clobber the first.
-        let second = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        let second = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
         XCTAssertEqual(second.lastPathComponent, "lecture01-2.txt")
     }
 
-    func testWriteOutputJSONIsParseable() throws {
+    func testWriteOutputJSONIsParseable() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cli-write-json-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -660,10 +660,76 @@ final class TranscribeCommandTests: XCTestCase {
             rawTranscript: "hi",
             status: .completed
         )
-        let url = try TranscribeCommand.writeOutput(transcription, to: dir, format: .json)
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .json)
         XCTAssertEqual(url.pathExtension, "json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         XCTAssertNotNil(object)
+    }
+
+    func testFileExtensionMapsEachFormat() {
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .text), "txt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .transcript), "txt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .json), "json")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .srt), "srt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .vtt), "vtt")
+    }
+
+    func testParsesSubtitleFormats() throws {
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "vtt"]).format, .vtt)
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "srt"]).format, .srt)
+    }
+
+    /// `transcribe --format vtt`/`srt` must produce the same timed-subtitle body
+    /// as `export <id> --format vtt`/`srt` — both go through `ExportService`.
+    @MainActor
+    func testSubtitleStringMatchesExportServiceRenderer() {
+        let words = [
+            WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+            WordTimestamp(word: "world", startMs: 400, endMs: 900, confidence: 0.95, speakerId: "S1"),
+        ]
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            durationMs: 900,
+            rawTranscript: "hello world",
+            wordTimestamps: words,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed
+        )
+        let exporter = ExportService()
+
+        let vtt = TranscribeCommand.subtitleString(for: transcription, format: .vtt)
+        XCTAssertEqual(vtt, exporter.formatVTT(transcription: transcription))
+        XCTAssertEqual(vtt?.hasPrefix("WEBVTT"), true)
+
+        let srt = TranscribeCommand.subtitleString(for: transcription, format: .srt)
+        XCTAssertEqual(srt, exporter.formatSRT(transcription: transcription))
+
+        // Non-subtitle formats render through the text/json paths, not here.
+        XCTAssertNil(TranscribeCommand.subtitleString(for: transcription, format: .text))
+        XCTAssertNil(TranscribeCommand.subtitleString(for: transcription, format: .json))
+    }
+
+    func testWriteOutputWritesVTTFile() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-vtt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            durationMs: 900,
+            rawTranscript: "hello world",
+            wordTimestamps: [
+                WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: nil),
+                WordTimestamp(word: "world", startMs: 400, endMs: 900, confidence: 0.95, speakerId: nil),
+            ],
+            status: .completed
+        )
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .vtt)
+        XCTAssertEqual(url.lastPathComponent, "clip.vtt")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(contents.hasPrefix("WEBVTT"), "VTT file should start with the WEBVTT header")
+        XCTAssertTrue(contents.contains("hello"))
     }
 
     func testPlainTextOutputToleratesDuplicateSpeakerIDs() {

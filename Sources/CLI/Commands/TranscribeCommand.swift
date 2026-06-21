@@ -25,6 +25,8 @@ enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendab
     case text
     case transcript
     case json
+    case srt
+    case vtt
 }
 
 enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -83,7 +85,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
     var outputDir: String?
 
-    @Option(name: .shortAndLong, help: "Output format: text, transcript, json.")
+    @Option(name: .shortAndLong, help: "Output format: text, transcript, json, srt, vtt. srt/vtt emit timed subtitles (same renderer as `export`); pair with --output-dir to write one file per input.")
     var format: TranscribeOutputFormat = .text
 
     @Option(help: "Processing mode: raw, clean, app-default.")
@@ -534,14 +536,17 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 )
                 if let outputDir {
                     let dir = try Self.prepareOutputDir(outputDir)
-                    let url = try Self.writeOutput(result, to: dir, format: format)
+                    let url = try await Self.writeOutput(result, to: dir, format: format)
                     printErr("  \u{2192} \(url.path)")
                 } else {
                     switch format {
                     case .json: try printJSON(result)
                     case .transcript: printTranscript(result)
                     case .text: printText(result)
+                    case .srt, .vtt:
+                        print(await Self.subtitleString(for: result, format: format) ?? "", terminator: "")
                     }
+                    printSaveHintIfSaved(result, format: format)
                 }
             } else if writeToFiles {
                 try await runBatch(
@@ -562,7 +567,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     printTranscript(result)
                 case .text:
                     printText(result)
+                case .srt, .vtt:
+                    print(await Self.subtitleString(for: result, format: format) ?? "", terminator: "")
                 }
+                printSaveHintIfSaved(result, format: format)
             }
             runResult = .success(())
         } catch {
@@ -600,7 +608,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     service: service,
                     speechEngine: speechEngine
                 )
-                let url = try Self.writeOutput(result, to: dir, format: format)
+                let url = try await Self.writeOutput(result, to: dir, format: format)
                 printErr("  \u{2192} \(url.path)")
                 ok += 1
             } catch {
@@ -745,11 +753,35 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return String(trimmed[..<queryOrFragmentIndex])
     }
 
+    /// File extension for a written transcript, keyed by output format.
+    static func fileExtension(for format: TranscribeOutputFormat) -> String {
+        switch format {
+        case .json: return "json"
+        case .srt: return "srt"
+        case .vtt: return "vtt"
+        case .text, .transcript: return "txt"
+        }
+    }
+
+    /// Render the timed-subtitle body for `srt`/`vtt` using the same
+    /// `ExportService` renderer the `export` command and the GUI use, so a file
+    /// produced by `transcribe --format vtt` is byte-identical to one produced
+    /// by `export <id> --format vtt`. Returns nil for non-subtitle formats.
+    @MainActor
+    static func subtitleString(for t: Transcription, format: TranscribeOutputFormat) -> String? {
+        let exporter = ExportService()
+        switch format {
+        case .srt: return exporter.formatSRT(transcription: t)
+        case .vtt: return exporter.formatVTT(transcription: t)
+        case .text, .transcript, .json: return nil
+        }
+    }
+
     /// Write one transcript file for `t` into `dir`, named after the source and
-    /// suffixed by format (`.json` for json, `.txt` otherwise). Never
+    /// suffixed by format (`.json`/`.srt`/`.vtt`, else `.txt`). Never
     /// overwrites — collisions get a `-2`, `-3`, … suffix.
-    static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) throws -> URL {
-        let ext = format == .json ? "json" : "txt"
+    static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) async throws -> URL {
+        let ext = fileExtension(for: format)
         let base = sanitizedBasename(t.fileName)
         let url = uniqueURL(dir.appendingPathComponent(base).appendingPathExtension(ext))
         let contents: String
@@ -763,6 +795,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             contents = transcriptOutput(for: t)
         case .text:
             contents = plainTextOutput(for: t)
+        case .srt, .vtt:
+            contents = await subtitleString(for: t, format: format) ?? ""
         }
         try Data(contents.utf8).write(to: url)
         return url
@@ -868,6 +902,22 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
         let store = KeychainKeyValueStore(service: serviceName)
         return EntitlementsService(config: config, store: store, api: LemonSqueezyLicenseAPI())
+    }
+
+    /// After a single transcription has been printed to stdout, point the user
+    /// at the saved library record and how to turn it into a file. This closes
+    /// the gap behind discussion #596: `transcribe` saves to history by default,
+    /// but nothing previously signposted the record or the `export` step.
+    /// Written to stderr so it never pollutes stdout (text, or a piped `> out`).
+    /// Skipped for `--no-history` (nothing was saved) and for `json`/`srt`/`vtt`,
+    /// where the user already requested machine/file output and the hint would
+    /// be noise.
+    private func printSaveHintIfSaved(_ t: Transcription, format: TranscribeOutputFormat) {
+        guard !noHistory, format == .text || format == .transcript else { return }
+        printErr("")
+        printErr("Saved to your library (id \(t.id.uuidString)).")
+        printErr("Write a file: re-run with --format vtt (or srt/json) and --output-dir . , "
+            + "or export this one: macparakeet-cli export \(t.id.uuidString) --format vtt")
     }
 
     private func printText(_ t: Transcription) {

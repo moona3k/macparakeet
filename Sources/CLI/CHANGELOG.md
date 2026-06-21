@@ -91,6 +91,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `transcribe --format` now accepts `srt` and `vtt` in addition to `text`,
+  `transcript`, and `json`. Both emit timed subtitles through the same renderer
+  as `export --format srt|vtt`, so output is byte-identical between the two
+  paths. This lets `transcribe clip.mp3 --format vtt --output-dir .` write
+  `clip.vtt` in a single step instead of `transcribe` then `export <id>`. A
+  single input without `--output-dir` prints the subtitle to stdout (redirect
+  with `> clip.vtt`); multiple inputs or `--output-dir` write one file each.
+- `transcribe` now prints a one-line stderr hint after a saved single-input
+  run (text/transcript output), naming the new library record id and showing
+  how to write a file or `export` it. Suppressed for `--no-history`,
+  `--format json|srt|vtt`, and batch runs. stdout is unchanged.
 - `config get|set|list` now includes `auto-meeting-titles`, the shared
   on/off preference for LLM-generated meeting recording titles.
 - `config get|set|list` now includes `meeting-audio-retention`:
