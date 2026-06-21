@@ -544,7 +544,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     case .transcript: printTranscript(result)
                     case .text: printText(result)
                     case .srt, .vtt:
-                        print(await Self.subtitleString(for: result, format: format) ?? "", terminator: "")
+                        print(await Self.subtitleString(for: result, format: format), terminator: "")
                     }
                     printSaveHintIfSaved(result, format: format)
                 }
@@ -568,7 +568,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 case .text:
                     printText(result)
                 case .srt, .vtt:
-                    print(await Self.subtitleString(for: result, format: format) ?? "", terminator: "")
+                    print(await Self.subtitleString(for: result, format: format), terminator: "")
                 }
                 printSaveHintIfSaved(result, format: format)
             }
@@ -766,14 +766,16 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     /// Render the timed-subtitle body for `srt`/`vtt` using the same
     /// `ExportService` renderer the `export` command and the GUI use, so a file
     /// produced by `transcribe --format vtt` is byte-identical to one produced
-    /// by `export <id> --format vtt`. Returns nil for non-subtitle formats.
+    /// by `export <id> --format vtt`. Only the `.srt`/`.vtt` output paths call
+    /// this; the other formats render through their own text/JSON writers, so
+    /// they return an empty body here.
     @MainActor
-    static func subtitleString(for t: Transcription, format: TranscribeOutputFormat) -> String? {
+    static func subtitleString(for t: Transcription, format: TranscribeOutputFormat) -> String {
         let exporter = ExportService()
         switch format {
         case .srt: return exporter.formatSRT(transcription: t)
         case .vtt: return exporter.formatVTT(transcription: t)
-        case .text, .transcript, .json: return nil
+        case .text, .transcript, .json: return ""
         }
     }
 
@@ -796,7 +798,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .text:
             contents = plainTextOutput(for: t)
         case .srt, .vtt:
-            contents = await subtitleString(for: t, format: format) ?? ""
+            contents = await subtitleString(for: t, format: format)
         }
         try Data(contents.utf8).write(to: url)
         return url

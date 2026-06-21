@@ -699,14 +699,15 @@ final class TranscribeCommandTests: XCTestCase {
 
         let vtt = TranscribeCommand.subtitleString(for: transcription, format: .vtt)
         XCTAssertEqual(vtt, exporter.formatVTT(transcription: transcription))
-        XCTAssertEqual(vtt?.hasPrefix("WEBVTT"), true)
+        XCTAssertTrue(vtt.hasPrefix("WEBVTT"))
 
         let srt = TranscribeCommand.subtitleString(for: transcription, format: .srt)
         XCTAssertEqual(srt, exporter.formatSRT(transcription: transcription))
 
-        // Non-subtitle formats render through the text/json paths, not here.
-        XCTAssertNil(TranscribeCommand.subtitleString(for: transcription, format: .text))
-        XCTAssertNil(TranscribeCommand.subtitleString(for: transcription, format: .json))
+        // Non-subtitle formats render through the text/json paths, so the
+        // subtitle renderer returns an empty body for them.
+        XCTAssertEqual(TranscribeCommand.subtitleString(for: transcription, format: .text), "")
+        XCTAssertEqual(TranscribeCommand.subtitleString(for: transcription, format: .json), "")
     }
 
     func testWriteOutputWritesVTTFile() async throws {
