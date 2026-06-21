@@ -398,7 +398,14 @@ final class MerkabaPillIconView: NSView {
                 rampAnimation(keyPath: "opacity", from: glowFrom, to: 0, duration: 0.35, timing: .easeOut),
                 forKey: "metatronGlowOut")
             metatronGlowLayer.opacity = 0
-            scheduleCompletion(after: 0.34) { [weak self] in self?.drawCheckmark() }
+            // Defer the check until the dissolve completes — but only if the
+            // mark is still the Metatron. A back-to-back recording starting
+            // during this 0.34 s window flips the face back to the rosette, and
+            // we must not stamp a checkmark over the new recording.
+            scheduleCompletion(after: 0.34) { [weak self] in
+                guard let self, self.currentFace == .metatron else { return }
+                self.drawCheckmark()
+            }
         } else {
             drawCheckmark()
         }

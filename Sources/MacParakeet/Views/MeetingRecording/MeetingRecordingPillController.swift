@@ -615,6 +615,11 @@ private final class MeetingRecordingAppKitPillView: NSView {
             resize.duration = reduceMotion ? 0.4 : 0.85
             resize.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             backgroundLayer.add(resize, forKey: "containerResize")
+        } else {
+            // Snap: drop any in-flight collapse resize so a back-to-back
+            // recording that starts mid-collapse doesn't keep shrinking to a
+            // circle before settling on the oval.
+            backgroundLayer.removeAnimation(forKey: "containerResize")
         }
         backgroundLayer.path = newPath
     }
@@ -725,6 +730,12 @@ private final class MeetingRecordingAppKitPillView: NSView {
 
         switch state {
         case .recording:
+            // Re-arm the one-shot collapse callback for a fresh recording cycle.
+            // A back-to-back meeting can reuse this pill view if the previous
+            // saved-completion celebration hasn't torn it down yet; without this
+            // reset, the next `.completing` would skip the collapse and the pill
+            // would hang (its `onCompletionAnimationFinished` never fires).
+            completionCallbackScheduled = false
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
             setCompactIcon(false)
