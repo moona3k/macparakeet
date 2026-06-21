@@ -63,4 +63,21 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("1 selected meeting already has no saved audio"))
         XCTAssertTrue(message.contains("it will be skipped"))
     }
+
+    // Mixed Library selection (the surface where the miscount bug appeared):
+    // the skipped count is meeting-scoped, so the rendered copy only ever talks
+    // about meetings and stays consistent with the Delete dialog's meeting count
+    // — e.g. 7 meetings selected, 2 with saved audio, 5 already removed.
+    func testBulkAudioOnlyCopyForLibrarySurfaceOnlyCountsMeetings() {
+        let message = MeetingDeletionCopy.bulkAudioOnlyMessage(
+            count: 2,
+            skippedCount: 5,
+            surface: .library
+        )
+
+        XCTAssertTrue(message.contains("7 selected meetings"))
+        XCTAssertTrue(message.contains("removes saved audio from 2 meetings"))
+        XCTAssertTrue(message.contains("meetings stay in Library"))
+        XCTAssertTrue(message.contains("5 selected meetings already have no saved audio"))
+    }
 }
