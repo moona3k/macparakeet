@@ -338,7 +338,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2:
             "English only. A touch faster, and never mis-hears English as another language."
         case .unified:
-            "English only. Excellent accuracy and speed."
+            "English only. Excellent accuracy and speed, but no word-level timestamps."
         }
     }
 

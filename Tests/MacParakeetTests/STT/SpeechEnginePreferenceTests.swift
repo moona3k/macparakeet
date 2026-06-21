@@ -206,7 +206,7 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
         XCTAssertEqual(
             ParakeetModelVariant.unified.coverageSummary,
-            "English only. Excellent accuracy and speed."
+            "English only. Excellent accuracy and speed, but no word-level timestamps."
         )
     }
 
