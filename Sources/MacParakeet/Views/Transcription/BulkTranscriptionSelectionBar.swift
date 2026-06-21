@@ -4,9 +4,10 @@ struct BulkTranscriptionSelectionBar: View {
     let selectedCount: Int
     let selectedMeetingAudioCount: Int
     let isMeetingContext: Bool
-    let areAllLoadedSelected: Bool
+    let selectVisibleTitle: String
+    let areAllVisibleSelected: Bool
     let isPerformingOperation: Bool
-    let onSelectLoaded: () -> Void
+    let onSelectVisible: () -> Void
     let onClear: () -> Void
     let onCancel: () -> Void
     let onDeleteAudioOnly: () -> Void
@@ -107,7 +108,7 @@ struct BulkTranscriptionSelectionBar: View {
     private var utilityActions: some View {
         HStack(spacing: 6) {
             cancelAction
-            selectAllAction
+            selectVisibleAction
             clearAction
         }
     }
@@ -124,7 +125,7 @@ struct BulkTranscriptionSelectionBar: View {
     private var actionFlow: some View {
         FlowLayout(spacing: 6) {
             cancelAction
-            selectAllAction
+            selectVisibleAction
             clearAction
             if showsAudioAction {
                 deleteAudioAction
@@ -145,13 +146,13 @@ struct BulkTranscriptionSelectionBar: View {
         )
     }
 
-    private var selectAllAction: some View {
+    private var selectVisibleAction: some View {
         SelectionBarActionButton(
-            title: "Select All",
+            title: selectVisibleTitle,
             systemImage: "checkmark.circle",
             tone: .utility,
-            isDisabled: areAllLoadedSelected || isPerformingOperation,
-            action: onSelectLoaded
+            isDisabled: areAllVisibleSelected || isPerformingOperation,
+            action: onSelectVisible
         )
     }
 
