@@ -91,6 +91,27 @@ final class MerkabaPillIconView: NSView {
         ]
     }
 
+    private var rosetteCompletionAnimationKeys: [String] {
+        let layers: [(String, CALayer)] = [
+            ("glow", glowLayer),
+            ("flower", flowerLayer),
+            ("stem", stemLayer),
+            ("leftLeafFill", leftLeafFillLayer),
+            ("leftLeafStroke", leftLeafStrokeLayer),
+            ("rightLeafFill", rightLeafFillLayer),
+            ("rightLeafStroke", rightLeafStrokeLayer),
+        ]
+        return layers.flatMap { name, layer in
+            (layer.animationKeys() ?? [])
+                .filter { $0.hasPrefix("completion") }
+                .map { "\(name).\($0)" }
+        }.sorted()
+    }
+
+    var testHook_rosetteCompletionAnimationKeys: [String] {
+        rosetteCompletionAnimationKeys
+    }
+
     private var didBuildLayers = false
     private var currentShowStem = true
     private var currentAnimating = false
@@ -143,7 +164,11 @@ final class MerkabaPillIconView: NSView {
 
     func update(isAnimating: Bool, audioLevel: Float) {
         buildLayersIfNeeded()
+        let shouldResetRosette = currentFace != .rosette || !rosetteCompletionAnimationKeys.isEmpty
         setFace(.rosette)
+        if shouldResetRosette {
+            resetRosetteAfterCompletion()
+        }
 
         if currentAnimating != isAnimating {
             currentAnimating = isAnimating
@@ -848,6 +873,42 @@ final class MerkabaPillIconView: NSView {
     }
 
     // MARK: - Recording rosette animations
+
+    private func resetRosetteAfterCompletion() {
+        completionDelayTask?.cancel()
+        completionDelayTask = nil
+
+        flowerLayer.removeAnimation(forKey: "completionSpin")
+        flowerLayer.removeAnimation(forKey: "completionScale")
+        flowerLayer.removeAnimation(forKey: "completionHeadFade")
+        glowLayer.removeAnimation(forKey: "completionWarm")
+        glowLayer.removeAnimation(forKey: "completionGlowFade")
+        stemLayer.removeAnimation(forKey: "completionRetract")
+        stemLayer.removeAnimation(forKey: "completionStemFade")
+        for layer in rosetteLayers {
+            layer.removeAnimation(forKey: "completionFade")
+        }
+        for layer in [leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.removeAnimation(forKey: "completionDrift")
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        flowerLayer.opacity = 1
+        flowerLayer.transform = CATransform3DIdentity
+        stemLayer.opacity = 1
+        stemLayer.strokeEnd = 1
+        stemLayer.transform = CATransform3DIdentity
+        for layer in [leftLeafFillLayer, leftLeafStrokeLayer, rightLeafFillLayer, rightLeafStrokeLayer] {
+            layer.opacity = 1
+            layer.transform = CATransform3DIdentity
+        }
+        applyRosetteColors()
+        CATransaction.commit()
+
+        currentAudioLevel = -1
+        smoothedGlow = -1
+    }
 
     private func startAnimations() {
         guard flowerLayer.animation(forKey: "recordingRotation") == nil else { return }
