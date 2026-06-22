@@ -104,6 +104,27 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: false))
     }
 
+    func testCohereShowsOptimizingCaptionAndEscalatesEveryLaunch() async throws {
+        // Cohere's Core ML graph specialization recurs on every launch, so a
+        // warmed user (first dictation already completed) must still get the
+        // Cohere-specific "Optimizing…" caption and its time-estimate
+        // escalation — unlike the generic path, which only escalates on first
+        // install.
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 140,
+            hasCompletedFirstDictation: true,
+            engine: .cohere
+        )
+
+        try await harness.startAndStop()
+
+        let shown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .optimizing }
+        XCTAssertTrue(shown)
+        let escalated = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .optimizingExtended }
+        XCTAssertTrue(escalated)
+    }
+
     func testFailureShowsFailureCaptionBeforeErrorCard() async throws {
         let harness = try makeHarness(
             isReady: false,
@@ -287,6 +308,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         keepDictationOnClipboard: Bool = false,
         processingMode: Dictation.ProcessingMode = .raw,
         dictationInsertionStyle: DictationInsertionStyle = .sentence,
+        engine: SpeechEnginePreference = .parakeet,
         timing: DictationProcessingLoadCaptionTiming? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
@@ -343,6 +365,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             sttRuntime: stt,
             runtimePreferences: preferences,
             captionTiming: timing ?? self.timing,
+            activeSpeechEngine: { engine },
             overlayControllerFactory: { SpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },
             onHistoryReload: {},

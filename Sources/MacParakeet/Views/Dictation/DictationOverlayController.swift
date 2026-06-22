@@ -207,6 +207,11 @@ final class DictationOverlayViewModel {
     enum ProcessingLoadCaption: Equatable {
         case preparing
         case preparingExtended
+        /// Cohere's one-time, per-launch Core ML graph specialization (~2 min on
+        /// the GPU path). Shown when a dictation is triggered before the launch
+        /// warm-up has finished, so the wait reads as setup, not a hang.
+        case optimizing
+        case optimizingExtended
         case failed
     }
 
