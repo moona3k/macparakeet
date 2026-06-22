@@ -500,8 +500,11 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
             case .cohere:
+                // Thread the resolved language into the engine — the no-`language:`
+                // transcribe path the CLI uses otherwise falls back to English.
                 let createdCohereEngine = CohereTranscribeEngine(
-                    computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults)
+                    computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults),
+                    defaultLanguageCode: speechEngine.language
                 )
                 cohereEngine = createdCohereEngine
                 sttTranscriber = createdCohereEngine

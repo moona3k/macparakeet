@@ -94,4 +94,16 @@ final class CohereTranscribeEngineTests: XCTestCase {
         SpeechEnginePreference.saveCohereDefaultLanguage(nil, defaults: defaults)
         XCTAssertNil(SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults))
     }
+
+    /// Guards the mapper the string-code initializer (used by the CLI to thread a
+    /// resolved language into the engine) relies on: known BCP-47-ish codes map,
+    /// unknown/empty/nil fall through to the caller's default.
+    func testCohereLanguageMapsCodes() {
+        XCTAssertNotNil(CohereTranscribeEngine.cohereLanguage("fr"))
+        XCTAssertNotNil(CohereTranscribeEngine.cohereLanguage("fr-FR"))
+        XCTAssertNotNil(CohereTranscribeEngine.cohereLanguage("EN"))
+        XCTAssertNil(CohereTranscribeEngine.cohereLanguage("zz"))
+        XCTAssertNil(CohereTranscribeEngine.cohereLanguage(""))
+        XCTAssertNil(CohereTranscribeEngine.cohereLanguage(nil))
+    }
 }

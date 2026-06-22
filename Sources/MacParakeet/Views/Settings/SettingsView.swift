@@ -2246,7 +2246,7 @@ struct SettingsView: View {
                             strengths: [
                                 "State-of-the-art accuracy (Cohere Transcribe)",
                                 "Fully on-device Core ML — audio never leaves your Mac",
-                                "Powers dictation, files, and meetings (English)"
+                                "Powers dictation, files, and meetings (14 languages)"
                             ],
                             helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and a brief one-time prepare after each launch. Powers dictation, file transcription, and meetings. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
                             modelStatus: displayedCohereModelStatus,

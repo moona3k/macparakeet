@@ -64,10 +64,10 @@ public actor CohereTranscribeEngine: STTTranscribing {
     private let defaultLanguage: CohereAsrConfig.Language
 
     /// `CoherePipeline` is itself an actor and holds no per-call mutable state
-    /// (it takes `LoadedModels` as an argument), so a single instance serializes
-    /// dictation and any other batch job safely. When Cohere is the selected
-    /// engine it serves every job kind (dictation, file, meeting); the actor
-    /// queues overlapping jobs rather than running them concurrently.
+    /// (it takes `LoadedModels` as an argument), so a single instance serves
+    /// every job kind (dictation, file, meeting) safely. Cohere is batch-only:
+    /// a second job that arrives while one is already in flight is rejected with
+    /// `STTError.engineBusy` rather than run concurrently or queued.
     private let pipeline = CoherePipeline()
     private var models: CoherePipeline.LoadedModels?
     private var initializationTask: Task<Void, Error>?
@@ -79,6 +79,16 @@ public actor CohereTranscribeEngine: STTTranscribing {
     ) {
         self.computePolicy = computePolicy
         self.defaultLanguage = defaultLanguage
+    }
+
+    /// Convenience initializer for callers that resolve a language as a string
+    /// code (e.g. the CLI, which must not import FluidAudio to name
+    /// `CohereAsrConfig.Language`). Unknown or empty codes fall back to English,
+    /// matching the no-auto-detect Phase-1 default. The code becomes the engine's
+    /// default language for the no-`language:` `transcribe(audioPath:job:)` path.
+    public init(computePolicy: ComputePolicy = .gpu, defaultLanguageCode: String?) {
+        self.computePolicy = computePolicy
+        self.defaultLanguage = Self.cohereLanguage(defaultLanguageCode) ?? .english
     }
 
     // MARK: - Languages
@@ -117,7 +127,12 @@ public actor CohereTranscribeEngine: STTTranscribing {
         defer { isTranscribing = false }
 
         do {
-            try await prepare(onProgress: nil)
+            // Lazy path (CLI, or first dictation before background warm-up
+            // finished): a first-time ~2.1 GB model download would otherwise be
+            // silent and read as a hang, so log prepare progress to the console.
+            try await prepare(onProgress: { [logger] message in
+                logger.notice("cohere_prepare \(message, privacy: .public)")
+            })
             guard let models else { throw STTError.modelNotLoaded }
 
             onProgress?(0, 100)
