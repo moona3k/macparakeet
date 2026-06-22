@@ -243,8 +243,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// trailing words of `a` against the leading words of `b`
     /// (case/punctuation-insensitive) and removes the longest match from `b`.
     static func mergeOnOverlap(_ a: String, _ b: String, maxOverlap: Int = 30) -> String {
-        let aWords = a.split(separator: " ").map(String.init)
-        let bWords = b.split(separator: " ").map(String.init)
+        let aWords = a.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let bWords = b.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         guard !aWords.isEmpty else { return b }
         guard !bWords.isEmpty else { return a }
 
@@ -274,14 +274,18 @@ public actor CohereTranscribeEngine: STTTranscribing {
             return
         }
 
+        // `loadModels` clears `initializationTask` itself (via defer) when it
+        // finishes. If we cleared it here in a cancelled `catch`, a caller whose
+        // await was cancelled mid-warm-up (e.g. dictation Escape during the
+        // launch optimize) would null the handle while the unstructured task
+        // keeps running — letting the next prepare() spawn a duplicate ~115 s
+        // download/warm-up.
         let task = Task { try await loadModels(onProgress: onProgress) }
         initializationTask = task
 
         do {
             try await task.value
-            initializationTask = nil
         } catch {
-            initializationTask = nil
             throw try Self.mapWarmUpError(error)
         }
     }
@@ -299,6 +303,10 @@ public actor CohereTranscribeEngine: STTTranscribing {
     }
 
     private func loadModels(onProgress: (@Sendable (String) -> Void)?) async throws {
+        // Clear the shared handle when this work finishes (success or failure),
+        // from inside the task — not from a possibly-cancelled awaiting caller —
+        // so concurrent prepare() calls coalesce onto this one task.
+        defer { initializationTask = nil }
         try await Self.downloadModel(onProgress: onProgress)
         onProgress?("Loading Cohere model with Core ML...")
         let dir = Self.defaultCacheRoot()
@@ -421,14 +429,10 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// Maps a BCP-47-ish language hint to a Cohere-supported language, falling
     /// back to `nil` (caller substitutes its default) for unknown/empty input.
     static func cohereLanguage(_ code: String?) -> CohereAsrConfig.Language? {
-        guard let code else { return nil }
-        let primary =
-            code.lowercased()
-            .replacingOccurrences(of: "_", with: "-")
-            .split(separator: "-")
-            .first
-            .map(String.init) ?? code.lowercased()
-        return CohereAsrConfig.Language(rawValue: primary)
+        // Reuse the canonical normalizer (folds to a lowercased primary subtag,
+        // rejects "auto"/empty/non-letter) so language handling stays consistent.
+        guard let normalized = SpeechEnginePreference.normalizeCohereLanguage(code) else { return nil }
+        return CohereAsrConfig.Language(rawValue: normalized)
     }
 
     private nonisolated static func makeDownloadProgressHandler(
