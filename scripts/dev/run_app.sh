@@ -194,7 +194,7 @@ echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
 pkill -f "$ROOT_DIR/dist/MacParakeet.app/Contents/MacOS/MacParakeet" || true
 pkill -f "MacParakeet-Dev.app/Contents/MacOS/MacParakeet" || true
-pkill -f "$DERIVED_DATA_DIR/Build/Products/Debug/MacParakeet" || true
+pkill -f "$PRODUCT_DIR/MacParakeet" || true
 pkill -f "$ROOT_DIR/.build/debug/MacParakeet" || true
 pkill -f "$ROOT_DIR/.build/arm64-apple-macosx/debug/MacParakeet" || true
 sleep 1
