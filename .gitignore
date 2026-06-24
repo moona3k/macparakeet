@@ -7,6 +7,9 @@ journal/
 # Claude Code
 .claude/
 
+# Codex agent tooling / evidence artifacts
+.codex/
+
 # Xcode
 .build/
 .build-swift6-no-whisper/
