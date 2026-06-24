@@ -47,6 +47,59 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testRecoverFromDisabledTapPreservesArmedHoldStartWhileTriggerHeld() {
+        // Regression: holding Fn to start a new dictation in the ~1s window right
+        // after a previous one pastes did nothing. The Instant-Dictation warm-mic
+        // restart disables the CGEvent tap; on recovery (no active recording yet)
+        // the manager hard-reset the gesture and cancelled the armed start, and
+        // since Fn was still held no new edge re-armed it.
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        // Fresh Fn press arms the startup debounce; the start has not fired yet.
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+
+        // Tap disabled + recovered while Fn is still physically held.
+        manager.recoverFromDisabledTapForTesting(
+            flags: [.maskSecondaryFn],
+            triggerKeyPressed: true,
+            timestampMs: 1_050
+        )
+
+        // The pending start must survive the recovery and still fire.
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+    }
+
+    func testRecoverFromDisabledTapStillResetsPendingStartWhenTriggerReleased() {
+        // The preserve path is gated on the trigger still being held — if it was
+        // released, recovery must still clear the stale pending start (no phantom).
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+
+        manager.recoverFromDisabledTapForTesting(
+            flags: [],
+            triggerKeyPressed: false,
+            timestampMs: 1_050
+        )
+
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+    }
+
     func testHoldOnlyGestureModeStartsAndStopsHoldRecording() {
         let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
 
@@ -490,7 +543,14 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
-    func testTapRecoveryResyncsStillHeldModifierWithoutReleaseOutput() {
+    func testTapRecoveryPreservesPendingStartWhileModifierHeld() {
+        // Counterpart to testTapRecoveryResetsPendingModifierGesture (which
+        // recovers with the trigger released and resets). Here Fn is STILL held
+        // through the recovery. Previously the manager reset and cancelled the
+        // armed start even while held, so holding Fn right after a paste (when the
+        // Instant-Dictation warm-mic restart disables the tap) did nothing until
+        // the user released and re-pressed. Now the pending start is preserved and
+        // still fires on the debounce.
         let manager = HotkeyManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -498,24 +558,12 @@ final class HotkeyManagerTests: XCTestCase {
             timestampMs: 1_000
         )
 
+        // Tap disabled + recovered while Fn is still physically held.
         manager.recoverFromDisabledTapForTesting(flags: [.maskSecondaryFn])
 
         XCTAssertEqual(
-            manager.modifierFlagsChangedOutputsForTesting(
-                flags: [],
-                timestampMs: 1_050
-            ),
-            []
-        )
-        XCTAssertEqual(
-            manager.modifierFlagsChangedOutputsForTesting(
-                flags: [.maskSecondaryFn],
-                timestampMs: 1_100
-            ),
-            [
-                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
-                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
-            ]
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
         )
     }
 
