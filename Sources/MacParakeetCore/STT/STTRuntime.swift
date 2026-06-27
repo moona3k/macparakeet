@@ -172,23 +172,18 @@ public actor STTRuntime: STTRuntimeProtocol {
         activeTranscriptionCount += 1
         defer { activeTranscriptionCount -= 1 }
 
-        // Serialize Neural Engine inference on macOS 14 so this background/file
-        // job never runs CoreML concurrently with a dictation preview or another
-        // lane (no-op on macOS 15+). See `ANEInferenceGate`.
-        return try await ANEInferenceGate.shared.withExclusiveAccess {
-            switch selection.engine {
-            case .parakeet:
-                return try await self.transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
-            case .nemotron:
-                return try await self.transcribeWithNemotron(
-                    audioPath: audioPath,
-                    job: job,
-                    language: selection.language,
-                    onProgress: onProgress
-                )
-            case .whisper:
-                return try await self.transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
-            }
+        switch selection.engine {
+        case .parakeet:
+            return try await transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
+        case .nemotron:
+            return try await transcribeWithNemotron(
+                audioPath: audioPath,
+                job: job,
+                language: selection.language,
+                onProgress: onProgress
+            )
+        case .whisper:
+            return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         }
     }
 
@@ -203,18 +198,13 @@ public actor STTRuntime: STTRuntimeProtocol {
         activeTranscriptionCount += 1
         defer { activeTranscriptionCount -= 1 }
 
-        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+): a
-        // dictation preview must not run CoreML concurrently with a background
-        // transcription on the other lane. See `ANEInferenceGate`.
-        return try await ANEInferenceGate.shared.withExclusiveAccess {
-            switch selection.engine {
-            case .parakeet:
-                return try await self.transcribeParakeetPreview(samples: samples)
-            case .whisper:
-                return try await self.transcribeWhisperPreview(samples: samples, language: selection.language)
-            case .nemotron:
-                throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
-            }
+        switch selection.engine {
+        case .parakeet:
+            return try await transcribeParakeetPreview(samples: samples)
+        case .whisper:
+            return try await transcribeWhisperPreview(samples: samples, language: selection.language)
+        case .nemotron:
+            throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
         }
     }
 
@@ -454,7 +444,13 @@ public actor STTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
             var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
             try Task.checkCancellation()
-            let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
+            // Serialize only the CoreML inference call on macOS 14 (no-op on
+            // macOS 15+). Model setup and progress plumbing stay outside the
+            // hardware mutex so unsupported or preprocessing-only work does not
+            // delay interactive inference.
+            let result = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.transcribe(audioURL, decoderState: &decoderState)
+            }
             let words = STTWordTimingBuilder.words(from: result.tokenTimings)
             onProgress?(100, 100)
             // Telemetry `language` is attributed "en": MacParakeet positions
@@ -502,7 +498,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
             var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
             try Task.checkCancellation()
-            let result = try await manager.transcribe(samples, decoderState: &decoderState)
+            let result = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.transcribe(samples, decoderState: &decoderState)
+            }
             return STTResult(
                 text: result.text,
                 words: STTWordTimingBuilder.words(from: result.tokenTimings),

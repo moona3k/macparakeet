@@ -56,10 +56,11 @@ public final class ANEInferenceGate: Sendable {
     ///
     /// Callers must not nest calls to this method: the gate is a plain mutex,
     /// not reentrant, so a nested acquisition on macOS 14 would deadlock. Gate
-    /// at one level per inference (the public runtime entry points and the
-    /// diarization entry point), never around an already-gated call.
-    public func withExclusiveAccess<T: Sendable>(
-        _ body: @Sendable () async throws -> T
+    /// at one level per inference (the FluidAudio / WhisperKit calls that run
+    /// CoreML, plus the diarization process call), never around an already-gated
+    /// call.
+    public func withExclusiveAccess<T>(
+        _ body: () async throws -> T
     ) async throws -> T {
         guard serializationRequired else {
             return try await body()

@@ -85,7 +85,9 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             // The offline manager runs its own overlapping 15 s windows over the
             // whole buffer, so the call is atomic — progress is coarse and
             // cancellation is checked at the boundaries rather than mid-window.
-            let text = try await manager.transcribe(samples)
+            let text = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.transcribe(samples)
+            }
             onProgress?(100, 100)
 
             // No word timings: the offline `transcribe(_:) -> String` path
@@ -142,7 +144,9 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             try Task.checkCancellation()
             let buffer = try Self.makePCMBuffer(samples: samples[...])
             try await manager.appendAudio(buffer)
-            try await manager.processBufferedAudio()
+            try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.processBufferedAudio()
+            }
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -158,7 +162,9 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             await manager.setPartialTranscriptCallback { _ in }
-            let text = try await manager.finish()
+            let text = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finish()
+            }
             return STTResult(
                 text: text,
                 words: [],

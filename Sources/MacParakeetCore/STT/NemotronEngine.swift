@@ -65,9 +65,13 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
             }.value
             onProgress?(25, 100)
             try Task.checkCancellation()
-            _ = try await manager.process(samples: samples)
+            _ = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.process(samples: samples)
+            }
             onProgress?(90, 100)
-            let final = try await manager.finishWithTokenTimings()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             let detectedLanguage = await manager.detectedLanguage()
             onProgress?(100, 100)
 
@@ -117,7 +121,9 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
         }
         do {
             try Task.checkCancellation()
-            _ = try await manager.process(samples: samples)
+            _ = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.process(samples: samples)
+            }
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -137,7 +143,9 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let final = try await manager.finishWithTokenTimings()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             let detectedLanguage = await manager.detectedLanguage()
             return STTResult(
                 text: final.text,

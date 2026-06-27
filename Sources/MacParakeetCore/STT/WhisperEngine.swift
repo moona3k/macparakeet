@@ -432,11 +432,13 @@ public actor WhisperEngine: STTTranscribing {
         decodeOptions: DecodingOptions,
         callback: TranscriptionCallback
     ) async throws -> TranscriptionResult {
-        let results = await whisperKit.transcribeWithResults(
-            audioPaths: audioPaths,
-            decodeOptions: decodeOptions,
-            callback: callback
-        )
+        let results = try await ANEInferenceGate.shared.withExclusiveAccess {
+            await whisperKit.transcribeWithResults(
+                audioPaths: audioPaths,
+                decodeOptions: decodeOptions,
+                callback: callback
+            )
+        }
 
         guard let first = results.first else {
             throw STTError.invalidResponse
@@ -452,11 +454,13 @@ public actor WhisperEngine: STTTranscribing {
         decodeOptions: DecodingOptions,
         callback: TranscriptionCallback
     ) async throws -> TranscriptionResult {
-        let partialResults = try await whisperKit.transcribe(
-            audioArray: audioArray,
-            decodeOptions: decodeOptions,
-            callback: callback
-        )
+        let partialResults = try await ANEInferenceGate.shared.withExclusiveAccess {
+            try await whisperKit.transcribe(
+                audioArray: audioArray,
+                decodeOptions: decodeOptions,
+                callback: callback
+            )
+        }
         return TranscriptionUtilities.mergeTranscriptionResults(partialResults)
     }
 
