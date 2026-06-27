@@ -398,6 +398,33 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.cohereCacheDirectoryExists)
     }
 
+    func testRefreshStartedDuringCohereDownloadDoesNotOverwriteFailureAfterDownloadEnds() async throws {
+        let recorder = BlockingCohereDiskStateRecorder(cached: true, cacheDirectoryExists: true)
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached() },
+            cohereCacheDirectoryExists: { recorder.cacheDirectoryExists() }
+        )
+        vm.configure(sttClient: MockSTTClient())
+        vm.cohereDownloading = true
+        vm.cohereModelStatus = .repairing
+        vm.cohereModelStatusDetail = "Downloading Cohere Transcribe..."
+        vm.cohereCacheDirectoryExists = false
+
+        vm.refreshModelStatus()
+        try await waitUntil { recorder.cacheCheckStarted }
+
+        vm.cohereDownloading = false
+        vm.cohereModelStatus = .failed
+        vm.cohereModelStatusDetail = "Download failed"
+
+        recorder.release()
+
+        try await waitUntil { recorder.didCheckCohere && vm.parakeetStatus != .checking }
+        XCTAssertEqual(vm.cohereModelStatus, .failed)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Download failed")
+        XCTAssertFalse(vm.cohereCacheDirectoryExists)
+    }
+
     func testRefreshModelStatusPreservesCohereDeleteState() async throws {
         let recorder = CohereDiskStateRecorder(cached: true, cacheDirectoryExists: true)
         let vm = makeViewModel(
@@ -614,6 +641,51 @@ private final class CohereDiskStateRecorder: @unchecked Sendable {
         let value = directoryExists
         lock.unlock()
         return value
+    }
+}
+
+private final class BlockingCohereDiskStateRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+    private let cached: Bool
+    private let directoryExists: Bool
+    private var cacheCheckCount = 0
+    private var directoryCheckCount = 0
+
+    init(cached: Bool, cacheDirectoryExists: Bool) {
+        self.cached = cached
+        self.directoryExists = cacheDirectoryExists
+    }
+
+    var cacheCheckStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cacheCheckCount > 0
+    }
+
+    var didCheckCohere: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cacheCheckCount > 0 && directoryCheckCount > 0
+    }
+
+    func release() {
+        releaseSemaphore.signal()
+    }
+
+    func isCached() -> Bool {
+        lock.lock()
+        cacheCheckCount += 1
+        lock.unlock()
+        _ = releaseSemaphore.wait(timeout: .now() + 1)
+        return cached
+    }
+
+    func cacheDirectoryExists() -> Bool {
+        lock.lock()
+        directoryCheckCount += 1
+        lock.unlock()
+        return directoryExists
     }
 }
 

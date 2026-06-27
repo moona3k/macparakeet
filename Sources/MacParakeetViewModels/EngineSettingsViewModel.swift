@@ -267,6 +267,7 @@ public final class EngineSettingsViewModel {
         let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         let activeNemotronVariant = nemotronModelVariant
         let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        let cohereOperationActiveAtRefreshStart = cohereDownloading || cohereDeleting
 
         let parakeetModelVariantCached = self.parakeetModelVariantCached
         let nemotronModelVariantCached = self.nemotronModelVariantCached
@@ -280,7 +281,7 @@ public final class EngineSettingsViewModel {
             nemotronModelStatusDetail = "Checking model state..."
             whisperModelStatus = .checking
             whisperModelStatusDetail = "Checking model state..."
-            if !cohereDownloading, !cohereDeleting {
+            if !cohereOperationActiveAtRefreshStart {
                 cohereModelStatus = .checking
                 cohereModelStatusDetail = "Checking model state..."
             }
@@ -305,12 +306,15 @@ public final class EngineSettingsViewModel {
                 }
                 self.downloadedParakeetVariants = disk.parakeetDownloaded
                 self.downloadedNemotronVariants = disk.nemotronDownloaded
-                if !self.cohereDownloading, !self.cohereDeleting {
+                let canApplyCohereStatus = !cohereOperationActiveAtRefreshStart &&
+                    !self.cohereDownloading &&
+                    !self.cohereDeleting
+                if canApplyCohereStatus {
                     self.cohereCacheDirectoryExists = disk.cohereCacheDirectoryExists
                 }
                 self.applyNemotronDownloadedStatus(disk.nemotronDownloaded.contains(activeNemotronVariant))
                 self.applyWhisperDownloadedStatus(disk.whisperDownloaded)
-                if !self.cohereDownloading, !self.cohereDeleting {
+                if canApplyCohereStatus {
                     self.applyCohereDownloadedStatus(disk.cohereDownloaded)
                 }
             }
@@ -323,7 +327,7 @@ public final class EngineSettingsViewModel {
         nemotronModelStatusDetail = "Checking model state..."
         whisperModelStatus = .checking
         whisperModelStatusDetail = "Checking model state..."
-        if !cohereDownloading, !cohereDeleting {
+        if !cohereOperationActiveAtRefreshStart {
             cohereModelStatus = .checking
             cohereModelStatusDetail = "Checking model state..."
         }
@@ -362,7 +366,10 @@ public final class EngineSettingsViewModel {
 
             self.downloadedParakeetVariants = modelDiskState.parakeetDownloaded
             self.downloadedNemotronVariants = modelDiskState.nemotronDownloaded
-            if !self.cohereDownloading, !self.cohereDeleting {
+            let canApplyCohereStatus = !cohereOperationActiveAtRefreshStart &&
+                !self.cohereDownloading &&
+                !self.cohereDeleting
+            if canApplyCohereStatus {
                 self.cohereCacheDirectoryExists = modelDiskState.cohereCacheDirectoryExists
             }
             let parakeetName = activeVariant.modelName
@@ -391,10 +398,10 @@ public final class EngineSettingsViewModel {
                 self.applyWhisperDownloadedStatus(modelDiskState.whisperDownloaded)
             }
 
-            if activeEngine == .cohere, activeEngineIsLoaded {
+            if activeEngine == .cohere, activeEngineIsLoaded, canApplyCohereStatus {
                 self.cohereModelStatus = .ready
                 self.cohereModelStatusDetail = "Cohere Transcribe · Loaded in memory."
-            } else if !self.cohereDownloading, !self.cohereDeleting {
+            } else if canApplyCohereStatus {
                 self.applyCohereDownloadedStatus(modelDiskState.cohereDownloaded)
             }
         }
