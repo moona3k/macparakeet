@@ -100,7 +100,8 @@
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
 │                                                                                  │
 │  Parakeet working RAM: ~66 MB per active inference slot on ANE                  │
-│  Cohere cache: FluidAudio/Models/cohere-transcribe/q8                           │
+│  Cohere cache: ~/Library/Application Support/FluidAudio/Models/                 │
+│                cohere-transcribe/q8                                             │
 │  Whisper cache: ~/Library/Application Support/MacParakeet/models/stt/whisper/   │
 │  Recommended: 8 GB RAM default path; Cohere has higher memory needs.            │
 └──────────────────────────────────────────────────────────────────────────────────┘

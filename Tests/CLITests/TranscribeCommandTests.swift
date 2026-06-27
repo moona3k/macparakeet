@@ -227,6 +227,34 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(explicitSelection.language, "ja")
     }
 
+    func testValidateCohereLanguageOverrideRejectsExplicitAuto() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "auto"
+        )
+
+        XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("Cohere has no auto-detect"), message)
+        }
+    }
+
+    func testValidateCohereLanguageOverrideAllowsSupportedExplicitCode() throws {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "zh_CN"
+        )
+
+        try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
+        XCTAssertEqual(selection.language, "zh")
+    }
+
     func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
         let selection = TranscribeCommand.resolveSpeechEngine(
             .nemotron,

@@ -243,6 +243,20 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return SpeechEngineSelection(engine: preference, language: language)
     }
 
+    static func validateCohereLanguageOverride(
+        _ explicitLanguage: String?,
+        speechEngine: SpeechEngineSelection
+    ) throws {
+        guard speechEngine.engine == .cohere, let explicitLanguage else { return }
+        guard SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage) != nil else {
+            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+            throw ValidationError(
+                "Invalid value for --language with Cohere: '\(explicitLanguage)'. "
+                    + "Cohere has no auto-detect; use one of: \(supported)."
+            )
+        }
+    }
+
     static func resolveParakeetModelVariant(
         _ option: TranscribeParakeetModel,
         storedVariant: ParakeetModelVariant
@@ -444,6 +458,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
                 explicitLanguage: self.language
             )
+            try Self.validateCohereLanguageOverride(self.language, speechEngine: speechEngine)
             let resolvedSpeakerDetection = Self.resolveSpeakerDetection(
                 self.speakerDetection,
                 storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,

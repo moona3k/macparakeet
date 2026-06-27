@@ -223,11 +223,14 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
 ```
 
 Use Cohere explicitly for batch-only accuracy-focused runs after downloading
-the local Cohere model. Cohere requires a language hint or saved
-`cohere-language` default and does not support live preview:
+the local Cohere model. Cohere requires a supported language hint or saved
+`cohere-language` default, which you can set or inspect with `config`, and does
+not support live preview:
 
 ```bash
 swift run macparakeet-cli models download cohere-transcribe
+swift run macparakeet-cli config set cohere-language ja
+swift run macparakeet-cli config get cohere-language
 
 swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --engine cohere \
