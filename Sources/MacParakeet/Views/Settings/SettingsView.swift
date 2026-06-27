@@ -957,6 +957,14 @@ struct SettingsView: View {
 
     // MARK: - Dictation
 
+    private var liveDictationPreviewDetail: String {
+        if viewModel.engine.speechEnginePreference == .cohere {
+            return "Cohere transcribes after you stop recording, so live preview is unavailable with this engine."
+        }
+
+        return "Shows a running transcript above the dictation pill as you speak. Works with Parakeet and Nemotron; not yet available with Whisper."
+    }
+
     private var dictationCard: some View {
         settingsCard(
             title: "Dictation",
@@ -1053,7 +1061,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Live transcript preview",
-                    detail: "Shows a running transcript above the dictation pill as you speak. Works with Parakeet and Nemotron; not yet available with Whisper.",
+                    detail: liveDictationPreviewDetail,
                     isBeta: true,
                     // Animate via the binding so only this toggle's state change
                     // animates the sub-row reveal/reflow — not a blanket
@@ -2253,7 +2261,8 @@ struct SettingsView: View {
                             strengths: [
                                 "State-of-the-art accuracy (Cohere Transcribe)",
                                 "Fully on-device Core ML — audio never leaves your Mac",
-                                "Powers dictation, files, and meetings (14 languages)"
+                                "Record-then-transcribe dictation, files, and final meeting transcripts",
+                                "No live preview, word timestamps, or speaker labels"
                             ],
                             helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and higher memory use than the default engines. Powers record-then-transcribe dictation, file transcription, and final meeting transcription. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
                             modelStatus: displayedCohereModelStatus,
