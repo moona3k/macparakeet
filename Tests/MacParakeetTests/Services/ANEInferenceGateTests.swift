@@ -16,6 +16,32 @@ final class ANEInferenceGateTests: XCTestCase {
         }
     }
 
+    /// A rendezvous that releases its parties only once `partyCount` of them are
+    /// inside it at the same time. Lets the concurrency test prove overlap with no
+    /// timing assumptions: if the gate (wrongly) serialized the callers the second
+    /// never arrives, so the task group never completes and the test fails by
+    /// timing out — deterministic, not flaky.
+    private actor Rendezvous {
+        private let partyCount: Int
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+        private(set) var releasedPartyCount = 0
+
+        init(partyCount: Int) {
+            self.partyCount = partyCount
+        }
+
+        func arrive() async {
+            await withCheckedContinuation { continuation in
+                waiting.append(continuation)
+                guard waiting.count >= partyCount else { return }
+                releasedPartyCount += waiting.count
+                let parties = waiting
+                waiting.removeAll()
+                for party in parties { party.resume() }
+            }
+        }
+    }
+
     /// On macOS 14 (`serializationRequired: true`) the gate must let at most one
     /// inference run at a time — the whole point of the SIGBUS fix.
     func testSerializesConcurrentAccessWhenRequired() async throws {
@@ -40,30 +66,26 @@ final class ANEInferenceGateTests: XCTestCase {
     }
 
     /// On macOS 15+ (`serializationRequired: false`) the gate is a pass-through,
-    /// so callers keep full concurrency and pay nothing.
+    /// so callers keep full concurrency. Both closures must be inside the gate at
+    /// the same time to clear the rendezvous; if the gate serialized them the
+    /// second would never arrive and the task group would hang to a test timeout —
+    /// so this can't pass by accident, and it has no timing assumptions to flake.
     func testRunsConcurrentlyWhenSerializationNotRequired() async throws {
         let gate = ANEInferenceGate(serializationRequired: false)
-        let tracker = ConcurrencyTracker()
+        let rendezvous = Rendezvous(partyCount: 2)
 
         await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<4 {
+            for _ in 0..<2 {
                 group.addTask {
                     try? await gate.withExclusiveAccess {
-                        await tracker.enter()
-                        // Wait (bounded) for at least one peer to enter too; a
-                        // regression to serial behavior never reaches 2 and the
-                        // bounded wait keeps the test from hanging.
-                        for _ in 0..<200 where await tracker.current < 2 {
-                            try? await Task.sleep(nanoseconds: 1_000_000)
-                        }
-                        await tracker.leave()
+                        await rendezvous.arrive()
                     }
                 }
             }
         }
 
-        let peak = await tracker.peak
-        XCTAssertGreaterThanOrEqual(peak, 2, "With serialization disabled the gate must not serialize callers")
+        let released = await rendezvous.releasedPartyCount
+        XCTAssertEqual(released, 2, "With serialization disabled both callers must enter the gate concurrently")
     }
 
     /// The body's value and errors propagate unchanged through the gate.

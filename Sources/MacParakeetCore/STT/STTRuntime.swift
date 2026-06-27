@@ -261,6 +261,14 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTLiveDictationTranscriptionError.modelNotReady
         }
 
+        // Intentionally NOT wrapped in `ANEInferenceGate`: `beginLiveDictation`
+        // is inference-free session setup — it resets streaming state, configures
+        // language, and stores the partial callback. Models are already loaded
+        // (the `isReady()` guard above ensures `prepare()` inside is a no-op), and
+        // the only Neural Engine work happens in `appendLiveDictationSamples` /
+        // `finishLiveDictationTranscription`, which ARE gated. Gating start-of-
+        // session here would just add dictation-start latency on macOS 14 with no
+        // SIGBUS to prevent.
         activeTranscriptionCount += 1
         do {
             try await engine.beginLiveDictation(
