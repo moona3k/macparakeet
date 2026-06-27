@@ -342,7 +342,7 @@ extension ModelsCommand {
                 guard removed else {
                     throw ModelDeletionError.deleteFailed("Could not delete Cohere Transcribe. It may be missing or in use by another process.")
                 }
-                print("Deleted \(target.displayName) · freed ~2.1 GB.")
+                print("Deleted \(target.displayName) · freed \(cohereModelSize).")
             }
         }
     }

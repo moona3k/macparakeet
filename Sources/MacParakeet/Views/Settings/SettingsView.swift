@@ -2684,16 +2684,10 @@ struct SettingsView: View {
         return .preparing
     }
 
-    /// Phase-1 lightweight Cohere status: there is no reactive download-state
-    /// pipeline yet, so derive presence directly from disk. Reflects "preparing"
-    /// while switching to Cohere, otherwise downloaded-or-not.
     private var displayedCohereModelStatus: SettingsViewModel.LocalModelStatus {
         guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .cohere else {
-            guard CohereTranscribeEngine.isModelCached() else { return .notDownloaded }
-            // Mirror the other engines: `.ready` only when Cohere is the active
-            // (loaded) engine; on disk but inactive is `.notLoaded`.
-            return viewModel.engine.speechEnginePreference == .cohere ? .ready : .notLoaded
+            return viewModel.engine.cohereModelStatus
         }
         return .preparing
     }

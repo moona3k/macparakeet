@@ -249,6 +249,19 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// ASCII space. Whitespace-free Hangul uses the character path too; Korean
     /// with spaces stays on the word path.
     static func mergeOnOverlap(_ a: String, _ b: String, maxOverlap: Int = 30) -> String {
+        // Only the tail of the accumulated transcript can overlap the next
+        // chunk. Keep long-file stitching bounded instead of re-tokenizing the
+        // whole transcript on every merge.
+        let safeSuffixLength = max(maxOverlap * 15, maxOverlap + 1)
+        if let splitIndex = a.index(a.endIndex, offsetBy: -safeSuffixLength, limitedBy: a.startIndex),
+           splitIndex > a.startIndex {
+            return String(a[..<splitIndex]) + mergeOnOverlap(
+                String(a[splitIndex...]),
+                b,
+                maxOverlap: maxOverlap
+            )
+        }
+
         if shouldUseCharacterOverlap(a, b) {
             return mergeUnits(
                 a: a.map(String.init),
@@ -291,7 +304,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
     }
 
     private static func normalizedOverlapUnit(_ unit: String) -> String {
-        unit.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let normalized = unit.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        return normalized.isEmpty ? unit : normalized
     }
 
     private static func shouldUseCharacterOverlap(_ a: String, _ b: String) -> Bool {

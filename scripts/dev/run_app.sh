@@ -203,7 +203,7 @@ GIT_COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo u
 BUILD_DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BUILD_SOURCE="dev-run-xcodebuild-$(echo "$CONFIG" | tr '[:upper:]' '[:lower:]')"
 
-echo "[4/5] Launching debug app…"
+echo "[4/5] Launching ${CONFIG} app…"
 MACPARAKEET_GIT_COMMIT="$GIT_COMMIT" \
 MACPARAKEET_BUILD_DATE_UTC="$BUILD_DATE_UTC" \
 MACPARAKEET_BUILD_SOURCE="$BUILD_SOURCE" \

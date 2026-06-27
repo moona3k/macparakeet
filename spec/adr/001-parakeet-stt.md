@@ -245,7 +245,7 @@ paired-bootstrap significance):
 - Cost is the decisive factor: **~11 GB peak resident memory** (constant across
   file counts → model-resident, measured via the FluidAudio reference harness),
   **~73 s one-time ANE compile**, **~11× realtime** (vs ~70× / ~120 MB for
-  Parakeet), ~2.3 GB download.
+  Parakeet), ~2.1 GB download.
 
 **Decision:** keep Parakeet v3 the default and WhisperKit the light multilingual
 option. Ship Cohere as an explicit opt-in engine with a clear download-size /

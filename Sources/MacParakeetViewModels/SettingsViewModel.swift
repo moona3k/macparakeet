@@ -561,6 +561,9 @@ public final class SettingsViewModel {
         nemotronModelVariantCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
             STTRuntime.isNemotronModelCached(modelVariant: $0, language: $1)
         },
+        cohereModelCached: @escaping @Sendable () -> Bool = {
+            CohereTranscribeEngine.isModelCached()
+        },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
@@ -591,6 +594,7 @@ public final class SettingsViewModel {
             defaults: defaults,
             parakeetModelVariantCached: parakeetModelVariantCached,
             nemotronModelVariantCached: nemotronModelVariantCached,
+            cohereModelCached: cohereModelCached,
             deleteParakeetModelOnDisk: deleteParakeetModelOnDisk,
             deleteNemotronModelOnDisk: deleteNemotronModelOnDisk,
             deleteWhisperModelOnDisk: deleteWhisperModelOnDisk

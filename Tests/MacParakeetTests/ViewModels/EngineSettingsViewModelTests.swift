@@ -23,6 +23,7 @@ final class EngineSettingsViewModelTests: XCTestCase {
     private func makeViewModel(
         parakeetCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = { _ in false },
         nemotronCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = { _, _ in false },
+        cohereCached: @escaping @Sendable () -> Bool = { false },
         deleteParakeet: @escaping @Sendable (ParakeetModelVariant) -> Bool = { _ in false },
         deleteNemotron: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = { _, _ in false },
         deleteWhisper: @escaping @Sendable (String) -> Bool = { _ in false }
@@ -31,6 +32,7 @@ final class EngineSettingsViewModelTests: XCTestCase {
             defaults: defaults,
             parakeetModelVariantCached: parakeetCached,
             nemotronModelVariantCached: nemotronCached,
+            cohereModelCached: cohereCached,
             deleteParakeetModelOnDisk: deleteParakeet,
             deleteNemotronModelOnDisk: deleteNemotron,
             deleteWhisperModelOnDisk: deleteWhisper
@@ -62,7 +64,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
     ) async throws {
         try await waitUntil(file: file, line: line) {
             vm.nemotronModelStatus != .checking &&
-                vm.whisperModelStatus != .checking
+                vm.whisperModelStatus != .checking &&
+                vm.cohereModelStatus != .checking
         }
     }
 
@@ -255,6 +258,47 @@ final class EngineSettingsViewModelTests: XCTestCase {
             vm.nemotronModelStatusDetail,
             "Nemotron 3.5 ASR Streaming 0.6B · Needs download before use."
         )
+    }
+
+    func testCohereCacheStatusMarksDownloadedModelInstalledWhenInactive() async throws {
+        let vm = makeViewModel(cohereCached: { true })
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertTrue(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatus, .notLoaded)
+        XCTAssertEqual(
+            vm.cohereModelStatusDetail,
+            "Cohere Transcribe · Installed locally, loads when selected."
+        )
+    }
+
+    func testCohereCacheStatusMarksMissingModelNotDownloaded() async throws {
+        let vm = makeViewModel(cohereCached: { false })
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertFalse(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+        XCTAssertEqual(
+            vm.cohereModelStatusDetail,
+            "Cohere Transcribe · Needs download before use."
+        )
+    }
+
+    func testActiveReadyCohereReportsLoadedInMemory() async throws {
+        SpeechEnginePreference.cohere.save(to: defaults)
+        let vm = makeViewModel(cohereCached: { true })
+        let stt = MockSTTClient()
+        await stt.setReady(true)
+        vm.configure(sttClient: stt)
+
+        vm.refreshModelStatus()
+
+        try await waitUntil { vm.cohereModelStatus == .ready }
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Loaded in memory.")
     }
 
     func testRefreshModelStatusPassesStoredNemotronLanguageToCachedStub() async throws {

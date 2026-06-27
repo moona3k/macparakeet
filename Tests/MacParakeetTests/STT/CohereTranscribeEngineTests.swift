@@ -78,6 +78,23 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged, "开头内容" + overlap + "结尾内容")
     }
 
+    func testMergeDoesNotTreatDifferentPunctuationAsOverlap() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "hello 。",
+            "、 world"
+        )
+        XCTAssertEqual(merged, "hello 。 、 world")
+    }
+
+    func testMergeUsesTailOfLongAccumulatedTranscript() {
+        let prefix = (0..<200).map { "word\($0)" }.joined(separator: " ")
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            prefix + " alpha beta",
+            "alpha beta gamma"
+        )
+        XCTAssertEqual(merged, prefix + " alpha beta gamma")
+    }
+
     func testMergeHandlesEmptyFragments() {
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("", "only b"), "only b")
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("only a", ""), "only a")
