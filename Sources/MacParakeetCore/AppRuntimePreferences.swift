@@ -452,8 +452,33 @@ public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Eq
     }
 }
 
+public enum VoiceReturnTriggerPhrases: Sendable {
+    public static let defaultTrigger = "press return"
+
+    public static func normalized(_ rawTriggers: [String]) -> [String] {
+        var seenKeys = Set<String>()
+        var triggers: [String] = []
+
+        for rawTrigger in rawTriggers {
+            let trigger = rawTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trigger.isEmpty else { continue }
+
+            let key = trigger.lowercased()
+            guard seenKeys.insert(key).inserted else { continue }
+            triggers.append(trigger)
+        }
+
+        return triggers
+    }
+
+    public static func normalizedOrDefault(_ rawTriggers: [String]) -> [String] {
+        let triggers = normalized(rawTriggers)
+        return triggers.isEmpty ? [defaultTrigger] : triggers
+    }
+}
+
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
-    public static let defaultVoiceReturnTrigger = "press return"
+    public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
     public static let silenceAutoStopKey = "silenceAutoStop"
     public static let silenceDelayKey = "silenceDelay"
@@ -506,28 +531,24 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     public static func normalizedVoiceReturnTriggers(_ rawTriggers: [String]) -> [String] {
-        var seenKeys = Set<String>()
-        var triggers: [String] = []
-
-        for rawTrigger in rawTriggers {
-            let trigger = rawTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trigger.isEmpty else { continue }
-
-            let key = trigger.lowercased()
-            guard seenKeys.insert(key).inserted else { continue }
-            triggers.append(trigger)
-        }
-
-        return triggers
+        VoiceReturnTriggerPhrases.normalized(rawTriggers)
     }
 
     public static func voiceReturnTriggerList(defaults: UserDefaults = .standard) -> [String] {
         if defaults.object(forKey: voiceReturnTriggersKey) != nil {
-            return normalizedVoiceReturnTriggers(defaults.stringArray(forKey: voiceReturnTriggersKey) ?? [])
+            let triggers = VoiceReturnTriggerPhrases.normalized(
+                defaults.stringArray(forKey: voiceReturnTriggersKey) ?? []
+            )
+            if !triggers.isEmpty {
+                return triggers
+            }
         }
 
         if let legacyTrigger = defaults.string(forKey: voiceReturnTriggerKey) {
-            return normalizedVoiceReturnTriggers([legacyTrigger])
+            let triggers = VoiceReturnTriggerPhrases.normalized([legacyTrigger])
+            if !triggers.isEmpty {
+                return triggers
+            }
         }
 
         return [defaultVoiceReturnTrigger]

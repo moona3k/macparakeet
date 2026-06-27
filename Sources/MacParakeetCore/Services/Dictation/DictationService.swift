@@ -1187,7 +1187,7 @@ public actor DictationService: DictationServiceProtocol {
 
         // Voice Return: inject synthetic action snippet regardless of mode
         // (raw mode extracts trailing action without running the full pipeline)
-        for trigger in UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers(voiceReturnTriggers()) {
+        for trigger in VoiceReturnTriggerPhrases.normalized(voiceReturnTriggers()) {
             snippets.append(TextSnippet(
                 trigger: trigger,
                 expansion: KeyAction.returnKey.label,

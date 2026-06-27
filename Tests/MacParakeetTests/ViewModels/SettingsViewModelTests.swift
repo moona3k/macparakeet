@@ -172,6 +172,20 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.voiceReturnErrorMessage, "Voice Return needs at least one trigger phrase.")
     }
 
+    func testLegacyVoiceReturnTriggerSetterPersistsDefaultForBlankPhrase() {
+        viewModel.voiceReturnTrigger = "   "
+
+        XCTAssertEqual(viewModel.voiceReturnTriggers, [UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger])
+        XCTAssertEqual(
+            testDefaults.stringArray(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey),
+            [UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger]
+        )
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey),
+            UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger
+        )
+    }
+
     // MARK: - Whisper cold/warm status
 
     func testWhisperHasBeenOptimizedReflectsPersistedFlag() {

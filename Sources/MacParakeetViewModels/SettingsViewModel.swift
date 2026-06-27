@@ -297,11 +297,11 @@ public final class SettingsViewModel {
     }
 
     public var voiceReturnExampleTrigger: String {
-        voiceReturnTriggers.first ?? UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger
+        voiceReturnTriggers.first ?? VoiceReturnTriggerPhrases.defaultTrigger
     }
 
     public func addVoiceReturnTrigger() {
-        let normalized = UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers([voiceReturnNewTrigger])
+        let normalized = VoiceReturnTriggerPhrases.normalized([voiceReturnNewTrigger])
         guard let trigger = normalized.first else {
             voiceReturnErrorMessage = "Enter a trigger phrase."
             return
@@ -330,10 +330,10 @@ public final class SettingsViewModel {
     }
 
     private func setVoiceReturnTriggers(_ rawTriggers: [String]) {
-        let normalized = UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers(rawTriggers)
+        let normalized = VoiceReturnTriggerPhrases.normalizedOrDefault(rawTriggers)
         voiceReturnTriggers = normalized
         defaults.set(normalized, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
-        defaults.set(normalized.first ?? "", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
+        defaults.set(normalized.first, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
     }
 
     // Processing
