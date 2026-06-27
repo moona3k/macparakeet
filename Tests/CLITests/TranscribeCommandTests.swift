@@ -205,6 +205,28 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(selection.language, "ja")
     }
 
+    func testResolveSpeechEngineExplicitCohereUsesExplicitOrStoredCohereLanguage() {
+        let storedSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: nil
+        )
+        XCTAssertEqual(storedSelection.engine, .cohere)
+        XCTAssertEqual(storedSelection.language, "zh")
+
+        let explicitSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: "ja"
+        )
+        XCTAssertEqual(explicitSelection.engine, .cohere)
+        XCTAssertEqual(explicitSelection.language, "ja")
+    }
+
     func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
         let selection = TranscribeCommand.resolveSpeechEngine(
             .nemotron,
@@ -316,6 +338,17 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertEqual(command.engine, .nemotron)
         XCTAssertEqual(command.language, "en-US")
+    }
+
+    func testParsesCohereEngineAndLanguage() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--engine", "cohere",
+            "--language", "ja",
+        ])
+
+        XCTAssertEqual(command.engine, .cohere)
+        XCTAssertEqual(command.language, "ja")
     }
 
     func testParsesAppDefaultEngineAndSpeakerDetection() throws {

@@ -11,16 +11,15 @@ import os
 /// conform to ``NativeLiveDictating`` and `STTResult.words` is always empty.
 ///
 /// ## Compute policy
-/// The big INT8 encoder behaves very differently per Core ML backend. Defaults
-/// to **`.gpu`** — the fast path that makes the engine feel instant:
-/// - **`.gpu`** (`.all`, default): warm ~0.4–0.6 s. Core ML specializes the
+/// The big INT8 encoder behaves very differently per Core ML backend:
+/// - **`.gpu`** (`.all`): warm ~0.4–0.6 s. Core ML specializes the
 ///   graph on the **first transcribe of every launch (~115 s, not cached)**, so
 ///   we pay it in the background via a launch warm-up; for a resident app that
 ///   is once per session, then every dictation is fast.
-/// - **`.ane`** (`cpuAndNeuralEngine`): warm ~1.3–1.6 s, but its one-time
-///   specialization is **cached across launches** (`com.apple.e5rt.e5bundlecache`)
-///   so there is no per-launch stall, and it leaves the GPU free for the LLM
-///   formatter. The escape hatch for users who relaunch often.
+/// - **`.ane`** (`cpuAndNeuralEngine`, default): warm ~1.3–1.6 s, but its
+///   one-time specialization is **cached across launches**
+///   (`com.apple.e5rt.e5bundlecache`) so there is no per-launch stall, and it
+///   leaves the GPU free for the LLM formatter.
 /// NOTE: most apparent slowness in development is the unoptimized **Debug**
 /// build — the per-step decoder + mel hot path runs ~9× slower than release.
 /// Always judge latency from a release build.
@@ -29,10 +28,11 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// Core ML compute-unit policy for the Cohere models. See the type doc for
     /// the latency/cold-start tradeoff measured in the Phase-0 spike.
     public enum ComputePolicy: String, CaseIterable, Sendable {
-        /// `cpuAndNeuralEngine` — warm ~1.3–1.6 s, one-time specialization cached
-        /// across launches (e5bundlecache); no per-launch stall. Escape hatch.
+        /// `cpuAndNeuralEngine` — default. Warm ~1.3–1.6 s, one-time
+        /// specialization cached across launches (e5bundlecache); no
+        /// per-launch stall.
         case ane
-        /// `.all` — default. Warm ~0.4–0.6 s; ~115 s graph specialization on the
+        /// `.all` — warm ~0.4–0.6 s; ~115 s graph specialization on the
         /// first transcribe of every launch (not cached), hidden by launch warm-up.
         case gpu
 
@@ -42,7 +42,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
             guard let raw = defaults.string(forKey: defaultsKey),
                 let policy = ComputePolicy(rawValue: raw)
             else {
-                return .gpu
+                return .ane
             }
             return policy
         }
@@ -65,16 +65,16 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     /// `CoherePipeline` is itself an actor and holds no per-call mutable state
     /// (it takes `LoadedModels` as an argument), so a single instance serves
-    /// every job kind (dictation, file, meeting) safely. Cohere is batch-only:
-    /// a second job that arrives while one is already in flight is rejected with
-    /// `STTError.engineBusy` rather than run concurrently or queued.
+    /// every job kind (dictation, file, meeting) safely. Cohere is batch-only,
+    /// so transcriptions are serialized by ``transcriptionPermit`` rather than
+    /// racing multiple `CoherePipeline` calls through the same loaded models.
     private let pipeline = CoherePipeline()
+    private let transcriptionPermit = AsyncPermit()
     private var models: CoherePipeline.LoadedModels?
     private var initializationTask: Task<Void, Error>?
-    private var isTranscribing = false
 
     public init(
-        computePolicy: ComputePolicy = .gpu,
+        computePolicy: ComputePolicy = .ane,
         defaultLanguage: CohereAsrConfig.Language = .english
     ) {
         self.computePolicy = computePolicy
@@ -86,7 +86,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// `CohereAsrConfig.Language`). Unknown or empty codes fall back to English,
     /// matching the no-auto-detect Phase-1 default. The code becomes the engine's
     /// default language for the no-`language:` `transcribe(audioPath:job:)` path.
-    public init(computePolicy: ComputePolicy = .gpu, defaultLanguageCode: String?) {
+    public init(computePolicy: ComputePolicy = .ane, defaultLanguageCode: String?) {
         self.computePolicy = computePolicy
         self.defaultLanguage = Self.cohereLanguage(defaultLanguageCode) ?? .english
     }
@@ -122,9 +122,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        guard !isTranscribing else { throw STTError.engineBusy }
-        isTranscribing = true
-        defer { isTranscribing = false }
+        try await transcriptionPermit.wait()
+        defer { transcriptionPermit.signal() }
 
         do {
             // Lazy path (CLI, or first dictation before background warm-up
@@ -239,29 +238,77 @@ public actor CohereTranscribeEngine: STTTranscribing {
     }
 
     /// Joins two transcript fragments produced from overlapping audio windows by
-    /// dropping the duplicated words at the seam: compares up to `maxOverlap`
-    /// trailing words of `a` against the leading words of `b`
-    /// (case/punctuation-insensitive) and removes the longest match from `b`.
+    /// dropping duplicated text at the seam. Space-delimited languages use the
+    /// word path; whitespace-free CJK/Hangul fragments use a character path so
+    /// Japanese/Chinese chunks do not duplicate the whole seam with an inserted
+    /// ASCII space.
     static func mergeOnOverlap(_ a: String, _ b: String, maxOverlap: Int = 30) -> String {
-        let aWords = a.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        let bWords = b.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        guard !aWords.isEmpty else { return b }
-        guard !bWords.isEmpty else { return a }
-
-        func norm(_ word: String) -> String {
-            word.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if shouldUseCharacterOverlap(a, b) {
+            return mergeUnits(
+                a: a.map(String.init),
+                b: b.map(String.init),
+                maxOverlap: maxOverlap,
+                separator: ""
+            )
         }
-        let limit = min(maxOverlap, aWords.count, bWords.count)
+
+        return mergeUnits(
+            a: a.split(whereSeparator: { $0.isWhitespace }).map(String.init),
+            b: b.split(whereSeparator: { $0.isWhitespace }).map(String.init),
+            maxOverlap: maxOverlap,
+            separator: " "
+        )
+    }
+
+    private static func mergeUnits(
+        a: [String],
+        b: [String],
+        maxOverlap: Int,
+        separator: String
+    ) -> String {
+        guard !a.isEmpty else { return b.joined(separator: separator) }
+        guard !b.isEmpty else { return a.joined(separator: separator) }
+
+        let limit = min(maxOverlap, a.count, b.count)
         var bestK = 0
         var k = limit
         while k >= 1 {
-            if zip(aWords.suffix(k), bWords.prefix(k)).allSatisfy({ norm($0) == norm($1) }) {
+            if zip(a.suffix(k), b.prefix(k)).allSatisfy({
+                normalizedOverlapUnit($0) == normalizedOverlapUnit($1)
+            }) {
                 bestK = k
                 break
             }
             k -= 1
         }
-        return (aWords + bWords.dropFirst(bestK)).joined(separator: " ")
+        return (a + b.dropFirst(bestK)).joined(separator: separator)
+    }
+
+    private static func normalizedOverlapUnit(_ unit: String) -> String {
+        unit.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+    }
+
+    private static func shouldUseCharacterOverlap(_ a: String, _ b: String) -> Bool {
+        !containsWhitespace(a) && !containsWhitespace(b) && (containsCJKOrHangul(a) || containsCJKOrHangul(b))
+    }
+
+    private static func containsWhitespace(_ string: String) -> Bool {
+        string.unicodeScalars.contains { CharacterSet.whitespacesAndNewlines.contains($0) }
+    }
+
+    private static func containsCJKOrHangul(_ string: String) -> Bool {
+        string.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x309F, // Hiragana
+                 0x30A0...0x30FF, // Katakana
+                 0x3400...0x4DBF, // CJK Unified Ideographs Extension A
+                 0x4E00...0x9FFF, // CJK Unified Ideographs
+                 0xAC00...0xD7AF: // Hangul syllables
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     // MARK: - Lifecycle

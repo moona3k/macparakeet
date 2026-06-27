@@ -34,6 +34,7 @@ final class ConfigCommandTests: XCTestCase {
             "nemotron-model",
             "nemotron-language",
             "whisper-language",
+            "cohere-language",
             "speaker-detection",
             "auto-meeting-titles",
             "save-transcription-audio",
@@ -71,6 +72,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "nemotron-model", defaults: defaults), "multilingual-1120ms")
         XCTAssertEqual(try ConfigCommand.read(key: "nemotron-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
+        XCTAssertEqual(try ConfigCommand.read(key: "cohere-language", defaults: defaults), "en")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
@@ -135,11 +137,17 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "nemotron", defaults: defaults), "nemotron")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.nemotron.rawValue)
 
+        XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "cohere", defaults: defaults), "cohere")
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.cohere.rawValue)
+
         XCTAssertEqual(try ConfigCommand.write(key: "nemotron-language", value: "en_US", defaults: defaults), "en-US")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey), "en-US")
 
         XCTAssertEqual(try ConfigCommand.write(key: "whisper-language", value: "ko", defaults: defaults), "ko")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.whisperDefaultLanguageKey), "ko")
+
+        XCTAssertEqual(try ConfigCommand.write(key: "cohere-language", value: "JA", defaults: defaults), "ja")
+        XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.cohereDefaultLanguageKey), "ja")
 
         XCTAssertEqual(try ConfigCommand.write(key: "speaker-detection", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool, true)
@@ -434,6 +442,15 @@ final class ConfigCommandTests: XCTestCase {
             XCTAssertTrue(error is ValidationError)
         }
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.nemotronDefaultLanguageKey))
+    }
+
+    func testWriteCohereLanguageRejectsUnsupportedCode() {
+        XCTAssertThrowsError(
+            try ConfigCommand.write(key: "cohere-language", value: "zz", defaults: defaults)
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.cohereDefaultLanguageKey))
     }
 
     func testWriteAcceptsAllBoolSynonyms() throws {

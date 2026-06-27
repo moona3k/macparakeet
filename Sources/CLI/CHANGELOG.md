@@ -91,6 +91,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `transcribe --engine` now accepts `cohere` as an explicit on-device Cohere
+  Transcribe selection. `--language` is used as Cohere's required language hint
+  when provided; otherwise the saved Cohere language preference is used.
+- `config get|set|list` now includes `cohere-language`, the saved language used
+  by explicit `--engine cohere` and app-default Cohere transcription when
+  `--language` is omitted.
+- `models list`/`select`/`download`/`delete`/`status` include Cohere Transcribe
+  model availability alongside Parakeet, Nemotron, and Whisper.
 - `transcribe --format` now accepts `srt` and `vtt` in addition to `text`,
   `transcript`, and `json`. Both emit timed subtitles through the same renderer
   as `export --format srt|vtt`, so output is byte-identical between the two

@@ -476,7 +476,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Parakeet model selection: v3 multilingual default, v2 English-only TDT opt-in, and Unified English opt-in
 - Optional local WhisperKit engine for languages outside Parakeet coverage
 - Settings speech-engine picker, Parakeet model picker, Nemotron controls, and Whisper language picker
-- CLI `transcribe --engine parakeet|nemotron|whisper --language --parakeet-model`
+- CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language --parakeet-model`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
 - Calendar auto-start is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`. Calendar-driven auto-stop was removed (ADR-017 amendment); recordings stop manually
 
@@ -491,7 +491,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Platform** | macOS 14.2+, Apple Silicon only | FluidAudio CoreML requires Apple Silicon. |
-| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 and Unified English opt-ins; optional Nemotron Beta and WhisperKit | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local. |
+| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 and Unified English opt-ins; optional Nemotron Beta, WhisperKit, and Cohere Transcribe | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local; Cohere is a larger batch-only accuracy path. |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |

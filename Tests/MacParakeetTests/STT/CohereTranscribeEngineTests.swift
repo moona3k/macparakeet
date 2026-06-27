@@ -38,9 +38,41 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged, "one two three")
     }
 
+    func testMergeDropsJapaneseOverlapWithoutInsertingSpace() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "今日はいい天気ですね明日も",
+            "明日も晴れるでしょう"
+        )
+        XCTAssertEqual(merged, "今日はいい天気ですね明日も晴れるでしょう")
+        XCTAssertFalse(merged.contains(" "))
+        XCTAssertEqual(merged.components(separatedBy: "明日も").count - 1, 1)
+    }
+
+    func testMergeDropsChineseOverlapWithoutInsertingSpace() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "我今天去了商店买东西",
+            "买东西然后回家了"
+        )
+        XCTAssertEqual(merged, "我今天去了商店买东西然后回家了")
+        XCTAssertFalse(merged.contains(" "))
+        XCTAssertEqual(merged.components(separatedBy: "买东西").count - 1, 1)
+    }
+
     func testMergeHandlesEmptyFragments() {
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("", "only b"), "only b")
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("only a", ""), "only a")
+    }
+
+    func testComputePolicyDefaultsToANEWhenUnset() throws {
+        let suiteName = "cohere-compute-policy-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .ane)
+
+        defaults.set("gpu", forKey: CohereTranscribeEngine.ComputePolicy.defaultsKey)
+        XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .gpu)
     }
 
     /// On-device end-to-end guard: a long/dense (>98-token) utterance must come

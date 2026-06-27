@@ -34,6 +34,7 @@ enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendab
     case parakeet
     case nemotron
     case whisper
+    case cohere
 }
 
 enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -91,10 +92,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Default: parakeet; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Whisper, Nemotron, or Cohere, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization). app-default follows the saved preference; ignored for Nemotron and Whisper.")
@@ -235,6 +236,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .whisper:
             preference = .whisper
             language = explicitLanguage
+        case .cohere:
+            preference = .cohere
+            language = explicitLanguage ?? storedCohereLanguage
         }
         return SpeechEngineSelection(engine: preference, language: language)
     }

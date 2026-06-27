@@ -149,13 +149,15 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--database"))
 
         let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
-        XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|app-default")
+        XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|cohere|app-default")
+        let format = try XCTUnwrap(options.first { ($0["name"] as? String) == "--format" })
+        XCTAssertEqual(format["valueName"] as? String, "text|transcript|json|srt|vtt")
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
         XCTAssertEqual(
             language["summary"] as? String,
-            "Language hint for Nemotron or Whisper; the English-only Nemotron build ignores it."
+            "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."
         )
     }
 

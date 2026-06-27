@@ -827,10 +827,10 @@ final class DictationFlowCoordinator {
         guard let state = overlayViewModel?.state, case .processing = state else { return }
 
         let firstInstall = !runtimePreferences.hasCompletedFirstDictation
-        // Cohere pays a one-time, per-launch Core ML graph specialization (~2 min
-        // on the GPU path). That warm-up recurs every launch, not just on first
-        // install, so we show a Cohere-specific caption and always escalate to the
-        // time-estimate copy — not only on the very first dictation.
+        // Cohere has its own model download / Core ML preparation path, and a
+        // user may switch to it after already completing dictation with another
+        // engine. Keep its load caption specific even when this is not the
+        // app's first completed dictation.
         let isCohere = activeSpeechEngine() == .cohere
         let baseCaption: DictationOverlayViewModel.ProcessingLoadCaption = isCohere ? .optimizing : .preparing
         let extendedCaption: DictationOverlayViewModel.ProcessingLoadCaption =

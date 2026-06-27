@@ -67,7 +67,7 @@ public enum AppFeatures {
     /// model plumbing remain compiled and intact — only the Settings surface
     /// that lets a user select it is hidden, so flipping the flag is a no-data
     /// operation. Gated separately because the model is a ~2.1 GB download and
-    /// the engine is dictation-only (batch, no live partials/word timestamps).
+    /// the engine is batch-only (no live partials/word timestamps).
     public static let cohereEngineEnabled: Bool = true
 
     /// VAD-guided meeting live chunking

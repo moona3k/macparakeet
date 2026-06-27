@@ -185,10 +185,11 @@ Parakeet is the default engine for compatibility with existing scripts. Use
 Parakeet build. Use Nemotron Beta or Whisper per invocation for multilingual
 coverage outside the default Parakeet lane:
 
-Nemotron and Whisper require local model downloads before first use:
+Nemotron, Cohere, and Whisper require local model downloads before first use:
 
 ```bash
 macparakeet-cli models download nemotron-multilingual-1120ms
+macparakeet-cli models download cohere-transcribe
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 ```
 
@@ -199,6 +200,7 @@ macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli models select parakeet-v2 --json
 macparakeet-cli models select nemotron-multilingual-1120ms --json
+macparakeet-cli models select cohere-transcribe --json
 macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 ```
 
@@ -246,6 +248,7 @@ macparakeet-cli config set speech-engine whisper
 macparakeet-cli config set parakeet-model v3
 macparakeet-cli config set nemotron-language auto
 macparakeet-cli config set whisper-language ko
+macparakeet-cli config set cohere-language ja
 macparakeet-cli config set processing-mode raw
 macparakeet-cli config set speaker-detection off
 macparakeet-cli config set save-transcription-audio off
@@ -253,8 +256,9 @@ macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 `--engine whisper` uses Whisper with auto-detected language unless `--language`
-is passed. The saved Whisper language is used when `--engine app-default`
-resolves to Whisper.
+is passed. `--engine cohere` uses the saved Cohere language unless `--language`
+is passed, because Cohere has no auto-detect. Saved engine-specific languages
+are used when `--engine app-default` resolves to that engine.
 
 ### Transcribe a media URL
 
@@ -472,10 +476,12 @@ macparakeet-cli spec --json
 macparakeet-cli transcribe "<path-or-media-url>" --format json
 macparakeet-cli transcribe "<path-or-media-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+macparakeet-cli models download cohere-transcribe
 macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli config set parakeet-model v3 --json
 macparakeet-cli transcribe "<path-or-media-url>" --engine whisper --language ko --format json
+macparakeet-cli transcribe "<path-or-media-url>" --engine cohere --language ja --format json
 macparakeet-cli transcribe "<path-or-media-url>" \
   --engine app-default \
   --parakeet-model app-default \

@@ -107,8 +107,8 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var whisperEngine: WhisperEngine?
     private let whisperModelVariant: String
     /// Owns the Cohere Transcribe runtime (FluidAudio `CoherePipeline`). Lazily
-    /// created on first use; sibling of the Parakeet/Nemotron/Whisper engines.
-    /// Batch-only (no live dictation / preview path).
+    /// created on first use; sibling of the other speech engines. Batch-only
+    /// (no live dictation / preview path).
     private var cohereEngine: CohereTranscribeEngine?
     private let defaults: UserDefaults
     private var activeTranscriptionCount = 0

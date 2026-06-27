@@ -49,7 +49,7 @@ struct LoadingCaptionView: View {
         case .preparingExtended:
             "First-time setup — may take a few minutes"
         case .optimizingExtended:
-            "About two minutes — one-time per launch"
+            "Model setup — may take a few minutes"
         case .preparing, .optimizing, .failed:
             nil
         }

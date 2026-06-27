@@ -50,7 +50,7 @@ These decisions are final. Do not second-guess them.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta and WhisperKit optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta path with multilingual (default) and English-only builds; Whisper adds mature broad multilingual coverage locally |
+| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta, WhisperKit, and Cohere Transcribe optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta path with multilingual (default) and English-only builds; Whisper adds mature broad multilingual coverage locally; Cohere is a larger batch-only accuracy path |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6 language mode (tools-version 5.9) |
 | Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
@@ -274,7 +274,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
 - [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, and Whisper Language cards/controls
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
-- [x] CLI `transcribe --engine parakeet|nemotron|whisper --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|nemotron-english-1120ms|whisper-large-v3-v20240930-turbo-632MB`
+- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ### v0.6 Productized Transforms

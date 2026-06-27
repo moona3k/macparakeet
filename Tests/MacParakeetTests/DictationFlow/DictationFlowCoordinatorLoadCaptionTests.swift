@@ -104,12 +104,10 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: false))
     }
 
-    func testCohereShowsOptimizingCaptionAndEscalatesEveryLaunch() async throws {
-        // Cohere's Core ML graph specialization recurs on every launch, so a
-        // warmed user (first dictation already completed) must still get the
-        // Cohere-specific "Optimizing…" caption and its time-estimate
-        // escalation — unlike the generic path, which only escalates on first
-        // install.
+    func testCohereShowsOptimizingCaptionAndEscalatesAfterFirstDictation() async throws {
+        // A user can complete first dictation on another engine before selecting
+        // Cohere, so the Cohere-specific model setup caption still escalates
+        // after the generic first-install milestone has passed.
         let harness = try makeHarness(
             isReady: false,
             transcribeDelayMs: 140,

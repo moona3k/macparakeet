@@ -80,7 +80,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  • VAD-guided live-preview chunking with fixed fallback           │
 │  • Nemotron Beta + WhisperKit engine options                     │
 │  • Settings engine picker + Nemotron/Whisper controls            │
-│  • CLI --engine parakeet|nemotron|whisper --language             │
+│  • CLI --engine parakeet|nemotron|whisper|cohere --language      │
 │  • Meeting engine/language pinning for live + recovery + final   │
 │  • Transforms: Polish / Distill / Decide selected text anywhere  │
 │  • CLI transforms + local Transform history                      │

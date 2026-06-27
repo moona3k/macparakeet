@@ -8,7 +8,7 @@
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
 > WhisperKit is optional for languages outside Parakeet/Nemotron
-> coverage.
+> coverage; Cohere Transcribe is an opt-in batch-only accuracy engine.
 
 ## Entry point
 
@@ -27,8 +27,9 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   optional `ParakeetUnifiedEngine` (routed when the persisted
   `ParakeetModelVariant` is `.unified`), the optional Beta
   `NemotronEngine`/`NemotronEnglishEngine` pair (routed by the persisted
-  `NemotronModelVariant`), and the optional `WhisperEngine`. Handles warm-up,
-  model init, cache clearing, shutdown, and Parakeet/Nemotron build swaps.
+  `NemotronModelVariant`), the optional `WhisperEngine`, and the optional
+  `CohereTranscribeEngine`. Handles warm-up, model init, cache clearing,
+  shutdown, and Parakeet/Nemotron build swaps.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -59,6 +60,11 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   through the streaming manager in bounded slices; live dictation drives
   the same manager incrementally and emits partials (see below). Preserves
   FluidAudio token timings as MacParakeet word timestamps when available.
+- `CohereTranscribeEngine.swift` — FluidAudio Cohere Transcribe wrapper.
+  Batch-only: dictation records first and transcribes after stop, file and
+  meeting-finalize jobs run offline, live dictation preview stays off, and
+  meeting live preview chunks are not routed to Cohere. No word timings;
+  meetings degrade to plain text.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.
@@ -92,6 +98,8 @@ minor historical wart, not a design statement.
   is the implementation.
 - ADR-021 — WhisperKit as optional multilingual engine; engine
   routing and meeting engine leases live in `STTScheduler`.
+- ADR-001 amendment / benchmark notes — Cohere Transcribe as an opt-in local
+  accuracy engine.
 - ADR-009 — custom hotkey support (relevant to the hotkey files
   above).
 - `spec/06-stt-engine.md` — narrative spec.
@@ -147,7 +155,7 @@ Dictation can request a single-flight tail-window preview via
 does not replace the recorded-file final transcript; it is only for the
 floating overlay text while capture is active. Parakeet v2/v3 use this
 tail-window batch preview; Parakeet Unified and Nemotron use native streaming
-partials instead, and Whisper remains default-off. Engine switches, variant
+partials instead, and Whisper and Cohere remain default-off. Engine switches, variant
 switches, and dictation stop/cancel paths cancel the preview with bounded drain.
 If a cancelled preview still has runtime work in flight, engine/variant switches
 fail fast with `engineBusy` rather than reloading under active inference; the
