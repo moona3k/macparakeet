@@ -136,9 +136,14 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
             onProgress?(0, 100)
             try Task.checkCancellation()
-            let samples = try await Task.detached(priority: .userInitiated) {
+            let resamplingTask = Task.detached(priority: .userInitiated) {
                 try AudioConverter().resampleAudioFile(audioURL)
-            }.value
+            }
+            let samples = try await withTaskCancellationHandler {
+                try await resamplingTask.value
+            } onCancel: {
+                resamplingTask.cancel()
+            }
             onProgress?(40, 100)
             try Task.checkCancellation()
 
@@ -239,15 +244,16 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     /// Joins two transcript fragments produced from overlapping audio windows by
     /// dropping duplicated text at the seam. Space-delimited languages use the
-    /// word path; whitespace-free CJK/Hangul fragments use a character path so
-    /// Japanese/Chinese chunks do not duplicate the whole seam with an inserted
-    /// ASCII space.
+    /// word path; CJK fragments use a character path even when mixed with spaces
+    /// so Japanese/Chinese chunks do not duplicate the seam with an inserted
+    /// ASCII space. Whitespace-free Hangul uses the character path too; Korean
+    /// with spaces stays on the word path.
     static func mergeOnOverlap(_ a: String, _ b: String, maxOverlap: Int = 30) -> String {
         if shouldUseCharacterOverlap(a, b) {
             return mergeUnits(
                 a: a.map(String.init),
                 b: b.map(String.init),
-                maxOverlap: maxOverlap,
+                maxOverlap: maxOverlap * 3,
                 separator: ""
             )
         }
@@ -289,21 +295,34 @@ public actor CohereTranscribeEngine: STTTranscribing {
     }
 
     private static func shouldUseCharacterOverlap(_ a: String, _ b: String) -> Bool {
-        !containsWhitespace(a) && !containsWhitespace(b) && (containsCJKOrHangul(a) || containsCJKOrHangul(b))
+        if containsCJK(a) || containsCJK(b) {
+            return true
+        }
+        return !containsWhitespace(a) && !containsWhitespace(b) && (containsHangul(a) || containsHangul(b))
     }
 
     private static func containsWhitespace(_ string: String) -> Bool {
         string.unicodeScalars.contains { CharacterSet.whitespacesAndNewlines.contains($0) }
     }
 
-    private static func containsCJKOrHangul(_ string: String) -> Bool {
+    private static func containsCJK(_ string: String) -> Bool {
         string.unicodeScalars.contains { scalar in
             switch scalar.value {
             case 0x3040...0x309F, // Hiragana
                  0x30A0...0x30FF, // Katakana
                  0x3400...0x4DBF, // CJK Unified Ideographs Extension A
-                 0x4E00...0x9FFF, // CJK Unified Ideographs
-                 0xAC00...0xD7AF: // Hangul syllables
+                 0x4E00...0x9FFF: // CJK Unified Ideographs
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    private static func containsHangul(_ string: String) -> Bool {
+        string.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0xAC00...0xD7AF: // Hangul syllables
                 return true
             default:
                 return false

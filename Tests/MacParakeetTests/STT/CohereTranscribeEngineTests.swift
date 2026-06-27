@@ -58,6 +58,26 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged.components(separatedBy: "买东西").count - 1, 1)
     }
 
+    func testMergeDropsMixedSpaceChineseOverlap() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "今天 buy coffee 然后回家",
+            "coffee 然后回家休息"
+        )
+        XCTAssertEqual(merged, "今天 buy coffee 然后回家休息")
+        XCTAssertEqual(merged.components(separatedBy: "coffee 然后回家").count - 1, 1)
+    }
+
+    func testMergeDropsLongChineseCharacterOverlap() {
+        let overlap = "这是一个很长的中文重叠片段用于模拟四秒钟的快速讲话内容并且继续包含更多文字"
+        XCTAssertGreaterThan(overlap.count, 30)
+
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "开头内容" + overlap,
+            overlap + "结尾内容"
+        )
+        XCTAssertEqual(merged, "开头内容" + overlap + "结尾内容")
+    }
+
     func testMergeHandlesEmptyFragments() {
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("", "only b"), "only b")
         XCTAssertEqual(CohereTranscribeEngine.mergeOnOverlap("only a", ""), "only a")
