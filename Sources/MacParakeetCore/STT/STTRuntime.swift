@@ -255,10 +255,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         // is inference-free session setup — it resets streaming state, configures
         // language, and stores the partial callback. Models are already loaded
         // (the `isReady()` guard above ensures `prepare()` inside is a no-op), and
-        // the only Neural Engine work happens in `appendLiveDictationSamples` /
-        // `finishLiveDictationTranscription`, which ARE gated. Gating start-of-
-        // session here would just add dictation-start latency on macOS 14 with no
-        // SIGBUS to prevent.
+        // the only Neural Engine work happens inside the native streaming
+        // engines' `processLiveDictationSamples` / `finishLiveDictation`
+        // implementations, which own their inference-level `ANEInferenceGate`
+        // calls. Gating start-of-session here would just add dictation-start
+        // latency on macOS 14 with no SIGBUS to prevent.
         activeTranscriptionCount += 1
         do {
             try await engine.beginLiveDictation(
@@ -278,12 +279,7 @@ public actor STTRuntime: STTRuntimeProtocol {
               let engine = liveDictationEngine else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
-        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+) so
-        // a streaming dictation chunk never runs CoreML concurrently with a
-        // background transcription. See `ANEInferenceGate`.
-        try await ANEInferenceGate.shared.withExclusiveAccess {
-            try await engine.processLiveDictationSamples(samples)
-        }
+        try await engine.processLiveDictationSamples(samples)
     }
 
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
@@ -299,11 +295,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             liveDictationEngine = nil
             activeTranscriptionCount -= 1
         }
-        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+).
-        // See `ANEInferenceGate`.
-        return try await ANEInferenceGate.shared.withExclusiveAccess {
-            try await engine.finishLiveDictation()
-        }
+        return try await engine.finishLiveDictation()
     }
 
     func cancelLiveDictationTranscription(sessionID: UUID) async {
