@@ -118,6 +118,50 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged, "开头内容" + overlap + "结尾内容")
     }
 
+    func testMergeDropsApproximateJapaneseOverlapWithRecognizerDrift() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "6番マックスパラキートで確認しています。7番コヒアの日本語テストです。",
+            "7番コヒアの2本5テストです。8番最後まで静かに録音します。"
+        )
+
+        XCTAssertEqual(
+            merged,
+            "6番マックスパラキートで確認しています。7番コヒアの日本語テストです。8番最後まで静かに録音します。"
+        )
+        XCTAssertEqual(merged.components(separatedBy: "7番").count - 1, 1)
+    }
+
+    func testMergeDropsApproximateJapaneseNumberedOverlapWithKanaDrift() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "16番最後まで静かに録音します。17番今日はいい天気です。",
+            "17番きょうはいい天気です。おはこあしたも晴れるでしょう。"
+        )
+
+        XCTAssertEqual(
+            merged,
+            "16番最後まで静かに録音します。17番今日はいい天気です。おはこあしたも晴れるでしょう。"
+        )
+        XCTAssertEqual(merged.components(separatedBy: "17番").count - 1, 1)
+    }
+
+    func testMergeDoesNotApproximateDifferentNumberedJapanesePhrases() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "1番今日はいい天気です。",
+            "2番今日はいい天気です。"
+        )
+
+        XCTAssertEqual(merged, "1番今日はいい天気です。2番今日はいい天気です。")
+    }
+
+    func testMergeDropsApproximateChineseOverlapWithRecognizerDrift() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "前半内容然后去商店买东西",
+            "然后去商店买东息结尾内容"
+        )
+
+        XCTAssertEqual(merged, "前半内容然后去商店买东西结尾内容")
+    }
+
     func testMergeDropsCJKCompatibilityIdeographOverlapWithoutInsertingSpace() throws {
         let first = try XCTUnwrap(UnicodeScalar(0xF900).map(String.init))
         let second = try XCTUnwrap(UnicodeScalar(0xF901).map(String.init))

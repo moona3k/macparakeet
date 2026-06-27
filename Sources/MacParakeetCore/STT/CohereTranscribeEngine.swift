@@ -358,7 +358,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
                 a: a.map(String.init),
                 b: b.map(String.init),
                 maxOverlap: maxOverlap * 3,
-                separator: ""
+                separator: "",
+                allowApproximateCharacterOverlap: !containsWhitespace(a) && !containsWhitespace(b)
             )
         }
 
@@ -366,7 +367,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
             a: a.split(whereSeparator: { $0.isWhitespace }).map(String.init),
             b: b.split(whereSeparator: { $0.isWhitespace }).map(String.init),
             maxOverlap: maxOverlap,
-            separator: " "
+            separator: " ",
+            allowApproximateCharacterOverlap: false
         )
     }
 
@@ -374,7 +376,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
         a: [String],
         b: [String],
         maxOverlap: Int,
-        separator: String
+        separator: String,
+        allowApproximateCharacterOverlap: Bool
     ) -> String {
         guard !a.isEmpty else { return b.joined(separator: separator) }
         guard !b.isEmpty else { return a.joined(separator: separator) }
@@ -383,7 +386,12 @@ public actor CohereTranscribeEngine: STTTranscribing {
         var bestK = 0
         var k = limit
         while k >= 1 {
-            if overlapMatches(a: Array(a.suffix(k)), b: Array(b.prefix(k))) {
+            let aSuffix = Array(a.suffix(k))
+            let bPrefix = Array(b.prefix(k))
+            if overlapMatches(a: aSuffix, b: bPrefix)
+                || (allowApproximateCharacterOverlap
+                    && approximateCharacterOverlapMatches(a: aSuffix, b: bPrefix))
+            {
                 bestK = k
                 break
             }
@@ -424,6 +432,123 @@ public actor CohereTranscribeEngine: STTTranscribing {
             return false
         }
         return matchedLexicalUnit
+    }
+
+    private static func approximateCharacterOverlapMatches(a: [String], b: [String]) -> Bool {
+        let rawA = a.joined()
+        let rawB = b.joined()
+        guard containsCJK(rawA) || containsCJK(rawB) || containsHangul(rawA) || containsHangul(rawB)
+        else {
+            return false
+        }
+
+        let aNormalized = normalizedOverlapSequence(a)
+        let bNormalized = normalizedOverlapSequence(b)
+        let minimumLength = min(aNormalized.count, bNormalized.count)
+        guard minimumLength >= 8 else { return false }
+        guard hasStableApproximateOverlapAnchor(aNormalized, bNormalized) else { return false }
+
+        let aMarker = leadingNumberMarker(aNormalized)
+        let bMarker = leadingNumberMarker(bNormalized)
+        if aMarker != bMarker {
+            return false
+        }
+        let aTrailingMarker = trailingNumberMarker(aNormalized)
+        let bTrailingMarker = trailingNumberMarker(bNormalized)
+        if aTrailingMarker != bTrailingMarker {
+            return false
+        }
+
+        let maximumLength = max(aNormalized.count, bNormalized.count)
+        let allowedDistance = max(2, Int((Double(maximumLength) * 0.25).rounded(.down)))
+        return boundedEditDistance(aNormalized, bNormalized, maxDistance: allowedDistance) <= allowedDistance
+    }
+
+    private static func normalizedOverlapSequence(_ units: [String]) -> String {
+        units.compactMap { normalizedOverlapUnit($0) }.joined()
+    }
+
+    private static func hasStableApproximateOverlapAnchor(_ a: String, _ b: String) -> Bool {
+        if let aMarker = leadingNumberMarker(a), let bMarker = leadingNumberMarker(b) {
+            return aMarker == bMarker
+        }
+        if leadingNumberMarker(a) != nil || leadingNumberMarker(b) != nil {
+            return false
+        }
+        return commonPrefixLength(a, b) >= 3
+    }
+
+    private static func leadingNumberMarker(_ string: String) -> String? {
+        var marker = ""
+        for scalar in string.unicodeScalars {
+            if CharacterSet.decimalDigits.contains(scalar) {
+                marker.unicodeScalars.append(scalar)
+            } else {
+                break
+            }
+        }
+        return marker.isEmpty ? nil : marker
+    }
+
+    private static func trailingNumberMarker(_ string: String) -> String? {
+        var markerScalars: [UnicodeScalar] = []
+        for scalar in string.unicodeScalars.reversed() {
+            if CharacterSet.decimalDigits.contains(scalar) {
+                markerScalars.append(scalar)
+            } else {
+                break
+            }
+        }
+        guard !markerScalars.isEmpty else { return nil }
+        return String(String.UnicodeScalarView(markerScalars.reversed()))
+    }
+
+    private static func commonPrefixLength(_ a: String, _ b: String) -> Int {
+        var count = 0
+        var aIndex = a.startIndex
+        var bIndex = b.startIndex
+        while aIndex < a.endIndex && bIndex < b.endIndex {
+            guard a[aIndex] == b[bIndex] else { break }
+            count += 1
+            aIndex = a.index(after: aIndex)
+            bIndex = b.index(after: bIndex)
+        }
+        return count
+    }
+
+    private static func boundedEditDistance(_ a: String, _ b: String, maxDistance: Int) -> Int {
+        let aCharacters = Array(a)
+        let bCharacters = Array(b)
+        guard abs(aCharacters.count - bCharacters.count) <= maxDistance else {
+            return maxDistance + 1
+        }
+        if aCharacters.isEmpty { return bCharacters.count }
+        if bCharacters.isEmpty { return aCharacters.count }
+
+        var previous = Array(0...bCharacters.count)
+        var current = Array(repeating: 0, count: bCharacters.count + 1)
+
+        for (aOffset, aCharacter) in aCharacters.enumerated() {
+            current[0] = aOffset + 1
+            var rowMinimum = current[0]
+
+            for (bOffset, bCharacter) in bCharacters.enumerated() {
+                let substitutionCost = aCharacter == bCharacter ? 0 : 1
+                current[bOffset + 1] = min(
+                    previous[bOffset + 1] + 1,
+                    current[bOffset] + 1,
+                    previous[bOffset] + substitutionCost
+                )
+                rowMinimum = min(rowMinimum, current[bOffset + 1])
+            }
+
+            if rowMinimum > maxDistance {
+                return maxDistance + 1
+            }
+            swap(&previous, &current)
+        }
+
+        return previous[bCharacters.count]
     }
 
     private static func isLeadingPartial(unit: String, completedBy fullUnit: String) -> Bool {
