@@ -446,8 +446,10 @@ public actor CohereTranscribeEngine: STTTranscribing {
             && fullUnit.hasPrefix(unit)
     }
 
+    private static let nonAlphanumerics = CharacterSet.alphanumerics.inverted
+
     private static func normalizedOverlapUnit(_ unit: String) -> String? {
-        let normalized = unit.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let normalized = unit.lowercased().trimmingCharacters(in: Self.nonAlphanumerics)
         return normalized.isEmpty ? nil : normalized
     }
 
