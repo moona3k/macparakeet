@@ -647,7 +647,7 @@ public final class EngineSettingsViewModel {
 
         Task {
             do {
-                _ = try await CohereTranscribeEngine.downloadModel { message in
+                _ = try await CohereTranscribeEngine.downloadModel { [weak self] message in
                     Task { @MainActor [weak self] in
                         self?.cohereModelStatusDetail = message
                     }

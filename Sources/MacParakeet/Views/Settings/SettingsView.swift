@@ -2839,8 +2839,7 @@ struct SettingsView: View {
     }
 
     private var cohereDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard shouldShowCohereModelRow,
-              viewModel.engine.speechEnginePreference == .cohere else {
+        guard viewModel.engine.speechEnginePreference == .cohere else {
             return nil
         }
         if viewModel.engine.cohereDownloading {
