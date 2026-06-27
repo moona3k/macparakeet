@@ -446,8 +446,7 @@ struct ConfigCommand: ParsableCommand {
 
     static func parseCohereLanguage(_ value: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let language = SpeechEnginePreference.normalizeCohereLanguage(trimmed),
-              CohereTranscribeEngine.supportedLanguages.contains(where: { $0.code == language }) else {
+        guard let language = SpeechEnginePreference.normalizeCohereLanguage(trimmed) else {
             let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
             throw ValidationError("Invalid value for cohere-language: '\(value)'. Use one of: \(supported).")
         }
