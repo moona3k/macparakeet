@@ -155,6 +155,18 @@ final paste path still proceeds after its bounded display-preview drain. Runtime
 quiesce paths such as shutdown and cache clear wait for preview drain under the
 unhealthy-runtime watchdog before unloading or clearing model state.
 
+**Dictation finalize pads trailing silence (issue #562).** The Parakeet TDT
+final pass for `job == .dictation` decodes the recorded WAV to 16 kHz mono
+samples, appends `dictationTrailingSilenceSeconds` of silence, and transcribes
+through the samples API instead of `manager.transcribe(audioURL:)`. Without the
+pad the TDT decoder can drop a fast final word that lands right on the end of
+the recording even though the audio was captured. This is scoped deliberately:
+file/meeting jobs keep the URL path (FluidAudio streams / disk-backs long
+audio), and Whisper is never padded (trailing silence can trigger hallucinated
+text). The decode is best-effort — any failure falls through to the URL path so
+a dictation is never lost. Don't "simplify" dictation back onto the shared URL
+path without restoring this trailing context.
+
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI
 (`config set parakeet-model`, `models select parakeet-v2`, or

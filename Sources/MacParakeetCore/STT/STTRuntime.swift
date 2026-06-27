@@ -1,3 +1,4 @@
+import AVFoundation
 import FluidAudio
 import Foundation
 import os
@@ -398,6 +399,36 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTError.modelNotLoaded
         }
 
+        // Dictation finalizes a short, in-memory clip. Pad a little trailing
+        // silence onto the samples so the Parakeet TDT decoder has enough
+        // context to emit a fast final word that lands right on the end of the
+        // recording (issue #562). Without it the last token can be dropped even
+        // though the audio is fully captured. File/meeting jobs keep FluidAudio's
+        // URL path (which streams / disk-backs long audio); Whisper is unaffected
+        // (trailing silence there can trigger hallucinated text). If the decode
+        // fails for any reason we fall through to the URL path rather than lose
+        // the dictation.
+        if job == .dictation,
+           let paddedSamples = try? Self.paddedDictationSamples(audioPath: audioPath),
+           !paddedSamples.isEmpty
+        {
+            do {
+                try Task.checkCancellation()
+                var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
+                try Task.checkCancellation()
+                let result = try await manager.transcribe(paddedSamples, decoderState: &decoderState)
+                return STTResult(
+                    text: result.text,
+                    words: STTWordTimingBuilder.words(from: result.tokenTimings),
+                    language: "en",
+                    engine: .parakeet,
+                    engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                )
+            } catch {
+                throw try Self.mapTranscriptionError(error)
+            }
+        }
+
         let audioURL = URL(fileURLWithPath: audioPath)
         let transcriptionProgressTask: Task<Void, Never>? = if let onProgress {
             Task {
@@ -446,6 +477,59 @@ public actor STTRuntime: STTRuntimeProtocol {
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
+    }
+
+    // MARK: - Dictation trailing-silence pad (issue #562)
+
+    /// How much trailing silence to append to a dictation clip before the final
+    /// Parakeet transcription. Enough to give the TDT decoder a few extra
+    /// encoder frames so it emits a fast final word, but small enough that it
+    /// adds no perceptible stop latency.
+    static let dictationTrailingSilenceSeconds = 0.5
+
+    /// Decode the recorded dictation WAV and append trailing silence. Returns an
+    /// empty array when there is nothing to transcribe (the caller then falls
+    /// back to the URL path).
+    static func paddedDictationSamples(audioPath: String) throws -> [Float] {
+        let samples = try loadDictationSamples16k(path: audioPath)
+        guard !samples.isEmpty else { return [] }
+        return appendingTrailingSilence(
+            samples,
+            seconds: dictationTrailingSilenceSeconds,
+            sampleRate: ASRConstants.sampleRate
+        )
+    }
+
+    /// Append `seconds` of silence (zero samples) to the end of `samples`.
+    /// Pure and allocation-bounded; a no-op for empty input or a non-positive
+    /// pad so callers can apply it unconditionally.
+    static func appendingTrailingSilence(
+        _ samples: [Float],
+        seconds: Double,
+        sampleRate: Int
+    ) -> [Float] {
+        guard seconds > 0, sampleRate > 0, !samples.isEmpty else { return samples }
+        let padCount = Int(seconds * Double(sampleRate))
+        guard padCount > 0 else { return samples }
+        var padded = samples
+        padded.append(contentsOf: repeatElement(0, count: padCount))
+        return padded
+    }
+
+    /// Decode a recorded dictation WAV to 16 kHz mono Float samples, mirroring
+    /// the capture pipeline's downmix + resample (`AudioChunker.extractAndResample`).
+    /// Dictation clips are short, so the file is read in a single buffer.
+    static func loadDictationSamples16k(path: String) throws -> [Float] {
+        let url = URL(fileURLWithPath: path)
+        let file = try AVAudioFile(forReading: url)
+        let frameCount = AVAudioFrameCount(file.length)
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount)
+        else {
+            return []
+        }
+        try file.read(into: buffer)
+        return AudioChunker.extractAndResample(from: buffer) ?? []
     }
 
     private func transcribeParakeetPreview(samples: [Float]) async throws -> STTResult {
