@@ -414,6 +414,33 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Needs download before use.")
     }
 
+    func testDeleteCohereModelBlocksConcurrentDeleteAndDownloadUntilDiskWorkFinishes() async throws {
+        let recorder = BlockingCohereDeleteRecorder()
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached },
+            deleteCohere: {
+                recorder.delete()
+                return true
+            }
+        )
+        vm.cohereModelStatus = .notLoaded
+
+        vm.deleteCohereModel()
+        try await waitUntil { recorder.deleteStarted && vm.cohereDeleting }
+
+        vm.deleteCohereModel()
+        vm.downloadCohereModel()
+
+        XCTAssertEqual(recorder.deleteCount, 1)
+        XCTAssertTrue(vm.cohereDeleting)
+        XCTAssertFalse(vm.cohereDownloading)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+
+        recorder.finishDelete()
+        try await waitUntil { !vm.cohereDeleting && vm.cohereModelStatus == .notDownloaded }
+        XCTAssertFalse(vm.canDeleteCohereModel)
+    }
+
     func testRefreshModelStatusPassesStoredNemotronLanguageToCachedStub() async throws {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
         let recorder = NemotronCacheCheckRecorder()
@@ -496,5 +523,46 @@ private final class CohereDeleteRecorder: @unchecked Sendable {
         deletes += 1
         cached = false
         lock.unlock()
+    }
+}
+
+private final class BlockingCohereDeleteRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+    private var cached = true
+    private var deletes = 0
+    private var started = false
+
+    var isCached: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cached
+    }
+
+    var deleteStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return started
+    }
+
+    var deleteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return deletes
+    }
+
+    func delete() {
+        lock.lock()
+        started = true
+        deletes += 1
+        lock.unlock()
+        releaseSemaphore.wait()
+        lock.lock()
+        cached = false
+        lock.unlock()
+    }
+
+    func finishDelete() {
+        releaseSemaphore.signal()
     }
 }

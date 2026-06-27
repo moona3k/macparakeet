@@ -75,6 +75,7 @@ public final class EngineSettingsViewModel {
     public var cohereModelStatus: LocalModelStatus = .unknown
     public var cohereModelStatusDetail: String = "Not checked yet."
     public var cohereDownloading = false
+    public var cohereDeleting = false
     public var cohereCacheDirectoryExists = false
     public var isNemotronModelAvailable: Bool {
         nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded
@@ -642,7 +643,7 @@ public final class EngineSettingsViewModel {
 
     public func downloadCohereModel() {
         guard !speechEngineSwitching else { return }
-        guard !cohereDownloading else { return }
+        guard !cohereDownloading, !cohereDeleting else { return }
         speechEngineError = nil
         cohereDownloading = true
         cohereModelStatus = .repairing
@@ -1186,12 +1187,13 @@ public final class EngineSettingsViewModel {
     }
 
     public func deleteCohereModel() {
-        guard !speechEngineSwitching, !cohereDownloading else { return }
+        guard !speechEngineSwitching, !cohereDownloading, !cohereDeleting else { return }
         // Protect the in-use engine's model; deleting it would force a silent
         // re-download the next time the active runtime prepares.
         guard speechEnginePreference != .cohere else { return }
         guard canDeleteCohereModel else { return }
 
+        cohereDeleting = true
         modelStatusRefreshGeneration += 1
         cohereCacheDirectoryExists = false
         applyCohereDownloadedStatus(false)
@@ -1201,6 +1203,7 @@ public final class EngineSettingsViewModel {
                 _ = deleter()
             }.value
             guard let self else { return }
+            self.cohereDeleting = false
             self.refreshModelStatus()
         }
     }
