@@ -87,6 +87,7 @@ public final class EngineSettingsViewModel {
         cohereModelStatus == .ready || cohereModelStatus == .notLoaded
     }
     private var shouldBlockCohereSwitchForModelStatus: Bool {
+        if cohereDeleting { return true }
         switch cohereModelStatus {
         case .ready, .notLoaded:
             return false
@@ -787,7 +788,9 @@ public final class EngineSettingsViewModel {
         }
 
         if preference == .cohere && shouldBlockCohereSwitchForModelStatus {
-            speechEngineError = "Download Cohere Transcribe before switching engines."
+            speechEngineError = cohereDeleting
+                ? "Finish deleting Cohere Transcribe before switching engines."
+                : "Download Cohere Transcribe before switching engines."
             Telemetry.send(.speechEngineSwitchOperation(
                 operationID: operationContext.operationID,
                 operationContext: operationContext,

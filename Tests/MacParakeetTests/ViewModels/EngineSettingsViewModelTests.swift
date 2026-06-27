@@ -209,6 +209,20 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertNil(vm.speechEngineError)
     }
 
+    func testConfirmPendingSwitchBlocksCohereWhileModelDeleteIsInFlight() {
+        let vm = makeViewModel(cohereCached: { true })
+        vm.cohereModelStatus = .notLoaded
+        vm.cohereDeleting = true
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(vm.speechEngineError, "Finish deleting Cohere Transcribe before switching engines.")
+    }
+
     func testConfirmPendingSwitchBlocksCohereWhileModelStatusCheckIsInFlightAndCacheMissing() {
         let vm = makeViewModel(cohereCached: { false })
         vm.cohereModelStatus = .checking
