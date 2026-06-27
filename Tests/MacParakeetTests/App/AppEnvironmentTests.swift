@@ -3,6 +3,17 @@ import MacParakeetCore
 import XCTest
 
 final class AppEnvironmentTests: XCTestCase {
+    func testCohereDictationRoutingDisablesLiveAndDisplayPreview() {
+        XCTAssertFalse(AppEnvironment.shouldAttemptLiveDictationTranscription(
+            speechEngine: .cohere,
+            liveDictationStreamingEnabled: true
+        ))
+        XCTAssertNil(AppEnvironment.dictationPreviewSpeechEngine(
+            speechEngine: .cohere,
+            liveDictationStreamingEnabled: true
+        ))
+    }
+
     func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

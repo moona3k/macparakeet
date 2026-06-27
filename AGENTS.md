@@ -11,7 +11,8 @@ MacParakeet is a fast, private, local-first voice app for Apple Silicon Macs.
 It ships three primary capture modes -- system-wide dictation, file/media URL
 transcription, and meeting recording -- plus Transforms for selected-text
 rewrites. Speech recognition runs locally by default through Parakeet via
-FluidAudio CoreML/ANE, with optional Nemotron and WhisperKit engines.
+FluidAudio CoreML/ANE, with optional Nemotron, WhisperKit, and Cohere Transcribe
+engines.
 
 The repo contains two products:
 

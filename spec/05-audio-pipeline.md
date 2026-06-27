@@ -353,7 +353,7 @@ alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 
 ### Meeting Live Preview
 
-`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper sessions currently use the fixed cadence. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
+`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording when that engine supports live chunk transcription. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper sessions currently use the fixed cadence. Cohere sessions skip live-preview chunks because Cohere is batch-only. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
 - Live transcript preview in the recording pill
 - Source-aware labels: mic chunks → "Me", system chunks → "Them"
 - Raw mic capture plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows

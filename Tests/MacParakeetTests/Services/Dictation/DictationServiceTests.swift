@@ -657,6 +657,48 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveBeginCallCount, 0)
     }
 
+    func testCohereStyleDictationSkipsLivePathsAndUsesRecordedFileFinal() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { false },
+            shouldShowDictationPreview: { true },
+            dictationPreviewSpeechEngine: { nil },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        let result = try await service.stopRecording()
+
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let lastJob = await mockSTT.lastJob
+        let liveBeginCallCount = await mockSTT.liveBeginCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        XCTAssertEqual(result.dictation.rawTranscript, "cohere final")
+        XCTAssertEqual(result.dictation.engine, SpeechEnginePreference.cohere.rawValue)
+        XCTAssertEqual(result.dictation.wordCount, 2)
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(lastJob, .dictation)
+        XCTAssertEqual(liveBeginCallCount, 0)
+        XCTAssertEqual(liveAppendCallCount, 0)
+        XCTAssertEqual(liveFinishCallCount, 0)
+        XCTAssertEqual(liveCancelCallCount, 0)
+        XCTAssertEqual(previewCallCount, 0)
+        XCTAssertEqual(previewCancelCallCount, 0)
+    }
+
     func testDisplayPreviewDisabledSkipsPreviewTranscription() async throws {
         service = DictationService(
             audioProcessor: mockAudio,

@@ -299,6 +299,59 @@ final class ModelDeletionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: multilingualVariant.path))
     }
 
+    // MARK: - Cohere cache file removal
+
+    func testCohereCacheDirectoryExistsForPartialDownloadDirectory() throws {
+        let tierDir = tempRoot
+            .appendingPathComponent("cohere-transcribe", isDirectory: true)
+            .appendingPathComponent("q8", isDirectory: true)
+        try FileManager.default.createDirectory(at: tierDir, withIntermediateDirectories: true)
+        try "partial".write(to: tierDir.appendingPathComponent("encoder.mlmodelc"), atomically: true, encoding: .utf8)
+
+        XCTAssertTrue(CohereTranscribeEngine.hasModelCacheDirectory(cacheRoot: tierDir))
+        XCTAssertFalse(CohereTranscribeEngine.isModelCached(cacheRoot: tierDir))
+    }
+
+    func testCohereDeleteModelPrunesParentWithOnlyFinderDotfiles() throws {
+        let familyRoot = tempRoot.appendingPathComponent("cohere-transcribe", isDirectory: true)
+        let tierDir = familyRoot.appendingPathComponent("q8", isDirectory: true)
+        try FileManager.default.createDirectory(at: tierDir, withIntermediateDirectories: true)
+        try "weights".write(to: tierDir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        try "finder".write(to: familyRoot.appendingPathComponent(".DS_Store"), atomically: true, encoding: .utf8)
+
+        XCTAssertTrue(CohereTranscribeEngine.deleteModel(cacheRoot: tierDir))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tierDir.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: familyRoot.path))
+    }
+
+    func testCohereDeleteModelKeepsParentWithVisibleSibling() throws {
+        let familyRoot = tempRoot.appendingPathComponent("cohere-transcribe", isDirectory: true)
+        let tierDir = familyRoot.appendingPathComponent("q8", isDirectory: true)
+        let visibleSibling = familyRoot.appendingPathComponent("other-tier", isDirectory: true)
+        for dir in [tierDir, visibleSibling] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "weights".write(to: dir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertTrue(CohereTranscribeEngine.deleteModel(cacheRoot: tierDir))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tierDir.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: familyRoot.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: visibleSibling.path))
+    }
+
+    func testCohereDeleteModelKeepsParentWithNonFinderHiddenSibling() throws {
+        let familyRoot = tempRoot.appendingPathComponent("cohere-transcribe", isDirectory: true)
+        let tierDir = familyRoot.appendingPathComponent("q8", isDirectory: true)
+        try FileManager.default.createDirectory(at: tierDir, withIntermediateDirectories: true)
+        try "weights".write(to: tierDir.appendingPathComponent("model.bin"), atomically: true, encoding: .utf8)
+        try "state".write(to: familyRoot.appendingPathComponent(".download-state"), atomically: true, encoding: .utf8)
+
+        XCTAssertTrue(CohereTranscribeEngine.deleteModel(cacheRoot: tierDir))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tierDir.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: familyRoot.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: familyRoot.appendingPathComponent(".download-state").path))
+    }
+
     func testDownloadNemotronEnglishModelEmitsRuntimeTelemetryOnSuccess() async throws {
         let telemetry = ModelDeletionTelemetrySpy()
         Telemetry.configure(telemetry)

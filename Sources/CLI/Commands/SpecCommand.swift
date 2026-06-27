@@ -179,10 +179,10 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option("--podcast", valueName: "QUERY", summary: "Search Apple Podcasts by show/episode text and transcribe the selected episode."),
                 CLISpecParameter.option("--output-dir", valueName: "DIR", summary: "Write one transcript file per input to this directory; implies batch mode."),
-                CLISpecParameter.option("--format", valueName: "text|transcript|json", summary: "Output format for stdout or written transcript files."),
+                CLISpecParameter.option("--format", valueName: "text|transcript|json|srt|vtt", summary: "Output format for stdout or written transcript files."),
                 CLISpecParameter.option("--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this run."),
-                CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|app-default", summary: "Speech engine for this run."),
-                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron or Whisper; the English-only Nemotron build ignores it."),
+                CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|cohere|app-default", summary: "Speech engine for this run."),
+                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."),
                 CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2|unified", summary: "Parakeet build for this run; ignored for Nemotron and Whisper."),
                 CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron build for this run; ignored for Parakeet and Whisper."),
                 CLISpecParameter.option("--downloaded-audio", valueName: "app-default|keep|delete", summary: "Downloaded media retention policy."),
@@ -204,7 +204,7 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["config", "get"],
             summary: "Read one shared app/CLI configuration value.",
-            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, whisper-language, auto-meeting-titles, meeting-artifacts-folder, meeting-hook-enabled, meeting-hook-path, or meeting-hook-timeout.")],
+            arguments: [.argument("key", summary: "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, whisper-language, cohere-language, auto-meeting-titles, meeting-artifacts-folder, meeting-hook-enabled, meeting-hook-path, or meeting-hook-timeout.")],
             output: "Configuration value."
         ),
         CLISpecCommand(

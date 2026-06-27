@@ -104,6 +104,25 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: false))
     }
 
+    func testCohereShowsOptimizingCaptionAndEscalatesAfterFirstDictation() async throws {
+        // A user can complete first dictation on another engine before selecting
+        // Cohere, so the Cohere-specific model setup caption still escalates
+        // after the generic first-install milestone has passed.
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 140,
+            hasCompletedFirstDictation: true,
+            engine: .cohere
+        )
+
+        try await harness.startAndStop()
+
+        let shown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .optimizing }
+        XCTAssertTrue(shown)
+        let escalated = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .optimizingExtended }
+        XCTAssertTrue(escalated)
+    }
+
     func testFailureShowsFailureCaptionBeforeErrorCard() async throws {
         let harness = try makeHarness(
             isReady: false,
@@ -145,6 +164,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(cleared)
 
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "no_speech"))
+    }
+
+    func testPasteFailureDismissesCaptionWithFailureOutcome() async throws {
+        let harness = try makeHarness(isReady: false, transcribeDelayMs: 90)
+        await harness.clipboard.setPasteError(ClipboardServiceError.eventSourceUnavailable)
+
+        try await harness.startAndStop()
+        let shown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        XCTAssertTrue(shown)
+        let recordedFailure = await waitUntil {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "failure")
+        }
+
+        XCTAssertTrue(recordedFailure)
+        XCTAssertFalse(harness.telemetry.snapshot().containsCaptionDuration(outcome: "success"))
     }
 
     func testCancelDuringVisibleCaptionClearsCaption() async throws {
@@ -236,17 +270,16 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             dictationInsertionStyle: .inline
         )
 
+        // The paste uses the insertion style captured when the transcript was
+        // produced. With the success checkmark removed, paste is immediate, so a
+        // later preference change can no longer race ahead of it — the captured
+        // (inline) style is applied. (When the finalize queue lands, the deferred
+        // paste will snapshot the style into the job, re-establishing this
+        // guarantee against a mid-flight preference change.)
         harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
         let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
         XCTAssertTrue(started)
         harness.coordinator.stopDictation()
-        let completed = await waitUntil { harness.coordinator.overlayStateForTesting?.isSuccessForTest == true }
-        XCTAssertTrue(completed)
-
-        harness.preferencesDefaults.set(
-            DictationInsertionStyle.sentence.rawValue,
-            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
-        )
 
         let pasted = await waitUntilAsync {
             await harness.clipboard.snapshot().lastPastedText != nil
@@ -287,6 +320,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         keepDictationOnClipboard: Bool = false,
         processingMode: Dictation.ProcessingMode = .raw,
         dictationInsertionStyle: DictationInsertionStyle = .sentence,
+        engine: SpeechEnginePreference = .parakeet,
         timing: DictationProcessingLoadCaptionTiming? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
@@ -343,6 +377,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             sttRuntime: stt,
             runtimePreferences: preferences,
             captionTiming: timing ?? self.timing,
+            activeSpeechEngine: { engine },
             overlayControllerFactory: { SpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },
             onHistoryReload: {},

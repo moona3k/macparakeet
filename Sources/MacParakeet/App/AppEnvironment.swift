@@ -278,34 +278,13 @@ final class AppEnvironment {
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
-                guard AppFeatures.liveDictationStreamingEnabled else { return false }
-                switch SpeechEnginePreference.current() {
-                case .nemotron:
-                    // Both Nemotron builds stream live dictation partials from
-                    // their FluidAudio streaming managers.
-                    return true
-                case .parakeet:
-                    return SpeechEnginePreference.parakeetModelVariant().usesUnifiedEngine
-                case .whisper:
-                    return false
-                }
+                Self.shouldAttemptLiveDictationTranscription()
             },
             shouldShowDictationPreview: { [runtimePreferences] in
                 runtimePreferences.showLiveDictationPreview
             },
             dictationPreviewSpeechEngine: {
-                guard AppFeatures.liveDictationStreamingEnabled else { return nil }
-                switch SpeechEnginePreference.current() {
-                case .parakeet:
-                    guard !SpeechEnginePreference.parakeetModelVariant().usesUnifiedEngine else {
-                        return nil
-                    }
-                    return SpeechEngineSelection(engine: .parakeet)
-                case .nemotron:
-                    return nil
-                case .whisper:
-                    return nil
-                }
+                Self.dictationPreviewSpeechEngine()
             },
             markFirstDictationCompleted: { [runtimePreferences] in
                 // Fire the activation milestone exactly once, the first time a
@@ -360,6 +339,49 @@ final class AppEnvironment {
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()
+    }
+
+    nonisolated static func shouldAttemptLiveDictationTranscription(
+        speechEngine: SpeechEnginePreference = SpeechEnginePreference.current(),
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(),
+        liveDictationStreamingEnabled: Bool = AppFeatures.liveDictationStreamingEnabled
+    ) -> Bool {
+        guard liveDictationStreamingEnabled else { return false }
+        switch speechEngine {
+        case .nemotron:
+            // Both Nemotron builds stream live dictation partials from
+            // their FluidAudio streaming managers.
+            return true
+        case .parakeet:
+            return parakeetModelVariant.usesUnifiedEngine
+        case .whisper:
+            return false
+        case .cohere:
+            // Batch engine: record-then-transcribe, no live partials.
+            return false
+        }
+    }
+
+    nonisolated static func dictationPreviewSpeechEngine(
+        speechEngine: SpeechEnginePreference = SpeechEnginePreference.current(),
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(),
+        liveDictationStreamingEnabled: Bool = AppFeatures.liveDictationStreamingEnabled
+    ) -> SpeechEngineSelection? {
+        guard liveDictationStreamingEnabled else { return nil }
+        switch speechEngine {
+        case .parakeet:
+            guard !parakeetModelVariant.usesUnifiedEngine else {
+                return nil
+            }
+            return SpeechEngineSelection(engine: .parakeet)
+        case .nemotron:
+            return nil
+        case .whisper:
+            return nil
+        case .cohere:
+            // No display-preview path; Cohere finalizes on stop.
+            return nil
+        }
     }
 
     nonisolated static func syncAIFormatterAvailabilityWithLLMConfiguration(

@@ -133,7 +133,7 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
         var variant: String
 
         func run() async throws {
@@ -166,6 +166,21 @@ extension ModelsCommand {
                     if shouldPrint { print("Nemotron: \(message)") }
                 }
                 print("Nemotron: ready (\(nemotronVariant.modelName))")
+                return
+            }
+
+            if isCohereModelID(lowered) {
+                print("Cohere: downloading Cohere Transcribe...")
+                let lastMessage = OSAllocatedUnfairLock(initialState: "")
+                _ = try await CohereTranscribeEngine.downloadModel { message in
+                    let shouldPrint = lastMessage.withLock { last in
+                        guard last != message else { return false }
+                        last = message
+                        return true
+                    }
+                    if shouldPrint { print("Cohere: \(message)") }
+                }
+                print("Cohere: ready (Cohere Transcribe)")
                 return
             }
 
@@ -257,7 +272,7 @@ extension ModelsCommand {
             commandName: "delete",
             abstract: "Delete one downloaded speech model, freeing its disk space.",
             discussion: """
-                Removes a single model (one Parakeet build, one Nemotron build, or the Whisper variant) \
+                Removes a single model (one Parakeet build, one Nemotron build, the Cohere model, or the Whisper variant) \
                 while leaving every other model in place — unlike `models clear`, \
                 which wipes the whole local stack.
 
@@ -267,7 +282,7 @@ extension ModelsCommand {
                 """
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
         var id: String
 
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
@@ -318,6 +333,16 @@ extension ModelsCommand {
                 }
                 let freed = whisperModelSizeLabel(for: variant).map { " · freed \($0)" } ?? ""
                 print("Deleted \(target.displayName)\(freed).")
+            case .cohere:
+                guard CohereTranscribeEngine.hasModelCacheDirectory() else {
+                    print("Cohere Transcribe is not downloaded — nothing to delete.")
+                    return
+                }
+                let removed = CohereTranscribeEngine.deleteModel()
+                guard removed else {
+                    throw ModelDeletionError.deleteFailed("Could not delete Cohere Transcribe. It may be missing or in use by another process.")
+                }
+                print("Deleted \(target.displayName) · freed \(cohereModelSize).")
             }
         }
     }
@@ -395,13 +420,24 @@ func nemotronDownloadVariant(
     return parseNemotronSelectionVariant(lowered)
 }
 
+private let cohereModelID = "cohere-transcribe"
+private let cohereModelName = "Cohere Transcribe"
+private let cohereModelSize = "~2.1 GB"
+
+func isCohereModelID(_ lowered: String) -> Bool {
+    lowered == SpeechEnginePreference.cohere.rawValue
+        || lowered == cohereModelID
+        || lowered == "cohere-transcribe-03-2026"
+        || lowered == "cohere:transcribe"
+}
+
 func resolveWhisperDownloadModel(_ variant: String) throws -> String {
     let normalizedInput = variant.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedInput.isEmpty else {
         throw ValidationError("Model variant cannot be empty.")
     }
     guard normalizedInput.hasPrefix("whisper-") else {
-        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, nemotron-multilingual-1120ms, nemotron-english-1120ms, or whisper-* id from `models list`.")
+        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-* id from `models list`.")
     }
     return WhisperEngine.normalizeModelVariant(normalizedInput)
 }
@@ -418,6 +454,7 @@ struct SpeechStackPayload: Encodable {
     let nemotronModelDownloaded: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
+    let cohereModelDownloaded: Bool
     let summary: String
 
     init(status: SpeechStackStatus) {
@@ -432,6 +469,7 @@ struct SpeechStackPayload: Encodable {
         self.nemotronModelDownloaded = status.nemotronModelDownloaded
         self.whisperModelVariant = status.whisperModelVariant
         self.whisperModelDownloaded = status.whisperModelDownloaded
+        self.cohereModelDownloaded = status.cohereModelDownloaded
         self.summary = status.summary
     }
 }
@@ -448,6 +486,7 @@ struct SpeechStackStatus: Sendable, Equatable {
     let nemotronModelDownloaded: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
+    let cohereModelDownloaded: Bool
 
     var summary: String {
         if speechRuntimeReady && speakerModelsPrepared {
@@ -501,7 +540,8 @@ func loadSpeechStackStatus(
     nemotronModelVariant: NemotronModelVariant? = nil,
     isNemotronModelDownloaded: (@Sendable (NemotronModelVariant) -> Bool)? = nil,
     whisperModelVariant: String? = nil,
-    isWhisperModelDownloaded: (@Sendable (String) -> Bool)? = nil
+    isWhisperModelDownloaded: (@Sendable (String) -> Bool)? = nil,
+    isCohereModelDownloaded: (@Sendable () -> Bool)? = nil
 ) async -> SpeechStackStatus {
     let speechEngine = SpeechEnginePreference.current(defaults: defaults)
     let parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
@@ -517,6 +557,9 @@ func loadSpeechStackStatus(
     let whisperDownloaded = (isWhisperModelDownloaded ?? { variant in
         WhisperEngine.isModelDownloaded(model: variant)
     })(whisperModelVariant)
+    let cohereDownloaded = (isCohereModelDownloaded ?? {
+        CohereTranscribeEngine.isModelCached()
+    })()
     let activeSpeechModelCached = switch speechEngine {
     case .parakeet:
         parakeetDownloaded
@@ -524,6 +567,8 @@ func loadSpeechStackStatus(
         nemotronDownloaded
     case .whisper:
         whisperDownloaded
+    case .cohere:
+        cohereDownloaded
     }
 
     async let speechRuntimeReady = sttClient.isReady()
@@ -541,7 +586,8 @@ func loadSpeechStackStatus(
         nemotronModelVariant: nemotronModelVariant,
         nemotronModelDownloaded: nemotronDownloaded,
         whisperModelVariant: whisperModelVariant,
-        whisperModelDownloaded: whisperDownloaded
+        whisperModelDownloaded: whisperDownloaded,
+        cohereModelDownloaded: cohereDownloaded
     )
 }
 
@@ -560,6 +606,7 @@ func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = t
     print("  Nemotron model downloaded: \(status.nemotronModelDownloaded ? "Yes" : "No")")
     print("  Whisper model variant: \(status.whisperModelVariant)")
     print("  Whisper model downloaded: \(status.whisperModelDownloaded ? "Yes" : "No")")
+    print("  Cohere model downloaded: \(status.cohereModelDownloaded ? "Yes" : "No")")
     print("  Status: \(status.summary)")
 }
 
@@ -587,7 +634,8 @@ func loadSelectableSpeechModels(
     defaults: UserDefaults = macParakeetAppDefaults(),
     isParakeetModelCached: ((ParakeetModelVariant) -> Bool)? = nil,
     isNemotronModelDownloaded: ((NemotronModelVariant) -> Bool)? = nil,
-    isWhisperModelDownloaded: ((String) -> Bool)? = nil
+    isWhisperModelDownloaded: ((String) -> Bool)? = nil,
+    isCohereModelDownloaded: (() -> Bool)? = nil
 ) -> [SelectableSpeechModel] {
     let checkParakeetModelCached = isParakeetModelCached ?? {
         isParakeetVariantCached($0)
@@ -599,8 +647,10 @@ func loadSelectableSpeechModels(
         STTClient.isNemotronModelCached(modelVariant: $0, language: nemotronLanguage)
     }
     let checkWhisperModelDownloaded = isWhisperModelDownloaded ?? { WhisperEngine.isModelDownloaded(model: $0) }
+    let checkCohereModelDownloaded = isCohereModelDownloaded ?? { CohereTranscribeEngine.isModelCached() }
     let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
     let whisperLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+    let cohereLanguage = SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults) ?? "en"
 
     let parakeetModels = ParakeetModelVariant.allCases.map { variant in
         SelectableSpeechModel(
@@ -630,6 +680,16 @@ func loadSelectableSpeechModels(
     }
 
     return parakeetModels + nemotronModels + [
+        SelectableSpeechModel(
+            id: cohereModelID,
+            name: cohereModelName,
+            engine: SpeechEnginePreference.cohere.rawValue,
+            variant: nil,
+            size: cohereModelSize,
+            installed: checkCohereModelDownloaded(),
+            selected: currentEngine == .cohere,
+            language: cohereLanguage
+        ),
         SelectableSpeechModel(
             id: whisperModelID(for: whisperVariant),
             name: "Whisper \(SpeechEnginePreference.friendlyVariantName(whisperVariant))",
@@ -695,6 +755,10 @@ func resolveSelectableSpeechModel(
         )
     }
 
+    if isCohereModelID(lowered) {
+        return SelectableSpeechModelSelection(engine: .cohere, whisperVariant: nil)
+    }
+
     let variantInput: String?
     if lowered.hasPrefix("whisper:") {
         variantInput = String(trimmed.dropFirst("whisper:".count))
@@ -719,7 +783,8 @@ func validateSelectableSpeechModelDownload(
     _ selection: SelectableSpeechModelSelection,
     defaults: UserDefaults = macParakeetAppDefaults(),
     isNemotronModelDownloaded: ((NemotronModelVariant, String?) -> Bool)? = nil,
-    isWhisperModelDownloaded: ((String) -> Bool)? = nil
+    isWhisperModelDownloaded: ((String) -> Bool)? = nil,
+    isCohereModelDownloaded: (() -> Bool)? = nil
 ) throws {
     if let nemotronVariant = selection.nemotronVariant {
         let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
@@ -741,6 +806,15 @@ func validateSelectableSpeechModelDownload(
             )
         }
     }
+
+    if selection.engine == .cohere {
+        let downloaded = (isCohereModelDownloaded ?? { CohereTranscribeEngine.isModelCached() })()
+        guard downloaded else {
+            throw ValidationError(
+                "Cohere Transcribe is not downloaded. Run `macparakeet-cli models download \(cohereModelID)` first."
+            )
+        }
+    }
 }
 
 /// One concrete model that `models delete` can target, resolved from a
@@ -751,6 +825,7 @@ struct ModelDeletionTarget: Equatable {
         case nemotron(NemotronModelVariant)
         /// Normalized Whisper variant id (matches the stored preference).
         case whisper(String)
+        case cohere
     }
 
     let kind: Kind
@@ -795,6 +870,9 @@ func resolveModelDeletionTarget(
             displayName: "Whisper \(SpeechEnginePreference.friendlyVariantName(whisperVariant))"
         )
     }
+    if selection.engine == .cohere {
+        return ModelDeletionTarget(kind: .cohere, displayName: cohereModelName)
+    }
     throw ValidationError("Unknown model ID: '\(id)'. Run `macparakeet-cli models list` for valid IDs.")
 }
 
@@ -816,6 +894,8 @@ func isModelInUse(
     case .whisper(let variant):
         return currentEngine == .whisper
             && SpeechEnginePreference.whisperModelVariant(defaults: defaults) == variant
+    case .cohere:
+        return currentEngine == .cohere
     }
 }
 

@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation and capitalization (it does not emit word-level timestamps, so v3 remains the choice for timed transcripts). Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), and WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough. All speech engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation and capitalization (it does not emit word-level timestamps, so v3 remains the choice for timed transcripts). Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough, and Cohere Transcribe is an opt-in local accuracy engine for record-then-transcribe jobs. All speech engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -55,7 +55,7 @@ Nemotron is shipped as Beta because it is fast and local but not yet proven as a
 
 Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. (File and meeting jobs on Nemotron still run batch-at-stop.) The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
 
-**Display-only live dictation preview.** Separately from the final paste path, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders a stable rolling readout of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview (reusing their `[Float]` batch path), Parakeet Unified uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`), the Nemotron builds reuse their native live partials, and Whisper stays default-off pending a per-pass latency probe. A per-session `LiveTranscriptStabilizer` turns the raw stream into a monotonic, append-only readout (settled body committed, last few words held as a volatile hypothesis) so shown words don't jump or disappear; the overlay renders it bottom-anchored with older lines fading out at the top edge (no mid-word truncation). Full behavior and lifecycle (single-flight/native session ownership, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
+**Display-only live dictation preview.** Separately from the final paste path, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders a stable rolling readout of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview (reusing their `[Float]` batch path), Parakeet Unified uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`), the Nemotron builds reuse their native live partials, Whisper stays default-off pending a per-pass latency probe, and Cohere stays off because it is batch-only. A per-session `LiveTranscriptStabilizer` turns the raw stream into a monotonic, append-only readout (settled body committed, last few words held as a volatile hypothesis) so shown words don't jump or disappear; the overlay renders it bottom-anchored with older lines fading out at the top edge (no mid-word truncation). Full behavior and lifecycle (single-flight/native session ownership, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
 
 ### WhisperKit Optional Engine
 
@@ -70,18 +70,22 @@ Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (m
 
 Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. Nemotron is the faster experimental path (multilingual default build, English-only opt-in build); WhisperKit solves mature broad coverage while preserving the local-first speech boundary.
 
-### Cohere Transcribe (Evaluated Candidate — Not Yet Integrated)
+### Cohere Transcribe Optional Engine
 
-Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and is **recommended as a future opt-in engine, not yet shipped** (ADR-001 amendment 2026-06-19). It runs on-device through the **same FluidAudio CoreML SDK** as Parakeet/Nemotron — FluidAudio ≥ 0.15.4 exposes a public `CoherePipeline`; q8 model repo `FluidInference/cohere-transcribe-03-2026-coreml` — so **no MLX or new runtime is required**, unlike the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
+Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and is shipped as an opt-in local engine for accuracy-critical record-then-transcribe work. It runs on-device through the same FluidAudio CoreML SDK as Parakeet/Nemotron — FluidAudio >= 0.15.4 exposes a public `CoherePipeline`; q8 model repo `FluidInference/cohere-transcribe-03-2026-coreml` — so no MLX or new runtime is required, unlike the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
 
 | Property | Value |
 |----------|-------|
-| Status | Evaluated + recommended; **not integrated** |
+| Status | Shipped opt-in local engine; not the default |
+| Runtime | FluidAudio `CoherePipeline` through `CohereTranscribeEngine` |
+| Model cache | `~/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8` |
 | Accuracy | Most accurate on-device: English macro WER 2.07% (full LibriSpeech); best Japanese (FLEURS CER 5.56). Significant lead only on noisy English + Japanese; clean EN/KO/ZH are statistical ties (paired-bootstrap CIs) |
-| Cost | **~11 GB peak RSS**, ~73 s one-time ANE compile, ~11× realtime, ~2.3 GB model |
-| If integrated | Opt-in Beta engine gated to ≥16 GB RAM, via a `CohereEngine` wrapping FluidAudio's `CoherePipeline` routed in `STTRuntime` (the Nemotron/Unified pattern) |
+| Output | Plain transcript text; no word timestamps, no speaker labels, no live partials |
+| Selection | Explicit in Settings or CLI (`--engine cohere --language <code>`); `models select cohere-transcribe`; no automatic fallback |
+| Download | ~2.1 GB, explicit Settings/CLI download (`models download cohere-transcribe`) before selection or transcription; normal transcription paths fail fast if the model is missing |
+| Compute | Defaults to Core ML CPU+Neural Engine (`ane`) to avoid the recurring per-launch GPU specialization cost; GPU remains an internal policy override |
 
-Recommendation: Parakeet v3 stays the default and WhisperKit the light multilingual option; Cohere would be surfaced for accuracy-critical / noisy / Japanese transcription on 16 GB+ Macs. Full methodology, CIs, and speed/memory tables: `benchmarks/asr/README.md`.
+Cohere is batch-only and single-flight inside the shared runtime. Dictation records first and transcribes after the user stops; it does not show live dictation preview. File transcription and meeting finalization can use Cohere, but meeting live preview chunks are disabled and meeting transcripts degrade to plain text because Cohere does not emit word timestamps. `STTScheduler` treats Cohere as a global serialized resource so an interactive Cohere dictation finalization is not hidden behind an engine-internal wait while another Cohere batch job is running; Parakeet and Nemotron keep the normal interactive/background split for low-latency dictation. Parakeet v3 stays the default and WhisperKit remains the lighter broad-coverage option; Cohere is for users who explicitly accept the larger model and memory footprint for accuracy. Full benchmark methodology, CIs, and speed/memory tables: `benchmarks/asr/README.md`.
 
 ### Three-Chip Architecture
 
@@ -89,11 +93,11 @@ Each ML workload runs on the chip it was designed for:
 
 ```
 CPU:  MacParakeet app (UI, shortcuts, clipboard, history)
-ANE/CoreML: Parakeet STT and Nemotron Beta (via FluidAudio/CoreML)
+ANE/CoreML: Parakeet STT, Nemotron Beta, and Cohere Transcribe (via FluidAudio/CoreML)
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
-The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. Nemotron uses FluidAudio's CoreML path with separate interactive/background managers backed by shared model weights. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
+The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. Nemotron uses FluidAudio's CoreML path with separate interactive/background managers backed by shared model weights. Cohere uses FluidAudio's CoreML batch path and is admitted as a scheduler-level single-flight resource around its loaded pipeline. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
 
 ---
 
@@ -336,7 +340,7 @@ Backpressure and queueing rules:
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
 - Speaker diarization remains a separate service and is not part of the two-slot speech scheduler
-- Switching Parakeet/Nemotron/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
+- Switching Parakeet/Nemotron/Cohere/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
 
 ### Data Flow
 
@@ -452,7 +456,7 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - Support retry on network failure
 - Resume partial downloads where possible (HuggingFace supports range requests)
 - Verify model integrity after download where the provider exposes enough metadata
-- If the Nemotron or Whisper model is missing, keep Parakeet usable and direct the user to the explicit model download action
+- If the Nemotron, Cohere, or Whisper model is missing, keep Parakeet usable and direct the user to the explicit model download action
 
 ### CoreML Errors
 

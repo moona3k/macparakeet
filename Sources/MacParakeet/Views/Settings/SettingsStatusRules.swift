@@ -23,9 +23,12 @@ enum SettingsStatusRules {
         parakeet: SettingsViewModel.LocalModelStatus,
         nemotron: SettingsViewModel.LocalModelStatus,
         whisper: SettingsViewModel.LocalModelStatus,
+        cohere: SettingsViewModel.LocalModelStatus,
+        cohereEnabled: Bool = true,
         activeEngine: SpeechEnginePreference
     ) -> SettingsCardStatus? {
-        if parakeet == .failed || nemotron == .failed || whisper == .failed {
+        let cohereStatus = cohereEnabled || activeEngine == .cohere ? cohere : .notDownloaded
+        if parakeet == .failed || nemotron == .failed || whisper == .failed || cohereStatus == .failed {
             return SettingsCardStatus(.required, label: "Action needed")
         }
 
@@ -34,6 +37,7 @@ enum SettingsStatusRules {
         case .parakeet: activeStatus = parakeet
         case .nemotron: activeStatus = nemotron
         case .whisper: activeStatus = whisper
+        case .cohere: activeStatus = cohereStatus
         }
 
         if activeStatus == .notDownloaded {
@@ -45,7 +49,10 @@ enum SettingsStatusRules {
         }
 
         let optionalNemotronReady = nemotron == .notDownloaded || isAvailable(nemotron)
-        if isAvailable(parakeet), isAvailable(whisper), optionalNemotronReady {
+        // Cohere is an optional, large-download engine like Nemotron: its absence
+        // must not block the "Ready" state when it isn't the active engine.
+        let optionalCohereReady = cohereStatus == .notDownloaded || isAvailable(cohereStatus)
+        if isAvailable(parakeet), isAvailable(whisper), optionalNemotronReady, optionalCohereReady {
             return SettingsCardStatus(.ok, label: "Ready")
         }
 

@@ -15,7 +15,7 @@
 | 03 | [Architecture](03-architecture.md) | System architecture, component diagram | Active |
 | 04 | [UI Patterns](04-ui-patterns.md) | UI components, overlay, settings | Active |
 | 05 | [Audio Pipeline](05-audio-pipeline.md) | Audio capture, processing, storage | Active |
-| 06 | [STT Engine](06-stt-engine.md) | Parakeet default engine, optional Nemotron/WhisperKit engines, scheduler | Active |
+| 06 | [STT Engine](06-stt-engine.md) | Parakeet default engine, optional Nemotron/Cohere/WhisperKit engines, scheduler | Active |
 | 07 | [Text Processing](07-text-processing.md) | Clean pipeline, custom words, snippets | Active |
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
@@ -50,7 +50,7 @@ These decisions are final. Do not second-guess them.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta and WhisperKit optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta path with multilingual (default) and English-only builds; Whisper adds mature broad multilingual coverage locally |
+| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta, WhisperKit, and Cohere Transcribe optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta path with multilingual (default) and English-only builds; Whisper adds mature broad multilingual coverage locally; Cohere is a larger batch-only accuracy path |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6 language mode (tools-version 5.9) |
 | Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
@@ -75,6 +75,7 @@ Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 | `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 Phase A mic-health telemetry watchdog |
 | `meetingActivityDetectionEnabled` | `false` | ADR-024 collectors/detector are compiled but runtime coordinator/UI remain gated |
 | `transformsEnabled` | `true` | Productized Transforms shipping surface |
+| `cohereEngineEnabled` | `true` | Settings exposes Cohere Transcribe as an opt-in, downloaded, batch-only local engine; no live preview/timestamps |
 | `meetingVadLiveChunkingEnabled` | `true` | VAD-guided meeting live-preview chunking; final post-stop transcript path unchanged |
 | `liveDictationStreamingEnabled` | `true` | Display-only live dictation preview enabled on `main`; final paste remains stop-time transcription |
 | `aiFormatterProfilesEnabled` | `false` | App-aware AI Formatter profiles are code-complete but held out of the current tagged release train |
@@ -85,7 +86,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 
 | ADR | Decision |
 |-----|----------|
-| [ADR-001](adr/001-parakeet-stt.md) | Parakeet TDT 0.6B-v3 as primary/default STT engine; v2 English-only opt-in by amendment |
+| [ADR-001](adr/001-parakeet-stt.md) | Parakeet TDT 0.6B-v3 as primary/default STT engine; optional local engines by amendment |
 | [ADR-002](adr/002-local-only.md) | Local processing with optional external AI/telemetry surfaces |
 | [ADR-003](adr/003-one-time-purchase.md) | Historical one-time purchase pricing; paid official distribution reference |
 | [ADR-004](adr/004-deterministic-pipeline.md) | Deterministic text processing pipeline |
@@ -120,7 +121,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
-| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
+| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta, Cohere Transcribe, and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
 | v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting audio N-day retention, plus other follow-up polish | **Planned** |
 
 ## Version Progress
@@ -271,10 +272,11 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] WhisperKit dependency and `WhisperEngine` wrapper with local model cache at `~/Library/Application Support/MacParakeet/models/stt/whisper/`
 - [x] Nemotron 3.5 Beta engine via FluidAudio CoreML, surfaced as opt-in local multilingual ASR with explicit model download/delete/status controls
 - [x] Nemotron Speech Streaming EN 0.6B surfaced as a second opt-in English-only Beta build with persisted model selection (multilingual default) via the Settings Nemotron Model card, `config set nemotron-model`, `models select nemotron-english-1120ms`, and `transcribe --nemotron-model`; dictation streams live partials (live transcript preview) like the multilingual build, while file/meeting jobs run batch-at-stop
+- [x] Cohere Transcribe via FluidAudio CoreML, surfaced as an opt-in downloaded local accuracy engine for batch dictation, file transcription, and meeting finalization; no live preview, word timestamps, or speaker labels
 - [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
-- [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, and Whisper Language cards/controls
+- [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, Cohere Language, and Whisper Language cards/controls
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
-- [x] CLI `transcribe --engine parakeet|nemotron|whisper --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|nemotron-english-1120ms|whisper-large-v3-v20240930-turbo-632MB`
+- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ### v0.6 Productized Transforms

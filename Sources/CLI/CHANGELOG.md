@@ -91,6 +91,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `transcribe --engine` now accepts `cohere` as an explicit on-device Cohere
+  Transcribe selection. `--language` is used as Cohere's required language hint
+  when provided; otherwise the saved Cohere language preference is used.
+- `config get|set|list` now includes `cohere-language`, the saved language used
+  by explicit `--engine cohere` and app-default Cohere transcription when
+  `--language` is omitted.
+- `models list`/`select`/`download`/`delete`/`status` include Cohere Transcribe
+  model availability alongside Parakeet, Nemotron, and Whisper.
+- Cohere transcription now fails fast when the local Cohere model is missing;
+  use `models download cohere-transcribe` for the explicit ~2.1 GB download.
 - `transcribe --format` now accepts `srt` and `vtt` in addition to `text`,
   `transcript`, and `json`. Both emit timed subtitles through the same renderer
   as `export --format srt|vtt`, so output is byte-identical between the two
@@ -119,6 +129,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   the native 2080ms streaming path used by app live dictation preview.
   `transcribe --parakeet-model unified` is unchanged and still uses the offline
   build for best stop-time quality.
+- `models delete cohere-transcribe` now removes an incomplete Cohere cache
+  directory as well as a fully downloaded model, so cancelled or failed
+  downloads can be cleaned up from the CLI.
 - `history clear-meeting-audio` now refuses to run while **any** meeting
   recording lock file is present, including dead-owner sessions still
   `.awaitingTranscription` in the background queue or pending crash recovery.

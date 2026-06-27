@@ -23,17 +23,23 @@ final class EngineSettingsViewModelTests: XCTestCase {
     private func makeViewModel(
         parakeetCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = { _ in false },
         nemotronCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = { _, _ in false },
+        cohereCached: @escaping @Sendable () -> Bool = { false },
+        cohereCacheDirectoryExists: @escaping @Sendable () -> Bool = { false },
         deleteParakeet: @escaping @Sendable (ParakeetModelVariant) -> Bool = { _ in false },
         deleteNemotron: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = { _, _ in false },
-        deleteWhisper: @escaping @Sendable (String) -> Bool = { _ in false }
+        deleteWhisper: @escaping @Sendable (String) -> Bool = { _ in false },
+        deleteCohere: @escaping @Sendable () -> Bool = { false }
     ) -> EngineSettingsViewModel {
         EngineSettingsViewModel(
             defaults: defaults,
             parakeetModelVariantCached: parakeetCached,
             nemotronModelVariantCached: nemotronCached,
+            cohereModelCached: cohereCached,
+            cohereModelCacheDirectoryExists: cohereCacheDirectoryExists,
             deleteParakeetModelOnDisk: deleteParakeet,
             deleteNemotronModelOnDisk: deleteNemotron,
-            deleteWhisperModelOnDisk: deleteWhisper
+            deleteWhisperModelOnDisk: deleteWhisper,
+            deleteCohereModelOnDisk: deleteCohere
         )
     }
 
@@ -62,7 +68,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
     ) async throws {
         try await waitUntil(file: file, line: line) {
             vm.nemotronModelStatus != .checking &&
-                vm.whisperModelStatus != .checking
+                vm.whisperModelStatus != .checking &&
+                vm.cohereModelStatus != .checking
         }
     }
 
@@ -174,6 +181,76 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertNil(vm.speechEngineSwitchTarget)
     }
 
+    func testConfirmPendingSwitchClearsPendingAndPersistsWhenCohereIsMarkedDownloaded() {
+        let vm = makeViewModel()
+        vm.cohereModelStatus = .notLoaded
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .cohere)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .cohere)
+        XCTAssertNil(vm.speechEngineError)
+        XCTAssertFalse(vm.speechEngineSwitching)
+        XCTAssertNil(vm.speechEngineSwitchTarget)
+    }
+
+    func testConfirmPendingSwitchAllowsCohereWhileModelStatusCheckIsInFlight() {
+        let vm = makeViewModel(cohereCached: { true })
+        vm.cohereModelStatus = .checking
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .cohere)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .cohere)
+        XCTAssertNil(vm.speechEngineError)
+    }
+
+    func testConfirmPendingSwitchBlocksCohereWhileModelDeleteIsInFlight() {
+        let vm = makeViewModel(cohereCached: { true })
+        vm.cohereModelStatus = .notLoaded
+        vm.cohereDeleting = true
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(vm.speechEngineError, "Finish deleting Cohere Transcribe before switching engines.")
+    }
+
+    func testConfirmPendingSwitchBlocksCohereWhileModelStatusCheckIsInFlightAndCacheMissing() {
+        let vm = makeViewModel(cohereCached: { false })
+        vm.cohereModelStatus = .checking
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(vm.speechEngineError, "Download Cohere Transcribe before switching engines.")
+    }
+
+    func testConfirmPendingSwitchClearsPendingAndRestoresCurrentEngineWhenCohereModelIsMissing() {
+        let vm = makeViewModel()
+        vm.cohereModelStatus = .notDownloaded
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(vm.speechEngineError, "Download Cohere Transcribe before switching engines.")
+        XCTAssertFalse(vm.speechEngineSwitching)
+        XCTAssertNil(vm.speechEngineSwitchTarget)
+    }
+
     func testSwitchUnavailableMessageReturnsNilWhenAvailable() {
         XCTAssertNil(EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: .available))
     }
@@ -257,6 +334,196 @@ final class EngineSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testCohereCacheStatusMarksDownloadedModelInstalledWhenInactive() async throws {
+        let vm = makeViewModel(cohereCached: { true })
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertTrue(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatus, .notLoaded)
+        XCTAssertEqual(
+            vm.cohereModelStatusDetail,
+            "Cohere Transcribe · Installed locally, loads when selected."
+        )
+    }
+
+    func testCohereCacheStatusMarksMissingModelNotDownloaded() async throws {
+        let vm = makeViewModel(cohereCached: { false })
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertFalse(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+        XCTAssertEqual(
+            vm.cohereModelStatusDetail,
+            "Cohere Transcribe · Needs download before use."
+        )
+    }
+
+    func testCoherePartialCacheRemainsNotDownloadedButCanBeDeleted() async throws {
+        let vm = makeViewModel(
+            cohereCached: { false },
+            cohereCacheDirectoryExists: { true }
+        )
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertFalse(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+        XCTAssertTrue(vm.cohereCacheDirectoryExists)
+        XCTAssertTrue(vm.canDeleteCohereModel)
+    }
+
+    func testRefreshModelStatusPreservesCohereDownloadState() async throws {
+        let recorder = CohereDiskStateRecorder(cached: false, cacheDirectoryExists: true)
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached() },
+            cohereCacheDirectoryExists: { recorder.cacheDirectoryExists() }
+        )
+        vm.configure(sttClient: MockSTTClient())
+        vm.cohereDownloading = true
+        vm.cohereModelStatus = .repairing
+        vm.cohereModelStatusDetail = "Downloading Cohere Transcribe..."
+        vm.cohereCacheDirectoryExists = false
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertTrue(recorder.didCheckCohere)
+        XCTAssertEqual(vm.cohereModelStatus, .repairing)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Downloading Cohere Transcribe...")
+        XCTAssertFalse(vm.cohereCacheDirectoryExists)
+    }
+
+    func testRefreshStartedDuringCohereDownloadDoesNotOverwriteFailureAfterDownloadEnds() async throws {
+        let recorder = BlockingCohereDiskStateRecorder(cached: true, cacheDirectoryExists: true)
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached() },
+            cohereCacheDirectoryExists: { recorder.cacheDirectoryExists() }
+        )
+        vm.configure(sttClient: MockSTTClient())
+        vm.cohereDownloading = true
+        vm.cohereModelStatus = .repairing
+        vm.cohereModelStatusDetail = "Downloading Cohere Transcribe..."
+        vm.cohereCacheDirectoryExists = false
+
+        vm.refreshModelStatus()
+        try await waitUntil { recorder.cacheCheckStarted }
+
+        vm.cohereDownloading = false
+        vm.cohereModelStatus = .failed
+        vm.cohereModelStatusDetail = "Download failed"
+
+        recorder.release()
+
+        try await waitUntil { recorder.didCheckCohere && vm.parakeetStatus != .checking }
+        XCTAssertEqual(vm.cohereModelStatus, .failed)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Download failed")
+        XCTAssertFalse(vm.cohereCacheDirectoryExists)
+    }
+
+    func testRefreshModelStatusPreservesCohereDeleteState() async throws {
+        let recorder = CohereDiskStateRecorder(cached: true, cacheDirectoryExists: true)
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached() },
+            cohereCacheDirectoryExists: { recorder.cacheDirectoryExists() }
+        )
+        vm.configure(sttClient: MockSTTClient())
+        vm.cohereDeleting = true
+        vm.cohereModelStatus = .notDownloaded
+        vm.cohereModelStatusDetail = "Deleting Cohere Transcribe..."
+        vm.cohereCacheDirectoryExists = false
+
+        vm.refreshModelStatus()
+
+        try await waitForModelStatusRefreshToFinish(vm)
+        XCTAssertTrue(recorder.didCheckCohere)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Deleting Cohere Transcribe...")
+        XCTAssertFalse(vm.cohereCacheDirectoryExists)
+    }
+
+    func testActiveReadyCohereReportsLoadedInMemory() async throws {
+        SpeechEnginePreference.cohere.save(to: defaults)
+        let vm = makeViewModel(cohereCached: { true })
+        let stt = MockSTTClient()
+        await stt.setReady(true)
+        vm.configure(sttClient: stt)
+
+        vm.refreshModelStatus()
+
+        try await waitUntil { vm.cohereModelStatus == .ready }
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Loaded in memory.")
+    }
+
+    func testDeleteCohereModelUsesInjectedDeleterAndRefreshesStatus() async throws {
+        let recorder = CohereDeleteRecorder()
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached },
+            deleteCohere: {
+                recorder.delete()
+                return true
+            }
+        )
+        vm.cohereModelStatus = .notLoaded
+
+        vm.deleteCohereModel()
+
+        try await waitUntil { recorder.deleteCount == 1 && vm.cohereModelStatus == .notDownloaded }
+        XCTAssertFalse(vm.isCohereModelDownloaded)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Needs download before use.")
+    }
+
+    func testDeleteCohereModelAllowsFailedPartialDownloadCleanup() async throws {
+        let recorder = CohereDeleteRecorder()
+        let vm = makeViewModel(
+            cohereCached: { false },
+            cohereCacheDirectoryExists: { recorder.isCached },
+            deleteCohere: {
+                recorder.delete()
+                return true
+            }
+        )
+        vm.cohereModelStatus = .failed
+        vm.cohereCacheDirectoryExists = true
+
+        vm.deleteCohereModel()
+
+        try await waitUntil { recorder.deleteCount == 1 && vm.cohereModelStatus == .notDownloaded }
+        XCTAssertFalse(vm.canDeleteCohereModel)
+        XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Needs download before use.")
+    }
+
+    func testDeleteCohereModelBlocksConcurrentDeleteAndDownloadUntilDiskWorkFinishes() async throws {
+        let recorder = BlockingCohereDeleteRecorder()
+        let vm = makeViewModel(
+            cohereCached: { recorder.isCached },
+            deleteCohere: {
+                recorder.delete()
+                return true
+            }
+        )
+        vm.cohereModelStatus = .notLoaded
+
+        vm.deleteCohereModel()
+        try await waitUntil { recorder.deleteStarted && vm.cohereDeleting }
+
+        vm.deleteCohereModel()
+        vm.downloadCohereModel()
+
+        XCTAssertEqual(recorder.deleteCount, 1)
+        XCTAssertTrue(vm.cohereDeleting)
+        XCTAssertFalse(vm.cohereDownloading)
+        XCTAssertEqual(vm.cohereModelStatus, .notDownloaded)
+
+        recorder.finishDelete()
+        try await waitUntil { !vm.cohereDeleting && vm.cohereModelStatus == .notDownloaded }
+        XCTAssertFalse(vm.canDeleteCohereModel)
+    }
+
     func testRefreshModelStatusPassesStoredNemotronLanguageToCachedStub() async throws {
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
         let recorder = NemotronCacheCheckRecorder()
@@ -285,6 +552,19 @@ final class EngineSettingsViewModelTests: XCTestCase {
         vm.whisperModelStatus = .ready
         XCTAssertTrue(vm.isWhisperModelDownloaded)
     }
+
+    func testIsCohereModelDownloadedReflectsPublicStatus() {
+        let vm = makeViewModel()
+
+        vm.cohereModelStatus = .notDownloaded
+        XCTAssertFalse(vm.isCohereModelDownloaded)
+
+        vm.cohereModelStatus = .notLoaded
+        XCTAssertTrue(vm.isCohereModelDownloaded)
+
+        vm.cohereModelStatus = .ready
+        XCTAssertTrue(vm.isCohereModelDownloaded)
+    }
 }
 
 private final class NemotronCacheCheckRecorder: @unchecked Sendable {
@@ -301,5 +581,151 @@ private final class NemotronCacheCheckRecorder: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return recordedCalls
+    }
+}
+
+private final class CohereDeleteRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cached = true
+    private var deletes = 0
+
+    var isCached: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cached
+    }
+
+    var deleteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return deletes
+    }
+
+    func delete() {
+        lock.lock()
+        deletes += 1
+        cached = false
+        lock.unlock()
+    }
+}
+
+private final class CohereDiskStateRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let cached: Bool
+    private let directoryExists: Bool
+    private var cacheCheckCount = 0
+    private var directoryCheckCount = 0
+
+    init(cached: Bool, cacheDirectoryExists: Bool) {
+        self.cached = cached
+        self.directoryExists = cacheDirectoryExists
+    }
+
+    var didCheckCohere: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cacheCheckCount > 0 && directoryCheckCount > 0
+    }
+
+    func isCached() -> Bool {
+        lock.lock()
+        cacheCheckCount += 1
+        let value = cached
+        lock.unlock()
+        return value
+    }
+
+    func cacheDirectoryExists() -> Bool {
+        lock.lock()
+        directoryCheckCount += 1
+        let value = directoryExists
+        lock.unlock()
+        return value
+    }
+}
+
+private final class BlockingCohereDiskStateRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+    private let cached: Bool
+    private let directoryExists: Bool
+    private var cacheCheckCount = 0
+    private var directoryCheckCount = 0
+
+    init(cached: Bool, cacheDirectoryExists: Bool) {
+        self.cached = cached
+        self.directoryExists = cacheDirectoryExists
+    }
+
+    var cacheCheckStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cacheCheckCount > 0
+    }
+
+    var didCheckCohere: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cacheCheckCount > 0 && directoryCheckCount > 0
+    }
+
+    func release() {
+        releaseSemaphore.signal()
+    }
+
+    func isCached() -> Bool {
+        lock.lock()
+        cacheCheckCount += 1
+        lock.unlock()
+        _ = releaseSemaphore.wait(timeout: .now() + 1)
+        return cached
+    }
+
+    func cacheDirectoryExists() -> Bool {
+        lock.lock()
+        directoryCheckCount += 1
+        lock.unlock()
+        return directoryExists
+    }
+}
+
+private final class BlockingCohereDeleteRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+    private var cached = true
+    private var deletes = 0
+    private var started = false
+
+    var isCached: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cached
+    }
+
+    var deleteStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return started
+    }
+
+    var deleteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return deletes
+    }
+
+    func delete() {
+        lock.lock()
+        started = true
+        deletes += 1
+        lock.unlock()
+        releaseSemaphore.wait()
+        lock.lock()
+        cached = false
+        lock.unlock()
+    }
+
+    func finishDelete() {
+        releaseSemaphore.signal()
     }
 }

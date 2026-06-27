@@ -118,6 +118,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let systemAudioURL: URL
         let mixedAudioURL: URL
         let speechEngine: SpeechEngineSelection
+
+        var supportsLiveChunkTranscription: Bool {
+            speechEngine.engine != .cohere
+        }
     }
 
     private struct HostTimeRange: Sendable {
@@ -1011,6 +1015,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 updateProcessedMicrophoneRms(with: processedMicRms)
             }
         }
+
+        guard let session = currentSession, session.supportsLiveChunkTranscription else { return }
 
         for chunk in output.chunks {
             switch chunk.source {

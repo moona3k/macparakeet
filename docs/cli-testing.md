@@ -26,8 +26,8 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 macparakeet-cli
 ├── transcribe <input...> [--podcast QUERY] [options]
 │                                         Transcribe files, folders, podcasts, or media URLs
-│   ├── --format text|transcript|json [--no-history] [--database PATH]
-│   └── --engine app-default|parakeet|nemotron|whisper [--language <code>]
+│   ├── --format text|transcript|json|srt|vtt [--no-history] [--database PATH]
+│   └── --engine app-default|parakeet|nemotron|whisper|cohere [--language <code>]
 │       --parakeet-model app-default|v3|v2|unified [--output-dir DIR]
 │       --mode raw|clean|app-default --downloaded-audio app-default|keep|delete
 │       --speaker-detection app-default|on|off
@@ -194,7 +194,7 @@ English-only TDT opt-in, and Unified is the English-only punctuation/capitalizat
 opt-in. Use `--parakeet-model app-default|v3|v2|unified` for a single run, or
 `config set parakeet-model unified` / `models select parakeet-unified` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
-speech engine, Parakeet model, and Nemotron/Whisper language defaults.
+speech engine, Parakeet model, and Nemotron/Cohere/Whisper language defaults.
 Nemotron is an opt-in Beta engine with two builds: the multilingual default
 and an English-only streaming build. Use `--nemotron-model
 app-default|multilingual-1120ms|english-1120ms` for a single run, or
@@ -222,12 +222,26 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --language ko
 ```
 
+Use Cohere explicitly for batch-only accuracy-focused runs after downloading
+the local Cohere model. Cohere requires a supported language hint or saved
+`cohere-language` default, which you can set or inspect with `config`, and does
+not support live preview:
+
+```bash
+swift run macparakeet-cli models download cohere-transcribe
+swift run macparakeet-cli config set cohere-language ja
+swift run macparakeet-cli config get cohere-language
+
+swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
+  --engine cohere \
+  --language ja
+```
+
 `--language auto` or omitting `--language` lets Nemotron or Whisper detect the
-language. When `--engine app-default` resolves to Nemotron or Whisper, an
-explicit `--language` overrides the saved language for that invocation. When
-`--engine nemotron` or `--engine whisper` is explicit, pass `--language`
-explicitly if you do not want auto-detect; saved Nemotron/Whisper languages are
-only used by `--engine app-default`.
+language. Cohere has no auto-detect; `--engine cohere` uses the saved
+`cohere-language` default unless `--language` is passed. When `--engine
+app-default` resolves to Nemotron, Whisper, or Cohere, an explicit `--language`
+overrides the saved language for that invocation.
 
 ### Speaker Diarization
 
@@ -328,14 +342,17 @@ swift run macparakeet-cli models download nemotron-multilingual-1120ms
 swift run macparakeet-cli models select nemotron-multilingual-1120ms
 swift run macparakeet-cli models download nemotron-english-1120ms
 swift run macparakeet-cli models select nemotron-english-1120ms
+swift run macparakeet-cli models download cohere-transcribe
+swift run macparakeet-cli models select cohere-transcribe
 swift run macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB
 ```
 
 `models list` reports the selectable speech engines MacParakeet exposes today:
 Parakeet v3, Parakeet v2, the two Nemotron Beta builds (multilingual and
-English-only), and the configured WhisperKit variant. `models select` writes
+English-only), Cohere Transcribe, and the configured WhisperKit variant.
+`models select` writes
 the same shared default used by the GUI and `transcribe --engine app-default`;
-Nemotron and Whisper selection require the local model to be downloaded first.
+Nemotron, Cohere, and Whisper selection require the local model to be downloaded first.
 
 ## Retained Entitlements Parity
 
@@ -462,10 +479,11 @@ swift run macparakeet-cli calendar upcoming --days 7 --filter all --json
 # Non-invasive status (does not force downloads)
 swift run macparakeet-cli models status
 
-# Explicit Parakeet / Nemotron / Whisper downloads
+# Explicit Parakeet / Nemotron / Cohere / Whisper downloads
 swift run macparakeet-cli models download parakeet-v3
 swift run macparakeet-cli models download parakeet-v2
 swift run macparakeet-cli models download nemotron-multilingual-1120ms
+swift run macparakeet-cli models download cohere-transcribe
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 
 # Warm-up (single attempt by default)
@@ -478,6 +496,7 @@ swift run macparakeet-cli models repair --attempts 5
 # Delete one downloaded model (frees its disk space; leaves the rest)
 swift run macparakeet-cli models delete parakeet-v2
 swift run macparakeet-cli models delete nemotron-multilingual-1120ms
+swift run macparakeet-cli models delete cohere-transcribe
 swift run macparakeet-cli models delete whisper-large-v3-v20240930-turbo-632MB
 swift run macparakeet-cli models delete parakeet-v3 --force   # override the in-use guard
 
@@ -486,10 +505,10 @@ swift run macparakeet-cli models clear
 ```
 
 `models warm-up` and `models repair` prepare the selected speech engine plus
-the diarization speech stack. Nemotron and Whisper are downloaded explicitly
-with `models download`. `models delete <id>` removes a single model - one
-Parakeet build, the Nemotron Beta model, or the Whisper variant - and protects
-the active model plus Parakeet's configured build unless `--force` is passed;
+the diarization speech stack. Nemotron, Cohere, and Whisper are downloaded
+explicitly with `models download`. `models delete <id>` removes a single model - one
+Parakeet build, the Nemotron Beta model, Cohere Transcribe, or the Whisper
+variant - and protects the active model plus Parakeet's configured build unless `--force` is passed;
 `models clear` still wipes everything.
 
 ## Text Pipeline

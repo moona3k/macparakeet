@@ -90,14 +90,15 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 - Optional English-only Parakeet Unified model with punctuation/capitalization and strong offline accuracy
 - ~66 MB working memory per active Parakeet inference slot
 - 25 European languages with Parakeet auto-detection
-- Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), plus WhisperKit for Korean, Japanese, Chinese, and many other languages
+- Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), WhisperKit for broad language coverage, and Cohere Transcribe for opt-in batch accuracy work
 
 ### Limitations
 
 - Apple Silicon only (M1/M2/M3/M4)
 - Parakeet is best for English and supported European languages
 - Nemotron is Beta while real-world quality is benchmarked
-- Nemotron and WhisperKit multilingual support require separate local model downloads before first use
+- Nemotron, WhisperKit, and Cohere Transcribe require separate local model downloads before first use
+- Cohere is batch-only: it can be used for dictation after recording stops, file transcription, and meeting finalization, but it does not show live dictation preview or meeting live-preview chunks and does not provide word timestamps/speaker labels
 
 ## Get it
 
@@ -147,11 +148,13 @@ macparakeet-cli transcribe /path/to/audio.mp3
 macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history
 macparakeet-cli transcribe lecture1.m4a lecture2.m4a --output-dir Transcripts --format transcript
 macparakeet-cli models download nemotron-multilingual-1120ms
+macparakeet-cli models download cohere-transcribe
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 macparakeet-cli models list
 macparakeet-cli models select parakeet-v3
 macparakeet-cli config set parakeet-model v2
 macparakeet-cli transcribe /path/to/meeting.m4a --engine nemotron --language auto --format json
+macparakeet-cli transcribe /path/to/japanese.m4a --engine cohere --language ja --format json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 macparakeet-cli models status
 macparakeet-cli history
@@ -163,16 +166,16 @@ row to MacParakeet history. Multiple inputs or `--output-dir` write one transcri
 file per input. `models list` and `models select` inspect or update the shared
 speech default used by the app and `--engine app-default`; Parakeet rows are
 `parakeet-v3` and `parakeet-v2`, Nemotron rows are `nemotron-multilingual-1120ms`
-and `nemotron-english-1120ms`, and Whisper rows use the configured
-`whisper-*` model id. The Nemotron and Whisper CLI commands above require their
-local models to be downloaded first. When developing from source, prefix the
-same commands with `swift run`.
+and `nemotron-english-1120ms`, Cohere is `cohere-transcribe`, and Whisper rows
+use the configured `whisper-*` model id. The Nemotron, Cohere, and Whisper CLI
+commands above require their local models to be downloaded first. When
+developing from source, prefix the same commands with `swift run`.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| STT | Parakeet via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in, `unified` English-only punctuated opt-in) + optional local Nemotron Beta and WhisperKit engines |
+| STT | Parakeet via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (`v3` multilingual default, `v2` English-only opt-in, `unified` English-only punctuated opt-in) + optional local Nemotron Beta, Cohere Transcribe, and WhisperKit engines |
 | STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared meeting/file slot; speech-engine routing and meeting-session pinning |
 | Language | Swift 6 language mode (package tools-version 5.9) + SwiftUI |
 | Database | SQLite via GRDB |
@@ -224,7 +227,7 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 
 ## Privacy
 
-All speech recognition runs locally. Parakeet uses the Neural Engine; optional Nemotron Beta and WhisperKit engines also run on-device. Your audio never leaves your Mac.
+All speech recognition runs locally. Parakeet uses the Neural Engine; optional Nemotron Beta, Cohere Transcribe, and WhisperKit engines also run on-device. Your audio never leaves your Mac.
 
 - **No cloud STT.** The model runs on-device. No audio is transmitted.
 - **No accounts.** No login, no email, no registration.

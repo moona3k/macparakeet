@@ -34,6 +34,7 @@ enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendab
     case parakeet
     case nemotron
     case whisper
+    case cohere
 }
 
 enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -91,10 +92,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Default: parakeet; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Whisper, Nemotron, or Cohere, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization). app-default follows the saved preference; ignored for Nemotron and Whisper.")
@@ -208,6 +209,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         storedEngine: String?,
         storedLanguage: String?,
         storedNemotronLanguage: String? = nil,
+        storedCohereLanguage: String? = nil,
         explicitLanguage: String?
     ) -> SpeechEngineSelection {
         let preference: SpeechEnginePreference
@@ -222,6 +224,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 explicitLanguage ?? storedNemotronLanguage
             case .whisper:
                 explicitLanguage ?? storedLanguage
+            case .cohere:
+                explicitLanguage ?? storedCohereLanguage
             }
         case .parakeet:
             preference = .parakeet
@@ -232,8 +236,25 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .whisper:
             preference = .whisper
             language = explicitLanguage
+        case .cohere:
+            preference = .cohere
+            language = explicitLanguage ?? storedCohereLanguage
         }
         return SpeechEngineSelection(engine: preference, language: language)
+    }
+
+    static func validateCohereLanguageOverride(
+        _ explicitLanguage: String?,
+        speechEngine: SpeechEngineSelection
+    ) throws {
+        guard speechEngine.engine == .cohere, let explicitLanguage else { return }
+        guard SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage) != nil else {
+            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+            throw ValidationError(
+                "Invalid value for --language with Cohere: '\(explicitLanguage)'. "
+                    + "Cohere has no auto-detect; use one of: \(supported)."
+            )
+        }
     }
 
     static func resolveParakeetModelVariant(
@@ -416,6 +437,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         var nemotronEngine: NemotronEngine?
         var nemotronEnglishEngine: NemotronEnglishEngine?
         var whisperEngine: WhisperEngine?
+        var cohereEngine: CohereTranscribeEngine?
         let runResult: Result<Void, Error>
         do {
             guard podcastQuery != nil || !resolvedInputs.isEmpty else {
@@ -433,8 +455,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
                 storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
                 storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
+                storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
                 explicitLanguage: self.language
             )
+            try Self.validateCohereLanguageOverride(self.language, speechEngine: speechEngine)
             let resolvedSpeakerDetection = Self.resolveSpeakerDetection(
                 self.speakerDetection,
                 storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
@@ -494,6 +518,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
+            case .cohere:
+                // Thread the resolved language into the engine — the no-`language:`
+                // transcribe path the CLI uses otherwise falls back to English.
+                let createdCohereEngine = CohereTranscribeEngine(
+                    computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults),
+                    defaultLanguageCode: speechEngine.language
+                )
+                cohereEngine = createdCohereEngine
+                sttTranscriber = createdCohereEngine
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {
@@ -581,6 +614,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         await nemotronEngine?.unload()
         await nemotronEnglishEngine?.unload()
         await whisperEngine?.unload()
+        await cohereEngine?.unload()
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
         }

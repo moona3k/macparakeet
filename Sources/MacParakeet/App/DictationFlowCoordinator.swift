@@ -147,6 +147,10 @@ final class DictationFlowCoordinator {
     private let permissionService: PermissionServiceProtocol
     private let focusedAppContextService: any FocusedAppContextProviding
     private let captionTiming: DictationProcessingLoadCaptionTiming
+    /// The engine the next dictation will use. Drives the Cohere-specific
+    /// "Optimizing…" warm-up caption. Defaults to the persisted selection, the
+    /// same source the menu bar reads.
+    private let activeSpeechEngine: @MainActor () -> SpeechEnginePreference
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
@@ -210,6 +214,7 @@ final class DictationFlowCoordinator {
         permissionService: PermissionServiceProtocol = PermissionService(),
         focusedAppContextService: any FocusedAppContextProviding = FocusedAppContextService(),
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
+        activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
@@ -230,6 +235,7 @@ final class DictationFlowCoordinator {
         self.permissionService = permissionService
         self.focusedAppContextService = focusedAppContextService
         self.captionTiming = captionTiming
+        self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
@@ -580,14 +586,15 @@ final class DictationFlowCoordinator {
         case .pasteTranscript:
             let gen = stateMachine.generation
             guard let dictation = currentDictation else {
+                dismissCaption(outcome: .failure)
                 sendEvent(.pasteFailed(generation: gen, message: "No transcription available."))
                 return
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
             actionTask = Task { @MainActor in
-                // Brief pause so user sees the checkmark before paste
-                try? await Task.sleep(for: .milliseconds(200))
+                // Paste immediately — there's no success checkmark to wait for;
+                // the pasted text is the confirmation.
                 guard !Task.isCancelled else { return }
 
                 let action = self.pendingPostPasteAction
@@ -604,6 +611,7 @@ final class DictationFlowCoordinator {
                 do {
                     if action == nil && !transcriptHasText {
                         self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
                         return
                     }
@@ -645,11 +653,13 @@ final class DictationFlowCoordinator {
                     let app = self.currentDictation?.pastedToApp ?? "none"
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
+                    self.dismissCaption(outcome: .success)
                     self.sendEvent(.pasteSucceeded(generation: gen))
                 } catch {
                     guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                    self.dismissCaption(outcome: .failure)
                     if !transcriptHasText {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
@@ -816,16 +826,25 @@ final class DictationFlowCoordinator {
         guard let state = overlayViewModel?.state, case .processing = state else { return }
 
         let firstInstall = !runtimePreferences.hasCompletedFirstDictation
-        overlayViewModel?.processingLoadCaption = .preparing
+        // Cohere has its own model download / Core ML preparation path, and a
+        // user may switch to it after already completing dictation with another
+        // engine. Keep its load caption specific even when this is not the
+        // app's first completed dictation.
+        let isCohere = activeSpeechEngine() == .cohere
+        let baseCaption: DictationOverlayViewModel.ProcessingLoadCaption = isCohere ? .optimizing : .preparing
+        let extendedCaption: DictationOverlayViewModel.ProcessingLoadCaption =
+            isCohere ? .optimizingExtended : .preparingExtended
+
+        overlayViewModel?.processingLoadCaption = baseCaption
         captionShownAt = Date()
         Telemetry.send(.dictationFirstLoadCaptionShown(firstInstall: firstInstall))
 
-        guard firstInstall else { return }
+        guard isCohere || firstInstall else { return }
         let escalation = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard self?.captionGeneration == generation else { return }
-                guard self?.overlayViewModel?.processingLoadCaption == .preparing else { return }
-                self?.overlayViewModel?.processingLoadCaption = .preparingExtended
+                guard self?.overlayViewModel?.processingLoadCaption == baseCaption else { return }
+                self?.overlayViewModel?.processingLoadCaption = extendedCaption
             }
         }
         captionEscalationTimer = escalation
@@ -862,7 +881,7 @@ final class DictationFlowCoordinator {
         captionEscalationTimer = nil
 
         switch overlayViewModel?.processingLoadCaption {
-        case .preparing, .preparingExtended:
+        case .preparing, .preparingExtended, .optimizing, .optimizingExtended:
             overlayViewModel?.processingLoadCaption = .failed
             captionFailureDismissTask?.cancel()
             captionFailureDismissTask = Task { @MainActor [weak self] in

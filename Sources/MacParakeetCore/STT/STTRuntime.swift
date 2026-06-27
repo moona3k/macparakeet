@@ -107,6 +107,10 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var nemotronModelVariant: NemotronModelVariant
     private var whisperEngine: WhisperEngine?
     private let whisperModelVariant: String
+    /// Owns the Cohere Transcribe runtime (FluidAudio `CoherePipeline`). Lazily
+    /// created on first use; sibling of the other speech engines. Batch-only
+    /// (no live dictation / preview path).
+    private var cohereEngine: CohereTranscribeEngine?
     private let defaults: UserDefaults
     private var activeTranscriptionCount = 0
     private var liveDictationSession: LiveDictationSessionState? {
@@ -185,6 +189,13 @@ public actor STTRuntime: STTRuntimeProtocol {
             )
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
+        case .cohere:
+            return try await transcribeWithCohere(
+                audioPath: audioPath,
+                job: job,
+                language: selection.language,
+                onProgress: onProgress
+            )
         }
     }
 
@@ -206,6 +217,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             return try await transcribeWhisperPreview(samples: samples, language: selection.language)
         case .nemotron:
             throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
+        case .cohere:
+            throw STTError.transcriptionFailed("Cohere uses record-then-transcribe dictation and does not support display-preview transcription.")
         }
     }
 
@@ -247,6 +260,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             }
         case .whisper:
             throw STTLiveDictationTranscriptionError.unsupportedEngine(.whisper)
+        case .cohere:
+            // Batch engine — no native live-partial path.
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.cohere)
         }
         guard await engine.isReady() else {
             throw STTLiveDictationTranscriptionError.modelNotReady
@@ -341,6 +357,21 @@ public actor STTRuntime: STTRuntimeProtocol {
         )
     }
 
+    private func transcribeWithCohere(
+        audioPath: String,
+        job: STTJobKind,
+        language: String?,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let engine = try ensureCohereEngine()
+        return try await engine.transcribe(
+            audioURL: URL(fileURLWithPath: audioPath),
+            job: job,
+            language: language,
+            onProgress: onProgress
+        )
+    }
+
     private func transcribeWhisperPreview(samples: [Float], language: String?) async throws -> STTResult {
         let engine = try ensureWhisperEngine()
         return try await engine.transcribe(samples: samples, language: language)
@@ -371,6 +402,21 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         let engine = WhisperEngine(model: whisperModelVariant)
         whisperEngine = engine
+        return engine
+    }
+
+    /// Owns the single Cohere engine instance. The compute policy is read once
+    /// at construction; language is supplied per-call, so an existing engine is
+    /// always reusable. Cohere job serialization lives in `STTScheduler`, so
+    /// construction only needs this actor's normal single-threaded mutation.
+    private func ensureCohereEngine() throws -> CohereTranscribeEngine {
+        if let cohereEngine {
+            return cohereEngine
+        }
+        let engine = CohereTranscribeEngine(
+            computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults)
+        )
+        cohereEngine = engine
         return engine
     }
 
@@ -641,6 +687,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
                 whisperEngine = engine
                 try await engine.prepare(onProgress: onProgress)
+            case .cohere:
+                let engine = try ensureCohereEngine()
+                try await engine.prepare(onProgress: onProgress)
             }
             let elapsed = start.duration(to: .now)
             let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
@@ -767,6 +816,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         if speechEngine == .whisper {
             return await whisperEngine?.isReady() ?? false
         }
+        if speechEngine == .cohere {
+            return await cohereEngine?.isReady() ?? false
+        }
 
         // Parakeet engine: Unified reports through its own engine actor.
         if currentParakeetVariant.usesUnifiedEngine {
@@ -785,6 +837,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         await unloadWhisper()
         await unloadNemotron()
         await unloadParakeet()
+        await unloadCohere()
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
     }
@@ -821,6 +874,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         // full clear can't strand a tier directory.
         _ = Self.removeNemotronModelFiles(
             at: NemotronEnglishEngine.defaultCacheRoot().deletingLastPathComponent()
+        )
+        // Cohere caches under `…/Models/cohere-transcribe/q8`; remove the family
+        // root so a full clear can't strand the precision subdirectory.
+        _ = CohereTranscribeEngine.deleteModel(
+            cacheRoot: CohereTranscribeEngine.defaultCacheRoot().deletingLastPathComponent()
         )
         setBackgroundWarmUpState(.idle)
         Telemetry.send(.modelOperation(
@@ -894,6 +952,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         var preparedWhisper: WhisperEngine?
         var preparedNemotron: NemotronEngine?
         var preparedNemotronEnglish: NemotronEnglishEngine?
+        var preparedCohere: CohereTranscribeEngine?
 
         switch preference {
         case .parakeet:
@@ -916,6 +975,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             )
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
+        case .cohere:
+            let engine = try ensureCohereEngine()
+            try await engine.prepare(onProgress: onProgress)
+            preparedCohere = engine
         }
 
         if let preparedWhisper {
@@ -926,6 +989,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         if let preparedNemotronEnglish {
             nemotronEnglishEngine = preparedNemotronEnglish
+        }
+        if let preparedCohere {
+            cohereEngine = preparedCohere
         }
         speechEngine = preference
         preference.save(to: defaults)
@@ -940,6 +1006,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper where preference != .whisper:
             onProgress?("Releasing Whisper model...")
             await unloadWhisper()
+        case .cohere where preference != .cohere:
+            onProgress?("Releasing Cohere model...")
+            await unloadCohere()
         default:
             break
         }
@@ -1427,6 +1496,12 @@ public actor STTRuntime: STTRuntimeProtocol {
         await engine?.unload()
     }
 
+    private func unloadCohere() async {
+        let engine = cohereEngine
+        cohereEngine = nil
+        await engine?.unload()
+    }
+
     private func unloadNemotron() async {
         let engine = nemotronEngine
         let englishEngine = nemotronEnglishEngine
@@ -1673,6 +1748,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             .nemotronSTT
         case .whisper:
             .whisperSTT
+        case .cohere:
+            .cohereSTT
         }
     }
 
@@ -1689,6 +1766,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             nemotronModelVariant.rawValue
         case .whisper:
             whisperModelVariant
+        case .cohere:
+            // Surface the active compute policy (ane/gpu) so model-load
+            // telemetry can compare the two backends' load/latency posture.
+            CohereTranscribeEngine.ComputePolicy.current(defaults: defaults).rawValue
         }
     }
 
@@ -1700,6 +1781,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
     }
 

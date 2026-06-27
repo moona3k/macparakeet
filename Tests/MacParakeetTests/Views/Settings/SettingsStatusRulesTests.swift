@@ -9,6 +9,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .ready,
             nemotron: .notLoaded,
             whisper: .notDownloaded,
+            cohere: .ready,
             activeEngine: .parakeet
         )
 
@@ -20,6 +21,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .notLoaded,
             nemotron: .notLoaded,
             whisper: .notLoaded,
+            cohere: .ready,
             activeEngine: .parakeet
         )
 
@@ -31,6 +33,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .notLoaded,
             nemotron: .notDownloaded,
             whisper: .notLoaded,
+            cohere: .ready,
             activeEngine: .parakeet
         )
 
@@ -42,6 +45,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .notLoaded,
             nemotron: .notLoaded,
             whisper: .notDownloaded,
+            cohere: .ready,
             activeEngine: .whisper
         )
 
@@ -53,6 +57,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .notLoaded,
             nemotron: .notLoaded,
             whisper: .preparing,
+            cohere: .ready,
             activeEngine: .whisper
         )
 
@@ -64,6 +69,7 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .ready,
             nemotron: .notLoaded,
             whisper: .failed,
+            cohere: .ready,
             activeEngine: .parakeet
         )
 
@@ -75,10 +81,73 @@ final class SettingsStatusRulesTests: XCTestCase {
             parakeet: .notLoaded,
             nemotron: .notDownloaded,
             whisper: .notLoaded,
+            cohere: .ready,
             activeEngine: .nemotron
         )
 
         XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Download recommended"))
+    }
+
+    func testLocalModelsRecommendsDownloadWhenActiveCohereIsMissing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notLoaded,
+            whisper: .notLoaded,
+            cohere: .notDownloaded,
+            activeEngine: .cohere
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Download recommended"))
+    }
+
+    func testLocalModelsShowsReadyWhenOptionalCohereIsMissing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notLoaded,
+            whisper: .notLoaded,
+            cohere: .notDownloaded,
+            activeEngine: .parakeet
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
+    }
+
+    func testLocalModelsShowsPreparingWhenActiveCohereIsPreparing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notLoaded,
+            whisper: .notLoaded,
+            cohere: .preparing,
+            activeEngine: .cohere
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Preparing"))
+    }
+
+    func testLocalModelsIgnoresInactiveCohereFailureWhenCohereIsHidden() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notLoaded,
+            whisper: .notLoaded,
+            cohere: .failed,
+            cohereEnabled: false,
+            activeEngine: .parakeet
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
+    }
+
+    func testLocalModelsStillRequiresActionForActiveCohereFailureWhenCohereIsHidden() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            nemotron: .notLoaded,
+            whisper: .notLoaded,
+            cohere: .failed,
+            cohereEnabled: false,
+            activeEngine: .cohere
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.required, label: "Action needed"))
     }
 
     func testMeetingRecordingRequiresScreenRecordingPermissionForSystemAudioModes() {

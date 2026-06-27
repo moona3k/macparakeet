@@ -43,7 +43,8 @@ final class STTSchedulerTests: XCTestCase {
             _ = try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
             XCTFail("Expected live dictation to occupy the interactive slot")
         } catch let error as STTError {
-            if case .engineBusy = error {} else {
+            if case .engineBusy = error {
+            } else {
                 XCTFail("Expected engineBusy, got \(error)")
             }
         } catch {
@@ -515,6 +516,31 @@ final class STTSchedulerTests: XCTestCase {
         try await scheduler.setSpeechEngine(.whisper)
     }
 
+    func testSetSpeechEngineFailsWhileDefaultTranscribeAdmissionIsInFlight() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSelectionRead()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let transcribeTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await waitForHeldSelectionRead(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setSpeechEngine(.whisper)
+            XCTFail("Expected engine switch to fail while transcribe admission is in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseSelectionRead()
+        _ = try await transcribeTask.value
+        let switches = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(switches, 0, "No switch may reach the runtime mid-admission")
+
+        try await scheduler.setSpeechEngine(.whisper)
+    }
+
     /// Same AUDIT-071 window, via the Parakeet variant-swap path that shares
     /// the engine-switch guard.
     func testSetParakeetModelVariantFailsWhileSessionBeginIsInFlight() async throws {
@@ -818,6 +844,44 @@ final class STTSchedulerTests: XCTestCase {
 
         let routedSelection = await runtime.routedSelection(for: "meeting-final")
         XCTAssertEqual(routedSelection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
+    func testDefaultTranscribePinsCurrentSpeechEngineSelection() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .cohere, language: "JA"))
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        _ = try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+
+        let routedSelection = await runtime.routedSelection(for: "dictation")
+        XCTAssertEqual(routedSelection, SpeechEngineSelection(engine: .cohere, language: "ja"))
+    }
+
+    func testCohereJobsAreSingleFlightAcrossSchedulerSlots() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .cohere))
+        await runtime.block(path: "file")
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let fileTask = Task {
+            try await scheduler.transcribe(audioPath: "file", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        let startedWhileFileBlocked = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileFileBlocked, ["file"])
+
+        await runtime.release(path: "file")
+        _ = try await fileTask.value
+        _ = try await dictationTask.value
+
+        let finalStartedPaths = await runtime.startedPaths()
+        XCTAssertEqual(finalStartedPaths, ["file", "dictation"])
     }
 
     func testProgressIsScopedPerJobAcrossSlots() async throws {

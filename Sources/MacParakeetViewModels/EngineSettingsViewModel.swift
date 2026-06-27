@@ -72,11 +72,33 @@ public final class EngineSettingsViewModel {
     public var nemotronModelStatus: LocalModelStatus = .unknown
     public var nemotronModelStatusDetail: String = "Not checked yet."
     public var nemotronDownloading = false
+    public var cohereModelStatus: LocalModelStatus = .unknown
+    public var cohereModelStatusDetail: String = "Not checked yet."
+    public var cohereDownloading = false
+    public var cohereDeleting = false
+    public var cohereCacheDirectoryExists = false
     public var isNemotronModelAvailable: Bool {
         nemotronModelStatus == .ready || nemotronModelStatus == .notLoaded
     }
     public var isWhisperModelDownloaded: Bool {
         whisperModelStatus == .ready || whisperModelStatus == .notLoaded
+    }
+    public var isCohereModelDownloaded: Bool {
+        cohereModelStatus == .ready || cohereModelStatus == .notLoaded
+    }
+    private var shouldBlockCohereSwitchForModelStatus: Bool {
+        if cohereDeleting { return true }
+        switch cohereModelStatus {
+        case .ready, .notLoaded:
+            return false
+        case .checking:
+            return !cohereModelCached()
+        case .unknown, .notDownloaded, .preparing, .repairing, .failed:
+            return true
+        }
+    }
+    public var canDeleteCohereModel: Bool {
+        isCohereModelDownloaded || cohereModelStatus == .failed || cohereCacheDirectoryExists
     }
     /// True once the active Whisper variant has paid its one-time on-device
     /// optimize, so the next load is fast. Drives cold ("Setup needed",
@@ -107,9 +129,12 @@ public final class EngineSettingsViewModel {
     private let defaults: UserDefaults
     private let parakeetModelVariantCached: @Sendable (ParakeetModelVariant) -> Bool
     private let nemotronModelVariantCached: @Sendable (NemotronModelVariant, String?) -> Bool
+    private let cohereModelCached: @Sendable () -> Bool
+    private let cohereModelCacheDirectoryExistsOnDisk: @Sendable () -> Bool
     private let deleteParakeetModelOnDisk: @Sendable (ParakeetModelVariant) -> Bool
     private let deleteNemotronModelOnDisk: @Sendable (NemotronModelVariant, String?) -> Bool
     private let deleteWhisperModelOnDisk: @Sendable (String) -> Bool
+    private let deleteCohereModelOnDisk: @Sendable () -> Bool
     private var isApplyingSpeechEngineState = false
     private var isApplyingParakeetVariantState = false
     private var isApplyingNemotronVariantState = false
@@ -125,6 +150,12 @@ public final class EngineSettingsViewModel {
         nemotronModelVariantCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
             STTRuntime.isNemotronModelCached(modelVariant: $0, language: $1)
         },
+        cohereModelCached: @escaping @Sendable () -> Bool = {
+            CohereTranscribeEngine.isModelCached()
+        },
+        cohereModelCacheDirectoryExists: @escaping @Sendable () -> Bool = {
+            CohereTranscribeEngine.hasModelCacheDirectory()
+        },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
@@ -135,14 +166,20 @@ public final class EngineSettingsViewModel {
         },
         deleteWhisperModelOnDisk: @escaping @Sendable (String) -> Bool = {
             STTRuntime.deleteWhisperModel(variant: $0)
+        },
+        deleteCohereModelOnDisk: @escaping @Sendable () -> Bool = {
+            CohereTranscribeEngine.deleteModel()
         }
     ) {
         self.defaults = defaults
         self.parakeetModelVariantCached = parakeetModelVariantCached
         self.nemotronModelVariantCached = nemotronModelVariantCached
+        self.cohereModelCached = cohereModelCached
+        self.cohereModelCacheDirectoryExistsOnDisk = cohereModelCacheDirectoryExists
         self.deleteParakeetModelOnDisk = deleteParakeetModelOnDisk
         self.deleteNemotronModelOnDisk = deleteNemotronModelOnDisk
         self.deleteWhisperModelOnDisk = deleteWhisperModelOnDisk
+        self.deleteCohereModelOnDisk = deleteCohereModelOnDisk
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
         nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
@@ -230,9 +267,12 @@ public final class EngineSettingsViewModel {
         let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         let activeNemotronVariant = nemotronModelVariant
         let nemotronLanguage = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+        let cohereOperationActiveAtRefreshStart = cohereDownloading || cohereDeleting
 
         let parakeetModelVariantCached = self.parakeetModelVariantCached
         let nemotronModelVariantCached = self.nemotronModelVariantCached
+        let cohereModelCached = self.cohereModelCached
+        let cohereModelCacheDirectoryExistsOnDisk = self.cohereModelCacheDirectoryExistsOnDisk
 
         guard let sttClient else {
             parakeetStatus = .unknown
@@ -241,6 +281,10 @@ public final class EngineSettingsViewModel {
             nemotronModelStatusDetail = "Checking model state..."
             whisperModelStatus = .checking
             whisperModelStatusDetail = "Checking model state..."
+            if !cohereOperationActiveAtRefreshStart {
+                cohereModelStatus = .checking
+                cohereModelStatusDetail = "Checking model state..."
+            }
             Task { @MainActor [weak self] in
                 let disk = await Task.detached(priority: .userInitiated) {
                     (
@@ -248,7 +292,9 @@ public final class EngineSettingsViewModel {
                         nemotronDownloaded: Set(NemotronModelVariant.allCases.filter {
                             nemotronModelVariantCached($0, nemotronLanguage)
                         }),
-                        whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
+                        whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant),
+                        cohereDownloaded: cohereModelCached(),
+                        cohereCacheDirectoryExists: cohereModelCacheDirectoryExistsOnDisk()
                     )
                 }.value
                 guard let self,
@@ -260,8 +306,17 @@ public final class EngineSettingsViewModel {
                 }
                 self.downloadedParakeetVariants = disk.parakeetDownloaded
                 self.downloadedNemotronVariants = disk.nemotronDownloaded
+                let canApplyCohereStatus = !cohereOperationActiveAtRefreshStart &&
+                    !self.cohereDownloading &&
+                    !self.cohereDeleting
+                if canApplyCohereStatus {
+                    self.cohereCacheDirectoryExists = disk.cohereCacheDirectoryExists
+                }
                 self.applyNemotronDownloadedStatus(disk.nemotronDownloaded.contains(activeNemotronVariant))
                 self.applyWhisperDownloadedStatus(disk.whisperDownloaded)
+                if canApplyCohereStatus {
+                    self.applyCohereDownloadedStatus(disk.cohereDownloaded)
+                }
             }
             return
         }
@@ -272,6 +327,10 @@ public final class EngineSettingsViewModel {
         nemotronModelStatusDetail = "Checking model state..."
         whisperModelStatus = .checking
         whisperModelStatusDetail = "Checking model state..."
+        if !cohereOperationActiveAtRefreshStart {
+            cohereModelStatus = .checking
+            cohereModelStatusDetail = "Checking model state..."
+        }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -291,7 +350,9 @@ public final class EngineSettingsViewModel {
                     nemotronDownloaded: Set(NemotronModelVariant.allCases.filter {
                         nemotronModelVariantCached($0, nemotronLanguage)
                     }),
-                    whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
+                    whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant),
+                    cohereDownloaded: cohereModelCached(),
+                    cohereCacheDirectoryExists: cohereModelCacheDirectoryExistsOnDisk()
                 )
             }.value
 
@@ -305,6 +366,12 @@ public final class EngineSettingsViewModel {
 
             self.downloadedParakeetVariants = modelDiskState.parakeetDownloaded
             self.downloadedNemotronVariants = modelDiskState.nemotronDownloaded
+            let canApplyCohereStatus = !cohereOperationActiveAtRefreshStart &&
+                !self.cohereDownloading &&
+                !self.cohereDeleting
+            if canApplyCohereStatus {
+                self.cohereCacheDirectoryExists = modelDiskState.cohereCacheDirectoryExists
+            }
             let parakeetName = activeVariant.modelName
             if activeEngine == .parakeet, activeEngineIsLoaded {
                 self.parakeetStatus = .ready
@@ -329,6 +396,13 @@ public final class EngineSettingsViewModel {
                 self.whisperModelStatusDetail = "\(self.whisperVariantFriendlyName) · Loaded in memory."
             } else {
                 self.applyWhisperDownloadedStatus(modelDiskState.whisperDownloaded)
+            }
+
+            if activeEngine == .cohere, activeEngineIsLoaded, canApplyCohereStatus {
+                self.cohereModelStatus = .ready
+                self.cohereModelStatusDetail = "Cohere Transcribe · Loaded in memory."
+            } else if canApplyCohereStatus {
+                self.applyCohereDownloadedStatus(modelDiskState.cohereDownloaded)
             }
         }
     }
@@ -375,6 +449,16 @@ public final class EngineSettingsViewModel {
         } else {
             whisperModelStatus = .notDownloaded
             whisperModelStatusDetail = "\(friendly) · Needs download before use."
+        }
+    }
+
+    private func applyCohereDownloadedStatus(_ isDownloaded: Bool) {
+        if isDownloaded {
+            cohereModelStatus = .notLoaded
+            cohereModelStatusDetail = "Cohere Transcribe · Installed locally, loads when selected."
+        } else {
+            cohereModelStatus = .notDownloaded
+            cohereModelStatusDetail = "Cohere Transcribe · Needs download before use."
         }
     }
 
@@ -575,6 +659,97 @@ public final class EngineSettingsViewModel {
         }
     }
 
+    public func downloadCohereModel() {
+        guard !speechEngineSwitching else { return }
+        guard !cohereDownloading, !cohereDeleting else { return }
+        speechEngineError = nil
+        cohereDownloading = true
+        cohereModelStatus = .repairing
+        cohereModelStatusDetail = "Downloading Cohere Transcribe..."
+        let operationContext = Observability.childOperationContext()
+        let engineVariant = CohereTranscribeEngine.ComputePolicy.current(defaults: defaults).rawValue
+        Telemetry.send(.modelDownloadStarted(
+            modelKind: .cohereSTT,
+            speechEngine: .cohere,
+            engineVariant: engineVariant
+        ))
+
+        Task { @MainActor [weak self] in
+            do {
+                _ = try await CohereTranscribeEngine.downloadModel { [weak self] message in
+                    Task { @MainActor [weak self] in
+                        self?.cohereModelStatusDetail = message
+                    }
+                }
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                Telemetry.send(.modelDownloadCompleted(
+                    durationSeconds: durationSeconds,
+                    modelKind: .cohereSTT,
+                    speechEngine: .cohere,
+                    engineVariant: engineVariant
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .success,
+                    stage: .download,
+                    modelKind: .cohereSTT,
+                    speechEngine: .cohere,
+                    engineVariant: engineVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: nil
+                ))
+                guard let self else { return }
+                self.cohereDownloading = false
+                self.refreshModelStatus()
+            } catch is CancellationError {
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .cancelled,
+                    stage: .download,
+                    modelKind: .cohereSTT,
+                    speechEngine: .cohere,
+                    engineVariant: engineVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: "CancellationError"
+                ))
+                guard let self else { return }
+                self.cohereDownloading = false
+                self.refreshModelStatus()
+            } catch {
+                let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+                let errorType = TelemetryErrorClassifier.classify(error)
+                Telemetry.send(.modelDownloadFailed(
+                    errorType: errorType,
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .cohereSTT,
+                    speechEngine: .cohere,
+                    engineVariant: engineVariant
+                ))
+                Telemetry.send(.modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .failure,
+                    stage: .download,
+                    modelKind: .cohereSTT,
+                    speechEngine: .cohere,
+                    engineVariant: engineVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: errorType
+                ))
+                guard let self else { return }
+                self.cohereDownloading = false
+                self.cohereModelStatus = .failed
+                self.cohereModelStatusDetail = error.localizedDescription
+            }
+        }
+    }
+
     private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
@@ -602,6 +777,27 @@ public final class EngineSettingsViewModel {
 
         if preference == .whisper && !isWhisperModelDownloaded {
             speechEngineError = "Download the Whisper model before switching engines."
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: preference,
+                outcome: .unavailable,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: .modelNotDownloaded,
+                errorType: "model_not_downloaded",
+                wasCold: switchWasCold
+            ))
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = previousPreference
+            isApplyingSpeechEngineState = false
+            return
+        }
+
+        if preference == .cohere && shouldBlockCohereSwitchForModelStatus {
+            speechEngineError = cohereDeleting
+                ? "Finish deleting Cohere Transcribe before switching engines."
+                : "Download Cohere Transcribe before switching engines."
             Telemetry.send(.speechEngineSwitchOperation(
                 operationID: operationContext.operationID,
                 operationContext: operationContext,
@@ -1010,6 +1206,28 @@ public final class EngineSettingsViewModel {
         }
     }
 
+    public func deleteCohereModel() {
+        guard !speechEngineSwitching, !cohereDownloading, !cohereDeleting else { return }
+        // Protect the in-use engine's model; deleting it would force a silent
+        // re-download the next time the active runtime prepares.
+        guard speechEnginePreference != .cohere else { return }
+        guard canDeleteCohereModel else { return }
+
+        cohereDeleting = true
+        modelStatusRefreshGeneration += 1
+        cohereCacheDirectoryExists = false
+        applyCohereDownloadedStatus(false)
+        let deleter = deleteCohereModelOnDisk
+        Task { @MainActor [weak self] in
+            await Task.detached(priority: .userInitiated) {
+                _ = deleter()
+            }.value
+            guard let self else { return }
+            self.cohereDeleting = false
+            self.refreshModelStatus()
+        }
+    }
+
     private static func telemetrySpeechEngineSwitchBlockedReason(
         for error: Error
     ) -> TelemetrySpeechEngineSwitchBlockedReason? {
@@ -1059,6 +1277,8 @@ public final class EngineSettingsViewModel {
                 : "Loading Nemotron 3.5 Beta with Core ML..."
         case .whisper:
             "Optimizing Whisper for this Mac..."
+        case .cohere:
+            "Loading Cohere with Core ML..."
         }
     }
 

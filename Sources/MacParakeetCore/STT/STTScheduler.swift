@@ -21,17 +21,24 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 ///
 /// Jobs execute independently per slot so dictation can remain responsive while
 /// meeting and file work share an explicitly prioritized background path.
-public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
+public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing,
+    STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding,
+    SpeechEngineSessionManaging
+{
     private struct ScheduledJob: Sendable {
         let id: UUID
         let audioPath: String
         let job: STTJobKind
-        let speechEngine: SpeechEngineSelection?
+        let speechEngine: SpeechEngineSelection
         let enqueueOrder: UInt64
         let onProgress: (@Sendable (Int, Int) -> Void)?
 
         var slot: SchedulerSlot {
             SchedulerSlot(job: job)
+        }
+
+        var serialResource: SchedulerSerialResource? {
+            speechEngine.engine == .cohere ? .cohere : nil
         }
     }
 
@@ -73,6 +80,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     )
     private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
+    private var pendingJobAdmissionCount = 0
     private var activeSpeechEngineSessionIDs: Set<UUID> = []
     private var speechEngineSwitchTask: Task<Void, Error>?
     private var dictationPreviewExecution: DictationPreviewExecution?
@@ -125,16 +133,27 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
+        try Task.checkCancellation()
         let id = UUID()
+        pendingJobAdmissionCount += 1
+        var admissionOpen = true
+        defer {
+            if admissionOpen {
+                pendingJobAdmissionCount -= 1
+            }
+        }
+        let selection = await runtime.currentSpeechEngineSelection()
         try Task.checkCancellation()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
+                admissionOpen = false
+                pendingJobAdmissionCount -= 1
                 enqueue(
                     ScheduledJob(
                         id: id,
                         audioPath: audioPath,
                         job: job,
-                        speechEngine: nil,
+                        speechEngine: selection,
                         enqueueOrder: nextEnqueueOrder(),
                         onProgress: onProgress
                     ),
@@ -191,7 +210,8 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         }
         let interactiveState = slotState(for: .interactive)
         guard interactiveState.currentJob == nil,
-              interactiveState.pendingJobs.isEmpty else {
+            interactiveState.pendingJobs.isEmpty
+        else {
             throw STTError.engineBusy
         }
 
@@ -340,9 +360,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
             throw STTError.engineBusy
         }
         guard acceptsNewJobs,
-              activeSpeechEngineSessionIDs.isEmpty,
-              !hasQueuedOrRunningJobs,
-              speechEngineSwitchTask == nil else {
+            activeSpeechEngineSessionIDs.isEmpty,
+            !hasQueuedOrRunningJobs,
+            speechEngineSwitchTask == nil
+        else {
             throw STTError.engineBusy
         }
 
@@ -374,9 +395,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         // Shares the engine-switch guard + task slot: a variant swap reloads the
         // model and must not race transcription, meetings, or an engine switch.
         guard acceptsNewJobs,
-              activeSpeechEngineSessionIDs.isEmpty,
-              !hasQueuedOrRunningJobs,
-              speechEngineSwitchTask == nil else {
+            activeSpeechEngineSessionIDs.isEmpty,
+            !hasQueuedOrRunningJobs,
+            speechEngineSwitchTask == nil
+        else {
             throw STTError.engineBusy
         }
 
@@ -408,9 +430,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         // Shares the engine-switch guard + task slot: a variant swap reloads the
         // model and must not race transcription, meetings, or an engine switch.
         guard acceptsNewJobs,
-              activeSpeechEngineSessionIDs.isEmpty,
-              !hasQueuedOrRunningJobs,
-              speechEngineSwitchTask == nil else {
+            activeSpeechEngineSessionIDs.isEmpty,
+            !hasQueuedOrRunningJobs,
+            speechEngineSwitchTask == nil
+        else {
             throw STTError.engineBusy
         }
 
@@ -464,7 +487,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         if let speechEngineSwitchTask {
             let result = await speechEngineSwitchTask.result
             if case .failure(let error) = result {
-                logger.warning("Proceeding with speech engine session after failed engine switch: \(error.localizedDescription, privacy: .public)")
+                logger.warning(
+                    "Proceeding with speech engine session after failed engine switch: \(error.localizedDescription, privacy: .public)"
+                )
             }
         }
         return SpeechEngineLease(id: sessionID, selection: await runtime.currentSpeechEngineSelection())
@@ -497,8 +522,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         var currentSlotState = slotState(for: job.slot)
 
         if job.job == .meetingLiveChunk,
-           pendingMeetingLiveJobCount(in: currentSlotState) >= meetingLiveChunkBacklogLimit,
-           let droppedJob = dropOldestPendingMeetingLiveJob(in: &currentSlotState) {
+            pendingMeetingLiveJobCount(in: currentSlotState) >= meetingLiveChunkBacklogLimit,
+            let droppedJob = dropOldestPendingMeetingLiveJob(in: &currentSlotState)
+        {
             logger.notice(
                 "stt_backpressure drop_pending_meeting_live_chunk id=\(droppedJob.id.uuidString, privacy: .public)"
             )
@@ -509,7 +535,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
         currentSlotState.pendingJobs.append(job)
         setSlotState(currentSlotState, for: job.slot)
-        startNextJobIfNeeded(in: job.slot)
+        startNextJobsIfNeeded()
     }
 
     private func nextEnqueueOrder() -> UInt64 {
@@ -526,9 +552,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     }
 
     private var hasQueuedOrRunningJobs: Bool {
-        liveDictationSession != nil || slotStates.values.contains { state in
-            state.currentJob != nil || !state.pendingJobs.isEmpty
-        }
+        pendingJobAdmissionCount > 0 || liveDictationSession != nil
+            || slotStates.values.contains { state in
+                state.currentJob != nil || !state.pendingJobs.isEmpty
+            }
     }
 
     private func pendingMeetingLiveJobCount(in slotState: SlotState) -> Int {
@@ -540,10 +567,12 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     }
 
     private func dropOldestPendingMeetingLiveJob(in slotState: inout SlotState) -> ScheduledJob? {
-        guard let index = slotState.pendingJobs.enumerated()
-            .filter({ $0.element.job == .meetingLiveChunk })
-            .min(by: { $0.element.enqueueOrder < $1.element.enqueueOrder })?
-            .offset else {
+        guard
+            let index = slotState.pendingJobs.enumerated()
+                .filter({ $0.element.job == .meetingLiveChunk })
+                .min(by: { $0.element.enqueueOrder < $1.element.enqueueOrder })?
+                .offset
+        else {
             return nil
         }
         return slotState.pendingJobs.remove(at: index)
@@ -559,16 +588,12 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
         currentSlotState.currentJob = next
         currentSlotState.currentExecutionTask = Task {
-            if let speechEngine = next.speechEngine {
-                try await runtime.transcribe(
-                    audioPath: next.audioPath,
-                    job: next.job,
-                    speechEngine: speechEngine,
-                    onProgress: next.onProgress
-                )
-            } else {
-                try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
-            }
+            try await runtime.transcribe(
+                audioPath: next.audioPath,
+                job: next.job,
+                speechEngine: next.speechEngine,
+                onProgress: next.onProgress
+            )
         }
         currentSlotState.currentWaitTask = Task { [weak self] in
             await self?.awaitCurrentJobCompletion(jobID: next.id, in: slot)
@@ -576,18 +601,35 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         setSlotState(currentSlotState, for: slot)
     }
 
+    private func startNextJobsIfNeeded() {
+        for slot in SchedulerSlot.allCases {
+            startNextJobIfNeeded(in: slot)
+        }
+    }
+
     private func dequeueNextJob(in slotState: inout SlotState) -> ScheduledJob? {
-        guard let index = slotState.pendingJobs.indices.min(by: { lhs, rhs in
-            let left = slotState.pendingJobs[lhs]
-            let right = slotState.pendingJobs[rhs]
-            if left.job.priorityRank != right.job.priorityRank {
-                return left.job.priorityRank < right.job.priorityRank
-            }
-            return left.enqueueOrder < right.enqueueOrder
-        }) else {
+        guard
+            let index = slotState.pendingJobs.indices
+                .filter({ !isSerialResourceBusy(for: slotState.pendingJobs[$0]) })
+                .min(by: { lhs, rhs in
+                    let left = slotState.pendingJobs[lhs]
+                    let right = slotState.pendingJobs[rhs]
+                    if left.job.priorityRank != right.job.priorityRank {
+                        return left.job.priorityRank < right.job.priorityRank
+                    }
+                    return left.enqueueOrder < right.enqueueOrder
+                })
+        else {
             return nil
         }
         return slotState.pendingJobs.remove(at: index)
+    }
+
+    private func isSerialResourceBusy(for job: ScheduledJob) -> Bool {
+        guard let resource = job.serialResource else { return false }
+        return slotStates.values.contains { state in
+            state.currentJob?.serialResource == resource
+        }
     }
 
     private func awaitCurrentJobCompletion(jobID: UUID, in slot: SchedulerSlot) async {
@@ -622,7 +664,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
             continuation?.resume(throwing: error)
         }
 
-        startNextJobIfNeeded(in: slot)
+        startNextJobsIfNeeded()
     }
 
     private func cancel(jobID: UUID) {
@@ -802,6 +844,10 @@ private enum SchedulerSlot: CaseIterable, Sendable {
             self = .background
         }
     }
+}
+
+private enum SchedulerSerialResource: Sendable {
+    case cohere
 }
 
 private extension STTJobKind {

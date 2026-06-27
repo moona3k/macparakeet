@@ -23,7 +23,8 @@ Silicon. Wraps `macparakeet-cli` so an OpenClaw skill can:
 - Inspect meeting recordings and store external meeting results.
 - Run a prompt against a transcription (action items, summary, etc.).
 
-Speech-to-text execution is local on the Apple Neural Engine. No cloud STT.
+Speech-to-text execution is local on Apple Silicon. Parakeet, Nemotron, and
+Cohere use FluidAudio/CoreML; Whisper uses WhisperKit. No cloud STT.
 
 ## Install
 
@@ -34,9 +35,8 @@ macparakeet-cli health --json
 ```
 
 Requires macOS 14.2+ on Apple Silicon. The Homebrew formula installs FFmpeg
-and yt-dlp as runtime dependencies. Parakeet's CoreML cache is managed by
-FluidAudio, Nemotron uses FluidAudio's CoreML cache, and WhisperKit model
-downloads live under
+and yt-dlp as runtime dependencies. Parakeet, Nemotron, and Cohere CoreML
+model caches are managed by FluidAudio; WhisperKit model downloads live under
 `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
@@ -52,8 +52,9 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 | Transcribe a media URL | `macparakeet-cli transcribe <url> --format json` |
 | Transcribe a podcast | `macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json` |
 | Use GUI/default preferences | `macparakeet-cli transcribe <path> --engine app-default --parakeet-model app-default --speaker-detection app-default --mode app-default --downloaded-audio app-default --media-audio-quality app-default --format json` |
-| Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` / `macparakeet-cli models select nemotron-multilingual-1120ms --json` |
-| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json`; `macparakeet-cli config set speech-engine nemotron --json` |
+| Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` / `macparakeet-cli models select nemotron-multilingual-1120ms --json` / `macparakeet-cli models select cohere-transcribe --json` |
+| Download optional speech models | `macparakeet-cli models download nemotron-multilingual-1120ms` / `macparakeet-cli models download cohere-transcribe` / `macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB` |
+| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json`; `macparakeet-cli config set speech-engine nemotron --json`; `macparakeet-cli config set cohere-language ja --json` |
 | List recent transcriptions | `macparakeet-cli history transcriptions --json` |
 | Search transcriptions | `macparakeet-cli history search-transcriptions "<query>" --json` |
 | Search dictations | `macparakeet-cli history search "<query>" --json` |
@@ -73,6 +74,14 @@ schemas are stable within a major CLI version (semver, see
 UUID, UUID prefix (>= 4 chars), or case-insensitive name. Prompt and LLM
 wrappers should pass `--json` when the skill expects an envelope.
 
+Cohere is a batch-only accuracy engine. It can be used for dictation final
+transcription, file transcription, and meeting finalization, but it has no live
+dictation preview, no meeting live-preview chunks, and no word timestamps or
+speaker labels. The ~2.1 GB model must be downloaded explicitly before
+`--engine cohere`, `models select cohere-transcribe`, or app-default Cohere
+transcription will run; normal transcription paths do not implicitly download
+it.
+
 For the full vocabulary, schema details, and privacy posture, see
 [`../README.md`](../README.md).
 
@@ -89,9 +98,9 @@ name: macparakeet-stt
 version: <published-cli-version>
 author: <your-username>
 description: >
-  Local Parakeet TDT speech-to-text and meeting artifact access on Apple
-  Silicon. Wraps macparakeet-cli.
-tags: [stt, transcription, voice, apple-silicon, local, parakeet]
+  Local speech-to-text and meeting artifact access on Apple Silicon. Wraps
+  macparakeet-cli.
+tags: [stt, transcription, voice, apple-silicon, local, parakeet, cohere]
 metadata:
   openclaw:
     requires:
@@ -124,7 +133,7 @@ metadata:
 # macparakeet-stt
 
 Local STT and transcription for an OpenClaw agent on Apple Silicon.
-All execution local on the Apple Neural Engine; no cloud STT.
+All speech recognition runs locally; no cloud STT.
 
 ## Install
 

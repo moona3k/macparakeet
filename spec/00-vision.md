@@ -54,7 +54,7 @@ No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default, English-only v2 as an opt-in TDT build, and Parakeet Unified as an opt-in English build with punctuation/capitalization, plus optional local Nemotron Beta and WhisperKit engines for broader language coverage. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default, English-only v2 as an opt-in TDT build, and Parakeet Unified as an opt-in English build with punctuation/capitalization, plus optional local Nemotron Beta, Cohere Transcribe, and WhisperKit engines for broader language coverage and accuracy-focused batch work. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
 
 ---
 
@@ -111,7 +111,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation, file transcription, and meeting recording |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + optional local Nemotron/Whisper multilingual engines + free/open-source |
+| **Key differentiators** | Parakeet speed + optional local Nemotron/Cohere/Whisper engines + free/open-source |
 | **Business model** | Current public build is free/GPL/unlocked; official paid distribution, support, or hosted services remain possible |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -285,7 +285,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 | Feature | MacParakeet | WisprFlow | MacWhisper | Superwhisper | Apple Dictation |
 |---------|-------------|-----------|------------|--------------|-----------------|
-| **STT Engine** | Parakeet default + optional Nemotron/WhisperKit | Cloud AI | Whisper | Whisper | Apple Neural |
+| **STT Engine** | Parakeet default + optional Nemotron/Cohere/WhisperKit | Cloud AI | Whisper | Whisper | Apple Neural |
 | **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
 | **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
 | **Privacy** | Local-first speech | Cloud | Local | Local | Mostly local |
@@ -313,14 +313,14 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### 1. Parakeet-First Architecture
 
-We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 and Unified as English-only Parakeet options, then added WhisperKit and Nemotron explicitly as local opt-in engines for broader coverage and experimentation.
+We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 and Unified as English-only Parakeet options, then added WhisperKit, Nemotron, and Cohere explicitly as local opt-in engines for broader coverage, experimentation, and accuracy-focused batch work.
 
 - **155x realtime** on the Neural Engine vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
 - **~2.5% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
 - **Word-level timestamps** -- enables synced subtitles, precise seeking, confidence scoring.
 - **Technical vocabulary** -- better handling of code terms, acronyms, and proper nouns than Whisper.
 
-Competitors bolted Parakeet onto existing Whisper architectures. We optimized the default pipeline for Parakeet while routing optional Nemotron and Whisper through the same scheduler/runtime control plane.
+Competitors bolted Parakeet onto existing Whisper architectures. We optimized the default pipeline for Parakeet while routing optional Nemotron, Cohere, and Whisper through the same scheduler/runtime control plane.
 
 ### 2. Local-First, Zero-Compromise Speech
 
@@ -474,9 +474,9 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Live meeting pill + Notes / Transcript / Ask panel
 - Source-aware final transcription with prompt results and chat in the library
 - Parakeet model selection: v3 multilingual default, v2 English-only TDT opt-in, and Unified English opt-in
-- Optional local WhisperKit engine for languages outside Parakeet coverage
-- Settings speech-engine picker, Parakeet model picker, Nemotron controls, and Whisper language picker
-- CLI `transcribe --engine parakeet|nemotron|whisper --language --parakeet-model`
+- Optional local WhisperKit and Cohere Transcribe engines for languages or accuracy needs outside the default Parakeet coverage
+- Settings speech-engine picker, Parakeet model picker, Nemotron controls, Cohere language picker, and Whisper language picker
+- CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language --parakeet-model`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
 - Calendar auto-start is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`. Calendar-driven auto-stop was removed (ADR-017 amendment); recordings stop manually
 
@@ -491,7 +491,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Platform** | macOS 14.2+, Apple Silicon only | FluidAudio CoreML requires Apple Silicon. |
-| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 and Unified English opt-ins; optional Nemotron Beta and WhisperKit | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local. |
+| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 and Unified English opt-ins; optional Nemotron Beta, WhisperKit, and Cohere Transcribe | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local; Cohere is a larger batch-only accuracy path. |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |

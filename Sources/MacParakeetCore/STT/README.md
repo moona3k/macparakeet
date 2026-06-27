@@ -7,8 +7,8 @@
 > as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
-> WhisperKit is optional for languages outside Parakeet/Nemotron
-> coverage.
+> WhisperKit is optional for broad language coverage; Cohere Transcribe is an
+> opt-in batch-only accuracy engine.
 
 ## Entry point
 
@@ -22,13 +22,15 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 
 **Speech control plane**
 - `STTScheduler.swift` — public broker. Job admission, slot scheduling,
-  engine routing, session leases for active meetings.
+  engine routing, session leases for active meetings, and Cohere's
+  scheduler-level single-flight admission.
 - `STTRuntime.swift` — sole owner of the Parakeet TDT `AsrManager`s, the
   optional `ParakeetUnifiedEngine` (routed when the persisted
   `ParakeetModelVariant` is `.unified`), the optional Beta
   `NemotronEngine`/`NemotronEnglishEngine` pair (routed by the persisted
-  `NemotronModelVariant`), and the optional `WhisperEngine`. Handles warm-up,
-  model init, cache clearing, shutdown, and Parakeet/Nemotron build swaps.
+  `NemotronModelVariant`), the optional `WhisperEngine`, and the optional
+  `CohereTranscribeEngine`. Handles warm-up, model init, cache clearing,
+  shutdown, and Parakeet/Nemotron build swaps.
 - `STTClient.swift` + `STTClientProtocol.swift` — **CLI / test
   facade only**. Each `STTClient` instantiates its own runtime and
   scheduler, bypassing the process singleton. App code must use the
@@ -59,6 +61,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   through the streaming manager in bounded slices; live dictation drives
   the same manager incrementally and emits partials (see below). Preserves
   FluidAudio token timings as MacParakeet word timestamps when available.
+- `CohereTranscribeEngine.swift` — FluidAudio Cohere Transcribe wrapper.
+  Batch-only: dictation records first and transcribes after stop, file and
+  meeting-finalize jobs run offline, live dictation preview stays off, and
+  meeting live preview chunks are not routed to Cohere. No word timings;
+  meetings degrade to plain text. Loads only an explicitly downloaded model
+  cache; it does not download from normal transcription/warm-up paths.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.
@@ -92,6 +100,8 @@ minor historical wart, not a design statement.
   is the implementation.
 - ADR-021 — WhisperKit as optional multilingual engine; engine
   routing and meeting engine leases live in `STTScheduler`.
+- ADR-001 amendment / benchmark notes — Cohere Transcribe as an opt-in local
+  accuracy engine.
 - ADR-009 — custom hotkey support (relevant to the hotkey files
   above).
 - `spec/06-stt-engine.md` — narrative spec.
@@ -147,7 +157,7 @@ Dictation can request a single-flight tail-window preview via
 does not replace the recorded-file final transcript; it is only for the
 floating overlay text while capture is active. Parakeet v2/v3 use this
 tail-window batch preview; Parakeet Unified and Nemotron use native streaming
-partials instead, and Whisper remains default-off. Engine switches, variant
+partials instead, and Whisper and Cohere remain default-off. Engine switches, variant
 switches, and dictation stop/cancel paths cancel the preview with bounded drain.
 If a cancelled preview still has runtime work in flight, engine/variant switches
 fail fast with `engineBusy` rather than reloading under active inference; the
@@ -176,10 +186,11 @@ dictation back onto the shared URL path without restoring this trailing context.
 build is `v3` unless the user opts into `v2` through Settings or the CLI
 (`config set parakeet-model`, `models select parakeet-v2`, or
 `transcribe --parakeet-model v2`). A subscriber can request Nemotron or
-WhisperKit globally (Settings / `models select`) or per call (CLI
-`--engine nemotron --language ko`, `--engine whisper --language ko`). When set
-globally, dictation also routes there; when set per-job, only that job uses the
-requested engine.
+WhisperKit or Cohere globally (Settings / `models select`) or per call (CLI
+`--engine nemotron --language ko`, `--engine cohere --language ja`,
+`--engine whisper --language ko`). When set globally, dictation also routes
+there; when set per-job, only that job uses the requested engine. Cohere
+dictation remains record-then-transcribe and does not enter live-preview paths.
 
 **Active meetings hold an engine lease.** Once a meeting recording
 starts, its engine selection is captured for the session's duration.

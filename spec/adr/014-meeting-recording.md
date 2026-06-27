@@ -2,7 +2,7 @@
 
 > Status: IMPLEMENTED
 > Date: 2026-04-05
-> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Related: ADR-001 (Parakeet STT + optional local STT amendments), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (historical: meeting mic echo mitigation via joined software AEC + observability hardening)
 > Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so optional VPIO no longer conflicts with system audio capture)
 > Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
@@ -10,10 +10,11 @@
 > Amended: 2026-05-29 (permission timing clarification: Screen & System Audio Recording can be granted from the optional onboarding step or requested on first system-audio meeting use; denied/missing permission blocks source modes that include system audio)
 > Amended: 2026-06-10 (echo hardening for [issue #480](https://github.com/moona3k/macparakeet/issues/480): confidence-independent simultaneous-echo rule in the final transcript filter, streaming AEC frame carry + reference-delay knob, VPIO experiments now disable AGC)
 > Amended: 2026-06-20 (meeting source mode is configurable per recording: microphone + system audio by default, microphone-only, or system-audio-only; permission prompts are scoped to the selected sources)
+> Amended: 2026-06-27 (Cohere Transcribe can be selected for final meeting transcription through the captured engine lease; it is batch-only, so meeting live-preview chunks stay disabled and finalized Cohere transcripts are plain text without word timestamps/speaker labels)
 
 ## Context
 
-MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Parakeet STT via FluidAudio CoreML is the default on-device transcription path; ADR-021 adds optional WhisperKit for broader local language coverage. Users have requested the ability to record live meetings and calls — capturing system audio, mic audio, or both, then transcribing the result.
+MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Parakeet STT via FluidAudio CoreML is the default on-device transcription path; ADR-021 adds optional WhisperKit for broader local language coverage, and ADR-001 amendments add opt-in Nemotron and Cohere engines. Users have requested the ability to record live meetings and calls — capturing system audio, mic audio, or both, then transcribing the result.
 
 This came from exploring [GitHub #52](https://github.com/moona3k/macparakeet/issues/52) (hotkey profiles). The core ask was different workflows for different use cases. Meeting recording is the direct answer — a third mode that extends MacParakeet's voice-to-text capability without changing the product's simplicity.
 
@@ -126,7 +127,7 @@ Keeping mic and system audio as separate streams enables source-aware attributio
 
 ### 9. Speech engine captured at recording start
 
-The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active. For back-to-back recording, that lease ends at the durable stop boundary; queued finalization still uses the captured selection through the routed STT job.
+The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection where the selected engine supports that phase. Cohere is batch-only, so Cohere meetings skip live-preview chunks and use the captured engine only for final/retranscribe work; because Cohere emits no word timestamps or speaker labels, finalized Cohere meeting transcripts degrade to plain text. Settings cannot switch engines while the meeting's speech-engine lease is active. For back-to-back recording, that lease ends at the durable stop boundary; queued finalization still uses the captured selection through the routed STT job.
 
 ### 10. Meeting mic echo mitigation (v0.6 hardening)
 

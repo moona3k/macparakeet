@@ -68,7 +68,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  v0.6 - "Meeting Recording + Multilingual STT + Transforms"      │
-│  "Record meetings locally, add WhisperKit, rewrite selected text" │
+│  "Record meetings locally, add local engine options, rewrite selected text" │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Meeting recording with selectable audio sources               │
 │  • Concurrent with dictation (ADR-015) — dictate during meetings │
@@ -78,9 +78,9 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  • Source-scoped permission flow                                  │
 │  • Headphones guidance copy for cleanest speaker separation       │
 │  • VAD-guided live-preview chunking with fixed fallback           │
-│  • Nemotron Beta + WhisperKit engine options                     │
-│  • Settings engine picker + Nemotron/Whisper controls            │
-│  • CLI --engine parakeet|nemotron|whisper --language             │
+│  • Nemotron Beta + Cohere + WhisperKit engine options            │
+│  • Settings engine picker + Nemotron/Cohere/Whisper controls     │
+│  • CLI --engine parakeet|nemotron|whisper|cohere --language      │
 │  • Meeting engine/language pinning for live + recovery + final   │
 │  • Transforms: Polish / Distill / Decide selected text anywhere  │
 │  • CLI transforms + local Transform history                      │
@@ -110,14 +110,14 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 **Goals:**
 - Reduce first-run friction (no mysterious permission failures).
 - Teach the core interaction model in under 60 seconds.
-- Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese. Nemotron is opt-in after onboarding.
+- Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese. Nemotron and Cohere are explicit opt-in engines after onboarding.
 
 **Flow (6 steps, dictation-first):**
 1. Welcome
 2. Microphone permission
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
-5. Speech stack setup (Parakeet; speaker detection is an opt-in Settings toggle, off by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup)
+5. Speech stack setup (Parakeet; speaker detection is an opt-in Settings toggle, off by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)
 6. Ready
 
 Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-005 amendment, 2026-06-13).
@@ -276,7 +276,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
    - Waveform: 12 white bars, 3px wide, max 20px tall, center-peaking wave pattern, updates in real-time from audio level
    - Stop button: white square (10x10, cornerRadius 3) inside red circle, triggers stop
    - Recording timer displayed (e.g., "0:03") -- hover tooltips provide additional guidance
-   - **Live transcript preview (opt-in, `AppFeatures.liveDictationStreamingEnabled`, #517):** when enabled, a display-only stable rolling readout of in-progress text renders in a sibling panel *above* the pill (pill geometry unchanged): newest line pinned to the bottom, older lines rising and fading out at the top edge, with no mid-word truncation. The raw preview stream is stabilized into a monotonic append-only readout so shown words don't jump or disappear. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Per engine: Parakeet single-flight tail-window batch preview, both Nemotron builds native live partials, Whisper default-off. Toggle and preview text size live in Settings → Capture → Dictation (`showLiveDictationPreview`, default on). See `spec/05-audio-pipeline.md` → "Dictation Live Preview".
+   - **Live transcript preview (opt-in, `AppFeatures.liveDictationStreamingEnabled`, #517):** when enabled, a display-only stable rolling readout of in-progress text renders in a sibling panel *above* the pill (pill geometry unchanged): newest line pinned to the bottom, older lines rising and fading out at the top edge, with no mid-word truncation. The raw preview stream is stabilized into a monotonic append-only readout so shown words don't jump or disappear. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Per engine: Parakeet single-flight tail-window batch preview, both Nemotron builds native live partials, Whisper default-off, Cohere off because it is batch-only. Toggle and preview text size live in Settings → Capture → Dictation (`showLiveDictationPreview`, default on). See `spec/05-audio-pipeline.md` → "Dictation Live Preview".
 
 2. **Cancelled** -- `[countdown ring] [Undo button]` (~140px)
    - Countdown ring: circular progress indicator (accent color, depletes over 5 seconds) with remaining seconds number in center
@@ -362,7 +362,7 @@ User drops file(s) onto window or menu bar icon
          ▼
 ┌──────────────────┐
 │  Local STT       │ ── Transcribe with word-level timestamps
-│                  │    Parakeet default, Nemotron/Whisper optional
+│                  │    Parakeet default, Nemotron/Cohere/Whisper optional
 └────────┬─────────┘
          │
          ▼
@@ -697,11 +697,13 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │                                                                  │
 │ SPEECH RECOGNITION                                               │
 │ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Engine: [ Parakeet ] [ Nemotron Beta ] [ Whisper ]           │ │
+│ │ Engine: [ Parakeet ] [ Nemotron Beta ] [ Cohere ] [ Whisper ]│ │
 │ │ Nemotron model: [ Multilingual Beta ] [ English Beta ]       │ │
+│ │ Cohere language: [ English ▾ ]                               │ │
 │ │ Whisper language: [ Auto-detect ▾ ]                          │ │
 │ │ Parakeet        Ready                         [Repair]       │ │
 │ │ Nemotron        Not Downloaded                [Download]     │ │
+│ │ Cohere          Not Downloaded                [Download]     │ │
 │ │ Whisper         Not Downloaded                [Download]     │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
@@ -726,10 +728,11 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
 | Meeting audio retention | Keep forever / Remove after N days / Remove audio after transcription | Keep forever |
-| Speech recognition engine | Parakeet / Nemotron Beta / Whisper | Parakeet |
+| Speech recognition engine | Parakeet / Nemotron Beta / Cohere / Whisper | Parakeet |
 | Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
+| Cohere language | Supported Cohere language code | English |
 | Whisper language | Auto-detect or language code | Auto-detect |
-| Speech model controls | Parakeet repair, Nemotron download/delete, Whisper download/delete | Available |
+| Speech model controls | Parakeet repair, Nemotron download/delete, Cohere download/delete, Whisper download/delete | Available |
 
 **Acceptance criteria:**
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
@@ -740,7 +743,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
-- [x] Speech Recognition panel shows Parakeet status/repair plus Nemotron and Whisper download/language controls
+- [x] Speech Recognition panel shows Parakeet status/repair plus Nemotron, Cohere, and Whisper download/language controls
 - [x] Nemotron Model card (Nemotron engine only) persists the selected build; Multilingual Beta is the default, English Beta is a smaller English-only download
 
 ---
@@ -1616,9 +1619,9 @@ exposes a terminal provider/model/token metadata envelope.
 
 ## v0.6 — Meeting Recording + Multilingual STT
 
-The v0.6 scope includes meeting capture with configurable source mode (microphone + system audio by default, microphone-only, or system-audio-only; ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option) and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
+The v0.6 scope includes meeting capture with configurable source mode (microphone + system audio by default, microphone-only, or system-audio-only; ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option), Cohere Transcribe, and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
 
-Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; Nemotron Beta or WhisperKit can be selected before starting a meeting for broader local multilingual coverage.
+Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; Nemotron Beta, Cohere, or WhisperKit can be selected before starting a meeting for broader local multilingual coverage or accuracy-focused batch transcription. Cohere meetings have no live-preview chunks and degrade to plain text because Cohere does not emit word timestamps or speaker labels.
 
 ### F36: Live Meeting Notepad
 
@@ -1829,12 +1832,12 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 
 | Metric | Target | Notes |
 |--------|--------|-------|
-| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML); Nemotron is Beta and WhisperKit is for coverage, not this default latency target |
+| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML); Nemotron is Beta, Cohere is batch accuracy-focused, and WhisperKit is for coverage, not this default latency target |
 | Dictation latency | <500ms end-to-end | From Fn release to text appearing |
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
-| Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Nemotron and Whisper depend on selected model/runtime |
-| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), and optional Whisper download |
+| Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Nemotron, Cohere, and Whisper depend on selected model/runtime |
+| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~2.1 GB optional Cohere download, and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 
@@ -1849,12 +1852,12 @@ MacParakeet's brand is privacy. These are non-negotiable.
 | Core offline operation | Dictation, file transcription, and meeting recording work fully offline after local model setup |
 | Opt-out telemetry | Self-hosted usage analytics and crash reporting can be disabled in Settings |
 | No accounts | No email, no login, no registration |
-| No cloud STT | All speech recognition runs locally on Apple Silicon; Parakeet is default and Nemotron/WhisperKit are optional |
+| No cloud STT | All speech recognition runs locally on Apple Silicon; Parakeet is default and Nemotron/Cohere/WhisperKit are optional |
 | User-controlled storage | File/YouTube/meeting audio is retained for playback/recovery unless deleted; dictation audio is opt-in |
 | Explicit network surfaces | Model download, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and YouTube download |
 
 **What "supports a fully local setup" means:**
-- Parakeet and Nemotron STT run locally via FluidAudio CoreML; WhisperKit also runs locally when selected
+- Parakeet, Nemotron, and Cohere STT run locally via FluidAudio CoreML; WhisperKit also runs locally when selected
 - Audio never leaves the device
 - Transcripts stay local unless the user explicitly enables external AI features
 - Users can remain fully local by sticking to offline/core features and local providers such as Ollama

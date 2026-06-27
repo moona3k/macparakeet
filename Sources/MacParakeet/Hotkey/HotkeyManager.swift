@@ -818,6 +818,24 @@ public final class HotkeyManager {
             return []
 
         case nil:
+            // A tap-disable + recovery can land in the brief window after a fresh
+            // trigger press but before its startup timer has fired, when no
+            // recording is active yet. Hard-resetting here cancels the armed
+            // startup timer and gesture state, dropping the start the user is
+            // mid-gesture on — and because the key is still physically held, no
+            // new edge arrives to re-arm it, so "nothing happens" until they
+            // release and press again. (The Instant-Dictation warm-mic restart
+            // right after a paste is what disables the tap in the first place.)
+            // If a press is still pending and the trigger is still held, preserve
+            // the gesture across the recovery instead of resetting it.
+            if triggerPressed, gestureController.hasPendingTriggerPress {
+                syncRecoveredTriggerState(
+                    flags: flags,
+                    triggerKeyPressed: triggerKeyPressed,
+                    triggerPressed: triggerPressed
+                )
+                return []
+            }
             resetGestureState(flags: flags, triggerKeyPressed: triggerKeyPressed)
             return []
         }

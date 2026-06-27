@@ -175,6 +175,86 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(selection.language, "en-US")
     }
 
+    func testResolveSpeechEngineUsesStoredCohereLanguageForAppDefault() {
+        // Cohere has no auto-detect and its engine defaults to English, so an
+        // app-default run with no explicit --language must carry the stored
+        // Cohere picker language, not silently fall back to English.
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedNemotronLanguage: "en_US",
+            storedCohereLanguage: "fr",
+            explicitLanguage: nil
+        )
+
+        XCTAssertEqual(selection.engine, .cohere)
+        XCTAssertEqual(selection.language, "fr")
+    }
+
+    func testResolveSpeechEngineExplicitLanguageOverridesStoredCohereLanguage() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "fr",
+            explicitLanguage: "ja"
+        )
+
+        XCTAssertEqual(selection.engine, .cohere)
+        XCTAssertEqual(selection.language, "ja")
+    }
+
+    func testResolveSpeechEngineExplicitCohereUsesExplicitOrStoredCohereLanguage() {
+        let storedSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: nil
+        )
+        XCTAssertEqual(storedSelection.engine, .cohere)
+        XCTAssertEqual(storedSelection.language, "zh")
+
+        let explicitSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: "ja"
+        )
+        XCTAssertEqual(explicitSelection.engine, .cohere)
+        XCTAssertEqual(explicitSelection.language, "ja")
+    }
+
+    func testValidateCohereLanguageOverrideRejectsExplicitAuto() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "auto"
+        )
+
+        XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("Cohere has no auto-detect"), message)
+        }
+    }
+
+    func testValidateCohereLanguageOverrideAllowsSupportedExplicitCode() throws {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "zh_CN"
+        )
+
+        try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
+        XCTAssertEqual(selection.language, "zh")
+    }
+
     func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
         let selection = TranscribeCommand.resolveSpeechEngine(
             .nemotron,
@@ -286,6 +366,17 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertEqual(command.engine, .nemotron)
         XCTAssertEqual(command.language, "en-US")
+    }
+
+    func testParsesCohereEngineAndLanguage() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--engine", "cohere",
+            "--language", "ja",
+        ])
+
+        XCTAssertEqual(command.engine, .cohere)
+        XCTAssertEqual(command.language, "ja")
     }
 
     func testParsesAppDefaultEngineAndSpeakerDetection() throws {

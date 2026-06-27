@@ -23,7 +23,7 @@ struct ConfigCommand: ParsableCommand {
         Supported keys:
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
-          speech-engine             parakeet|nemotron|whisper       default: parakeet
+          speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
           parakeet-model            v3|v2|unified                   default: v3
                                     (v3=multilingual, v2=English,
                                     unified=English punctuated)
@@ -32,6 +32,7 @@ struct ConfigCommand: ParsableCommand {
           nemotron-language         auto|<Nemotron language code>   default: auto
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
+          cohere-language           <Cohere language code>          default: en
           speaker-detection         on|off                          default: off
           auto-meeting-titles       on|off                          default: on
           save-transcription-audio  on|off                          default: on
@@ -70,6 +71,7 @@ struct ConfigCommand: ParsableCommand {
         "nemotron-model",
         "nemotron-language",
         "whisper-language",
+        "cohere-language",
         "speaker-detection",
         "auto-meeting-titles",
         "save-transcription-audio",
@@ -197,6 +199,8 @@ struct ConfigCommand: ParsableCommand {
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: store) ?? "auto"
         case "whisper-language":
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: store) ?? WhisperLanguageCatalog.autoCode
+        case "cohere-language":
+            return SpeechEnginePreference.cohereDefaultLanguage(defaults: store) ?? "en"
         case "speaker-detection":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
             return on ? "on" : "off"
@@ -273,6 +277,10 @@ struct ConfigCommand: ParsableCommand {
             let language = try parseWhisperLanguage(value)
             SpeechEnginePreference.saveWhisperDefaultLanguage(language, defaults: store)
             return language ?? WhisperLanguageCatalog.autoCode
+        case "cohere-language":
+            let language = try parseCohereLanguage(value)
+            SpeechEnginePreference.saveCohereDefaultLanguage(language, defaults: store)
+            return language
         case "speaker-detection":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
@@ -373,7 +381,7 @@ struct ConfigCommand: ParsableCommand {
     static func parseSpeechEngine(_ value: String) throws -> SpeechEnginePreference {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let engine = SpeechEnginePreference(rawValue: raw) else {
-            throw ValidationError("Invalid value for speech-engine: '\(value)'. Use parakeet, nemotron, or whisper.")
+            throw ValidationError("Invalid value for speech-engine: '\(value)'. Use parakeet, nemotron, whisper, or cohere.")
         }
         return engine
     }
@@ -432,6 +440,15 @@ struct ConfigCommand: ParsableCommand {
         }
         guard let language = SpeechEnginePreference.normalizeNemotronLanguage(trimmed) else {
             throw ValidationError("Invalid value for nemotron-language: '\(value)'. Use auto or a language code such as en-US, ko, or zh-CN.")
+        }
+        return language
+    }
+
+    static func parseCohereLanguage(_ value: String) throws -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let language = SpeechEnginePreference.normalizeCohereLanguage(trimmed) else {
+            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+            throw ValidationError("Invalid value for cohere-language: '\(value)'. Use one of: \(supported).")
         }
         return language
     }

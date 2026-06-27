@@ -4,6 +4,10 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case nemotron
     case whisper
+    /// Cohere Transcribe (03-2026) via FluidAudio's `CoherePipeline`, on-device
+    /// Core ML. A batch, dictation-oriented engine (no live partials, no word
+    /// timestamps); see ``CohereTranscribeEngine``.
+    case cohere
 
     public static let defaultsKey = "speechRecognitionEngine"
     public static let parakeetModelVariantKey = "parakeetModelVariant"
@@ -11,6 +15,10 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
+    /// Cohere has no auto language detection — the user picks one of its 14
+    /// supported languages (default English). Stored as a primary subtag ("en",
+    /// "fr", …); the engine maps it to `CohereAsrConfig.Language`.
+    public static let cohereDefaultLanguageKey = "cohereDefaultLanguage"
 
     /// New users stay on the multilingual `v3` build — it "works for everyone".
     /// `v2` (English-only) is surfaced as a clearly-labeled opt-in.
@@ -35,6 +43,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             "Nemotron"
         case .whisper:
             "Whisper"
+        case .cohere:
+            "Cohere"
         }
     }
 
@@ -45,6 +55,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         case .nemotron:
             .whisper
         case .whisper:
+            .parakeet
+        case .cohere:
             .parakeet
         }
     }
@@ -71,6 +83,37 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return
         }
         defaults.set(normalized, forKey: whisperDefaultLanguageKey)
+    }
+
+    /// The persisted Cohere dictation language, as a primary subtag ("en",
+    /// "fr", …). `nil` means none chosen yet → the engine defaults to English.
+    public static func cohereDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
+        normalizeCohereLanguage(defaults.string(forKey: cohereDefaultLanguageKey))
+    }
+
+    public static func saveCohereDefaultLanguage(_ language: String?, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeCohereLanguage(language) else {
+            defaults.removeObject(forKey: cohereDefaultLanguageKey)
+            return
+        }
+        defaults.set(normalized, forKey: cohereDefaultLanguageKey)
+    }
+
+    /// Cohere language codes are simple supported primary subtags ("en", "zh").
+    /// Fold any BCP-47-ish input down to its lowercased primary subtag and drop
+    /// unsupported values so manual defaults edits cannot leak stale picker
+    /// state into the runtime.
+    public static func normalizeCohereLanguage(_ language: String?) -> String? {
+        guard let language else { return nil }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, trimmed != "auto" else { return nil }
+        let primary = trimmed.replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-").first.map(String.init) ?? trimmed
+        guard primary.count == 2, primary.allSatisfy(\.isLetter) else { return nil }
+        guard CohereTranscribeEngine.supportedLanguages.contains(where: { $0.code == primary }) else {
+            return nil
+        }
+        return primary
     }
 
     public static func nemotronDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
@@ -449,6 +492,10 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.normalizeNemotronLanguage(language)
         case .whisper:
             SpeechEnginePreference.normalizeLanguage(language)
+        case .cohere:
+            // Cohere uses simple language subtags ("en", "fr", …); the engine
+            // maps the primary subtag to a supported language (English default).
+            SpeechEnginePreference.normalizeCohereLanguage(language)
         }
     }
 
@@ -461,6 +508,8 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
         return SpeechEngineSelection(engine: engine, language: language)
     }

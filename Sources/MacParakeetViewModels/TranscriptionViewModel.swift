@@ -184,12 +184,14 @@ public final class TranscriptionViewModel {
     private let defaults: UserDefaults
     private let isWhisperModelDownloaded: () -> Bool
     private let isNemotronModelDownloaded: () -> Bool
+    private let isCohereModelDownloaded: () -> Bool
     public var promptResultsViewModel: PromptResultsViewModel?
 
     public init(
         defaults: UserDefaults = .standard,
         isWhisperModelDownloaded: (() -> Bool)? = nil,
-        isNemotronModelDownloaded: (() -> Bool)? = nil
+        isNemotronModelDownloaded: (() -> Bool)? = nil,
+        isCohereModelDownloaded: (() -> Bool)? = nil
     ) {
         self.defaults = defaults
         self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
@@ -202,6 +204,9 @@ public final class TranscriptionViewModel {
                 modelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
                 language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
             )
+        }
+        self.isCohereModelDownloaded = isCohereModelDownloaded ?? {
+            CohereTranscribeEngine.isModelCached()
         }
     }
 
@@ -461,7 +466,12 @@ public final class TranscriptionViewModel {
     }
 
     private func retranscriptionEngineOrder(primary: SpeechEnginePreference) -> [SpeechEnginePreference] {
-        let defaultOrder: [SpeechEnginePreference] = [.parakeet, .nemotron, .whisper]
+        // Gate Cohere on its feature flag, consistent with the settings engine
+        // picker — when the flag is off, Cohere must not leak in as a
+        // retranscription choice.
+        let defaultOrder: [SpeechEnginePreference] = AppFeatures.cohereEngineEnabled
+            ? [.parakeet, .nemotron, .whisper, .cohere]
+            : [.parakeet, .nemotron, .whisper]
         return [primary] + defaultOrder.filter { $0 != primary }
     }
 
@@ -477,6 +487,10 @@ public final class TranscriptionViewModel {
             return isWhisperModelDownloaded()
                 ? nil
                 : "Download the Whisper model in Settings before trying Whisper."
+        case .cohere:
+            return isCohereModelDownloaded()
+                ? nil
+                : "Download Cohere Transcribe in Settings before trying Cohere."
         }
     }
 
@@ -503,6 +517,11 @@ public final class TranscriptionViewModel {
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            // Cohere has no auto-detect and its engine defaults to English, so a
+            // retranscription must carry the user's chosen language explicitly,
+            // exactly as Nemotron/Whisper do above.
+            return SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
     }
 
@@ -1088,6 +1107,8 @@ public final class TranscriptionViewModel {
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Local Core ML"
+            case .cohere:
+                return "Cohere Transcribe \u{00B7} Local Core ML"
             }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."

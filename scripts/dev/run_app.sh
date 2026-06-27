@@ -2,8 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Build configuration: Debug by default. Set MACPARAKEET_CONFIG=Release for an
+# optimized build (e.g. to feel-test true STT latency — Debug Swift is ~10x
+# slower for the Cohere decoder's per-step work).
+CONFIG="${MACPARAKEET_CONFIG:-Debug}"
 DERIVED_DATA_DIR="$ROOT_DIR/.build/xcode-dev"
-PRODUCT_DIR="$DERIVED_DATA_DIR/Build/Products/Debug"
+PRODUCT_DIR="$DERIVED_DATA_DIR/Build/Products/$CONFIG"
 APP_BIN="$PRODUCT_DIR/MacParakeet"
 APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"
 LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
@@ -75,10 +79,10 @@ binary_has_rpath() {
   return 1
 }
 
-echo "[1/5] Building debug app bundle (xcodebuild, target signing disabled)…"
+echo "[1/5] Building $CONFIG app bundle (xcodebuild, target signing disabled)…"
 if ! xcodebuild build \
   -scheme MacParakeet \
-  -configuration Debug \
+  -configuration "$CONFIG" \
   -destination "platform=OS X,arch=arm64" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
   CODE_SIGNING_ALLOWED=NO \
@@ -190,16 +194,16 @@ echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
 pkill -f "$ROOT_DIR/dist/MacParakeet.app/Contents/MacOS/MacParakeet" || true
 pkill -f "MacParakeet-Dev.app/Contents/MacOS/MacParakeet" || true
-pkill -f "$DERIVED_DATA_DIR/Build/Products/Debug/MacParakeet" || true
+pkill -f "$PRODUCT_DIR/MacParakeet" || true
 pkill -f "$ROOT_DIR/.build/debug/MacParakeet" || true
 pkill -f "$ROOT_DIR/.build/arm64-apple-macosx/debug/MacParakeet" || true
 sleep 1
 
 GIT_COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
 BUILD_DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-BUILD_SOURCE="dev-run-xcodebuild-debug"
+BUILD_SOURCE="dev-run-xcodebuild-$(echo "$CONFIG" | tr '[:upper:]' '[:lower:]')"
 
-echo "[4/5] Launching debug app…"
+echo "[4/5] Launching ${CONFIG} app…"
 MACPARAKEET_GIT_COMMIT="$GIT_COMMIT" \
 MACPARAKEET_BUILD_DATE_UTC="$BUILD_DATE_UTC" \
 MACPARAKEET_BUILD_SOURCE="$BUILD_SOURCE" \

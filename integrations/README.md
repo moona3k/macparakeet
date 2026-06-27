@@ -16,7 +16,7 @@ testing.
 
 - **Local transcription** -- audio/video files, folders, public media URLs,
   Apple Podcasts links/searches, and YouTube to text, with engine selection
-  (Parakeet / Nemotron / Whisper) and per-invocation language hints.
+  (Parakeet / Nemotron / Cohere / Whisper) and per-invocation language hints.
 - **Scriptable shared defaults** -- `config get|set|list` over the same
   preference suite the GUI reads (`com.macparakeet.MacParakeet`). CLI-only
   installs work; a later GUI install picks up the same values.
@@ -24,8 +24,8 @@ testing.
   schemas pinned to the major CLI version. Failure envelopes carry a stable
   `errorType` so agents can branch deterministically.
 - **Model and binary health** -- `health --json` probes Parakeet / Nemotron /
-  Whisper model readiness, database accessibility, FFmpeg, and yt-dlp without
-  mutating state. Repair flags explicitly warm/download local caches.
+  Cohere / Whisper model readiness, database accessibility, FFmpeg, and yt-dlp
+  without mutating state. Repair flags explicitly warm/download local caches.
 - **Persisted history** -- list, search, and inspect prior dictations and
   transcriptions via the shared SQLite database.
 - **Prompt and meeting inspection** -- list and run prompt library entries
@@ -92,8 +92,9 @@ macparakeet-cli health --json
 
 This installs the standalone CLI plus its Homebrew-managed `ffmpeg` and
 `yt-dlp` runtime dependencies. It does not require `MacParakeet.app`.
-Parakeet's CoreML cache is managed by FluidAudio. WhisperKit model downloads
-live under `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+Parakeet, Nemotron, and Cohere CoreML caches are managed by FluidAudio.
+WhisperKit model downloads live under
+`~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 **Bundled app alternative:** after installing
 [MacParakeet](https://macparakeet.com), the same CLI surface is available at:
@@ -182,13 +183,14 @@ temporary when `--no-history` is set.
 
 Parakeet is the default engine for compatibility with existing scripts. Use
 `--parakeet-model v2` or `config set parakeet-model v2` for the English-only
-Parakeet build. Use Nemotron Beta or Whisper per invocation for multilingual
-coverage outside the default Parakeet lane:
+Parakeet build. Use Nemotron Beta, Cohere, or Whisper per invocation for
+multilingual or accuracy-focused coverage outside the default Parakeet lane:
 
-Nemotron and Whisper require local model downloads before first use:
+Nemotron, Cohere, and Whisper require local model downloads before first use:
 
 ```bash
 macparakeet-cli models download nemotron-multilingual-1120ms
+macparakeet-cli models download cohere-transcribe
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 ```
 
@@ -199,11 +201,13 @@ macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli models select parakeet-v2 --json
 macparakeet-cli models select nemotron-multilingual-1120ms --json
+macparakeet-cli models select cohere-transcribe --json
 macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 ```
 
 ```bash
 macparakeet-cli transcribe /path/to/spanish.mp3 --engine nemotron --language auto --format json
+macparakeet-cli transcribe /path/to/japanese.m4a --engine cohere --language ja --format json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 ```
 
@@ -246,6 +250,7 @@ macparakeet-cli config set speech-engine whisper
 macparakeet-cli config set parakeet-model v3
 macparakeet-cli config set nemotron-language auto
 macparakeet-cli config set whisper-language ko
+macparakeet-cli config set cohere-language ja
 macparakeet-cli config set processing-mode raw
 macparakeet-cli config set speaker-detection off
 macparakeet-cli config set save-transcription-audio off
@@ -253,8 +258,9 @@ macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 `--engine whisper` uses Whisper with auto-detected language unless `--language`
-is passed. The saved Whisper language is used when `--engine app-default`
-resolves to Whisper.
+is passed. `--engine cohere` uses the saved Cohere language unless `--language`
+is passed, because Cohere has no auto-detect. Saved engine-specific languages
+are used when `--engine app-default` resolves to that engine.
 
 ### Transcribe a media URL
 
@@ -472,10 +478,12 @@ macparakeet-cli spec --json
 macparakeet-cli transcribe "<path-or-media-url>" --format json
 macparakeet-cli transcribe "<path-or-media-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+macparakeet-cli models download cohere-transcribe
 macparakeet-cli models list --json
 macparakeet-cli models select parakeet-v3 --json
 macparakeet-cli config set parakeet-model v3 --json
 macparakeet-cli transcribe "<path-or-media-url>" --engine whisper --language ko --format json
+macparakeet-cli transcribe "<path-or-media-url>" --engine cohere --language ja --format json
 macparakeet-cli transcribe "<path-or-media-url>" \
   --engine app-default \
   --parakeet-model app-default \
