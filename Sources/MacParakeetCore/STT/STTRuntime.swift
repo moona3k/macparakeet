@@ -172,18 +172,23 @@ public actor STTRuntime: STTRuntimeProtocol {
         activeTranscriptionCount += 1
         defer { activeTranscriptionCount -= 1 }
 
-        switch selection.engine {
-        case .parakeet:
-            return try await transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
-        case .nemotron:
-            return try await transcribeWithNemotron(
-                audioPath: audioPath,
-                job: job,
-                language: selection.language,
-                onProgress: onProgress
-            )
-        case .whisper:
-            return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
+        // Serialize Neural Engine inference on macOS 14 so this background/file
+        // job never runs CoreML concurrently with a dictation preview or another
+        // lane (no-op on macOS 15+). See `ANEInferenceGate`.
+        return try await ANEInferenceGate.shared.withExclusiveAccess {
+            switch selection.engine {
+            case .parakeet:
+                return try await self.transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
+            case .nemotron:
+                return try await self.transcribeWithNemotron(
+                    audioPath: audioPath,
+                    job: job,
+                    language: selection.language,
+                    onProgress: onProgress
+                )
+            case .whisper:
+                return try await self.transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
+            }
         }
     }
 
@@ -198,13 +203,18 @@ public actor STTRuntime: STTRuntimeProtocol {
         activeTranscriptionCount += 1
         defer { activeTranscriptionCount -= 1 }
 
-        switch selection.engine {
-        case .parakeet:
-            return try await transcribeParakeetPreview(samples: samples)
-        case .whisper:
-            return try await transcribeWhisperPreview(samples: samples, language: selection.language)
-        case .nemotron:
-            throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
+        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+): a
+        // dictation preview must not run CoreML concurrently with a background
+        // transcription on the other lane. See `ANEInferenceGate`.
+        return try await ANEInferenceGate.shared.withExclusiveAccess {
+            switch selection.engine {
+            case .parakeet:
+                return try await self.transcribeParakeetPreview(samples: samples)
+            case .whisper:
+                return try await self.transcribeWhisperPreview(samples: samples, language: selection.language)
+            case .nemotron:
+                throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
+            }
         }
     }
 
@@ -270,7 +280,12 @@ public actor STTRuntime: STTRuntimeProtocol {
               let engine = liveDictationEngine else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
-        try await engine.processLiveDictationSamples(samples)
+        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+) so
+        // a streaming dictation chunk never runs CoreML concurrently with a
+        // background transcription. See `ANEInferenceGate`.
+        try await ANEInferenceGate.shared.withExclusiveAccess {
+            try await engine.processLiveDictationSamples(samples)
+        }
     }
 
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
@@ -286,7 +301,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             liveDictationEngine = nil
             activeTranscriptionCount -= 1
         }
-        return try await engine.finishLiveDictation()
+        // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+).
+        // See `ANEInferenceGate`.
+        return try await ANEInferenceGate.shared.withExclusiveAccess {
+            try await engine.finishLiveDictation()
+        }
     }
 
     func cancelLiveDictationTranscription(sessionID: UUID) async {
