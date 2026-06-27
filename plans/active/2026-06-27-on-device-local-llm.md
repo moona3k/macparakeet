@@ -40,6 +40,7 @@ Cleanup, summary, Ask, and Transforms are **already provider-agnostic** (they ro
 
 - **One engine: MLX.** We do not build a multi-runtime hybrid. (Keep a thin `LocalLLMRuntime` protocol as cheap future insurance, but implement only MLX.)
 - **One self-optimized model is the first-party path.** We pick/convert/quantize/fine-tune a single model for Apple Silicon and ship it as the default; depth of optimization over breadth of choice.
+- **Apple Silicon only.** The MLX engine + our model require Apple Silicon (the app is already Apple-Silicon-only). The one-click local path must be hardware-gated/hidden so an unsupported Mac never surfaces a setup that cannot run.
 - **On-device only for the local path.** No transcript text leaves the Mac when the local model is selected; indexing/retrieval for QA stays local.
 - **Do not bundle a multi-GB model into the app binary.** Keep the DMG small; the model is a verified on-demand download into Application Support.
 - **Preserve existing providers.** Cloud keys, Ollama, LM Studio, local CLI remain for power users. "BYO" for the in-process engine means **other MLX-format models**, not arbitrary formats.
@@ -57,9 +58,9 @@ We want an in-process runtime on Apple Silicon, optimizable for a single model, 
 - **Best Apple Silicon performance** — fastest small-model decode; large prefill gains on M5+. The right engine when the goal is to make *one* model run as well as possible on this hardware.
 - **Cleanest native integration** — first-party Apple SwiftPM packages; no C++/Metal framework to vendor and codesign. Lower long-term integration burden.
 - **Full self-optimization control** — MLX quantization (including DWQ 4-bit ≈ 6–8-bit quality), and a clear path to convert/fine-tune our own model into MLX format. Conversion is a one-time, deliberate step we own, not a per-user chore.
-- **Ships in sandboxed/notarized apps** today (Metal shaders built via Xcode, `.metallib` bundled; add `com.apple.developer.kernel.increased-memory-limit` for big models).
+- **Ships in notarized apps** today (Metal shaders built via Xcode, `.metallib` bundled). Large models on macOS need **no special memory entitlement** (the `com.apple.developer.kernel.increased-memory-limit` entitlement is iOS-only and does not apply on macOS) — fit is managed by RAM-gating model tiers and respecting the Metal wired-memory limit (see §9).
 
-**Runtimes we are NOT using (and why):** llama.cpp/GGUF — its main advantage is universal "load any GGUF" BYO, which we are explicitly *not* prioritizing; not worth the C++ vendoring when we optimize one MLX model. MLC-LLM / Core ML — per-model compile/convert, weaker momentum. Bundled Ollama — a hidden second process. **Apple Foundation Models** — Apple's fixed ~3B model with a ~4096-token window; we can't self-optimize it and it can't summarize long transcripts without heavy chunking. Demoted to an **optional zero-download fallback** for eligible users (macOS 26 + Apple Intelligence), never the primary "our model" path.
+**Runtimes we are NOT using (and why):** llama.cpp/GGUF — its main advantage is universal "load any GGUF" BYO, which we are explicitly *not* prioritizing; not worth the C++ vendoring when we optimize one MLX model. MLC-LLM / Core ML — per-model compile/convert, weaker momentum. Bundled Ollama — a hidden second process. **Apple Foundation Models** — Apple's fixed ~3B model with a ~4096-token window; we can't self-optimize it and it can't summarize long transcripts without heavy chunking. Demoted to an **optional zero-download fallback** for eligible users (the public `FoundationModels` API — `LanguageModelSession` + `@Generable` — on macOS 26+ with Apple Intelligence enabled), never the primary "our model" path.
 
 ### Two tradeoffs MLX carries — and our mitigations (own the model)
 1. **No built-in grammar-constrained decoding** (no GBNF equivalent on MLX-Swift). Affects **tool-calling (D)** and strict JSON extraction. Mitigations, in order: (a) **fine-tune our model** to emit reliable tool/JSON output and validate-and-retry; (b) implement/port a **logits processor** for constrained decoding when needed; (c) for guaranteed-structured tasks on eligible OS, use Apple Foundation Models' typed `@Generable`. Validate in Phase 0 since tool-calling is a stated future goal.
@@ -95,12 +96,12 @@ Our LLM stack is already cleanly abstracted; the change is additive.
 - Tool-calling: **absent** (`ChatMessage` has no tools).
 
 **To add the in-process MLX provider:**
-1. `LLMProviderID` += `.inProcessLocal` (and optionally `.appleIntelligence` for the FM fallback); add descriptors (`isLocal: true`, `supportsAPIKey: false`).
+1. `LLMProviderID` += `.inProcessLocal` (and optionally `.appleIntelligence` for the FM fallback); add descriptors (`isLocal: true`, `supportsAPIKey: false`). **`baseURL` contract:** `LLMProviderConfig.baseURL` is non-optional today, so the in-process provider uses a sentinel URL (e.g. `inprocess://local`) that the in-process client ignores; only revisit making `baseURL` optional if more in-process providers appear.
 2. New `Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift` implementing `LLMClientProtocol` over a thin `LocalLLMRuntime` protocol, with an **MLX implementation** (`MLXLLM` / `mlx-swift-lm`: `LLMModelFactory.loadContainer` → `ChatSession.respond`/streaming). Honor `Task.checkCancellation()`.
-3. `RoutingLLMClient.client(for:)` += route `.inProcessLocal` → `InProcessLLMClient` (and `.appleIntelligence` → a `FoundationModelsLLMClient` if we add the fallback). **`LLMService` unchanged.**
+3. `RoutingLLMClient.client(for:)` += route `.inProcessLocal` → `InProcessLLMClient` (and `.appleIntelligence` → a `FoundationModelsLLMClient` if we add the fallback). Inject the new client through `RoutingLLMClient`'s initializer, lazily constructed, mirroring how `cliClient` is stored. The **feature call sites and `LLMService`'s public API are unchanged** — only routing is extended. (The separate context-budget fix in step 6 *does* change `LLMService` internals — that is not a call-site change.)
 4. New `InProcessModelDownloader` (reuse FluidAudio download/verify/delete pattern) + `InProcessModelManagerViewModel`. Models cached under `Application Support/MacParakeet/LLMModels/<id>/`. MLX models can also load via Hub download with progress.
 5. Settings: add to provider order in `LLMSettingsView`/`LLMSettingsViewModel`; add the one-click card (§7).
-6. **Fix context budgets (#563):** token-based, per-model (read the model's real context window) instead of hardcoded chars.
+6. **Fix context budgets (#563) — this changes `LLMService` internals** (the `cloud`/`local`/`lmStudio` char budgets + `truncateMiddle` live there): make budgets token-based and per-model (read the model's real context window) instead of hardcoded chars. Provider abstraction and call sites stay unchanged.
 7. **Tool-calling (Phase 3):** extend `ChatMessage`/`ChatCompletionOptions`/`ChatCompletionResponse` with tool definitions + results; implement via a fine-tuned-for-tools model + validate/retry (and/or a logits processor / FM `@Generable`); wire allowlisted typed tools per `2026-05-voice-command-agent-mode.md`.
 
 Build the **chunking / map-reduce / retrieval layer** for long transcripts regardless (summary/QA need it; mitigates MLX long-prefill).
@@ -111,6 +112,7 @@ Build the **chunking / map-reduce / retrieval layer** for long transcripts regar
 
 Setup must be **a single obvious action**. Lives in the Settings → AI card + onboarding AI step (extends [`2026-05-ai-setup-ux.md`](2026-05-ai-setup-ux.md): `.setUpNeeded` / `.ready` / `.cannotConnect`).
 
+- **Hardware gate (first):** only offer the local path on Apple Silicon (see §3); on unsupported hardware, hide it and fall back to BYO/cloud messaging — never surface a one-click setup that cannot run.
 - **Primary: one "Enable local AI" button** that runs **download our optimized model → verify → select → test → "Ready"**, with a progress bar (reuse speech-model download UI) and recoverable error states (network/disk/corrupt → re-validate; mirror speech-model download hardening). RAM-aware: pick the right tier for the machine, respecting the macOS Metal wired-memory limit.
 - **Optional zero-download path** where Apple Intelligence is available: "Use on-device AI (no download)" via Foundation Models for short tasks; clearly secondary to our model.
 - **Manage models:** delete, switch tier, and **BYO an MLX model** (power users / #265).
@@ -137,7 +139,8 @@ Setup must be **a single obvious action**. Lives in the Settings → AI card + o
 - **Quality bar not met at tolerable size** → Phase 0 gate; accuracy is the metric; deterministic fallback retained.
 - **MLX structured-output gap (tool-calling/JSON)** → fine-tune for tool output + validate/retry; optional logits processor; FM `@Generable` where available.
 - **MLX long-context prefill** → map-reduce/retrieval + KV/prompt caching; validate in Phase 0.
-- **RAM / macOS Metal wired-memory limit** (≈67% ≤36 GB, ≈75% >36 GB unified memory) → RAM-gate recommendations; cap context/KV; quantize KV for long transcripts; free idle models; `increased-memory-limit` entitlement for big tiers.
+- **RAM / macOS Metal wired-memory limit** (≈67% ≤36 GB, ≈75% >36 GB unified memory) → RAM-gate recommendations; cap context/KV; quantize KV for long transcripts; free idle models. (No memory entitlement on macOS — that is iOS-only.)
+- **Apple Silicon requirement** → gate/hide the one-click local path on unsupported hardware (see §3) so it never offers a setup that cannot run.
 - **MLX API churn** (mlx-swift-lm repo split / breaking 3.x) → isolate behind `LocalLLMRuntime`, pin exact versions, own upgrades.
 - **First-run latency** (model load + shader compile) → prewarm on AI entry; stable-prompt-prefix prompt cache.
 - **Long-transcript truncation (#563)** → token budgets + map-reduce, not silent middle-drop.
