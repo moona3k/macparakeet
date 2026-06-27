@@ -162,6 +162,15 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged, "前半内容然后去商店买东西结尾内容")
     }
 
+    func testMergeDropsApproximateHangulOverlapWithRecognizerDrift() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "앞부분오늘날씨가정말좋습니다",
+            "오늘날씨가정말조습니다끝부분"
+        )
+
+        XCTAssertEqual(merged, "앞부분오늘날씨가정말좋습니다끝부분")
+    }
+
     func testMergeDropsCJKCompatibilityIdeographOverlapWithoutInsertingSpace() throws {
         let first = try XCTUnwrap(UnicodeScalar(0xF900).map(String.init))
         let second = try XCTUnwrap(UnicodeScalar(0xF901).map(String.init))

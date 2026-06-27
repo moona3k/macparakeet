@@ -448,11 +448,6 @@ public actor CohereTranscribeEngine: STTTranscribing {
         guard minimumLength >= 8 else { return false }
         guard hasStableApproximateOverlapAnchor(aNormalized, bNormalized) else { return false }
 
-        let aMarker = leadingNumberMarker(aNormalized)
-        let bMarker = leadingNumberMarker(bNormalized)
-        if aMarker != bMarker {
-            return false
-        }
         let aTrailingMarker = trailingNumberMarker(aNormalized)
         let bTrailingMarker = trailingNumberMarker(bNormalized)
         if aTrailingMarker != bTrailingMarker {
