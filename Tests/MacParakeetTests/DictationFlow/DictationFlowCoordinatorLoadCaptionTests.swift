@@ -166,6 +166,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "no_speech"))
     }
 
+    func testPasteFailureDismissesCaptionWithFailureOutcome() async throws {
+        let harness = try makeHarness(isReady: false, transcribeDelayMs: 90)
+        await harness.clipboard.setPasteError(ClipboardServiceError.eventSourceUnavailable)
+
+        try await harness.startAndStop()
+        let shown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        XCTAssertTrue(shown)
+        let recordedFailure = await waitUntil {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "failure")
+        }
+
+        XCTAssertTrue(recordedFailure)
+        XCTAssertFalse(harness.telemetry.snapshot().containsCaptionDuration(outcome: "success"))
+    }
+
     func testCancelDuringVisibleCaptionClearsCaption() async throws {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 2_000)
 

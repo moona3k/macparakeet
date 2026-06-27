@@ -85,6 +85,14 @@ public final class EngineSettingsViewModel {
     public var isCohereModelDownloaded: Bool {
         cohereModelStatus == .ready || cohereModelStatus == .notLoaded
     }
+    private var shouldBlockCohereSwitchForModelStatus: Bool {
+        switch cohereModelStatus {
+        case .ready, .notLoaded, .checking:
+            return false
+        case .unknown, .notDownloaded, .preparing, .repairing, .failed:
+            return true
+        }
+    }
     public var canDeleteCohereModel: Bool {
         isCohereModelDownloaded || cohereModelStatus == .failed || cohereCacheDirectoryExists
     }
@@ -645,7 +653,7 @@ public final class EngineSettingsViewModel {
             engineVariant: engineVariant
         ))
 
-        Task {
+        Task { @MainActor [weak self] in
             do {
                 _ = try await CohereTranscribeEngine.downloadModel { [weak self] message in
                     Task { @MainActor [weak self] in
@@ -671,6 +679,7 @@ public final class EngineSettingsViewModel {
                     durationSeconds: durationSeconds,
                     errorType: nil
                 ))
+                guard let self else { return }
                 self.cohereDownloading = false
                 self.refreshModelStatus()
             } catch is CancellationError {
@@ -687,6 +696,7 @@ public final class EngineSettingsViewModel {
                     durationSeconds: durationSeconds,
                     errorType: "CancellationError"
                 ))
+                guard let self else { return }
                 self.cohereDownloading = false
                 self.refreshModelStatus()
             } catch {
@@ -711,6 +721,7 @@ public final class EngineSettingsViewModel {
                     durationSeconds: durationSeconds,
                     errorType: errorType
                 ))
+                guard let self else { return }
                 self.cohereDownloading = false
                 self.cohereModelStatus = .failed
                 self.cohereModelStatusDetail = error.localizedDescription
@@ -762,7 +773,7 @@ public final class EngineSettingsViewModel {
             return
         }
 
-        if preference == .cohere && !isCohereModelDownloaded {
+        if preference == .cohere && shouldBlockCohereSwitchForModelStatus {
             speechEngineError = "Download Cohere Transcribe before switching engines."
             Telemetry.send(.speechEngineSwitchOperation(
                 operationID: operationContext.operationID,

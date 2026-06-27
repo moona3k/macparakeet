@@ -4,6 +4,48 @@ import FluidAudio
 import Foundation
 import os
 
+private final class CancellationResponsiveTaskAwaiter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var result: Result<Void, Error>?
+
+    func wait() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let pendingResult: Result<Void, Error>?
+                lock.lock()
+                if let result {
+                    pendingResult = result
+                } else {
+                    self.continuation = continuation
+                    pendingResult = nil
+                }
+                lock.unlock()
+
+                if let pendingResult {
+                    continuation.resume(with: pendingResult)
+                }
+            }
+        } onCancel: {
+            resume(with: .failure(CancellationError()))
+        }
+    }
+
+    func resume(with result: Result<Void, Error>) {
+        lock.lock()
+        guard self.result == nil else {
+            lock.unlock()
+            return
+        }
+        self.result = result
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+
+        continuation?.resume(with: result)
+    }
+}
+
 /// Wraps FluidAudio's `CoherePipeline` (Cohere Transcribe 03-2026, a 2B
 /// Conformer encoder + lightweight Transformer decoder converted to Core ML by
 /// Fluid Inference). Cohere is a **batch, record-then-transcribe** engine: it
@@ -358,10 +400,16 @@ public actor CohereTranscribeEngine: STTTranscribing {
     private static func overlapMatches(a: [String], b: [String]) -> Bool {
         guard a.count == b.count else { return false }
         let strongOverlap = a.count >= 2
+        var matchedLexicalUnit = false
 
         for index in a.indices {
             let aUnit = normalizedOverlapUnit(a[index])
             let bUnit = normalizedOverlapUnit(b[index])
+            if aUnit == nil && bUnit == nil {
+                continue
+            }
+            guard let aUnit, let bUnit else { return false }
+            matchedLexicalUnit = true
             if aUnit == bUnit { continue }
 
             if strongOverlap, index == a.startIndex, isLeadingPartial(unit: bUnit, completedBy: aUnit) {
@@ -372,13 +420,14 @@ public actor CohereTranscribeEngine: STTTranscribing {
             }
             return false
         }
-        return true
+        return matchedLexicalUnit
     }
 
     private static func isLeadingPartial(unit: String, completedBy fullUnit: String) -> Bool {
         let minimumPartialLength = 2
-        let unit = normalizedOverlapUnit(unit)
-        let fullUnit = normalizedOverlapUnit(fullUnit)
+        guard let unit = normalizedOverlapUnit(unit),
+              let fullUnit = normalizedOverlapUnit(fullUnit)
+        else { return false }
         return unit.count >= minimumPartialLength
             && fullUnit.count > unit.count
             && fullUnit.hasSuffix(unit)
@@ -386,16 +435,17 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     private static func isTrailingPartial(unit: String, completedBy fullUnit: String) -> Bool {
         let minimumPartialLength = 2
-        let unit = normalizedOverlapUnit(unit)
-        let fullUnit = normalizedOverlapUnit(fullUnit)
+        guard let unit = normalizedOverlapUnit(unit),
+              let fullUnit = normalizedOverlapUnit(fullUnit)
+        else { return false }
         return unit.count >= minimumPartialLength
             && fullUnit.count > unit.count
             && fullUnit.hasPrefix(unit)
     }
 
-    private static func normalizedOverlapUnit(_ unit: String) -> String {
+    private static func normalizedOverlapUnit(_ unit: String) -> String? {
         let normalized = unit.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        return normalized.isEmpty ? unit : normalized
+        return normalized.isEmpty ? nil : normalized
     }
 
     private static func shouldUseCharacterOverlap(_ a: String, _ b: String) -> Bool {
@@ -443,7 +493,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
         if let initializationTask {
             do {
-                try await initializationTask.value
+                try await Self.awaitSharedInitializationTask(initializationTask)
             } catch {
                 throw try Self.mapWarmUpError(error)
             }
@@ -458,10 +508,24 @@ public actor CohereTranscribeEngine: STTTranscribing {
         initializationTask = task
 
         do {
-            try await task.value
+            try await Self.awaitSharedInitializationTask(task)
         } catch {
             throw try Self.mapWarmUpError(error)
         }
+    }
+
+    nonisolated static func awaitSharedInitializationTask(_ task: Task<Void, Error>) async throws {
+        let awaiter = CancellationResponsiveTaskAwaiter()
+        let waiter = Task {
+            do {
+                try await task.value
+                awaiter.resume(with: .success(()))
+            } catch {
+                awaiter.resume(with: .failure(error))
+            }
+        }
+        defer { waiter.cancel() }
+        try await awaiter.wait()
     }
 
     public func unload() async {

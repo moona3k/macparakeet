@@ -152,6 +152,22 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(merged, "hello 。 、 world")
     }
 
+    func testMergeDoesNotTreatMatchingPunctuationOnlyAsOverlap() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "hello 。",
+            "。 world"
+        )
+        XCTAssertEqual(merged, "hello 。 。 world")
+    }
+
+    func testMergeAllowsPunctuationInsideLexicalOverlap() {
+        let merged = CohereTranscribeEngine.mergeOnOverlap(
+            "你好。",
+            "好。明天见"
+        )
+        XCTAssertEqual(merged, "你好。明天见")
+    }
+
     func testMergeUsesTailOfLongAccumulatedTranscript() {
         let prefix = (0..<200).map { "word\($0)" }.joined(separator: " ")
         let merged = CohereTranscribeEngine.mergeOnOverlap(
@@ -192,6 +208,29 @@ final class CohereTranscribeEngineTests: XCTestCase {
 
         defaults.set("gpu", forKey: CohereTranscribeEngine.ComputePolicy.defaultsKey)
         XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .gpu)
+    }
+
+    func testSharedInitializationAwaiterCancellationDoesNotCancelSharedTask() async throws {
+        let shared = Task<Void, Error> {
+            try await Task.sleep(for: .milliseconds(500))
+        }
+        let waiter = Task<Void, Error> {
+            try await CohereTranscribeEngine.awaitSharedInitializationTask(shared)
+        }
+
+        let clock = ContinuousClock()
+        let started = clock.now
+        waiter.cancel()
+
+        do {
+            try await waiter.value
+            XCTFail("Cancelled waiter should throw CancellationError")
+        } catch is CancellationError {
+            let elapsed = started.duration(to: clock.now)
+            XCTAssertLessThan(elapsed, .milliseconds(200))
+        }
+
+        try await shared.value
     }
 
     /// On-device end-to-end guard: a long/dense (>98-token) utterance must come

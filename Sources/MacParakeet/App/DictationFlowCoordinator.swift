@@ -584,13 +584,9 @@ final class DictationFlowCoordinator {
             overlayController?.resignKeyWindow()
 
         case .pasteTranscript:
-            // Transcription succeeded — clear the engine-warmup caption with a
-            // success outcome here (there is no longer a `.showSuccess` checkmark
-            // effect to carry it). Idempotent: a later `.hideOverlay` dismiss is a
-            // no-op once this has recorded the duration.
-            dismissCaption(outcome: .success)
             let gen = stateMachine.generation
             guard let dictation = currentDictation else {
+                dismissCaption(outcome: .failure)
                 sendEvent(.pasteFailed(generation: gen, message: "No transcription available."))
                 return
             }
@@ -615,6 +611,7 @@ final class DictationFlowCoordinator {
                 do {
                     if action == nil && !transcriptHasText {
                         self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
                         return
                     }
@@ -656,11 +653,13 @@ final class DictationFlowCoordinator {
                     let app = self.currentDictation?.pastedToApp ?? "none"
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
+                    self.dismissCaption(outcome: .success)
                     self.sendEvent(.pasteSucceeded(generation: gen))
                 } catch {
                     guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                    self.dismissCaption(outcome: .failure)
                     if !transcriptHasText {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
