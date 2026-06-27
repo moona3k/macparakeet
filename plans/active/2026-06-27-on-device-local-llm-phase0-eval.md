@@ -254,8 +254,8 @@ competence is adequate, invest in map-reduce + retrieval rather than a bigger mo
 
 Secondary-task metrics: ROUGE/BERTScore for regression tracking only (never as
 quality/faithfulness gates); **AlignScore or FENICE** (faithfulness) + calibrated
-LLM-judge rubric for summary; answer-correctness (LLM-judge) + **Ragas faithfulness
-+ answer-relevancy** for QA. All published correlations are in-domain (news) upper
+LLM-judge rubric for summary; answer-correctness (LLM-judge) plus **Ragas
+faithfulness and answer-relevancy** for QA. All published correlations are in-domain (news) upper
 bounds — calibrate on a small meeting set.
 
 ---
@@ -310,8 +310,9 @@ stray `<tool_call>`/template artifacts (a documented Qwen3-4B-2507 behavior) eve
 plain-text cleanup.
 
 ### mlx-swift maturity — shippable
-Apple-maintained, demoed at WWDC25, macOS 14 floor (matches our floor — re-validate
-on real macOS 14 given prior Swift-6 `#isolation` and ANE-SIGBUS landmines).
+Apple-maintained, demoed at WWDC25, macOS 14.0 deployment floor — at or below our
+macOS 14.2+ product floor, so compatible; re-validate on real macOS 14.2 given prior
+Swift-6 `#isolation` and ANE-SIGBUS landmines.
 AsyncStream `generate`, native `tokensPerSecond` + `promptTokensPerSecond`
 instrumentation, prompt-cache `savePromptCache`/`loadPromptCache` (reuse a fixed
 system-prompt prefix across cleanup calls), quantized KV via
