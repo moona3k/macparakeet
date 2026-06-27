@@ -537,6 +537,14 @@ echo "Bundled legal notices: $LEGAL_DIR"
 
 echo "[3/4] Writing Info.plist…"
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
+# Sparkle auto-update trust anchor (issue #564, finding S-3). The public EdDSA
+# key MUST ship non-empty in Info.plist or Sparkle 2.x cannot verify update
+# signatures, and the feed MUST be HTTPS so the appcast itself can't be
+# tampered with in transit. These are the single source of truth for the
+# values written below; the release gate after the plist is written reads them
+# back from the artifact and refuses to ship if they drift or go missing.
+SU_PUBLIC_ED_KEY="2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY="
+SU_FEED_URL="https://macparakeet.com/appcast.xml"
 CHECKOUT_URL="${MACPARAKEET_CHECKOUT_URL:-}"
 LS_VARIANT_ID="${MACPARAKEET_LS_VARIANT_ID:-}"
 LICENSING_PLIST=""
@@ -590,15 +598,39 @@ cat >"$INFO_PLIST" <<EOF
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>MacParakeet reads your calendar so it can remind you before a meeting starts and (optionally) begin recording for you. Events stay on your Mac.</string>
   <key>SUFeedURL</key>
-  <string>https://macparakeet.com/appcast.xml</string>
+  <string>${SU_FEED_URL}</string>
   <key>SUEnableAutomaticChecks</key>
   <true/>
   <key>SUPublicEDKey</key>
-  <string>2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=</string>
+  <string>${SU_PUBLIC_ED_KEY}</string>
 $(printf "%b" "$LICENSING_PLIST")
 </dict>
 </plist>
 EOF
+
+# Release gate: prove the Sparkle auto-update trust anchor actually shipped
+# (issue #564, finding S-3). A missing or empty SUPublicEDKey would let Sparkle
+# accept an unsigned update, and a non-HTTPS feed would let the appcast itself
+# be MITM'd — both are silent failures the user only discovers when a malicious
+# update lands. Read the values back from the written plist (not the variables)
+# so a malformed plist or a future heredoc refactor that drops the keys fails
+# the build loudly instead of shipping a defenseless updater.
+echo "Verifying Sparkle update-signature trust anchor…"
+WRITTEN_ED_KEY="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$INFO_PLIST" 2>/dev/null || true)"
+WRITTEN_FEED_URL="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$INFO_PLIST" 2>/dev/null || true)"
+if [[ -z "$WRITTEN_ED_KEY" ]]; then
+  echo "FATAL: SUPublicEDKey is missing or empty in $INFO_PLIST — Sparkle could not verify update signatures. Refusing to ship." >&2
+  exit 1
+fi
+if [[ "$WRITTEN_ED_KEY" != "$SU_PUBLIC_ED_KEY" ]]; then
+  echo "FATAL: SUPublicEDKey in $INFO_PLIST does not match the expected release key. Refusing to ship." >&2
+  exit 1
+fi
+if [[ "$WRITTEN_FEED_URL" != https://* ]]; then
+  echo "FATAL: SUFeedURL is not HTTPS ('$WRITTEN_FEED_URL') — the appcast could be MITM'd. Refusing to ship." >&2
+  exit 1
+fi
+echo "Sparkle trust anchor OK: SUPublicEDKey present and matches, feed is HTTPS."
 
 # Archive dSYM for crash symbolication.
 #
