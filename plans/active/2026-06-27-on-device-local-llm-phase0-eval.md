@@ -87,7 +87,9 @@ differentiator.
   added/changed content; `output ⊨ source` failing = dropped content; contradiction
   either way = meaning change.
 - **Content-word retention floor.** Fraction of source content words (minus a
-  filler lexicon) that survive; catches gross deletion NLI rates "neutral."
+  filler lexicon) that survive; catches gross content deletion that bidirectional
+  NLI can rate as "neutral" (a pure deletion doesn't contradict the source, so
+  entailment alone misses it).
 - **Edit-distance / LCS ratio vs source.** High edit distance *with* entity
   changes = corruption; high *without* = aggressive-but-maybe-OK → route to judge.
 - **Do-no-harm (unnecessary-edit) rate.** Feed already-clean text; measure how
@@ -234,10 +236,13 @@ choice**. The evidence is consistent and recent:
   transcript-QA case — 11/13 leading long-context models drop below 50% of baseline
   at 32K; even GPT-4o falls from 99% to 70%.
 - Length degrades reasoning even with perfect retrieval (2510.05381).
-- Qwen3-4B is native 32K; its published RULER scores are synthetic-retrieval
-  numbers — expect materially worse on associative QA.
+- Qwen3-4B-Instruct-2507 advertises a 256K native window (parent plan §5), but
+  advertised windows overstate *reliable* comprehension; its published RULER scores
+  are synthetic-retrieval numbers — expect materially worse on associative QA.
 
-A 2-hour meeting is ~20–35k tokens, at or over a 4B's window. Therefore:
+A 2-hour meeting is ~20–35k tokens — comfortably inside the advertised window, but
+squarely in the range where effective comprehension degrades (per the evidence
+above). Therefore:
 
 - **Summary:** map-reduce / hierarchical (summarize chunks → summarize summaries).
   Keeps the working window short, where small models are competent. A well-prompted
@@ -342,9 +347,12 @@ use `kvBits:4` on a `KVCacheSimple` with your own chunking. Pin to a major versi
 
 ### Model bake-off (don't lock onto one)
 Qwen3-4B-Instruct-2507-DWQ (Instruct, not the thinking variant) · Qwen3.5-4B (MLX) ·
-Gemma-3-4B · Gemma-4-E4B. Community signal is that Gemma-3/4-4B leans terse and
-faithful (good for cleanup) while Qwen leans stronger at summarization/structuring;
-shipping local-dictation tools already offer per-scope model selection, so plan for
+Gemma-4-E4B (Apache) · Gemma-3-4B *(quality reference only — its custom license
+disqualifies it as a shippable base per parent plan §5; if the Gemma cleanup style
+wins, ship the Apache-licensed Gemma-4-E4B, not Gemma-3)*. Community signal is that
+the Gemma 4B line leans terse and faithful (good for cleanup) while Qwen leans
+stronger at summarization/structuring; shipping local-dictation tools already offer
+per-scope model selection, so plan for
 the possibility that cleanup and summary want different models (#408).
 
 ### Eval tooling
