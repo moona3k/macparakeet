@@ -481,9 +481,12 @@ public actor CohereTranscribeEngine: STTTranscribing {
         // from inside the task — not from a possibly-cancelled awaiting caller —
         // so concurrent prepare() calls coalesce onto this one task.
         defer { initializationTask = nil }
+        try Task.checkCancellation()
         try await Self.downloadModel(onProgress: onProgress)
+        try Task.checkCancellation()
         onProgress?("Loading Cohere model with Core ML...")
         let dir = Self.defaultCacheRoot()
+        try Task.checkCancellation()
         let loaded = try await CoherePipeline.loadModels(
             encoderDir: dir,
             decoderDir: dir,
@@ -491,6 +494,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
             decoderVariant: .v2,
             computeUnits: computePolicy.computeUnits
         )
+        try Task.checkCancellation()
         // Warm-up inference: pay CoreML's one-time graph/weight specialization
         // now (at load / launch warm-up) instead of on the user's first
         // dictation. On the GPU path this is the heavy ~115s specialization; on
@@ -499,13 +503,16 @@ public actor CohereTranscribeEngine: STTTranscribing {
         // long on GPU). `models` is published only once fully warm, so
         // `isReady()` reflecting true readiness gates the live engine swap UI.
         onProgress?("Optimizing Cohere for this Mac...")
+        try Task.checkCancellation()
         let warmUpSamples = [Float](repeating: 0, count: CohereAsrConfig.sampleRate)
         do {
             _ = try await pipeline.transcribe(
                 audio: warmUpSamples, models: loaded, language: defaultLanguage)
         } catch {
+            if error is CancellationError { throw error }
             logger.error("cohere_warmup_failed error=\(error.localizedDescription, privacy: .public)")
         }
+        try Task.checkCancellation()
         self.models = loaded
         logger.notice("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue, privacy: .public)")
         AudioCaptureDiagnostics.append("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue)")
