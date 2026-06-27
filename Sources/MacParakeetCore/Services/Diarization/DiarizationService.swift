@@ -102,8 +102,16 @@ public actor DiarizationService: DiarizationServiceProtocol {
         try await ensureModelsPrepared()
 
         let fluidResult: DiarizationResult
+        let manager = self.manager
         do {
-            fluidResult = try await manager.process(audioURL: audioURL)
+            // Serialize Neural Engine inference on macOS 14 (no-op on macOS 15+):
+            // offline diarization runs its own CoreML models outside the STT
+            // scheduler, so it must not overlap an in-flight ASR inference, which
+            // intermittently SIGBUSes the shared Neural Engine queue on macOS 14.
+            // See `ANEInferenceGate`.
+            fluidResult = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.process(audioURL: audioURL)
+            }
         } catch let error as OfflineDiarizationError where error.isNoSpeechDetected {
             return MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: [])
         }

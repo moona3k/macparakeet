@@ -6,6 +6,8 @@ import Foundation
 /// FluidAudio streaming manager that emits partial transcripts during capture.
 /// `STTRuntime` uses this protocol to hold the active streaming engine without
 /// coupling the live dictation lifecycle to a concrete model family.
+/// Implementations own any `ANEInferenceGate` calls around their CoreML
+/// `process` / `finish` work; callers must not wrap these methods in the gate.
 ///
 /// `: Actor` keeps the requirements actor-isolated and makes
 /// `any NativeLiveDictating` `Sendable`.

@@ -268,6 +268,15 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTLiveDictationTranscriptionError.modelNotReady
         }
 
+        // Intentionally NOT wrapped in `ANEInferenceGate`: `beginLiveDictation`
+        // is inference-free session setup — it resets streaming state, configures
+        // language, and stores the partial callback. Models are already loaded
+        // (the `isReady()` guard above ensures `prepare()` inside is a no-op), and
+        // the only Neural Engine work happens inside the native streaming
+        // engines' `processLiveDictationSamples` / `finishLiveDictation`
+        // implementations, which own their inference-level `ANEInferenceGate`
+        // calls. Gating start-of-session here would just add dictation-start
+        // latency on macOS 14 with no SIGBUS to prevent.
         activeTranscriptionCount += 1
         do {
             try await engine.beginLiveDictation(
@@ -508,7 +517,13 @@ public actor STTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
             var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
             try Task.checkCancellation()
-            let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
+            // Serialize only the CoreML inference call on macOS 14 (no-op on
+            // macOS 15+). Model setup and progress plumbing stay outside the
+            // hardware mutex so unsupported or preprocessing-only work does not
+            // delay interactive inference.
+            let result = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.transcribe(audioURL, decoderState: &decoderState)
+            }
             let words = STTWordTimingBuilder.words(from: result.tokenTimings)
             onProgress?(100, 100)
             // Telemetry `language` is attributed "en": MacParakeet positions
@@ -639,7 +654,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
             var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
             try Task.checkCancellation()
-            let result = try await manager.transcribe(samples, decoderState: &decoderState)
+            let result = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.transcribe(samples, decoderState: &decoderState)
+            }
             return STTResult(
                 text: result.text,
                 words: STTWordTimingBuilder.words(from: result.tokenTimings),

@@ -77,13 +77,18 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
             while offset < samples.count {
                 try Task.checkCancellation()
                 let end = min(offset + Self.sliceSampleCount, samples.count)
-                let buffer = try Self.makePCMBuffer(samples: samples[offset..<end])
-                _ = try await manager.process(audioBuffer: buffer)
+                let sampleSlice = samples[offset..<end]
+                let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
+                try await ANEInferenceGate.shared.withExclusiveAccess {
+                    _ = try await manager.process(audioBuffer: buffer.buffer)
+                }
                 offset = end
                 let fraction = Double(offset) / Double(samples.count)
                 onProgress?(25 + Int(fraction * 65), 100)
             }
-            let final = try await manager.finishWithTokenTimings()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             onProgress?(100, 100)
 
             // `language` reflects the build's fixed configuration (the model is
@@ -144,8 +149,11 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
             // already 16 kHz mono Float32, so `makePCMBuffer` wraps them in the
             // manager's target format and `resampleBuffer` skips a second
             // resample.
-            let buffer = try Self.makePCMBuffer(samples: samples[...])
-            _ = try await manager.process(audioBuffer: buffer)
+            let sampleSlice = samples[...]
+            let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
+            try await ANEInferenceGate.shared.withExclusiveAccess {
+                _ = try await manager.process(audioBuffer: buffer.buffer)
+            }
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -161,7 +169,9 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let final = try await manager.finishWithTokenTimings()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             return STTResult(
                 text: final.text,
                 words: STTWordTimingBuilder.words(from: final.timings),
