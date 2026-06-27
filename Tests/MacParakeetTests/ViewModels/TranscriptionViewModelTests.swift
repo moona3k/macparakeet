@@ -2071,7 +2071,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(cohere.isAvailable)
         XCTAssertEqual(
             cohere.unavailableReason,
-            "Download the Cohere model in Settings before trying Cohere."
+            "Download Cohere Transcribe in Settings before trying Cohere."
         )
     }
 

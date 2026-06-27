@@ -490,7 +490,7 @@ public final class TranscriptionViewModel {
         case .cohere:
             return isCohereModelDownloaded()
                 ? nil
-                : "Download the Cohere model in Settings before trying Cohere."
+                : "Download Cohere Transcribe in Settings before trying Cohere."
         }
     }
 

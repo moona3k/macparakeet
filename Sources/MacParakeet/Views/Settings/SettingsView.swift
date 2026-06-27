@@ -2839,7 +2839,7 @@ struct SettingsView: View {
     }
 
     private var cohereDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard AppFeatures.cohereEngineEnabled,
+        guard shouldShowCohereModelRow,
               viewModel.engine.speechEnginePreference == .cohere else {
             return nil
         }
