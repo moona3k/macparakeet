@@ -78,9 +78,9 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
                 try Task.checkCancellation()
                 let end = min(offset + Self.sliceSampleCount, samples.count)
                 let sampleSlice = samples[offset..<end]
+                let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
                 try await ANEInferenceGate.shared.withExclusiveAccess {
-                    let buffer = try Self.makePCMBuffer(samples: sampleSlice)
-                    _ = try await manager.process(audioBuffer: buffer)
+                    _ = try await manager.process(audioBuffer: buffer.buffer)
                 }
                 offset = end
                 let fraction = Double(offset) / Double(samples.count)
@@ -150,9 +150,9 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
             // manager's target format and `resampleBuffer` skips a second
             // resample.
             let sampleSlice = samples[...]
+            let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
             try await ANEInferenceGate.shared.withExclusiveAccess {
-                let buffer = try Self.makePCMBuffer(samples: sampleSlice)
-                _ = try await manager.process(audioBuffer: buffer)
+                _ = try await manager.process(audioBuffer: buffer.buffer)
             }
         } catch {
             throw try Self.mapTranscriptionError(error)
