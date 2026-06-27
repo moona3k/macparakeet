@@ -452,6 +452,41 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
+    func testBluetoothOutputDoesNotOverrideNonBluetoothSystemDefaultInput() {
+        var queriedDefaultInput = false
+        var queriedOutput = false
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            defaultInputIsBluetooth: { deviceID in
+                queriedDefaultInput = true
+                XCTAssertEqual(deviceID, 20)
+                return false
+            },
+            outputIsBluetooth: {
+                queriedOutput = true
+                return true
+            }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                .implicitSystemDefault(resolvedDeviceID: 20),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ],
+            "A non-Bluetooth system-default input such as a USB desk mic must not be displaced"
+        )
+        XCTAssertTrue(queriedDefaultInput)
+        XCTAssertFalse(
+            queriedOutput,
+            "The output transport must not be queried when the default input is not Bluetooth"
+        )
+    }
+
     func testBluetoothOutputRespectsExplicitMicrophoneSelection() {
         // An explicit selection is never overridden, even with Bluetooth output.
         var queriedOutput = false
@@ -461,7 +496,10 @@ final class MicrophoneCaptureTests: XCTestCase {
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { AudioDeviceID(30) },
             preferBuiltInWhenOutputIsBluetooth: true,
-            outputIsBluetooth: { queriedOutput = true; return true }
+            outputIsBluetooth: {
+                queriedOutput = true
+                return true
+            }
         )
 
         XCTAssertEqual(attempts.first?.source, .selected(uid: "usb-mic"))
@@ -494,7 +532,10 @@ final class MicrophoneCaptureTests: XCTestCase {
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { AudioDeviceID(30) },
             preferBuiltInWhenOutputIsBluetooth: false,
-            outputIsBluetooth: { queriedOutput = true; return true }
+            outputIsBluetooth: {
+                queriedOutput = true
+                return true
+            }
         )
 
         XCTAssertEqual(
@@ -534,6 +575,7 @@ final class MicrophoneCaptureTests: XCTestCase {
     func testBluetoothOutputNoBuiltInMicLeavesChainAndSkipsQuery() {
         // No built-in mic (e.g. Mac mini / Mac Studio): nothing to promote, so
         // the chain is unchanged and the output-transport HAL query is skipped.
+        var queriedDefaultInput = false
         var queriedOutput = false
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
@@ -541,10 +583,21 @@ final class MicrophoneCaptureTests: XCTestCase {
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { nil },
             preferBuiltInWhenOutputIsBluetooth: true,
-            outputIsBluetooth: { queriedOutput = true; return true }
+            defaultInputIsBluetooth: { _ in
+                queriedDefaultInput = true
+                return true
+            },
+            outputIsBluetooth: {
+                queriedOutput = true
+                return true
+            }
         )
 
         XCTAssertEqual(attempts, [.implicitSystemDefault(resolvedDeviceID: 20)])
+        XCTAssertFalse(
+            queriedDefaultInput,
+            "With no built-in mic to promote, the default input transport must not be queried"
+        )
         XCTAssertFalse(
             queriedOutput,
             "With no built-in mic to promote, the output transport query must be skipped"

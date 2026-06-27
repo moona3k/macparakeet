@@ -208,15 +208,17 @@ SCO link delivers audio and capture reads zero or pure-silent buffers
 endpoint, so it does not fix this). The device-attempt builder in
 `AppEnvironment` therefore consults
 `AudioDeviceManager.isDefaultOutputBluetooth()` and, when the user is on
-the *system-default* input (no explicit mic chosen) and output is on a
-Bluetooth device, `meetingInputDeviceAttempts` promotes the built-in mic
-to the front of the chain (governed by the
+the *system-default* input (no explicit mic chosen), that default input is
+Bluetooth or no default input resolved, and output is on a Bluetooth device,
+`meetingInputDeviceAttempts` promotes the built-in mic to the front of the
+chain (governed by the
 `preferBuiltInMicWhenBluetoothOutput` preference, default on; toggle in
 Settings → Dictation). The Bluetooth device stays in the chain as a
-fallback, an explicit mic selection is always honored, and the
-`outputIsBluetooth` query is skipped unless the rule could apply. This
-keeps playback in A2DP and sidesteps the SCO race rather than fighting
-it. *Verify on real Bluetooth hardware before relying on it — the
+fallback, non-Bluetooth system-default inputs such as USB desk mics are left
+alone, an explicit mic selection is always honored, and the `outputIsBluetooth`
+query is skipped unless the rule could apply. This keeps playback in A2DP and
+sidesteps the SCO race rather than fighting it. *Verify on real Bluetooth
+hardware before relying on it — the
 behavior is hardware-timing-dependent and is not exercised by the unit
 suite.*
 

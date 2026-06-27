@@ -97,11 +97,12 @@ final class AppEnvironment {
         }
         // Build the device-attempt chain lazily on each engine start so a
         // user changing their mic in Settings between meetings sees the new
-        // selection. When output is routed to a Bluetooth headset and no mic
-        // is explicitly selected, the chain prefers the built-in mic so
-        // opening capture doesn't force the headset into HFP/SCO (issues
-        // #481/#541/#409); the Bluetooth-output query runs lazily, only when
-        // the preference is on and the input is system-default.
+        // selection. When output is routed to a Bluetooth headset, no mic is
+        // explicitly selected, and the system-default input is also Bluetooth,
+        // the chain prefers the built-in mic so opening capture doesn't force
+        // the headset into HFP/SCO (issues #481/#541/#409); the Bluetooth-
+        // output query runs lazily, only when the preference is on and the
+        // input is system-default Bluetooth or unresolved.
         let attemptsBuilder: AVAudioEngineMicrophonePlatform.DeviceAttemptsBuilder = {
             let selectedUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
             let selectedID = selectedUID.flatMap { AudioDeviceManager.inputDeviceID(forUID: $0) }
@@ -113,6 +114,7 @@ final class AppEnvironment {
                 defaultInputDevice: { defaultID },
                 builtInMicrophone: { builtInID },
                 preferBuiltInWhenOutputIsBluetooth: preferBuiltInForBluetoothOutputProvider(),
+                defaultInputIsBluetooth: { AudioDeviceManager.isBluetoothInput($0) },
                 outputIsBluetooth: { AudioDeviceManager.isDefaultOutputBluetooth() }
             )
         }

@@ -161,6 +161,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
         XCTAssertFalse(viewModel.meetingAutoStopEnabled, "meeting auto-stop should default to false")
+        XCTAssertTrue(
+            viewModel.preferBuiltInMicWhenBluetoothOutput,
+            "Bluetooth-output built-in mic preference should default to true"
+        )
         XCTAssertEqual(
             viewModel.selectedMicrophoneDeviceUID,
             SettingsViewModel.systemDefaultMicrophoneSelection,
@@ -197,6 +201,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
@@ -222,6 +227,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertTrue(vm.instantDictationEnabled)
+        XCTAssertFalse(vm.preferBuiltInMicWhenBluetoothOutput)
         XCTAssertFalse(vm.showLiveDictationPreview)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
     }
@@ -307,6 +313,31 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.instantDictation])
+    }
+
+    func testPreferBuiltInMicWhenBluetoothOutputPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.preferBuiltInMicWhenBluetoothOutput = false
+
+        XCTAssertFalse(
+            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey)
+        )
+
+        viewModel.preferBuiltInMicWhenBluetoothOutput = true
+
+        XCTAssertTrue(
+            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey)
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(
+            settings,
+            [.preferBuiltInMicBluetoothOutput, .preferBuiltInMicBluetoothOutput]
+        )
     }
 
     func testLiveDictationPreviewPersistsAndEmitsTelemetry() {
