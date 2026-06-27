@@ -507,6 +507,50 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertFalse(queriedOutput, "Disabled rule must not query the output transport")
     }
 
+    func testBluetoothOutputPromotesBuiltInWhenSavedSelectionUnresolvable() {
+        // A mic was selected once (saved UID) but is currently unplugged, so it
+        // doesn't resolve to a device. We fall back to the system default —
+        // which here is the Bluetooth headset — so the avoidance rule must
+        // still promote the built-in mic rather than landing on the race.
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: "unplugged-usb-mic",
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+                .implicitSystemDefault(resolvedDeviceID: 20),
+            ],
+            "A saved-but-unresolvable selection must not block Bluetooth-output avoidance"
+        )
+    }
+
+    func testBluetoothOutputNoBuiltInMicLeavesChainAndSkipsQuery() {
+        // No built-in mic (e.g. Mac mini / Mac Studio): nothing to promote, so
+        // the chain is unchanged and the output-transport HAL query is skipped.
+        var queriedOutput = false
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { nil },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { queriedOutput = true; return true }
+        )
+
+        XCTAssertEqual(attempts, [.implicitSystemDefault(resolvedDeviceID: 20)])
+        XCTAssertFalse(
+            queriedOutput,
+            "With no built-in mic to promote, the output transport query must be skipped"
+        )
+    }
+
     func testPlatformSkipsInputDeviceSetterForImplicitSystemDefaultAttempt() throws {
         let recorder = MicrophoneCaptureInputDeviceSetterRecorder()
         let platform = AVAudioEngineMicrophonePlatform(

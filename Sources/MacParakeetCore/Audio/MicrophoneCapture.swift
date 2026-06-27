@@ -76,16 +76,20 @@ extension MeetingInputDeviceAttempt.Source {
 /// device ID.
 ///
 /// `preferBuiltInWhenOutputIsBluetooth` opts into the Bluetooth-output
-/// avoidance rule: when the user is on the *system-default* input (no explicit
-/// device chosen) and audio output is currently routed to a Bluetooth headset,
-/// the built-in microphone is moved to the front so opening the mic does not
-/// force the headset from A2DP into HFP/SCO — which degrades the playback the
-/// user is hearing and races the profile switch into silent capture
-/// (issues #481 / #541 / #409). An explicit device selection is always
-/// respected, and the rest of the chain remains as fallback so capture is
-/// never blocked. `outputIsBluetooth` is only consulted when the rule could
-/// apply, so the HAL query is skipped when the feature is off or a device is
-/// explicitly selected.
+/// avoidance rule: when the user is not using a resolvable explicitly-selected
+/// microphone and audio output is currently routed to a Bluetooth headset, the
+/// built-in microphone is moved to the front so opening the mic does not force
+/// the headset from A2DP into HFP/SCO — which degrades the playback the user is
+/// hearing and races the profile switch into silent capture
+/// (issues #481 / #541 / #409). The rule is gated on whether a `.selected`
+/// attempt actually resolved, not just on `selectedUID`: a saved-but-
+/// unavailable selection falls through to this rule rather than landing on a
+/// (possibly Bluetooth) system default. A resolvable explicit selection is
+/// always respected, and the rest of the chain remains as fallback so capture
+/// is never blocked. `outputIsBluetooth` is consulted last, only once the
+/// cheap guards confirm the rule could fire, so the HAL query is skipped when
+/// the feature is off, a mic is explicitly selected, or there is no built-in
+/// mic to promote.
 public func meetingInputDeviceAttempts(
     selectedUID: String?,
     selectedInputDeviceID: (String) -> AudioDeviceID?,
@@ -114,16 +118,22 @@ public func meetingInputDeviceAttempts(
 
     appendExplicit(.builtIn, deviceID: builtInMicrophone())
 
-    // Bluetooth-output avoidance: only when no device is explicitly selected
-    // and output is on a Bluetooth headset. The `&&` chain short-circuits so
-    // `outputIsBluetooth()` (a HAL query) runs only after the cheap guards.
-    // If the built-in mic is already the primary attempt (e.g. it is also the
-    // system default), there is nothing to reorder.
+    // Bluetooth-output avoidance. Gate on whether a `.selected` attempt
+    // actually resolved (not just on `selectedUID`): a saved selection whose
+    // device is currently unavailable produces no `.selected` attempt and
+    // would otherwise fall back to a Bluetooth system default and still hit
+    // the race. The cheap guards — no resolved selection, a built-in mic that
+    // exists and isn't already primary — run before `outputIsBluetooth()` so
+    // the HAL query fires only when the reorder could actually happen.
+    let hasResolvedSelection = attempts.contains { attempt in
+        if case .selected = attempt.source { return true }
+        return false
+    }
     if preferBuiltInWhenOutputIsBluetooth,
-        selectedUID == nil,
-        outputIsBluetooth(),
+        !hasResolvedSelection,
         let builtInIndex = attempts.firstIndex(where: { $0.source == .builtIn }),
-        builtInIndex != 0 {
+        builtInIndex != 0,
+        outputIsBluetooth() {
         let builtIn = attempts.remove(at: builtInIndex)
         attempts.insert(builtIn, at: 0)
     }
