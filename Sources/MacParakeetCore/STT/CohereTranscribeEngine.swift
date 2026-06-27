@@ -496,8 +496,12 @@ public actor CohereTranscribeEngine: STTTranscribing {
         // `isReady()` reflecting true readiness gates the live engine swap UI.
         onProgress?("Optimizing Cohere for this Mac...")
         let warmUpSamples = [Float](repeating: 0, count: CohereAsrConfig.sampleRate)
-        _ = try? await pipeline.transcribe(
-            audio: warmUpSamples, models: loaded, language: defaultLanguage)
+        do {
+            _ = try await pipeline.transcribe(
+                audio: warmUpSamples, models: loaded, language: defaultLanguage)
+        } catch {
+            logger.error("cohere_warmup_failed error=\(error.localizedDescription, privacy: .public)")
+        }
         self.models = loaded
         logger.notice("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue, privacy: .public)")
         AudioCaptureDiagnostics.append("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue)")

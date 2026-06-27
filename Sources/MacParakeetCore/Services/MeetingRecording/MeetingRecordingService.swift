@@ -1016,7 +1016,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             }
         }
 
-        guard currentSession?.supportsLiveChunkTranscription != false else { return }
+        guard let session = currentSession, session.supportsLiveChunkTranscription else { return }
 
         for chunk in output.chunks {
             switch chunk.source {
