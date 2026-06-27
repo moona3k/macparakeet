@@ -310,6 +310,23 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "ko")
     }
 
+    func testStopRecordingInjectsMultipleVoiceReturnTriggersInRawMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "git status zatwierdź"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            voiceReturnTriggers: { ["press return", "zatwierdź"] }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "git status zatwierdź")
+        XCTAssertEqual(result.dictation.cleanTranscript, "git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
     func testSilentCaptureHealthFailsBeforeSTTAndEmitsFailureTelemetry() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

@@ -282,8 +282,58 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .voiceReturn))
         }
     }
+    public private(set) var voiceReturnTriggers: [String]
+    public var voiceReturnNewTrigger = "" {
+        didSet {
+            if voiceReturnNewTrigger != oldValue {
+                voiceReturnErrorMessage = nil
+            }
+        }
+    }
+    public var voiceReturnErrorMessage: String?
     public var voiceReturnTrigger: String {
-        didSet { defaults.set(voiceReturnTrigger, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) }
+        get { voiceReturnTriggers.first ?? "" }
+        set { setVoiceReturnTriggers([newValue]) }
+    }
+
+    public var voiceReturnExampleTrigger: String {
+        voiceReturnTriggers.first ?? UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger
+    }
+
+    public func addVoiceReturnTrigger() {
+        let normalized = UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers([voiceReturnNewTrigger])
+        guard let trigger = normalized.first else {
+            voiceReturnErrorMessage = "Enter a trigger phrase."
+            return
+        }
+        guard !voiceReturnTriggers.contains(where: { $0.caseInsensitiveCompare(trigger) == .orderedSame }) else {
+            voiceReturnErrorMessage = "That trigger phrase is already in the list."
+            return
+        }
+
+        setVoiceReturnTriggers(voiceReturnTriggers + [trigger])
+        voiceReturnNewTrigger = ""
+        voiceReturnErrorMessage = nil
+    }
+
+    public func deleteVoiceReturnTrigger(at index: Int) {
+        guard voiceReturnTriggers.indices.contains(index) else { return }
+        guard voiceReturnTriggers.count > 1 else {
+            voiceReturnErrorMessage = "Voice Return needs at least one trigger phrase."
+            return
+        }
+
+        var updated = voiceReturnTriggers
+        updated.remove(at: index)
+        setVoiceReturnTriggers(updated)
+        voiceReturnErrorMessage = nil
+    }
+
+    private func setVoiceReturnTriggers(_ rawTriggers: [String]) {
+        let normalized = UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers(rawTriggers)
+        voiceReturnTriggers = normalized
+        defaults.set(normalized, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
+        defaults.set(normalized.first ?? "", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
     }
 
     // Processing
@@ -646,7 +696,7 @@ public final class SettingsViewModel {
         dictationPreviewTextSize = DictationPreviewTextSize.current(defaults: defaults)
         dictationUndoCountdown = DictationUndoCountdown.current(defaults: defaults)
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
-        voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
+        voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true

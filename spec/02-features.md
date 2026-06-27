@@ -810,7 +810,7 @@ Each custom word is a `(word, replacement)` pair with an enabled/disabled toggle
 
 **Step 3: Trailing action extraction**
 
-Action snippets with a terminal trigger phrase are stripped from the transcript and returned as a post-paste action. This is how Voice Return can press Return after paste without leaving the trigger text in the output. Raw mode skips full cleanup but still performs terminal action extraction.
+Action snippets with a terminal trigger phrase are stripped from the transcript and returned as a post-paste action. This is how Voice Return can press Return after paste without leaving the trigger text in the output. Voice Return can expose multiple user-configured phrases that all map to the same Return action. Raw mode skips full cleanup but still performs terminal action extraction.
 
 **Step 4: Snippet expansion**
 

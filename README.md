@@ -194,7 +194,7 @@ You choose between two **processing modes**:
 
 1. **Filler removal** — Strips "um", "uh", and sentence-start fillers like "so", "well", "like"
 2. **Custom words** — Applies your word replacement rules (e.g., "aye pee eye" becomes "API", or "kubernetes" gets capitalized to "Kubernetes"). Case-insensitive, whole-word matching. Words can be toggled on/off without deleting.
-3. **Voice Return** — If you've defined a trigger phrase (e.g., "press return") and speak it at the end of a dictation, it's stripped from the output and a Return keypress is simulated after paste
+3. **Voice Return** — If you've defined one or more trigger phrases (e.g., "press return" or "zatwierdź") and speak one at the end of a dictation, it's stripped from the output and a Return keypress is simulated after paste
 4. **Snippet expansion** — Replaces short trigger phrases with longer text (e.g., "my signature" expands to "Best regards, David"). Triggers are natural language phrases because that's what the speech engine outputs. Matched longest-first to prevent collisions.
 5. **Whitespace cleanup** — Collapses spaces, fixes punctuation spacing, capitalizes the first letter
 

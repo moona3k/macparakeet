@@ -50,9 +50,10 @@ matching logic lives in `CustomWordReplacer`; the meeting entry point is
 
 ### Step 3: Trailing Action Extraction
 
-If the user's text ends with an enabled action-snippet trigger, the trigger is stripped and the action is returned through `TextProcessingResult.postPasteAction`. This is how Voice Return-style behavior can simulate Return after paste without leaving "press return" in the transcript.
+If the user's text ends with an enabled action-snippet trigger, the trigger is stripped and the action is returned through `TextProcessingResult.postPasteAction`. This is how Voice Return-style behavior can simulate Return after paste without leaving a configured trigger phrase such as "press return" or "zatwierdź" in the transcript.
 
 - Action snippets are matched longest-first, case-insensitive, and punctuation-tolerant at the end of the text.
+- Voice Return can inject multiple configured trigger phrases for the same Return action.
 - Extraction happens before normal snippet expansion so a plain snippet cannot consume or rewrite the action trigger.
 - Raw mode skips the full clean pipeline, but still performs this terminal action extraction so Voice Return works in both Raw and Clean.
 

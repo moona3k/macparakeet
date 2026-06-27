@@ -203,8 +203,8 @@ final class AppEnvironment {
         }
         diarizationService = DiarizationService()
 
-        let voiceReturnTriggerClosure: @Sendable () -> String? = { [runtimePreferences] in
-            runtimePreferences.voiceReturnTrigger
+        let voiceReturnTriggersClosure: @Sendable () -> [String] = { [runtimePreferences] in
+            runtimePreferences.voiceReturnTriggers
         }
 
         // File/meeting transcripts gate the AI Formatter on BOTH the
@@ -270,7 +270,7 @@ final class AppEnvironment {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            voiceReturnTrigger: voiceReturnTriggerClosure,
+            voiceReturnTriggers: voiceReturnTriggersClosure,
             processingMode: processingModeClosure,
             dictationInsertionStyle: dictationInsertionStyleClosure,
             llmService: llmService,

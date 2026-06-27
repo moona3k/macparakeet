@@ -115,6 +115,63 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaultsSuiteName = nil
     }
 
+    // MARK: - Voice Return
+
+    func testVoiceReturnTriggersLoadLegacySingleTrigger() {
+        testDefaults.set(" zatwierdź ", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.voiceReturnTriggers, ["zatwierdź"])
+        XCTAssertEqual(vm.voiceReturnTrigger, "zatwierdź")
+    }
+
+    func testAddVoiceReturnTriggerTrimsPersistsAndSyncsLegacyKey() {
+        viewModel.voiceReturnNewTrigger = " zatwierdź "
+
+        viewModel.addVoiceReturnTrigger()
+
+        XCTAssertEqual(viewModel.voiceReturnTriggers, ["press return", "zatwierdź"])
+        XCTAssertEqual(
+            testDefaults.stringArray(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey),
+            ["press return", "zatwierdź"]
+        )
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey),
+            "press return"
+        )
+        XCTAssertEqual(viewModel.voiceReturnNewTrigger, "")
+        XCTAssertNil(viewModel.voiceReturnErrorMessage)
+    }
+
+    func testAddVoiceReturnTriggerRejectsDuplicateCaseInsensitivePhrase() {
+        viewModel.voiceReturnNewTrigger = " PRESS RETURN "
+
+        viewModel.addVoiceReturnTrigger()
+
+        XCTAssertEqual(viewModel.voiceReturnTriggers, ["press return"])
+        XCTAssertEqual(viewModel.voiceReturnErrorMessage, "That trigger phrase is already in the list.")
+    }
+
+    func testDeleteVoiceReturnTriggerPersistsAndKeepsAtLeastOnePhrase() {
+        viewModel.voiceReturnNewTrigger = "zatwierdź"
+        viewModel.addVoiceReturnTrigger()
+
+        viewModel.deleteVoiceReturnTrigger(at: 0)
+
+        XCTAssertEqual(viewModel.voiceReturnTriggers, ["zatwierdź"])
+        XCTAssertEqual(
+            testDefaults.stringArray(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey),
+            ["zatwierdź"]
+        )
+        XCTAssertEqual(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey), "zatwierdź")
+
+        viewModel.deleteVoiceReturnTrigger(at: 0)
+
+        XCTAssertEqual(viewModel.voiceReturnTriggers, ["zatwierdź"])
+        XCTAssertEqual(viewModel.voiceReturnErrorMessage, "Voice Return needs at least one trigger phrase.")
+    }
+
     // MARK: - Whisper cold/warm status
 
     func testWhisperHasBeenOptimizedReflectsPersistedFlag() {

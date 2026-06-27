@@ -113,11 +113,11 @@ public struct TextProcessingPipeline: Sendable {
             .sorted { $0.trigger.count > $1.trigger.count }
 
         for snippet in sorted {
-            // Punctuation-tolerant: match trigger at end with optional trailing punctuation.
+            // Punctuation-tolerant: match a separate trigger at end with optional trailing Unicode punctuation.
             // Normalize literal spaces to \s+ so filler removal gaps (double spaces) still match.
             let escaped = NSRegularExpression.escapedPattern(for: snippet.trigger)
             let spaceNormalized = escaped.replacingOccurrences(of: " ", with: "\\s+")
-            let pattern = "\\b\(spaceNormalized)[.!?,;:]*\\s*$"
+            let pattern = "(?<!\\S)\(spaceNormalized)\\p{P}*\\s*$"
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
                 continue
             }

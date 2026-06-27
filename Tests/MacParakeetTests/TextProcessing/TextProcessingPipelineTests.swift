@@ -455,6 +455,48 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.postPasteAction, .returnKey)
     }
 
+    func testActionSnippetWithUnicodeTrailingPunctuation() {
+        let snippets = [
+            TextSnippet(trigger: "zatwierdź", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "git status zatwierdź！", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
+    func testActionSnippetRequiresSeparateTerminalPhrase() {
+        let snippets = [
+            TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "hello pre-return", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Hello pre-return")
+        XCTAssertNil(result.postPasteAction)
+    }
+
+    func testActionSnippetSupportsPunctuationPrefixedTrigger() {
+        let snippets = [
+            TextSnippet(trigger: "/return", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "git status /return", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
+    func testMultipleActionSnippetTriggersUseAnyTerminalPhrase() {
+        let snippets = [
+            TextSnippet(trigger: "press return", expansion: "return", action: .returnKey),
+            TextSnippet(trigger: "zatwierdź", expansion: "return", action: .returnKey),
+        ]
+
+        let english = pipeline.process(text: "git status press return", customWords: [], snippets: snippets)
+        XCTAssertEqual(english.text, "Git status")
+        XCTAssertEqual(english.postPasteAction, .returnKey)
+
+        let polish = pipeline.process(text: "git status zatwierdź", customWords: [], snippets: snippets)
+        XCTAssertEqual(polish.text, "Git status")
+        XCTAssertEqual(polish.postPasteAction, .returnKey)
+    }
+
     func testActionSnippetTracksExpandedID() {
         let snippet = TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
         let result = pipeline.process(text: "hello return", customWords: [], snippets: [snippet])

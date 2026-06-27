@@ -78,7 +78,7 @@ The deterministic pipeline includes two user-configurable features:
 
 - **Custom words**: Users define vocabulary anchors (ensure "PostgreSQL" not "post gress q l") and corrections (always replace "kube" with "Kubernetes"). These are predictable and immediate.
 - **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic.
-- **Trailing action snippets**: Users can attach a post-paste action such as Voice Return to a terminal trigger phrase. The pipeline strips the trigger before normal snippet expansion and surfaces the action to the paste layer.
+- **Trailing action snippets**: Users can attach a post-paste action such as Voice Return to one or more terminal trigger phrases. The pipeline strips the trigger before normal snippet expansion and surfaces the action to the paste layer.
 
 An LLM-based approach would require prompt engineering to respect user-defined words and snippets, with no guarantee of compliance.
 

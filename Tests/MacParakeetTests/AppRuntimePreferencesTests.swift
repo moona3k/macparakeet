@@ -39,6 +39,50 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testVoiceReturnTriggersAreDisabledWhenToggleIsOff() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(["press return"], forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.voiceReturnTriggers, [])
+        XCTAssertNil(preferences.voiceReturnTrigger)
+    }
+
+    func testVoiceReturnTriggersDefaultWhenEnabledWithoutStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.voiceReturnTriggers, [UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger])
+        XCTAssertEqual(preferences.voiceReturnTrigger, UserDefaultsAppRuntimePreferences.defaultVoiceReturnTrigger)
+    }
+
+    func testVoiceReturnTriggersReadLegacySingleTrigger() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
+        defaults.set(" zatwierdź ", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.voiceReturnTriggers, ["zatwierdź"])
+        XCTAssertEqual(preferences.voiceReturnTrigger, "zatwierdź")
+    }
+
+    func testVoiceReturnTriggersNormalizeStoredList() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
+        defaults.set(
+            [" press return ", "PRESS RETURN", "", "zatwierdź"],
+            forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey
+        )
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(preferences.voiceReturnTriggers, ["press return", "zatwierdź"])
+    }
+
     func testDictationUndoCountdownDefaultsToFiveSeconds() {
         let preferences = makePreferences()
         XCTAssertEqual(preferences.dictationUndoCountdown, .fiveSeconds)

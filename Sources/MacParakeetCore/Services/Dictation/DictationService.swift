@@ -99,7 +99,7 @@ public actor DictationService: DictationServiceProtocol {
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
-    private let voiceReturnTrigger: @Sendable () -> String?
+    private let voiceReturnTriggers: @Sendable () -> [String]
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
     private let textRefinementService: TextRefinementService
@@ -158,6 +158,7 @@ public actor DictationService: DictationServiceProtocol {
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        voiceReturnTriggers: (@Sendable () -> [String])? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
@@ -183,7 +184,16 @@ public actor DictationService: DictationServiceProtocol {
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
-        self.voiceReturnTrigger = voiceReturnTrigger ?? { nil }
+        if let voiceReturnTriggers {
+            self.voiceReturnTriggers = voiceReturnTriggers
+        } else if let voiceReturnTrigger {
+            self.voiceReturnTriggers = {
+                guard let trigger = voiceReturnTrigger() else { return [] }
+                return [trigger]
+            }
+        } else {
+            self.voiceReturnTriggers = { [] }
+        }
         self.processingMode = processingMode ?? { .raw }
         self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
         self.textRefinementService = TextRefinementService()
@@ -1177,7 +1187,7 @@ public actor DictationService: DictationServiceProtocol {
 
         // Voice Return: inject synthetic action snippet regardless of mode
         // (raw mode extracts trailing action without running the full pipeline)
-        if let trigger = voiceReturnTrigger(), !trigger.isEmpty {
+        for trigger in UserDefaultsAppRuntimePreferences.normalizedVoiceReturnTriggers(voiceReturnTriggers()) {
             snippets.append(TextSnippet(
                 trigger: trigger,
                 expansion: KeyAction.returnKey.label,
