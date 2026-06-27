@@ -136,6 +136,42 @@ public enum AudioDeviceManager {
         return deviceInfo(id)
     }
 
+    /// Returns the current system default *output* device ID.
+    public static func defaultOutputDevice() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &size, &deviceID
+        )
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        return deviceID
+    }
+
+    /// True when audio output is currently routed to a Bluetooth device.
+    ///
+    /// This is the trigger for preferring the built-in microphone during
+    /// dictation/meeting capture: opening a Bluetooth headset's microphone
+    /// forces it out of high-quality A2DP into bidirectional HFP/SCO, which
+    /// both degrades the playback the user is hearing and races the profile
+    /// switch — capture can start before the SCO link delivers audio and read
+    /// silence (issues #481 / #541 / #409). Mirrors `isBluetoothInput`,
+    /// including the aggregate sub-device scan, since a Bluetooth endpoint can
+    /// surface behind a CoreAudio aggregate.
+    public static func isDefaultOutputBluetooth() -> Bool {
+        guard let deviceID = defaultOutputDevice() else { return false }
+        let transport = transportType(deviceID)
+        let subTransports = transport == kAudioDeviceTransportTypeAggregate
+            ? activeSubDeviceIDs(deviceID).map(transportType)
+            : []
+        return isBluetoothInput(transport: transport, activeSubDeviceTransports: subTransports)
+    }
+
     /// Resolves a persistent CoreAudio device UID to the current process-local
     /// `AudioDeviceID`. Device IDs are not stable across boots or hardware
     /// topology changes, so app preferences should store UIDs and resolve late.

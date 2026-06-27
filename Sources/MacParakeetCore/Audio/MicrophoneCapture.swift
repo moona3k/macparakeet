@@ -71,11 +71,28 @@ extension MeetingInputDeviceAttempt.Source {
     }
 }
 
+/// Builds the ordered device-attempt chain the shared mic engine walks on
+/// every start (selected → system default → built-in), deduplicated by
+/// device ID.
+///
+/// `preferBuiltInWhenOutputIsBluetooth` opts into the Bluetooth-output
+/// avoidance rule: when the user is on the *system-default* input (no explicit
+/// device chosen) and audio output is currently routed to a Bluetooth headset,
+/// the built-in microphone is moved to the front so opening the mic does not
+/// force the headset from A2DP into HFP/SCO — which degrades the playback the
+/// user is hearing and races the profile switch into silent capture
+/// (issues #481 / #541 / #409). An explicit device selection is always
+/// respected, and the rest of the chain remains as fallback so capture is
+/// never blocked. `outputIsBluetooth` is only consulted when the rule could
+/// apply, so the HAL query is skipped when the feature is off or a device is
+/// explicitly selected.
 public func meetingInputDeviceAttempts(
     selectedUID: String?,
     selectedInputDeviceID: (String) -> AudioDeviceID?,
     defaultInputDevice: () -> AudioDeviceID?,
-    builtInMicrophone: () -> AudioDeviceID?
+    builtInMicrophone: () -> AudioDeviceID?,
+    preferBuiltInWhenOutputIsBluetooth: Bool = false,
+    outputIsBluetooth: () -> Bool = { false }
 ) -> [MeetingInputDeviceAttempt] {
     var attempts: [MeetingInputDeviceAttempt] = []
     var seenDeviceIDs = Set<AudioDeviceID>()
@@ -96,6 +113,20 @@ public func meetingInputDeviceAttempts(
     attempts.append(.implicitSystemDefault(resolvedDeviceID: defaultDeviceID))
 
     appendExplicit(.builtIn, deviceID: builtInMicrophone())
+
+    // Bluetooth-output avoidance: only when no device is explicitly selected
+    // and output is on a Bluetooth headset. The `&&` chain short-circuits so
+    // `outputIsBluetooth()` (a HAL query) runs only after the cheap guards.
+    // If the built-in mic is already the primary attempt (e.g. it is also the
+    // system default), there is nothing to reorder.
+    if preferBuiltInWhenOutputIsBluetooth,
+        selectedUID == nil,
+        outputIsBluetooth(),
+        let builtInIndex = attempts.firstIndex(where: { $0.source == .builtIn }),
+        builtInIndex != 0 {
+        let builtIn = attempts.remove(at: builtInIndex)
+        attempts.insert(builtIn, at: 0)
+    }
 
     return attempts
 }

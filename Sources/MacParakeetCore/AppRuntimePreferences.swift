@@ -21,6 +21,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var pauseMediaDuringDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
+    var preferBuiltInMicWhenBluetoothOutput: Bool { get }
     var showLiveDictationPreview: Bool { get }
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
     var dictationUndoCountdown: DictationUndoCountdown { get }
@@ -487,6 +488,12 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
+    /// When on (default), dictation/meeting capture prefers the built-in mic
+    /// while audio output is routed to a Bluetooth headset, so opening the mic
+    /// doesn't force the headset into HFP/SCO (degraded playback + silent-
+    /// capture race, issues #481/#541/#409). Only applies on the system-
+    /// default input; an explicit mic selection is always honored.
+    public static let preferBuiltInMicWhenBluetoothOutputKey = "preferBuiltInMicWhenBluetoothOutput"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
     public static let dictationUndoCountdownKey = "dictationUndoCountdown"
@@ -594,6 +601,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var instantDictationEnabled: Bool {
         defaults.object(forKey: Self.instantDictationEnabledKey) as? Bool ?? false
+    }
+
+    public var preferBuiltInMicWhenBluetoothOutput: Bool {
+        defaults.object(forKey: Self.preferBuiltInMicWhenBluetoothOutputKey) as? Bool ?? true
     }
 
     public var showLiveDictationPreview: Bool {

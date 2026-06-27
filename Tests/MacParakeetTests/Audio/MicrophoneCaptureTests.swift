@@ -408,6 +408,105 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertEqual(attempt.explicitDeviceID, 20)
     }
 
+    // MARK: - Bluetooth-output avoidance (issues #481/#541/#409)
+
+    func testBluetoothOutputPrefersBuiltInWhenOnSystemDefault() {
+        // System default input is the Bluetooth headset (id 20); built-in is
+        // id 30. With output on Bluetooth and no explicit selection, built-in
+        // is promoted to the front so capture doesn't force HFP/SCO.
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+                .implicitSystemDefault(resolvedDeviceID: 20),
+            ],
+            "Built-in must lead, with the Bluetooth system default kept as fallback"
+        )
+    }
+
+    func testBluetoothOutputDoesNotReorderWhenOutputIsNotBluetooth() {
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { false }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                .implicitSystemDefault(resolvedDeviceID: 20),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ]
+        )
+    }
+
+    func testBluetoothOutputRespectsExplicitMicrophoneSelection() {
+        // An explicit selection is never overridden, even with Bluetooth output.
+        var queriedOutput = false
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: "usb-mic",
+            selectedInputDeviceID: { uid in uid == "usb-mic" ? AudioDeviceID(10) : nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { queriedOutput = true; return true }
+        )
+
+        XCTAssertEqual(attempts.first?.source, .selected(uid: "usb-mic"))
+        XCTAssertFalse(
+            queriedOutput,
+            "The output transport must not be queried when a device is explicitly selected"
+        )
+    }
+
+    func testBluetoothOutputNoReorderWhenBuiltInIsAlreadyDefault() {
+        // System default already is the built-in mic (id 30) — nothing to move,
+        // and capture is already on a safe input.
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(30) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(attempts, [.implicitSystemDefault(resolvedDeviceID: 30)])
+    }
+
+    func testBluetoothOutputRuleDisabledLeavesChainUntouched() {
+        var queriedOutput = false
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: nil,
+            selectedInputDeviceID: { _ in nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: false,
+            outputIsBluetooth: { queriedOutput = true; return true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                .implicitSystemDefault(resolvedDeviceID: 20),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ]
+        )
+        XCTAssertFalse(queriedOutput, "Disabled rule must not query the output transport")
+    }
+
     func testPlatformSkipsInputDeviceSetterForImplicitSystemDefaultAttempt() throws {
         let recorder = MicrophoneCaptureInputDeviceSetterRecorder()
         let platform = AVAudioEngineMicrophonePlatform(

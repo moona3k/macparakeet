@@ -199,6 +199,27 @@ debounce (0.5 s in `AppEnvironment`, 0 = disabled for direct
 constructions) keyed by a supersession generation; superseded or
 cancelled sleepers exit before touching any engine or pre-roll state.
 
+**Capture prefers the built-in mic when output is Bluetooth (issues
+#481/#541/#409).** Opening a Bluetooth headset's microphone forces it
+out of A2DP into HFP/SCO. That both degrades the playback the user is
+hearing and races the profile switch: the engine can start before the
+SCO link delivers audio and capture reads zero or pure-silent buffers
+(the self-heal restarts the engine but rebinds to the same not-yet-ready
+endpoint, so it does not fix this). The device-attempt builder in
+`AppEnvironment` therefore consults
+`AudioDeviceManager.isDefaultOutputBluetooth()` and, when the user is on
+the *system-default* input (no explicit mic chosen) and output is on a
+Bluetooth device, `meetingInputDeviceAttempts` promotes the built-in mic
+to the front of the chain (governed by the
+`preferBuiltInMicWhenBluetoothOutput` preference, default on; toggle in
+Settings → Dictation). The Bluetooth device stays in the chain as a
+fallback, an explicit mic selection is always honored, and the
+`outputIsBluetooth` query is skipped unless the rule could apply. This
+keeps playback in A2DP and sidesteps the SCO race rather than fighting
+it. *Verify on real Bluetooth hardware before relying on it — the
+behavior is hardware-timing-dependent and is not exercised by the unit
+suite.*
+
 **Diagnostics stay narrow.** The recording heartbeat in `AudioRecorder`
 remains observability-only. The first-buffer watchdog is now also a
 startup readiness signal: `start()` does not report a healthy recording until
