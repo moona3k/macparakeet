@@ -50,15 +50,43 @@ final class STTRuntimeDictationPadTests: XCTestCase {
         )
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let decoded = try STTRuntime.loadDictationSamples16k(path: url.path)
-        XCTAssertEqual(decoded.count, realSampleCount)
+        let decoded = STTRuntime.loadShortDictationSamples16k(path: url.path, maxSamples: ASRConstants.maxModelSamples)
+        XCTAssertEqual(decoded?.count, realSampleCount)
 
-        let padded = try STTRuntime.paddedDictationSamples(audioPath: url.path)
+        let padded = STTRuntime.paddedDictationSamples(audioPath: url.path)
         let expectedPad = Int(STTRuntime.dictationTrailingSilenceSeconds * Double(ASRConstants.sampleRate))
         XCTAssertEqual(padded.count, realSampleCount + expectedPad)
         XCTAssertTrue(padded.suffix(expectedPad).allSatisfy { $0 == 0 })
         // The real audio is preserved ahead of the silence.
         XCTAssertFalse(padded.prefix(realSampleCount).allSatisfy { $0 == 0 })
+    }
+
+    func testPaddedDictationSamplesFallsThroughWhenPadWouldExceedSingleWindow() throws {
+        // A clip whose padded length would cross the single-window limit must
+        // stay on FluidAudio's URL path instead of being loaded and padded in
+        // memory.
+        let padSamples = Int(STTRuntime.dictationTrailingSilenceSeconds * Double(ASRConstants.sampleRate))
+        let longSampleCount = ASRConstants.maxModelSamples - padSamples + 1
+        let url = try writeMonoFloatWav(
+            sampleCount: longSampleCount,
+            sampleRate: 16_000,
+            valueAt: { _ in 0.1 }
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertNotNil(STTRuntime.loadShortDictationSamples16k(path: url.path, maxSamples: ASRConstants.maxModelSamples))
+        XCTAssertNil(STTRuntime.loadShortDictationSamples16k(
+            path: url.path,
+            maxSamples: ASRConstants.maxModelSamples - padSamples
+        ))
+        XCTAssertTrue(STTRuntime.paddedDictationSamples(audioPath: url.path).isEmpty)
+    }
+
+    func testPaddedDictationSamplesIsEmptyForMissingFile() {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).wav")
+        XCTAssertTrue(STTRuntime.paddedDictationSamples(audioPath: missing.path).isEmpty)
+        XCTAssertNil(STTRuntime.loadShortDictationSamples16k(path: missing.path, maxSamples: ASRConstants.maxModelSamples))
     }
 
     // MARK: - helpers
