@@ -540,11 +540,18 @@ INFO_PLIST="$CONTENTS_DIR/Info.plist"
 # Sparkle auto-update trust anchor (issue #564, finding S-3). The public EdDSA
 # key MUST ship non-empty in Info.plist or Sparkle 2.x cannot verify update
 # signatures, and the feed MUST be HTTPS so the appcast itself can't be
-# tampered with in transit. These are the single source of truth for the
-# values written below; the release gate after the plist is written reads them
+# tampered with in transit. SU_PUBLIC_ED_KEY / SU_FEED_URL are the values
+# written into the plist below; the release gate after the write reads them
 # back from the artifact and refuses to ship if they drift or go missing.
 SU_PUBLIC_ED_KEY="2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY="
 SU_FEED_URL="https://macparakeet.com/appcast.xml"
+# Expected key the gate asserts the written plist actually carries. Deliberately
+# a second, independent copy: verifying the artifact against the same variable
+# used to write it would pass even if that variable were edited to a wrong
+# value, so the trust anchor is pinned in two places. A real key rotation must
+# update BOTH — the build fails until they agree, which is the intended
+# confirmation step.
+EXPECTED_SU_PUBLIC_ED_KEY="2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY="
 CHECKOUT_URL="${MACPARAKEET_CHECKOUT_URL:-}"
 LS_VARIANT_ID="${MACPARAKEET_LS_VARIANT_ID:-}"
 LICENSING_PLIST=""
@@ -622,8 +629,12 @@ if [[ -z "$WRITTEN_ED_KEY" ]]; then
   echo "FATAL: SUPublicEDKey is missing or empty in $INFO_PLIST — Sparkle could not verify update signatures. Refusing to ship." >&2
   exit 1
 fi
-if [[ "$WRITTEN_ED_KEY" != "$SU_PUBLIC_ED_KEY" ]]; then
+if [[ "$WRITTEN_ED_KEY" != "$EXPECTED_SU_PUBLIC_ED_KEY" ]]; then
   echo "FATAL: SUPublicEDKey in $INFO_PLIST does not match the expected release key. Refusing to ship." >&2
+  exit 1
+fi
+if [[ -z "$WRITTEN_FEED_URL" ]]; then
+  echo "FATAL: SUFeedURL is missing or empty in $INFO_PLIST — Sparkle has no appcast to check. Refusing to ship." >&2
   exit 1
 fi
 if [[ "$WRITTEN_FEED_URL" != https://* ]]; then
