@@ -321,14 +321,20 @@ final class SettingsViewModelTests: XCTestCase {
 
         viewModel.preferBuiltInMicWhenBluetoothOutput = false
 
-        XCTAssertFalse(
-            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey)
+        XCTAssertEqual(
+            testDefaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey
+            ) as? Bool,
+            false
         )
 
         viewModel.preferBuiltInMicWhenBluetoothOutput = true
 
-        XCTAssertTrue(
-            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey)
+        XCTAssertEqual(
+            testDefaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey
+            ) as? Bool,
+            true
         )
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
             guard case .settingChanged(let setting) = event else { return nil }
