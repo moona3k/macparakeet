@@ -1293,9 +1293,12 @@ struct TranscriptResultView: View {
         findFieldFocused = false
         findModel.clear()
         findBlocks = []
-        // Resume playback-follow auto-scroll only if find-navigation was what
-        // paused it; otherwise leave an in-flight manual-scroll pause intact
-        // (normal 100ms playback ticks never trip the seek-jump reset).
+        releaseFindOwnedAutoScrollPause()
+    }
+
+    /// Resume playback-follow only if find navigation owns the pause; manual
+    /// scroll pauses keep their normal 5-second lifetime.
+    private func releaseFindOwnedAutoScrollPause() {
         if findPausedAutoScroll {
             autoScrollPaused = false
             scrollPauseTask?.cancel()
@@ -1305,6 +1308,9 @@ struct TranscriptResultView: View {
 
     private func setFindQuery(_ newValue: String) {
         findModel.setQuery(newValue)
+        if !findModel.hasMatches {
+            releaseFindOwnedAutoScrollPause()
+        }
         findScrollToken &+= 1
     }
 
@@ -1315,6 +1321,7 @@ struct TranscriptResultView: View {
         guard findBarVisible, !editingTranscript else {
             findBlocks = []
             findModel.setBlocks([])
+            releaseFindOwnedAutoScrollPause()
             return
         }
         let blocks: [TranscriptFindBlock]
@@ -1325,7 +1332,11 @@ struct TranscriptResultView: View {
         }
         findBlocks = blocks
         findModel.setBlocks(blocks.map(\.text))
-        if findModel.hasMatches { findScrollToken &+= 1 }
+        if findModel.hasMatches {
+            findScrollToken &+= 1
+        } else {
+            releaseFindOwnedAutoScrollPause()
+        }
     }
 
     /// Split flat transcript text into renderable, individually-anchorable
