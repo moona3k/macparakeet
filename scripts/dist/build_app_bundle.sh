@@ -437,7 +437,9 @@ bundle_meeting_echo_assets() {
   fi
 
   local model_name="${MACPARAKEET_MEETING_ECHO_MODEL_NAME:-$(basename "$model_src")}"
-  if [[ -z "$model_name" || "$model_name" == */* || "$model_name" != *.gguf ]]; then
+  local model_name_lc
+  model_name_lc="$(printf '%s' "$model_name" | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "$model_name" || "$model_name" == */* || "$model_name_lc" != *.gguf ]]; then
     echo "Error: MACPARAKEET_MEETING_ECHO_MODEL_NAME must be a GGUF filename, not a path." >&2
     exit 1
   fi

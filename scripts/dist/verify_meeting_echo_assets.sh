@@ -41,7 +41,7 @@ if [[ -d "$MODEL_DIR" ]]; then
   while IFS= read -r -d '' candidate; do
     MODEL_PATH="$candidate"
     discovered_count=$((discovered_count + 1))
-  done < <(find "$MODEL_DIR" -maxdepth 1 -type f -name '*.gguf' -print0)
+  done < <(find "$MODEL_DIR" -maxdepth 1 -type f -iname '*.gguf' -print0)
   if [[ "$discovered_count" -gt 1 ]]; then
     echo "Error: exactly one meeting echo model must be bundled." >&2
     exit 1
@@ -49,8 +49,9 @@ if [[ -d "$MODEL_DIR" ]]; then
 fi
 
 if [[ -n "${MACPARAKEET_MEETING_ECHO_MODEL_NAME:-}" ]]; then
+  model_name_lc="$(printf '%s' "$MACPARAKEET_MEETING_ECHO_MODEL_NAME" | tr '[:upper:]' '[:lower:]')"
   if [[ "$MACPARAKEET_MEETING_ECHO_MODEL_NAME" == */* ||
-        "$MACPARAKEET_MEETING_ECHO_MODEL_NAME" != *.gguf ]]; then
+        "$model_name_lc" != *.gguf ]]; then
     echo "Error: MACPARAKEET_MEETING_ECHO_MODEL_NAME must be a GGUF filename, not a path." >&2
     exit 1
   fi
@@ -119,11 +120,15 @@ if [[ -n "${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}" ]]; then
 fi
 
 if command -v otool >/dev/null 2>&1; then
+  # otool -L emits an unindented header per arch (e.g. "lib (architecture arm64):"),
+  # followed by tab-indented dependency lines. Select only indented lines so
+  # universal (fat) binaries with multiple arch headers parse correctly; a plain
+  # `tail -n +2` drops only the first header and misreads later arch headers as
+  # non-portable references, wrongly failing strict verification.
   unresolved_deps="$(
     otool -L "$LIB_PATH" |
-      tail -n +2 |
-      awk '{print $1}' |
-      grep -Ev '^@rpath/|^@loader_path/|^/System/Library/|^/usr/lib/|^\(' || true
+      awk '/^[[:space:]]/ {print $1}' |
+      grep -Ev '^@rpath/|^@loader_path/|^/System/Library/|^/usr/lib/' || true
   )"
   if [[ -n "$unresolved_deps" ]]; then
     if [[ "$STRICT_MEETING_ECHO_ASSETS" == "1" ]]; then

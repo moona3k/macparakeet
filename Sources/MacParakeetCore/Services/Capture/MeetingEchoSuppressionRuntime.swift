@@ -249,7 +249,7 @@ enum MeetingEchoSuppressionFactory {
             return candidates
         }
 
-        let knownNames = Set(bundledModelNames)
+        let knownNames = Set(bundledModelNames.map { $0.lowercased() })
         candidates += bundledModelNames.map { modelDirectory.appendingPathComponent($0) }
 
         let discovered = (try? fileManager.contentsOfDirectory(
@@ -259,7 +259,7 @@ enum MeetingEchoSuppressionFactory {
         ))?
             .filter { url in
                 guard url.pathExtension.lowercased() == "gguf",
-                      !knownNames.contains(url.lastPathComponent)
+                      !knownNames.contains(url.lastPathComponent.lowercased())
                 else {
                     return false
                 }

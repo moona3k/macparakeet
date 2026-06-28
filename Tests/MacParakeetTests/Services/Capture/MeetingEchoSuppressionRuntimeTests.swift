@@ -408,6 +408,23 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertTrue(result.output.contains("missing required LocalVQE symbols"))
     }
 
+    func testDistributionVerifierAcceptsUniversalRuntime() throws {
+        let appURL = try Self.makeEchoAssetAppBundle(
+            modelName: "localvqe-v1.4-aec-200K-f32.gguf",
+            modelData: Data("model".utf8),
+            includeLibrary: true,
+            universalLibrary: true
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let result = try Self.runVerifier(
+            appURL: appURL,
+            environment: ["REQUIRE_MEETING_ECHO_ASSETS": "1"]
+        )
+
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("Meeting echo assets verified"))
+    }
+
     private static func makeEmptyAppBundle() throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -423,7 +440,8 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         modelName: String,
         modelData: Data,
         includeLibrary: Bool,
-        includeRequiredSymbols: Bool = true
+        includeRequiredSymbols: Bool = true,
+        universalLibrary: Bool = false
     ) throws -> URL {
         let appURL = try makeEmptyAppBundle()
         let frameworksURL = appURL.appendingPathComponent("Contents/Frameworks", isDirectory: true)
@@ -443,7 +461,8 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         if includeLibrary {
             try writeLocalVQEDylib(
                 to: frameworksURL.appendingPathComponent("liblocalvqe.dylib"),
-                includeRequiredSymbols: includeRequiredSymbols
+                includeRequiredSymbols: includeRequiredSymbols,
+                universal: universalLibrary
             )
         }
         return appURL
@@ -451,7 +470,8 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
     private static func writeLocalVQEDylib(
         to libraryURL: URL,
-        includeRequiredSymbols: Bool = true
+        includeRequiredSymbols: Bool = true,
+        universal: Bool = false
     ) throws {
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/clang") else {
             throw XCTSkip("clang is required to compile the LocalVQE ABI test runtime.")
@@ -485,14 +505,12 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/clang")
-        process.arguments = [
-            "-dynamiclib",
-            sourceURL.path,
-            "-install_name",
-            "@rpath/liblocalvqe.dylib",
-            "-o",
-            libraryURL.path,
-        ]
+        var arguments = ["-dynamiclib", sourceURL.path]
+        if universal {
+            arguments += ["-arch", "arm64", "-arch", "x86_64"]
+        }
+        arguments += ["-install_name", "@rpath/liblocalvqe.dylib", "-o", libraryURL.path]
+        process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
@@ -502,6 +520,9 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
             data: pipe.fileHandleForReading.readDataToEndOfFile(),
             encoding: .utf8
         ) ?? ""
+        if universal && process.terminationStatus != 0 {
+            throw XCTSkip("Universal (arm64+x86_64) cross-compile unavailable: \(output)")
+        }
         XCTAssertEqual(process.terminationStatus, 0, output)
     }
 
@@ -535,7 +556,15 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
     private static func repoRoot(filePath: String = #filePath) throws -> URL {
         var url = URL(fileURLWithPath: filePath)
-        while url.lastPathComponent != "Tests" {
+        if !url.hasDirectoryPath {
+            url.deleteLastPathComponent()
+        }
+        while true {
+            if FileManager.default.fileExists(
+                atPath: url.appendingPathComponent("Package.swift").path
+            ) {
+                return url
+            }
             let parent = url.deletingLastPathComponent()
             guard parent.path != url.path else {
                 throw NSError(
@@ -543,12 +572,11 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
                     code: 1,
                     userInfo: [
                         NSLocalizedDescriptionKey:
-                            "Could not find repo root from test file path: \(filePath)"
+                            "Could not find Package.swift from test file path: \(filePath)"
                     ]
                 )
             }
             url = parent
         }
-        return url.deletingLastPathComponent()
     }
 }
