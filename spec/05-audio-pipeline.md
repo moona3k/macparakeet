@@ -198,7 +198,15 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   AEC/noise suppression/AGC. The optional `StreamingMeetingEchoSuppressor`
   can transform paired mic/system samples when a LocalVQE-compatible runtime
   and model are available; otherwise it falls back to raw mic samples with
-  diagnostics. Transcript-layer system-dominance suppression and
+  diagnostics. When the suppressor runs it aligns the system reference to the
+  microphone using a runtime delay recovered from the audio by
+  `MeetingEchoDelayEstimator` (normalized cross-correlation, confidence-gated),
+  because the measurement harness showed that mic/reference time alignment is
+  the dominant factor in cancellation and the bulk clock offset can exceed any
+  practical filter span. `MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS` seeds the
+  estimate and overrides it when `MACPARAKEET_MEETING_ECHO_ADAPTIVE_DELAY` is
+  off; a silent far-end is treated as "nothing to align" rather than forcing a
+  lag. Transcript-layer system-dominance suppression and
   `MeetingTranscriptSourceReconciler` remain safety nets against obvious
   speaker bleed, not a complete AEC substitute. When VPIO is explicitly
   requested and engages, macOS applies AEC/noise suppression/AGC before buffers
