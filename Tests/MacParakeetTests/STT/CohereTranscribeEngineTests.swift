@@ -350,7 +350,10 @@ final class CohereTranscribeEngineTests: XCTestCase {
         let languages = CohereTranscribeEngine.supportedLanguages
         XCTAssertEqual(languages.count, 14)
         XCTAssertTrue(languages.contains { $0.code == "en" && $0.name == "English" })
-        XCTAssertTrue(languages.allSatisfy { $0.code.count == 2 && $0.code == $0.code.lowercased() })
+        // Codes are non-empty and lowercase; intentionally not length-pinned, so
+        // a future ISO 639-2/3 code (e.g. 3-letter `yue`) stays consistent with
+        // normalizeCohereLanguage, which no longer gates on subtag length.
+        XCTAssertTrue(languages.allSatisfy { !$0.code.isEmpty && $0.code == $0.code.lowercased() })
     }
 
     func testNormalizeCohereLanguageFoldsToPrimarySubtag() {
@@ -364,6 +367,19 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertNil(SpeechEnginePreference.normalizeCohereLanguage("12"))
         XCTAssertNil(SpeechEnginePreference.normalizeCohereLanguage("eng"))
         XCTAssertNil(SpeechEnginePreference.normalizeCohereLanguage("xx"))
+    }
+
+    func testNormalizeCohereLanguageAcceptsEverySupportedCode() {
+        // `supportedLanguages` is the sole authority for valid Cohere codes, so
+        // normalize must accept every one of them. It is not gated on a hardcoded
+        // subtag length: a future longer code (e.g. an ISO 639-3 entry) added to
+        // the FluidAudio language set must still round-trip, not be silently
+        // dropped before the membership check.
+        for (code, _) in CohereTranscribeEngine.supportedLanguages {
+            XCTAssertEqual(
+                SpeechEnginePreference.normalizeCohereLanguage(code), code,
+                "supported Cohere code '\(code)' must normalize to itself")
+        }
     }
 
     func testCohereDefaultLanguageRoundTrips() throws {
