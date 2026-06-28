@@ -109,7 +109,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
     // Audio/service
     case checkEntitlements
     case startRecording(mode: FnKeyStateMachine.RecordingMode)
-    case stopRecordingAndTranscribe
+    case stopRecordingAndTranscribe(mode: FnKeyStateMachine.RecordingMode)
     case cancelRecording(reason: DictationFlowCancelReason)
     case discardRecording
     /// Confirm a pending cancel. Pass a reason only when cancel telemetry has
@@ -277,10 +277,10 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         // MARK: Recording
 
-        case (.recording, .stopRequested):
+        case (.recording(let mode), .stopRequested):
             state = .processing
             return [
-                .cancelRecordingTask, .stopRecordingAndTranscribe,
+                .cancelRecordingTask, .stopRecordingAndTranscribe(mode: mode),
                 .showProcessingState, .updateMenuBar(.processing),
             ]
 
@@ -350,10 +350,10 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
                 .hideOverlay, .hideIdlePill, .checkEntitlements,
             ]
 
-        case (.pendingStop, .recordingStarted(let gen)):
+        case (.pendingStop(let mode), .recordingStarted(let gen)):
             guard gen == generation else { return [] }
             state = .processing
-            return [.cancelRecordingTask, .stopRecordingAndTranscribe, .showProcessingState, .updateMenuBar(.processing)]
+            return [.cancelRecordingTask, .stopRecordingAndTranscribe(mode: mode), .showProcessingState, .updateMenuBar(.processing)]
 
         case (.pendingStop, .startFailed(let gen, let message)):
             guard gen == generation else { return [] }

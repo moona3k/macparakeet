@@ -599,6 +599,45 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testHoldToTalkStopTailDelaysStopCallback() {
+        let manager = HotkeyManager(
+            trigger: .fn,
+            holdToTalkStopTailMs: 20
+        )
+        var stopCount = 0
+        let stopExpectation = expectation(description: "stop callback fires after tail")
+        manager.onStopRecording = {
+            stopCount += 1
+            stopExpectation.fulfill()
+        }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: [],
+                timestampMs: 1_500
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .stopRecording,
+            ]
+        )
+        XCTAssertEqual(stopCount, 0)
+        manager.resetToIdle(flags: [])
+
+        wait(for: [stopExpectation], timeout: 1.0)
+        XCTAssertEqual(stopCount, 1)
+    }
+
     func testTapRecoveryDuringActiveHoldWithAdditionalModifierCancelsOnRelease() {
         let manager = HotkeyManager(trigger: .fn)
 
