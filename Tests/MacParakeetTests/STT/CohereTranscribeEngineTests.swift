@@ -350,7 +350,10 @@ final class CohereTranscribeEngineTests: XCTestCase {
         let languages = CohereTranscribeEngine.supportedLanguages
         XCTAssertEqual(languages.count, 14)
         XCTAssertTrue(languages.contains { $0.code == "en" && $0.name == "English" })
-        XCTAssertTrue(languages.allSatisfy { $0.code.count == 2 && $0.code == $0.code.lowercased() })
+        // Codes are non-empty and lowercase; intentionally not length-pinned, so
+        // a future ISO 639-2/3 code (e.g. 3-letter `yue`) stays consistent with
+        // normalizeCohereLanguage, which no longer gates on subtag length.
+        XCTAssertTrue(languages.allSatisfy { !$0.code.isEmpty && $0.code == $0.code.lowercased() })
     }
 
     func testNormalizeCohereLanguageFoldsToPrimarySubtag() {
