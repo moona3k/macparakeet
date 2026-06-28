@@ -100,12 +100,6 @@ public final class TranscriptFindModel {
         return (i + 1, matches.count)
     }
 
-    /// Matches that fall inside a given block, in order. Lets the view
-    /// highlight one segment/paragraph without rescanning the transcript.
-    public func matches(inBlock blockIndex: Int) -> [Match] {
-        matches.filter { $0.blockIndex == blockIndex }
-    }
-
     // MARK: - Matching
 
     private func recompute() {

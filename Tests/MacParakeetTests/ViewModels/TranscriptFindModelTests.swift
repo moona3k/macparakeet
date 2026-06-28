@@ -157,11 +157,4 @@ final class TranscriptFindModelTests: XCTestCase {
         XCTAssertEqual(m.query, "")
         XCTAssertNil(m.currentMatchIndex)
     }
-
-    func testMatchesInBlockFilter() {
-        let m = model(["match here match", "no", "match"], query: "match")
-        XCTAssertEqual(m.matches(inBlock: 0).count, 2)
-        XCTAssertEqual(m.matches(inBlock: 1).count, 0)
-        XCTAssertEqual(m.matches(inBlock: 2).count, 1)
-    }
 }
