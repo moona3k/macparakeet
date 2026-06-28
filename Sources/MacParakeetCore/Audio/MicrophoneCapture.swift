@@ -219,7 +219,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private var state: LifecycleState = .idle
     private var bufferHandler: AudioBufferHandler?
     private var stallObserver: StallObserver?
-    private var firstBufferReceived = false
+    /// Buffer callbacks can arrive before `start()` returns and arms the watchdog.
+    /// Generation state keeps those early callbacks tied to the correct start attempt.
+    private var watchdogGeneration = 0
+    private var firstBufferSeenGeneration: Int?
     private var watchdogWorkItem: DispatchWorkItem?
     /// Active subscription token. Snapshotted by `stop()` and `deinit` so
     /// unsubscribe can fire without holding `self`.
@@ -286,14 +289,6 @@ public final class MicrophoneCapture: @unchecked Sendable {
             stallObserver = onStall
         }
 
-        let bufferDispatch: SharedMicrophoneStream.BufferHandler = { [weak self] buffer, time in
-            guard let self else { return }
-            self.dispatchBuffer(
-                buffer,
-                time: time,
-                extractVPIOChannelZero: self.sharedStream.isVPIOEngaged
-            )
-        }
         let deathDispatch: SharedMicrophoneStream.EngineDeathHandler = { [weak self] in
             guard let self else { return }
             let observer = self.handlerLock.withLock { self.stallObserver }
@@ -312,11 +307,12 @@ public final class MicrophoneCapture: @unchecked Sendable {
 
         let token: SharedMicrophoneStream.SubscriberToken
         var effectiveMode: MeetingMicProcessingEffectiveMode
+        var activeWatchdogGeneration = nextWatchdogGeneration()
         do {
             token = try await sharedStream.subscribe(
                 wantsVPIO: wantsVPIO,
                 onEngineDeath: deathDispatch,
-                handler: bufferDispatch
+                handler: makeBufferDispatch(generation: activeWatchdogGeneration)
             )
             // The effective mode reflects what the engine is actually
             // producing right now — `vpioEngaged=false` while a non-VPIO
@@ -335,10 +331,11 @@ public final class MicrophoneCapture: @unchecked Sendable {
                     "meeting_mic_processing_fallback requested=vpioPreferred effective=raw \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 do {
+                    activeWatchdogGeneration = nextWatchdogGeneration()
                     token = try await sharedStream.subscribe(
                         wantsVPIO: false,
                         onEngineDeath: deathDispatch,
-                        handler: bufferDispatch
+                        handler: makeBufferDispatch(generation: activeWatchdogGeneration)
                     )
                     effectiveMode = .raw
                 } catch let fallbackError {
@@ -408,7 +405,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
         // Watchdog must start AFTER the subscription is owned. Scheduling
         // earlier risks firing while a slow device-fallback chain is still
         // running through the platform.
-        scheduleSilentBufferWatchdog()
+        scheduleSilentBufferWatchdog(generation: activeWatchdogGeneration)
 
         AudioCaptureDiagnostics.append(
             "meeting_mic_processing mode=\(effectiveMode.rawValue)"
@@ -477,9 +474,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private func dispatchBuffer(
         _ buffer: AVAudioPCMBuffer,
         time: AVAudioTime,
-        extractVPIOChannelZero: Bool
+        extractVPIOChannelZero: Bool,
+        generation: Int
     ) {
-        markFirstBufferReceived()
+        markFirstBufferReceived(generation: generation)
         let deliveredBuffer: AVAudioPCMBuffer
         deliveredBuffer = microphoneCaptureMonoBuffer(
             from: buffer,
@@ -489,13 +487,42 @@ public final class MicrophoneCapture: @unchecked Sendable {
         callback?(deliveredBuffer, time)
     }
 
-    private func scheduleSilentBufferWatchdog() {
-        let workItem = watchdogLock.withLock { () -> DispatchWorkItem in
-            firstBufferReceived = false
+    private func makeBufferDispatch(generation: Int) -> SharedMicrophoneStream.BufferHandler {
+        { [weak self] buffer, time in
+            guard let self else { return }
+            self.dispatchBuffer(
+                buffer,
+                time: time,
+                extractVPIOChannelZero: self.sharedStream.isVPIOEngaged,
+                generation: generation
+            )
+        }
+    }
+
+    private func nextWatchdogGeneration() -> Int {
+        watchdogLock.withLock {
+            watchdogGeneration += 1
+            firstBufferSeenGeneration = nil
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
+            return watchdogGeneration
+        }
+    }
+
+    private func scheduleSilentBufferWatchdog(generation: Int) {
+        let workItem = watchdogLock.withLock { () -> DispatchWorkItem? in
+            guard firstBufferSeenGeneration != generation else {
+                watchdogWorkItem?.cancel()
+                watchdogWorkItem = nil
+                return nil
+            }
             watchdogWorkItem?.cancel()
             let item = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
+                let shouldLog = self.watchdogLock.withLock {
+                    self.watchdogGeneration == generation
+                        && self.firstBufferSeenGeneration != generation
+                }
                 guard shouldLog else { return }
                 let error = MeetingAudioError.captureRuntimeFailure(
                     "microphone capture started but delivered no buffers within 2 seconds"
@@ -506,13 +533,16 @@ public final class MicrophoneCapture: @unchecked Sendable {
             watchdogWorkItem = item
             return item
         }
-        watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+        if let workItem {
+            watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+        }
     }
 
-    private func markFirstBufferReceived() {
+    private func markFirstBufferReceived(generation: Int) {
         let shouldLog = watchdogLock.withLock {
-            guard !firstBufferReceived else { return false }
-            firstBufferReceived = true
+            guard watchdogGeneration == generation else { return false }
+            guard firstBufferSeenGeneration != generation else { return false }
+            firstBufferSeenGeneration = generation
             watchdogWorkItem?.cancel()
             watchdogWorkItem = nil
             return true
@@ -533,7 +563,8 @@ public final class MicrophoneCapture: @unchecked Sendable {
 
     private func resetDiagnosticsState() {
         watchdogLock.withLock {
-            firstBufferReceived = false
+            watchdogGeneration += 1
+            firstBufferSeenGeneration = nil
             watchdogWorkItem?.cancel()
             watchdogWorkItem = nil
         }

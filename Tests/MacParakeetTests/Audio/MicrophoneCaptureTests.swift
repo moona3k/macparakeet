@@ -69,6 +69,33 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertEqual(counter.value, 2)
     }
 
+    func testEarlyFirstBufferBeforeWatchdogArmedDoesNotReportStall() async throws {
+        let platform = SharedMicTestPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let capture = MicrophoneCapture(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let stallBox = MicrophoneCaptureTestStallBox()
+        let earlyBuffer = UncheckedSendableAudioPCMBuffer(makeSharedTestBuffer())
+        platform.afterConfigureAndStartHook = {
+            platform.deliverBuffer(earlyBuffer.buffer, time: AVAudioTime(hostTime: 0))
+        }
+
+        _ = try await capture.start(
+            processingMode: .raw,
+            handler: { _, _ in },
+            onStall: { error in stallBox.record(error) }
+        )
+        defer { capture.stop() }
+
+        try await Task.sleep(for: .milliseconds(2200))
+        XCTAssertNil(
+            stallBox.recordedError,
+            "A first buffer delivered before start() arms the watchdog must still disarm the watchdog."
+        )
+    }
+
     func testSharedModeVPIOForwardsChannelZeroOnly() async throws {
         let platform = SharedMicTestPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
@@ -869,9 +896,14 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
     /// into the platform without deadlocking.
     private let hookLock = NSLock()
     private var _configureAndStartHook: (@Sendable () -> Void)?
+    private var _afterConfigureAndStartHook: (@Sendable () -> Void)?
     var configureAndStartHook: (@Sendable () -> Void)? {
         get { hookLock.withLock { _configureAndStartHook } }
         set { hookLock.withLock { _configureAndStartHook = newValue } }
+    }
+    var afterConfigureAndStartHook: (@Sendable () -> Void)? {
+        get { hookLock.withLock { _afterConfigureAndStartHook } }
+        set { hookLock.withLock { _afterConfigureAndStartHook = newValue } }
     }
 
     var isEngineRunning: Bool {
@@ -912,6 +944,7 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
             _isRunning = true
             _tapHandler = tapHandler
         }
+        afterConfigureAndStartHook?()
     }
 
     func stopEngine() {

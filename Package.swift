@@ -65,7 +65,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
             path: "Sources/CLI",
-            exclude: ["CHANGELOG.md"]
+            exclude: ["CHANGELOG.md", "README.md"]
         ),
         // Objective-C shim target for catching NSException in Swift.
         // Swift's `do/try/catch` cannot catch Objective-C exceptions raised by

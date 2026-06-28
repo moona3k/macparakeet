@@ -542,7 +542,10 @@ macparakeet-cli prompts run "<prompt-name>" \
 ## Operating Rules
 
 - Branch on process exit code first.
-- Parse stdout as JSON for `--json` / `--format json` commands.
+- Parse stdout as JSON for `--json` commands and for format-selecting commands
+  when the command's documented JSON mode sends the payload to stdout. For
+  `meetings export`, that mode is `--stdout --format json`; `--format json`
+  without `--stdout` writes a JSON file and prints the path.
 - Treat exit code `2` as invocation misuse; fix the command before retrying.
 - Treat lookup ambiguity as normal; ask for or choose a more specific ID.
 - Never delete user database records unless the user explicitly requests it.
@@ -578,10 +581,11 @@ macparakeet-cli prompts run "<prompt-name>" \
   `--allow-insecure-http`; the CLI writes a stderr warning and keeps stdout
   machine-readable.
 - **JSON flag shape:** read-only query commands take `--json` (a binary flag);
-  `transcribe` and `export` take `--format json` because they emit one of
-  several formats (txt / markdown / srt / vtt / json). Both produce stable
-  JSON schemas. The split is deliberate -- see
-  `Sources/CLI/CHANGELOG.md` for the compatibility note.
+  format-selecting commands take `--format json` because they emit one of
+  several formats (txt / markdown / srt / vtt / json). Commands that normally
+  write files, such as `meetings export`, also require `--stdout` when you want
+  JSON on stdout. The split is deliberate -- see `Sources/CLI/CHANGELOG.md`
+  for the compatibility note.
 - **Lookups:** records that take an `<id-or-name>` argument accept full UUID,
   UUID prefix (>= 4 chars), or case-insensitive name. Ambiguous prefixes
   produce a `.ambiguous` error; missing records produce `.notFound`.

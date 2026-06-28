@@ -73,14 +73,14 @@
 
 ## Execute next (recommended order)
 
-1. **Ship dictation-first onboarding (Part A).** Biggest activation lever, low risk, telemetry-backed. Plan is executor-grade as of 2026-06-13 — dispatchable now. (Funnel is already instrumented via `onboarding_step`; the lift is confirmed by post-ship analysis, not new telemetry — see the plan's "Verifying the lift".)
-2. **Dispatch the two P1/P2 executor-ready test plans** (onboarding-stall-watchdog → june-churn regression). They close the named coverage gaps in the highest-incident area.
-3. **Dispatch boundary contract docs + contract tests** before destructive meeting-retention work or broader meeting workspace automation. It makes artifact, recovery/retention, and CLI JSON boundaries explicit and test-linked.
+1. **Finish the meeting AEC measurement harness.** It is the current P1 because it gates the #605 echo/bleed cluster before any wider meeting-audio change should ship.
+2. **Verify then archive the shipped onboarding and settings cleanup plans** (`dictation-first-onboarding`, `onboarding-stall-watchdog`, `dx-format-lint-baseline`, and the `2026-06-15-settings-*` trio) so the active board stops carrying completed work.
+3. **Dispatch the remaining P2 test-hardening plans** (`june-churn-regression-tests`, then `refinement-validator`). They close named coverage gaps in high-churn audio/STT and formatter paths.
 4. **Land the telemetry-allowlist CI guard**, then add the `WEBSITE_REPO_TOKEN` secret to enforce it.
 
 ## Dependency notes
 
-- No hard blockers between active plans. Soft sequencing: land the onboarding-stall watchdog test (#2) before/with the onboarding rework (#1) so the warm-up path has a safety net under it.
+- No hard blockers between active plans. Soft sequencing: keep meeting-audio changes behind the measurement harness, and prefer the remaining audio/STT regression tests before another broad capture/STT change.
 - The two engine-switch plans are a pair: `ux-revamp` (Stage A, partial) is the parent; `stage-b` is its on-hold continuation. Both gate on the A3 cold-switch telemetry before the reactive flow is greenlit.
 
 ## Recently archived → `completed/` (2026-06-21)

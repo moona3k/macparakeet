@@ -384,7 +384,7 @@ final class SpecCommandTests: XCTestCase {
 
         let export = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "export"] })
         XCTAssertEqual(export["readOnly"] as? Bool, false)
-        XCTAssertEqual(export["jsonMode"] as? String, "--format json")
+        XCTAssertEqual(export["jsonMode"] as? String, "--stdout --format json")
         let exportOptions = try XCTUnwrap(export["options"] as? [[String: Any]])
         XCTAssertTrue(exportOptions.contains { ($0["name"] as? String) == "--output" })
         XCTAssertTrue(exportOptions.contains { ($0["name"] as? String) == "--stdout" })

@@ -990,7 +990,7 @@ private extension CLISpecCommand {
             ["meetings", "export"],
             summary: "Export a deterministic local meeting artifact.",
             readOnly: false,
-            jsonMode: "--format json",
+            jsonMode: "--stdout --format json",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
             options: [
                 CLISpecParameter.option("--format", valueName: "md|json", summary: "Export format."),
@@ -998,7 +998,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--stdout", summary: "Print export content to stdout."),
                 databaseOption,
             ],
-            output: "Markdown text or MeetingRecord JSON with prompt-result count."
+            output: "Markdown text or MeetingRecord JSON with prompt-result count when --stdout is present; otherwise writes a file and prints its path."
         ),
     ]
 }

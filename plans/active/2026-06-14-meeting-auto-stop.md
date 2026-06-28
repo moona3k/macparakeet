@@ -1,6 +1,6 @@
 # Activity-Based Meeting Auto-Stop
 
-**Status:** Implemented for Phases A+B on 2026-06-14; default off / opt-in behind `AppFeatures.meetingAutoStopEnabled = false`. Phase C remains active/deferred until ADR-024 per-process attribution exists.
+**Status:** Implemented for Phases A+B on 2026-06-14; compile-time flag on `main`, per-user setting default off / opt-in. Phase C remains active/deferred until ADR-024 per-process attribution exists.
 **Date:** 2026-06-14
 **ADRs:** ADR-023 (activity-based meeting auto-stop), ADR-017 (calendar auto-start — §5 deferred this), ADR-014/015/016 (meeting recording, concurrency, scheduler)
 **Requirement:** REQ-MEET-015 (v0.7, implemented behind default-off flag)
@@ -83,7 +83,7 @@ Rules: `.keepRecording` if `!isRecording || isPaused`. App-quit fires only when 
 - **App:** `Sources/MacParakeet/App/MeetingAutoStopCoordinator.swift` — snapshot running recognized apps at start; `NSWorkspace.didTerminateApplicationNotification` observer; grace clock + reversal; veto countdown; stop via `MeetingRecordingFlowCoordinator` with the `.autoStop` operation trigger. Wire in `AppEnvironmentConfigurer.swift`.
 - **Flow:** distinguish recording-start triggers from stop operation triggers so auto-stop is attributed without becoming a recording-start source.
 - **Settings:** `meetingAutoStopEnabled` on `SettingsViewModel` (namespaced key) + `.macParakeetMeetingAutoStopDidChange` in `AppNotifications.swift` + toggle in the Meeting Recording settings card + `SettingsSearchIndex` entry.
-- **Gate:** `AppFeatures.meetingAutoStopEnabled` (default off).
+- **Gate:** `AppFeatures.meetingAutoStopEnabled` (on for `main` dogfooding; per-user setting default off).
 - **Telemetry:** `meeting_auto_stop_proposed/confirmed/vetoed{reason}` + `.settingChanged(setting:.meetingAutoStop)` → mirror to `macparakeet-website/functions/api/telemetry.ts` `ALLOWED_EVENTS`.
 
 ### Phase B — sustained dual-channel silence signal (implemented 2026-06-14)
