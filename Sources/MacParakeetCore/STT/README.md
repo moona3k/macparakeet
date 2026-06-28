@@ -185,6 +185,14 @@ empty, or too-long clip yields no samples and falls through to the URL path, whi
 transcription errors propagate from whichever path ran. Don't "simplify"
 dictation back onto the shared URL path without restoring this trailing context.
 
+**All Parakeet TDT inference is gated.** The pad, URL, and preview paths each run
+their `AsrManager.transcribe(...)` through `STTRuntime.gatedParakeetTranscribe`,
+which serializes Neural Engine inference on macOS 14 (`ANEInferenceGate`; a no-op
+on macOS 15+) to avoid the concurrent-inference SIGBUS (FluidAudio #661). A new
+call site that invokes `AsrManager.transcribe` directly **must** go through that
+helper — calling the manager bare reopens the crash for whichever lane runs
+unguarded.
+
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
 build is `v3` unless the user opts into `v2` through Settings or the CLI
 (`config set parakeet-model`, `models select parakeet-v2`, or
