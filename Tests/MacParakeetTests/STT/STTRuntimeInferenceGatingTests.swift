@@ -72,9 +72,14 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
                 group.addTask {
                     try await runtime.runUnderInferenceGate {
                         await tracker.enter()
-                        // Hold briefly so any overlap would be observable.
-                        try await Task.sleep(nanoseconds: 2_000_000)
-                        await tracker.leave()
+                        do {
+                            // Hold briefly so any overlap would be observable.
+                            try await Task.sleep(nanoseconds: 2_000_000)
+                            await tracker.leave()
+                        } catch {
+                            await tracker.leave()
+                            throw error
+                        }
                     }
                 }
             }
