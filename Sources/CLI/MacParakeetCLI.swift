@@ -57,6 +57,9 @@ struct CLI: AsyncParsableCommand {
         if let exitCode = error as? ExitCode {
             return normalizedExitCode(for: exitCode)
         }
+        if isCLIValidationMisuse(error) {
+            return cliValidationMisuseExitCode
+        }
         return normalizedExitCode(for: exitCode(for: error))
     }
 

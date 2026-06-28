@@ -507,17 +507,24 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
     guard json else { throw error }
     let envelope = CLIErrorEnvelope(error: error)
     try? printJSON(envelope)
-    if error is ValidationError || error is CLIInputError {
-        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
-    }
-    if let transforms = error as? CLITransformsError, transforms.isValidationMisuse {
-        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
-    }
-    if let history = error as? CLITransformHistoryError, case .invalidPrefix = history {
-        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
-    }
-    if let retranscribe = error as? CLIRetranscribeError, retranscribe.isValidationMisuse {
+    if isCLIValidationMisuse(error) {
         throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     throw CLIJSONEnvelopeExit(exitCode: .failure, originalError: error)
+}
+
+func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if error is ValidationError || error is CLIInputError {
+        return true
+    }
+    if let transforms = error as? CLITransformsError, transforms.isValidationMisuse {
+        return true
+    }
+    if let history = error as? CLITransformHistoryError, case .invalidPrefix = history {
+        return true
+    }
+    if let retranscribe = error as? CLIRetranscribeError, retranscribe.isValidationMisuse {
+        return true
+    }
+    return false
 }

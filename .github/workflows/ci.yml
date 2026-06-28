@@ -4,13 +4,9 @@ on:
   push:
     paths-ignore:
       - "docs/**"
-      - "spec/**"
-      - "**/*.md"
   pull_request:
     paths-ignore:
       - "docs/**"
-      - "spec/**"
-      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -68,6 +64,30 @@ jobs:
           mkdir -p .ci-logs
           set -o pipefail
           swift build -c release 2>&1 | tee .ci-logs/swift-build-release.log
+
+      - name: CLI Contract Smoke
+        timeout-minutes: 2
+        env:
+          MACPARAKEET_TELEMETRY: "0"
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          .build/release/macparakeet-cli --help > .ci-logs/cli-help.txt
+          .build/release/macparakeet-cli spec --json > .ci-logs/cli-spec.json
+          python3 -m json.tool .ci-logs/cli-spec.json > /dev/null
+          python3 - <<'PY'
+          import json
+
+          with open(".ci-logs/cli-spec.json", encoding="utf-8") as f:
+              spec = json.load(f)
+
+          commands = {
+              tuple(command["path"]): command
+              for command in spec["commands"]
+          }
+          export = commands[("meetings", "export")]
+          assert export["jsonMode"] == "--stdout --format json"
+          PY
 
       - name: Release Bundle Smoke
         timeout-minutes: 15

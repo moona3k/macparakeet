@@ -245,6 +245,19 @@ final class LLMJSONOutputTests: XCTestCase {
     func testCLINormalizesArgumentParserValidationExitCodeToPublicContract() {
         XCTAssertEqual(CLI.normalizedExitCode(for: ExitCode.validationFailure).rawValue, 2)
         XCTAssertEqual(CLI.normalizedExitCode(for: ValidationError("bad combo")).rawValue, 2)
+        XCTAssertEqual(
+            CLI.normalizedExitCode(for: CLIRetranscribeError.kindMismatch(expected: .transcription, actual: .meeting))
+                .rawValue,
+            2
+        )
+        XCTAssertEqual(
+            CLI.normalizedExitCode(for: CLIRetranscribeError.dictationDoesNotSupportSpeakerOptions).rawValue,
+            2
+        )
+        XCTAssertEqual(
+            CLI.normalizedExitCode(for: CLIRetranscribeError.noRetainedAudio(kind: "dictation", id: UUID())),
+            .failure
+        )
         XCTAssertEqual(CLI.normalizedExitCode(for: ExitCode.failure), .failure)
     }
 

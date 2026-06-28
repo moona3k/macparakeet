@@ -443,6 +443,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `cli_operation` event. `transcribe` keeps its extra coarse input/output
   metadata; other commands report only command path, outcome, duration, exit
   code, and error type.
+- Plain-text `retranscribe` validation/misuse failures now use exit code `2`,
+  matching the JSON envelope path and the public exit-code contract.
 - `transcribe` now defaults `--speaker-detection` to `app-default`, so bare
   CLI transcription follows the saved GUI/CLI speaker-detection preference.
   Use `--speaker-detection on` to force diarization for one run, or
