@@ -433,13 +433,13 @@ public actor DictationService: DictationServiceProtocol {
         _state = .processing
         logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
-        // Sample the recording duration once at stop time so failure/empty
-        // telemetry reports recording length, not recording length plus STT
-        // latency. Stays nil if capture stops before we can sample it.
-        var capturedDurationMs: Int?
+        // Sample recording length at the stop request, before stopCapture()'s
+        // WAV finalization, so the no-timestamp duration fallback and any
+        // failure/empty telemetry report capture length rather than length plus
+        // finalization/STT latency. Mirrors cancelRecording's capture point.
+        let capturedDurationMs = currentRecordingDurationMs()
         do {
             let audioURL = try await audioProcessor.stopCapture()
-            capturedDurationMs = currentRecordingDurationMs()
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
@@ -508,18 +508,18 @@ public actor DictationService: DictationServiceProtocol {
             if Self.isNoSpeechError(error) {
                 sendDictationOperation(
                     outcome: .empty,
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
                 Telemetry.send(.dictationEmpty(
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     device: device
                 ))
             } else {
                 sendDictationOperation(
                     outcome: .failure,
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
@@ -593,7 +593,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledDurationMs = capturedDurationMs
         _state = .cancelled
         Telemetry.send(.dictationCancelled(
-            durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+            durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
             reason: reason,
             device: device
         ))
@@ -619,7 +619,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
-        let cancelledDurationSeconds = pendingCancelledDurationSeconds() ?? currentRecordingDurationSeconds()
+        let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
         discardPendingCancelledAudio()
 
         if case .recording = _state {
@@ -721,18 +721,18 @@ public actor DictationService: DictationServiceProtocol {
             if Self.isNoSpeechError(error) {
                 sendDictationOperation(
                     outcome: .empty,
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
                 Telemetry.send(.dictationEmpty(
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     device: device
                 ))
             } else {
                 sendDictationOperation(
                     outcome: .failure,
-                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
@@ -1334,7 +1334,7 @@ public actor DictationService: DictationServiceProtocol {
         if case .cancelled = _state {
             sendDictationOperation(
                 outcome: .cancelled,
-                durationSeconds: pendingCancelledDurationSeconds() ?? currentRecordingDurationSeconds(),
+                durationSeconds: resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs),
                 cancelReason: pendingCancelReason
             )
             discardPendingCancelledAudio()
@@ -1355,8 +1355,13 @@ public actor DictationService: DictationServiceProtocol {
         return max(1, Int((seconds * 1000).rounded()))
     }
 
-    private func pendingCancelledDurationSeconds() -> Double? {
-        durationSeconds(fromMilliseconds: pendingCancelledDurationMs)
+    /// Duration to report in telemetry, in seconds, preferring the snapshot
+    /// taken at stop/cancel time. The live-clock fallback is only a safety net
+    /// for the rare path that never captured a snapshot; by the time these
+    /// telemetry calls fire `recordingStartedAt` has usually drifted past the
+    /// real capture length, which is exactly why the snapshot wins.
+    private func resolvedDurationSeconds(capturedMs: Int?) -> Double? {
+        durationSeconds(fromMilliseconds: capturedMs) ?? currentRecordingDurationSeconds()
     }
 
     private func durationSeconds(fromMilliseconds milliseconds: Int?) -> Double? {
