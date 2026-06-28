@@ -17,10 +17,12 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
     public static let frameSizeEnvironmentKey = "MACPARAKEET_MEETING_ECHO_FRAME_SIZE"
     public static let sampleRateEnvironmentKey = "MACPARAKEET_MEETING_ECHO_SAMPLE_RATE"
     public static let referenceDelayMsEnvironmentKey = "MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS"
+    public static let adaptiveReferenceDelayEnvironmentKey = "MACPARAKEET_MEETING_ECHO_ADAPTIVE_DELAY"
 
     public static let defaultSampleRate = 16_000
     public static let defaultFrameSize = 256
     public static let defaultReferenceDelayMs = 0
+    public static let defaultAdaptiveReferenceDelay = true
 
     public var mode: MeetingEchoSuppressionMode
     public var libraryURL: URL?
@@ -30,8 +32,14 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
     public var frameSize: Int
     /// How far behind the microphone the system-audio reference is read, in
     /// milliseconds, approximating the output + acoustic + input echo-path
-    /// latency. 0 reads the reference at the microphone's own position.
+    /// latency. 0 reads the reference at the microphone's own position. When
+    /// `adaptiveReferenceDelay` is on this is the seed/override used until the
+    /// first confident estimate; otherwise it is the fixed alignment.
     public var referenceDelayMs: Int
+    /// Recover the reference delay from the audio at runtime instead of relying
+    /// only on the static `referenceDelayMs`. On by default; the static value
+    /// still seeds the estimate and overrides when this is off.
+    public var adaptiveReferenceDelay: Bool
 
     public init(
         mode: MeetingEchoSuppressionMode = .automatic,
@@ -40,7 +48,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
         modelSHA256: String? = nil,
         sampleRate: Int = Self.defaultSampleRate,
         frameSize: Int = Self.defaultFrameSize,
-        referenceDelayMs: Int = Self.defaultReferenceDelayMs
+        referenceDelayMs: Int = Self.defaultReferenceDelayMs,
+        adaptiveReferenceDelay: Bool = Self.defaultAdaptiveReferenceDelay
     ) {
         self.mode = mode
         self.libraryURL = libraryURL
@@ -49,6 +58,7 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
         self.sampleRate = max(1, sampleRate)
         self.frameSize = max(1, frameSize)
         self.referenceDelayMs = max(0, referenceDelayMs)
+        self.adaptiveReferenceDelay = adaptiveReferenceDelay
     }
 
     public static func fromEnvironment(
@@ -71,6 +81,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
             .flatMap(Self.integerValue(from:)) ?? defaultFrameSize
         let referenceDelayMs = environment[referenceDelayMsEnvironmentKey]
             .flatMap(Self.integerValue(from:)) ?? defaultReferenceDelayMs
+        let adaptiveReferenceDelay = environment[adaptiveReferenceDelayEnvironmentKey]
+            .flatMap(Self.boolValue(from:)) ?? defaultAdaptiveReferenceDelay
 
         return MeetingEchoSuppressionConfiguration(
             mode: mode,
@@ -79,7 +91,8 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
             modelSHA256: modelSHA256,
             sampleRate: sampleRate,
             frameSize: frameSize,
-            referenceDelayMs: referenceDelayMs
+            referenceDelayMs: referenceDelayMs,
+            adaptiveReferenceDelay: adaptiveReferenceDelay
         )
     }
 
@@ -97,6 +110,17 @@ public struct MeetingEchoSuppressionConfiguration: Sendable, Equatable {
 
     private static func integerValue(from value: String) -> Int? {
         Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func boolValue(from value: String) -> Bool? {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on", "enabled":
+            return true
+        case "0", "false", "no", "off", "disabled":
+            return false
+        default:
+            return nil
+        }
     }
 }
 
@@ -245,14 +269,60 @@ enum MeetingEchoSuppressionFactory {
             )
             // The processor may report its own sample rate, so the ms→samples
             // conversion happens here rather than in the configuration.
-            let referenceDelaySamples = configuration.referenceDelayMs * processor.sampleRate / 1_000
+            // Search up to ~100 ms of echo-path latency (the practical ceiling
+            // for laptop speaker→mic bleed), extended to cover the configured
+            // seed but capped at ~200 ms so a large manual reference delay
+            // cannot make the off-lock correlation, analysis buffer, or fixed
+            // reference-retention buffer unbounded.
+            let referenceDelaySamples = boundedReferenceDelaySamples(
+                referenceDelayMs: configuration.referenceDelayMs,
+                sampleRate: processor.sampleRate
+            )
+            let searchCeiling = adaptiveReferenceDelaySearchCeiling(sampleRate: processor.sampleRate)
+            let referenceDelayWasCapped = referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: configuration.referenceDelayMs,
+                sampleRate: processor.sampleRate
+            )
+            if referenceDelayWasCapped {
+                logger.warning(
+                    "meeting_echo_reference_delay_clamped requested_ms=\(configuration.referenceDelayMs, privacy: .public) capped_samples=\(referenceDelaySamples, privacy: .public)"
+                )
+            }
+            let estimator: MeetingEchoDelayEstimator?
+            if configuration.adaptiveReferenceDelay, !referenceDelayWasCapped {
+                let maxLag = min(max(processor.sampleRate / 10, referenceDelaySamples), searchCeiling)
+                estimator = MeetingEchoDelayEstimator(maxLagSamples: max(1, maxLag))
+            } else {
+                estimator = nil
+            }
             return StreamingMeetingEchoSuppressor(
                 processor: processor,
-                referenceDelaySamples: referenceDelaySamples
+                referenceDelaySamples: referenceDelaySamples,
+                estimator: estimator,
+                reestimateIntervalSamples: max(1, processor.sampleRate / 2)
             )
         } catch {
             return unavailableDynamicConditioner(reason: "load_failed", error: error)
         }
+    }
+
+    static func adaptiveReferenceDelaySearchCeiling(sampleRate: Int) -> Int {
+        max(1, max(1, sampleRate) / 5)
+    }
+
+    static func boundedReferenceDelaySamples(referenceDelayMs: Int, sampleRate: Int) -> Int {
+        let sampleRate = max(1, sampleRate)
+        let ceiling = adaptiveReferenceDelaySearchCeiling(sampleRate: sampleRate)
+        let requested = Double(max(0, referenceDelayMs)) * Double(sampleRate) / 1_000
+        guard requested.isFinite, requested < Double(ceiling) else { return ceiling }
+        return max(0, Int(requested))
+    }
+
+    static func referenceDelayExceedsSearchCeiling(referenceDelayMs: Int, sampleRate: Int) -> Bool {
+        let sampleRate = max(1, sampleRate)
+        let ceiling = adaptiveReferenceDelaySearchCeiling(sampleRate: sampleRate)
+        let requested = Double(max(0, referenceDelayMs)) * Double(sampleRate) / 1_000
+        return !requested.isFinite || requested > Double(ceiling)
     }
 
     private static func unavailableDynamicConditioner(

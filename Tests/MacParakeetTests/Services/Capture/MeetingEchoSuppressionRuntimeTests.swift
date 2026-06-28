@@ -22,11 +22,57 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertEqual(configuration.referenceDelayMs, 120)
     }
 
+    func testAdaptiveReferenceDelayDefaultsOnAndParsesEnvironment() {
+        XCTAssertTrue(
+            MeetingEchoSuppressionConfiguration().adaptiveReferenceDelay,
+            "adaptive delay recovery is on by default")
+
+        let disabled = MeetingEchoSuppressionConfiguration.fromEnvironment([
+            MeetingEchoSuppressionConfiguration.adaptiveReferenceDelayEnvironmentKey: " OFF "
+        ])
+        XCTAssertFalse(disabled.adaptiveReferenceDelay)
+
+        let enabled = MeetingEchoSuppressionConfiguration.fromEnvironment([
+            MeetingEchoSuppressionConfiguration.adaptiveReferenceDelayEnvironmentKey: "1"
+        ])
+        XCTAssertTrue(enabled.adaptiveReferenceDelay)
+    }
+
     func testReferenceDelayDefaultsToZeroAndClampsNegative() {
         XCTAssertEqual(MeetingEchoSuppressionConfiguration().referenceDelayMs, 0)
         XCTAssertEqual(
             MeetingEchoSuppressionConfiguration(referenceDelayMs: -50).referenceDelayMs,
             0
+        )
+    }
+
+    func testReferenceDelaySampleBoundsStayFinite() {
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.adaptiveReferenceDelaySearchCeiling(sampleRate: 16_000),
+            3_200
+        )
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.boundedReferenceDelaySamples(referenceDelayMs: 75, sampleRate: 16_000),
+            1_200
+        )
+        XCTAssertFalse(
+            MeetingEchoSuppressionFactory.referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: 200,
+                sampleRate: 16_000
+            )
+        )
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.boundedReferenceDelaySamples(
+                referenceDelayMs: 10_000,
+                sampleRate: 16_000
+            ),
+            3_200
+        )
+        XCTAssertTrue(
+            MeetingEchoSuppressionFactory.referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: 10_000,
+                sampleRate: 16_000
+            )
         )
     }
 
