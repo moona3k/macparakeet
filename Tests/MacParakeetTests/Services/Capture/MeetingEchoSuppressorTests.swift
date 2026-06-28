@@ -188,6 +188,71 @@ final class MeetingEchoSuppressorTests: XCTestCase {
         XCTAssertEqual(suppressor.flush(), [])
     }
 
+    // MARK: Adaptive reference delay
+
+    func testAdaptiveSuppressorRecoversLargeBulkDelayFromZeroSeed() {
+        // A 600-sample bulk delay the static zero seed cannot align. With an
+        // estimator the suppressor recovers it from the audio and cancels in
+        // steady state, where the static-zero case (see the measurement tests)
+        // leaves the echo untouched or worse.
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "far-end-only", nearEndActive: false, farEndActive: true,
+            echoPath: MeetingAecEchoPath(taps: [(delay: 600, gain: 0.6)]),
+            noiseLevel: 0.0001)
+
+        let adaptive = StreamingMeetingEchoSuppressor(
+            processor: MeetingAecOracleSubtractor(gain: 0.6),
+            referenceDelaySamples: 0,
+            estimator: MeetingEchoDelayEstimator())
+        let output = MeetingAecRunner.run(adaptive, scenario: scenario)
+
+        let erle = MeetingAecMetrics.erleDB(
+            mic: scenario.mic, output: output, over: scenario.steadyStateWindow)
+        XCTAssertGreaterThan(erle, 20, "the suppressor self-aligns to the bulk delay and cancels in steady state")
+        XCTAssertGreaterThanOrEqual(adaptive.diagnostics.delayEstimateCount, 1)
+        XCTAssertEqual(adaptive.diagnostics.currentDelaySamples, 600, accuracy: 2, "adopts the recovered delay")
+        XCTAssertGreaterThan(adaptive.diagnostics.delayConfidence, 0.5)
+    }
+
+    func testAdaptiveSuppressorKeepsSeedWhenReferenceIsSilent() {
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "near-end-only", nearEndActive: true, farEndActive: false,
+            echoPath: MeetingAecEchoPath(taps: [(delay: 600, gain: 0.6)]))
+
+        let seed = 5
+        let adaptive = StreamingMeetingEchoSuppressor(
+            processor: MeetingAecOracleSubtractor(gain: 0.6),
+            referenceDelaySamples: seed,
+            estimator: MeetingEchoDelayEstimator())
+        _ = MeetingAecRunner.run(adaptive, scenario: scenario)
+
+        XCTAssertEqual(adaptive.diagnostics.currentDelaySamples, seed, "a silent reference keeps the seed delay")
+        XCTAssertEqual(adaptive.diagnostics.delayEstimateCount, 0)
+        XCTAssertGreaterThanOrEqual(
+            adaptive.diagnostics.rejectedDelayEstimates, 1,
+            "a silent far-end is a rejected estimate, not an adopted one")
+    }
+
+    func testResetClearsAdaptiveDelayState() {
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "far-end-only", nearEndActive: false, farEndActive: true,
+            echoPath: MeetingAecEchoPath(taps: [(delay: 600, gain: 0.6)]),
+            noiseLevel: 0.0001)
+
+        let adaptive = StreamingMeetingEchoSuppressor(
+            processor: MeetingAecOracleSubtractor(gain: 0.6),
+            referenceDelaySamples: 0,
+            estimator: MeetingEchoDelayEstimator())
+        _ = MeetingAecRunner.run(adaptive, scenario: scenario)
+        XCTAssertGreaterThanOrEqual(adaptive.diagnostics.delayEstimateCount, 1)
+
+        adaptive.reset()
+        XCTAssertEqual(adaptive.diagnostics.currentDelaySamples, 0, "reset returns the delay to the seed")
+        XCTAssertEqual(adaptive.diagnostics.delayEstimateCount, 0)
+        XCTAssertEqual(adaptive.diagnostics.rejectedDelayEstimates, 0)
+        XCTAssertEqual(adaptive.flush(), [])
+    }
+
     private func rounded(_ value: Float) -> Float {
         (value * 1_000).rounded() / 1_000
     }

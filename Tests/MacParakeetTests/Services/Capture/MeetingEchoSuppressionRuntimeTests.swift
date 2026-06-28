@@ -22,6 +22,22 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertEqual(configuration.referenceDelayMs, 120)
     }
 
+    func testAdaptiveReferenceDelayDefaultsOnAndParsesEnvironment() {
+        XCTAssertTrue(
+            MeetingEchoSuppressionConfiguration().adaptiveReferenceDelay,
+            "adaptive delay recovery is on by default")
+
+        let disabled = MeetingEchoSuppressionConfiguration.fromEnvironment([
+            MeetingEchoSuppressionConfiguration.adaptiveReferenceDelayEnvironmentKey: " OFF "
+        ])
+        XCTAssertFalse(disabled.adaptiveReferenceDelay)
+
+        let enabled = MeetingEchoSuppressionConfiguration.fromEnvironment([
+            MeetingEchoSuppressionConfiguration.adaptiveReferenceDelayEnvironmentKey: "1"
+        ])
+        XCTAssertTrue(enabled.adaptiveReferenceDelay)
+    }
+
     func testReferenceDelayDefaultsToZeroAndClampsNegative() {
         XCTAssertEqual(MeetingEchoSuppressionConfiguration().referenceDelayMs, 0)
         XCTAssertEqual(
