@@ -1063,6 +1063,11 @@ struct TranscriptResultView: View {
                 LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     transcriptPaneHeader
 
+                    if activeTranscription.sourceType == .meeting,
+                       !activeTranscription.hasWordTimestamps {
+                        meetingNoWordTimestampsBanner
+                    }
+
                     if shouldShowTranscriptAISetupBanner {
                         chatConfigurationBanner
                     }
@@ -2264,6 +2269,59 @@ struct TranscriptResultView: View {
             }
             .parakeetAction(.secondary)
             .controlSize(.small)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.accentLight)
+        )
+    }
+
+    /// Shown above a meeting transcript that has no word timestamps (e.g. it was
+    /// transcribed with Cohere). Makes the "text-only, no speaker labels"
+    /// trade-off visible and offers the one re-transcribe path that fixes it, so
+    /// a user can't silently end up with an un-diarizable meeting.
+    private var meetingNoWordTimestampsBanner: some View {
+        // Resolve the Parakeet rerun choice from the live transcription so the
+        // banner stays in sync with what's actually shown, and offer it as a
+        // direct one-click confirmation (the action bar keeps the full picker
+        // for other engines). `nil` when there is no retained audio to rerun.
+        let parakeetRerun: SpeechEngineSelection? =
+            onRetranscribe != nil
+            && (activeTranscription.filePath.map { FileManager.default.fileExists(atPath: $0) } ?? false)
+            ? viewModel.retranscriptionEngineOption(for: activeTranscription)?
+                .choices.first { $0.selection.engine == .parakeet && $0.isAvailable }?.selection
+            : nil
+        return HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "person.2.slash")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No speaker labels")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text(parakeetRerun != nil
+                     ? "This meeting has no word timestamps, so it has no speaker labels or timed segments. Re-transcribe it with Parakeet to add them."
+                     : "This meeting has no word timestamps, so it has no speaker labels or timed segments. Re-transcribing with Parakeet would add them, but the meeting audio is no longer available.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            if let parakeetRerun {
+                Button {
+                    retranscriptionConfirmation = RetranscriptionConfirmation(
+                        transcriptionID: activeTranscription.id,
+                        speechEngineOverride: parakeetRerun
+                    )
+                } label: {
+                    Label("Retranscribe with Parakeet", systemImage: "arrow.trianglehead.2.clockwise")
+                }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+            }
         }
         .padding(DesignSystem.Spacing.md)
         .background(
