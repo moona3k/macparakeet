@@ -40,6 +40,23 @@ public final class TranscriptionViewModel {
         public var title: String {
             "Retranscribe with speech engine"
         }
+
+        public var firstTimestampCapableChoice: Choice? {
+            choices.first { choice in
+                choice.isAvailable && producesWordTimestamps(choice.selection)
+            }
+        }
+
+        public func producesWordTimestamps(_ selection: SpeechEngineSelection) -> Bool {
+            switch selection.engine {
+            case .parakeet:
+                !parakeetVariant.usesUnifiedEngine
+            case .nemotron, .whisper:
+                true
+            case .cohere:
+                false
+            }
+        }
     }
 
     public enum SourceKind: Sendable {

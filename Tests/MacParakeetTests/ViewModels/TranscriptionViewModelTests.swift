@@ -1872,6 +1872,111 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(option.parakeetVariant, .v2)
     }
 
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesParakeetTDT() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { false },
+            isNemotronModelDownloaded: { false }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-timestamps-parakeet-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Cohere Meeting",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .meeting,
+            engine: SpeechEnginePreference.cohere.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(
+            option.firstTimestampCapableChoice?.selection,
+            SpeechEngineSelection(engine: .parakeet)
+        )
+    }
+
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceSkipsParakeetUnified() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { false }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-timestamps-unified-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Unified Meeting",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .meeting,
+            engine: SpeechEnginePreference.parakeet.rawValue,
+            engineVariant: ParakeetModelVariant.unified.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertFalse(option.producesWordTimestamps(SpeechEngineSelection(engine: .parakeet)))
+        XCTAssertEqual(
+            option.firstTimestampCapableChoice?.selection,
+            SpeechEngineSelection(engine: .whisper)
+        )
+    }
+
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceNilWhenOnlyWordlessEnginesAreAvailable() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { false },
+            isNemotronModelDownloaded: { false },
+            isCohereModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-timestamps-none-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Wordless Meeting",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .meeting,
+            engine: SpeechEnginePreference.cohere.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertNil(option.firstTimestampCapableChoice)
+    }
+
     func testRetranscriptionEngineOptionFallsBackToCurrentDefaultForLegacyFileTranscript() throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
