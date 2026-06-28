@@ -2807,9 +2807,10 @@ struct TranscriptResultView: View {
                 }
             }
 
-            // Options only apply to Text/Markdown; subtitle, JSON, and document
-            // formats embed timing/speakers/metadata by definition, so showing
-            // greyed toggles for them would just be noise.
+            // The Options toggles apply only to Text/Markdown. SRT/VTT are
+            // cue-only, and JSON/PDF/DOCX always include whatever the transcript
+            // has — so none of those take these toggles; showing them greyed
+            // would just be noise.
             if selectedExportFormat.supportsTranscriptOptions {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Options")

@@ -47,13 +47,28 @@ final class TranscriptExportOptionsTests: XCTestCase {
         XCTAssertTrue(t.hasSpeakerLabeledWords)
     }
 
-    /// The legacy / plain-text-engine state: a `speakers` roster exists (so the
-    /// header shows "N speakers") but no word carries a `speakerId`. Speaker
-    /// labels cannot be exported, so this must be false.
-    func testHasSpeakerLabeledWordsFalseWhenSpeakersButNoAttributedWords() {
+    /// Words are present but none carries a `speakerId` (diarization ran but
+    /// attributed nothing). Speaker labels cannot be exported, so this is false.
+    /// Exercises the `contains { speakerId != nil }` branch.
+    func testHasSpeakerLabeledWordsFalseWhenWordsHaveNoSpeakerId() {
         let t = Transcription(
             fileName: "a.mp3",
             wordTimestamps: words(withSpeaker: false),
+            speakerCount: 3,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        )
+        XCTAssertFalse(t.hasSpeakerLabeledWords)
+    }
+
+    /// The motivating legacy / plain-text-engine state: a `speakers` roster
+    /// exists (so the header shows "N speakers") but the engine emitted no word
+    /// timings at all — Parakeet Unified / Cohere, or pre-#623 diarized records.
+    /// Speaker labels cannot be exported, so this must be false. Exercises the
+    /// `guard let wordTimestamps` branch.
+    func testHasSpeakerLabeledWordsFalseWhenSpeakersButNoWordTimestamps() {
+        let t = Transcription(
+            fileName: "a.mp3",
+            wordTimestamps: nil,
             speakerCount: 3,
             speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")]
         )
