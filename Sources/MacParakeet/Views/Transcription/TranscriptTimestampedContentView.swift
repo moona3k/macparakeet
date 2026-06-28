@@ -264,6 +264,7 @@ private struct TranscriptSegmentRow: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 
