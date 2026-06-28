@@ -1,0 +1,50 @@
+Sources/MacParakeet/Views/Transcription/TranscriptFindBar.swift
+  s_bd1e560867eb41::t_a03d6e1287d2cf 1-105
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_bd1e560867eb41::t_5e7e27cfdb6799 1143-1152,1163-1169
+  s_bd1e560867eb41::t_e3274b3f2a3f4a 116-125
+  s_bd1e560867eb41::t_917590bd403ccc 229-233
+  s_bd1e560867eb41::t_ccc6b4e330bc1b 2629-2632,2650-2652
+  s_bd1e560867eb41::t_fb6a6c181f3084 244,248,252
+  s_bd1e560867eb41::t_506f55226d4b47 1083-1087
+  s_bd1e560867eb41::t_8c559012af1fef 6-15
+  s_bd1e560867eb41::t_86c3eeea3d921c 1201-1331
+  s_bd1e560867eb41::t_5bc34644a48546 1153
+  s_bd1e560867eb41::t_2c79b8d4f3a8c6 1476,1478-1533
+  s_bd1e560867eb41::t_87d61fb8856fc4 154
+Tests/MacParakeetTests/ViewModels/TranscriptFindModelTests.swift
+  s_bd1e560867eb41::t_3a0af444908a5d 1-159
+Sources/MacParakeetViewModels/TranscriptFindModel.swift
+  s_bd1e560867eb41::t_6408e7f6184309 1-140
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_bd1e560867eb41::t_d897c5e6d2a82c 52-53
+  s_bd1e560867eb41::t_ffc71d3284c089 69-70
+  s_bd1e560867eb41::t_abbfe037006178 103-104,107-108
+  s_bd1e560867eb41::t_2577e463ff7429 34-35,38-40
+  s_bd1e560867eb41::t_392360ca415014 18-22
+  s_bd1e560867eb41::t_1c0ef93a90b0a2 201-214
+  s_bd1e560867eb41::t_f42559c52610ba 2
+  s_bd1e560867eb41::t_f919ee78851025 155-159,173
+Sources/MacParakeet/Views/Transcription/TranscriptFindHighlight.swift
+  s_bd1e560867eb41::t_f0b99cd8c5b7e9 1-48
+plans/README.md
+  s_bd1e560867eb41::t_87f55d5ebf1e55 64
+plans/active/2026-06-28-transcript-detail-refresh.md
+  s_bd1e560867eb41::t_d085c2611f5451 37-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "392aa2b7888e80af98b78ced984456805ea4aa25",
+  "prompts": {},
+  "sessions": {
+    "s_bd1e560867eb41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9c4d3c4-d2fc-423b-be81-f538addba172",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
