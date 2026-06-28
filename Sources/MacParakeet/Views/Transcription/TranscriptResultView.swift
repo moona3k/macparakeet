@@ -1179,7 +1179,13 @@ struct TranscriptResultView: View {
             }
             scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
                 if self.playerViewModel.isPlaying {
-                    self.findPausedAutoScroll = false
+                    if self.findPausedAutoScroll {
+                        // Manual scroll takes ownership and should start the
+                        // normal bounded pause below, not inherit find's pause.
+                        self.findPausedAutoScroll = false
+                        self.autoScrollPaused = false
+                        self.scrollPauseTask?.cancel()
+                    }
                     if !self.autoScrollPaused {
                         self.autoScrollPaused = true
                         self.lastScrolledSegmentMs = -1
