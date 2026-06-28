@@ -289,6 +289,49 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(events.first?.props?["elapsed_ms"], "0")
     }
 
+    func testMicHealthTelemetryReportsFlappingSilentMicOnce() async throws {
+        // A listening (not speaking) participant produces a near-silent mic that
+        // momentarily crosses the non-silent threshold and back — the monitor
+        // recovers and re-trips `.micSilent` on every crossing. Without per-recording
+        // dedup this single recording emits hundreds of identical events (the field
+        // firehose: ~38k events from ~240 sessions). It must emit exactly once.
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let telemetry = MeetingAudioTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let now = MutableDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture },
+            micHealthConfig: .init(systemActiveConfirmationSeconds: 0),
+            micHealthNowProvider: { now.value() }
+        )
+
+        _ = try await service.start()
+        defer { Task { await service.stop() } }
+
+        let silent = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0, 0, 0, 0]))
+        let loud = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, 0.25, 0.25, 0.25]))
+
+        // Mic delivers a silent buffer first (so the confirmed signature is mic_silent,
+        // not mic_missing), then system audio goes active and confirms the stall.
+        microphone.emit(buffer: silent, time: AVAudioTime(hostTime: 1))
+        systemCapture.emit(buffer: loud, time: AVAudioTime(hostTime: 1))
+
+        // Flap silent<->non-silent many times: each cycle recovers then re-trips
+        // `.micSilent`. Dedup must collapse all of these to the single first event.
+        for _ in 0..<10 {
+            microphone.emit(buffer: loud, time: AVAudioTime(hostTime: 1))
+            microphone.emit(buffer: silent, time: AVAudioTime(hostTime: 1))
+        }
+
+        let events = telemetry.snapshot().filter { $0.name == .micStallDetected }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.props?["signature"], "mic_silent")
+    }
+
     func testMicHealthTelemetryDoesNotRunInSystemOnlyMode() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()

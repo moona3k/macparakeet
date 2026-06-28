@@ -366,6 +366,14 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
     private let featureEnabled: Bool
     private var monitor: MeetingMicHealthMonitor
     private var isObserving = false
+    /// ADR-025 Phase A specifies `mic_stall_detected` is "fired once per confirmed
+    /// stall trip" so the field can confirm *which* signatures occur. But the monitor
+    /// re-trips every time a near-silent mic momentarily crosses the non-silent
+    /// threshold — i.e. a participant who is listening, not speaking — so a single
+    /// recording re-detects the same signature continuously. We dedup to once per
+    /// recording per signature: enough to learn the signature's field incidence (the
+    /// Phase A goal) without the per-buffer firehose. Reset on every `start`.
+    private var reportedSignatures: Set<MeetingMicHealthMonitor.StallSignature> = []
 
     init(
         config: MeetingMicHealthMonitor.Config = .default,
@@ -381,6 +389,7 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
     func start(observing sourceIncludesMicrophone: Bool) {
         lock.withLock {
             monitor = MeetingMicHealthMonitor(config: config)
+            reportedSignatures.removeAll()
             isObserving = featureEnabled && sourceIncludesMicrophone
         }
     }
@@ -388,6 +397,7 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
     func stop() {
         lock.withLock {
             monitor.reset()
+            reportedSignatures.removeAll()
             isObserving = false
         }
     }
@@ -417,17 +427,26 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
         systemSignal: MeetingMicHealthMonitor.AudioSignal?
     ) {
         let now = nowProvider()
-        let events = lock.withLock {
-            guard isObserving else { return [MeetingMicHealthMonitor.HealthEvent]() }
-            return monitor.ingest(micSignal: micSignal, systemSignal: systemSignal, now: now)
-        }
-
-        for event in events {
-            guard case let .stallSuspected(signature, elapsedMs) = event else {
+        // Resolve which signatures are newly reported *inside* the lock (the monitor
+        // state and the dedup set are both mutated from the audio callback thread),
+        // then emit telemetry outside it so `Telemetry.send` never runs under the lock.
+        let freshStalls: [(MeetingMicHealthMonitor.StallSignature, Int)] = lock.withLock {
+            guard isObserving else { return [] }
+            let events = monitor.ingest(micSignal: micSignal, systemSignal: systemSignal, now: now)
+            var fresh: [(MeetingMicHealthMonitor.StallSignature, Int)] = []
+            for event in events {
                 // ADR-025 Phase A emits only detection telemetry; warning and recovery
                 // surfaces consume `.recovered` in later phases.
-                continue
+                guard case let .stallSuspected(signature, elapsedMs) = event else { continue }
+                // First occurrence of this signature in the current recording only.
+                if reportedSignatures.insert(signature).inserted {
+                    fresh.append((signature, elapsedMs))
+                }
             }
+            return fresh
+        }
+
+        for (signature, elapsedMs) in freshStalls {
             Telemetry.send(.micStallDetected(signature: .init(signature), elapsedMs: elapsedMs))
         }
     }
