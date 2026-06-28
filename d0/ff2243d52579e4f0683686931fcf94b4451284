@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/STT/STTRuntimeInferenceGatingTests.swift
+  s_c469bc36f67951::t_9cba1b1690d381 75-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d0ff2243d52579e4f0683686931fcf94b4451284",
+  "prompts": {},
+  "sessions": {
+    "s_c469bc36f67951": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d79-d3ca-74a3-9f53-1c39b71e214d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
