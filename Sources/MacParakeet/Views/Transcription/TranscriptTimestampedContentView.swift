@@ -22,7 +22,7 @@ struct TranscriptTimestampedContentView: View {
 
     var body: some View {
         if hasSpeakers {
-            ForEach(turns, id: \.segments.first?.startMs) { turn in
+            ForEach(Array(turns.enumerated()), id: \.offset) { _, turn in
                 TranscriptTurnCardView(
                     speakerLabel: speakerLabelForID(turn.speakerId),
                     speakerColor: speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
@@ -39,23 +39,32 @@ struct TranscriptTimestampedContentView: View {
                 .id(turn.segments.first?.startMs ?? 0)
             }
         } else {
-            ForEach(Array(segments.enumerated()), id: \.element.startMs) { index, segment in
-                TranscriptSegmentRow(
-                    startMs: segment.startMs,
-                    text: segment.text,
-                    timestampText: timestampLabel(segment.startMs),
-                    isActive: isSegmentActive(index),
-                    isSeekable: isTimestampSeekable,
-                    bodyFont: bodyFont,
-                    showRowBackground: true,
-                    highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
-                    currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
-                    onPlayFromHere: { onTimestampTap(segment.startMs) }
-                )
-                .id(segment.startMs)
+            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                ZStack(alignment: .topLeading) {
+                    timestampScrollAnchor(startMs: segment.startMs)
+                    TranscriptSegmentRow(
+                        startMs: segment.startMs,
+                        text: segment.text,
+                        timestampText: timestampLabel(segment.startMs),
+                        isActive: isSegmentActive(index),
+                        isSeekable: isTimestampSeekable,
+                        bodyFont: bodyFont,
+                        showRowBackground: true,
+                        highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
+                        currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
+                        onPlayFromHere: { onTimestampTap(segment.startMs) }
+                    )
+                }
             }
         }
     }
+}
+
+private func timestampScrollAnchor(startMs: Int) -> some View {
+    Color.clear
+        .frame(width: 1, height: 1)
+        .id(startMs)
+        .accessibilityHidden(true)
 }
 
 private struct TranscriptTurnCardView: View {
@@ -125,7 +134,10 @@ private struct TranscriptTurnCardView: View {
         } else {
             // Non-first rows get their own anchors so find navigation can land
             // inside a speaker turn without shifting the first-line/card target.
-            row.id(segment.startMs)
+            ZStack(alignment: .topLeading) {
+                timestampScrollAnchor(startMs: segment.startMs)
+                row
+            }
         }
     }
 
