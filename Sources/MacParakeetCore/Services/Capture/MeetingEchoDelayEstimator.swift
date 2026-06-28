@@ -66,9 +66,9 @@ struct MeetingEchoDelayEstimator: Sendable {
         let refEmphasized = Self.preEmphasized(reference, coefficient: preEmphasis, count: count)
 
         // Use the most-recent window that fits after reserving `maxLagSamples` of
-        // history so `reference[n - lag]` is always in range.
+        // history so `reference[n - lag]` is always in range. The `count` guard
+        // above keeps `count - maxLagSamples >= 2`, so `windowLength >= 1`.
         let windowLength = min(analysisWindowSamples, count - maxLagSamples)
-        guard windowLength > 0 else { return nil }
         let windowStart = count - windowLength
 
         return micEmphasized.withUnsafeBufferPointer { mic in

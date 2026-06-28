@@ -156,6 +156,9 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
     private var analysisReference: [Float] = []
     private var samplesSinceEstimate = 0
     private var hasAttemptedEstimate = false
+    /// Bumped by `reset()` so an estimate computed off the lock from pre-reset
+    /// audio is discarded instead of overwriting fresh state.
+    private var estimationGeneration = 0
 
     var diagnostics: MeetingEchoSuppressionDiagnostics {
         lock.lock()
@@ -203,18 +206,30 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         guard !microphone.isEmpty else { return [] }
 
         lock.lock()
-        defer { lock.unlock() }
-
         pendingMicrophone.append(contentsOf: microphone)
         for index in 0..<microphone.count {
             let hasSample = hasSpeakerReference && index < speaker.count
             referenceHistory.append(hasSample ? speaker[index] : 0)
             referenceValidity.append(hasSample)
         }
-
         accumulateAnalysisLocked(microphone: microphone, speaker: speaker, hasSpeakerReference: hasSpeakerReference)
         let output = drainProcessableFramesLocked()
-        maybeReestimateDelayLocked(addedSamples: microphone.count)
+        let pendingEstimate = dueEstimationSnapshotLocked(addedSamples: microphone.count)
+        lock.unlock()
+
+        // The cross-correlation is O(maxLag x window); run it off the lock so it
+        // never stalls a concurrent condition()/flush()/diagnostics access. The
+        // worst case is the estimate landing one batch later than the data that
+        // triggered it, which is immaterial at a multi-hundred-ms cadence.
+        if let pendingEstimate, let estimator {
+            applyDelayEstimate(
+                estimator.estimate(
+                    microphone: pendingEstimate.microphone,
+                    reference: pendingEstimate.reference
+                ),
+                generation: pendingEstimate.generation
+            )
+        }
         return output
     }
 
@@ -243,6 +258,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         analysisReference.removeAll()
         samplesSinceEstimate = 0
         hasAttemptedEstimate = false
+        estimationGeneration += 1
         diagnosticsStorage = Self.freshDiagnostics(
             processorName: processor.name,
             currentDelaySamples: currentDelaySamples
@@ -285,6 +301,12 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         var consumed = 0
 
         while consumed + frameSize <= pendingMicrophone.count {
+            // A processor receives `output` as inout and may resize it; restore
+            // the frame size each iteration so one bad frame cannot cascade the
+            // rest of this batch to raw fallback.
+            if processedFrame.count != frameSize {
+                processedFrame = [Float](repeating: 0, count: frameSize)
+            }
             for offset in 0..<frameSize {
                 micFrame[offset] = pendingMicrophone[consumed + offset]
             }
@@ -389,20 +411,39 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         }
     }
 
-    private func maybeReestimateDelayLocked(addedSamples: Int) {
-        guard let estimator else { return }
+    private struct EstimationInput {
+        let microphone: [Float]
+        let reference: [Float]
+        let generation: Int
+    }
+
+    /// If an estimate is due and enough history exists, mark the attempt and
+    /// return a copy-on-write snapshot of the analysis buffers to estimate on
+    /// outside the lock. Returns nil when no estimator is configured, the buffer
+    /// is too small, or the cadence has not elapsed.
+    private func dueEstimationSnapshotLocked(addedSamples: Int) -> EstimationInput? {
+        guard estimator != nil else { return nil }
         samplesSinceEstimate += addedSamples
         let ready = analysisMicrophone.count >= minimumAnalysisSamples
         let due = !hasAttemptedEstimate || samplesSinceEstimate >= reestimateIntervalSamples
-        guard ready, due else { return }
+        guard ready, due else { return nil }
 
         hasAttemptedEstimate = true
         samplesSinceEstimate = 0
-
-        if let estimate = estimator.estimate(
+        return EstimationInput(
             microphone: analysisMicrophone,
-            reference: analysisReference
-        ) {
+            reference: analysisReference,
+            generation: estimationGeneration
+        )
+    }
+
+    private func applyDelayEstimate(_ estimate: MeetingEchoDelayEstimate?, generation: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        // Drop a result computed from audio that a reset() has since cleared.
+        guard generation == estimationGeneration else { return }
+
+        if let estimate {
             currentDelaySamples = min(estimate.delaySamples, retentionDelaySamples)
             diagnosticsStorage.currentDelaySamples = currentDelaySamples
             diagnosticsStorage.delayConfidence = estimate.confidence

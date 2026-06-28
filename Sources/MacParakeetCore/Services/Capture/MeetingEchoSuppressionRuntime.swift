@@ -271,9 +271,11 @@ enum MeetingEchoSuppressionFactory {
             // conversion happens here rather than in the configuration.
             let referenceDelaySamples = configuration.referenceDelayMs * processor.sampleRate / 1_000
             // Search up to ~100 ms of echo-path latency, the practical ceiling
-            // for laptop speaker→mic bleed; the seed remains the starting point.
+            // for laptop speaker→mic bleed, but never less than the configured
+            // seed so a deliberately large manual delay is not narrowed away.
             let estimator = configuration.adaptiveReferenceDelay
-                ? MeetingEchoDelayEstimator(maxLagSamples: max(1, processor.sampleRate / 10))
+                ? MeetingEchoDelayEstimator(
+                    maxLagSamples: max(1, processor.sampleRate / 10, referenceDelaySamples))
                 : nil
             return StreamingMeetingEchoSuppressor(
                 processor: processor,
