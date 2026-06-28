@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import MacParakeetCore
 
 struct TranscriptTimestampedContentView: View {
@@ -14,6 +15,11 @@ struct TranscriptTimestampedContentView: View {
     /// User-adjustable reading size for the transcript body (U4). Defaults to the
     /// design-system `bodyLarge` so existing call sites are unaffected.
     var bodyFont: Font = DesignSystem.Typography.bodyLarge
+    /// In-transcript find highlights (U2), looked up by a row's `startMs`.
+    /// Returns the match ranges to wash inside that row; empty when find is idle.
+    var highlightRanges: (Int) -> [NSRange] = { _ in [] }
+    /// The single emphasized ("current") match, identified by its row `startMs`.
+    var currentHighlight: (id: Int, range: NSRange)?
 
     var body: some View {
         if hasSpeakers {
@@ -25,9 +31,13 @@ struct TranscriptTimestampedContentView: View {
                     timestampLabel: timestampLabel,
                     isTimestampSeekable: isTimestampSeekable,
                     bodyFont: bodyFont,
+                    highlightRanges: highlightRanges,
+                    currentHighlight: currentHighlight,
                     onTimestampTap: onTimestampTap
                 )
-                .id(turn.segments.first?.startMs ?? 0)
+                // Scroll anchors live on the inner segment rows (see below) so
+                // find/auto-scroll can target an individual line; the turn's
+                // first row carries this turn's first `startMs`.
             }
         } else {
             ForEach(Array(segments.enumerated()), id: \.element.startMs) { index, segment in
@@ -39,6 +49,8 @@ struct TranscriptTimestampedContentView: View {
                     isSeekable: isTimestampSeekable,
                     bodyFont: bodyFont,
                     showRowBackground: true,
+                    highlightRanges: highlightRanges(segment.startMs),
+                    currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
                     onPlayFromHere: { onTimestampTap(segment.startMs) }
                 )
                 .id(segment.startMs)
@@ -54,6 +66,8 @@ private struct TranscriptTurnCardView: View {
     let timestampLabel: (Int) -> String
     let isTimestampSeekable: Bool
     var bodyFont: Font
+    var highlightRanges: (Int) -> [NSRange] = { _ in [] }
+    var currentHighlight: (id: Int, range: NSRange)?
     let onTimestampTap: (Int) -> Void
 
     var body: some View {
@@ -86,8 +100,12 @@ private struct TranscriptTurnCardView: View {
                         isSeekable: isTimestampSeekable,
                         bodyFont: bodyFont,
                         showRowBackground: false,
+                        highlightRanges: highlightRanges(segment.startMs),
+                        currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
                         onPlayFromHere: { onTimestampTap(segment.startMs) }
                     )
+                    // Scroll anchor for find/auto-scroll at line granularity.
+                    .id(segment.startMs)
                 }
             }
         }
@@ -134,6 +152,11 @@ private struct TranscriptSegmentRow: View {
     /// Flat list rows draw their own active/inactive surface; turn-card rows sit
     /// inside the card and pass `false`.
     var showRowBackground: Bool
+    /// In-transcript find matches inside this row's text (U2). Empty on the
+    /// fast path keeps the row a plain `Text`.
+    var highlightRanges: [NSRange] = []
+    /// The emphasized match within this row, if the find cursor is on it.
+    var currentRange: NSRange?
     let onPlayFromHere: () -> Void
 
     @State private var isHovering = false
@@ -147,8 +170,7 @@ private struct TranscriptSegmentRow: View {
                 onTap: { _ in onPlayFromHere() }
             )
 
-            Text(text)
-                .font(bodyFont)
+            bodyTextCore
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .textSelection(.enabled)
                 .lineSpacing(5)
@@ -174,6 +196,20 @@ private struct TranscriptSegmentRow: View {
                 isHovering = hovering
             }
         }
+    }
+
+    /// Plain `Text` on the idle fast path; an attributed, highlighted `Text`
+    /// only when this row carries find matches.
+    private var bodyTextCore: Text {
+        guard !highlightRanges.isEmpty else {
+            return Text(text).font(bodyFont)
+        }
+        return Text(TranscriptFindHighlight.attributed(
+            text,
+            ranges: highlightRanges,
+            current: currentRange,
+            baseFont: bodyFont
+        ))
     }
 
     private var hoverActions: some View {

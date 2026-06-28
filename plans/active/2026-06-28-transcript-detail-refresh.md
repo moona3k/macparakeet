@@ -34,6 +34,23 @@
 - **Category**: ui, transcription, library, view-decomposition
 - **Planned at**: commit `672ee1028`, 2026-06-28
 
+### Progress
+
+- **Phase 1 — DONE** (commit `e91ca2699`): U1 per-segment hover actions + U4
+  reading font-size. `swift build` + full `swift test` green.
+- **U2 in-transcript find — DONE** (this branch): testable `TranscriptFindModel`
+  (`MacParakeetViewModels`, 17 unit tests) + pinned `TranscriptFindBar` (modeled
+  on `SettingsSearchField`, ⌘F focus / ⌘G·⇧⌘G nav / Esc clear-then-close /
+  "X of Y" counter) + shared `TranscriptFindHighlight` (`AttributedString`
+  accent wash, current match bolded). Works in **both** Timed (per-segment rows,
+  scroll by `startMs`) and Text mode (paragraph blocks anchored by line index).
+  Find-navigate sets `autoScrollPaused` so playback-follow doesn't fight it.
+  Verified: default build, Swift-6 language-mode gate, full `swift test` all
+  green. Live GUI eyeball deferred (concurrent agent sessions on this Mac steal
+  GUI focus).
+- **Remaining**: U3 (one quiet rail in every mode), U5 (finish god-file
+  decomposition).
+
 ## Why this matters
 
 The transcript detail view is where users land after every file/URL/meeting
