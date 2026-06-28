@@ -58,8 +58,10 @@ Each command is a `ParsableCommand` / `AsyncParsableCommand`. Command families
   reuse one.
 - **Record lookup:** resolve ids through the shared helpers in `CLIHelpers.swift`
   (`findTranscription`, `findPrompt`, …) or a family's `resolve*`. They accept
-  an exact UUID, a ≥4-char UUID prefix, or a name, and produce consistent
-  ambiguity/not-found errors. Don't hand-roll `hasPrefix` matching.
+  an exact UUID and a ≥4-char UUID prefix; the helpers for named records
+  (`findTranscription`, `findMeeting`, `findPrompt`) also accept a
+  case-insensitive name. All produce consistent ambiguity/not-found errors.
+  Don't hand-roll `hasPrefix` matching.
 - **Database access:** open via `DatabaseManager(path: resolvedDatabasePath(database))`
   after `try AppPaths.ensureDirectories()`, then a GRDB repository. Prefer
   repository fetch/update over raw SQL (GRDB UUID storage may not equal
