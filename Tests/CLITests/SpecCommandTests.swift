@@ -111,6 +111,7 @@ final class SpecCommandTests: XCTestCase {
                 "models",
                 "prompts",
                 "quick-prompts",
+                "retranscribe",
                 "spec",
                 "stats",
                 "transcribe",
@@ -180,6 +181,7 @@ final class SpecCommandTests: XCTestCase {
             ["vocab", "import"],
             ["history", "favorite"],
             ["history", "delete-meeting-audio"],
+            ["retranscribe"],
             ["stats"],
             ["export"],
             ["calendar", "upcoming"],
@@ -313,6 +315,37 @@ final class SpecCommandTests: XCTestCase {
             language["summary"] as? String,
             "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."
         )
+    }
+
+    func testRetranscribeSpecDocumentsCurrentSurface() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let retranscribe = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["retranscribe"] })
+
+        XCTAssertEqual(
+            retranscribe["summary"] as? String,
+            "Retranscribe retained source audio for an existing saved dictation, transcription, or meeting in place."
+        )
+        XCTAssertEqual(retranscribe["readOnly"] as? Bool, false)
+        XCTAssertEqual(retranscribe["jsonMode"] as? String, "--json|--envelope")
+
+        let arguments = try XCTUnwrap(retranscribe["arguments"] as? [[String: Any]])
+        XCTAssertEqual(arguments.first?["name"] as? String, "record")
+
+        let options = try XCTUnwrap(retranscribe["options"] as? [[String: Any]])
+        let optionNames = Set(options.compactMap { $0["name"] as? String })
+        XCTAssertTrue(optionNames.contains("--kind"))
+        XCTAssertTrue(optionNames.contains("--update"))
+        XCTAssertTrue(optionNames.contains("--json"))
+        XCTAssertTrue(optionNames.contains("--envelope"))
+        XCTAssertTrue(optionNames.contains("--engine"))
+        XCTAssertTrue(optionNames.contains("--language"))
+        XCTAssertTrue(optionNames.contains("--parakeet-model"))
+        XCTAssertTrue(optionNames.contains("--nemotron-model"))
+        XCTAssertTrue(optionNames.contains("--speaker-count"))
+        XCTAssertTrue(optionNames.contains("--speaker-min"))
+        XCTAssertTrue(optionNames.contains("--speaker-max"))
+        XCTAssertTrue(optionNames.contains("--database"))
     }
 
     func testSpecDocumentsConfigAndModelsCommands() throws {

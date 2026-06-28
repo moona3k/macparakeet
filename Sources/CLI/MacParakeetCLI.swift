@@ -16,6 +16,7 @@ struct CLI: AsyncParsableCommand {
         version: cliVersion,
         subcommands: [
             TranscribeCommand.self,
+            RetranscribeCommand.self,
             HistoryCommand.self,
             ExportCommand.self,
             StatsCommand.self,

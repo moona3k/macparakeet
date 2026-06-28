@@ -244,6 +244,29 @@ language. Cohere has no auto-detect; `--engine cohere` uses the saved
 app-default` resolves to Nemotron, Whisper, or Cohere, an explicit `--language`
 overrides the saved language for that invocation.
 
+### Retranscribe Existing Records
+
+Use `retranscribe` when a support or agent workflow needs to rerun STT against
+source audio that MacParakeet already retained for a saved row:
+
+```bash
+swift run macparakeet-cli retranscribe "<ID_OR_TITLE>" --update --json
+swift run macparakeet-cli retranscribe "<MEETING_ID>" \
+  --kind meeting \
+  --update \
+  --engine app-default \
+  --parakeet-model app-default \
+  --speaker-detection app-default \
+  --mode app-default \
+  --envelope
+```
+
+The command updates the existing row in place, so `--update` is required. It
+fails cleanly when source audio was not retained or has been deleted. Use
+`--kind dictation|transcription|meeting` when a UUID prefix or title is
+ambiguous. Speaker-detection flags apply to saved transcriptions and meetings;
+dictations reject those flags.
+
 ### Speaker Diarization
 
 Speaker detection follows the saved app/CLI preference by default. A fresh
