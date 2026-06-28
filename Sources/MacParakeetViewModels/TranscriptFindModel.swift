@@ -100,7 +100,7 @@ public final class TranscriptFindModel {
     /// 1-based "current of total" position for the counter, or `nil` when
     /// there are no matches.
     public var displayPosition: (current: Int, total: Int)? {
-        guard let i = currentMatchIndex, !matches.isEmpty else { return nil }
+        guard let i = currentMatchIndex, matches.indices.contains(i) else { return nil }
         return (i + 1, matches.count)
     }
 

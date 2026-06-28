@@ -2809,7 +2809,7 @@ struct TranscriptResultView: View {
                 scrollPauseTask?.cancel()
             },
             bodyFont: scaledTranscriptFont,
-            highlightRanges: { highlights[$0] ?? [] },
+            highlightRangesByStartMs: highlights,
             currentHighlight: current
         )
     }

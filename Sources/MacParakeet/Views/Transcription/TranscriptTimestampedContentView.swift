@@ -15,9 +15,8 @@ struct TranscriptTimestampedContentView: View {
     /// User-adjustable reading size for the transcript body (U4). Defaults to the
     /// design-system `bodyLarge` so existing call sites are unaffected.
     var bodyFont: Font = DesignSystem.Typography.bodyLarge
-    /// In-transcript find highlights (U2), looked up by a row's `startMs`.
-    /// Returns the match ranges to wash inside that row; empty when find is idle.
-    var highlightRanges: (Int) -> [NSRange] = { _ in [] }
+    /// In-transcript find highlights (U2), keyed by a row's `startMs`.
+    var highlightRangesByStartMs: [Int: [NSRange]] = [:]
     /// The single emphasized ("current") match, identified by its row `startMs`.
     var currentHighlight: (id: Int, range: NSRange)?
 
@@ -31,7 +30,7 @@ struct TranscriptTimestampedContentView: View {
                     timestampLabel: timestampLabel,
                     isTimestampSeekable: isTimestampSeekable,
                     bodyFont: bodyFont,
-                    highlightRanges: highlightRanges,
+                    highlightRangesByStartMs: highlightRangesByStartMs,
                     currentHighlight: currentHighlight,
                     onTimestampTap: onTimestampTap
                 )
@@ -49,7 +48,7 @@ struct TranscriptTimestampedContentView: View {
                     isSeekable: isTimestampSeekable,
                     bodyFont: bodyFont,
                     showRowBackground: true,
-                    highlightRanges: highlightRanges(segment.startMs),
+                    highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
                     currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
                     onPlayFromHere: { onTimestampTap(segment.startMs) }
                 )
@@ -66,7 +65,7 @@ private struct TranscriptTurnCardView: View {
     let timestampLabel: (Int) -> String
     let isTimestampSeekable: Bool
     var bodyFont: Font
-    var highlightRanges: (Int) -> [NSRange] = { _ in [] }
+    var highlightRangesByStartMs: [Int: [NSRange]] = [:]
     var currentHighlight: (id: Int, range: NSRange)?
     let onTimestampTap: (Int) -> Void
 
@@ -117,7 +116,7 @@ private struct TranscriptTurnCardView: View {
             isSeekable: isTimestampSeekable,
             bodyFont: bodyFont,
             showRowBackground: false,
-            highlightRanges: highlightRanges(segment.startMs),
+            highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
             currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
             onPlayFromHere: { onTimestampTap(segment.startMs) }
         )
