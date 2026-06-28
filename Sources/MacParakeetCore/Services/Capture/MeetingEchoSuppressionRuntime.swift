@@ -270,17 +270,25 @@ enum MeetingEchoSuppressionFactory {
             // The processor may report its own sample rate, so the ms→samples
             // conversion happens here rather than in the configuration.
             let referenceDelaySamples = configuration.referenceDelayMs * processor.sampleRate / 1_000
-            // Search up to ~100 ms of echo-path latency, the practical ceiling
-            // for laptop speaker→mic bleed, but never less than the configured
-            // seed so a deliberately large manual delay is not narrowed away.
-            let estimator = configuration.adaptiveReferenceDelay
-                ? MeetingEchoDelayEstimator(
-                    maxLagSamples: max(1, processor.sampleRate / 10, referenceDelaySamples))
-                : nil
+            // Search up to ~100 ms of echo-path latency (the practical ceiling
+            // for laptop speaker→mic bleed), extended to cover the configured
+            // seed but capped at ~200 ms so a large manual reference delay
+            // cannot make the off-lock correlation or the analysis buffer
+            // unbounded. A seed beyond that cap is a deliberate manual override,
+            // so adaptation is disabled and the fixed seed is used as-is.
+            let searchCeiling = max(1, processor.sampleRate / 5)
+            let estimator: MeetingEchoDelayEstimator?
+            if configuration.adaptiveReferenceDelay, referenceDelaySamples <= searchCeiling {
+                let maxLag = min(max(processor.sampleRate / 10, referenceDelaySamples), searchCeiling)
+                estimator = MeetingEchoDelayEstimator(maxLagSamples: max(1, maxLag))
+            } else {
+                estimator = nil
+            }
             return StreamingMeetingEchoSuppressor(
                 processor: processor,
                 referenceDelaySamples: referenceDelaySamples,
-                estimator: estimator
+                estimator: estimator,
+                reestimateIntervalSamples: max(1, processor.sampleRate / 2)
             )
         } catch {
             return unavailableDynamicConditioner(reason: "load_failed", error: error)

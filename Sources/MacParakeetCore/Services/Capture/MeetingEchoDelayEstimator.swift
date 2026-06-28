@@ -79,17 +79,33 @@ struct MeetingEchoDelayEstimator: Sendable {
                 }
                 guard micEnergy > 0 else { return nil }
 
+                var refEnergies: [Float] = []
+                refEnergies.reserveCapacity(maxLagSamples + 1)
+                var currentRefEnergy: Float = 0
+                for n in windowStart..<count {
+                    let r = ref[n]
+                    currentRefEnergy += r * r
+                }
+                refEnergies.append(currentRefEnergy)
+                if maxLagSamples > 0 {
+                    for lag in 1...maxLagSamples {
+                        let removed = ref[count - lag]
+                        let added = ref[windowStart - lag]
+                        currentRefEnergy += added * added - removed * removed
+                        refEnergies.append(max(0, currentRefEnergy))
+                    }
+                }
+
                 var bestLag = 0
                 var bestScore: Float = 0  // |normalized correlation|
                 for lag in 0...maxLagSamples {
+                    let refEnergy = refEnergies[lag]
+                    guard refEnergy > 0 else { continue }
                     var cross: Float = 0
-                    var refEnergy: Float = 0
                     for n in windowStart..<count {
                         let r = ref[n - lag]
                         cross += mic[n] * r
-                        refEnergy += r * r
                     }
-                    guard refEnergy > 0 else { continue }
                     let normalized = cross / (micEnergy * refEnergy).squareRoot()
                     let score = abs(normalized)
                     if score > bestScore {

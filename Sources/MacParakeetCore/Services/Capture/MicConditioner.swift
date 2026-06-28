@@ -159,6 +159,9 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
     /// Bumped by `reset()` so an estimate computed off the lock from pre-reset
     /// audio is discarded instead of overwriting fresh state.
     private var estimationGeneration = 0
+    /// Bumped for every scheduled estimate so a slower older snapshot cannot
+    /// overwrite a newer result when callers invoke `condition()` concurrently.
+    private var latestEstimationAttemptID = 0
 
     var diagnostics: MeetingEchoSuppressionDiagnostics {
         lock.lock()
@@ -186,10 +189,17 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         self.currentDelaySamples = max(0, referenceDelaySamples)
 
         if let estimator {
+            // estimate() requires count > maxLag + 1, so both the rolling buffer
+            // and the trigger threshold must clear maxLag + 2 even for tiny
+            // analysis windows; otherwise estimation could never fire.
+            let estimateFloor = estimator.maxLagSamples + 2
             self.retentionDelaySamples = max(self.seedDelaySamples, estimator.maxLagSamples)
-            self.analysisCapacity = estimator.maxLagSamples + estimator.analysisWindowSamples
-            self.minimumAnalysisSamples = estimator.maxLagSamples
-                + min(estimator.analysisWindowSamples, 4_096)
+            self.analysisCapacity = max(
+                estimateFloor,
+                estimator.maxLagSamples + estimator.analysisWindowSamples)
+            self.minimumAnalysisSamples = max(
+                estimateFloor,
+                estimator.maxLagSamples + min(estimator.analysisWindowSamples, 4_096))
         } else {
             self.retentionDelaySamples = self.seedDelaySamples
             self.analysisCapacity = 0
@@ -227,7 +237,8 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
                     microphone: pendingEstimate.microphone,
                     reference: pendingEstimate.reference
                 ),
-                generation: pendingEstimate.generation
+                generation: pendingEstimate.generation,
+                attemptID: pendingEstimate.attemptID
             )
         }
         return output
@@ -259,6 +270,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         samplesSinceEstimate = 0
         hasAttemptedEstimate = false
         estimationGeneration += 1
+        latestEstimationAttemptID += 1
         diagnosticsStorage = Self.freshDiagnostics(
             processorName: processor.name,
             currentDelaySamples: currentDelaySamples
@@ -400,9 +412,14 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
     ) {
         guard estimator != nil else { return }
         analysisMicrophone.append(contentsOf: microphone)
-        for index in 0..<microphone.count {
-            let hasSample = hasSpeakerReference && index < speaker.count
-            analysisReference.append(hasSample ? speaker[index] : 0)
+        if hasSpeakerReference {
+            let commonCount = min(microphone.count, speaker.count)
+            analysisReference.append(contentsOf: speaker.prefix(commonCount))
+            if commonCount < microphone.count {
+                analysisReference.append(contentsOf: repeatElement(Float.zero, count: microphone.count - commonCount))
+            }
+        } else {
+            analysisReference.append(contentsOf: repeatElement(Float.zero, count: microphone.count))
         }
         let overflow = analysisMicrophone.count - analysisCapacity
         if overflow > 0 {
@@ -415,6 +432,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         let microphone: [Float]
         let reference: [Float]
         let generation: Int
+        let attemptID: Int
     }
 
     /// If an estimate is due and enough history exists, mark the attempt and
@@ -430,18 +448,28 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
 
         hasAttemptedEstimate = true
         samplesSinceEstimate = 0
+        latestEstimationAttemptID += 1
         return EstimationInput(
             microphone: analysisMicrophone,
             reference: analysisReference,
-            generation: estimationGeneration
+            generation: estimationGeneration,
+            attemptID: latestEstimationAttemptID
         )
     }
 
-    private func applyDelayEstimate(_ estimate: MeetingEchoDelayEstimate?, generation: Int) {
+    private func applyDelayEstimate(
+        _ estimate: MeetingEchoDelayEstimate?,
+        generation: Int,
+        attemptID: Int
+    ) {
         lock.lock()
         defer { lock.unlock() }
-        // Drop a result computed from audio that a reset() has since cleared.
-        guard generation == estimationGeneration else { return }
+        // Drop a result computed from stale audio: either a reset() has cleared
+        // the buffers, or a newer concurrent condition() call has scheduled a
+        // fresher snapshot.
+        guard generation == estimationGeneration,
+            attemptID == latestEstimationAttemptID
+        else { return }
 
         if let estimate {
             currentDelaySamples = min(estimate.delaySamples, retentionDelaySamples)

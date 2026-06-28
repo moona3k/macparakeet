@@ -248,9 +248,29 @@ final class MeetingEchoSuppressorTests: XCTestCase {
 
         adaptive.reset()
         XCTAssertEqual(adaptive.diagnostics.currentDelaySamples, 0, "reset returns the delay to the seed")
+        XCTAssertEqual(adaptive.diagnostics.delayConfidence, 0, "reset clears the last adopted estimate confidence")
         XCTAssertEqual(adaptive.diagnostics.delayEstimateCount, 0)
         XCTAssertEqual(adaptive.diagnostics.rejectedDelayEstimates, 0)
         XCTAssertEqual(adaptive.flush(), [])
+    }
+
+    func testAdaptiveSuppressorFeedsEstimatorEnoughSamplesForSmallWindows() {
+        // Guards the buffer/threshold floor of maxLag + 2: a tiny analysis window
+        // must not leave the suppressor permanently one sample short of
+        // estimate()'s requirement, which would make every attempt return nil.
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "far-end-only", nearEndActive: false, farEndActive: true,
+            echoPath: MeetingAecEchoPath(taps: [(delay: 20, gain: 0.6)]),
+            noiseLevel: 0.0001)
+        let adaptive = StreamingMeetingEchoSuppressor(
+            processor: MeetingAecOracleSubtractor(gain: 0.6),
+            referenceDelaySamples: 0,
+            estimator: MeetingEchoDelayEstimator(maxLagSamples: 64, analysisWindowSamples: 1))
+        _ = MeetingAecRunner.run(adaptive, scenario: scenario)
+
+        XCTAssertGreaterThanOrEqual(
+            adaptive.diagnostics.delayEstimateCount, 1,
+            "the suppressor must supply enough samples for estimate() to run, even with a tiny window")
     }
 
     private func rounded(_ value: Float) -> Float {
