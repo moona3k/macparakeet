@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Transcription/TranscriptFindBar.swift
+  s_5bcc2a21e169c4::t_1e55e5f44aa9d0 83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "5c77511d608d767535ea3c6b19427b2cde9aa38c",
+  "prompts": {},
+  "sessions": {
+    "s_5bcc2a21e169c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0df8-f4aa-7b02-9293-a25a9e181c2a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
