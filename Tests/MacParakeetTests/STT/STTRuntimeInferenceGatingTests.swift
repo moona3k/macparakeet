@@ -1,16 +1,17 @@
 import XCTest
 @testable import MacParakeetCore
 
-/// Pins the macOS-14 SIGBUS invariant at the `STTRuntime` boundary: every
-/// Parakeet TDT inference funnels through ``STTRuntime/gatedParakeetTranscribe``
-/// and therefore through the injected ``ANEInferenceGate``.
+/// Pins the macOS-14 SIGBUS invariant at the `STTRuntime` boundary: work run
+/// through the runtime's injected ``ANEInferenceGate`` serializes.
 ///
 /// `ANEInferenceGateTests` proves the gate primitive serializes; this proves the
-/// runtime actually routes through it. The real `transcribe(job:)` paths can't
-/// run in CI (CoreML/Parakeet models are unavailable), so the gate is injected
-/// with `serializationRequired: true` and exercised through the same chokepoint
-/// the production call sites use — which is why a future call site that bypasses
-/// `gatedParakeetTranscribe` would not be covered, and must not be added.
+/// runtime's injected gate is wired and serializing. The real `transcribe(job:)`
+/// paths can't run in CI (CoreML/Parakeet models are unavailable) and inline the
+/// gate inside actor-isolated closures that can't be reached from a test, so the
+/// test exercises the same injected gate through the `runUnderInferenceGate`
+/// seam. Production correctness — that every `manager.transcribe(...)` site wraps
+/// `inferenceGate.withExclusiveAccess` — is enforced by review + the STT README,
+/// not this test.
 final class STTRuntimeInferenceGatingTests: XCTestCase {
 
     /// Tracks how many closures are inside the gate simultaneously.
@@ -51,11 +52,9 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
         }
     }
 
-    /// On macOS 14 (`serializationRequired: true`) concurrent Parakeet inference
-    /// driven through the runtime's chokepoint must never overlap — the whole
-    /// point of the gate. A regression that bypasses `gatedParakeetTranscribe`
-    /// (as the dictation pad path originally did) reopens the concurrent
-    /// Neural Engine SIGBUS.
+    /// On macOS 14 (`serializationRequired: true`) concurrent work driven through
+    /// the runtime's injected gate must never overlap — the whole point of the
+    /// gate that the dictation pad path originally bypassed.
     func testRuntimeSerializesParakeetInferenceWhenRequired() async {
         let runtime = STTRuntime(inferenceGate: ANEInferenceGate(serializationRequired: true))
         let tracker = ConcurrencyTracker()
@@ -63,7 +62,7 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
         await withTaskGroup(of: Void.self) { group in
             for _ in 0..<8 {
                 group.addTask {
-                    try? await runtime.gatedParakeetTranscribe {
+                    try? await runtime.runUnderInferenceGate {
                         await tracker.enter()
                         // Hold briefly so any overlap would be observable.
                         try? await Task.sleep(nanoseconds: 2_000_000)
@@ -89,7 +88,7 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
         await withTaskGroup(of: Void.self) { group in
             for _ in 0..<2 {
                 group.addTask {
-                    try? await runtime.gatedParakeetTranscribe {
+                    try? await runtime.runUnderInferenceGate {
                         await rendezvous.arrive()
                     }
                 }

@@ -161,17 +161,19 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.inferenceGate = inferenceGate
     }
 
-    /// Runs one Parakeet TDT Neural Engine inference under ``inferenceGate``.
-    ///
-    /// Every `AsrManager.transcribe(...)` call in this runtime MUST go through
-    /// here. On macOS 14 the gate serializes inference to avoid the concurrent
-    /// Neural Engine SIGBUS (FluidAudio #661); a call site that bypasses it
-    /// reopens that crash for whichever lane runs unguarded. No-op on macOS 15+.
-    func gatedParakeetTranscribe<T>(
-        _ body: () async throws -> T
-    ) async throws -> T {
+    #if DEBUG
+    /// Test seam: runs `body` under the runtime's injected ``inferenceGate`` so a
+    /// test can prove the runtime serializes Neural Engine work on macOS 14
+    /// without a CoreML model present. Production inference can't funnel through a
+    /// shared helper — its closure captures the actor-owned, non-Sendable
+    /// `AsrManager`, which Swift 6 only lets the gate close over inline — so each
+    /// `manager.transcribe(...)` site inlines `inferenceGate.withExclusiveAccess`
+    /// instead. Every such site MUST be gated; a bare call reopens the concurrent
+    /// Neural Engine SIGBUS (FluidAudio #661) for whichever lane runs unguarded.
+    func runUnderInferenceGate<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
         try await inferenceGate.withExclusiveAccess(body)
     }
+    #endif
 
     func transcribe(
         audioPath: String,
@@ -498,7 +500,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                     // paths below: this short-clip finalize is the common
                     // dictation case, so leaving it ungated lets it race a
                     // concurrent background transcription and SIGBUS on macOS 14.
-                    let result = try await gatedParakeetTranscribe {
+                    let result = try await inferenceGate.withExclusiveAccess {
                         try await manager.transcribe(paddedSamples, decoderState: &decoderState)
                     }
                     onProgress?(100, 100)
@@ -548,7 +550,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             // macOS 15+). Model setup and progress plumbing stay outside the
             // hardware mutex so unsupported or preprocessing-only work does not
             // delay interactive inference.
-            let result = try await gatedParakeetTranscribe {
+            let result = try await inferenceGate.withExclusiveAccess {
                 try await manager.transcribe(audioURL, decoderState: &decoderState)
             }
             let words = STTWordTimingBuilder.words(from: result.tokenTimings)
@@ -681,7 +683,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             try Task.checkCancellation()
             var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
             try Task.checkCancellation()
-            let result = try await gatedParakeetTranscribe {
+            let result = try await inferenceGate.withExclusiveAccess {
                 try await manager.transcribe(samples, decoderState: &decoderState)
             }
             return STTResult(
