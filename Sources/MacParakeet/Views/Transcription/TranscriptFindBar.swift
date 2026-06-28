@@ -78,6 +78,8 @@ struct TranscriptFindBar: View {
     @ViewBuilder
     private var counter: some View {
         ZStack(alignment: .trailing) {
+            Text("No results")
+                .hidden()
             Text("000 of 000")
                 .hidden()
 
