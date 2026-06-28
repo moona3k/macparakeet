@@ -33,4 +33,11 @@ final class TranscriptSegmentClipboardTests: XCTestCase {
             "hi"
         )
     }
+
+    func testTimestampedEmptyBodyStillTrimsTrailingSpace() {
+        XCTAssertEqual(
+            TranscriptSegmentClipboard.text(timestampLabel: "1:00", body: "   "),
+            "[1:00] "
+        )
+    }
 }

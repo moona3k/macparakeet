@@ -118,7 +118,8 @@ struct TranscriptResultView: View {
     @State private var transcriptDisplayModeBeforeEdit: TranscriptDisplayMode?
     /// User-adjustable transcript reading size (Transcript Detail Refresh / U4).
     /// Persisted; applies to both the Text and Timed reading surfaces.
-    @AppStorage("transcriptFontScale") private var transcriptFontScale: Double = 1.0
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptFontScaleKey)
+    private var transcriptFontScale: Double = 1.0
     private static let transcriptFontScaleRange: ClosedRange<Double> = 0.85...1.4
     private static let transcriptFontScaleStep: Double = 0.1
     private static let textFindAnchorBaseID = -1_000_000

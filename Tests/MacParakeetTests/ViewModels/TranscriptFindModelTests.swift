@@ -172,6 +172,19 @@ final class TranscriptFindModelTests: XCTestCase {
         XCTAssertEqual(m.current, .init(blockIndex: 2, range: NSRange(location: 0, length: 3)))
     }
 
+    func testSettingBlocksEmptyClearsMatchesWhileKeepingQuery() {
+        let m = model(["fox", "another fox"], query: "fox")
+        XCTAssertEqual(m.matchCount, 2)
+
+        m.setBlocks([])
+
+        XCTAssertEqual(m.query, "fox")
+        XCTAssertTrue(m.matches.isEmpty)
+        XCTAssertNil(m.currentMatchIndex)
+        XCTAssertNil(m.current)
+        XCTAssertNil(m.displayPosition)
+    }
+
     func testClearEmptiesEverything() {
         let m = model(["a a a"], query: "a")
         XCTAssertEqual(m.matchCount, 3)

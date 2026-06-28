@@ -57,6 +57,7 @@ struct TranscriptFindBar: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Close find (Esc)")
             .accessibilityLabel("Close find")
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
