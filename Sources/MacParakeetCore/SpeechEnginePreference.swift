@@ -109,7 +109,11 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         guard !trimmed.isEmpty, trimmed != "auto" else { return nil }
         let primary = trimmed.replacingOccurrences(of: "_", with: "-")
             .split(separator: "-").first.map(String.init) ?? trimmed
-        guard primary.count == 2, primary.allSatisfy(\.isLetter) else { return nil }
+        guard primary.allSatisfy(\.isLetter) else { return nil }
+        // `supportedLanguages` (from `CohereAsrConfig.Language`) is the sole
+        // authority for valid codes. Don't pre-filter on subtag length: a future
+        // ISO 639-2/3 entry (e.g. a 3-letter `yue`) would otherwise be dropped
+        // before this membership check ever runs.
         guard CohereTranscribeEngine.supportedLanguages.contains(where: { $0.code == primary }) else {
             return nil
         }

@@ -366,6 +366,19 @@ final class CohereTranscribeEngineTests: XCTestCase {
         XCTAssertNil(SpeechEnginePreference.normalizeCohereLanguage("xx"))
     }
 
+    func testNormalizeCohereLanguageAcceptsEverySupportedCode() {
+        // `supportedLanguages` is the sole authority for valid Cohere codes, so
+        // normalize must accept every one of them. It is not gated on a hardcoded
+        // subtag length: a future longer code (e.g. an ISO 639-3 entry) added to
+        // the FluidAudio language set must still round-trip, not be silently
+        // dropped before the membership check.
+        for (code, _) in CohereTranscribeEngine.supportedLanguages {
+            XCTAssertEqual(
+                SpeechEnginePreference.normalizeCohereLanguage(code), code,
+                "supported Cohere code '\(code)' must normalize to itself")
+        }
+    }
+
     func testCohereDefaultLanguageRoundTrips() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "cohere-lang-test-\(UUID().uuidString)"))
         XCTAssertNil(SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults))
