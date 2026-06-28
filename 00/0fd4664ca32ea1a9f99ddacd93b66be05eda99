@@ -1,0 +1,131 @@
+src/pages/404.astro
+  s_1bb59254d1dc1b::t_0f336e413ad0f9 1-51
+src/components/PlatformTranscribe.astro
+  s_1bb59254d1dc1b::t_c4e6b40da417fa 58
+src/components/Footer.astro
+  s_1bb59254d1dc1b::t_e8ec664f9cc0cc 6-12,18-23,29-34,40-45,51-56,62-64
+src/components/Header.astro
+  s_1bb59254d1dc1b::t_3be850132c0cb6 14,29-31,33,54-56,58
+src/content/blog/macparakeet-cli-1-0.md
+  s_1bb59254d1dc1b::t_333fedf3fe233a 130
+src/content/blog/macparakeet-open-source.md
+  s_1bb59254d1dc1b::t_a4d4b3a060eacf 48,78
+src/content/blog/transcribe-any-video-url.md
+  s_1bb59254d1dc1b::t_99788a313ba091 91,100,107-109
+src/layouts/BlogPost.astro
+  s_1bb59254d1dc1b::t_5f18d33d6e7d08 88,110
+src/lib/tools/tool-registry.ts
+  s_1bb59254d1dc1b::t_f0b6d5ac7b5bb5 28,35,42,49,56,63,70,77,84,91,98,105,112,119,126,133,140,147,154,161,168,175,182,189,196,203,210,217,224,231,238,245,252,259
+src/pages/[slug].astro
+  s_1bb59254d1dc1b::t_f0413546322028 89,96,103,110,217,328,457,906,1112,1123,1129,1302,1464,1470
+src/pages/agents.astro
+  s_1bb59254d1dc1b::t_1003619c7decce 12,38
+src/pages/dictation.astro
+  s_1bb59254d1dc1b::t_a204ebe0a3d334 16
+src/pages/index.astro
+  s_1bb59254d1dc1b::t_3c9f23d48bb80e 330,349,596
+src/pages/multilingual.astro
+  s_1bb59254d1dc1b::t_69790fdbcddaf9 44
+src/pages/privacy.astro
+  s_1bb59254d1dc1b::t_36c890585d0f74 57
+src/pages/tools/audio-duration-calculator.astro
+  s_1bb59254d1dc1b::t_6f406dec90ab3c 14,43,49,385,402,419
+src/pages/tools/audio-file-size-calculator.astro
+  s_1bb59254d1dc1b::t_a23f5789138e9c 14,43,49,397,414,431
+src/pages/tools/convert/ass-to-srt.astro
+  s_1bb59254d1dc1b::t_1f7f8c7c4046a0 14,43,49,55,257,274,291
+src/pages/tools/convert/sbv-to-srt.astro
+  s_1bb59254d1dc1b::t_cd8e10366fb53b 14,43,49,55,268,285,302
+src/pages/tools/convert/srt-to-ass.astro
+  s_1bb59254d1dc1b::t_647e21965235e2 14,43,49,55,271,288,305
+src/pages/tools/convert/srt-to-csv.astro
+  s_1bb59254d1dc1b::t_c3fd150b6384f8 14,43,49,55,267,284,301
+src/pages/tools/convert/srt-to-json.astro
+  s_1bb59254d1dc1b::t_3fa53bd78a2d17 14,43,49,55,268,285,302
+src/pages/tools/convert/srt-to-lrc.astro
+  s_1bb59254d1dc1b::t_9da9404a829cac 14,43,49,55,294,311,328
+src/pages/tools/convert/srt-to-sbv.astro
+  s_1bb59254d1dc1b::t_ef441009e1d206 14,43,49,55,266,283,300
+src/pages/tools/convert/srt-to-txt.astro
+  s_1bb59254d1dc1b::t_9e3b6e4ad5a96f 14,43,49,55,321,338,355
+src/pages/tools/convert/srt-to-vtt.astro
+  s_1bb59254d1dc1b::t_2cccd29559e517 14,43,49,55,274,291,308
+src/pages/tools/convert/txt-to-srt.astro
+  s_1bb59254d1dc1b::t_95ecbffe67e75d 14,43,49,55,329,346,363
+src/pages/tools/convert/vtt-to-srt.astro
+  s_1bb59254d1dc1b::t_a2fed3d4643c85 14,43,49,55,271,288,305
+src/pages/tools/convert/vtt-to-txt.astro
+  s_1bb59254d1dc1b::t_e69fbf01082b7a 14,43,49,55,306,323,340
+src/pages/tools/filler-word-counter.astro
+  s_1bb59254d1dc1b::t_4ea781286229a5 14,43,49,367,384,401
+src/pages/tools/index.astro
+  s_1bb59254d1dc1b::t_a62972bb5d967f 28,34,40,46,52,58,64,70,76,82,88,94,103,109,115,121,127,133,142,148,154,160,166,172,178,184,190,196,202,208,214,220,226,232,246,273
+src/pages/tools/interview-transcript-template.astro
+  s_1bb59254d1dc1b::t_dd163f7ad3498e 14,43,49,387,404,421
+src/pages/tools/meeting-minutes-template.astro
+  s_1bb59254d1dc1b::t_4957c97b4c8cd8 14,43,49,429,446,463
+src/pages/tools/merge-subtitles.astro
+  s_1bb59254d1dc1b::t_15bfd0449e424b 14,43,49,315,332,349
+src/pages/tools/playback-speed-calculator.astro
+  s_1bb59254d1dc1b::t_27e962f29c82a0 14,43,49,452,469,486
+src/pages/tools/reading-time-calculator.astro
+  s_1bb59254d1dc1b::t_6968c651c0799d 14,43,49,342,359,376
+src/pages/tools/show-notes-generator.astro
+  s_1bb59254d1dc1b::t_5afe54cb749d7c 14,43,49,407,424,441
+src/pages/tools/speech-time-calculator.astro
+  s_1bb59254d1dc1b::t_0c17cc6f2324ec 14,43,49,350,367,384
+src/pages/tools/split-subtitles.astro
+  s_1bb59254d1dc1b::t_ec4d729e0e4695 14,43,49,354,371,388
+src/pages/tools/srt-validator.astro
+  s_1bb59254d1dc1b::t_e17a96b8166c3f 14,43,49,320,337,354
+src/pages/tools/subtitle-character-count.astro
+  s_1bb59254d1dc1b::t_a8455fd0e59b0d 14,43,49,350,367,384
+src/pages/tools/subtitle-editor.astro
+  s_1bb59254d1dc1b::t_fa960cce7efb38 14,43,49,353,370,387
+src/pages/tools/subtitle-sync.astro
+  s_1bb59254d1dc1b::t_a5275493c0b7d5 14,43,49,301,318,335
+src/pages/tools/timestamp-generator.astro
+  s_1bb59254d1dc1b::t_e577c148e38cb3 14,43,49,334,351,368
+src/pages/tools/transcribe-video.astro
+  s_1bb59254d1dc1b::t_c2c1fa416539f6 14,43,49,361,378,395
+src/pages/tools/transcribe.astro
+  s_1bb59254d1dc1b::t_1002b40423b915 14,43,49,376,393,410
+src/pages/tools/transcription-cost-calculator.astro
+  s_1bb59254d1dc1b::t_a63b2dcfc315fd 14,43,49,350,367,384
+src/pages/tools/voice-to-text.astro
+  s_1bb59254d1dc1b::t_49bc8678b67ec8 14,43,49,379,396,413
+src/pages/tools/waveform-generator.astro
+  s_1bb59254d1dc1b::t_bf0d8c70a233aa 14,43,49,450,467,484
+src/pages/tools/youtube-transcript.astro
+  s_1bb59254d1dc1b::t_438f95416ef59c 14,43,49,351,368,385
+src/pages/transcribe-facebook-video.astro
+  s_1bb59254d1dc1b::t_546edd7ca1d1d9 42-46
+src/pages/transcribe-loom-video.astro
+  s_1bb59254d1dc1b::t_469295920a6b82 42-46
+src/pages/transcribe-podcast.astro
+  s_1bb59254d1dc1b::t_2235c58cd3e6af 42-46,83
+src/pages/transcribe-twitch-vod.astro
+  s_1bb59254d1dc1b::t_9468da6c83a71c 42-46
+src/pages/transcribe-video-url.astro
+  s_1bb59254d1dc1b::t_854ba76207aa12 11-17,70,78,121,248,265
+src/pages/transcribe-vimeo-video.astro
+  s_1bb59254d1dc1b::t_4f590b77ff46f9 42-46
+src/pages/transcribe-x-video.astro
+  s_1bb59254d1dc1b::t_ae3a799fcc836a 42-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "000fd4664ca32ea1a9f99ddacd93b66be05eda99",
+  "prompts": {},
+  "sessions": {
+    "s_1bb59254d1dc1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85289ff0-4cfe-42ea-9f89-c298da76d769",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
