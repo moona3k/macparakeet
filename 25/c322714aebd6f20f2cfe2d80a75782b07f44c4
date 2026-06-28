@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/Core/TranscriptSegmentClipboardTests.swift
+  s_5bcc2a21e169c4::t_9a6362320b510e 37,40
+Sources/MacParakeetCore/Utilities/TranscriptSegmentClipboard.swift
+  s_5bcc2a21e169c4::t_f975ff18340971 23
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_5bcc2a21e169c4::t_6ebddc1e07d0e7 51-98,119-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "25c322714aebd6f20f2cfe2d80a75782b07f44c4",
+  "prompts": {},
+  "sessions": {
+    "s_5bcc2a21e169c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0df8-f4aa-7b02-9293-a25a9e181c2a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
