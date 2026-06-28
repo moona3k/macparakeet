@@ -157,6 +157,8 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                   MicConditioner:
                                   - PassthroughMicConditioner
                                     (raw default; no capture-time AEC)
+                                  - StreamingMeetingEchoSuppressor
+                                    (optional LocalVQE-compatible runtime/model)
                                                           │
                                                           ▼
                                               LiveChunkTranscriber
@@ -192,7 +194,15 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source
   `MeetingLiveAudioChunking` strategies. Single-source sessions skip the
   unselected stream and produce a mono `meeting.m4a`.
-- Mic conditioning is pass-through. Raw capture applies no capture-time AEC/noise suppression/AGC; transcript-layer system-dominance suppression remains the default guard against obvious speaker bleed. When VPIO is explicitly requested and engages, macOS applies AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`.
+- Mic conditioning is pass-through by default. Raw capture applies no platform
+  AEC/noise suppression/AGC. The optional `StreamingMeetingEchoSuppressor`
+  can transform paired mic/system samples when a LocalVQE-compatible runtime
+  and model are available; otherwise it falls back to raw mic samples with
+  diagnostics. Transcript-layer system-dominance suppression and
+  `MeetingTranscriptSourceReconciler` remain safety nets against obvious
+  speaker bleed, not a complete AEC substitute. When VPIO is explicitly
+  requested and engages, macOS applies AEC/noise suppression/AGC before buffers
+  reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
 - After recording stops, the captured source M4As are finalized and merged into
@@ -217,9 +227,9 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `SystemAudioStream` | ScreenCaptureKit system-audio wrapper - creates an audio-only `SCStream`, adapts `CMSampleBuffer` to `AVAudioPCMBuffer`, and emits stall diagnostics |
 | `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, and synchronous buffer fan-out |
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, and stall diagnostics |
-| `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>` with `.bufferingNewest(2048)` and runtime error emission where available |
+| `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>` with unbounded buffering and runtime error emission where available |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
-| `MicConditioner` | Pass-through seam for mic samples; raw capture is the default, with VPIO only when explicitly requested |
+| `MicConditioner` | Meeting-side seam for mic samples; passthrough is the default, and an optional `StreamingMeetingEchoSuppressor` can use paired system reference samples when the runtime/model are available |
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
 | `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |

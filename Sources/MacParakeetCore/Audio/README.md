@@ -60,6 +60,11 @@ owned by `AppEnvironment`.
   meeting source files (ADR-019 crash recovery).
 - `MeetingAudioError.swift`, `MeetingMicProcessingMode.swift` —
   value types.
+- Meeting mic conditioning lives outside this folder in
+  `../Services/Capture/MicConditioner.swift` and
+  `../Services/Capture/MeetingEchoSuppressionRuntime.swift`. Those files own
+  the passthrough default and optional LocalVQE-compatible echo suppressor used
+  after `MeetingAudioCaptureService` has emitted paired mic/system samples.
 
 **Helpers**
 - `AudioCaptureDiagnostics.swift` — public `append(_:)` to

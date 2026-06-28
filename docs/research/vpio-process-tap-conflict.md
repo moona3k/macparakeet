@@ -124,7 +124,11 @@ Verified via grep and direct file reads on 2026-04-11:
 ### Historical software AEC infrastructure
 
 - Commit `118d7e6f` had `SoftwareAECConditioner` + `MeetingSoftwareAEC` as an experimental software AEC path.
-- Current `Sources/MacParakeetCore/Services/MicConditioner.swift` keeps `MicConditioning` but uses `PassthroughMicConditioner`; mic cleanup is owned upstream by VPIO when it engages.
+- Current `Sources/MacParakeetCore/Services/Capture/MicConditioner.swift`
+  keeps `MicConditioning` with `PassthroughMicConditioner` as the default and
+  `StreamingMeetingEchoSuppressor` as the optional LocalVQE-compatible
+  processor when a runtime/model are available. Mic cleanup is otherwise owned
+  upstream by VPIO only when an explicit VPIO experiment engages.
 - `MeetingRecordingService.shouldSuppressMicrophoneChunkTranscription` still provides an independent transcript-layer suppression path that drops mic chunks from STT when system-audio RMS dominates the mic over the same time window.
 
 ### CaptureOrchestrator pair-joining pipeline
@@ -533,9 +537,9 @@ Tracked here for the historical minimum-fix decision. Items tied to `SystemAudio
 - `Sources/MacParakeetCore/Audio/AudioRecorder.swift` — dictation path, no VPIO.
 - `Sources/MacParakeetCore/Audio/SystemAudioStream.swift` — ScreenCaptureKit system-audio stream implementation.
 - `Sources/MacParakeetCore/Services/MeetingRecordingService.swift` — hosts `shouldSuppressMicrophoneChunkTranscription` and `shouldTranscribeChunk`.
-- `Sources/MacParakeetCore/Services/MicConditioner.swift` — `PassthroughMicConditioner`; VPIO cleanup happens upstream when VPIO engages.
-- `Sources/MacParakeetCore/Services/CaptureOrchestrator.swift` — pair-joining pipeline.
-- `Sources/MacParakeetCore/Services/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
+- `Sources/MacParakeetCore/Services/Capture/MicConditioner.swift` — `PassthroughMicConditioner` by default and optional `StreamingMeetingEchoSuppressor` when a runtime/model are available.
+- `Sources/MacParakeetCore/Services/Capture/CaptureOrchestrator.swift` — pair-joining pipeline.
+- `Sources/MacParakeetCore/Services/Capture/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
 
 ### Related MacParakeet git commits
 

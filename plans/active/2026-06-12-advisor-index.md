@@ -79,7 +79,7 @@ original `f8e28be91` form via unrelated doc-bundling commits (#487/#509). The
    existing guard pattern (guard `acceptsNewJobs` in `beginSpeechEngineSession`;
    have `quiesce` refuse or drain while leases are active).
 2. **Echo-suppression simultaneous-echo over-suppression (tuning, not a bug)**:
-   `MeetingTranscriptNoiseFilter.swift:142-162` drops a mic run ≥5 words at
+   `MeetingTranscriptSourceReconciler.swift` drops a mic run ≥5 words at
    ≥80% fuzzy-LCS overlap with concurrent system audio. A user who agrees-and-
    extends a system phrase can have the whole utterance dropped. Don't change
    the threshold speculatively — add telemetry on drop counts / validate
