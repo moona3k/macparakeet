@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCleanedMicRendererTests.swift
+  s_8e33cad55ef48f::t_bd3139647ff626 1-171
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicRenderer.swift
+  s_8e33cad55ef48f::t_8e360ef22aa634 308-310
+  s_8e33cad55ef48f::t_4cd0f5cf7f1cfb 317-319
+  s_8e33cad55ef48f::t_a877ed75be6599 320
+  s_8e33cad55ef48f::t_cbf93c5af1c0d3 1-307,311-316,321-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "7e75d011cbdae7923528b73b997278305bf9dd12",
+  "prompts": {},
+  "sessions": {
+    "s_8e33cad55ef48f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23d0d807-0f9e-4fd5-9808-a12480cc164e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
