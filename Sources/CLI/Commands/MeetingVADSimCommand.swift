@@ -11,7 +11,11 @@ import MacParakeetCore
 struct MeetingVADSimCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "meeting-vad-sim",
-        abstract: "Replay meeting live-chunking (fixed vs VAD) on an audio file and report boundaries + realtime factor."
+        abstract: "Replay meeting live-chunking (fixed vs VAD) on an audio file and report boundaries + realtime factor.",
+        // Internal Phase-0 diagnostic, not part of the public agent surface
+        // (deliberately absent from `spec --json`). Hidden from `--help` so the
+        // human listing and the machine catalog agree; still invokable by name.
+        shouldDisplay: false
     )
 
     @Argument(help: "Path to an audio file (wav/m4a/mp3/caf/aiff).")

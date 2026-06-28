@@ -546,10 +546,10 @@ when its server-side authentication is enabled.
 | Provider | Default Model | API Key Required |
 |----------|--------------|-----------------|
 | `anthropic` | claude-sonnet-4-6 | Yes |
-| `openai` | gpt-4.1 | Yes |
+| `openai` | gpt-5.5 | Yes |
 | `openai-compatible` | user-selected endpoint/model | Optional |
-| `gemini` | gemini-2.5-flash | Yes |
-| `openrouter` | anthropic/claude-sonnet-4 | Yes |
+| `gemini` | gemini-3.5-flash | Yes |
+| `openrouter` | anthropic/claude-sonnet-4.6 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
 | `lmstudio` | user-selected in LM Studio | Optional (local) |
 | `cli` | N/A (tool decides) | No (tool manages auth) |

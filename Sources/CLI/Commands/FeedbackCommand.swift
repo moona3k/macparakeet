@@ -32,12 +32,13 @@ struct FeedbackCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Your email (optional, for follow-up).")
     var email: String?
 
-    func run() async throws {
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            printErr("Error: Feedback message must not be empty.")
-            throw ExitCode.validationFailure
+    func validate() throws {
+        if message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw ValidationError("Feedback message must not be empty.")
         }
+    }
 
+    func run() async throws {
         let systemInfo = SystemInfo.current
 
         let payload = FeedbackPayload(

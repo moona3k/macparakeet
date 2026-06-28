@@ -140,7 +140,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Menu bar app with main window
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] Internal dev CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`)
+- [x] CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`)
 - [x] Test suite passing (`swift test` green)
 
 ### v0.2 Clean Pipeline (Implemented)

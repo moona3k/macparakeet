@@ -34,6 +34,10 @@ with human progress/status kept off stdout.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
   change an existing command's plain `--json` success shape.
 - Commands that expose both `--json` and `--envelope` reject the combination.
+- JSON object keys are camelCase. The one exception is the `transforms` family
+  (`is_built_in`, `created_at`), which predates this convention; its keys are
+  frozen for v1 and would only change at a major boundary. New commands use
+  camelCase.
 
 ## Failure Envelope
 

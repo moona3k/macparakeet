@@ -128,6 +128,36 @@ final class SpecCommandTests: XCTestCase {
         }
     }
 
+    /// Every documented spec path must resolve in the real ArgumentParser tree.
+    /// The catalog in `SpecCommand` is hand-maintained and duplicates the command
+    /// tree, so a renamed or removed subcommand could otherwise keep being
+    /// advertised to agents while no longer existing. Resolving each path with
+    /// `--help` short-circuits before any work runs: a known path throws a help
+    /// request (exit `0`); an unknown subcommand throws a parse error (exit `2`).
+    func testEveryDocumentedSpecPathResolvesInTheCommandTree() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let paths = try commands.map { try XCTUnwrap($0["path"] as? [String]) }
+        XCTAssertFalse(paths.isEmpty, "spec catalog should document at least one command")
+
+        for path in paths {
+            do {
+                _ = try CLI.parseAsRoot(path + ["--help"])
+                // Parsed without throwing: the path resolved and had no required
+                // arguments to complain about. Still a valid resolution.
+            } catch {
+                XCTAssertTrue(
+                    CLI.exitCode(for: error).isSuccess,
+                    """
+                    Spec catalog documents '\(path.joined(separator: " "))' but it \
+                    does not resolve in the real command tree: \
+                    \(CLI.fullMessage(for: error))
+                    """
+                )
+            }
+        }
+    }
+
     func testSpecCatalogDocumentsAgentAutomationFamilies() throws {
         let payload = try specPayload()
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])

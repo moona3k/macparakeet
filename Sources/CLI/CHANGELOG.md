@@ -163,6 +163,20 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `prompts restore-defaults` continues to re-show hidden built-in Transforms
   during the 2.x compatibility window. Use `transforms restore-defaults` for the
   newer Transform-specific restore/reset surface.
+- `meeting-vad-sim` is now hidden from `--help`. It is an internal Phase-0
+  diagnostic that was never part of the `spec --json` agent surface; hiding it
+  aligns the human command listing with the machine catalog. The command still
+  runs when invoked by name.
+
+### Fixed
+
+- `prompts add --from-file <path>` and `transforms create --from-file <path>`
+  now expand a leading `~` in the path, matching `quick-prompts add --from-file`.
+  Previously `~/notes/prompt.md` failed with a "no such file" error.
+- `vocab words delete <id>` now applies the same trimming and minimum
+  4-character prefix guard as `vocab words set`. An empty or too-short id is
+  rejected with a validation error (exit `2`) instead of falling through to a
+  bare-prefix match that could delete the only word in the list.
 
 ## [2.10.0] -- 2026-06-17
 

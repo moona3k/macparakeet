@@ -180,7 +180,7 @@ extension PromptsCommand {
             if let content {
                 body = content
             } else if let fromFile {
-                body = try String(contentsOfFile: fromFile, encoding: .utf8)
+                body = try String(contentsOfFile: expandTilde(fromFile), encoding: .utf8)
             } else {
                 body = readStdinUTF8()
             }

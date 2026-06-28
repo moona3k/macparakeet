@@ -263,7 +263,7 @@ extension TransformsCommand {
                 if let p = prompt {
                     body = p
                 } else if let path = fromFile {
-                    body = try String(contentsOfFile: path, encoding: .utf8)
+                    body = try String(contentsOfFile: expandTilde(path), encoding: .utf8)
                 } else {
                     throw ValidationError("Provide a prompt body via --prompt or --from-file.")
                 }

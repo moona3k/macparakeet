@@ -169,17 +169,10 @@ struct VocabWordsCommand: AsyncParsableCommand {
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
 
-            // Support UUID prefix matching
-            let words = try repo.fetchAll()
-            let matches = words.filter { $0.id.uuidString.lowercased().hasPrefix(id.lowercased()) }
-
-            guard let word = matches.first else {
-                throw VocabError.notFound("No word matching '\(id)'")
-            }
-            guard matches.count == 1 else {
-                throw VocabError.ambiguous("Multiple words match '\(id)'. Be more specific.")
-            }
-
+            // Resolve through the shared lookup so delete enforces the same
+            // trimming and minimum-prefix guard as `set` — an empty or too-short
+            // id must not silently match (and delete) the only word in the list.
+            let word = try VocabWordsCommand.resolveWord(id: id, words: try repo.fetchAll())
             _ = try repo.delete(id: word.id)
             print("Deleted: \(word.word)")
         }
