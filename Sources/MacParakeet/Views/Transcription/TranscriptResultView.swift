@@ -642,11 +642,15 @@ struct TranscriptResultView: View {
                         nemotronVariant: option.nemotronVariant,
                         parakeetVariant: option.parakeetVariant,
                         isPrimary: choice.isPrimary,
+                        primaryReflectsTranscriptEngine: option.primaryReflectsTranscriptEngine,
                         isAvailable: choice.isAvailable,
                         unavailableReason: choice.unavailableReason,
                         advisory: choice.advisory
                     ) {
-                        selectRetranscribeEngine(choice)
+                        selectRetranscribeEngine(
+                            choice,
+                            reflectsTranscriptEngine: option.primaryReflectsTranscriptEngine
+                        )
                     }
                 }
             }
@@ -661,9 +665,16 @@ struct TranscriptResultView: View {
     }
 
     private func selectRetranscribeEngine(
-        _ choice: TranscriptionViewModel.RetranscriptionEngineOption.Choice
+        _ choice: TranscriptionViewModel.RetranscriptionEngineOption.Choice,
+        reflectsTranscriptEngine: Bool
     ) {
-        let override: SpeechEngineSelection? = choice.isPrimary ? nil : choice.selection
+        // Pin the engine named on the card whenever it is a specific choice — an
+        // alternative engine, or the engine that actually produced this
+        // transcript. Only the legacy "Current" primary (a fall-back to the
+        // user's live default) reruns through the plain current-settings path,
+        // so its variant and language follow whatever the user has set now.
+        let override: SpeechEngineSelection? =
+            (choice.isPrimary && !reflectsTranscriptEngine) ? nil : choice.selection
         pendingRetranscribePick = RetranscribePick(transcriptionID: transcription.id, override: override)
         showingRetranscribeOptions = false
         // Confirmation alert is presented from the .onChange handler that
@@ -3039,6 +3050,10 @@ private struct EngineOptionCard: View {
     let nemotronVariant: NemotronModelVariant
     let parakeetVariant: ParakeetModelVariant
     let isPrimary: Bool
+    /// When this is the primary card, whether it names the engine that produced
+    /// the transcript ("Original") rather than a fall-back to the user's current
+    /// default ("Current"). Ignored on non-primary cards.
+    let primaryReflectsTranscriptEngine: Bool
     let isAvailable: Bool
     let unavailableReason: String?
     let advisory: String?
@@ -3099,7 +3114,10 @@ private struct EngineOptionCard: View {
                             .font(DesignSystem.Typography.body.weight(.semibold))
                             .foregroundStyle(titleColor)
                         if isPrimary {
-                            EngineBadge(text: "Current", tint: DesignSystem.Colors.accent)
+                            EngineBadge(
+                                text: primaryReflectsTranscriptEngine ? "Original" : "Current",
+                                tint: DesignSystem.Colors.accent
+                            )
                         }
                         if !isAvailable {
                             EngineBadge(text: "Unavailable", tint: DesignSystem.Colors.warningAmber)
@@ -3200,7 +3218,9 @@ private struct EngineOptionCard: View {
 
     private var accessibilityLabel: String {
         var parts = [selection.engine.displayName]
-        if isPrimary { parts.append("current engine") }
+        if isPrimary {
+            parts.append(primaryReflectsTranscriptEngine ? "engine used for this transcript" : "current engine")
+        }
         if !isAvailable { parts.append("unavailable") }
         return parts.joined(separator: ", ")
     }

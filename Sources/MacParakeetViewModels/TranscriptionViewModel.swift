@@ -29,6 +29,13 @@ public final class TranscriptionViewModel {
         /// posture (e.g. Unified is English-only and emits no word timestamps)
         /// rather than always advertising the multilingual v3 build.
         public let parakeetVariant: ParakeetModelVariant
+        /// Whether `primaryEngine` reflects the engine that actually produced
+        /// this transcript (a captured meeting engine, or the engine recorded on
+        /// the row) rather than a fall-back to the user's current default. The
+        /// menu badges the primary "Original" when this is `true` and "Current"
+        /// when it is `false` (legacy rows predating engine attribution), and
+        /// only the latter reruns through the plain current-settings path.
+        public let primaryReflectsTranscriptEngine: Bool
 
         public var title: String {
             "Retranscribe with speech engine"
@@ -435,7 +442,14 @@ public final class TranscriptionViewModel {
             return nil
         }
 
+        // The primary card should name the engine that actually produced this
+        // transcript, not the user's current default — otherwise a Cohere or
+        // Whisper transcript would surface "Parakeet" as its primary. Meetings
+        // carry the captured selection; file/URL transcripts carry the engine on
+        // the row (since the engine-attribution migration). Rows predating
+        // attribution have no engine and fall back to the current default.
         let primaryEngine: SpeechEngineSelection
+        let primaryReflectsTranscriptEngine: Bool
         if original.sourceType == .meeting,
            let archivedRecording = archivedMeetingRecording(
                for: original,
@@ -444,8 +458,13 @@ public final class TranscriptionViewModel {
            ),
            archivedRecording.speechEngineWasCaptured {
             primaryEngine = archivedRecording.speechEngine
+            primaryReflectsTranscriptEngine = true
+        } else if let recordedEngine = original.engine.flatMap(SpeechEnginePreference.init(rawValue:)) {
+            primaryEngine = SpeechEngineSelection(engine: recordedEngine, language: original.language)
+            primaryReflectsTranscriptEngine = true
         } else {
             primaryEngine = SpeechEngineSelection.current(defaults: defaults)
+            primaryReflectsTranscriptEngine = false
         }
 
         let choices = retranscriptionEngineOrder(primary: primaryEngine.engine).map { engine in
@@ -467,7 +486,8 @@ public final class TranscriptionViewModel {
             primaryEngine: primaryEngine,
             choices: choices,
             nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
-            parakeetVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+            parakeetVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
+            primaryReflectsTranscriptEngine: primaryReflectsTranscriptEngine
         )
     }
 

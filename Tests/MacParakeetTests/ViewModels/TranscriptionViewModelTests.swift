@@ -1791,6 +1791,123 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(option.parakeetVariant, .unified)
     }
 
+    func testRetranscriptionEngineOptionUsesRecordedEngineForFileTranscript() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        // Current default is Parakeet — deliberately different from the engine
+        // that produced this file, so a leak of the current default would fail.
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true },
+            isCohereModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-engine-cohere-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Cohere File",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            language: "fr",
+            status: .completed,
+            sourceType: .file,
+            engine: SpeechEnginePreference.cohere.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .cohere, language: "fr"))
+        XCTAssertTrue(option.primaryReflectsTranscriptEngine)
+        XCTAssertEqual(option.choices.first?.selection.engine, .cohere)
+        XCTAssertTrue(try retranscriptionChoice(.cohere, in: option).isPrimary)
+        XCTAssertFalse(try retranscriptionChoice(.parakeet, in: option).isPrimary)
+    }
+
+    func testRetranscriptionEngineOptionKeepsCurrentVariantForRecordedParakeet() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        // The transcript was made with the Unified build, but the user's current
+        // Parakeet build is v2. A rerun resolves the *persisted* variant at run
+        // start, so the card must describe v2 (what a rerun loads) — not the
+        // recorded Unified build, which the override cannot pin.
+        SpeechEnginePreference.saveParakeetModelVariant(.v2, defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-engine-parakeet-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Parakeet File",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .file,
+            engine: SpeechEnginePreference.parakeet.rawValue,
+            engineVariant: ParakeetModelVariant.unified.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertTrue(option.primaryReflectsTranscriptEngine)
+        XCTAssertTrue(try retranscriptionChoice(.parakeet, in: option).isPrimary)
+        XCTAssertEqual(option.parakeetVariant, .v2)
+    }
+
+    func testRetranscriptionEngineOptionFallsBackToCurrentDefaultForLegacyFileTranscript() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveWhisperDefaultLanguage("ko", defaults: defaults)
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-engine-legacy-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        // Pre-attribution row: no engine recorded, so the menu falls back to the
+        // user's current default and badges it "Current", not "Original".
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Legacy File",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .file
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertFalse(option.primaryReflectsTranscriptEngine)
+        XCTAssertTrue(try retranscriptionChoice(.whisper, in: option).isPrimary)
+    }
+
     func testRetranscriptionEngineOptionIncludesNemotronButDisablesItWhenMissing() throws {
         let archivedMeeting = try makeArchivedMeetingRecording(
             speechEngine: SpeechEngineSelection(engine: .parakeet)
