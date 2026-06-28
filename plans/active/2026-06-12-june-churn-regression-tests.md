@@ -134,6 +134,7 @@ into "CI proves it stays correct."
 **In scope** (the only files you should modify):
 - `Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift`
 - `Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift`
+- `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptSourceReconcilerTests.swift` — **only if** Step 3 is explicitly requested.
 - `Tests/MacParakeetTests/STT/MockSTTClient.swift` — **only if** Step 2 proves
   the mock cannot express the stale-partial scenario without a tiny additive
   hook (see Step 2; if you touch it, it must be purely additive).
@@ -226,9 +227,9 @@ the new test(s).
 
 ### Step 3 (OPTIONAL — skip unless asked): simultaneous-echo threshold boundary
 
-`MeetingTranscriptNoiseFilter` drops a mic run of ≥5 words when fuzzy-LCS ≥80%
+`MeetingTranscriptSourceReconciler` drops a mic run of ≥5 words when fuzzy-LCS ≥80%
 of the simultaneous system tokens. The existing tests in
-`Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptNoiseFilterTests.swift`
+`Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptSourceReconcilerTests.swift`
 cover the happy path and clear positives/negatives but not the exact 80%
 rounding boundary. If asked to add it: a 5-word mic run matching 4/5 system
 words (80.0%) should drop; matching 3/5 (60%) should be preserved. This is a
@@ -248,7 +249,7 @@ minor robustness test, not a bug guard.
   proving a stale/late partial cannot overwrite `liveTranscript`, and
   (if a cancel path exists) cancel-mid-stream leaves state consistent. Pattern
   source: `testStopRecordingUsesLiveNemotronResultWhenAvailable`.
-- Optional Step 3 boundary test in `MeetingTranscriptNoiseFilterTests.swift`.
+- Optional Step 3 boundary test in `MeetingTranscriptSourceReconcilerTests.swift`.
 
 ## Done criteria
 
