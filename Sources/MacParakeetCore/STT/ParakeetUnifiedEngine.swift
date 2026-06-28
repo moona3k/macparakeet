@@ -76,9 +76,10 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
             onProgress?(0, 100)
             try Task.checkCancellation()
-            let samples = try await Task.detached(priority: .userInitiated) {
+            let recordedSamples = try await Task.detached(priority: .userInitiated) {
                 try AudioConverter().resampleAudioFile(audioURL)
             }.value
+            let samples = Self.samplesForOfflineTranscription(recordedSamples, job: job)
             onProgress?(20, 100)
 
             try Task.checkCancellation()
@@ -104,6 +105,18 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
+    }
+
+    static func samplesForOfflineTranscription(
+        _ samples: [Float],
+        job: STTJobKind
+    ) -> [Float] {
+        guard job == .dictation else { return samples }
+        return STTRuntime.appendingTrailingSilence(
+            samples,
+            seconds: STTRuntime.dictationTrailingSilenceSeconds,
+            sampleRate: ASRConstants.sampleRate
+        )
     }
 
     // MARK: - Live dictation

@@ -21,11 +21,13 @@ public final class HotkeyManager {
     private let gestureController: HotkeyGestureController
     private let trigger: HotkeyTrigger
     private let gestureMode: HotkeyGestureController.Mode
+    private let holdToTalkStopTailMs: Int
     private let targetMask: CGEventFlags?
     public let tapThresholdMs: Int
     private var eventTap: CFMachPort?
     private var startupTimer: DispatchWorkItem?
     private var holdTimer: DispatchWorkItem?
+    private var stopTailTimer: DispatchWorkItem?
     private var runLoopSource: CFRunLoopSource?
     /// Retained reference to self passed to the CGEvent tap callback.
     /// Prevents use-after-free if the tap fires during deallocation.
@@ -61,10 +63,12 @@ public final class HotkeyManager {
         trigger: HotkeyTrigger = .fn,
         gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold,
         tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs,
-        startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs
+        startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
+        holdToTalkStopTailMs: Int = 0
     ) {
         self.trigger = trigger
         self.gestureMode = gestureMode
+        self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
         self.gestureController = HotkeyGestureController(
             mode: gestureMode,
             tapThresholdMs: tapThresholdMs,
@@ -87,6 +91,7 @@ public final class HotkeyManager {
         retainedSelf?.release()
         startupTimer?.cancel()
         holdTimer?.cancel()
+        stopTailTimer?.cancel()
     }
 
     /// Start listening for key events. Requires Accessibility permission.
@@ -154,6 +159,7 @@ public final class HotkeyManager {
         retainedSelf = nil
         startupTimer?.cancel()
         holdTimer?.cancel()
+        stopTailTimer?.cancel()
         eventTap = nil
         runLoopSource = nil
         installedRunLoop = nil
@@ -712,6 +718,7 @@ public final class HotkeyManager {
     /// Notify state machine that cancel was triggered via UI (not Esc).
     /// Blocks hotkey during the cancel countdown window.
     public func notifyCancelledByUI() {
+        cancelStopTailTimer()
         gestureController.notifyCancelledByUI()
         activeRecordingMode = nil
     }
@@ -719,6 +726,7 @@ public final class HotkeyManager {
     public func suppressUntilReset() {
         cancelStartupTimer()
         cancelHoldTimer()
+        cancelStopTailTimer()
         gestureController.suppressUntilReset()
         activeRecordingMode = nil
     }
@@ -1023,17 +1031,21 @@ public final class HotkeyManager {
     }
 
     private func handleOutputs(_ outputs: [HotkeyGestureController.Output]) {
+        let recordingModeBeforeOutputs = activeRecordingMode
         rememberRecordingState(for: outputs)
 
         for output in outputs {
             switch output {
             case .startRecording(let mode):
+                cancelStopTailTimer()
                 onStartRecording?(mode)
             case .stopRecording:
-                onStopRecording?()
+                handleStopRecordingOutput(recordingModeBeforeOutputs: recordingModeBeforeOutputs)
             case .cancelRecording:
+                cancelStopTailTimer()
                 onCancelRecording?()
             case .discardRecording(let showReadyPill):
+                cancelStopTailTimer()
                 onDiscardRecording?(showReadyPill)
             case .showReadyForSecondTap:
                 onReadyForSecondTap?()
@@ -1048,6 +1060,48 @@ public final class HotkeyManager {
             case .cancelHoldWindow:
                 cancelHoldTimer()
             }
+        }
+    }
+
+    private func handleStopRecordingOutput(
+        recordingModeBeforeOutputs: FnKeyStateMachine.RecordingMode?
+    ) {
+        cancelStopTailTimer()
+        guard recordingModeBeforeOutputs == .holdToTalk, holdToTalkStopTailMs > 0 else {
+            AudioCaptureDiagnostics.append(
+                "dictation_hotkey_stop mode=\(diagnosticMode(recordingModeBeforeOutputs)) tail_ms=0"
+            )
+            onStopRecording?()
+            return
+        }
+
+        let tailMs = holdToTalkStopTailMs
+        AudioCaptureDiagnostics.append(
+            "dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=\(tailMs)"
+        )
+        let timer = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.stopTailTimer = nil
+            AudioCaptureDiagnostics.append(
+                "dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=\(tailMs)"
+            )
+            self.onStopRecording?()
+        }
+        stopTailTimer = timer
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(tailMs),
+            execute: timer
+        )
+    }
+
+    private func diagnosticMode(_ mode: FnKeyStateMachine.RecordingMode?) -> String {
+        switch mode {
+        case .holdToTalk:
+            return "hold_to_talk"
+        case .persistent:
+            return "persistent"
+        case nil:
+            return "unknown"
         }
     }
 
@@ -1088,6 +1142,11 @@ public final class HotkeyManager {
             deadline: .now() + .milliseconds(milliseconds),
             execute: timer
         )
+    }
+
+    private func cancelStopTailTimer() {
+        stopTailTimer?.cancel()
+        stopTailTimer = nil
     }
 
     private func cancelStartupTimer() {

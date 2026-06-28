@@ -544,9 +544,9 @@ final class DictationFlowCoordinator {
             let sessionID = serviceSession.reserveNextSessionID()
             startRecordingTask(mode: mode, generation: stateMachine.generation, sessionID: sessionID)
 
-        case .stopRecordingAndTranscribe:
+        case .stopRecordingAndTranscribe(let mode):
             let sessionID = serviceSession.currentSessionID
-            stopRecordingTask(generation: stateMachine.generation, sessionID: sessionID)
+            stopRecordingTask(generation: stateMachine.generation, sessionID: sessionID, mode: mode)
 
         case .cancelRecording(let reason):
             let sessionID = serviceSession.currentSessionID
@@ -1070,12 +1070,19 @@ final class DictationFlowCoordinator {
         return alert.runModal()
     }
 
-    private func stopRecordingTask(generation: Int, sessionID: Int) {
+    private func stopRecordingTask(
+        generation: Int,
+        sessionID: Int,
+        mode: FnKeyStateMachine.RecordingMode
+    ) {
         actionTask = Task { @MainActor in
             do {
                 let serviceState = await self.serviceSession.state
                 self.dictationLog.notice(
-                    "stop_recording_requested gen=\(generation) session=\(sessionID) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
+                    "stop_recording_requested gen=\(generation) session=\(sessionID) mode=\(self.describeRecordingMode(mode), privacy: .public) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
+                )
+                AudioCaptureDiagnostics.append(
+                    "dictation_stop_requested mode=\(self.diagnosticRecordingMode(mode)) session=\(sessionID)"
                 )
                 let finishContext = self.focusedAppContextService.currentContext()
                 await self.serviceSession.updateTelemetryAppCategory(
@@ -1222,6 +1229,24 @@ final class DictationFlowCoordinator {
         case .cancelled: return "cancelled"
         case .success: return "success"
         case .error: return "error"
+        }
+    }
+
+    private func describeRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) -> String {
+        switch mode {
+        case .holdToTalk:
+            return "holdToTalk"
+        case .persistent:
+            return "persistent"
+        }
+    }
+
+    private func diagnosticRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) -> String {
+        switch mode {
+        case .holdToTalk:
+            return "hold_to_talk"
+        case .persistent:
+            return "persistent"
         }
     }
 }
