@@ -89,6 +89,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- Added `retranscribe <record> --update` to rerun STT against retained source
+  audio for an existing saved dictation, transcription, or meeting in place.
+  Records resolve by UUID/prefix, with exact transcription/meeting title
+  lookup where unambiguous; `--kind dictation|transcription|meeting` constrains
+  resolution. The command supports the same speech-engine, model, language,
+  processing-mode, and transcription/meeting speaker-detection overrides as
+  `transcribe` where applicable, and emits either `--json` or `--envelope`
+  machine-readable output.
+
 ## [2.11.0] -- 2026-06-28
 
 ### Added

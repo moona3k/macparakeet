@@ -177,6 +177,25 @@ macparakeet-cli history transcriptions          # note the subcommand; lists ids
 macparakeet-cli export <id> --format vtt
 ```
 
+To rerun STT for an existing saved item without creating a new library row,
+use `retranscribe`. It requires retained source audio and an explicit
+`--update` confirmation because it replaces transcript-derived fields on the
+existing record:
+
+```bash
+macparakeet-cli retranscribe <id-or-prefix-or-title> --update --json
+macparakeet-cli retranscribe <id> --kind meeting --update --engine cohere --language ja --envelope
+```
+
+`retranscribe` resolves dictations by UUID/prefix, transcriptions by
+UUID/prefix or exact name, and meetings by UUID/prefix or exact title. Auto
+resolution fails if the identifier matches more than one saved record; retry
+with a full UUID, or a longer UUID prefix for prefix matches. Use
+`--kind dictation|transcription|meeting` only to disambiguate cross-kind matches. It
+supports the same speech-engine, model, language, and processing-mode flags as
+`transcribe`; speaker-detection flags apply only to saved transcriptions and
+meetings.
+
 `--no-history` avoids retaining the completed transcription in the shared
 MacParakeet history. For media URL and podcast inputs, downloaded audio is
 temporary when `--no-history` is set.

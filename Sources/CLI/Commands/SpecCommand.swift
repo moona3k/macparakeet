@@ -210,6 +210,33 @@ private extension CLISpecCommand {
             output: "Single Transcription object for stdout mode; one transcript file per input in batch/output-dir mode."
         ),
         CLISpecCommand(
+            ["retranscribe"],
+            summary: "Retranscribe retained source audio for an existing saved dictation, transcription, or meeting in place.",
+            readOnly: false,
+            jsonMode: "--json|--envelope",
+            arguments: [
+                .argument("record", summary: "Saved record UUID, UUID prefix, or exact transcription/meeting title."),
+            ],
+            options: [
+                CLISpecParameter.option("--kind", valueName: "auto|dictation|transcription|meeting", summary: "Constrain record resolution; auto fails on ambiguous matches."),
+                CLISpecParameter.flag("--update", summary: "Required confirmation that the command updates the existing saved record in place."),
+                CLISpecParameter.flag("--json", summary: "Emit the updated record payload as JSON."),
+                CLISpecParameter.flag("--envelope", summary: "Emit a success/failure envelope."),
+                CLISpecParameter.option("--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this rerun."),
+                CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|cohere|app-default", summary: "Speech engine for this rerun."),
+                CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."),
+                CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2|unified", summary: "Parakeet build for this rerun; ignored for Nemotron, Cohere, and Whisper."),
+                CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron build for this rerun; ignored for Parakeet, Cohere, and Whisper."),
+                CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection for saved transcriptions and meetings."),
+                CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count for saved transcriptions and meetings."),
+                CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for saved transcriptions and meetings."),
+                CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for saved transcriptions and meetings."),
+                CLISpecParameter.flag("--no-diarize", summary: "Compatibility alias for --speaker-detection off."),
+                databaseOption,
+            ],
+            output: "RetranscribeResult with kind, id, sourcePath, updatedAt, and the updated Dictation or Transcription record."
+        ),
+        CLISpecCommand(
             ["config", "list"],
             summary: "List shared app/CLI configuration values.",
             output: "Dictionary of canonical configuration keys to values."

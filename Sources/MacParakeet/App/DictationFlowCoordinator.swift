@@ -786,6 +786,10 @@ final class DictationFlowCoordinator {
         overlayViewModel?.state
     }
 
+    var flowStateForTesting: DictationFlowState {
+        stateMachine.state
+    }
+
     private func armProcessingLoadCaption() {
         captionGeneration += 1
         let generation = captionGeneration

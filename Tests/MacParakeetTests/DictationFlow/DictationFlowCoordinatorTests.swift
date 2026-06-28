@@ -12,7 +12,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         harness.coordinator.startDictation(mode: .persistent, trigger: .pillClick)
 
-        let started = await waitUntil { self.isRecording(harness.coordinator.overlayStateForTesting) }
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
         XCTAssertTrue(started)
         XCTAssertEqual(
             fnManager.modifierFlagsChangedOutputsForTesting(
@@ -313,8 +313,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         return condition()
     }
 
-    private func isRecording(_ state: DictationOverlayViewModel.OverlayState?) -> Bool {
-        guard let state else { return false }
+    private func isFlowRecording(_ state: DictationFlowState) -> Bool {
         if case .recording = state { return true }
         return false
     }

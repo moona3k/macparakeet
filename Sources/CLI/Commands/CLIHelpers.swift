@@ -379,6 +379,16 @@ enum CLIErrorType {
                 return validation
             }
         }
+        if let retranscribe = error as? CLIRetranscribeError {
+            switch retranscribe {
+            case .noRetainedAudio, .missingAudio:
+                return inputMissing
+            case .ambiguousRecord, .noMatch:
+                return lookup
+            case .kindMismatch, .dictationDoesNotSupportSpeakerOptions:
+                return validation
+            }
+        }
         // ArgumentParser surfaces `validate()` failures as `ValidationError`.
         // The taxonomy has carried the `validation` value since 1.2.0; map
         // ValidationError to it so downstream agents can branch on user
@@ -410,6 +420,18 @@ enum CLIErrorFix {
     static func message(for error: Error) -> String? {
         if error is CLILookupError {
             return "List nearby records with the matching command, then retry with a full UUID or longer UUID prefix."
+        }
+        if let retranscribe = error as? CLIRetranscribeError {
+            switch retranscribe {
+            case .noRetainedAudio, .missingAudio:
+                return "Retained source audio is required. Recreate or re-import the audio, then retry."
+            case .ambiguousRecord, .noMatch:
+                return "List history records and retry with --kind plus a full UUID or longer UUID prefix."
+            case .kindMismatch:
+                return "Retry with the record kind shown in the error message."
+            case .dictationDoesNotSupportSpeakerOptions:
+                return "Remove speaker-detection flags or choose a saved transcription/meeting."
+            }
         }
         if let input = error as? CLIInputError {
             switch input {
@@ -492,6 +514,9 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
         throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     if let history = error as? CLITransformHistoryError, case .invalidPrefix = history {
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
+    }
+    if let retranscribe = error as? CLIRetranscribeError, retranscribe.isValidationMisuse {
         throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     throw CLIJSONEnvelopeExit(exitCode: .failure, originalError: error)
