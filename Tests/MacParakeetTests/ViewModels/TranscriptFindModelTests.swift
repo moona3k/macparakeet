@@ -28,6 +28,14 @@ final class TranscriptFindModelTests: XCTestCase {
         XCTAssertNil(m.currentMatchIndex)
     }
 
+    func testQueryWithEdgeSpacesMatchesLiterally() {
+        // A query that is non-empty after trimming is searched untrimmed, so
+        // " the " (trailing space) matches the word "the " in block 0 but not
+        // the "the" inside "there" (followed by "r") in block 1.
+        let m = model(["the cat sat", "there it is"], query: "the ")
+        XCTAssertEqual(m.matches, [.init(blockIndex: 0, range: NSRange(location: 0, length: 4))])
+    }
+
     func testQueryWithNoMatchesIsEmptyButHasQuery() {
         let m = model(["the quick brown fox"], query: "zebra")
         XCTAssertTrue(m.matches.isEmpty)

@@ -1286,6 +1286,10 @@ struct TranscriptResultView: View {
         findFieldFocused = false
         findModel.clear()
         findBlocks = []
+        // Resume playback-follow auto-scroll that find-navigation may have
+        // paused; normal 100ms playback ticks never trip the seek-jump reset.
+        autoScrollPaused = false
+        scrollPauseTask?.cancel()
     }
 
     private func setFindQuery(_ newValue: String) {

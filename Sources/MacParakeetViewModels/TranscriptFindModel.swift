@@ -109,12 +109,15 @@ public final class TranscriptFindModel {
     // MARK: - Matching
 
     private func recompute() {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else {
+        // Guard against empty / whitespace-only queries, but search with the
+        // untrimmed query so a user can match leading/trailing spaces — e.g.
+        // " the " finds the word, not the "the" inside "there" or "other".
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             matches = []
             currentMatchIndex = nil
             return
         }
+        let needle = query
 
         var result: [Match] = []
         // Case- and diacritic-insensitive so "cafe" finds "Café" and "naive"
