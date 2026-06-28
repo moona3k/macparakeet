@@ -18,7 +18,7 @@ private struct TranscriptFindBlock: Equatable, Identifiable {
 private struct TranscriptTextFindAnchor: Equatable, Identifiable {
     let id: Int
     let utf16Start: Int
-    let text: String
+    let prefixText: String
 }
 
 /// Data-driven model for the export confirmation popover.
@@ -1386,13 +1386,13 @@ struct TranscriptResultView: View {
         }
     }
 
-    /// Chunk the flat transcript into hidden scroll anchors. These chunks do
-    /// not affect matching or visible rendering; they just give ScrollViewReader
-    /// stable targets near the current match while the user sees one selectable
-    /// `Text` containing the whole transcript.
+    /// Chunk the flat transcript into hidden scroll anchors. The anchors render
+    /// the continuous prefix before each chunk, not the chunk itself, so their
+    /// bottom edge follows the same single-Text line wrapping as the visible
+    /// transcript and does not accumulate paragraph-boundary drift.
     private static func textFindAnchors(from text: String) -> [TranscriptTextFindAnchor] {
         guard !text.isEmpty else {
-            return [TranscriptTextFindAnchor(id: textFindAnchorBaseID, utf16Start: 0, text: " ")]
+            return [TranscriptTextFindAnchor(id: textFindAnchorBaseID, utf16Start: 0, prefixText: "")]
         }
 
         var anchors: [TranscriptTextFindAnchor] = []
@@ -1406,7 +1406,7 @@ struct TranscriptResultView: View {
             anchors.append(TranscriptTextFindAnchor(
                 id: textFindAnchorBaseID - index,
                 utf16Start: utf16Start,
-                text: chunk.isEmpty ? " " : chunk
+                prefixText: String(text[..<start])
             ))
             utf16Start += chunk.utf16.count
             start = end
@@ -1644,14 +1644,18 @@ struct TranscriptResultView: View {
     }
 
     private func transcriptTextFindAnchors() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack(alignment: .topLeading) {
             ForEach(findTextAnchors) { anchor in
-                Text(anchor.text)
+                Text(anchor.prefixText)
                     .font(scaledTranscriptFont)
                     .lineSpacing(6)
                     .foregroundStyle(.clear)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .id(anchor.id)
+                    .overlay(alignment: .bottomLeading) {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .id(anchor.id)
+                    }
             }
         }
         .allowsHitTesting(false)
