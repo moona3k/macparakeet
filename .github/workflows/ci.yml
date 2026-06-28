@@ -88,7 +88,10 @@ jobs:
               for command in spec["commands"]
           }
           export = commands[("meetings", "export")]
-          assert export["jsonMode"] == "--stdout --format json"
+          if export["jsonMode"] != "--stdout --format json":
+              raise SystemExit(
+                  f"Unexpected meetings export jsonMode: {export['jsonMode']!r}"
+              )
           PY
 
       - name: Release Bundle Smoke
