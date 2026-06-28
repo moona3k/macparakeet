@@ -56,11 +56,14 @@ public final class TranscriptFindModel {
 
     /// Replace the searched content and re-run the current query against it.
     /// Used when the reading surface changes (Text↔Timed mode, a new
-    /// transcript loads) so the live find session stays in sync. Resets the
-    /// cursor to the first match.
+    /// transcript loads) so the live find session stays in sync. Keeps the
+    /// current match when the same block/range still exists, otherwise keeps
+    /// the same ordinal where possible instead of jumping back to the start.
     public func setBlocks(_ blocks: [String]) {
+        let previousCurrent = current
+        let previousIndex = currentMatchIndex
         self.blocks = blocks
-        recompute()
+        recompute(preserving: previousCurrent, preferredIndex: previousIndex)
     }
 
     /// Clear the query and all matches.
@@ -102,7 +105,7 @@ public final class TranscriptFindModel {
 
     // MARK: - Matching
 
-    private func recompute() {
+    private func recompute(preserving previousCurrent: Match? = nil, preferredIndex: Int? = nil) {
         // Guard against empty / whitespace-only queries, but search with the
         // untrimmed query so a user can match leading/trailing spaces — e.g.
         // " the " finds the word, not the "the" inside "there" or "other".
@@ -132,6 +135,17 @@ public final class TranscriptFindModel {
         }
 
         matches = result
-        currentMatchIndex = result.isEmpty ? nil : 0
+        guard !result.isEmpty else {
+            currentMatchIndex = nil
+            return
+        }
+        if let previousCurrent,
+           let retainedIndex = result.firstIndex(of: previousCurrent) {
+            currentMatchIndex = retainedIndex
+        } else if let preferredIndex {
+            currentMatchIndex = min(max(preferredIndex, 0), result.count - 1)
+        } else {
+            currentMatchIndex = 0
+        }
     }
 }

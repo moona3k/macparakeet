@@ -1321,8 +1321,9 @@ struct TranscriptResultView: View {
     }
 
     /// Rebuild the ordered blocks the matcher searches for the current mode and
-    /// re-run the live query. Timed mode searches the cached segments (anchored
-    /// by `startMs`); Text mode searches paragraph lines of the flat transcript.
+    /// re-run the live query. Timed mode searches cached segments (anchored by
+    /// `startMs`). Text mode searches one full-transcript block so the visible
+    /// `Text` remains a single selectable view while find is active.
     private func rebuildFindBlocks() {
         guard findBarVisible, !editingTranscript else {
             findBlocks = []
@@ -1334,7 +1335,7 @@ struct TranscriptResultView: View {
         if transcriptDisplayMode == .timed, hasTimestamps {
             blocks = cachedSegments.map { TranscriptFindBlock(id: $0.startMs, text: $0.text) }
         } else {
-            blocks = Self.paragraphBlocks(from: transcriptText)
+            blocks = [TranscriptFindBlock(id: 0, text: transcriptText)]
         }
         findBlocks = blocks
         findModel.setBlocks(blocks.map(\.text))
@@ -1343,22 +1344,6 @@ struct TranscriptResultView: View {
         } else {
             releaseFindOwnedAutoScrollPause()
         }
-    }
-
-    /// Split flat transcript text into renderable, individually-anchorable
-    /// paragraph blocks (one per non-empty line). The line index is a stable,
-    /// ordered scroll id. A transcript with no line breaks collapses to a single
-    /// block — highlight + counter still work; scroll lands at the top.
-    private static func paragraphBlocks(from text: String) -> [TranscriptFindBlock] {
-        var blocks: [TranscriptFindBlock] = []
-        for (index, line) in text.components(separatedBy: "\n").enumerated()
-        where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            blocks.append(TranscriptFindBlock(id: index, text: line))
-        }
-        if blocks.isEmpty {
-            blocks = [TranscriptFindBlock(id: 0, text: text)]
-        }
-        return blocks
     }
 
     /// Persisted scale clamped to the supported range, so a stale or externally
@@ -1520,8 +1505,9 @@ struct TranscriptResultView: View {
     @ViewBuilder
     private func transcriptTextBlock(_ text: String) -> some View {
         if findBarVisible {
-            // Find active: render anchorable paragraph blocks so matches can be
-            // scrolled into view and highlighted in place.
+            // Find active: render the current search block(s) with highlights.
+            // Text mode stays one full selectable Text; Timed mode uses segment
+            // blocks so match navigation can scroll to each timestamped row.
             transcriptTextBlockSearchable()
         } else {
             Text(text)

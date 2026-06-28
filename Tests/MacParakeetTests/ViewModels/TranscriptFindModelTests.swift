@@ -149,6 +149,29 @@ final class TranscriptFindModelTests: XCTestCase {
         XCTAssertEqual(m.currentMatchIndex, 0)
     }
 
+    func testSettingBlocksPreservesCurrentMatchWhenStillPresent() {
+        let m = model(["one", "two one", "three one"], query: "one")
+        m.next()
+        XCTAssertEqual(m.current, .init(blockIndex: 1, range: NSRange(location: 4, length: 3)))
+
+        m.setBlocks(["one changed", "two one changed", "three one"])
+
+        XCTAssertEqual(m.currentMatchIndex, 1)
+        XCTAssertEqual(m.current, .init(blockIndex: 1, range: NSRange(location: 4, length: 3)))
+    }
+
+    func testSettingBlocksKeepsCurrentOrdinalWhenExactMatchDisappears() {
+        let m = model(["one", "one", "one"], query: "one")
+        m.next()
+        XCTAssertEqual(m.currentMatchIndex, 1)
+
+        m.setBlocks(["one", "missing", "one"])
+
+        XCTAssertEqual(m.matchCount, 2)
+        XCTAssertEqual(m.currentMatchIndex, 1)
+        XCTAssertEqual(m.current, .init(blockIndex: 2, range: NSRange(location: 0, length: 3)))
+    }
+
     func testClearEmptiesEverything() {
         let m = model(["a a a"], query: "a")
         XCTAssertEqual(m.matchCount, 3)
