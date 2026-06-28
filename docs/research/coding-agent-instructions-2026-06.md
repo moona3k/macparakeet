@@ -10,6 +10,9 @@ test, navigate, and avoid known project hazards. Volatile feature catalogs,
 release deltas, long plans, and historical requirement indexes should live in
 linked docs that agents load only when relevant.
 
+The operating policy for memory and instruction placement lives in
+[`../agent-memory-governance.md`](../agent-memory-governance.md).
+
 This supports the current split:
 
 - `AGENTS.md` is the canonical cross-agent startup guide.
@@ -21,15 +24,29 @@ This supports the current split:
 
 ### Anthropic Claude Code
 
-Anthropic describes `CLAUDE.md` as persistent context loaded into sessions, not
-enforced configuration. Their guidance says concise, specific instructions are
-followed more consistently, and recommends adding material when it represents
-something Claude would otherwise need re-explained: repeated mistakes, review
-feedback, recurring clarifications, or context a new teammate needs. It also
-suggests moving multi-step or narrow-context procedures out of the always-loaded
-file into more specific mechanisms.
+Anthropic describes `CLAUDE.md` and auto memory as context loaded at session
+start, not enforced configuration. Their guidance says concise, specific
+instructions are followed more consistently, recommends keeping each
+`CLAUDE.md` under 200 lines, and notes that imported files still enter startup
+context. Claude loads `CLAUDE.md`, not `AGENTS.md`, so an `@AGENTS.md` import
+is the intended bridge for repos that already have a cross-agent guide.
 
-Source: https://code.claude.com/docs/en/memory
+Auto memory is a separate machine-local layer. Claude loads only the first 200
+lines or 25 KB of `MEMORY.md` at startup; topic files are read on demand. The
+settings docs also make the tradeoff explicit: disabling auto memory via
+`autoMemoryEnabled`, `/memory`, or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` disables
+both reading and writing.
+
+Anthropic's recommended escape hatches are path-scoped `.claude/rules/`, skills
+for reusable procedures, subagents for context-isolated work, and hooks or
+settings when behavior must be enforced rather than suggested.
+
+Sources:
+
+- https://docs.anthropic.com/en/docs/claude-code/memory
+- https://docs.anthropic.com/en/docs/claude-code/settings
+- https://docs.anthropic.com/en/docs/claude-code/skills
+- https://docs.anthropic.com/en/docs/claude-code/sub-agents
 
 ### OpenAI Codex
 
@@ -108,8 +125,8 @@ Source: https://arxiv.org/html/2506.12286v1
    file when possible.
 2. Put commands, worktree rules, product constraints, and verification defaults
    in `AGENTS.md`.
-3. Keep `CLAUDE.md` real but narrow: Claude-specific operating style,
-   high-risk pitfalls, and links to current sources.
+3. Keep `CLAUDE.md` real but narrow: Claude-specific memory behavior,
+   local-state cautions, and links to current sources.
 4. Link to specs and ADRs for feature state instead of duplicating release
    flags in startup context.
 5. Treat plans as useful agent working memory for substantial tasks, not a
@@ -118,3 +135,7 @@ Source: https://arxiv.org/html/2506.12286v1
    search, and `git` history for current implementation discovery.
 7. Use independent review and convergence for substantial changes, but keep the
    review loop proportional to risk.
+8. Treat auto memory as a stale-prone hint store, not a source of truth for
+   release, PR, CI, deploy, analytics, or current product state.
+9. Promote single-subsystem lessons out of global memory into subsystem READMEs,
+   specs, tests, workflow docs, or skills.
