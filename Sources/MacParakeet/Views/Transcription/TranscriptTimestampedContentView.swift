@@ -2,6 +2,52 @@ import SwiftUI
 import Foundation
 import MacParakeetCore
 
+private struct TranscriptSegmentRowIdentity: Hashable {
+    let startMs: Int
+    let text: String
+    let speakerId: String?
+    let duplicateOrdinal: Int
+}
+
+private struct TranscriptSegmentRowIdentityBase: Hashable {
+    let startMs: Int
+    let text: String
+    let speakerId: String?
+}
+
+private struct IndexedTranscriptSegment: Identifiable {
+    let index: Int
+    let segment: TranscriptSegment
+    let identity: TranscriptSegmentRowIdentity
+
+    var id: TranscriptSegmentRowIdentity {
+        identity
+    }
+}
+
+private func indexedSegments(_ segments: [TranscriptSegment]) -> [IndexedTranscriptSegment] {
+    var duplicateCounts: [TranscriptSegmentRowIdentityBase: Int] = [:]
+    return segments.enumerated().map { index, segment in
+        let base = TranscriptSegmentRowIdentityBase(
+            startMs: segment.startMs,
+            text: segment.text,
+            speakerId: segment.speakerId
+        )
+        let ordinal = duplicateCounts[base, default: 0]
+        duplicateCounts[base] = ordinal + 1
+        return IndexedTranscriptSegment(
+            index: index,
+            segment: segment,
+            identity: TranscriptSegmentRowIdentity(
+                startMs: segment.startMs,
+                text: segment.text,
+                speakerId: segment.speakerId,
+                duplicateOrdinal: ordinal
+            )
+        )
+    }
+}
+
 struct TranscriptTimestampedContentView: View {
     let hasSpeakers: Bool
     let turns: [SpeakerTurn]
@@ -39,7 +85,9 @@ struct TranscriptTimestampedContentView: View {
                 .id(turn.segments.first?.startMs ?? 0)
             }
         } else {
-            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+            ForEach(indexedSegments(segments)) { indexed in
+                let index = indexed.index
+                let segment = indexed.segment
                 ZStack(alignment: .topLeading) {
                     timestampScrollAnchor(startMs: segment.startMs)
                     TranscriptSegmentRow(
@@ -97,7 +145,9 @@ private struct TranscriptTurnCardView: View {
             }
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                ForEach(Array(segments.enumerated()), id: \.element.startMs) { index, segment in
+                ForEach(indexedSegments(segments)) { indexed in
+                    let index = indexed.index
+                    let segment = indexed.segment
                     turnSegmentRow(index: index, segment: segment)
                 }
             }

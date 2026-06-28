@@ -13,11 +13,10 @@ private struct TranscriptFindBlock: Equatable, Identifiable {
 }
 
 /// Invisible scroll target inside the full-text transcript. Text mode keeps one
-/// selectable `Text` for the transcript body, then overlays these anchors so
-/// find navigation can still land near the current match.
+/// selectable `Text` for the transcript body, then overlays a single prefix
+/// target for the active match so find navigation can still land near it.
 private struct TranscriptTextFindAnchor: Equatable, Identifiable {
     let id: Int
-    let utf16Start: Int
     let prefixText: String
 }
 
@@ -123,14 +122,12 @@ struct TranscriptResultView: View {
     private static let transcriptFontScaleRange: ClosedRange<Double> = 0.85...1.4
     private static let transcriptFontScaleStep: Double = 0.1
     private static let textFindAnchorBaseID = -1_000_000
-    private static let textFindAnchorChunkCharacters = 700
     // In-transcript find (Transcript Detail Refresh / U2). The matcher is the
     // testable `TranscriptFindModel`; this view owns the bar's visibility, the
     // ordered blocks fed to the model, and the scroll wiring.
     @State private var findModel = TranscriptFindModel()
     @State private var findBarVisible = false
     @State private var findBlocks: [TranscriptFindBlock] = []
-    @State private var findTextAnchors: [TranscriptTextFindAnchor] = []
     /// Bumped on every keystroke / navigation so the in-reader `onChange` can
     /// re-aim `scrollTo` at the current match (even when the cursor index is
     /// unchanged but the matched block moved).
@@ -1295,12 +1292,12 @@ struct TranscriptResultView: View {
 
     /// The scroll target for the current match. Timed mode scrolls to the
     /// owning segment. Text mode keeps one selectable transcript body, so it
-    /// scrolls to the hidden chunk anchor nearest the current match range.
+    /// scrolls to the hidden prefix anchor for the current match range.
     private var findCurrentScrollTargetID: Int? {
         guard findBarVisible, let current = findModel.current,
               findBlocks.indices.contains(current.blockIndex) else { return nil }
         if transcriptDisplayMode == .text {
-            return textFindAnchorID(forUTF16Location: current.range.location)
+            return currentTextFindAnchor?.id
         }
         return findBlocks[current.blockIndex].id
     }
@@ -1336,7 +1333,6 @@ struct TranscriptResultView: View {
         findFieldFocused = false
         findModel.clear()
         findBlocks = []
-        findTextAnchors = []
         releaseFindOwnedAutoScrollPause()
     }
 
@@ -1361,11 +1357,10 @@ struct TranscriptResultView: View {
     /// Rebuild the ordered blocks the matcher searches for the current mode and
     /// re-run the live query. Timed mode searches cached segments. Text mode
     /// searches the full transcript string so native selection can span line and
-    /// paragraph breaks; chunk anchors are separate and exist only for scroll.
+    /// paragraph breaks; the current-match scroll anchor is derived on demand.
     private func rebuildFindBlocks() {
         guard findBarVisible, !editingTranscript else {
             findBlocks = []
-            findTextAnchors = []
             findModel.setBlocks([])
             releaseFindOwnedAutoScrollPause()
             return
@@ -1373,10 +1368,8 @@ struct TranscriptResultView: View {
         let blocks: [TranscriptFindBlock]
         if transcriptDisplayMode == .timed, hasTimestamps {
             blocks = cachedSegments.map { TranscriptFindBlock(id: $0.startMs, text: $0.text) }
-            findTextAnchors = []
         } else {
             blocks = [TranscriptFindBlock(id: 0, text: transcriptText)]
-            findTextAnchors = Self.textFindAnchors(from: transcriptText)
         }
         findBlocks = blocks
         findModel.setBlocks(blocks.map(\.text))
@@ -1387,55 +1380,16 @@ struct TranscriptResultView: View {
         }
     }
 
-    /// Chunk the flat transcript into hidden scroll anchors. The anchors render
-    /// the continuous prefix before each chunk, not the chunk itself, so their
-    /// bottom edge follows the same single-Text line wrapping as the visible
-    /// transcript and does not accumulate paragraph-boundary drift.
-    private static func textFindAnchors(from text: String) -> [TranscriptTextFindAnchor] {
-        guard !text.isEmpty else {
-            return [TranscriptTextFindAnchor(id: textFindAnchorBaseID, utf16Start: 0, prefixText: "")]
+    private var currentTextFindAnchor: TranscriptTextFindAnchor? {
+        guard findBarVisible, transcriptDisplayMode == .text,
+              let current = findModel.current else { return nil }
+        guard let prefixEnd = transcriptText.stringIndex(utf16Offset: current.range.location) else {
+            return nil
         }
-
-        var anchors: [TranscriptTextFindAnchor] = []
-        var start = text.startIndex
-        var utf16Start = 0
-        var index = 0
-
-        while start < text.endIndex {
-            let end = textFindChunkEnd(in: text, from: start)
-            let chunk = String(text[start..<end])
-            anchors.append(TranscriptTextFindAnchor(
-                id: textFindAnchorBaseID - index,
-                utf16Start: utf16Start,
-                prefixText: String(text[..<start])
-            ))
-            utf16Start += chunk.utf16.count
-            start = end
-            index += 1
-        }
-
-        return anchors
-    }
-
-    private static func textFindChunkEnd(in text: String, from start: String.Index) -> String.Index {
-        let hardLimit = text.index(start, offsetBy: textFindAnchorChunkCharacters, limitedBy: text.endIndex)
-            ?? text.endIndex
-        guard hardLimit < text.endIndex else { return text.endIndex }
-
-        let preferredRange = start..<hardLimit
-        if let newline = text[preferredRange].lastIndex(of: "\n"), newline > start {
-            return text.index(after: newline)
-        }
-        if let whitespace = text[preferredRange].lastIndex(where: { $0.isWhitespace }), whitespace > start {
-            return text.index(after: whitespace)
-        }
-        return hardLimit
-    }
-
-    private func textFindAnchorID(forUTF16Location location: Int) -> Int? {
-        guard !findTextAnchors.isEmpty else { return nil }
-        return findTextAnchors.last(where: { $0.utf16Start <= location })?.id
-            ?? findTextAnchors.first?.id
+        return TranscriptTextFindAnchor(
+            id: Self.textFindAnchorBaseID,
+            prefixText: String(transcriptText[..<prefixEnd])
+        )
     }
 
     /// Persisted scale clamped to the supported range, so a stale or externally
@@ -1634,7 +1588,7 @@ struct TranscriptResultView: View {
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .topLeading) {
-            transcriptTextFindAnchors()
+            transcriptTextFindAnchor()
         }
         .padding(DesignSystem.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1644,23 +1598,22 @@ struct TranscriptResultView: View {
         )
     }
 
-    private func transcriptTextFindAnchors() -> some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(findTextAnchors) { anchor in
-                Text(anchor.prefixText)
-                    .font(scaledTranscriptFont)
-                    .lineSpacing(6)
-                    .foregroundStyle(.clear)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(alignment: .bottomLeading) {
-                        Color.clear
-                            .frame(width: 1, height: 1)
-                            .id(anchor.id)
-                    }
-            }
+    @ViewBuilder
+    private func transcriptTextFindAnchor() -> some View {
+        if let anchor = currentTextFindAnchor {
+            Text(anchor.prefixText)
+                .font(scaledTranscriptFont)
+                .lineSpacing(6)
+                .foregroundStyle(.clear)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .bottomLeading) {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .id(anchor.id)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func transcriptTimedTextSearchableBlocks() -> some View {
@@ -3620,5 +3573,15 @@ private struct EngineBadge: View {
                 Capsule(style: .continuous)
                     .stroke(tint.opacity(0.28), lineWidth: 0.5)
             )
+    }
+}
+
+private extension String {
+    func stringIndex(utf16Offset: Int) -> String.Index? {
+        guard utf16Offset >= 0,
+              let utf16Index = utf16.index(utf16.startIndex, offsetBy: utf16Offset, limitedBy: utf16.endIndex) else {
+            return nil
+        }
+        return String.Index(utf16Index, within: self)
     }
 }
