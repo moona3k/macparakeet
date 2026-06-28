@@ -30,8 +30,8 @@ Anthropic's current Claude Code guidance draws the boundary this way:
   the right bridge when the repo already has cross-agent instructions.
 - Multi-step or narrow-context procedures should move to skills, path-scoped
   rules, or local subsystem docs instead of root startup files.
-- `autoMemoryEnabled: false`, `/memory`, or
-  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` disable both reading and writing auto
+- Setting `autoMemoryEnabled: false`, toggling `/memory`, or setting
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` disables both reading and writing auto
   memory.
 
 Use hooks, scripts, tests, permissions, or product code when something must be
@@ -82,6 +82,8 @@ nearly every session.
 - Permissions, clipboard, Accessibility selection/replacement, focused-app
   context, media control, and launch-at-login:
   `Sources/MacParakeetCore/Services/System/README.md`.
+- Test timing, flake triage, and CI-reliability notes: `spec/09-testing.md` or
+  the focused test file's header comments.
 - Public CLI behavior: `integrations/README.md`, `Sources/CLI/README.md`,
   `Sources/CLI/CHANGELOG.md`, and CLI tests.
 - Release, signing, notarization, Sparkle, and DMG details:

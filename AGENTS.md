@@ -96,7 +96,7 @@ When editing a load-bearing Core subsystem, read its local README before code:
 - Start by finding the governing code, ADRs/specs, and tests for the task.
 - Treat agent memory, old chat, and old plans as hints. Verify live state from
   code, tests, `git`, GitHub, release metadata, or the governing doc before
-  relying on it.
+  relying on them.
 - For behavior changes, define the intended scope and must-not-change
   invariants before editing.
 - Plans are useful working memory for substantial or long-running tasks, but
