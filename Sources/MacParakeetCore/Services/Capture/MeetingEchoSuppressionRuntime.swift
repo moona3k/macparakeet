@@ -269,16 +269,27 @@ enum MeetingEchoSuppressionFactory {
             )
             // The processor may report its own sample rate, so the ms→samples
             // conversion happens here rather than in the configuration.
-            let referenceDelaySamples = configuration.referenceDelayMs * processor.sampleRate / 1_000
             // Search up to ~100 ms of echo-path latency (the practical ceiling
             // for laptop speaker→mic bleed), extended to cover the configured
             // seed but capped at ~200 ms so a large manual reference delay
-            // cannot make the off-lock correlation or the analysis buffer
-            // unbounded. A seed beyond that cap is a deliberate manual override,
-            // so adaptation is disabled and the fixed seed is used as-is.
-            let searchCeiling = max(1, processor.sampleRate / 5)
+            // cannot make the off-lock correlation, analysis buffer, or fixed
+            // reference-retention buffer unbounded.
+            let referenceDelaySamples = boundedReferenceDelaySamples(
+                referenceDelayMs: configuration.referenceDelayMs,
+                sampleRate: processor.sampleRate
+            )
+            let searchCeiling = adaptiveReferenceDelaySearchCeiling(sampleRate: processor.sampleRate)
+            let referenceDelayWasCapped = referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: configuration.referenceDelayMs,
+                sampleRate: processor.sampleRate
+            )
+            if referenceDelayWasCapped {
+                logger.warning(
+                    "meeting_echo_reference_delay_clamped requested_ms=\(configuration.referenceDelayMs, privacy: .public) capped_samples=\(referenceDelaySamples, privacy: .public)"
+                )
+            }
             let estimator: MeetingEchoDelayEstimator?
-            if configuration.adaptiveReferenceDelay, referenceDelaySamples <= searchCeiling {
+            if configuration.adaptiveReferenceDelay, !referenceDelayWasCapped {
                 let maxLag = min(max(processor.sampleRate / 10, referenceDelaySamples), searchCeiling)
                 estimator = MeetingEchoDelayEstimator(maxLagSamples: max(1, maxLag))
             } else {
@@ -293,6 +304,25 @@ enum MeetingEchoSuppressionFactory {
         } catch {
             return unavailableDynamicConditioner(reason: "load_failed", error: error)
         }
+    }
+
+    static func adaptiveReferenceDelaySearchCeiling(sampleRate: Int) -> Int {
+        max(1, max(1, sampleRate) / 5)
+    }
+
+    static func boundedReferenceDelaySamples(referenceDelayMs: Int, sampleRate: Int) -> Int {
+        let sampleRate = max(1, sampleRate)
+        let ceiling = adaptiveReferenceDelaySearchCeiling(sampleRate: sampleRate)
+        let requested = Double(max(0, referenceDelayMs)) * Double(sampleRate) / 1_000
+        guard requested.isFinite, requested < Double(ceiling) else { return ceiling }
+        return max(0, Int(requested))
+    }
+
+    static func referenceDelayExceedsSearchCeiling(referenceDelayMs: Int, sampleRate: Int) -> Bool {
+        let sampleRate = max(1, sampleRate)
+        let ceiling = adaptiveReferenceDelaySearchCeiling(sampleRate: sampleRate)
+        let requested = Double(max(0, referenceDelayMs)) * Double(sampleRate) / 1_000
+        return !requested.isFinite || requested > Double(ceiling)
     }
 
     private static func unavailableDynamicConditioner(

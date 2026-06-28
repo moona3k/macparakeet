@@ -23,9 +23,11 @@ assets or hardware that cannot be produced in a sandbox.
 - **U2 — adaptive delay in mic conditioning: DONE.**
   `StreamingMeetingEchoSuppressor` re-estimates its reference delay from paired
   audio on a cadence; the static `…REFERENCE_DELAY_MS` is the seed/override and
-  `MACPARAKEET_MEETING_ECHO_ADAPTIVE_DELAY` (default on) gates it. The factory
-  builds the estimator for the dynamic-library path. Passthrough/asset-less
-  paths are unchanged, so shipped builds are unaffected.
+  `MACPARAKEET_MEETING_ECHO_ADAPTIVE_DELAY` (default on) gates it. Oversized
+  manual delays are clamped to the adaptive search ceiling so fixed reference
+  retention stays bounded. The factory builds the estimator for the
+  dynamic-library path. Passthrough/asset-less paths are unchanged, so shipped
+  builds are unaffected.
 - **U7 — diagnostics: PARTIAL.** Delay, last-adopted confidence, adopted-count,
   and rejected-count added to `MeetingEchoSuppressionDiagnostics` (metadata
   only) and the existing `meeting_echo_suppression_summary` log. Feedback-surface

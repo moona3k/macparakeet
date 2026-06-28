@@ -55,6 +55,21 @@ final class MeetingEchoDelayEstimatorTests: XCTestCase {
             "too few samples to span the lag search returns nil rather than a degenerate peak")
     }
 
+    func testConfidenceContractIsClampedToNormalizedRange() {
+        let signal = (0..<256).map { sin(Float($0) * 0.1) }
+        let estimator = MeetingEchoDelayEstimator(
+            maxLagSamples: 0,
+            minConfidence: 2,
+            analysisWindowSamples: 128
+        )
+
+        let estimate = estimator.estimate(microphone: signal, reference: signal)
+
+        XCTAssertNotNil(estimate, "minConfidence above 1 is clamped to the normalized range")
+        XCTAssertLessThanOrEqual(estimate!.confidence, 1)
+        XCTAssertGreaterThanOrEqual(estimate!.confidence, 0)
+    }
+
     /// The money test: a large bulk delay (600 samples) that a fixed zero offset
     /// cannot align. Uses the oracle subtractor so the result reflects *alignment*
     /// alone, not a filter's incidental ability to predict a periodic reference —

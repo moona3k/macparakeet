@@ -49,7 +49,7 @@ struct MeetingEchoDelayEstimator: Sendable {
     ) {
         self.maxLagSamples = max(0, maxLagSamples)
         self.preEmphasis = preEmphasis
-        self.minConfidence = max(0, minConfidence)
+        self.minConfidence = min(1, max(0, minConfidence))
         self.analysisWindowSamples = max(1, analysisWindowSamples)
     }
 
@@ -107,7 +107,7 @@ struct MeetingEchoDelayEstimator: Sendable {
                         cross += mic[n] * r
                     }
                     let normalized = cross / (micEnergy * refEnergy).squareRoot()
-                    let score = abs(normalized)
+                    let score = min(1, abs(normalized))
                     if score > bestScore {
                         bestScore = score
                         bestLag = lag

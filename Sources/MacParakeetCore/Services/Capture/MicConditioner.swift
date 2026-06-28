@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 struct MeetingEchoSuppressionDiagnostics: Sendable, Equatable {
     var processorName: String
@@ -126,6 +127,8 @@ final class PassthroughMicConditioner: MicConditioning, @unchecked Sendable {
 /// while the static value remains a manual seed/override and the value used
 /// until the first confident estimate.
 final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable {
+    private static let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingEchoSuppressor")
+
     private let processor: any MeetingEchoSuppressing
     private let seedDelaySamples: Int
     private let estimator: MeetingEchoDelayEstimator?
@@ -472,10 +475,19 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         else { return }
 
         if let estimate {
-            currentDelaySamples = min(estimate.delaySamples, retentionDelaySamples)
+            let previousDelaySamples = currentDelaySamples
+            let previousEstimateCount = diagnosticsStorage.delayEstimateCount
+            let adoptedDelaySamples = min(estimate.delaySamples, retentionDelaySamples)
+            currentDelaySamples = adoptedDelaySamples
             diagnosticsStorage.currentDelaySamples = currentDelaySamples
             diagnosticsStorage.delayConfidence = estimate.confidence
             diagnosticsStorage.delayEstimateCount += 1
+            let adoptedEstimateCount = diagnosticsStorage.delayEstimateCount
+            if previousEstimateCount == 0 || previousDelaySamples != adoptedDelaySamples {
+                Self.logger.info(
+                    "meeting_echo_delay_adopted delay_samples=\(adoptedDelaySamples, privacy: .public) confidence=\(estimate.confidence, privacy: .public) estimate_count=\(adoptedEstimateCount, privacy: .public)"
+                )
+            }
         } else {
             diagnosticsStorage.rejectedDelayEstimates += 1
         }

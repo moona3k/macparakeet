@@ -205,8 +205,9 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   the dominant factor in cancellation and the bulk clock offset can exceed any
   practical filter span. `MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS` seeds the
   estimate and overrides it when `MACPARAKEET_MEETING_ECHO_ADAPTIVE_DELAY` is
-  off; a silent far-end is treated as "nothing to align" rather than forcing a
-  lag. Transcript-layer system-dominance suppression and
+  off; fixed/manual delay is capped to the adaptive search ceiling so reference
+  retention stays bounded. A silent far-end is treated as "nothing to align"
+  rather than forcing a lag. Transcript-layer system-dominance suppression and
   `MeetingTranscriptSourceReconciler` remain safety nets against obvious
   speaker bleed, not a complete AEC substitute. When VPIO is explicitly
   requested and engages, macOS applies AEC/noise suppression/AGC before buffers

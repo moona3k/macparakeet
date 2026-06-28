@@ -46,6 +46,36 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         )
     }
 
+    func testReferenceDelaySampleBoundsStayFinite() {
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.adaptiveReferenceDelaySearchCeiling(sampleRate: 16_000),
+            3_200
+        )
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.boundedReferenceDelaySamples(referenceDelayMs: 75, sampleRate: 16_000),
+            1_200
+        )
+        XCTAssertFalse(
+            MeetingEchoSuppressionFactory.referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: 200,
+                sampleRate: 16_000
+            )
+        )
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.boundedReferenceDelaySamples(
+                referenceDelayMs: 10_000,
+                sampleRate: 16_000
+            ),
+            3_200
+        )
+        XCTAssertTrue(
+            MeetingEchoSuppressionFactory.referenceDelayExceedsSearchCeiling(
+                referenceDelayMs: 10_000,
+                sampleRate: 16_000
+            )
+        )
+    }
+
     func testDefaultFrameSizeMatchesLocalVQEHopLengthFallback() {
         let configuration = MeetingEchoSuppressionConfiguration()
 
