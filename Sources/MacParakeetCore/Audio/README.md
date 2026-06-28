@@ -207,20 +207,19 @@ SCO link delivers audio and capture reads zero or pure-silent buffers
 (the self-heal restarts the engine but rebinds to the same not-yet-ready
 endpoint, so it does not fix this). The device-attempt builder in
 `AppEnvironment` therefore consults
-`AudioDeviceManager.isDefaultOutputBluetooth()` and, when the user is on
-the *system-default* input (no explicit mic chosen), that default input is
-Bluetooth or no default input resolved, and output is on a Bluetooth device,
-`meetingInputDeviceAttempts` promotes the built-in mic to the front of the
-chain (governed by the
-`preferBuiltInMicWhenBluetoothOutput` preference, default on; toggle in
-Settings → Dictation). The Bluetooth device stays in the chain as a
-fallback, non-Bluetooth system-default inputs such as USB desk mics are left
-alone, an explicit mic selection is always honored, and the `outputIsBluetooth`
-query is skipped unless the rule could apply. This keeps playback in A2DP and
-sidesteps the SCO race rather than fighting it. *Verify on real Bluetooth
-hardware before relying on it — the
-behavior is hardware-timing-dependent and is not exercised by the unit
-suite.*
+`AudioDeviceManager.isDefaultOutputBluetooth()` and, when the unpinned
+system-default input is Bluetooth, unresolved, or the built-in mic itself,
+`meetingInputDeviceAttempts` pins the built-in mic before that default fallback
+(governed by the `preferBuiltInMicWhenBluetoothOutput` preference, default on;
+toggle in Settings → Dictation). With no explicit mic chosen, built-in becomes
+the primary attempt. With an explicit mic chosen, that selection remains first,
+but a failed selected attempt no longer falls through to an unpinned Bluetooth
+default before trying built-in. Non-Bluetooth system-default inputs such as USB
+desk mics are left alone, and the `outputIsBluetooth` query is skipped unless
+the rule could improve the chain. This keeps playback in A2DP and sidesteps the
+SCO race rather than fighting it. *Verify on real Bluetooth hardware before
+relying on it — the behavior is hardware-timing-dependent and is not exercised
+by the unit suite.*
 
 **Diagnostics stay narrow.** The recording heartbeat in `AudioRecorder`
 remains observability-only. The first-buffer watchdog is now also a

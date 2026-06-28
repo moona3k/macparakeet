@@ -491,8 +491,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// When on (default), dictation/meeting capture prefers the built-in mic
     /// while audio output is routed to a Bluetooth headset, so opening the mic
     /// doesn't force the headset into HFP/SCO (degraded playback + silent-
-    /// capture race, issues #481/#541/#409). Only applies on the system-
-    /// default input; an explicit mic selection is always honored.
+    /// capture race, issues #481/#541/#409). Explicit mic selections remain
+    /// first; this only changes the system-default path or the fallback behind
+    /// a failed explicit attempt.
     public static let preferBuiltInMicWhenBluetoothOutputKey = "preferBuiltInMicWhenBluetoothOutput"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"

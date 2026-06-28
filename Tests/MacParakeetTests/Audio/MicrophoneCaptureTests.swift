@@ -487,8 +487,32 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testBluetoothOutputRespectsExplicitMicrophoneSelection() {
-        // An explicit selection is never overridden, even with Bluetooth output.
+    func testBluetoothOutputKeepsExplicitSelectionFirstAndPinsBuiltInBeforeDefaultFallback() {
+        // An explicit selection remains first, but if it fails during Bluetooth
+        // route churn we still avoid floating to the unpinned headset default
+        // before trying the pinned built-in mic.
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: "usb-mic",
+            selectedInputDeviceID: { uid in uid == "usb-mic" ? AudioDeviceID(10) : nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .selected(uid: "usb-mic"), deviceID: 10),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+                .implicitSystemDefault(resolvedDeviceID: 20),
+            ],
+            "Explicit selection must stay first, with built-in pinned before the Bluetooth default fallback"
+        )
+    }
+
+    func testBluetoothOutputLeavesExplicitSelectionFallbackUntouchedForNonBluetoothDefaultInput() {
+        var queriedDefaultInput = false
         var queriedOutput = false
         let attempts = meetingInputDeviceAttempts(
             selectedUID: "usb-mic",
@@ -496,22 +520,80 @@ final class MicrophoneCaptureTests: XCTestCase {
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { AudioDeviceID(30) },
             preferBuiltInWhenOutputIsBluetooth: true,
+            defaultInputIsBluetooth: { deviceID in
+                queriedDefaultInput = true
+                XCTAssertEqual(deviceID, 20)
+                return false
+            },
             outputIsBluetooth: {
                 queriedOutput = true
                 return true
             }
         )
 
-        XCTAssertEqual(attempts.first?.source, .selected(uid: "usb-mic"))
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .selected(uid: "usb-mic"), deviceID: 10),
+                .implicitSystemDefault(resolvedDeviceID: 20),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ],
+            "A non-Bluetooth default input remains the first fallback behind an explicit selection"
+        )
+        XCTAssertTrue(queriedDefaultInput)
         XCTAssertFalse(
             queriedOutput,
-            "The output transport must not be queried when a device is explicitly selected"
+            "The output transport must not be queried when the default input is not Bluetooth"
         )
     }
 
-    func testBluetoothOutputNoReorderWhenBuiltInIsAlreadyDefault() {
-        // System default already is the built-in mic (id 30) — nothing to move,
-        // and capture is already on a safe input.
+    func testBluetoothOutputDropsBluetoothDefaultFallbackWhenExplicitSelectionIsBuiltIn() {
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: "built-in-mic",
+            selectedInputDeviceID: { uid in uid == "built-in-mic" ? AudioDeviceID(30) : nil },
+            defaultInputDevice: { AudioDeviceID(20) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .selected(uid: "built-in-mic"), deviceID: 30),
+            ],
+            "Explicit built-in selection must not fall through to an unpinned Bluetooth default"
+        )
+    }
+
+    func testBluetoothOutputPinsBuiltInFallbackWhenBuiltInDefaultFollowsExplicitSelection() {
+        let attempts = meetingInputDeviceAttempts(
+            selectedUID: "usb-mic",
+            selectedInputDeviceID: { uid in uid == "usb-mic" ? AudioDeviceID(10) : nil },
+            defaultInputDevice: { AudioDeviceID(30) },
+            builtInMicrophone: { AudioDeviceID(30) },
+            preferBuiltInWhenOutputIsBluetooth: true,
+            defaultInputIsBluetooth: { _ in
+                XCTFail("Built-in default should not need a Bluetooth input query")
+                return true
+            },
+            outputIsBluetooth: { true }
+        )
+
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .selected(uid: "usb-mic"), deviceID: 10),
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ],
+            "Built-in should be pinned behind the explicit selection without keeping a duplicate implicit default"
+        )
+    }
+
+    func testBluetoothOutputPinsBuiltInWhenBuiltInIsAlreadyDefault() {
+        // System default resolves to the built-in mic. Pin it explicitly under
+        // Bluetooth output so a route-change flap cannot float the implicit
+        // default onto the headset.
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
             selectedInputDeviceID: { _ in nil },
@@ -521,7 +603,12 @@ final class MicrophoneCaptureTests: XCTestCase {
             outputIsBluetooth: { true }
         )
 
-        XCTAssertEqual(attempts, [.implicitSystemDefault(resolvedDeviceID: 30)])
+        XCTAssertEqual(
+            attempts,
+            [
+                MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+            ]
+        )
     }
 
     func testBluetoothOutputRuleDisabledLeavesChainUntouched() {
