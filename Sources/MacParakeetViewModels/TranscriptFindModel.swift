@@ -4,10 +4,11 @@ import Foundation
 /// (Transcript Detail Refresh / U2).
 ///
 /// The model is deliberately ignorant of SwiftUI and of how the transcript is
-/// rendered. It searches an ordered list of text *blocks* — segments in Timed
-/// mode, paragraphs in Text mode; the view decides which — and produces a
-/// single globally ordered match list. The view owns the mapping from a
-/// match's `blockIndex` back to a scroll anchor and the highlight rendering.
+/// rendered. It searches an ordered list of text *blocks* — segment text in
+/// Timed mode, or the full transcript in Text mode; the view decides which —
+/// and produces a single globally ordered match list. The view owns the mapping
+/// from a match's `blockIndex` back to a scroll anchor and the highlight
+/// rendering.
 /// Keeping the matcher here makes it unit-testable and keeps the find logic
 /// out of the ~3k-line `TranscriptResultView`.
 ///

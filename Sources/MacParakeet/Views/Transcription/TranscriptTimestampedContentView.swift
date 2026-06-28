@@ -89,7 +89,7 @@ private struct TranscriptTurnCardView: View {
             }
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                ForEach(Array(segments.enumerated()), id: \.element.startMs) { index, segment in
                     turnSegmentRow(index: index, segment: segment)
                 }
             }

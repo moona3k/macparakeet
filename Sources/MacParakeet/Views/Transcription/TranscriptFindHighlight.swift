@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Builds the highlighted `AttributedString` for an in-transcript find match
 /// (Transcript Detail Refresh / U2). Shared by the Timed-mode segment rows and
-/// the Text-mode paragraph blocks so the highlight treatment stays identical.
+/// the Text-mode full transcript so the highlight treatment stays identical.
 ///
 /// Ranges are UTF-16 `NSRange`s relative to `text` (as produced by
 /// `TranscriptFindModel`). The "current" match gets a stronger background and a
