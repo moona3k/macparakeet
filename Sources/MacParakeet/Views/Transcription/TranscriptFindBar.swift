@@ -76,13 +76,14 @@ struct TranscriptFindBar: View {
 
     @ViewBuilder
     private var counter: some View {
-        Group {
+        ZStack(alignment: .trailing) {
+            Text("No results")
+                .hidden()
+
             if let position {
                 Text("\(position.current) of \(position.total)")
             } else if hasQueryButNoMatches {
                 Text("No results")
-            } else {
-                EmptyView()
             }
         }
         .font(DesignSystem.Typography.caption.monospacedDigit())
