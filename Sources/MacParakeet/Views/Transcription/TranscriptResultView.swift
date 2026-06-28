@@ -1397,6 +1397,7 @@ struct TranscriptResultView: View {
             .buttonStyle(.plain)
             .disabled(clampedTranscriptFontScale <= Self.transcriptFontScaleRange.lowerBound + 0.001)
             .help("Smaller transcript text")
+            .accessibilityLabel("Smaller transcript text")
 
             Button {
                 adjustTranscriptFontScale(by: Self.transcriptFontScaleStep)
@@ -1407,6 +1408,7 @@ struct TranscriptResultView: View {
             .buttonStyle(.plain)
             .disabled(clampedTranscriptFontScale >= Self.transcriptFontScaleRange.upperBound - 0.001)
             .help("Larger transcript text")
+            .accessibilityLabel("Larger transcript text")
         }
         .foregroundStyle(DesignSystem.Colors.textSecondary)
     }
