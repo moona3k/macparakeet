@@ -28,7 +28,8 @@ assets or hardware that cannot be produced in a sandbox.
   paths are unchanged, so shipped builds are unaffected.
 - **U7 — diagnostics: PARTIAL.** Delay, last-adopted confidence, adopted-count,
   and rejected-count added to `MeetingEchoSuppressionDiagnostics` (metadata
-  only). Recording-summary and feedback-surface wiring remain.
+  only) and the existing `meeting_echo_suppression_summary` log. Feedback-surface
+  wiring remains.
 - **U8 — docs: PARTIAL.** `spec/05-audio-pipeline.md` updated. Contract/CLI
   updates wait on the cleaned-mic artifact (U3).
 - **U3/U4/U5/U6/U9 — DEFERRED.** These are blocked on bundling and

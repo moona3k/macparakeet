@@ -1338,6 +1338,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             "partial_reference_frames=\(diagnostics.partialReferenceFrames)",
             "missing_reference_frames=\(diagnostics.missingReferenceFrames)",
             "processing_failures=\(diagnostics.processingFailures)",
+            "current_delay_samples=\(diagnostics.currentDelaySamples)",
+            "delay_confidence=\(String(format: "%.3f", diagnostics.delayConfidence))",
+            "delay_estimate_count=\(diagnostics.delayEstimateCount)",
+            "rejected_delay_estimates=\(diagnostics.rejectedDelayEstimates)",
         ].joined(separator: " ")
     }
 

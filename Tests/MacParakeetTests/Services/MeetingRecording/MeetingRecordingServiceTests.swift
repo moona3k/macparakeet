@@ -523,6 +523,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("meeting_echo_suppression_summary session=\(output.sessionID.uuidString)"))
         XCTAssertTrue(log.contains("processor=passthrough"))
         XCTAssertTrue(log.contains("loaded=true"))
+        XCTAssertTrue(log.contains("current_delay_samples=0"))
+        XCTAssertTrue(log.contains("delay_confidence=0.000"))
+        XCTAssertTrue(log.contains("delay_estimate_count=0"))
+        XCTAssertTrue(log.contains("rejected_delay_estimates=0"))
     }
 
     func testCancelRecordingDeletesLockAndSessionFolder() async throws {
@@ -1072,6 +1076,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("processor=zeroing-test"))
         XCTAssertTrue(log.contains("processed_frames=1"))
         XCTAssertTrue(log.contains("missing_reference_frames=1"))
+        XCTAssertTrue(log.contains("current_delay_samples=12"))
+        XCTAssertTrue(log.contains("delay_confidence=0.750"))
+        XCTAssertTrue(log.contains("delay_estimate_count=2"))
+        XCTAssertTrue(log.contains("rejected_delay_estimates=1"))
     }
 
     func testSystemOnlyCaptureProducesSystemSourceOnly() async throws {
@@ -2573,7 +2581,11 @@ private final class ZeroingMicConditioner: MicConditioning, @unchecked Sendable 
         fullReferenceFrames: 0,
         partialReferenceFrames: 0,
         missingReferenceFrames: 0,
-        processingFailures: 0
+        processingFailures: 0,
+        currentDelaySamples: 12,
+        delayConfidence: 0.75,
+        delayEstimateCount: 2,
+        rejectedDelayEstimates: 1
     )
 
     func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
@@ -2597,7 +2609,11 @@ private final class ZeroingMicConditioner: MicConditioning, @unchecked Sendable 
             fullReferenceFrames: 0,
             partialReferenceFrames: 0,
             missingReferenceFrames: 0,
-            processingFailures: 0
+            processingFailures: 0,
+            currentDelaySamples: 12,
+            delayConfidence: 0.75,
+            delayEstimateCount: 2,
+            rejectedDelayEstimates: 1
         )
     }
 }
