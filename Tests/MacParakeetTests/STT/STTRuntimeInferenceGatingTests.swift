@@ -30,25 +30,37 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
     /// Releases its parties only once `partyCount` of them are inside at the same
     /// time, so the concurrency test proves overlap with no timing assumptions:
     /// if the runtime (wrongly) serialized the callers the second never arrives,
-    /// the task group never completes, and the test fails by timing out.
+    /// and the first throws a local timeout error instead of stalling the suite.
     private actor Rendezvous {
         private let partyCount: Int
-        private var waiting: [CheckedContinuation<Void, Never>] = []
+        private var arrived = 0
+        private var released = false
         private(set) var releasedPartyCount = 0
 
         init(partyCount: Int) {
             self.partyCount = partyCount
         }
 
-        func arrive() async {
-            await withCheckedContinuation { continuation in
-                waiting.append(continuation)
-                guard waiting.count >= partyCount else { return }
-                releasedPartyCount += waiting.count
-                let parties = waiting
-                waiting.removeAll()
-                for party in parties { party.resume() }
+        func arrive(timeout: Duration = .milliseconds(200)) async throws {
+            arrived += 1
+            if arrived >= partyCount {
+                released = true
+                releasedPartyCount = arrived
             }
+
+            let start = ContinuousClock.now
+            while !released {
+                if start.duration(to: .now) > timeout {
+                    throw RendezvousTimeoutError()
+                }
+                try await Task.sleep(for: .milliseconds(5))
+            }
+        }
+    }
+
+    private struct RendezvousTimeoutError: LocalizedError {
+        var errorDescription: String? {
+            "Timed out waiting for both inference tasks to enter the pass-through gate concurrently"
         }
     }
 
@@ -93,8 +105,9 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
     /// On macOS 15+ (`serializationRequired: false`) the gate is a pass-through,
     /// so the runtime keeps full lane concurrency and pays nothing. Both closures
     /// must be inside the gate at once to clear the rendezvous; if the runtime
-    /// serialized them the second would never arrive and the group would hang to
-    /// a test timeout — so this can't pass by accident and has no timing flake.
+    /// serialized them the second would never arrive and the first fails fast
+    /// with a clear timeout error, so this can't pass by accident and has no
+    /// timing flake.
     func testRuntimeRunsConcurrentlyWhenSerializationNotRequired() async throws {
         let runtime = STTRuntime(inferenceGate: ANEInferenceGate(serializationRequired: false))
         let rendezvous = Rendezvous(partyCount: 2)
@@ -103,7 +116,7 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
             for _ in 0..<2 {
                 group.addTask {
                     try await runtime.runUnderInferenceGate {
-                        await rendezvous.arrive()
+                        try await rendezvous.arrive()
                     }
                 }
             }
