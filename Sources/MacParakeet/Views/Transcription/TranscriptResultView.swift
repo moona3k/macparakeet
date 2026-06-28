@@ -267,6 +267,9 @@ struct TranscriptResultView: View {
             rebuildSegmentCache()
             if findBarVisible { rebuildFindBlocks() }
         }
+        .onChange(of: transcriptText) {
+            if findBarVisible { rebuildFindBlocks() }
+        }
         .onChange(of: transcriptAIContextModeRaw) {
             chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
         }
