@@ -173,8 +173,14 @@ public actor CalendarService {
     // MARK: - EKEvent → CalendarEvent
 
     private func convertEvent(_ ekEvent: EKEvent) -> CalendarEvent? {
+        // `eventIdentifier` is declared `String!` by EventKit but is nil for
+        // some events (unsaved/ephemeral, certain birthday/holiday/subscription
+        // calendars, detached recurrences). Force-unwrapping it into the
+        // non-optional `CalendarEvent.id` crashed (SIGTRAP); drop the event
+        // instead — without a stable identifier we can't track it anyway.
         guard let startDate = ekEvent.startDate,
-              let endDate = ekEvent.endDate else {
+              let endDate = ekEvent.endDate,
+              let id = ekEvent.eventIdentifier else {
             return nil
         }
 
@@ -218,7 +224,7 @@ public actor CalendarService {
         )
 
         return CalendarEvent(
-            id: ekEvent.eventIdentifier,
+            id: id,
             title: ekEvent.title ?? "Untitled",
             startTime: startDate,
             endTime: endDate,
