@@ -86,6 +86,7 @@ let package = Package(
                 "Database/README.md",
                 "Licensing/README.md",
                 "Resources",
+                "Services/System/README.md",
                 "STT/README.md",
                 "TextProcessing/README.md",
             ]

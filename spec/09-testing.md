@@ -83,6 +83,14 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - `TranscriptionServiceTests`: download-phase percentages are forwarded to `onProgress`
 - `TranscriptionViewModelTests`: phase text percent parsing updates UI progress and resets on non-percent phases
 
+### Dictation Flow Timing Tests
+
+`DictationFlowCoordinatorLoadCaptionTests` uses intentionally compressed async
+timing windows to keep first-install/model-load caption coverage fast. If one
+of those tests fails once in CI, rerun it before calling it a product
+regression; if it fails reproducibly or frequently, investigate the coordinator
+timing instead of ignoring it.
+
 ### Meeting Recording Tests
 
 **What:** Meeting recording flow, state machine transitions, chunk ordering, audio pipeline.

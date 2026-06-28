@@ -79,6 +79,9 @@ nearly every session.
   `spec/contracts/`, and recovery tests.
 - UI hover, panel, and visual interaction rules: `spec/04-ui-patterns.md` or
   local view/controller comments when the behavior is highly localized.
+- Permissions, clipboard, Accessibility selection/replacement, focused-app
+  context, media control, and launch-at-login:
+  `Sources/MacParakeetCore/Services/System/README.md`.
 - Public CLI behavior: `integrations/README.md`, `Sources/CLI/README.md`,
   `Sources/CLI/CHANGELOG.md`, and CLI tests.
 - Release, signing, notarization, Sparkle, and DMG details:

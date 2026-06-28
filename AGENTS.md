@@ -68,12 +68,16 @@ This repo often has many parallel worktrees.
   without the GUI.
 - New I/O should use async/await. Avoid new completion-handler or Combine
   patterns.
+- When ordering or a result matters, make the API async and await it instead of
+  using fire-and-forget `Task`.
+- Keep `@MainActor` work short; move long-running I/O, model, process, and
+  audio work off the actor, then hop back for UI state.
 - Database access uses GRDB repositories, roughly one repository per table.
 - UI buttons use `.parakeetAction(...)`; do not tint whole hosting roots coral.
 
 When editing a load-bearing Core subsystem, read its local README before code:
-`Audio/`, `STT/`, `TextProcessing/`, `Database/`, and `Licensing/` currently
-have subsystem rules.
+`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, and
+`Services/System/` currently have subsystem rules.
 
 ## Product Rules
 

@@ -627,6 +627,8 @@ Drop zone components:
 - "Browse Files" button: .borderedProminent style
 - Supported formats text: caption, tertiary
 - Drop zone height: 200pt (DesignSystem.Layout.dropZoneHeight)
+- Open-panel type filters should guard `UTType(filenameExtension:)` results;
+  supported extension strings can still produce `nil`.
 ```
 
 ### Processing State
