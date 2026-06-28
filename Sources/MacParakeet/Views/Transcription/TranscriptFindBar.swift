@@ -48,8 +48,8 @@ struct TranscriptFindBar: View {
 
             Divider().frame(height: 16)
 
-            navButton(icon: "chevron.up", help: "Previous match (⇧⌘G)", action: onPrev)
-            navButton(icon: "chevron.down", help: "Next match (⌘G)", action: onNext)
+            navButton(icon: "chevron.up", label: "Previous match", help: "Previous match (⇧⌘G)", action: onPrev)
+            navButton(icon: "chevron.down", label: "Next match", help: "Next match (⌘G)", action: onNext)
 
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
@@ -90,7 +90,7 @@ struct TranscriptFindBar: View {
         .fixedSize()
     }
 
-    private func navButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+    private func navButton(icon: String, label: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
@@ -101,6 +101,6 @@ struct TranscriptFindBar: View {
         .buttonStyle(.plain)
         .disabled(!canNavigate)
         .help(help)
-        .accessibilityLabel(help)
+        .accessibilityLabel(label)
     }
 }
