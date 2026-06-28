@@ -155,6 +155,13 @@ enum DesignSystem {
         static let body = Font.system(size: 14)
         static let bodySmall = Font.system(size: 13)
 
+        /// Transcript reading body at a user-adjustable scale (base = `bodyLarge`,
+        /// 15pt). Used by the transcript detail reading surfaces; the caller is
+        /// responsible for clamping `scale` to a sane range.
+        static func transcriptBody(scale: Double) -> Font {
+            Font.system(size: 15 * scale)
+        }
+
         // Metadata
         static let caption = Font.system(size: 12)
         static let micro = Font.system(size: 11)

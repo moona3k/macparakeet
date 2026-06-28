@@ -98,6 +98,11 @@ struct TranscriptResultView: View {
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
     @State private var transcriptDisplayModeBeforeEdit: TranscriptDisplayMode?
+    /// User-adjustable transcript reading size (Transcript Detail Refresh / U4).
+    /// Persisted; applies to both the Text and Timed reading surfaces.
+    @AppStorage("transcriptFontScale") private var transcriptFontScale: Double = 1.0
+    private static let transcriptFontScaleRange: ClosedRange<Double> = 0.85...1.4
+    private static let transcriptFontScaleStep: Double = 0.1
     @State private var editingSpeakerId: String?
     @State private var editingSpeakerLabel: String = ""
     @State private var showConversationPopover = false
@@ -1142,6 +1147,46 @@ struct TranscriptResultView: View {
         }
     }
 
+    /// Transcript body font at the current user reading scale (U4).
+    private var scaledTranscriptFont: Font {
+        DesignSystem.Typography.transcriptBody(scale: transcriptFontScale)
+    }
+
+    private func adjustTranscriptFontScale(by delta: Double) {
+        let next = transcriptFontScale + delta
+        transcriptFontScale = min(
+            max(next, Self.transcriptFontScaleRange.lowerBound),
+            Self.transcriptFontScaleRange.upperBound
+        )
+    }
+
+    /// Compact A−/A+ control for the transcript reading size. Lives in the pane
+    /// header; hidden while editing (editing uses the raw text editor).
+    private var transcriptFontSizeControl: some View {
+        HStack(spacing: 2) {
+            Button {
+                adjustTranscriptFontScale(by: -Self.transcriptFontScaleStep)
+            } label: {
+                Image(systemName: "textformat.size.smaller")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(transcriptFontScale <= Self.transcriptFontScaleRange.lowerBound + 0.001)
+            .help("Smaller transcript text")
+
+            Button {
+                adjustTranscriptFontScale(by: Self.transcriptFontScaleStep)
+            } label: {
+                Image(systemName: "textformat.size.larger")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(transcriptFontScale >= Self.transcriptFontScaleRange.upperBound - 0.001)
+            .help("Larger transcript text")
+        }
+        .foregroundStyle(DesignSystem.Colors.textSecondary)
+    }
+
     private var transcriptPaneHeader: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             Label("Transcript", systemImage: "text.alignleft")
@@ -1172,6 +1217,10 @@ struct TranscriptResultView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .frame(width: 150)
+            }
+
+            if !editingTranscript {
+                transcriptFontSizeControl
             }
 
             if editingTranscript {
@@ -1244,7 +1293,7 @@ struct TranscriptResultView: View {
 
     private func transcriptTextBlock(_ text: String) -> some View {
         Text(text)
-            .font(DesignSystem.Typography.bodyLarge)
+            .font(scaledTranscriptFont)
             .foregroundStyle(DesignSystem.Colors.textPrimary)
             .textSelection(.enabled)
             .lineSpacing(6)
@@ -2365,7 +2414,8 @@ struct TranscriptResultView: View {
                 }
                 autoScrollPaused = false
                 scrollPauseTask?.cancel()
-            }
+            },
+            bodyFont: scaledTranscriptFont
         )
     }
 
