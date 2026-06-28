@@ -134,6 +134,7 @@ into "CI proves it stays correct."
 **In scope** (the only files you should modify):
 - `Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift`
 - `Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift`
+- `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptSourceReconcilerTests.swift` — **only if** Step 3 is explicitly requested.
 - `Tests/MacParakeetTests/STT/MockSTTClient.swift` — **only if** Step 2 proves
   the mock cannot express the stale-partial scenario without a tiny additive
   hook (see Step 2; if you touch it, it must be purely additive).

@@ -539,7 +539,7 @@ Tracked here for the historical minimum-fix decision. Items tied to `SystemAudio
 - `Sources/MacParakeetCore/Services/MeetingRecordingService.swift` — hosts `shouldSuppressMicrophoneChunkTranscription` and `shouldTranscribeChunk`.
 - `Sources/MacParakeetCore/Services/Capture/MicConditioner.swift` — `PassthroughMicConditioner` by default and optional `StreamingMeetingEchoSuppressor` when a runtime/model are available.
 - `Sources/MacParakeetCore/Services/Capture/CaptureOrchestrator.swift` — pair-joining pipeline.
-- `Sources/MacParakeetCore/Services/Capture/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
+- `Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
 
 ### Related MacParakeet git commits
 

@@ -64,7 +64,7 @@ owned by `AppEnvironment`.
   `../Services/Capture/MicConditioner.swift` and
   `../Services/Capture/MeetingEchoSuppressionRuntime.swift`. Those files own
   the passthrough default and optional LocalVQE-compatible echo suppressor used
-  after `MeetingAudioCaptureService` has emitted paired mic/system samples.
+  after `CaptureOrchestrator` pairs `MeetingAudioCaptureService` mic/system events.
 
 **Helpers**
 - `AudioCaptureDiagnostics.swift` — public `append(_:)` to
