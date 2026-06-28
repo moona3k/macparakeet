@@ -109,6 +109,14 @@ minor historical wart, not a design statement.
   above).
 - `spec/06-stt-engine.md` — narrative spec.
 - Audio buffers feeding the scheduler: `../Audio/`.
+- `docs/research/2026-06-28-architecture-deepening-opportunities.md` — **PROPOSED**
+  (not a decision; constraints not yet validated): collapse `STTRuntime`'s
+  scattered engine-discriminating dispatch into capability-declaring engine
+  adapters (extends the existing `NativeLiveDictating` pattern). ADR-016's
+  *decision* is unchanged, but its implementation-direction prose would need
+  updating and capability knowledge would straddle the runtime↔scheduler seam.
+  Read its constraints section (ANE gate injection, TDT hot-path actor hop,
+  init-serialization guard) before reorganizing engine dispatch.
 
 ## What to know before editing
 
