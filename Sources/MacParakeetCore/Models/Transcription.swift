@@ -139,6 +139,28 @@ public struct Transcription: Codable, Identifiable, Sendable {
     }
 }
 
+extension Transcription {
+    /// Whether this transcription carries word-level timing. This is the source
+    /// of truth for the "Timed" transcript view and for whether timestamps can
+    /// be exported. Plain-text engines (Parakeet Unified, Cohere) and older
+    /// pre-timestamp records leave this `false`.
+    public var hasWordTimestamps: Bool {
+        guard let wordTimestamps else { return false }
+        return !wordTimestamps.isEmpty
+    }
+
+    /// Whether words carry diarized speaker IDs that can be exported as speaker
+    /// labels. Requires both a non-empty `speakers` roster and at least one word
+    /// attributed to a speaker. A transcript can list `speakers` without any word
+    /// being attributed — e.g. older records where diarization ran on an engine
+    /// that produced no word timings — so the speaker count alone is not enough.
+    public var hasSpeakerLabeledWords: Bool {
+        guard let speakers, !speakers.isEmpty,
+              let wordTimestamps else { return false }
+        return wordTimestamps.contains { $0.speakerId != nil }
+    }
+}
+
 public struct WordTimestamp: Codable, Sendable, Equatable {
     public var word: String
     public var startMs: Int

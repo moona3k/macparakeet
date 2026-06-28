@@ -24,6 +24,11 @@ public final class TranscriptionViewModel {
         /// Persisted Nemotron build a Nemotron rerun would load (STTRuntime
         /// resolves the persisted variant at run start).
         public let nemotronVariant: NemotronModelVariant
+        /// Persisted Parakeet build a Parakeet rerun would load. Drives the
+        /// engine card's subtitle so it reflects the actual v3/v2/Unified
+        /// posture (e.g. Unified is English-only and emits no word timestamps)
+        /// rather than always advertising the multilingual v3 build.
+        public let parakeetVariant: ParakeetModelVariant
 
         public var title: String {
             "Retranscribe with speech engine"
@@ -461,7 +466,8 @@ public final class TranscriptionViewModel {
         return RetranscriptionEngineOption(
             primaryEngine: primaryEngine,
             choices: choices,
-            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
+            parakeetVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
         )
     }
 

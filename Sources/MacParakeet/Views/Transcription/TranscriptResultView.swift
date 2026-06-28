@@ -640,6 +640,7 @@ struct TranscriptResultView: View {
                     EngineOptionCard(
                         selection: choice.selection,
                         nemotronVariant: option.nemotronVariant,
+                        parakeetVariant: option.parakeetVariant,
                         isPrimary: choice.isPrimary,
                         isAvailable: choice.isAvailable,
                         unavailableReason: choice.unavailableReason,
@@ -2688,8 +2689,7 @@ struct TranscriptResultView: View {
     }
 
     private var hasTimestamps: Bool {
-        guard let words = activeTranscription.wordTimestamps else { return false }
-        return !words.isEmpty
+        activeTranscription.hasWordTimestamps
     }
 
     private var hasAlignedTimestampsForExport: Bool {
@@ -2697,21 +2697,44 @@ struct TranscriptResultView: View {
     }
 
     private var hasSpeakerLabelsForExport: Bool {
-        guard !hasEditedTranscript else { return false }
-        guard let speakers = activeTranscription.speakers, !speakers.isEmpty,
-              let words = activeTranscription.wordTimestamps else { return false }
-        return words.contains { $0.speakerId != nil }
+        !hasEditedTranscript && activeTranscription.hasSpeakerLabeledWords
+    }
+
+    /// Whether "Include timestamps" applies to the current selection: the format
+    /// must take transcript options *and* the transcript must have aligned
+    /// timestamps to include.
+    private var canIncludeTimestampsOption: Bool {
+        selectedExportFormat.supportsTranscriptOptions && hasAlignedTimestampsForExport
+    }
+
+    private var canIncludeSpeakerLabelsOption: Bool {
+        selectedExportFormat.supportsTranscriptOptions && hasSpeakerLabelsForExport
+    }
+
+    /// Caption shown under a disabled "Include timestamps" toggle. `nil` when the
+    /// option is available, or when the format takes no options (the section is
+    /// hidden in that case, so no caption is needed).
+    private var timestampsUnavailableReason: String? {
+        guard selectedExportFormat.supportsTranscriptOptions,
+              !hasAlignedTimestampsForExport else { return nil }
+        if !hasTimestamps { return "This transcript has no word timestamps." }
+        return "Unavailable after editing the transcript text."
+    }
+
+    private var speakerLabelsUnavailableReason: String? {
+        guard selectedExportFormat.supportsTranscriptOptions,
+              !hasSpeakerLabelsForExport else { return nil }
+        if activeTranscription.hasSpeakerLabeledWords {
+            return "Unavailable after editing the transcript text."
+        }
+        return "This transcript has no speaker labels."
     }
 
     private var resolvedTranscriptExportOptions: TranscriptExportOptions {
-        var options = transcriptExportOptions
-        if !hasAlignedTimestampsForExport {
-            options.includeTimestamps = false
-        }
-        if !hasSpeakerLabelsForExport {
-            options.includeSpeakerLabels = false
-        }
-        return options
+        transcriptExportOptions.resolved(
+            canIncludeTimestamps: hasAlignedTimestampsForExport,
+            canIncludeSpeakerLabels: hasSpeakerLabelsForExport
+        )
     }
 
     private var exportFormatOrder: [TranscriptExportFormat] {
@@ -2784,19 +2807,31 @@ struct TranscriptResultView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Options")
-                    .font(DesignSystem.Typography.caption.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            // Options only apply to Text/Markdown; subtitle, JSON, and document
+            // formats embed timing/speakers/metadata by definition, so showing
+            // greyed toggles for them would just be noise.
+            if selectedExportFormat.supportsTranscriptOptions {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text("Options")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                Toggle("Include timestamps", isOn: $transcriptExportOptions.includeTimestamps)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasAlignedTimestampsForExport)
+                    exportOptionToggle(
+                        "Include timestamps",
+                        isOn: $transcriptExportOptions.includeTimestamps,
+                        isEnabled: canIncludeTimestampsOption,
+                        unavailableReason: timestampsUnavailableReason
+                    )
 
-                Toggle("Include speaker labels", isOn: $transcriptExportOptions.includeSpeakerLabels)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasSpeakerLabelsForExport)
+                    exportOptionToggle(
+                        "Include speaker labels",
+                        isOn: $transcriptExportOptions.includeSpeakerLabels,
+                        isEnabled: canIncludeSpeakerLabelsOption,
+                        unavailableReason: speakerLabelsUnavailableReason
+                    )
 
-                Toggle("Include metadata", isOn: $transcriptExportOptions.includeMetadata)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions)
+                    Toggle("Include metadata", isOn: $transcriptExportOptions.includeMetadata)
+                }
             }
 
             Divider()
@@ -2815,6 +2850,32 @@ struct TranscriptResultView: View {
         }
         .padding(DesignSystem.Spacing.md)
         .frame(width: 380)
+    }
+
+    /// An export option toggle that shows its *effective* state. When the option
+    /// is unavailable it renders unchecked and disabled — rather than checked and
+    /// greyed, which reads as "forced on" and contradicts the export, which omits
+    /// the missing data. An optional caption explains why it is unavailable.
+    @ViewBuilder
+    private func exportOptionToggle(
+        _ title: String,
+        isOn: Binding<Bool>,
+        isEnabled: Bool,
+        unavailableReason: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(title, isOn: Binding(
+                get: { isEnabled && isOn.wrappedValue },
+                set: { isOn.wrappedValue = $0 }
+            ))
+            .disabled(!isEnabled)
+
+            if let unavailableReason {
+                Text(unavailableReason)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+        }
     }
 
     // MARK: - Export Confirmation Popover
@@ -2975,6 +3036,7 @@ struct TranscriptResultView: View {
 private struct EngineOptionCard: View {
     let selection: SpeechEngineSelection
     let nemotronVariant: NemotronModelVariant
+    let parakeetVariant: ParakeetModelVariant
     let isPrimary: Bool
     let isAvailable: Bool
     let unavailableReason: String?
@@ -2995,7 +3057,11 @@ private struct EngineOptionCard: View {
     private var subtitle: String {
         switch selection.engine {
         case .parakeet:
-            "Fast • 25 European languages, including English"
+            switch parakeetVariant {
+            case .v3: "Fast • 25 European languages, including English"
+            case .v2: "Fast • English only"
+            case .unified: "Fast • English only, punctuated. No word timestamps."
+            }
         case .nemotron:
             nemotronVariant.isEnglishOnly
                 ? "Beta • Nemotron Speech EN streaming"

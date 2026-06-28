@@ -1758,6 +1758,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ja", defaults: defaults)
         SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
             isWhisperModelDownloaded: { true },
@@ -1787,6 +1788,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             SpeechEngineSelection(engine: .parakeet)
         )
         XCTAssertEqual(option.nemotronVariant, .english1120)
+        XCTAssertEqual(option.parakeetVariant, .unified)
     }
 
     func testRetranscriptionEngineOptionIncludesNemotronButDisablesItWhenMissing() throws {

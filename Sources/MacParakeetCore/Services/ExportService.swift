@@ -34,6 +34,21 @@ public struct TranscriptExportOptions: Sendable, Equatable {
     }
 
     public static let `default` = TranscriptExportOptions()
+
+    /// Returns a copy with unavailable options forced off, so an export can never
+    /// claim to include timing or speaker labels that the transcript lacks. The
+    /// export UI and the export itself resolve through this single helper, so the
+    /// checkbox state and the written file can never disagree. `includeMetadata`
+    /// has no data dependency and is never forced off here.
+    public func resolved(
+        canIncludeTimestamps: Bool,
+        canIncludeSpeakerLabels: Bool
+    ) -> TranscriptExportOptions {
+        var resolved = self
+        if !canIncludeTimestamps { resolved.includeTimestamps = false }
+        if !canIncludeSpeakerLabels { resolved.includeSpeakerLabels = false }
+        return resolved
+    }
 }
 
 /// Handles exporting transcriptions to files and clipboard.
