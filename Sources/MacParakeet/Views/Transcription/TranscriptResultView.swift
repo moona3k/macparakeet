@@ -123,6 +123,10 @@ struct TranscriptResultView: View {
     /// re-aim `scrollTo` at the current match (even when the cursor index is
     /// unchanged but the matched block moved).
     @State private var findScrollToken = 0
+    /// True once find-navigation has taken over the auto-scroll pause, so closing
+    /// the bar resumes playback-follow — without clobbering an unrelated
+    /// manual-scroll pause when find never navigated.
+    @State private var findPausedAutoScroll = false
     @State private var editingSpeakerId: String?
     @State private var editingSpeakerLabel: String = ""
     @State private var showConversationPopover = false
@@ -231,6 +235,7 @@ struct TranscriptResultView: View {
             findFieldFocused = false
             findModel.clear()
             findBlocks = []
+            findPausedAutoScroll = false
             viewModel.hasConversations = false
             viewModel.selectedTab = .transcript
             viewModel.loadPersistedContent()
@@ -1145,6 +1150,7 @@ struct TranscriptResultView: View {
             .onChange(of: findScrollToken) {
                 guard findBarVisible, let target = findCurrentHighlight?.id else { return }
                 autoScrollPaused = true
+                findPausedAutoScroll = true
                 scrollPauseTask?.cancel()
                 withAnimation(.easeInOut(duration: 0.25)) {
                     proxy.scrollTo(target, anchor: .center)
@@ -1286,10 +1292,14 @@ struct TranscriptResultView: View {
         findFieldFocused = false
         findModel.clear()
         findBlocks = []
-        // Resume playback-follow auto-scroll that find-navigation may have
-        // paused; normal 100ms playback ticks never trip the seek-jump reset.
-        autoScrollPaused = false
-        scrollPauseTask?.cancel()
+        // Resume playback-follow auto-scroll only if find-navigation was what
+        // paused it; otherwise leave an in-flight manual-scroll pause intact
+        // (normal 100ms playback ticks never trip the seek-jump reset).
+        if findPausedAutoScroll {
+            autoScrollPaused = false
+            scrollPauseTask?.cancel()
+            findPausedAutoScroll = false
+        }
     }
 
     private func setFindQuery(_ newValue: String) {
@@ -1333,13 +1343,23 @@ struct TranscriptResultView: View {
         return blocks
     }
 
+    /// Persisted scale clamped to the supported range, so a stale or externally
+    /// written `transcriptFontScale` never renders the body at an out-of-range
+    /// size before the user touches A−/A+.
+    private var clampedTranscriptFontScale: Double {
+        min(
+            max(transcriptFontScale, Self.transcriptFontScaleRange.lowerBound),
+            Self.transcriptFontScaleRange.upperBound
+        )
+    }
+
     /// Transcript body font at the current user reading scale (U4).
     private var scaledTranscriptFont: Font {
-        DesignSystem.Typography.transcriptBody(scale: transcriptFontScale)
+        DesignSystem.Typography.transcriptBody(scale: clampedTranscriptFontScale)
     }
 
     private func adjustTranscriptFontScale(by delta: Double) {
-        let next = transcriptFontScale + delta
+        let next = clampedTranscriptFontScale + delta
         transcriptFontScale = min(
             max(next, Self.transcriptFontScaleRange.lowerBound),
             Self.transcriptFontScaleRange.upperBound
@@ -1357,7 +1377,7 @@ struct TranscriptResultView: View {
                     .font(.system(size: 13, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .disabled(transcriptFontScale <= Self.transcriptFontScaleRange.lowerBound + 0.001)
+            .disabled(clampedTranscriptFontScale <= Self.transcriptFontScaleRange.lowerBound + 0.001)
             .help("Smaller transcript text")
 
             Button {
@@ -1367,7 +1387,7 @@ struct TranscriptResultView: View {
                     .font(.system(size: 13, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .disabled(transcriptFontScale >= Self.transcriptFontScaleRange.upperBound - 0.001)
+            .disabled(clampedTranscriptFontScale >= Self.transcriptFontScaleRange.upperBound - 0.001)
             .help("Larger transcript text")
         }
         .foregroundStyle(DesignSystem.Colors.textSecondary)

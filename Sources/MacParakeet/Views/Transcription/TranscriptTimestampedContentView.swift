@@ -214,7 +214,12 @@ private struct TranscriptSegmentRow: View {
 
     private var hoverActions: some View {
         HStack(spacing: 2) {
-            rowActionButton(icon: "play.fill", help: "Play from here", action: onPlayFromHere)
+            // Play-from-here mirrors the timestamp chip's ready-state guard: when
+            // playback isn't seekable the chip is inert, so don't expose a live
+            // play action that would bypass it. Copy actions stay available.
+            if isSeekable {
+                rowActionButton(icon: "play.fill", help: "Play from here", action: onPlayFromHere)
+            }
             rowActionButton(icon: "doc.on.doc", help: "Copy text") {
                 TranscriptResultActions.copyText(text)
             }
