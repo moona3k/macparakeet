@@ -237,6 +237,7 @@ public enum TelemetryModelOperationStage: String, Sendable, Equatable {
 
 public enum TelemetrySpeechEngineSwitchBlockedReason: String, Sendable, Equatable {
     case modelNotDownloaded = "model_not_downloaded"
+    case insufficientMemory = "insufficient_memory"
     case engineBusy = "engine_busy"
     case meetingActive = "meeting_active"
     case transcribing

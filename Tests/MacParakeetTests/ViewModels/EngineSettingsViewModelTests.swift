@@ -28,7 +28,10 @@ final class EngineSettingsViewModelTests: XCTestCase {
         deleteParakeet: @escaping @Sendable (ParakeetModelVariant) -> Bool = { _ in false },
         deleteNemotron: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = { _, _ in false },
         deleteWhisper: @escaping @Sendable (String) -> Bool = { _ in false },
-        deleteCohere: @escaping @Sendable () -> Bool = { false }
+        deleteCohere: @escaping @Sendable () -> Bool = { false },
+        // Default well above the Cohere gate so non-memory tests are unaffected
+        // by the host's actual RAM (CI runners can be < 16 GB).
+        physicalMemoryBytes: @escaping @Sendable () -> UInt64 = { 32 * 1024 * 1024 * 1024 }
     ) -> EngineSettingsViewModel {
         EngineSettingsViewModel(
             defaults: defaults,
@@ -39,7 +42,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
             deleteParakeetModelOnDisk: deleteParakeet,
             deleteNemotronModelOnDisk: deleteNemotron,
             deleteWhisperModelOnDisk: deleteWhisper,
-            deleteCohereModelOnDisk: deleteCohere
+            deleteCohereModelOnDisk: deleteCohere,
+            physicalMemoryBytes: physicalMemoryBytes
         )
     }
 
@@ -275,6 +279,48 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.speechEngineError, "Download Cohere Transcribe before switching engines.")
         XCTAssertFalse(vm.speechEngineSwitching)
         XCTAssertNil(vm.speechEngineSwitchTarget)
+    }
+
+    // MARK: - Cohere memory gate
+
+    func testCohereMeetsMemoryRequirementReflectsInstalledMemory() {
+        let gib: UInt64 = 1024 * 1024 * 1024
+        XCTAssertFalse(makeViewModel(physicalMemoryBytes: { 8 * gib }).cohereMeetsMemoryRequirement)
+        XCTAssertFalse(makeViewModel(physicalMemoryBytes: { 15 * gib }).cohereMeetsMemoryRequirement)
+        XCTAssertTrue(makeViewModel(physicalMemoryBytes: { 16 * gib }).cohereMeetsMemoryRequirement)
+        XCTAssertTrue(makeViewModel(physicalMemoryBytes: { 32 * gib }).cohereMeetsMemoryRequirement)
+    }
+
+    func testDownloadCohereModelIsBlockedBelowMemoryThreshold() {
+        let vm = makeViewModel(physicalMemoryBytes: { 8 * 1024 * 1024 * 1024 })
+        vm.downloadCohereModel()
+        XCTAssertFalse(vm.cohereDownloading)
+        XCTAssertEqual(vm.speechEngineError, EngineSettingsViewModel.cohereInsufficientMemoryMessage)
+    }
+
+    func testConfirmPendingSwitchBlocksCohereBelowMemoryThreshold() {
+        // Model is present, so only the memory gate can block the switch.
+        let vm = makeViewModel(cohereCached: { true }, physicalMemoryBytes: { 8 * 1024 * 1024 * 1024 })
+        vm.cohereModelStatus = .notLoaded
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertNil(vm.pendingSpeechEngineSwitchConfirmation)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(vm.speechEngineError, EngineSettingsViewModel.cohereInsufficientMemoryMessage)
+    }
+
+    func testConfirmPendingSwitchAllowsCohereAtMemoryThreshold() {
+        let vm = makeViewModel(cohereCached: { true }, physicalMemoryBytes: { 16 * 1024 * 1024 * 1024 })
+        vm.cohereModelStatus = .notLoaded
+        vm.requestSpeechEngineSwitchConfirmation(to: .cohere)
+
+        vm.confirmPendingSpeechEngineSwitch()
+
+        XCTAssertEqual(vm.speechEnginePreference, .cohere)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .cohere)
     }
 
     func testSwitchUnavailableMessageReturnsNilWhenAvailable() {

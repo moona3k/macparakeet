@@ -107,6 +107,16 @@ public final class EngineSettingsViewModel {
     public var isCohereModelDownloaded: Bool {
         cohereModelStatus == .ready || cohereModelStatus == .notLoaded
     }
+    /// Cohere's CoreML model has a large runtime footprint; on a low-memory Mac
+    /// it risks an OS jetsam kill mid-transcription that no `catch` can recover.
+    /// Selecting Cohere or downloading its model is gated to machines with at
+    /// least ``cohereMinimumMemoryBytes`` of RAM.
+    public static let cohereMinimumMemoryBytes: UInt64 = 16 * 1024 * 1024 * 1024
+    public static let cohereInsufficientMemoryMessage =
+        "Cohere Transcribe needs 16 GB of memory or more — this Mac has less."
+    public var cohereMeetsMemoryRequirement: Bool {
+        physicalMemoryBytes() >= Self.cohereMinimumMemoryBytes
+    }
     private var shouldBlockCohereSwitchForModelStatus: Bool {
         if cohereDeleting { return true }
         switch cohereModelStatus {
@@ -160,6 +170,9 @@ public final class EngineSettingsViewModel {
     private let deleteNemotronModelOnDisk: @Sendable (NemotronModelVariant, String?) -> Bool
     private let deleteWhisperModelOnDisk: @Sendable (String) -> Bool
     private let deleteCohereModelOnDisk: @Sendable () -> Bool
+    /// Installed physical memory in bytes. Injected so the Cohere memory gate is
+    /// testable on any host; defaults to this machine's RAM.
+    private let physicalMemoryBytes: @Sendable () -> UInt64
     private var isApplyingSpeechEngineState = false
     private var isApplyingParakeetVariantState = false
     private var isApplyingNemotronVariantState = false
@@ -194,6 +207,9 @@ public final class EngineSettingsViewModel {
         },
         deleteCohereModelOnDisk: @escaping @Sendable () -> Bool = {
             CohereTranscribeEngine.deleteModel()
+        },
+        physicalMemoryBytes: @escaping @Sendable () -> UInt64 = {
+            ProcessInfo.processInfo.physicalMemory
         }
     ) {
         self.defaults = defaults
@@ -205,6 +221,7 @@ public final class EngineSettingsViewModel {
         self.deleteNemotronModelOnDisk = deleteNemotronModelOnDisk
         self.deleteWhisperModelOnDisk = deleteWhisperModelOnDisk
         self.deleteCohereModelOnDisk = deleteCohereModelOnDisk
+        self.physicalMemoryBytes = physicalMemoryBytes
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
         nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
@@ -690,6 +707,10 @@ public final class EngineSettingsViewModel {
     public func downloadCohereModel() {
         guard !speechEngineSwitching else { return }
         guard !cohereDownloading, !cohereDeleting else { return }
+        guard cohereMeetsMemoryRequirement else {
+            speechEngineError = Self.cohereInsufficientMemoryMessage
+            return
+        }
         speechEngineError = nil
         cohereDownloading = true
         cohereModelStatus = .repairing
@@ -814,6 +835,25 @@ public final class EngineSettingsViewModel {
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: .modelNotDownloaded,
                 errorType: "model_not_downloaded",
+                wasCold: switchWasCold
+            ))
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = previousPreference
+            isApplyingSpeechEngineState = false
+            return
+        }
+
+        if preference == .cohere && !cohereMeetsMemoryRequirement {
+            speechEngineError = Self.cohereInsufficientMemoryMessage
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: preference,
+                outcome: .unavailable,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: .insufficientMemory,
+                errorType: "insufficient_memory",
                 wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true

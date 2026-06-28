@@ -66,7 +66,10 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   meeting-finalize jobs run offline, live dictation preview stays off, and
   meeting live preview chunks are not routed to Cohere. No word timings;
   meetings degrade to plain text. Loads only an explicitly downloaded model
-  cache; it does not download from normal transcription/warm-up paths.
+  cache; it does not download from normal transcription/warm-up paths. Its
+  CoreML model has a large runtime footprint, so Settings gates both selecting
+  Cohere and downloading its model to machines with at least
+  `EngineSettingsViewModel.cohereMinimumMemoryBytes` (16 GB) of RAM.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.

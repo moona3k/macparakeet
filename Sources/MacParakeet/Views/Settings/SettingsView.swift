@@ -2275,7 +2275,7 @@ struct SettingsView: View {
                                 "Record-then-transcribe dictation, files, and final meeting transcripts",
                                 "No live preview, word timestamps, or speaker labels"
                             ],
-                            helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and higher memory use than the default engines. Powers record-then-transcribe dictation, file transcription, and final meeting transcription. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
+                            helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and higher memory use than the default engines. Requires 16 GB of memory or more. Powers record-then-transcribe dictation, file transcription, and final meeting transcription. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
                             modelStatus: displayedCohereModelStatus,
                             isSelected: viewModel.engine.speechEnginePreference == .cohere,
                             isBusy: viewModel.engine.speechEngineSwitching,
@@ -2791,6 +2791,9 @@ struct SettingsView: View {
 
     private func engineSwitchUnavailableReason(for engine: SpeechEnginePreference) -> String? {
         guard viewModel.engine.speechEnginePreference != engine else { return nil }
+        if engine == .cohere, !viewModel.engine.cohereMeetsMemoryRequirement {
+            return EngineSettingsViewModel.cohereInsufficientMemoryMessage
+        }
         return viewModel.engine.speechEngineSwitchUnavailableMessage
     }
 
@@ -3119,6 +3122,10 @@ struct SettingsView: View {
     }
 
     private var coherePrimaryAction: ModelRowAction? {
+        // No download/retry affordance on a Mac that can't run Cohere; the engine
+        // tile already explains the 16 GB requirement, and the VM guards the
+        // download path regardless.
+        guard viewModel.engine.cohereMeetsMemoryRequirement else { return nil }
         switch viewModel.engine.cohereModelStatus {
         case .notDownloaded:
             return ModelRowAction(
