@@ -81,6 +81,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.nemotronModelVariant, SpeechEnginePreference.nemotronModelVariant(defaults: defaults))
         XCTAssertEqual(vm.whisperDefaultLanguage, SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto")
         XCTAssertEqual(vm.whisperDefaultLanguage, "auto")
+        XCTAssertEqual(vm.cohereComputePolicy, CohereTranscribeEngine.ComputePolicy.current(defaults: defaults))
+        XCTAssertEqual(vm.cohereComputePolicy, .ane)
     }
 
     func testSetSpeechEnginePreferencePersistsWhenTargetModelIsMarkedDownloaded() {
@@ -123,6 +125,30 @@ final class EngineSettingsViewModelTests: XCTestCase {
         let reloaded = makeViewModel()
         XCTAssertEqual(reloaded.whisperDefaultLanguage, "ko")
         XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults), "ko")
+    }
+
+    func testSetCohereComputePolicyPersists() {
+        let vm = makeViewModel()
+        XCTAssertEqual(vm.cohereComputePolicy, .ane)
+
+        vm.cohereComputePolicy = .gpu
+
+        let reloaded = makeViewModel()
+        XCTAssertEqual(reloaded.cohereComputePolicy, .gpu)
+        XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .gpu)
+    }
+
+    func testCohereComputePolicyNeedsRelaunchTracksDivergenceFromLaunchValue() {
+        let vm = makeViewModel()
+        XCTAssertFalse(vm.cohereComputePolicyNeedsRelaunch)
+
+        vm.cohereComputePolicy = .gpu
+        XCTAssertTrue(vm.cohereComputePolicyNeedsRelaunch)
+
+        // Flipping back to the launch value clears the pending state — the
+        // running engine already matches, so no relaunch is needed.
+        vm.cohereComputePolicy = .ane
+        XCTAssertFalse(vm.cohereComputePolicyNeedsRelaunch)
     }
 
     func testRequestConfirmationSetsPendingAndClearsExistingError() {

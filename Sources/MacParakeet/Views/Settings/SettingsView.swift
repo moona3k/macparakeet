@@ -160,6 +160,7 @@ struct SettingsView: View {
     /// the shared delete-confirmation alert on the Engine tab.
     @State private var pendingModelDeletion: PendingModelDeletion?
     @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
+    @State private var coherePolicyRelaunchInFlight = false
 
     init(
         viewModel: SettingsViewModel,
@@ -446,17 +447,19 @@ struct SettingsView: View {
     ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
     ///    multilingual vs English-only)
-    /// 4. `engineLanguageCard` — which language? (Whisper only — Parakeet
+    /// 4. `engineCohereModelCard` — GPU vs Neural Engine? (Cohere only)
+    /// 5. `engineLanguageCard` — which language? (Whisper only — Parakeet
     ///    auto-detects from its 25 supported European languages)
-    /// 5. `enginesModelsCard` — what's the local model state?
+    /// 6. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 2–4 are mutually exclusive (one per engine), so exactly one
+    /// Cards 2–5 are mutually exclusive (one per engine), so exactly one
     /// contextual config card sits between the selector and the models card.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
             engineParakeetModelCard.id("engine.parakeetModel")
             engineNemotronModelCard.id("engine.nemotronModel")
+            engineCohereModelCard.id("engine.cohereModel")
             engineLanguageCard.id("engine.language")
             enginesModelsCard.id("engine.models")
         }
@@ -2540,6 +2543,101 @@ struct SettingsView: View {
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
                 viewModel.engine.nemotronModelVariant = variant
+            }
+        }
+    }
+
+    /// Cohere-only contextual card: where Cohere runs its model. `.gpu` is the
+    /// fastest warm latency but pays a one-time ~2-minute Core ML optimization in
+    /// the background after each launch; `.ane` is a bit slower per phrase with no
+    /// startup wait. The choice takes effect the next time Cohere loads (the engine
+    /// captures the policy at construction), so the copy says so rather than
+    /// implying an instant switch. Mirrors `engineLanguageCard` (one contextual
+    /// card, gated on the active engine, `.transition(.opacity)`).
+    @ViewBuilder
+    private var engineCohereModelCard: some View {
+        @Bindable var engine = viewModel.engine
+        if engine.speechEnginePreference == .cohere {
+            SettingsCard(
+                title: "Cohere Performance",
+                subtitle: "Fastest runs on the GPU (~0.6 s per phrase) and pays a one-time ~2-minute optimization in the background after each launch. Balanced runs on the Apple Neural Engine (ANE, ~1.5 s) with no startup wait. Takes effect the next time Cohere loads.",
+                icon: "bolt"
+            ) {
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Compute",
+                        detail: "Where Cohere runs its speech model."
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Picker("Compute", selection: $engine.cohereComputePolicy) {
+                        Text("Fastest (GPU)").tag(CohereTranscribeEngine.ComputePolicy.gpu)
+                        Text("Balanced (ANE)").tag(CohereTranscribeEngine.ComputePolicy.ane)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
+                }
+                if engine.cohereComputePolicyNeedsRelaunch {
+                    Divider()
+                    HStack(alignment: .center) {
+                        rowText(
+                            title: "Not applied yet",
+                            detail: viewModel.isMeetingRecordingActive
+                                ? "Finish the meeting recording, then relaunch to apply."
+                                : "Your change is saved but takes effect after MacParakeet relaunches."
+                        )
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        Button(coherePolicyRelaunchInFlight ? "Relaunching..." : "Relaunch to apply") {
+                            relaunchToApplyComputePolicy()
+                        }
+                        .parakeetAction(.secondary)
+                        .disabled(viewModel.isMeetingRecordingActive || coherePolicyRelaunchInFlight)
+                    }
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    /// Relaunch the app so a changed Cohere compute policy takes effect: the
+    /// engine captures its compute units at construction, so the new policy is
+    /// only read on the next load. Launches a fresh instance, then terminates
+    /// this one through the app's normal teardown. Gated on
+    /// `isMeetingRecordingActive` and `coherePolicyRelaunchInFlight` (both here
+    /// and on the button) so a relaunch cannot interrupt a recording or spawn
+    /// duplicate replacement instances — mirroring the `SparkleUpdateGuard` rule.
+    ///
+    /// This is the only deliberate `createsNewApplicationInstance` launch in
+    /// the app, so the new and old instances briefly coexist (~1–2 s until the
+    /// completion handler quits the old one). That overlap is intentional and
+    /// safe: the meeting gate above rules out the data-loss case, and the
+    /// shared GRDB store serializes with a busy-timeout, so the short window of
+    /// two readers/writers resolves without corruption.
+    private func relaunchToApplyComputePolicy() {
+        guard !viewModel.isMeetingRecordingActive, !coherePolicyRelaunchInFlight else { return }
+        coherePolicyRelaunchInFlight = true
+        // Force the persisted policy to flush before the replacement instance
+        // boots and reads `ComputePolicy.current()`. cfprefsd normally
+        // coordinates this across processes, but flushing here removes any
+        // ordering doubt so the fresh instance can't load a stale value.
+        UserDefaults.standard.synchronize()
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { newInstance, error in
+            // Only terminate once the replacement instance is actually running.
+            // If the launch failed, leave this app running rather than quitting
+            // into nothing — the user can retry instead of being stranded.
+            guard newInstance != nil, error == nil else {
+                Task { @MainActor in
+                    coherePolicyRelaunchInFlight = false
+                }
+                return
+            }
+            Task { @MainActor in
+                NSApplication.shared.terminate(nil)
             }
         }
     }

@@ -46,6 +46,27 @@ public final class EngineSettingsViewModel {
             Telemetry.send(.settingChanged(setting: .whisperDefaultLanguage))
         }
     }
+    /// Where Cohere runs its model — `.gpu` (fastest warm latency, pays a
+    /// one-time ~2-minute Core ML optimization in the background after each
+    /// launch) or `.ane` (slower warm, no startup wait). Persist-only: the
+    /// engine re-reads it on its next construction (`STTRuntime.ensureCohereEngine`),
+    /// so a change takes effect the next time Cohere loads rather than reloading
+    /// the live engine. Mirrors the `whisperDefaultLanguage` save-on-didSet shape.
+    public var cohereComputePolicy: CohereTranscribeEngine.ComputePolicy {
+        didSet {
+            cohereComputePolicy.save(to: defaults)
+            Telemetry.send(.settingChanged(setting: .cohereComputePolicy))
+        }
+    }
+    /// True when the selected compute policy differs from the one the engine
+    /// loaded at launch — i.e. the change is persisted but not yet live, because
+    /// the engine captures the policy at construction and only re-reads it on its
+    /// next load. Drives the "Relaunch to apply" prompt in the Cohere card.
+    /// (Conservative: if the engine had not loaded at launch, a fresh load would
+    /// also pick up the change without a relaunch; relaunching is always safe.)
+    public var cohereComputePolicyNeedsRelaunch: Bool {
+        cohereComputePolicy != launchCohereComputePolicy
+    }
     // The mutable state below is intentionally writable, not `private(set)`:
     // the Settings/Engine test suites inject it directly to stage preconditions
     // the async model-status refresh can't reproduce deterministically (e.g.
@@ -127,6 +148,10 @@ public final class EngineSettingsViewModel {
     private var speechEngineSwitcher: SpeechEngineSwitching?
     private var speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding?
     private let defaults: UserDefaults
+    /// The Cohere compute policy as it was at launch (what the running engine
+    /// loaded). Compared against `cohereComputePolicy` to detect a persisted-but-
+    /// not-yet-live change; see `cohereComputePolicyNeedsRelaunch`.
+    private let launchCohereComputePolicy: CohereTranscribeEngine.ComputePolicy
     private let parakeetModelVariantCached: @Sendable (ParakeetModelVariant) -> Bool
     private let nemotronModelVariantCached: @Sendable (NemotronModelVariant, String?) -> Bool
     private let cohereModelCached: @Sendable () -> Bool
@@ -184,6 +209,9 @@ public final class EngineSettingsViewModel {
         parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
         nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
+        let launchPolicy = CohereTranscribeEngine.ComputePolicy.current(defaults: defaults)
+        launchCohereComputePolicy = launchPolicy
+        cohereComputePolicy = launchPolicy
     }
 
     public func configure(

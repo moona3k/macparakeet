@@ -88,6 +88,15 @@ public actor CohereTranscribeEngine: STTTranscribing {
             return policy
         }
 
+        /// Persist this policy as the user's Cohere compute preference. The
+        /// engine re-reads it via `current(defaults:)` the next time it is
+        /// constructed (`STTRuntime.ensureCohereEngine`), so a change takes
+        /// effect on the next Cohere load — it does not reconfigure a live
+        /// engine, whose `computePolicy` is captured once at construction.
+        public func save(to defaults: UserDefaults = .standard) {
+            defaults.set(rawValue, forKey: Self.defaultsKey)
+        }
+
         var computeUnits: MLComputeUnits {
             switch self {
             case .ane: return .cpuAndNeuralEngine

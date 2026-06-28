@@ -494,6 +494,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case nemotronModelVariant = "nemotron_model_variant"
     case whisperDefaultLanguage = "whisper_default_language"
     case cohereLanguage = "cohere_language"
+    case cohereComputePolicy = "cohere_compute_policy"
     case autoSave = "auto_save"
     case meetingAutoSave = "meeting_auto_save"
     case meetingHotkey = "meeting_hotkey"

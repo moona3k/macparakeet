@@ -177,6 +177,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testCohereComputeQueriesFindCoherePerformanceEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "engine.cohereModel" })
+        // Anchored to the always-present selector because the Cohere
+        // Performance card only renders while Cohere is the active engine.
+        XCTAssertEqual(entry.cardAnchor, "engine.selector")
+
+        for query in ["cohere", "gpu", "compute", "neural engine", "fastest", "balanced"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("engine.cohereModel"), "Query \(query) should find Cohere Performance")
+        }
+    }
+
     func testEveryTabHasAtLeastOneEntry() {
         let tabs = Set(SettingsSearchIndex.entries.map(\.tab))
         XCTAssertEqual(tabs, Set(SettingsTab.allCases), "Every tab should be reachable via search")

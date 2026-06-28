@@ -300,6 +300,20 @@ public enum SettingsSearchIndex {
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
+            id: "engine.cohereModel",
+            tab: .engine,
+            title: "Cohere Performance",
+            subtitle: "Available when Cohere is the active engine.",
+            keywords: [
+                "cohere", "gpu", "ane", "neural engine", "compute", "performance",
+                "speed", "latency", "fastest", "balanced", "model"
+            ],
+            // Same hidden-anchor rationale as the Parakeet/Nemotron Model
+            // entries: the Cohere Performance card only renders when Cohere is
+            // the active engine, so land on the always-present selector.
+            cardAnchor: "engine.selector"
+        ),
+        SettingsSearchEntry(
             id: "engine.models",
             tab: .engine,
             title: "Local Models",
