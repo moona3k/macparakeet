@@ -100,7 +100,23 @@ final class SpecCommandTests: XCTestCase {
 
         XCTAssertEqual(
             documentedTopLevelCommands,
-            ["spec", "health", "transcribe", "config", "models", "history", "prompts", "meetings"],
+            [
+                "calendar",
+                "config",
+                "export",
+                "health",
+                "history",
+                "llm",
+                "meetings",
+                "models",
+                "prompts",
+                "quick-prompts",
+                "spec",
+                "stats",
+                "transcribe",
+                "transforms",
+                "vocab",
+            ],
             "The spec catalog is a curated agent-facing surface; update this expectation when that surface changes."
         )
         for path in paths {
@@ -110,6 +126,89 @@ final class SpecCommandTests: XCTestCase {
                 "\(path.joined(separator: " ")) documents a top-level command that is not registered."
             )
         }
+    }
+
+    func testSpecCatalogDocumentsAgentAutomationFamilies() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let paths = try commands.map { command in
+            try XCTUnwrap(command["path"] as? [String])
+        }
+
+        for path in [
+            ["llm", "test-connection"],
+            ["llm", "summarize"],
+            ["quick-prompts", "list"],
+            ["quick-prompts", "import"],
+            ["transforms", "run"],
+            ["transforms", "restore-defaults"],
+            ["transforms", "history", "clear"],
+            ["vocab", "process"],
+            ["vocab", "words", "add"],
+            ["vocab", "words", "set"],
+            ["vocab", "snippets", "edit"],
+            ["vocab", "import"],
+            ["history", "favorite"],
+            ["history", "delete-meeting-audio"],
+            ["stats"],
+            ["export"],
+            ["calendar", "upcoming"],
+        ] {
+            XCTAssertTrue(paths.contains(path), "\(path.joined(separator: " ")) missing from spec catalog")
+        }
+
+        let promptsSet = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "set"] })
+        XCTAssertEqual(promptsSet["jsonMode"] as? String, "--json")
+        let promptSetOptions = try XCTUnwrap(promptsSet["options"] as? [[String: Any]])
+        XCTAssertTrue(promptSetOptions.contains { ($0["name"] as? String) == "--source" })
+
+        for path in [
+            ["prompts", "run"],
+            ["llm", "summarize"],
+            ["transforms", "run"],
+        ] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == path })
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--provider" })
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--api-key-env" })
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--base-url" })
+        }
+    }
+
+    func testSpecDocumentsPromptListFilterAndMeetingsListLimit() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+
+        let promptsList = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "list"] })
+        let promptListOptions = try XCTUnwrap(promptsList["options"] as? [[String: Any]])
+        let filter = try XCTUnwrap(promptListOptions.first { ($0["name"] as? String) == "--filter" })
+        XCTAssertEqual(filter["valueName"] as? String, "all|visible|auto-run")
+
+        let meetingsList = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "list"] })
+        let meetingsListOptions = try XCTUnwrap(meetingsList["options"] as? [[String: Any]])
+        let limit = try XCTUnwrap(meetingsListOptions.first { ($0["name"] as? String) == "--limit" })
+        XCTAssertEqual(limit["valueName"] as? String, "N")
+    }
+
+    func testSpecDocumentsAllConfigKeys() throws {
+        let payload = try specPayload()
+        let configKeys = try XCTUnwrap(payload["configKeys"] as? [[String: Any]])
+        let keys = configKeys.compactMap { $0["key"] as? String }
+        XCTAssertEqual(keys, ConfigCommand.supportedKeys)
+
+        let speechEngine = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "speech-engine" })
+        XCTAssertEqual(
+            speechEngine["allowedValues"] as? [String],
+            ["parakeet", "nemotron", "whisper", "cohere"]
+        )
+
+        let cohereLanguage = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "cohere-language" })
+        let cohereValues = try XCTUnwrap(cohereLanguage["allowedValues"] as? [String])
+        XCTAssertTrue(cohereValues.contains("en"))
+        XCTAssertTrue(cohereValues.contains("ja"))
+
+        let timeout = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "meeting-hook-timeout" })
+        XCTAssertEqual(timeout["valueSyntax"] as? String, "seconds 1-300")
     }
 
     func testTranscribeSpecDocumentsCurrentTranscribeSurface() throws {
@@ -152,8 +251,17 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|cohere|app-default")
         let format = try XCTUnwrap(options.first { ($0["name"] as? String) == "--format" })
         XCTAssertEqual(format["valueName"] as? String, "text|transcript|json|srt|vtt")
+        let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
+        XCTAssertEqual(
+            parakeetModel["summary"] as? String,
+            "Parakeet build for this run; ignored for Nemotron, Cohere, and Whisper."
+        )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
+        XCTAssertEqual(
+            nemotronModel["summary"] as? String,
+            "Nemotron build for this run; ignored for Parakeet, Cohere, and Whisper."
+        )
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
         XCTAssertEqual(
             language["summary"] as? String,

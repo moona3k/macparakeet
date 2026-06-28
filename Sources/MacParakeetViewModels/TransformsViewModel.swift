@@ -379,9 +379,9 @@ public final class TransformsViewModel {
         }
     }
 
-    /// Re-seed missing built-in Transforms only (does NOT overwrite user
-    /// edits to existing built-ins). The header's *Reset to defaults*
-    /// affordance maps to this.
+    /// Re-show hidden built-in Transforms and re-seed deleted built-ins
+    /// without overwriting user edits to existing built-ins. The header's
+    /// *Reset to defaults* affordance maps to this.
     @discardableResult
     public func reseedMissingBuiltIns(
         reservedHotkeys: [TransformShortcutReservedHotkey] = []
@@ -392,9 +392,32 @@ public final class TransformsViewModel {
         do {
             let clearedShortcuts = try await Task.detached(priority: .utility) { [repo, canonical, reservedHotkeys] in
                 var persisted = try repo.fetchAll()
-                var existingIDs = Set(persisted.map(\.id))
                 var cleared: [String] = []
-                for var prompt in canonical where !existingIDs.contains(prompt.id) {
+                for var prompt in canonical {
+                    if let index = persisted.firstIndex(where: { $0.id == prompt.id }) {
+                        guard !persisted[index].isVisible else { continue }
+
+                        var existing = persisted[index]
+                        existing.isVisible = true
+                        if let shortcut = existing.shortcut,
+                           let conflict = transformShortcutConflict(
+                               for: shortcut,
+                               excluding: existing.id,
+                               in: persisted
+                           ) {
+                            existing.keyboardShortcut = nil
+                            cleared.append("\(existing.name) (\(shortcut.displayString), used by \(conflict.name))")
+                        } else if let shortcut = existing.shortcut,
+                                  let conflict = reservedHotkeyConflict(for: shortcut, in: reservedHotkeys) {
+                            existing.keyboardShortcut = nil
+                            cleared.append("\(existing.name) (\(shortcut.displayString), conflicts with \(conflict.name))")
+                        }
+                        existing.updatedAt = Date()
+                        try repo.save(existing)
+                        persisted[index] = existing
+                        continue
+                    }
+
                     if let shortcut = prompt.shortcut,
                        let conflict = transformShortcutConflict(for: shortcut, excluding: prompt.id, in: persisted) {
                         prompt.keyboardShortcut = nil
@@ -405,7 +428,6 @@ public final class TransformsViewModel {
                         cleared.append("\(prompt.name) (\(shortcut.displayString), conflicts with \(conflict.name))")
                     }
                     try repo.save(prompt)
-                    existingIDs.insert(prompt.id)
                     persisted.append(prompt)
                 }
                 return cleared

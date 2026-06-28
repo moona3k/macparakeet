@@ -231,7 +231,7 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 
 ### Core types
 
-- `STTRuntime` — owns slot-scoped Parakeet v2/v3 `AsrManager` instances, the dedicated Parakeet Unified engine, optional Nemotron / Whisper engine instances, engine dispatch, and model lifecycle
+- `STTRuntime` — owns slot-scoped Parakeet v2/v3 `AsrManager` instances, the dedicated Parakeet Unified engine, optional Nemotron / Cohere / Whisper engine instances, engine dispatch, and model lifecycle
 - `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, speech-engine sessions, and job execution against the runtime
 
 ### Service boundaries

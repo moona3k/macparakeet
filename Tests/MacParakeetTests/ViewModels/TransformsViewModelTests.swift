@@ -288,6 +288,26 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(reloaded.content, customContent, "Reseed must not overwrite existing built-in customizations.")
     }
 
+    func testReseedRevealsHiddenBuiltInWithoutOverwriting() async throws {
+        var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
+        let customContent = "User-customized hidden Polish body."
+        polish.content = customContent
+        polish.isVisible = false
+        try repo.save(polish)
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.transforms.count, 2)
+        XCTAssertTrue(viewModel.hasMissingBuiltInTransforms)
+
+        let reseeded = await viewModel.reseedMissingBuiltIns()
+        XCTAssertTrue(reseeded)
+
+        let reloaded = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == polish.id }))
+        XCTAssertTrue(reloaded.isVisible)
+        XCTAssertEqual(reloaded.content, customContent)
+        XCTAssertFalse(viewModel.hasMissingBuiltInTransforms)
+    }
+
     func testReseedDoesNotOverwriteExistingBuiltInWhenVisibleStateIsStale() async throws {
         var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
         let customContent = "User-customized Polish body while UI state is stale."

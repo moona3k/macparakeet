@@ -63,7 +63,7 @@ These decisions are final. Do not second-guess them.
 | Channel | Status | Notes |
 |---------|--------|-------|
 | Stable DMG | User-facing release, recommended for normal use | Dictation, file/media URL transcription, meeting recording, calendar auto-start (opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
-| `main` | Development | Latest stable release plus untagged fixes and the flag delta below |
+| `main` | Development | Latest stable release plus untagged fixes, Cohere Transcribe, and the flag delta below |
 
 Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 
@@ -121,8 +121,8 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
-| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta, Cohere Transcribe, and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting audio N-day retention, plus other follow-up polish | **Planned** |
+| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
+| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), Cohere Transcribe on `main`, display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting audio N-day retention, plus other follow-up polish | **In progress on `main`** |
 
 ## Version Progress
 
@@ -267,16 +267,16 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
 
-### v0.6 Optional Local STT Engines
+### Optional Local STT Engines
 
 - [x] WhisperKit dependency and `WhisperEngine` wrapper with local model cache at `~/Library/Application Support/MacParakeet/models/stt/whisper/`
 - [x] Nemotron 3.5 Beta engine via FluidAudio CoreML, surfaced as opt-in local multilingual ASR with explicit model download/delete/status controls
 - [x] Nemotron Speech Streaming EN 0.6B surfaced as a second opt-in English-only Beta build with persisted model selection (multilingual default) via the Settings Nemotron Model card, `config set nemotron-model`, `models select nemotron-english-1120ms`, and `transcribe --nemotron-model`; dictation streams live partials (live transcript preview) like the multilingual build, while file/meeting jobs run batch-at-stop
-- [x] Cohere Transcribe via FluidAudio CoreML, surfaced as an opt-in downloaded local accuracy engine for batch dictation, file transcription, and meeting finalization; no live preview, word timestamps, or speaker labels
+- [x] Cohere Transcribe via FluidAudio CoreML, surfaced on `main` as an opt-in downloaded local accuracy engine for batch dictation, file transcription, and meeting finalization; no live preview, word timestamps, or speaker labels
 - [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
 - [x] Settings → Speech Recognition segmented engine picker plus Parakeet Model, Nemotron Beta, Cohere Language, and Whisper Language cards/controls
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
-- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
+- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2|unified`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|parakeet-unified|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ### v0.6 Productized Transforms

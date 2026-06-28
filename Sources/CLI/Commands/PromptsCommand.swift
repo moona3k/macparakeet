@@ -2,6 +2,22 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+enum PromptAutoRunSource: String, ExpressibleByArgument {
+    case file
+    case youtube
+    case podcast
+    case meeting
+
+    var sourceType: Transcription.SourceType {
+        switch self {
+        case .file: return .file
+        case .youtube: return .youtube
+        case .podcast: return .podcast
+        case .meeting: return .meeting
+        }
+    }
+}
+
 /// `macparakeet-cli prompts` — manage the prompt library and run prompts
 /// against saved transcriptions. Built so an agent or CI run can verify
 /// migrations, seed test prompts deterministically, and exercise the
@@ -213,6 +229,12 @@ extension PromptsCommand {
         @Flag(name: .long, help: "Disable auto-run.")
         var noAutoRun: Bool = false
 
+        @Option(name: .long, help: "Scope --auto-run/--no-auto-run to one source: file, youtube, podcast, meeting. Omit for global all-source behavior.")
+        var source: PromptAutoRunSource?
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
@@ -228,6 +250,14 @@ extension PromptsCommand {
             // silent precedence surprise where one flag overrides the other.
             if hidden && autoRun {
                 throw ValidationError("--hidden and --auto-run cannot be combined (auto-run requires visible)")
+            }
+            if source != nil {
+                if visible || hidden {
+                    throw ValidationError("--source can only be combined with --auto-run or --no-auto-run")
+                }
+                if !(autoRun || noAutoRun) {
+                    throw ValidationError("--source requires --auto-run or --no-auto-run")
+                }
             }
             if !(visible || hidden || autoRun || noAutoRun) {
                 throw ValidationError("specify at least one of --visible / --hidden / --auto-run / --no-auto-run")
@@ -256,23 +286,35 @@ extension PromptsCommand {
         }
 
         func run() throws {
-            try AppPaths.ensureDirectories()
-            let db = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = PromptRepository(dbQueue: db.dbQueue)
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let db = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = PromptRepository(dbQueue: db.dbQueue)
 
-            var prompt = try findPrompt(idOrName: idOrName, repo: repo)
+                var prompt = try findPrompt(idOrName: idOrName, repo: repo)
 
-            Self.applyFlags(
-                to: &prompt,
-                visible: visible,
-                hidden: hidden,
-                autoRun: autoRun,
-                noAutoRun: noAutoRun
-            )
+                if let source {
+                    try repo.setAutoRun(id: prompt.id, source: source.sourceType, enabled: autoRun)
+                    prompt = try repo.fetch(id: prompt.id) ?? prompt
+                } else {
+                    Self.applyFlags(
+                        to: &prompt,
+                        visible: visible,
+                        hidden: hidden,
+                        autoRun: autoRun,
+                        noAutoRun: noAutoRun
+                    )
 
-            prompt.updatedAt = Date()
-            try repo.save(prompt)
-            print("Updated '\(prompt.name)':\(renderBadges(prompt))")
+                    prompt.updatedAt = Date()
+                    try repo.save(prompt)
+                }
+
+                if json {
+                    try printJSON(prompt)
+                } else {
+                    print("Updated '\(prompt.name)':\(renderBadges(prompt))")
+                }
+            }
         }
     }
 }
@@ -316,7 +358,7 @@ extension PromptsCommand {
     struct RestoreDefaultsSubcommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "restore-defaults",
-            abstract: "Re-show all built-in prompts (does not affect custom prompts)."
+            abstract: "Re-show built-in result prompts (does not affect custom prompts or Transforms)."
         )
 
         @Option(help: "Path to SQLite database file (defaults to the app database).")
@@ -327,7 +369,7 @@ extension PromptsCommand {
             let db = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = PromptRepository(dbQueue: db.dbQueue)
             try repo.restoreDefaults()
-            print("Built-in prompts re-shown.")
+            print("Built-in result prompts re-shown.")
         }
     }
 }
@@ -456,7 +498,17 @@ private func renderBadges(_ p: Prompt) -> String {
     var badges: [String] = []
     if p.isBuiltIn { badges.append("built-in") }
     if !p.isVisible { badges.append("hidden") }
-    if p.isAutoRun { badges.append("auto-run") }
+    if p.isAutoRun {
+        if let appliesToSources = p.appliesToSources {
+            let sources = Transcription.SourceType.allCases
+                .filter { appliesToSources.contains($0) }
+                .map(\.rawValue)
+                .joined(separator: ",")
+            badges.append("auto-run: \(sources)")
+        } else {
+            badges.append("auto-run")
+        }
+    }
     return badges.isEmpty ? "" : "  [\(badges.joined(separator: ", "))]"
 }
 

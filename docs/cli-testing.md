@@ -78,9 +78,9 @@ macparakeet-cli
 │   ├── list [--filter all|visible|auto-run] [--json]
 │   ├── show <id-or-name> [--json]
 │   ├── add --name X (--content Y | --from-file path) [--auto-run]
-│   ├── set <id-or-name> [--visible|--hidden] [--auto-run|--no-auto-run]
+│   ├── set <id-or-name> [--visible|--hidden] [--auto-run|--no-auto-run] [--source file|youtube|podcast|meeting] [--json]
 │   ├── delete <id-or-name>              Delete custom prompt (built-ins protected)
-│   ├── restore-defaults                 Re-show all built-in prompts
+│   ├── restore-defaults                 Re-show built-in result prompts
 │   └── run <id-or-name> --transcription <id> [--no-store] [--stream] [--extra ...]
 ├── quick-prompts                        Manage live meeting Ask quick prompts
 │   ├── list [--pinned true|false] [--visible-only] [--json]
@@ -97,6 +97,7 @@ macparakeet-cli
 │   ├── run <id-or-name> --input FILE|- [--stream] [--json]
 │   ├── create --name X (--prompt Y | --from-file path) [--shortcut opt+1] [--json]
 │   ├── delete <id-or-name> [--json]
+│   ├── restore-defaults [--transform ID|NAME] [--json]
 │   └── history {list,show,delete,clear} [--json]
 ├── meetings                             Inspect and manage local meeting recordings
 │   ├── list [--limit] [--json|--envelope]
@@ -688,6 +689,7 @@ implies visible — these invariants are enforced.
 
 ```bash
 swift run macparakeet-cli prompts set "Daily Notes" --auto-run
+swift run macparakeet-cli prompts set "Daily Notes" --auto-run --source meeting --json
 swift run macparakeet-cli prompts set "Daily Notes" --hidden
 swift run macparakeet-cli prompts set "Summary" --no-auto-run
 ```
@@ -696,11 +698,14 @@ swift run macparakeet-cli prompts set "Summary" --no-auto-run
 
 ```bash
 swift run macparakeet-cli prompts delete "Daily Notes"
-swift run macparakeet-cli prompts restore-defaults   # re-shows hidden built-ins
+swift run macparakeet-cli prompts restore-defaults   # re-shows hidden built-in result prompts
+swift run macparakeet-cli transforms restore-defaults --transform Polish --json
 ```
 
-Built-in prompts cannot be deleted; the CLI surfaces a clear error and suggests
-`prompts set <name> --hidden` instead.
+Built-in result prompts cannot be deleted; the CLI surfaces a clear error and
+suggests `prompts set <name> --hidden` instead. Built-in Transforms reset
+through `transforms restore-defaults`, so prompt restore does not overwrite
+Transform prompt bodies or shortcuts.
 
 ### Run a prompt against a transcription
 

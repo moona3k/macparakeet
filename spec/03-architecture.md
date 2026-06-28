@@ -464,6 +464,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case nemotron
     case whisper
+    case cohere
 }
 
 public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
@@ -479,7 +480,7 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     let engine: SpeechEnginePreference
-    let language: String?
+    let language: String?  // Whisper/Nemotron hint, or Cohere's required language; nil means engine default/auto where supported
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {

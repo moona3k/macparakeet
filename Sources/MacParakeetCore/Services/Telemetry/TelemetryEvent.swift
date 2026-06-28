@@ -493,6 +493,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case parakeetModelVariant = "parakeet_model_variant"
     case nemotronModelVariant = "nemotron_model_variant"
     case whisperDefaultLanguage = "whisper_default_language"
+    case cohereLanguage = "cohere_language"
     case autoSave = "auto_save"
     case meetingAutoSave = "meeting_auto_save"
     case meetingHotkey = "meeting_hotkey"
@@ -1690,14 +1691,16 @@ extension TelemetryEventSpec {
             "large-v2",
             "large-v3",
             SpeechEnginePreference.defaultWhisperModelVariant,
-            // First-party fixed build ids (privacy-safe enum raw values).
-            // Without them every Parakeet/Nemotron event collapses to
-            // "custom" and variant adoption can't be measured.
+            // First-party fixed build ids / policy ids (privacy-safe enum raw
+            // values). Without them every Parakeet/Nemotron/Cohere event
+            // collapses to "custom" and variant adoption can't be measured.
             ParakeetModelVariant.v2.rawValue,
             ParakeetModelVariant.v3.rawValue,
             ParakeetModelVariant.unified.rawValue,
             NemotronModelVariant.multilingual1120.rawValue,
             NemotronModelVariant.english1120.rawValue,
+            CohereTranscribeEngine.ComputePolicy.ane.rawValue,
+            CohereTranscribeEngine.ComputePolicy.gpu.rawValue,
         ]
 
         return allowedVariants.contains(normalized) ? normalized : "custom"

@@ -204,6 +204,32 @@ final class PromptsCommandTests: XCTestCase {
         )
     }
 
+    func testSetAcceptsSourceScopedAutoRun() throws {
+        let command = try PromptsCommand.SetSubcommand.parse([
+            "anything",
+            "--auto-run",
+            "--source", "meeting",
+        ])
+
+        XCTAssertEqual(command.source, .meeting)
+    }
+
+    func testSetRejectsSourceWithoutAutoRunFlag() {
+        XCTAssertThrowsError(
+            try PromptsCommand.SetSubcommand.parse(["anything", "--source", "meeting"])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("--source requires"))
+        }
+    }
+
+    func testSetRejectsSourceWithVisibilityFlags() {
+        XCTAssertThrowsError(
+            try PromptsCommand.SetSubcommand.parse(["anything", "--visible", "--source", "meeting"])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("--source can only"))
+        }
+    }
+
     // MARK: - Set flag semantics (applyFlags)
 
     func testSetAutoRunClearsPerSourceScope() {
@@ -248,6 +274,150 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertFalse(prompt.isVisible)
         XCTAssertFalse(prompt.isAutoRun)
         XCTAssertNil(prompt.appliesToSources)
+    }
+
+    func testSetSourceScopedAutoRunUsesRepositoryScoping() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-source-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let db = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: db.dbQueue)
+        let prompt = Prompt(name: "Meeting Follow-up", content: "x", category: .result)
+        try repo.save(prompt)
+
+        let command = try PromptsCommand.SetSubcommand.parse([
+            prompt.id.uuidString,
+            "--auto-run",
+            "--source", "meeting",
+            "--database", dbPath,
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        let updated = try XCTUnwrap(repo.fetch(id: prompt.id))
+        XCTAssertTrue(updated.isAutoRun)
+        XCTAssertTrue(updated.isVisible)
+        XCTAssertEqual(updated.appliesToSources, [.meeting])
+        XCTAssertTrue(updated.autoRuns(for: .meeting))
+        XCTAssertFalse(updated.autoRuns(for: .file))
+    }
+
+    func testSetSourceScopedAutoRunJSONEmitsUpdatedPrompt() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-source-cli-json-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let db = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: db.dbQueue)
+        let prompt = Prompt(name: "Meeting Follow-up", content: "x", category: .result)
+        try repo.save(prompt)
+
+        let command = try PromptsCommand.SetSubcommand.parse([
+            prompt.id.uuidString,
+            "--auto-run",
+            "--source", "meeting",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["id"] as? String, prompt.id.uuidString.uppercased())
+        XCTAssertEqual(decoded["name"] as? String, "Meeting Follow-up")
+        XCTAssertEqual(decoded["isAutoRun"] as? Bool, true)
+        XCTAssertEqual(decoded["isVisible"] as? Bool, true)
+        XCTAssertEqual(decoded["appliesToSources"] as? [String], ["meeting"])
+    }
+
+    func testSetJSONLookupFailureEmitsEnvelope() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-source-cli-json-failure-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        _ = try DatabaseManager(path: dbPath)
+
+        let command = try PromptsCommand.SetSubcommand.parse([
+            "missing",
+            "--auto-run",
+            "--database", dbPath,
+            "--json",
+        ])
+        var thrownError: Error?
+        let output = try captureStandardOutput {
+            do {
+                try command.run()
+            } catch {
+                thrownError = error
+            }
+        }
+
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertEqual(decoded["errorType"] as? String, "lookup")
+        XCTAssertTrue((decoded["error"] as? String)?.contains("No prompt matching") == true)
+    }
+
+    func testRestoreDefaultsHelpAndHumanOutputAreResultPromptScoped() throws {
+        XCTAssertEqual(
+            PromptsCommand.RestoreDefaultsSubcommand.configuration.abstract,
+            "Re-show built-in result prompts (does not affect custom prompts or Transforms)."
+        )
+
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-restore-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        _ = try DatabaseManager(path: dbPath)
+
+        let command = try PromptsCommand.RestoreDefaultsSubcommand.parse([
+            "--database", dbPath,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(output.contains("Built-in result prompts re-shown."))
+    }
+
+    func testSetSourceScopedNoAutoRunNarrowsGlobalAutoRun() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-source-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let db = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: db.dbQueue)
+        var prompt = Prompt(name: "All Sources", content: "x", category: .result, isAutoRun: true)
+        prompt.appliesToSources = nil
+        try repo.save(prompt)
+
+        let command = try PromptsCommand.SetSubcommand.parse([
+            prompt.id.uuidString,
+            "--no-auto-run",
+            "--source", "meeting",
+            "--database", dbPath,
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        let updated = try XCTUnwrap(repo.fetch(id: prompt.id))
+        XCTAssertTrue(updated.isAutoRun)
+        XCTAssertEqual(updated.appliesToSources, [.file, .youtube, .podcast])
+        XCTAssertFalse(updated.autoRuns(for: .meeting))
+        XCTAssertTrue(updated.autoRuns(for: .file))
     }
 
     // MARK: - Add validation

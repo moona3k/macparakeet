@@ -121,6 +121,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `on` maps to `keep-forever`, and `off` maps to `delete-immediately`.
 - `config get|set|list` now includes `meeting-audio-source`:
   `microphone-and-system` (default), `microphone-only`, or `system-only`.
+- `prompts set --source file|youtube|podcast|meeting` scopes `--auto-run` /
+  `--no-auto-run` to one transcription source, matching the app's
+  source-scoped auto-run controls.
+- `transforms restore-defaults` can re-show hidden built-in Transforms, re-seed
+  deleted built-ins, or reset one built-in with `--transform <id-or-name>`.
+- `vocab words set <id> --enabled|--disabled` and
+  `vocab snippets edit <id> --enabled|--disabled` expose the same vocabulary
+  enablement controls shown in the app. Both support `--json` success output.
 
 ### Changed
 
@@ -146,6 +154,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   meeting JSON output. `meetings list/show/artifact` continue to report the
   artifact folder path after `filePath` has been cleared by audio deletion or
   retention.
+- `prompts restore-defaults` now restores result prompt defaults only; built-in
+  Transforms are reset through the Transforms surface.
 
 ## [2.10.0] -- 2026-06-17
 

@@ -352,6 +352,72 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
+    func testTranscribeFileSkipsDiarizationWhenSTTProvidesNoWordTimings() async throws {
+        let telemetry = TelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+        let diarization = MockDiarizationService()
+        await diarization.configure(result: MacParakeetDiarizationResult(
+            segments: [
+                SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 500),
+                SpeakerSegment(speakerId: "S2", startMs: 500, endMs: 1_000),
+            ],
+            speakerCount: 2,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Speaker 1"),
+                SpeakerInfo(id: "S2", label: "Speaker 2"),
+            ]
+        ))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldDiarize: { true },
+            diarizationService: diarization
+        )
+
+        let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/cohere.mp3"))
+
+        let diarizeCalled = await diarization.diarizeCalled
+        XCTAssertFalse(diarizeCalled)
+        XCTAssertEqual(result.rawTranscript, "cohere final")
+        XCTAssertEqual(result.engine, "cohere")
+        XCTAssertEqual(result.wordTimestamps?.isEmpty, true)
+        XCTAssertNil(result.speakerCount)
+        XCTAssertNil(result.speakers)
+        XCTAssertNil(result.diarizationSegments)
+
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        XCTAssertNil(fetched.speakerCount)
+        XCTAssertNil(fetched.speakers)
+        XCTAssertNil(fetched.diarizationSegments)
+
+        let completed = try XCTUnwrap(telemetry.snapshot().reversed().first {
+            if case .transcriptionCompleted = $0 { return true }
+            return false
+        })
+        guard case .transcriptionCompleted(
+            _,
+            _,
+            _,
+            _,
+            let speakerCount,
+            let diarizationRequested,
+            let diarizationApplied,
+            _,
+            _,
+            _
+        ) = completed else {
+            return XCTFail("Expected transcription_completed telemetry")
+        }
+        XCTAssertNil(speakerCount)
+        XCTAssertTrue(diarizationRequested)
+        XCTAssertFalse(diarizationApplied)
+    }
+
     func testTranscribeTransientFileDoesNotPersistCompletedRow() async throws {
         await mockSTT.configure(result: STTResult(text: "private transcript"))
 

@@ -82,6 +82,11 @@ breaking contract change and requires explicit version/changelog treatment.
 - `LLMJSONOutputTests`
 - `MeetingsCommandTests`
 - `MeetingVADSimCommandTests`
+- `TranscribeCommandTests`
+- `ConfigCommandTests`
+- `QuickPromptsCommandTests`
+- `TransformsCommandTests`
+- `VocabCommandTests`
 
 Focused coverage pins spec conventions, failure-envelope fields, exit code
 entries, JSON wrapper failure envelopes, JSON validation exit-code

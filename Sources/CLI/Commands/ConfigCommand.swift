@@ -2,6 +2,13 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+struct CLIConfigKeySpec: Encodable, Equatable {
+    let key: String
+    let valueSyntax: String
+    let allowedValues: [String]?
+    let summary: String
+}
+
 /// `macparakeet-cli config` — read or write app preferences from the CLI.
 ///
 /// Stores values in the same UserDefaults suite the GUI reads
@@ -63,27 +70,123 @@ struct ConfigCommand: ParsableCommand {
     )
 
     /// Keys recognized by `get`/`set`/`list`.
-    static let supportedKeys: [String] = [
-        "telemetry",
-        "processing-mode",
-        "speech-engine",
-        "parakeet-model",
-        "nemotron-model",
-        "nemotron-language",
-        "whisper-language",
-        "cohere-language",
-        "speaker-detection",
-        "auto-meeting-titles",
-        "save-transcription-audio",
-        "meeting-audio-retention",
-        "meeting-audio-source",
-        "save-meeting-audio",
-        "youtube-audio-quality",
-        "meeting-artifacts-folder",
-        "meeting-hook-enabled",
-        "meeting-hook-path",
-        "meeting-hook-timeout",
+    static let supportedKeySpecs: [CLIConfigKeySpec] = [
+        CLIConfigKeySpec(
+            key: "telemetry",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable telemetry."
+        ),
+        CLIConfigKeySpec(
+            key: "processing-mode",
+            valueSyntax: "raw|clean",
+            allowedValues: ["raw", "clean"],
+            summary: "Default dictation text processing mode."
+        ),
+        CLIConfigKeySpec(
+            key: "speech-engine",
+            valueSyntax: "parakeet|nemotron|whisper|cohere",
+            allowedValues: ["parakeet", "nemotron", "whisper", "cohere"],
+            summary: "Default speech recognition engine."
+        ),
+        CLIConfigKeySpec(
+            key: "parakeet-model",
+            valueSyntax: "v3|v2|unified",
+            allowedValues: ["v3", "v2", "unified"],
+            summary: "Default Parakeet model variant."
+        ),
+        CLIConfigKeySpec(
+            key: "nemotron-model",
+            valueSyntax: "multilingual-1120ms|english-1120ms",
+            allowedValues: ["multilingual-1120ms", "english-1120ms"],
+            summary: "Default Nemotron model variant."
+        ),
+        CLIConfigKeySpec(
+            key: "nemotron-language",
+            valueSyntax: "auto|<Nemotron language code>",
+            allowedValues: ["auto"],
+            summary: "Default Nemotron language hint; auto uses engine detection when available."
+        ),
+        CLIConfigKeySpec(
+            key: "whisper-language",
+            valueSyntax: "auto|<Whisper language code>",
+            allowedValues: ["auto"],
+            summary: "Default Whisper language hint."
+        ),
+        CLIConfigKeySpec(
+            key: "cohere-language",
+            valueSyntax: CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: "|"),
+            allowedValues: CohereTranscribeEngine.supportedLanguages.map(\.code),
+            summary: "Default Cohere Transcribe language."
+        ),
+        CLIConfigKeySpec(
+            key: "speaker-detection",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Default file/meeting speaker diarization setting."
+        ),
+        CLIConfigKeySpec(
+            key: "auto-meeting-titles",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable automatic meeting title generation."
+        ),
+        CLIConfigKeySpec(
+            key: "save-transcription-audio",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Persist source audio for file/media transcriptions."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-audio-retention",
+            valueSyntax: "keep-forever|delete-immediately|delete-after-<1-365>-days|<1-365>d",
+            allowedValues: ["keep-forever", "delete-immediately"],
+            summary: "Meeting audio retention policy."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-audio-source",
+            valueSyntax: "microphone-and-system|microphone-only|system-only",
+            allowedValues: ["microphone-and-system", "microphone-only", "system-only"],
+            summary: "Default meeting capture source mode."
+        ),
+        CLIConfigKeySpec(
+            key: "save-meeting-audio",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Legacy alias for meeting audio retention."
+        ),
+        CLIConfigKeySpec(
+            key: "youtube-audio-quality",
+            valueSyntax: "m4a|best-available",
+            allowedValues: ["m4a", "best-available"],
+            summary: "Downloaded media audio quality."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-artifacts-folder",
+            valueSyntax: "absolute path|default",
+            allowedValues: ["default"],
+            summary: "Meeting artifact folder override."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-enabled",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable the meeting automation hook."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-path",
+            valueSyntax: "absolute executable path|none",
+            allowedValues: ["none"],
+            summary: "Executable invoked by the meeting automation hook."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-timeout",
+            valueSyntax: "seconds 1-300",
+            allowedValues: nil,
+            summary: "Meeting automation hook timeout in seconds."
+        ),
     ]
+    static let supportedKeys: [String] = supportedKeySpecs.map(\.key)
 
     // MARK: - Subcommands
 

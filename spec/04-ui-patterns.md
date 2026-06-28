@@ -941,10 +941,13 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
 │  Engine                                                   │
-│  [ Parakeet ] [ Nemotron Beta ] [ Whisper ]                │
+│  [ Parakeet ] [ Nemotron Beta ] [ Whisper ] [ Cohere ]      │
 │                                                           │
 │  Whisper language                                         │
 │  [ Auto-detect                         ▾ ]                │
+│                                                           │
+│  Cohere language                                          │
+│  [ English                             ▾ ]                │
 │                                                           │
 │  Parakeet          ╭─✓ Ready─╮              [Repair]      │
 │  Loaded in memory and ready.                              │
@@ -952,15 +955,19 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 │  Whisper           ╭─↓ Not Downloaded─╮     [Download]    │
 │  Download before switching to Whisper.                    │
 │                                                           │
+│  Cohere            ╭─↓ Not Downloaded─╮     [Download]    │
+│  Batch-only; no live preview or word timestamps.          │
+│                                                           │
 │                                                           │
 └───────────────────────────────────────────────────────────┘
 ```
 
-- Engine picker options: Parakeet (default), Nemotron Beta, and Whisper.
+- Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
+- Cohere language picker is shown for the Cohere path. Cohere has no auto-detect; `nil` falls back to English and explicit choices store supported primary subtags such as `en`, `ja`, or `zh`.
 - Status pill states: `Unknown`, `Checking`, `Ready`, `Not Loaded`, `Not Downloaded`, `Downloading`, `Repairing`, `Failed`.
 - `Repair` retries Parakeet model download/initialization with bounded backoff.
-- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/` or Cohere Transcribe into `~/Library/Application Support/MacParakeet/models/stt/cohere-transcribe/`.
 - Switching engines is disabled while STT work is queued/running or an active meeting recording holds a speech-engine lease.
 
 ### Permissions (v0.1)

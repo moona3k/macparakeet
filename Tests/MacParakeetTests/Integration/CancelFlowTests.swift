@@ -136,16 +136,15 @@ final class CancelFlowTests: XCTestCase {
         XCTAssertEqual(result.dictation.durationMs, 800, "Duration should be end of last word")
     }
 
-    /// Duration estimation when no word timestamps
-    func testDurationEstimatedWithoutTimestamps() async throws {
+    /// Duration is still populated when no word timestamps are returned.
+    func testDurationPopulatedWithoutTimestamps() async throws {
         let sttResult = STTResult(text: "Hello world test", words: [])
         await mockSTT.configure(result: sttResult)
 
         try await dictationService.startRecording()
         let result = try await dictationService.stopRecording()
 
-        // 3 words * 150ms estimate = 450
-        XCTAssertEqual(result.dictation.durationMs, 450)
+        XCTAssertGreaterThan(result.dictation.durationMs, 0)
     }
 
     /// After an STT error, state should recover to idle so a new recording can start
@@ -214,6 +213,25 @@ final class CancelFlowTests: XCTestCase {
 
         let all = try dictationRepo.fetchAll(limit: nil)
         XCTAssertEqual(all.count, 1)
+    }
+
+    func testUndoCancelUsesDurationCapturedAtCancelTimeWhenTimestampsAreMissing() async throws {
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+
+        let startedAt = Date()
+        try await dictationService.startRecording()
+        try await Task.sleep(for: .milliseconds(50))
+        await dictationService.cancelRecording()
+        let cancelDurationUpperBoundMs = Int(Date().timeIntervalSince(startedAt) * 1000) + 100
+
+        try await Task.sleep(for: .milliseconds(300))
+        let result = try await dictationService.undoCancel()
+
+        XCTAssertLessThanOrEqual(
+            result.dictation.durationMs,
+            cancelDurationUpperBoundMs,
+            "Undo should use the capture duration sampled at cancel time, not the dwell time before undo."
+        )
     }
 
     func testConfirmCancelDiscardsActiveRecordingImmediately() async throws {

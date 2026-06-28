@@ -75,7 +75,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
-- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in; Nemotron Beta and WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
+- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in; Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected globally in Settings or per CLI invocation where their engine constraints fit. Cohere is batch-only and produces plain text without word timestamps or live preview.
 
 ### Conversion Flow
 
@@ -317,7 +317,7 @@ Meeting recording and dictation share one process-wide microphone engine. Both f
 
 `SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while an active non-VPIO capture subscriber is already in flight, so dictation or raw meeting capture does not get a mid-session format flip. Passive warm subscribers do not count as blockers. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
 
-All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only TDT opt-in, `unified` English opt-in); Nemotron Beta and WhisperKit can be selected explicitly. That keeps:
+All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine family (`v3` multilingual default, `v2` English-only TDT opt-in, `unified` English opt-in); Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected explicitly. That keeps:
 
 - dictation on its own reserved interactive slot
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot
@@ -336,7 +336,8 @@ stop-time transcription path, so a jumpy or approximate preview can never
 corrupt the result. Per engine: Parakeet runs a single-flight tail-window batch
 preview (~1s cadence over the last ~15s of mic samples through its existing
 `[Float]` batch path); both Nemotron builds reuse their native live-partial
-path; Whisper stays default-off pending a per-pass latency probe. Users toggle
+path; Whisper stays default-off pending a per-pass latency probe, and Cohere
+stays off because it is record-then-transcribe only. Users toggle
 it — and pick a preview text size — in Settings → Capture → Dictation
 (`showLiveDictationPreview`, default on); the toggle gates only the preview
 sink.

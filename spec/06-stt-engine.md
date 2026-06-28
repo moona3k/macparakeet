@@ -242,11 +242,12 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case nemotron
     case whisper
+    case cohere
 }
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     let engine: SpeechEnginePreference
-    let language: String?  // language hint for Whisper / Nemotron; nil means auto-detect
+    let language: String?  // Whisper/Nemotron hint, or Cohere's required language; nil means engine default/auto where supported
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {
@@ -281,7 +282,7 @@ struct TimestampedWord: Sendable {
 
 ADR-016 defines MacParakeet's STT architecture as:
 
-- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet, Nemotron Beta, and optional WhisperKit
+- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet, Nemotron Beta, Cohere, and optional WhisperKit
 - **Two STT execution slots by default**
   - an **interactive slot** reserved for `dictation`
   - a **background slot** shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`

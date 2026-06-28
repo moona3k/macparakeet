@@ -310,6 +310,40 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "ko")
     }
 
+    func testDurationUsesCapturedAudioDurationWhenWordsAreMissing() {
+        let result = STTResult(text: "cohere final", words: [], engine: .cohere)
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: 12_345),
+            12_345
+        )
+    }
+
+    func testDurationFallsBackToWordEstimateWithoutCapturedDuration() {
+        let result = STTResult(text: "Hello world test", words: [])
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: nil),
+            450
+        )
+    }
+
+    func testDurationPrefersWordTimingWhenPresent() {
+        let result = STTResult(
+            text: "timed final",
+            words: [
+                TimestampedWord(word: "timed", startMs: 0, endMs: 400, confidence: 0.9),
+                TimestampedWord(word: "final", startMs: 420, endMs: 900, confidence: 0.9),
+            ],
+            engine: .parakeet
+        )
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: 12_345),
+            900
+        )
+    }
+
     func testStopRecordingInjectsMultipleVoiceReturnTriggersInRawMode() async throws {
         await mockSTT.configure(result: STTResult(text: "git status zatwierdź"))
         service = DictationService(
@@ -714,6 +748,37 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveCancelCallCount, 0)
         XCTAssertEqual(previewCallCount, 0)
         XCTAssertEqual(previewCancelCallCount, 0)
+    }
+
+    func testCohereDisplayPreviewSelectionIsIgnored() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldShowDictationPreview: { true },
+            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .cohere, language: "ja") },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+        await mockSTT.configurePreview(result: STTResult(text: "should not preview", words: [], engine: .cohere))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        let result = try await service.stopRecording()
+
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(result.dictation.rawTranscript, "cohere final")
+        XCTAssertEqual(result.dictation.engine, SpeechEnginePreference.cohere.rawValue)
+        XCTAssertEqual(previewCallCount, 0)
+        XCTAssertEqual(previewCancelCallCount, 0)
+        XCTAssertEqual(transcribeCallCount, 1)
     }
 
     func testDisplayPreviewDisabledSkipsPreviewTranscription() async throws {

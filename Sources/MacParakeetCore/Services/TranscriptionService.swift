@@ -1434,7 +1434,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
 
             let diarizationApplied: Bool
-            if let diarizationService, shouldDiarize() {
+            if let diarizationService, diarizationRequested, !words.isEmpty {
                 lifecycleStage = .diarization
                 do {
                     onProgress?(.identifyingSpeakers)

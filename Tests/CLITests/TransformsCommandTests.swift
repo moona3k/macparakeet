@@ -102,6 +102,17 @@ final class TransformsCommandTests: XCTestCase {
         XCTAssertEqual(del.idOrName, "Sharpen")
     }
 
+    func testParsesRestoreDefaultsSubcommand() throws {
+        let cmd = try TransformsCommand.parseAsRoot([
+            "restore-defaults",
+            "--transform", "Polish",
+            "--json",
+        ])
+        let restore = try XCTUnwrap(cmd as? TransformsCommand.RestoreDefaultsSubcommand)
+        XCTAssertEqual(restore.transform, "Polish")
+        XCTAssertTrue(restore.json)
+    }
+
     // MARK: - JSON contract
 
     func testTransformDTOJSONUsesDocumentedSnakeCaseKeys() throws {
@@ -440,6 +451,38 @@ final class TransformsCommandTests: XCTestCase {
         }
     }
 
+    func testCreateAllowsShortcutUsedOnlyByHiddenTransform() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        let polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        try repo.toggleVisibility(id: polish.id)
+
+        let create = try TransformsCommand.CreateSubcommand.parse([
+            "--name", "New Visible Hotkey",
+            "--prompt", "Body",
+            "--shortcut", "ctrl+opt+1",
+            "--database", dbPath,
+            "--json",
+        ])
+        try create.validate()
+        let output = try captureStandardOutput {
+            try create.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["name"] as? String, "New Visible Hotkey")
+        XCTAssertEqual(decoded["shortcut"] as? String, KeyboardShortcut.parse("ctrl+opt+1")?.displayString)
+    }
+
     func testAppHotkeyCollisionAllowsChordSharingBareModifierDictationHotkey() throws {
         let suiteName = "com.macparakeet.tests.transforms.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -523,6 +566,228 @@ final class TransformsCommandTests: XCTestCase {
         XCTAssertThrowsError(try del.run()) { error in
             let message = String(describing: error)
             XCTAssertTrue(message.contains("built-in"), "Expected built-in-protection error, got: \(message)")
+        }
+    }
+
+    func testRestoreDefaultsResetsSingleBuiltInTransform() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        var polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        let originalID = polish.id
+        polish.name = "Personal Polish"
+        polish.content = "Rewrite this in my house style."
+        polish.keyboardShortcut = KeyboardShortcut.parse("cmd+d")?.encodedString()
+        try repo.save(polish)
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--transform", "Personal Polish",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["restored_count"] as? Int, 1)
+
+        let canonical = try XCTUnwrap(
+            Prompt.builtInPrompts().first(where: { $0.id == originalID })
+        )
+        let restored = try XCTUnwrap(try repo.fetch(id: originalID))
+        XCTAssertEqual(restored.name, canonical.name)
+        XCTAssertEqual(restored.content, canonical.content)
+        XCTAssertEqual(restored.shortcut?.displayString, canonical.shortcut?.displayString)
+        XCTAssertFalse(restored.isAutoRun)
+        XCTAssertTrue(restored.isBuiltIn)
+    }
+
+    func testRestoreDefaultsCanResetHiddenBuiltInTransformTarget() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        var polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        let originalID = polish.id
+        polish.name = "Hidden Polish"
+        polish.content = "Hidden custom prompt body."
+        polish.isVisible = false
+        polish.keyboardShortcut = KeyboardShortcut.parse("cmd+d")?.encodedString()
+        try repo.save(polish)
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--transform", originalID.uuidString,
+            "--database", dbPath,
+            "--json",
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        let canonical = try XCTUnwrap(
+            Prompt.builtInPrompts().first(where: { $0.id == originalID })
+        )
+        let restored = try XCTUnwrap(try repo.fetch(id: originalID))
+        XCTAssertTrue(restored.isVisible)
+        XCTAssertEqual(restored.name, canonical.name)
+        XCTAssertEqual(restored.content, canonical.content)
+        XCTAssertEqual(restored.shortcut?.displayString, canonical.shortcut?.displayString)
+    }
+
+    func testRestoreDefaultsTargetIgnoresHiddenShortcutConflict() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        var polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        polish.keyboardShortcut = KeyboardShortcut.parse("cmd+d")?.encodedString()
+        try repo.save(polish)
+
+        try repo.save(Prompt(
+            name: "Hidden duplicate",
+            content: "Body",
+            category: .transform,
+            isBuiltIn: false,
+            isVisible: false,
+            keyboardShortcut: KeyboardShortcut.parse("ctrl+opt+1")?.encodedString()
+        ))
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--transform", "Polish",
+            "--database", dbPath,
+            "--json",
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        let canonical = try XCTUnwrap(
+            Prompt.builtInPrompts().first(where: { $0.id == polish.id })
+        )
+        let restored = try XCTUnwrap(try repo.fetch(id: polish.id))
+        XCTAssertEqual(restored.shortcut?.displayString, canonical.shortcut?.displayString)
+    }
+
+    func testRestoreDefaultsUntargetedClearsLaterHiddenShortcutConflict() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        let duplicateShortcut = KeyboardShortcut.parse("ctrl+opt+1")?.encodedString()
+        var polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        var distill = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Distill" })
+        )
+        polish.keyboardShortcut = duplicateShortcut
+        distill.keyboardShortcut = duplicateShortcut
+        try repo.save(polish)
+        try repo.save(distill)
+        try repo.toggleVisibility(id: polish.id)
+        try repo.toggleVisibility(id: distill.id)
+        XCTAssertEqual(try repo.fetch(id: polish.id)?.isVisible, false)
+        XCTAssertEqual(try repo.fetch(id: distill.id)?.isVisible, false)
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["restored_count"] as? Int, 2)
+        let cleared = try XCTUnwrap(decoded["cleared_shortcuts"] as? [String])
+        XCTAssertEqual(cleared.count, 1)
+        XCTAssertTrue(cleared.first?.contains("Distill") == true)
+
+        let restoredPolish = try XCTUnwrap(try repo.fetch(id: polish.id))
+        let restoredDistill = try XCTUnwrap(try repo.fetch(id: distill.id))
+        XCTAssertTrue(restoredPolish.isVisible)
+        XCTAssertTrue(restoredDistill.isVisible)
+        XCTAssertEqual(restoredPolish.shortcut?.displayString, KeyboardShortcut.parse("ctrl+opt+1")?.displayString)
+        XCTAssertNil(restoredDistill.shortcut)
+    }
+
+    func testRestoreDefaultsRevealsHiddenBuiltInTransformWithoutOverwriting() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+
+        var polish = try XCTUnwrap(
+            (try repo.fetchVisible(category: .transform))
+                .first(where: { $0.name == "Polish" })
+        )
+        polish.content = "Keep this customized prompt."
+        polish.isVisible = false
+        try repo.save(polish)
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--database", dbPath,
+            "--json",
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        let restored = try XCTUnwrap(try repo.fetch(id: polish.id))
+        XCTAssertTrue(restored.isVisible)
+        XCTAssertEqual(restored.content, "Keep this customized prompt.")
+    }
+
+    func testRestoreDefaultsRefusesCustomTransformTarget() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+        try repo.save(Prompt(name: "Custom Transform", content: "x", category: .transform, isBuiltIn: false))
+
+        let command = try TransformsCommand.RestoreDefaultsSubcommand.parse([
+            "--transform", "Custom Transform",
+            "--database", dbPath,
+        ])
+
+        XCTAssertThrowsError(try command.run()) { error in
+            XCTAssertTrue(String(describing: error).contains("not a built-in Transform"))
         }
     }
 

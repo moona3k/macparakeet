@@ -1085,7 +1085,6 @@ public final class DatabaseManager: Sendable {
                                 UPDATE prompts
                                 SET category = ?,
                                     isBuiltIn = 1,
-                                    isVisible = 1,
                                     isAutoRun = 0,
                                     sortOrder = ?,
                                     keyboardShortcut = ?

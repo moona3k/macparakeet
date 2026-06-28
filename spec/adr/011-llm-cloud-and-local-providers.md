@@ -43,6 +43,7 @@ The current branch supports these provider/runtime types through one shared serv
 | OpenAI (GPT) | Cloud | `https://api.openai.com/v1` | API key (`Authorization: Bearer`) |
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
+| OpenAI-Compatible | Custom | User-configured `/v1` endpoint | Provider-specific API token or none |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
@@ -54,7 +55,7 @@ The current branch supports these provider/runtime types through one shared serv
 ### Locked Decisions
 
 1. **No bundled LLM runtime.** No mlx-swift-lm, no llama.cpp, no Cactus, no model downloads. Zero GPU/memory impact from LLM.
-2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, Ollama, or Local CLI tools. Transport details may vary per provider.
+2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, OpenAI-compatible endpoints, local servers, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
 5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
@@ -63,11 +64,13 @@ The current branch supports these provider/runtime types through one shared serv
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
-| **Summary** | One-click transcript summary | File + YouTube transcriptions |
-| **Chat** | Ask questions about a transcript | File + YouTube transcriptions |
-| **Custom Prompts** | User-defined text transforms | File + YouTube transcriptions + dictation history |
+| **Summary / Prompt Results** | One-click or prompt-library transcript outputs | File, URL, and meeting transcriptions |
+| **Chat / Meeting Ask** | Ask questions about a finalized transcript or a live meeting transcript | File, URL, and meeting transcriptions; live meetings |
+| **AI Formatter** | Optional post-STT cleanup for dictation and file transcripts | Dictation and file transcription final text |
+| **Transforms** | System-wide selected-text rewrites through saved prompts/hotkeys | User-selected text in other apps |
+| **Custom Prompts** | User-defined transcript prompt outputs | File, URL, and meeting transcriptions |
 
-Features are scoped to transcript-level actions. No dictation-time LLM processing (no Command Mode, no AI refinement modes during dictation). This keeps dictation fast and simple, and preserves a fully local path for users who want one.
+LLM features stay explicit and provider-backed. The app still ships no bundled/default LLM and no voice Command Mode. AI Formatter runs only after local STT has produced text; it is optional, can be disabled, and never changes the fact that audio stays local.
 
 ## Rationale
 

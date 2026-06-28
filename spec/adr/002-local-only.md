@@ -18,11 +18,11 @@ Meanwhile, local-only alternatives (MacWhisper, VoiceInk, BetterDictation) have 
 
 **Local processing with a fully local path.** The core product — transcription and dictation — runs on-device. Audio never leaves the device.
 
-LLM-powered features (summarization, chat, transforms) use external providers configured by the user. This is opt-in, explicit, and text-only — audio is never sent.
+LLM-powered features (summaries, chat/Meeting Ask, AI Formatter, and Transforms) use external providers configured by the user. This is opt-in, explicit, and text-only — audio is never sent.
 
 ### What is always local (non-negotiable)
 
-- **STT**: Parakeet runs locally via FluidAudio CoreML on ANE (v3 default, v2 English-only TDT opt-in, Unified English opt-in), with optional local Nemotron Beta and WhisperKit engines for broader language coverage (ADR-001, ADR-007, ADR-021)
+- **STT**: Parakeet runs locally via FluidAudio CoreML on ANE (v3 default, v2 English-only TDT opt-in, Unified English opt-in), with optional local Nemotron Beta, Cohere Transcribe, and WhisperKit engines for broader language and accuracy coverage (ADR-001, ADR-007, ADR-016, ADR-021)
 - **Audio capture**: All microphone and file audio stays on-device
 - **Text processing**: Deterministic pipeline runs locally (ADR-004)
 - **Database**: All dictations, transcriptions, history stored locally (SQLite/GRDB)
@@ -30,7 +30,7 @@ LLM-powered features (summarization, chat, transforms) use external providers co
 
 ### What uses external providers (opt-in, user-configured)
 
-- **LLM features**: Summarization, chat-with-transcript, custom transforms (ADR-011)
+- **LLM features**: Summaries, transcript/meeting chat, AI Formatter, and custom transforms (ADR-011)
   - Transcript *text* (not audio) is sent to the user's chosen provider
   - User configures their own API key, Ollama runtime, or Local CLI tool
   - No default provider — user must explicitly opt in
@@ -91,7 +91,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 ### Negative
 
 - **Messaging complexity**: "100% local" was simpler than "can be fully local, with optional external features." Must be communicated clearly and honestly.
-- **Cloud LLM features require internet**: Summarization/chat won't work offline unless user runs Ollama. Transcription still works offline.
+- **Cloud LLM features require internet**: Summaries, chat/Meeting Ask, AI Formatter, and Transforms won't work offline unless user runs a local provider. Transcription still works offline.
 - **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
 - **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.
 - **No collaborative features**: Real-time sharing, team vocabularies, or cross-device sync would require cloud infrastructure. These are out of scope.

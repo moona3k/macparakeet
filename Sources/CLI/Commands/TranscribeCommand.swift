@@ -98,10 +98,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Language hint for Whisper, Nemotron, or Cohere, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization). app-default follows the saved preference; ignored for Nemotron and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
-    @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms (English-only Beta). app-default follows the saved preference; ignored for Parakeet and Whisper. The English build ignores --language.")
+    @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms (English-only Beta). app-default follows the saved preference; ignored for Parakeet, Cohere, and Whisper. The English build ignores --language.")
     var nemotronModel: TranscribeNemotronModel = .appDefault
 
     @Option(help: "Downloaded media retention: app-default, keep, delete.")

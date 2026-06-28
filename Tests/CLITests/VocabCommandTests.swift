@@ -97,6 +97,60 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertTrue(schema.json)
     }
 
+    func testVocabWordsSetTogglesEnabledState() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "k8s", replacement: "Kubernetes", isEnabled: true)
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.SetWord.parse([
+            String(word.id.uuidString.prefix(8)),
+            "--disabled",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let updated = try XCTUnwrap(try repo.fetch(id: word.id))
+        XCTAssertFalse(updated.isEnabled)
+        XCTAssertGreaterThan(updated.updatedAt, word.updatedAt)
+    }
+
+    func testVocabWordsSetRequiresOneStateFlag() {
+        XCTAssertThrowsError(try VocabWordsCommand.SetWord.parse(["abcd"]))
+        XCTAssertThrowsError(try VocabWordsCommand.SetWord.parse(["abcd", "--enabled", "--disabled"]))
+    }
+
+    func testVocabSnippetsEditNoopWithJSONEmitsFailureEnvelope() async throws {
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            "abcd",
+            "--database", dbPath,
+            "--json",
+        ])
+
+        var thrownError: Error?
+        let output = try await capturingStdout {
+            do {
+                try await cmd.run()
+            } catch {
+                thrownError = error
+            }
+        }
+
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertEqual(decoded["errorType"] as? String, "validation")
+        XCTAssertTrue((decoded["error"] as? String)?.contains("--trigger") == true)
+    }
+
     func testVocabSnippetsEditUpdatesExistingSnippet() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
@@ -130,6 +184,36 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertEqual(updated.useCount, 4)
         XCTAssertEqual(updated.createdAt, createdAt)
         XCTAssertGreaterThan(updated.updatedAt, createdAt)
+    }
+
+    func testVocabSnippetsEditCanToggleEnabledOnly() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Original", isEnabled: false)
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            String(snippet.id.uuidString.prefix(8)),
+            "--enabled",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let updated = try XCTUnwrap(try repo.fetch(id: snippet.id))
+        XCTAssertTrue(updated.isEnabled)
+        XCTAssertEqual(updated.trigger, "my sig")
+        XCTAssertEqual(updated.expansion, "Original")
+    }
+
+    func testVocabSnippetsEditRejectsContradictoryEnabledFlags() {
+        XCTAssertThrowsError(
+            try VocabSnippetsCommand.EditSnippet.parse(["abcd", "--enabled", "--disabled"])
+        )
     }
 
     func testVocabSnippetsEditRejectsShortIDPrefix() async throws {

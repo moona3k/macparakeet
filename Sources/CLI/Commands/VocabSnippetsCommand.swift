@@ -100,45 +100,75 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         @Option(help: "Replacement expansion text. Omit to keep the existing expansion.")
         var expansion: String?
 
+        @Flag(name: .long, help: "Enable this snippet.")
+        var enabled: Bool = false
+
+        @Flag(name: .long, help: "Disable this snippet.")
+        var disabled: Bool = false
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
+        func validate() throws {
+            if enabled && disabled {
+                throw ValidationError("--enabled and --disabled are mutually exclusive.")
+            }
+        }
+
         func run() async throws {
-            guard trigger != nil || expansion != nil else {
-                throw ValidationError("Provide --trigger, --expansion, or both.")
-            }
-
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
-            let snippets = try repo.fetchAll()
-            var snippet = try VocabSnippetsCommand.resolveSnippet(id: id, snippets: snippets)
-
-            if let trigger {
-                let trimmed = trigger.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else {
-                    throw ValidationError("Trigger cannot be empty.")
+            try emitJSONOrRethrow(json: json) {
+                guard trigger != nil || expansion != nil || enabled || disabled else {
+                    throw ValidationError("Provide --trigger, --expansion, --enabled, or --disabled.")
                 }
-                if snippets.contains(where: {
-                    $0.id != snippet.id
-                        && $0.trigger.caseInsensitiveCompare(trimmed) == .orderedSame
-                }) {
-                    throw VocabError.duplicate("Snippet trigger '\(trimmed)' already exists.")
-                }
-                snippet.trigger = trimmed
-            }
 
-            if let expansion {
-                let processed = VocabSnippetsCommand.processedExpansion(from: expansion)
-                guard !processed.isEmpty else {
-                    throw ValidationError("Expansion cannot be empty.")
-                }
-                snippet.expansion = processed
-            }
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+                let snippets = try repo.fetchAll()
+                var snippet = try VocabSnippetsCommand.resolveSnippet(id: id, snippets: snippets)
 
-            snippet.updatedAt = Date()
-            try repo.save(snippet)
-            print("Updated: Say \"\(snippet.trigger)\" -> \(snippet.expansion)")
+                if let trigger {
+                    let trimmed = trigger.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        throw ValidationError("Trigger cannot be empty.")
+                    }
+                    if snippets.contains(where: {
+                        $0.id != snippet.id
+                            && $0.trigger.caseInsensitiveCompare(trimmed) == .orderedSame
+                    }) {
+                        throw VocabError.duplicate("Snippet trigger '\(trimmed)' already exists.")
+                    }
+                    snippet.trigger = trimmed
+                }
+
+                if let expansion {
+                    let processed = VocabSnippetsCommand.processedExpansion(from: expansion)
+                    guard !processed.isEmpty else {
+                        throw ValidationError("Expansion cannot be empty.")
+                    }
+                    snippet.expansion = processed
+                }
+
+                if enabled {
+                    snippet.isEnabled = true
+                }
+                if disabled {
+                    snippet.isEnabled = false
+                }
+
+                snippet.updatedAt = Date()
+                try repo.save(snippet)
+
+                if json {
+                    try printJSON(VocabSnippetWriteResult(ok: true, snippet: snippet))
+                } else {
+                    let state = snippet.isEnabled ? "enabled" : "disabled"
+                    print("Updated: Say \"\(snippet.trigger)\" -> \(snippet.expansion) [\(state)]")
+                }
+            }
         }
     }
 
@@ -195,4 +225,9 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         raw.trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "\\n", with: "\n")
     }
+}
+
+private struct VocabSnippetWriteResult: Encodable {
+    let ok: Bool
+    let snippet: TextSnippet
 }

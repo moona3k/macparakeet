@@ -34,6 +34,7 @@ private struct CLISpec: Encodable {
     let commandName: String
     let cliVersion: String
     let conventions: CLISpecConventions
+    let configKeys: [CLIConfigKeySpec]
     let commands: [CLISpecCommand]
 
     static var current: CLISpec {
@@ -59,6 +60,7 @@ private struct CLISpec: Encodable {
                     CLIExitCodeSpec(code: 130, meaning: "interrupted by SIGINT"),
                 ]
             ),
+            configKeys: ConfigCommand.supportedKeySpecs,
             commands: CLISpecCommand.catalog
         )
     }
@@ -147,6 +149,17 @@ private extension CLISpecCommand {
         summary: "Use a specific MacParakeet SQLite database instead of the app default."
     )
 
+    static let llmInlineOptions: [CLISpecParameter] = [
+        CLISpecParameter.option("--provider", valueName: "ID", required: true, summary: "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, or cli."),
+        CLISpecParameter.option("--api-key", valueName: "KEY", summary: "API key literal; prefer --api-key-env for scripts."),
+        CLISpecParameter.option("--api-key-env", valueName: "ENV", summary: "Environment variable containing the API key."),
+        CLISpecParameter.option("--model", valueName: "MODEL", summary: "Provider model name."),
+        CLISpecParameter.option("--base-url", valueName: "URL", summary: "Provider base URL override."),
+        CLISpecParameter.flag("--allow-insecure-http", summary: "Allow non-loopback http:// base URLs intentionally."),
+        CLISpecParameter.option("--command", valueName: "COMMAND", summary: "CLI command for the cli provider."),
+        CLISpecParameter.flag("--local", summary: "Mark provider as local for context budgeting."),
+    ]
+
     static let catalog: [CLISpecCommand] = [
         CLISpecCommand(
             ["spec"],
@@ -183,8 +196,8 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this run."),
                 CLISpecParameter.option("--engine", valueName: "parakeet|nemotron|whisper|cohere|app-default", summary: "Speech engine for this run."),
                 CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."),
-                CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2|unified", summary: "Parakeet build for this run; ignored for Nemotron and Whisper."),
-                CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron build for this run; ignored for Parakeet and Whisper."),
+                CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2|unified", summary: "Parakeet build for this run; ignored for Nemotron, Cohere, and Whisper."),
+                CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron build for this run; ignored for Parakeet, Cohere, and Whisper."),
                 CLISpecParameter.option("--downloaded-audio", valueName: "app-default|keep|delete", summary: "Downloaded media retention policy."),
                 CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection behavior for this run."),
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count; implies speaker detection unless explicitly disabled."),
@@ -313,27 +326,529 @@ private extension CLISpecCommand {
             output: "Array of matching transcription objects."
         ),
         CLISpecCommand(
+            ["history", "delete-dictation"],
+            summary: "Delete one saved dictation and its owned dictation audio.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Dictation UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable deletion confirmation."
+        ),
+        CLISpecCommand(
+            ["history", "delete-transcription"],
+            summary: "Delete one saved transcription and owned local assets.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable deletion confirmation."
+        ),
+        CLISpecCommand(
+            ["history", "delete-meeting-audio"],
+            summary: "Detach and delete stored audio for one meeting transcript while keeping the transcript row.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Meeting transcription UUID, UUID prefix, or file name.")],
+            options: [databaseOption],
+            output: "Human-readable deletion or no-op confirmation."
+        ),
+        CLISpecCommand(
+            ["history", "clear-meeting-audio"],
+            summary: "Delete all managed meeting audio while keeping saved meeting transcripts.",
+            readOnly: false,
+            jsonMode: "none",
+            options: [databaseOption],
+            output: "Human-readable deletion confirmation."
+        ),
+        CLISpecCommand(
+            ["history", "favorites"],
+            summary: "List favorite transcriptions.",
+            options: [databaseOption],
+            output: "Array of favorite transcription objects."
+        ),
+        CLISpecCommand(
+            ["history", "favorite"],
+            summary: "Mark a transcription as favorite.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable favorite confirmation."
+        ),
+        CLISpecCommand(
+            ["history", "unfavorite"],
+            summary: "Remove a transcription from favorites.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable unfavorite confirmation."
+        ),
+        CLISpecCommand(
             ["prompts", "list"],
             summary: "List result prompts in the prompt library.",
-            options: [databaseOption],
+            options: [
+                CLISpecParameter.option("--filter", valueName: "all|visible|auto-run", summary: "Which prompts to list."),
+                databaseOption,
+            ],
             output: "Array of Prompt objects."
+        ),
+        CLISpecCommand(
+            ["prompts", "show"],
+            summary: "Show one prompt's full content.",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [databaseOption],
+            output: "Prompt object when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "add"],
+            summary: "Add a custom result prompt.",
+            readOnly: false,
+            jsonMode: "none",
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Prompt display name."),
+                CLISpecParameter.option("--content", valueName: "TEXT", summary: "Prompt body text."),
+                CLISpecParameter.option("--from-file", valueName: "PATH", summary: "Read prompt body from a file."),
+                CLISpecParameter.flag("--auto-run", summary: "Mark as auto-run for completed transcriptions."),
+                databaseOption,
+            ],
+            output: "Human-readable add confirmation."
+        ),
+        CLISpecCommand(
+            ["prompts", "set"],
+            summary: "Toggle a result prompt's visibility or auto-run state.",
+            readOnly: false,
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.flag("--visible", summary: "Make the prompt visible."),
+                CLISpecParameter.flag("--hidden", summary: "Hide the prompt and disable auto-run."),
+                CLISpecParameter.flag("--auto-run", summary: "Enable global auto-run."),
+                CLISpecParameter.flag("--no-auto-run", summary: "Disable auto-run."),
+                CLISpecParameter.option("--source", valueName: "file|youtube|podcast|meeting", summary: "Scope --auto-run/--no-auto-run to one source; omit for global all-source behavior."),
+                databaseOption,
+            ],
+            output: "Updated Prompt object when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "delete"],
+            summary: "Delete a custom result prompt; built-ins are protected.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [databaseOption],
+            output: "Human-readable delete confirmation."
+        ),
+        CLISpecCommand(
+            ["prompts", "restore-defaults"],
+            summary: "Re-show built-in result prompts without changing custom prompts.",
+            readOnly: false,
+            jsonMode: "none",
+            options: [databaseOption],
+            output: "Human-readable restore confirmation."
         ),
         CLISpecCommand(
             ["prompts", "run"],
             summary: "Run a saved result prompt against a saved transcription.",
             readOnly: false,
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
-            options: [
+            options: llmInlineOptions + [
                 CLISpecParameter.option("--transcription", valueName: "ID", required: true, summary: "Saved transcription ID or prefix."),
                 CLISpecParameter.flag("--no-store", summary: "Do not save a PromptResult."),
+                CLISpecParameter.flag("--stream", summary: "Stream tokens; incompatible with --json."),
+                CLISpecParameter.option("--extra", valueName: "TEXT", summary: "Append extra instructions for this run."),
                 databaseOption,
             ],
             output: "LLMResult envelope when --json is used."
         ),
         CLISpecCommand(
+            ["llm", "test-connection"],
+            summary: "Test connectivity to an LLM provider.",
+            readOnly: false,
+            options: llmInlineOptions,
+            output: "LLM test-connection result envelope when --json is used."
+        ),
+        CLISpecCommand(
+            ["llm", "summarize"],
+            summary: "Summarize text from a file or stdin using an LLM provider.",
+            readOnly: false,
+            arguments: [.argument("input", summary: "Path to text file; use '-' for stdin.")],
+            options: llmInlineOptions + [
+                CLISpecParameter.flag("--stream", summary: "Stream tokens; incompatible with --json."),
+            ],
+            output: "LLMResult envelope when --json is used."
+        ),
+        CLISpecCommand(
+            ["llm", "chat"],
+            summary: "Ask a question about transcript text using an LLM provider.",
+            readOnly: false,
+            arguments: [.argument("input", summary: "Path to transcript text file; use '-' for stdin.")],
+            options: llmInlineOptions + [
+                CLISpecParameter.option("--question", valueName: "TEXT", required: true, summary: "Question to ask about the transcript."),
+                CLISpecParameter.flag("--stream", summary: "Stream tokens; incompatible with --json."),
+            ],
+            output: "LLMResult envelope when --json is used."
+        ),
+        CLISpecCommand(
+            ["llm", "transform"],
+            summary: "Apply an ad-hoc LLM transform to text from a file or stdin.",
+            readOnly: false,
+            arguments: [.argument("input", summary: "Path to text file; use '-' for stdin.")],
+            options: llmInlineOptions + [
+                CLISpecParameter.option("--prompt", valueName: "TEXT", required: true, summary: "Transform instruction."),
+                CLISpecParameter.flag("--stream", summary: "Stream tokens; incompatible with --json."),
+            ],
+            output: "LLMResult envelope when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "list"],
+            summary: "List live Meeting Ask quick prompts.",
+            options: [
+                CLISpecParameter.option("--pinned", valueName: "true|false", summary: "Filter by pin state."),
+                CLISpecParameter.flag("--visible-only", summary: "Only visible prompts."),
+                databaseOption,
+            ],
+            output: "Array of QuickPrompt objects."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "show"],
+            summary: "Show one quick prompt's full content.",
+            arguments: [.argument("quick-prompt", summary: "Quick prompt ID, UUID prefix, or label.")],
+            options: [databaseOption],
+            output: "QuickPrompt object when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "add"],
+            summary: "Add a custom Meeting Ask quick prompt.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--label", valueName: "LABEL", required: true, summary: "Display label shown on the pill."),
+                CLISpecParameter.option("--prompt", valueName: "TEXT", summary: "Prompt body text."),
+                CLISpecParameter.option("--from-file", valueName: "PATH", summary: "Read prompt body from a file."),
+                CLISpecParameter.option("--group", valueName: "LABEL", summary: "Optional group label."),
+                CLISpecParameter.flag("--hidden", summary: "Insert as hidden."),
+                CLISpecParameter.flag("--pinned", summary: "Pin immediately."),
+                databaseOption,
+            ],
+            output: "QuickPrompt write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "set"],
+            summary: "Update a quick prompt's fields or visibility.",
+            readOnly: false,
+            arguments: [.argument("quick-prompt", summary: "Quick prompt ID, UUID prefix, or label.")],
+            options: [
+                CLISpecParameter.option("--label", valueName: "LABEL", summary: "Replace the display label."),
+                CLISpecParameter.option("--prompt", valueName: "TEXT", summary: "Replace the prompt body."),
+                CLISpecParameter.option("--group", valueName: "LABEL", summary: "Replace or clear the group label."),
+                CLISpecParameter.option("--sort-order", valueName: "N", summary: "Replace sort order."),
+                CLISpecParameter.flag("--visible", summary: "Make visible."),
+                CLISpecParameter.flag("--hidden", summary: "Hide."),
+                databaseOption,
+            ],
+            output: "QuickPrompt write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "delete"],
+            summary: "Delete a custom quick prompt; built-ins are protected.",
+            readOnly: false,
+            arguments: [.argument("quick-prompt", summary: "Quick prompt ID, UUID prefix, or label.")],
+            options: [databaseOption],
+            output: "Delete result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "pin"],
+            summary: "Pin a quick prompt to the after-response strip.",
+            readOnly: false,
+            arguments: [.argument("quick-prompt", summary: "Quick prompt ID, UUID prefix, or label.")],
+            options: [databaseOption],
+            output: "QuickPrompt write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "unpin"],
+            summary: "Unpin a quick prompt from the after-response strip.",
+            readOnly: false,
+            arguments: [.argument("quick-prompt", summary: "Quick prompt ID, UUID prefix, or label.")],
+            options: [databaseOption],
+            output: "QuickPrompt write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "restore-defaults"],
+            summary: "Reset built-in quick prompts to canonical values.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--id", valueName: "ID", summary: "Limit restore to one built-in quick prompt."),
+                databaseOption,
+            ],
+            output: "Restore result when --json is used."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "export"],
+            summary: "Export quick prompts as a versioned JSON bundle.",
+            jsonMode: "--json for failure envelopes only",
+            options: [
+                CLISpecParameter.option("--out", valueName: "PATH", summary: "Write bundle to a file; stdout if omitted."),
+                CLISpecParameter.option("--pinned", valueName: "true|false", summary: "Filter by pin state."),
+                CLISpecParameter.flag("--include-builtins", summary: "Include built-in prompts."),
+                databaseOption,
+            ],
+            output: "QuickPromptBundle JSON."
+        ),
+        CLISpecCommand(
+            ["quick-prompts", "import"],
+            summary: "Import a quick-prompts bundle from JSON.",
+            readOnly: false,
+            arguments: [.argument("path", summary: "Path to the bundle JSON file.")],
+            options: [
+                CLISpecParameter.option("--mode", valueName: "merge|replace", summary: "Import mode."),
+                CLISpecParameter.flag("--dry-run", summary: "Show planned changes without writing."),
+                CLISpecParameter.flag("--yes", summary: "Skip replace confirmation."),
+                databaseOption,
+            ],
+            output: "QuickPrompt import summary when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "list"],
+            summary: "List saved Transforms with their bound shortcuts.",
+            options: [databaseOption],
+            output: "Array of TransformDTO objects."
+        ),
+        CLISpecCommand(
+            ["transforms", "show"],
+            summary: "Show one Transform's prompt body and bound shortcut.",
+            arguments: [.argument("transform", summary: "Transform ID, UUID prefix, or name.")],
+            options: [databaseOption],
+            output: "TransformDTO object when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "run"],
+            summary: "Run a saved Transform against text from a file or stdin.",
+            readOnly: false,
+            arguments: [.argument("transform", summary: "Transform ID, UUID prefix, or name.")],
+            options: llmInlineOptions + [
+                CLISpecParameter.option("--input", valueName: "PATH", required: true, summary: "Path to text file; use '-' for stdin."),
+                CLISpecParameter.flag("--stream", summary: "Stream tokens; incompatible with --json."),
+                databaseOption,
+            ],
+            output: "LLMResult envelope when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "create"],
+            summary: "Create a custom saved Transform with an optional shortcut.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Transform name."),
+                CLISpecParameter.option("--prompt", valueName: "TEXT", summary: "Prompt body text."),
+                CLISpecParameter.option("--from-file", valueName: "PATH", summary: "Read prompt body from a file."),
+                CLISpecParameter.option("--shortcut", valueName: "KEYS", summary: "Keyboard shortcut such as opt+1."),
+                databaseOption,
+            ],
+            output: "TransformDTO object when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "delete"],
+            summary: "Delete a custom Transform; built-ins are protected.",
+            readOnly: false,
+            arguments: [.argument("transform", summary: "Transform ID, UUID prefix, or name.")],
+            options: [databaseOption],
+            output: "Delete result when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "restore-defaults"],
+            summary: "Restore built-in Transform defaults.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--transform", valueName: "ID|NAME", summary: "Reset one built-in Transform; omit to re-show hidden built-ins and re-seed missing built-ins without overwriting edits."),
+                databaseOption,
+            ],
+            output: "Restore result when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "history", "list"],
+            summary: "List saved Transform runs.",
+            options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of history rows."),
+                databaseOption,
+            ],
+            output: "Array of TransformHistoryDTO objects."
+        ),
+        CLISpecCommand(
+            ["transforms", "history", "show"],
+            summary: "Show one saved Transform run.",
+            arguments: [.argument("history-id", summary: "History item UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "TransformHistoryDTO object when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "history", "delete"],
+            summary: "Delete one saved Transform history item.",
+            readOnly: false,
+            arguments: [.argument("history-id", summary: "History item UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Delete result when --json is used."
+        ),
+        CLISpecCommand(
+            ["transforms", "history", "clear"],
+            summary: "Clear all local Transform history.",
+            readOnly: false,
+            options: [databaseOption],
+            output: "Clear result when --json is used."
+        ),
+        CLISpecCommand(
+            ["vocab", "process"],
+            summary: "Run deterministic clean text processing on input text.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("text", summary: "Text to process.")],
+            options: [
+                CLISpecParameter.flag("--copy", summary: "Copy result to clipboard."),
+                databaseOption,
+            ],
+            output: "Processed text."
+        ),
+        CLISpecCommand(
+            ["vocab", "words", "list"],
+            summary: "List custom words.",
+            options: [
+                CLISpecParameter.option("--source", valueName: "all|manual|learned", summary: "Filter by source."),
+                databaseOption,
+            ],
+            output: "Array of CustomWord objects."
+        ),
+        CLISpecCommand(
+            ["vocab", "words", "add"],
+            summary: "Add a custom word or correction.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [
+                .argument("word", summary: "Word or phrase to match."),
+                .argument("replacement", required: false, summary: "Replacement text; omit for vocabulary anchor."),
+            ],
+            options: [databaseOption],
+            output: "Human-readable add confirmation."
+        ),
+        CLISpecCommand(
+            ["vocab", "words", "set"],
+            summary: "Update a custom word's enabled state.",
+            readOnly: false,
+            arguments: [.argument("id", summary: "Word UUID or UUID prefix.")],
+            options: [
+                CLISpecParameter.flag("--enabled", summary: "Enable the word or correction."),
+                CLISpecParameter.flag("--disabled", summary: "Disable the word or correction."),
+                databaseOption,
+            ],
+            output: "Write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["vocab", "words", "delete"],
+            summary: "Delete a custom word by UUID prefix.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Word UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable delete confirmation."
+        ),
+        CLISpecCommand(
+            ["vocab", "snippets", "list"],
+            summary: "List text snippets.",
+            options: [databaseOption],
+            output: "Array of TextSnippet objects."
+        ),
+        CLISpecCommand(
+            ["vocab", "snippets", "add"],
+            summary: "Add a text snippet.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [
+                .argument("trigger", summary: "Natural-language trigger phrase."),
+                .argument("expansion", summary: "Expansion text."),
+            ],
+            options: [databaseOption],
+            output: "Human-readable add confirmation."
+        ),
+        CLISpecCommand(
+            ["vocab", "snippets", "edit"],
+            summary: "Edit a text snippet by UUID prefix.",
+            readOnly: false,
+            arguments: [.argument("id", summary: "Snippet UUID or UUID prefix.")],
+            options: [
+                CLISpecParameter.option("--trigger", valueName: "TEXT", summary: "Replacement trigger."),
+                CLISpecParameter.option("--expansion", valueName: "TEXT", summary: "Replacement expansion."),
+                CLISpecParameter.flag("--enabled", summary: "Enable the snippet."),
+                CLISpecParameter.flag("--disabled", summary: "Disable the snippet."),
+                databaseOption,
+            ],
+            output: "Write result when --json is used."
+        ),
+        CLISpecCommand(
+            ["vocab", "snippets", "delete"],
+            summary: "Delete a text snippet by UUID prefix.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("id", summary: "Snippet UUID or UUID prefix.")],
+            options: [databaseOption],
+            output: "Human-readable delete confirmation."
+        ),
+        CLISpecCommand(
+            ["vocab", "export"],
+            summary: "Export custom words and snippets as a vocabulary bundle.",
+            jsonMode: "bundle JSON",
+            options: [
+                CLISpecParameter.option("--output", valueName: "PATH", summary: "Write bundle to a file; stdout if omitted."),
+                databaseOption,
+            ],
+            output: "VocabularyBundle JSON."
+        ),
+        CLISpecCommand(
+            ["vocab", "import"],
+            summary: "Import a vocabulary bundle.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--input", valueName: "PATH", summary: "Read bundle from a file; stdin if omitted."),
+                CLISpecParameter.option("--policy", valueName: "skip|replace", summary: "Conflict policy."),
+                CLISpecParameter.flag("--dry-run", summary: "Decode and report without writing."),
+                databaseOption,
+            ],
+            output: "Vocabulary import report when --json is used."
+        ),
+        CLISpecCommand(
+            ["vocab", "schema"],
+            summary: "Print the vocabulary bundle JSON schema and example.",
+            output: "VocabularyBundleSpec object when --json is used."
+        ),
+        CLISpecCommand(
+            ["stats"],
+            summary: "Show voice stats dashboard.",
+            options: [databaseOption],
+            output: "StatsPayload object."
+        ),
+        CLISpecCommand(
+            ["export"],
+            summary: "Export a saved transcription to a file or stdout.",
+            readOnly: false,
+            jsonMode: "--stdout --format json",
+            arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
+            options: [
+                CLISpecParameter.option("--format", valueName: "txt|markdown|srt|vtt|json", summary: "Export format."),
+                CLISpecParameter.option("--output", valueName: "PATH", summary: "Output file path."),
+                CLISpecParameter.flag("--stdout", summary: "Print to stdout instead of writing a file."),
+                databaseOption,
+            ],
+            output: "Written file path or exported content."
+        ),
+        CLISpecCommand(
+            ["calendar", "upcoming"],
+            summary: "List upcoming calendar events visible to MacParakeet.",
+            options: [
+                CLISpecParameter.option("--days", valueName: "N", summary: "Number of days to look ahead."),
+                CLISpecParameter.option("--filter", valueName: "link|participants|all", summary: "Meeting trigger filter."),
+            ],
+            output: "Array of CalendarEvent objects when --json is used."
+        ),
+        CLISpecCommand(
             ["meetings", "list"],
             summary: "List recent meeting recordings.",
             options: [
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of meetings."),
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],

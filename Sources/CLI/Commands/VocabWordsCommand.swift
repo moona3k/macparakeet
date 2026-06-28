@@ -9,6 +9,7 @@ struct VocabWordsCommand: AsyncParsableCommand {
         subcommands: [
             ListWords.self,
             AddWord.self,
+            SetWord.self,
             DeleteWord.self,
         ],
         defaultSubcommand: ListWords.self
@@ -100,6 +101,57 @@ struct VocabWordsCommand: AsyncParsableCommand {
         }
     }
 
+    struct SetWord: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "set",
+            abstract: "Update a custom word's enabled state."
+        )
+
+        @Argument(help: "The UUID (or prefix) of the word to update.")
+        var id: String
+
+        @Flag(name: .long, help: "Enable this word or correction.")
+        var enabled: Bool = false
+
+        @Flag(name: .long, help: "Disable this word or correction.")
+        var disabled: Bool = false
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func validate() throws {
+            if enabled && disabled {
+                throw ValidationError("--enabled and --disabled are mutually exclusive.")
+            }
+            if !(enabled || disabled) {
+                throw ValidationError("Provide --enabled or --disabled.")
+            }
+        }
+
+        func run() async throws {
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+
+                var word = try VocabWordsCommand.resolveWord(id: id, words: try repo.fetchAll())
+                word.isEnabled = enabled
+                word.updatedAt = Date()
+                try repo.save(word)
+
+                if json {
+                    try printJSON(VocabWordWriteResult(ok: true, word: word))
+                } else {
+                    let state = word.isEnabled ? "enabled" : "disabled"
+                    print("Updated: \(word.word) is \(state)")
+                }
+            }
+        }
+    }
+
     struct DeleteWord: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "delete",
@@ -132,6 +184,26 @@ struct VocabWordsCommand: AsyncParsableCommand {
             print("Deleted: \(word.word)")
         }
     }
+
+    private static func resolveWord(
+        id: String,
+        words: [CustomWord],
+        minimumPrefixLength: Int = 4
+    ) throws -> CustomWord {
+        let searchID = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard searchID.count >= minimumPrefixLength else {
+            throw ValidationError("ID prefix must be at least \(minimumPrefixLength) characters.")
+        }
+        let matches = words.filter { $0.id.uuidString.lowercased().hasPrefix(searchID) }
+
+        guard let word = matches.first else {
+            throw VocabError.notFound("No word matching '\(id)'")
+        }
+        guard matches.count == 1 else {
+            throw VocabError.ambiguous("Multiple words match '\(id)'. Be more specific.")
+        }
+        return word
+    }
 }
 
 enum VocabError: Error, LocalizedError {
@@ -146,4 +218,9 @@ enum VocabError: Error, LocalizedError {
         case .duplicate(let msg): return msg
         }
     }
+}
+
+private struct VocabWordWriteResult: Encodable {
+    let ok: Bool
+    let word: CustomWord
 }

@@ -655,14 +655,17 @@ final class TelemetryServiceTests: XCTestCase {
     }
 
     func testCanonicalOperationPassesFirstPartyEngineVariantsVerbatim() throws {
-        // First-party fixed build ids (Parakeet v2/v3, Nemotron multilingual/English)
-        // are privacy-safe enum raw values and must serialize verbatim so variant
-        // adoption can be measured; anything else still buckets to "custom".
+        // First-party fixed build / policy ids are privacy-safe enum raw values
+        // and must serialize verbatim so variant adoption can be measured;
+        // anything else still buckets to "custom".
         let cases: [(input: String, expected: String)] = [
             (ParakeetModelVariant.v2.rawValue, "v2"),
             (ParakeetModelVariant.v3.rawValue, "v3"),
+            (ParakeetModelVariant.unified.rawValue, "unified"),
             (NemotronModelVariant.multilingual1120.rawValue, "multilingual-1120ms"),
             (NemotronModelVariant.english1120.rawValue, "english-1120ms"),
+            (CohereTranscribeEngine.ComputePolicy.ane.rawValue, "ane"),
+            (CohereTranscribeEngine.ComputePolicy.gpu.rawValue, "gpu"),
             ("my-custom-model", "custom"),
         ]
 
@@ -696,6 +699,25 @@ final class TelemetryServiceTests: XCTestCase {
 
             XCTAssertEqual(props["engine_variant"], expected, "engine_variant for input \(input)")
         }
+    }
+
+    func testSettingChangedSerializesCohereLanguageSetting() throws {
+        let event = TelemetryEvent(
+            spec: .settingChanged(setting: .cohereLanguage),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["setting"], "cohere_language")
     }
 
     func testDictationOperationSerializesCancelReason() throws {

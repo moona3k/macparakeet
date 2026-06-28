@@ -579,6 +579,21 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertTrue(try repo.fetchVisible(category: .result).contains(where: { $0.id == prompt.id }))
     }
 
+    func testRestoreDefaultsDoesNotResetBuiltInTransforms() throws {
+        var polish = try XCTUnwrap((try repo.fetchVisible(category: .transform)).first(where: { $0.name == "Polish" }))
+        polish.name = "Personal Polish"
+        polish.content = "Keep my transform."
+        polish.keyboardShortcut = KeyboardShortcut.parse("cmd+d")?.encodedString()
+        try repo.save(polish)
+
+        try repo.restoreDefaults()
+
+        let reloaded = try XCTUnwrap(try repo.fetch(id: polish.id))
+        XCTAssertEqual(reloaded.name, "Personal Polish")
+        XCTAssertEqual(reloaded.content, "Keep my transform.")
+        XCTAssertEqual(reloaded.shortcut?.displayString, "⌘D")
+    }
+
     func testNameUniquenessConstraintIsCaseInsensitive() throws {
         let duplicate = Prompt(name: "summary", content: "Duplicate")
 

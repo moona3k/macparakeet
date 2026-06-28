@@ -47,7 +47,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// and for meetings where the user took no notes.
     public var userNotes: String?
     /// STT engine that produced this transcript (`"parakeet"` / `"nemotron"` /
-    /// `"whisper"`).
+    /// `"cohere"` / `"whisper"`).
     /// `nil` for rows created before the v0.8 engine-attribution migration.
     public var engine: String?
     /// Engine-specific model variant id (e.g. the Whisper model id).

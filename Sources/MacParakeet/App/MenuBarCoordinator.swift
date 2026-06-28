@@ -492,6 +492,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     @objc private func selectCohereLanguage(_ sender: NSMenuItem) {
         guard let code = sender.representedObject as? String else { return }
         SpeechEnginePreference.saveCohereDefaultLanguage(code)
+        Telemetry.send(.settingChanged(setting: .cohereLanguage))
         updateCohereLanguageMenu()
     }
 
