@@ -59,6 +59,8 @@ final class MeetingAecModelScoringTests: XCTestCase {
         /// same fixture. Reported, not gated (see fidelity caveat).
         let doubleTalkErrorDB: Double
         let doubleTalkPassthroughErrorDB: Double
+        /// Total frames successfully processed across far-end, near-end, and
+        /// double-talk runs.
         let processedFrames: Int
         /// Frames the processor failed (threw / wrong-sized output) and the
         /// suppressor served raw instead. Nonzero means the scores are polluted by
@@ -79,6 +81,14 @@ final class MeetingAecModelScoringTests: XCTestCase {
         let maxRetention: Float
         let meanNearError: Double
         let totalProcessingFailures: Int
+
+        var retentionDeviation: Float {
+            max(abs(minRetention - 1), abs(maxRetention - 1))
+        }
+
+        var isEchoOnlyV14: Bool {
+            label.localizedStandardContains("v1.4-aec")
+        }
     }
 
     func testLocalVQEModelDecisionGate() throws {
@@ -128,8 +138,7 @@ final class MeetingAecModelScoringTests: XCTestCase {
                     label: modelURL.lastPathComponent,
                     modelKey: modelURL.path,
                     echoLabel: echoLabel,
-                    libraryURL: libraryURL,
-                    modelURL: modelURL,
+                    conditioner: preflight,
                     echoPath: echoPath))
             }
         }
@@ -158,7 +167,10 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 && $0.minRetention > Self.minRetention
                 && $0.maxRetention < Self.maxRetention
         }
-        guard let chosen = viable.min(by: { $0.meanDoubleTalkError < $1.meanDoubleTalkError }) else {
+        // Rule: best near-end retention at acceptable ERLE. If the robust axes tie,
+        // prefer echo-only v1.4, then higher ERLE. Synthetic double-talk error is
+        // reported, not selected on, because tone reshaping cannot certify fidelity.
+        guard let chosen = viable.sorted(by: Self.prefersReleaseDefault).first else {
             XCTFail("No candidate both removed far-end echo (>\(Self.minFarEndERLE) dB ERLE) and "
                 + "preserved the near-end voice (retain "
                 + "\(Self.minRetention)–\(Self.maxRetention)). Re-plan / consider WebRTC AEC3 (plan U6).")
@@ -174,23 +186,22 @@ final class MeetingAecModelScoringTests: XCTestCase {
         label: String,
         modelKey: String,
         echoLabel: String,
-        libraryURL: URL,
-        modelURL: URL,
+        conditioner: any MicConditioning,
         echoPath: MeetingAecEchoPath
     ) -> ModelScore {
         // Far-end-only → ERLE (any mic energy is echo by construction).
         let farScenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: false, farEndActive: true, echoPath: echoPath)
-        let farOut = MeetingAecRunner.run(
-            makeConditioner(libraryURL: libraryURL, modelURL: modelURL), scenario: farScenario)
+        let farOut = MeetingAecRunner.run(conditioner, scenario: farScenario)
+        let farDiagnostics = conditioner.diagnostics
         let farERLE = MeetingAecMetrics.erleDB(
             mic: farScenario.mic, output: farOut, over: farScenario.steadyStateWindow)
 
         // Near-end-only → must preserve the local voice's energy and not go silent.
         let nearScenario = MeetingAecScenarioFactory.make(
             name: "near-end-only", nearEndActive: true, farEndActive: false, echoPath: echoPath)
-        let nearOut = MeetingAecRunner.run(
-            makeConditioner(libraryURL: libraryURL, modelURL: modelURL), scenario: nearScenario)
+        let nearOut = MeetingAecRunner.run(conditioner, scenario: nearScenario)
+        let nearDiagnostics = conditioner.diagnostics
         let nearWindow = nearScenario.steadyStateWindow
         let nearErr = MeetingAecMetrics.nearEndErrorDB(
             output: nearOut, nearEnd: nearScenario.nearEnd, over: nearWindow)
@@ -199,18 +210,15 @@ final class MeetingAecModelScoringTests: XCTestCase {
         // Double-talk → near-end error vs passthrough (reported, not gated).
         let dtScenario = MeetingAecScenarioFactory.make(
             name: "double-talk", nearEndActive: true, farEndActive: true, echoPath: echoPath)
-        let dtConditioner = makeConditioner(libraryURL: libraryURL, modelURL: modelURL)
-        let dtOut = MeetingAecRunner.run(dtConditioner, scenario: dtScenario)
+        let dtOut = MeetingAecRunner.run(conditioner, scenario: dtScenario)
+        let dtDiagnostics = conditioner.diagnostics
         let dtWindow = dtScenario.steadyStateWindow
         let dtErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtOut, nearEnd: dtScenario.nearEnd, over: dtWindow)
         let dtPass = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: dtScenario)
         let dtPassErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtPass, nearEnd: dtScenario.nearEnd, over: dtWindow)
-        // Diagnostics from the double-talk run, where both signals are present so
-        // the adaptive delay estimator has reference energy to lock onto, and the
-        // processor exercises the full mic+reference path.
-        let diag = dtConditioner.diagnostics
+        let diagnostics = [farDiagnostics, nearDiagnostics, dtDiagnostics]
 
         return ModelScore(
             label: label, modelKey: modelKey, echoLabel: echoLabel,
@@ -218,8 +226,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
             nearEndErrorDB: nearErr,
             nearEndRetentionRatio: retention,
             doubleTalkErrorDB: dtErr, doubleTalkPassthroughErrorDB: dtPassErr,
-            processedFrames: diag.processedFrames, processingFailures: diag.processingFailures,
-            delaySamples: diag.currentDelaySamples)
+            processedFrames: diagnostics.reduce(0) { $0 + $1.processedFrames },
+            processingFailures: diagnostics.reduce(0) { $0 + $1.processingFailures },
+            delaySamples: dtDiagnostics.currentDelaySamples)
     }
 
     private func makeConditioner(libraryURL: URL, modelURL: URL) -> any MicConditioning {
@@ -259,6 +268,19 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 meanNearError: group.reduce(0) { $0 + $1.nearEndErrorDB } / n,
                 totalProcessingFailures: group.reduce(0) { $0 + $1.processingFailures })
         }
+    }
+
+    private static func prefersReleaseDefault(_ lhs: ModelAggregate, _ rhs: ModelAggregate) -> Bool {
+        if lhs.retentionDeviation != rhs.retentionDeviation {
+            return lhs.retentionDeviation < rhs.retentionDeviation
+        }
+        if lhs.isEchoOnlyV14 != rhs.isEchoOnlyV14 {
+            return lhs.isEchoOnlyV14
+        }
+        if lhs.meanFarERLE != rhs.meanFarERLE {
+            return lhs.meanFarERLE > rhs.meanFarERLE
+        }
+        return lhs.label.localizedStandardCompare(rhs.label) == .orderedAscending
     }
 
     private func printScoreTable(_ scores: [ModelScore]) {
