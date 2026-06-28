@@ -34,12 +34,10 @@ final class TranscriptSegmentClipboardTests: XCTestCase {
         )
     }
 
-    func testTimestampedEmptyBodyKeepsSeparatorSpace() {
-        // Empty/whitespace body is trimmed to "", but the timestamp separator
-        // remains so the current copied shape is "[1:00] ".
+    func testTimestampedEmptyBodyOmitsSeparatorSpace() {
         XCTAssertEqual(
             TranscriptSegmentClipboard.text(timestampLabel: "1:00", body: "   "),
-            "[1:00] "
+            "[1:00]"
         )
     }
 }

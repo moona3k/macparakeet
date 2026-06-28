@@ -48,6 +48,54 @@ private func indexedSegments(_ segments: [TranscriptSegment]) -> [IndexedTranscr
     }
 }
 
+private struct SpeakerTurnIdentity: Hashable {
+    let speakerId: String
+    let firstStartMs: Int?
+    let lastStartMs: Int?
+    let segmentCount: Int
+    let duplicateOrdinal: Int
+}
+
+private struct SpeakerTurnIdentityBase: Hashable {
+    let speakerId: String
+    let firstStartMs: Int?
+    let lastStartMs: Int?
+    let segmentCount: Int
+}
+
+private struct IdentifiedSpeakerTurn: Identifiable {
+    let turn: SpeakerTurn
+    let identity: SpeakerTurnIdentity
+
+    var id: SpeakerTurnIdentity {
+        identity
+    }
+}
+
+private func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
+    var duplicateCounts: [SpeakerTurnIdentityBase: Int] = [:]
+    return turns.map { turn in
+        let base = SpeakerTurnIdentityBase(
+            speakerId: turn.speakerId,
+            firstStartMs: turn.segments.first?.startMs,
+            lastStartMs: turn.segments.last?.startMs,
+            segmentCount: turn.segments.count
+        )
+        let ordinal = duplicateCounts[base, default: 0]
+        duplicateCounts[base] = ordinal + 1
+        return IdentifiedSpeakerTurn(
+            turn: turn,
+            identity: SpeakerTurnIdentity(
+                speakerId: turn.speakerId,
+                firstStartMs: base.firstStartMs,
+                lastStartMs: base.lastStartMs,
+                segmentCount: base.segmentCount,
+                duplicateOrdinal: ordinal
+            )
+        )
+    }
+}
+
 struct TranscriptTimestampedContentView: View {
     let hasSpeakers: Bool
     let turns: [SpeakerTurn]
@@ -68,7 +116,8 @@ struct TranscriptTimestampedContentView: View {
 
     var body: some View {
         if hasSpeakers {
-            ForEach(Array(turns.enumerated()), id: \.offset) { _, turn in
+            ForEach(identifiedSpeakerTurns(turns)) { identified in
+                let turn = identified.turn
                 TranscriptTurnCardView(
                     speakerLabel: speakerLabelForID(turn.speakerId),
                     speakerColor: speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,

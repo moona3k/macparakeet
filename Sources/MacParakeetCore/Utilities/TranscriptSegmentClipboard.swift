@@ -20,6 +20,7 @@ public enum TranscriptSegmentClipboard {
         guard includeTimestamp else { return trimmedBody }
         let label = timestampLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return trimmedBody }
+        guard !trimmedBody.isEmpty else { return "[\(label)]" }
         return "[\(label)] \(trimmedBody)"
     }
 }
