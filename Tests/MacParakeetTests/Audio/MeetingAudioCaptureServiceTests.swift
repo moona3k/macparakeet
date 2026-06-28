@@ -310,7 +310,9 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         _ = try await service.start()
-        defer { Task { await service.stop() } }
+        // Async teardown so XCTest awaits stop() before the next test (no detached
+        // Task-in-defer race — this file has a history of timing-sensitive tests).
+        addTeardownBlock { await service.stop() }
 
         let silent = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0, 0, 0, 0]))
         let loud = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, 0.25, 0.25, 0.25]))
