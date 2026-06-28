@@ -48,7 +48,7 @@ private func indexedSegments(_ segments: [TranscriptSegment]) -> [IndexedTranscr
     }
 }
 
-private struct SpeakerTurnIdentity: Hashable {
+struct SpeakerTurnIdentity: Hashable {
     let speakerId: String
     let firstStartMs: Int?
     let duplicateOrdinal: Int
@@ -59,7 +59,7 @@ private struct SpeakerTurnIdentityBase: Hashable {
     let firstStartMs: Int?
 }
 
-private struct IdentifiedSpeakerTurn: Identifiable {
+struct IdentifiedSpeakerTurn: Identifiable {
     let turn: SpeakerTurn
     let identity: SpeakerTurnIdentity
 
@@ -68,7 +68,7 @@ private struct IdentifiedSpeakerTurn: Identifiable {
     }
 }
 
-private func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
+func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
     var duplicateCounts: [SpeakerTurnIdentityBase: Int] = [:]
     return turns.map { turn in
         let base = SpeakerTurnIdentityBase(
@@ -90,7 +90,7 @@ private func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeake
 
 struct TranscriptTimestampedContentView: View {
     let hasSpeakers: Bool
-    let turns: [SpeakerTurn]
+    let identifiedTurns: [IdentifiedSpeakerTurn]
     let segments: [TranscriptSegment]
     let speakerColorMap: [String: Color]
     let speakerLabelForID: (String) -> String
@@ -105,10 +105,6 @@ struct TranscriptTimestampedContentView: View {
     var highlightRangesByStartMs: [Int: [NSRange]] = [:]
     /// The single emphasized ("current") match, identified by its row `startMs`.
     var currentHighlight: (id: Int, range: NSRange)?
-
-    private var identifiedTurns: [IdentifiedSpeakerTurn] {
-        identifiedSpeakerTurns(turns)
-    }
 
     var body: some View {
         if hasSpeakers {
