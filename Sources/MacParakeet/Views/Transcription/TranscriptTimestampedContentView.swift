@@ -51,16 +51,12 @@ private func indexedSegments(_ segments: [TranscriptSegment]) -> [IndexedTranscr
 private struct SpeakerTurnIdentity: Hashable {
     let speakerId: String
     let firstStartMs: Int?
-    let lastStartMs: Int?
-    let segmentCount: Int
     let duplicateOrdinal: Int
 }
 
 private struct SpeakerTurnIdentityBase: Hashable {
     let speakerId: String
     let firstStartMs: Int?
-    let lastStartMs: Int?
-    let segmentCount: Int
 }
 
 private struct IdentifiedSpeakerTurn: Identifiable {
@@ -77,9 +73,7 @@ private func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeake
     return turns.map { turn in
         let base = SpeakerTurnIdentityBase(
             speakerId: turn.speakerId,
-            firstStartMs: turn.segments.first?.startMs,
-            lastStartMs: turn.segments.last?.startMs,
-            segmentCount: turn.segments.count
+            firstStartMs: turn.segments.first?.startMs
         )
         let ordinal = duplicateCounts[base, default: 0]
         duplicateCounts[base] = ordinal + 1
@@ -88,8 +82,6 @@ private func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeake
             identity: SpeakerTurnIdentity(
                 speakerId: turn.speakerId,
                 firstStartMs: base.firstStartMs,
-                lastStartMs: base.lastStartMs,
-                segmentCount: base.segmentCount,
                 duplicateOrdinal: ordinal
             )
         )
@@ -114,9 +106,13 @@ struct TranscriptTimestampedContentView: View {
     /// The single emphasized ("current") match, identified by its row `startMs`.
     var currentHighlight: (id: Int, range: NSRange)?
 
+    private var identifiedTurns: [IdentifiedSpeakerTurn] {
+        identifiedSpeakerTurns(turns)
+    }
+
     var body: some View {
         if hasSpeakers {
-            ForEach(identifiedSpeakerTurns(turns)) { identified in
+            ForEach(identifiedTurns) { identified in
                 let turn = identified.turn
                 TranscriptTurnCardView(
                     speakerLabel: speakerLabelForID(turn.speakerId),
