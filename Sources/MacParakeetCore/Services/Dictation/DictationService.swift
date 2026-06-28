@@ -433,9 +433,13 @@ public actor DictationService: DictationServiceProtocol {
         _state = .processing
         logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
+        // Sample the recording duration once at stop time so failure/empty
+        // telemetry reports recording length, not recording length plus STT
+        // latency. Stays nil if capture stops before we can sample it.
+        var capturedDurationMs: Int?
         do {
             let audioURL = try await audioProcessor.stopCapture()
-            let capturedDurationMs = currentRecordingDurationMs()
+            capturedDurationMs = currentRecordingDurationMs()
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
@@ -504,15 +508,18 @@ public actor DictationService: DictationServiceProtocol {
             if Self.isNoSpeechError(error) {
                 sendDictationOperation(
                     outcome: .empty,
-                    durationSeconds: currentRecordingDurationSeconds(),
+                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
-                Telemetry.send(.dictationEmpty(durationSeconds: currentRecordingDurationSeconds(), device: device))
+                Telemetry.send(.dictationEmpty(
+                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
+                    device: device
+                ))
             } else {
                 sendDictationOperation(
                     outcome: .failure,
-                    durationSeconds: currentRecordingDurationSeconds(),
+                    durationSeconds: durationSeconds(fromMilliseconds: capturedDurationMs) ?? currentRecordingDurationSeconds(),
                     errorType: Self.errorType(for: error),
                     device: device
                 )
