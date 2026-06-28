@@ -35,9 +35,9 @@ struct TranscriptTimestampedContentView: View {
                     currentHighlight: currentHighlight,
                     onTimestampTap: onTimestampTap
                 )
-                // Scroll anchors live on the inner segment rows (see below) so
-                // find/auto-scroll can target an individual line; the turn's
-                // first row carries this turn's first `startMs`.
+                // Preserve the existing first-segment/card scroll target while
+                // later rows expose their own anchors for mid-turn find results.
+                .id(turn.segments.first?.startMs ?? 0)
             }
         } else {
             ForEach(Array(segments.enumerated()), id: \.element.startMs) { index, segment in
@@ -89,23 +89,8 @@ private struct TranscriptTurnCardView: View {
             }
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    TranscriptSegmentRow(
-                        startMs: segment.startMs,
-                        text: segment.text,
-                        timestampText: timestampLabel(segment.startMs),
-                        // Per-segment active highlight is a flat-mode affordance
-                        // today; turn cards keep their own surface unchanged.
-                        isActive: false,
-                        isSeekable: isTimestampSeekable,
-                        bodyFont: bodyFont,
-                        showRowBackground: false,
-                        highlightRanges: highlightRanges(segment.startMs),
-                        currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
-                        onPlayFromHere: { onTimestampTap(segment.startMs) }
-                    )
-                    // Scroll anchor for find/auto-scroll at line granularity.
-                    .id(segment.startMs)
+                ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                    turnSegmentRow(index: index, segment: segment)
                 }
             }
         }
@@ -118,6 +103,31 @@ private struct TranscriptTurnCardView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(speakerColor.opacity(0.18), lineWidth: 0.75)
         )
+    }
+
+    @ViewBuilder
+    private func turnSegmentRow(index: Int, segment: TranscriptSegment) -> some View {
+        let row = TranscriptSegmentRow(
+            startMs: segment.startMs,
+            text: segment.text,
+            timestampText: timestampLabel(segment.startMs),
+            // Per-segment active highlight is a flat-mode affordance
+            // today; turn cards keep their own surface unchanged.
+            isActive: false,
+            isSeekable: isTimestampSeekable,
+            bodyFont: bodyFont,
+            showRowBackground: false,
+            highlightRanges: highlightRanges(segment.startMs),
+            currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
+            onPlayFromHere: { onTimestampTap(segment.startMs) }
+        )
+        if index == 0 {
+            row
+        } else {
+            // Non-first rows get their own anchors so find navigation can land
+            // inside a speaker turn without shifting the first-line/card target.
+            row.id(segment.startMs)
+        }
     }
 
     @ViewBuilder

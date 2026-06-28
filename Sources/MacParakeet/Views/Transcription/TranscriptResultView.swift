@@ -1179,6 +1179,7 @@ struct TranscriptResultView: View {
             }
             scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
                 if self.playerViewModel.isPlaying {
+                    self.findPausedAutoScroll = false
                     if !self.autoScrollPaused {
                         self.autoScrollPaused = true
                         self.lastScrolledSegmentMs = -1
@@ -1241,12 +1242,12 @@ struct TranscriptResultView: View {
         ZStack {
             Button("") { openFindBar() }
                 .keyboardShortcut("f", modifiers: .command)
-            Button("") { findModel.next(); findScrollToken &+= 1 }
-                .keyboardShortcut("g", modifiers: .command)
-                .disabled(!findBarVisible || !findModel.hasMatches)
-            Button("") { findModel.prev(); findScrollToken &+= 1 }
-                .keyboardShortcut("g", modifiers: [.command, .shift])
-                .disabled(!findBarVisible || !findModel.hasMatches)
+            if findBarVisible, findModel.hasMatches {
+                Button("") { findModel.next(); findScrollToken &+= 1 }
+                    .keyboardShortcut("g", modifiers: .command)
+                Button("") { findModel.prev(); findScrollToken &+= 1 }
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
+            }
         }
         .opacity(0)
         .frame(width: 0, height: 0)
