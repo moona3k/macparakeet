@@ -63,21 +63,22 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
     /// to run them sequentially could in principle still yield `peak == 1`. The
     /// 2 ms hold across 8 tasks makes that astronomically unlikely; this mirrors
     /// `ANEInferenceGateTests.testSerializesConcurrentAccessWhenRequired`.
-    func testRuntimeSerializesParakeetInferenceWhenRequired() async {
+    func testRuntimeSerializesParakeetInferenceWhenRequired() async throws {
         let runtime = STTRuntime(inferenceGate: ANEInferenceGate(serializationRequired: true))
         let tracker = ConcurrencyTracker()
 
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<8 {
                 group.addTask {
-                    try? await runtime.runUnderInferenceGate {
+                    try await runtime.runUnderInferenceGate {
                         await tracker.enter()
                         // Hold briefly so any overlap would be observable.
-                        try? await Task.sleep(nanoseconds: 2_000_000)
+                        try await Task.sleep(nanoseconds: 2_000_000)
                         await tracker.leave()
                     }
                 }
             }
+            try await group.waitForAll()
         }
 
         let peak = await tracker.peak
@@ -89,18 +90,19 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
     /// must be inside the gate at once to clear the rendezvous; if the runtime
     /// serialized them the second would never arrive and the group would hang to
     /// a test timeout — so this can't pass by accident and has no timing flake.
-    func testRuntimeRunsConcurrentlyWhenSerializationNotRequired() async {
+    func testRuntimeRunsConcurrentlyWhenSerializationNotRequired() async throws {
         let runtime = STTRuntime(inferenceGate: ANEInferenceGate(serializationRequired: false))
         let rendezvous = Rendezvous(partyCount: 2)
 
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<2 {
                 group.addTask {
-                    try? await runtime.runUnderInferenceGate {
+                    try await runtime.runUnderInferenceGate {
                         await rendezvous.arrive()
                     }
                 }
             }
+            try await group.waitForAll()
         }
 
         let released = await rendezvous.releasedPartyCount
