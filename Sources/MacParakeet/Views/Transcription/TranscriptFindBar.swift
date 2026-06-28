@@ -101,5 +101,6 @@ struct TranscriptFindBar: View {
         .buttonStyle(.plain)
         .disabled(!canNavigate)
         .help(help)
+        .accessibilityLabel(help)
     }
 }
