@@ -1,0 +1,32 @@
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_be41e94be831c9::t_f1720723dcf08e 494-496
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_be41e94be831c9::t_b5ff9e5d1e099d 152-157,172,175-177,180-182,184-185
+  s_be41e94be831c9::t_d5e77669531b97 75-76,79-93,116,122,131,137,139-144,146-151,158-171,173-174,178-179,183,186-187
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_be41e94be831c9::t_da5e16a350145f 567,569-592
+  s_be41e94be831c9::t_07bb4ee6a5ff2a 490-515,523-527,534-543,546,550-566,593-596,606-611
+  s_be41e94be831c9::t_a00dfa36d1e41d 568
+Sources/MacParakeetCore/Audio/README.md
+  s_be41e94be831c9::t_591f3a7359562f 210-222
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_be41e94be831c9::t_94fb830e44c4c1 1047
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_be41e94be831c9::t_224ecc1bc047aa 100-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "8c1c4953d44b9fcbb471080b0c7c62683224ec10",
+  "prompts": {},
+  "sessions": {
+    "s_be41e94be831c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0b6c-9b99-7433-9db9-d0beb9e99fd1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
