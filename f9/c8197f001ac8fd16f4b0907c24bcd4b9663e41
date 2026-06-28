@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/Services/Capture/MicConditioner.swift
+  s_a571ce3d1de216::t_859c6e36004557 240-241
+  s_a571ce3d1de216::t_72a782ebfea8b9 162-164,273,415-422,435,451,455-456,460-464,467-472
+  s_d1853ccf505dc3::t_e5b07c8e0bfeb7 192-195,197-202
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressorTests.swift
+  s_d1853ccf505dc3::t_b4d82589734ab5 257-275
+  s_a571ce3d1de216::t_b6b28e63b57b05 251
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_d1853ccf505dc3::t_41d96d3895e793 273-286
+  s_a571ce3d1de216::t_72a782ebfea8b9 290-291
+Sources/MacParakeetCore/Services/Capture/MeetingEchoDelayEstimator.swift
+  s_a571ce3d1de216::t_72a782ebfea8b9 82-98,102-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f9c8197f001ac8fd16f4b0907c24bcd4b9663e41",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d1853ccf505dc3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b1563cf-33e1-48ec-bd36-cb11428b41c5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
