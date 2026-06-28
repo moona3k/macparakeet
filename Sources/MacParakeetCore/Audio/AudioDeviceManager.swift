@@ -155,6 +155,10 @@ public enum AudioDeviceManager {
 
     /// Returns whether audio output is currently routed to a Bluetooth device.
     ///
+    /// Returns nil when the output route, transport, or aggregate sub-device
+    /// list cannot be resolved; capture callers should treat that as risky
+    /// during route churn.
+    ///
     /// This is the trigger for preferring the built-in microphone during
     /// dictation/meeting capture: opening a Bluetooth headset's microphone
     /// forces it out of high-quality A2DP into bidirectional HFP/SCO, which
