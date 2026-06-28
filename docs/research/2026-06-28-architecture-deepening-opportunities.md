@@ -79,7 +79,7 @@ engines.
 
 Highest leverage of the eight candidates surfaced, both with an in-repo
 precedent that contains the wiring risk, both verified against real code. The
-other six (injectable clock seam; LLM provider adapters; text-processing
+other six (injectable clock seam — Finding 2; LLM provider adapters; text-processing
 orchestration; hotkey matching+validation; preferences write-side; CLI/GUI
 shared policy) are recorded in the session transcript and can be written up if
 prioritized.
@@ -198,6 +198,10 @@ narrowed.
 
 ## Finding 3 — Capability-based engine adapter seam inside `STTRuntime`
 
+> *Numbered 1 and 3 after their original candidate indices in the eight-candidate
+> review; the gap is intentional — Finding 2 (an injectable clock seam) is among
+> the six not written up here, per "Why these two first" above.*
+
 > Read `Sources/MacParakeetCore/STT/README.md` first — it is an excellent,
 > current subsystem guide and documents the routing rules this finding reorganizes.
 
@@ -233,7 +237,7 @@ The adapter pattern **already partly exists** — extend it, don't invent it:
 |------|----------|
 | All 5 optional engines are actors sharing one batch protocol `STTTranscribing` | `NemotronEngine.swift:5`, `NemotronEnglishEngine.swift:18`, `ParakeetUnifiedEngine.swift:27`, `WhisperEngine.swift:8`, `CohereTranscribeEngine.swift:68` |
 | Three native streaming engines share a second partial protocol, `NativeLiveDictating`; implementations own their own `ANEInferenceGate` calls | `Sources/MacParakeetCore/STT/NativeLiveDictating.swift:1-34` |
-| **Parakeet TDT (v2/v3), the default engine, is NOT wrapped** — bare `interactiveManager`/`backgroundManager` `AsrManager`s on the runtime, transcribed inline on the `STTRuntime` actor | `STTRuntime.swift:83-84`; inline transcribe calls e.g. `:541, :610` |
+| **Parakeet TDT (v2/v3), the default engine, is NOT wrapped** — bare `interactiveManager`/`backgroundManager` `AsrManager`s on the runtime, transcribed inline on the `STTRuntime` actor | `STTRuntime.swift:83-84`; inline `manager.transcribe(...)` at the pad/URL/preview paths `:504, :554, :687` (each wrapped by `inferenceGate.withExclusiveAccess` at `:503, :553, :686`) |
 
 Engine-discriminating dispatch sites (the friction) — verified labels:
 
@@ -306,7 +310,7 @@ questions to resolve in grilling (not assume away):
   already proves this works. All engines must keep contending on the **one shared**
   process gate.
 - **Wrapping TDT adds a cross-actor hop on the hot default path.** TDT transcribe
-  is currently inline on the `STTRuntime` actor (`:541, :610`); an adapter actor
+  is currently inline on the `STTRuntime` actor (`:504, :554, :687`); an adapter actor
   introduces a new `await` boundary on every dictation/file transcription.
   **Microbenchmark before merge** — don't merge on a "must not regress" note.
 - **The TDT init-serialization guard must migrate.** `ensureInitialized`
