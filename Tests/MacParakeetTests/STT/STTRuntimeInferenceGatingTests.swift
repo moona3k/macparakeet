@@ -55,6 +55,14 @@ final class STTRuntimeInferenceGatingTests: XCTestCase {
     /// On macOS 14 (`serializationRequired: true`) concurrent work driven through
     /// the runtime's injected gate must never overlap — the whole point of the
     /// gate that the dictation pad path originally bypassed.
+    ///
+    /// Unlike the pass-through test below — which deadlocks the group if the gate
+    /// wrongly serializes, so a false pass is impossible — this direction is
+    /// probabilistic: a broken (non-serializing) gate would almost certainly let
+    /// some of the 8 held tasks overlap (`peak > 1`), but a scheduler that happened
+    /// to run them sequentially could in principle still yield `peak == 1`. The
+    /// 2 ms hold across 8 tasks makes that astronomically unlikely; this mirrors
+    /// `ANEInferenceGateTests.testSerializesConcurrentAccessWhenRequired`.
     func testRuntimeSerializesParakeetInferenceWhenRequired() async {
         let runtime = STTRuntime(inferenceGate: ANEInferenceGate(serializationRequired: true))
         let tracker = ConcurrencyTracker()
