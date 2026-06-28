@@ -231,6 +231,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count for saved transcriptions and meetings."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for saved transcriptions and meetings."),
                 CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for saved transcriptions and meetings."),
+                CLISpecParameter.flag("--no-diarize", summary: "Compatibility alias for --speaker-detection off."),
                 databaseOption,
             ],
             output: "RetranscribeResult with kind, id, sourcePath, updatedAt, and the updated Dictation or Transcription record."

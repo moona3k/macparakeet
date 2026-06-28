@@ -203,6 +203,7 @@ final class RetranscribeCommandTests: XCTestCase {
             filePath: "/tmp/original.m4a",
             meetingArtifactFolderPath: "/tmp/artifact",
             rawTranscript: "old",
+            chatMessages: [ChatMessage(role: .user, content: "keep chat")],
             status: .completed,
             sourceURL: "https://example.com/source",
             thumbnailURL: "https://example.com/thumb.jpg",
@@ -222,8 +223,10 @@ final class RetranscribeCommandTests: XCTestCase {
             durationMs: 2_000,
             rawTranscript: "new raw",
             cleanTranscript: "new clean",
+            chatMessages: [ChatMessage(role: .assistant, content: "new chat")],
             status: .completed,
             sourceType: .file,
+            userNotes: "recovered notes",
             engine: "cohere",
             engineVariant: "ane",
             derivedTitle: "New",
@@ -245,10 +248,34 @@ final class RetranscribeCommandTests: XCTestCase {
         XCTAssertEqual(preserved.sourceType, .meeting)
         XCTAssertTrue(preserved.recoveredFromCrash)
         XCTAssertEqual(preserved.userNotes, "keep notes")
+        XCTAssertEqual(preserved.chatMessages, [ChatMessage(role: .user, content: "keep chat")])
         XCTAssertEqual(preserved.rawTranscript, "new raw")
         XCTAssertEqual(preserved.cleanTranscript, "new clean")
         XCTAssertEqual(preserved.engine, "cohere")
         XCTAssertEqual(preserved.engineVariant, "ane")
+    }
+
+    func testPreservesRecoveredMeetingNotesWhenOriginalRowHasNoUserData() {
+        let original = Transcription(
+            fileName: "Meeting",
+            filePath: "/tmp/meeting.m4a",
+            rawTranscript: "old",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let result = Transcription(
+            fileName: "Generated",
+            filePath: "/tmp/generated.m4a",
+            rawTranscript: "new raw",
+            chatMessages: [ChatMessage(role: .assistant, content: "recovered chat")],
+            status: .completed,
+            userNotes: "recovered notes"
+        )
+
+        let preserved = RetranscribeCommand.preserveOriginalTranscriptionMetadata(result, original: original)
+
+        XCTAssertEqual(preserved.userNotes, "recovered notes")
+        XCTAssertEqual(preserved.chatMessages, [ChatMessage(role: .assistant, content: "recovered chat")])
     }
 
     func testClearsDictationFormatterAttributionForLocalRerun() {

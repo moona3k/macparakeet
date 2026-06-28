@@ -217,6 +217,21 @@ final class CLITelemetryTests: XCTestCase {
         XCTAssertEqual(metadata.json, true)
     }
 
+    func testRetranscribeEnvelopeMetadataUsesJSONOutputFormat() throws {
+        let command = try CLI.parseAsRoot([
+            "retranscribe",
+            "abcd",
+            "--update",
+            "--envelope",
+        ])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "retranscribe")
+        XCTAssertEqual(metadata.outputFormat, "json")
+        XCTAssertEqual(metadata.json, true)
+    }
+
     func testTranscribeMetadataClassifiesApplePodcastsInputKind() throws {
         let command = try CLI.parseAsRoot([
             "transcribe",

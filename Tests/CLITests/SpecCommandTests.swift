@@ -338,14 +338,20 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--update"))
         XCTAssertTrue(optionNames.contains("--json"))
         XCTAssertTrue(optionNames.contains("--envelope"))
+        XCTAssertTrue(optionNames.contains("--mode"))
         XCTAssertTrue(optionNames.contains("--engine"))
         XCTAssertTrue(optionNames.contains("--language"))
         XCTAssertTrue(optionNames.contains("--parakeet-model"))
         XCTAssertTrue(optionNames.contains("--nemotron-model"))
+        XCTAssertTrue(optionNames.contains("--speaker-detection"))
         XCTAssertTrue(optionNames.contains("--speaker-count"))
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
+        XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
+
+        let speakerDetection = try XCTUnwrap(options.first { ($0["name"] as? String) == "--speaker-detection" })
+        XCTAssertEqual(speakerDetection["valueName"] as? String, "app-default|on|off")
     }
 
     func testSpecDocumentsConfigAndModelsCommands() throws {

@@ -155,7 +155,17 @@ public enum Observability {
     }
 
     public static func wordCount(_ text: String) -> Int {
-        text.split(whereSeparator: \.isWhitespace).count
+        var count = 0
+        var inWord = false
+        for character in text {
+            if character.isWhitespace {
+                inWord = false
+            } else if !inWord {
+                count += 1
+                inWord = true
+            }
+        }
+        return count
     }
 
     private static let audioExtensions: Set<String> = [

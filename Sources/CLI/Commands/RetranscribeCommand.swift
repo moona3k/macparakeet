@@ -174,7 +174,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
     var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
         CLITelemetry.OperationMetadata(
             command: Self.configuration.commandName ?? "retranscribe",
-            outputFormat: json ? "json" : nil,
+            outputFormat: (json || envelope) ? "json" : nil,
             json: json || envelope
         )
     }
@@ -364,7 +364,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.status = .completed
         updated.errorMessage = nil
         updated.updatedAt = Date()
-        updated.wordCount = finalText.split(whereSeparator: \.isWhitespace).count
+        updated.wordCount = Observability.wordCount(finalText)
         updated.engine = sttResult.engine.rawValue
         updated.engineVariant = sttResult.engineVariant
         updated.language = SpeechEnginePreference.normalizeKnownLanguage(sttResult.language)
@@ -589,8 +589,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.isFavorite = original.isFavorite
         updated.sourceType = original.sourceType
         updated.recoveredFromCrash = original.recoveredFromCrash
-        updated.userNotes = original.userNotes
-        updated.chatMessages = original.chatMessages
+        updated.userNotes = original.userNotes ?? result.userNotes
+        updated.chatMessages = original.chatMessages ?? result.chatMessages
         return updated
     }
 
@@ -626,7 +626,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         if fallback > 0 {
             return fallback
         }
-        return result.text.split(separator: " ").count * 150
+        return Observability.wordCount(result.text) * 150
     }
 
     private static func progressHandler(prefix: String) -> (

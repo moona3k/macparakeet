@@ -263,9 +263,10 @@ swift run macparakeet-cli retranscribe "<MEETING_ID>" \
 
 The command updates the existing row in place, so `--update` is required. It
 fails cleanly when source audio was not retained or has been deleted. Use
-`--kind dictation|transcription|meeting` when a UUID prefix or title is
-ambiguous. Speaker-detection flags apply to saved transcriptions and meetings;
-dictations reject those flags.
+a full UUID, or a longer UUID prefix for prefix matches, when a record
+identifier is ambiguous. Use `--kind dictation|transcription|meeting` only to
+disambiguate cross-kind matches. Speaker-detection flags apply to saved
+transcriptions and meetings; dictations reject those flags.
 
 ### Speaker Diarization
 

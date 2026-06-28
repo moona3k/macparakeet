@@ -190,7 +190,8 @@ macparakeet-cli retranscribe <id> --kind meeting --update --engine cohere --lang
 `retranscribe` resolves dictations by UUID/prefix, transcriptions by
 UUID/prefix or exact name, and meetings by UUID/prefix or exact title. Auto
 resolution fails if the identifier matches more than one saved record; retry
-with `--kind dictation|transcription|meeting` or a longer UUID prefix. It
+with a full UUID, or a longer UUID prefix for prefix matches. Use
+`--kind dictation|transcription|meeting` only to disambiguate cross-kind matches. It
 supports the same speech-engine, model, language, and processing-mode flags as
 `transcribe`; speaker-detection flags apply only to saved transcriptions and
 meetings.
