@@ -340,7 +340,14 @@ public actor CohereTranscribeEngine: STTTranscribing {
         // policy may still select ANE-backed Core ML kernels. Keep every
         // Cohere inference on the same process-wide gate as Parakeet, Nemotron,
         // Whisper, and diarization. The gate is a no-op on macOS 15+.
-        try await ANEInferenceGate.shared.withExclusiveAccess {
+        //
+        // Capture the pipeline actor in a local so the gate closure stays
+        // value-isolated rather than `self`-isolated: Swift 6 region isolation
+        // rejects sending a `self`-isolated closure across the gate. This
+        // mirrors the Parakeet/Nemotron engines, which hand the gate a local
+        // `manager` rather than touching `self` inside the closure.
+        let pipeline = self.pipeline
+        return try await ANEInferenceGate.shared.withExclusiveAccess {
             try await pipeline.transcribe(audio: audio, models: models, language: language)
         }
     }
