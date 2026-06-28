@@ -410,7 +410,7 @@ swift run macparakeet-cli export <ID> --format txt --output transcript.txt
 swift run macparakeet-cli export <ID> --format srt --output subtitles.srt
 swift run macparakeet-cli export <ID> --format vtt
 swift run macparakeet-cli export <ID> --format markdown
-swift run macparakeet-cli export <ID> --format json
+swift run macparakeet-cli export <ID> --format json --stdout
 
 # Print to stdout instead of writing a file
 swift run macparakeet-cli export <ID> --format srt --stdout

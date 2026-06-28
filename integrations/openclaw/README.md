@@ -67,9 +67,11 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 
 ## Conventions
 
-JSON to stdout when `--json` (or `--format json` for `transcribe`/`export`)
-is set; human-readable errors to stderr; non-zero exit on failure. JSON
-schemas are stable within a major CLI version (semver, see
+JSON to stdout when `--json` is set, or when a format-selecting command's
+documented JSON stdout mode is used. For `meetings export`, that mode is
+`--stdout --format json`; `--format json` without `--stdout` writes a file and
+prints the path. Human-readable errors go to stderr; commands exit non-zero on
+failure. JSON schemas are stable within a major CLI version (semver, see
 [`CHANGELOG.md`](../../Sources/CLI/CHANGELOG.md)). Lookup args accept full
 UUID, UUID prefix (>= 4 chars), or case-insensitive name. Prompt and LLM
 wrappers should pass `--json` when the skill expects an envelope.

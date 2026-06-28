@@ -13,7 +13,8 @@ with human progress/status kept off stdout.
 - `CLIHelpers.printJSON`
 - `CLIHelpers.printEnvelope`
 - `CLIHelpers.emitJSONOrRethrow`
-- Commands that expose `--json`, `--format json`, or `--envelope`
+- Commands that expose JSON-on-stdout modes through `--json`, `--format json`,
+  or `--envelope`
 - `SpecCommand`
 
 ## Consumers
@@ -26,7 +27,13 @@ with human progress/status kept off stdout.
 
 ## Stable Conventions
 
-- JSON payloads are written to stdout.
+- JSON payloads are written to stdout for the command's documented JSON stdout
+  mode.
+- Export-style commands can also write JSON files. For those commands,
+  `--format json` alone may write a file and print the path; use the command's
+  documented stdout mode from `macparakeet-cli spec --json` when a caller needs
+  parseable JSON on stdout. For `meetings export`, that mode is
+  `--stdout --format json`.
 - Human progress/status is written to stderr.
 - JSON uses ISO-8601 dates, sorted keys, and pretty printing through the shared
   encoder.

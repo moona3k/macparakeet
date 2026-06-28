@@ -4,9 +4,11 @@ on:
   push:
     paths-ignore:
       - "docs/**"
+      - "plans/**"
   pull_request:
     paths-ignore:
       - "docs/**"
+      - "plans/**"
   workflow_dispatch:
 
 concurrency:
