@@ -30,12 +30,18 @@ final class MeetingCleanedMicRenderer {
         let outputURL: URL
         let durationSeconds: Double
         /// Frames the processor cleaned vs. served raw (a processor that throws
-        /// falls back to raw); both feed U4's health gate.
+        /// falls back to raw). Emitted as diagnostics for U9 QA and telemetry,
+        /// not a routing gate — U4 prefers the cleaned mic purely on its
+        /// existence on disk (see `outputToRawRmsRatio`).
         let processedFrames: Int
         let rawFallbackFrames: Int
         let processingFailures: Int
-        /// Output RMS / raw-mic RMS over the analysed span. ~1.0 keeps the local
-        /// voice; near 0 means the cleaner gutted the mic — a health-gate signal.
+        /// Output RMS / raw-mic RMS over the render. ~1.0 keeps the local voice;
+        /// near 0 means the cleaner gutted the mic. Diagnostic only — it cannot
+        /// gate routing: a near-0 ratio is ambiguous between a correctly silenced
+        /// mic (near-end stayed quiet) and a gutted one, and falling back to raw
+        /// on a low ratio would reintroduce the #605 bleed for listen-heavy
+        /// meetings. Near-end fidelity is owned by model choice (v1.4) + U9 QA.
         let outputToRawRmsRatio: Float
     }
 
