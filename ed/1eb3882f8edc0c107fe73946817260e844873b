@@ -1,0 +1,22 @@
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_8e33cad55ef48f::t_d89bc8efe8f2bf 54-63,73-74
+  s_8e33cad55ef48f::t_0090a0f1547dab 337-404
+Tests/MacParakeetTests/Services/Capture/MeetingAecModelScoringTests.swift
+  s_8e33cad55ef48f::t_e43586c6c303bf 1-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ed1eb3882f8edc0c107fe73946817260e844873b",
+  "prompts": {},
+  "sessions": {
+    "s_8e33cad55ef48f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23d0d807-0f9e-4fd5-9808-a12480cc164e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
