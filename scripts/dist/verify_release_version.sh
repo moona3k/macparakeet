@@ -31,7 +31,7 @@ if [[ "$ALLOW_DEV_VERSION_SIGNING" == "1" ]]; then
   exit 0
 fi
 
-normalized="$(printf '%s' "$short_version" | tr '[:upper:]' '[:lower:]' | xargs)"
+normalized="$(printf '%s' "$short_version" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 if [[ -z "$normalized" ]]; then
   fail "CFBundleShortVersionString is missing or empty; rebuild with VERSION=X.Y.Z before signing."
 fi
