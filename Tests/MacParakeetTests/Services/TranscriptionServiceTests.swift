@@ -1317,6 +1317,66 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(diarizationApplied)
     }
 
+    func testTranscribeMeetingUsesValidatedCleanedMicForMicrophoneSource() async throws {
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: recordingFolder) }
+
+        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let cleanedURL = recordingFolder.appendingPathComponent("microphone-cleaned.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
+        try await MeetingCleanedMicRenderer.encodeMonoFloat(
+            [Float](repeating: 0.05, count: 1_600),
+            sampleRate: 16_000,
+            to: cleanedURL,
+            fileManager: .default)
+
+        await mockSTT.configureSequence(results: [
+            STTResult(text: "local words", words: [
+                TimestampedWord(word: "local", startMs: 0, endMs: 200, confidence: 0.9),
+            ]),
+            STTResult(text: "remote words", words: [
+                TimestampedWord(word: "remote", startMs: 0, endMs: 200, confidence: 0.9),
+            ]),
+        ])
+
+        let recording = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Cleaned Mic Meeting",
+            folderURL: recordingFolder,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophoneAudioURL: cleanedURL,
+            durationSeconds: 1.0,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(
+                    firstHostTime: nil,
+                    lastHostTime: nil,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 16_000,
+                    sampleRate: 16_000),
+                system: .init(
+                    firstHostTime: nil,
+                    lastHostTime: nil,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 16_000,
+                    sampleRate: 16_000)
+            )
+        )
+
+        _ = try await service.transcribeMeeting(recording: recording)
+
+        let convertURLs = await mockAudio.convertURLs
+        XCTAssertEqual(convertURLs, [cleanedURL, systemURL])
+    }
+
     func testPrepareMeetingTranscriptionCreatesProcessingStubBeforeSTT() async throws {
         let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
         defer { try? FileManager.default.removeItem(at: recording.folderURL) }

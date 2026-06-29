@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 import OSLog
 
 /// Post-stop renderer that derives a cleaned microphone artifact
@@ -312,15 +313,19 @@ final class MeetingCleanedMicRenderer {
                 throw MeetingAudioError.storageFailed("decode output buffer alloc failed")
             }
 
-            var consumed = false
             var conversionError: NSError?
             let inputWrapper = UncheckedSendableAudioPCMBuffer(inputBuffer)
+            let inputConsumed = OSAllocatedUnfairLock(initialState: false)
             let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
-                if consumed {
+                let shouldProvideInput = inputConsumed.withLock { consumed -> Bool in
+                    guard !consumed else { return false }
+                    consumed = true
+                    return true
+                }
+                if !shouldProvideInput {
                     outStatus.pointee = .noDataNow
                     return nil
                 }
-                consumed = true
                 outStatus.pointee = .haveData
                 return inputWrapper.buffer
             }
