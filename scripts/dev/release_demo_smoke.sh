@@ -99,6 +99,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output-dir)
       [[ $# -ge 2 ]] || fail_with_summary 64 "--output-dir requires a path"
+      [[ -n "$2" ]] || fail_with_summary 64 "--output-dir requires a non-empty path"
       output_dir="$2"
       configure_output_paths
       shift 2
