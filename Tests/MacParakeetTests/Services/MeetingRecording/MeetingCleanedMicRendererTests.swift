@@ -12,11 +12,11 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
 
     // MARK: DSP core
 
-    func testAlignAndConditionOutputMatchesMicrophoneLength() {
+    func testAlignAndConditionOutputMatchesMicrophoneLength() throws {
         let mic = [Float](repeating: 0.1, count: 5_000)
         let system = [Float](repeating: 0.2, count: 3_000)
         for (micOff, sysOff) in [(0, 0), (0, 500), (500, 0)] {
-            let result = MeetingCleanedMicRenderer.alignAndCondition(
+            let result = try MeetingCleanedMicRenderer.alignAndCondition(
                 microphone: mic, system: system,
                 microphoneStartOffsetMs: micOff, systemStartOffsetMs: sysOff,
                 sampleRate: 16_000,
@@ -26,13 +26,13 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         }
     }
 
-    func testAlignAndConditionCancelsEchoWhenAligned() {
+    func testAlignAndConditionCancelsEchoWhenAligned() throws {
         let scenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: false, farEndActive: true,
             echoPath: echoPath, noiseLevel: 0.0001)
         let suppressor = StreamingMeetingEchoSuppressor(
             processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
-        let result = MeetingCleanedMicRenderer.alignAndCondition(
+        let result = try MeetingCleanedMicRenderer.alignAndCondition(
             microphone: scenario.mic, system: scenario.farEnd,
             microphoneStartOffsetMs: 0, systemStartOffsetMs: 0,
             sampleRate: 16_000, conditioner: suppressor)
@@ -49,7 +49,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
             "cleaned output stays aligned 1:1 with the raw mic after flush")
     }
 
-    func testAlignAndConditionAppliesRecordedStartOffset() {
+    func testAlignAndConditionAppliesRecordedStartOffset() throws {
         // The system stream started 500 ms (8000 samples at 16 kHz) after the
         // mic, so the mic's echo only begins 8000 samples in. Only applying the
         // recorded offset realigns the reference; ignoring it leaves the echo
@@ -63,18 +63,18 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         let mic = [Float](repeating: 0, count: leadSamples) + echoFull
         let window = (mic.count / 2)..<(mic.count - 256)
 
-        func erle(systemOffsetMs: Int) -> Double {
+        func erle(systemOffsetMs: Int) throws -> Double {
             let suppressor = StreamingMeetingEchoSuppressor(
                 processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
-            let out = MeetingCleanedMicRenderer.alignAndCondition(
+            let out = try MeetingCleanedMicRenderer.alignAndCondition(
                 microphone: mic, system: far,
                 microphoneStartOffsetMs: 0, systemStartOffsetMs: systemOffsetMs,
                 sampleRate: 16_000, conditioner: suppressor)
             return MeetingAecMetrics.erleDB(mic: mic, output: out.output, over: window)
         }
 
-        let aligned = erle(systemOffsetMs: leadMs)
-        let misaligned = erle(systemOffsetMs: 0)
+        let aligned = try erle(systemOffsetMs: leadMs)
+        let misaligned = try erle(systemOffsetMs: 0)
         XCTAssertGreaterThan(aligned, misaligned + 6,
             "the recorded start offset realigns the reference and restores cancellation "
             + "(aligned \(aligned) dB vs ignoring-offset \(misaligned) dB)")

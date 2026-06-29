@@ -122,13 +122,20 @@ final class MeetingCleanedMicRenderer {
         }
         try Task.checkCancellation()
 
-        let conditioned = Self.alignAndCondition(
-            microphone: microphone,
-            system: system,
-            microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
-            systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
-            sampleRate: Self.renderSampleRate,
-            conditioner: conditioner)
+        let conditioned: ConditionedOutput
+        do {
+            conditioned = try Self.alignAndCondition(
+                microphone: microphone,
+                system: system,
+                microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
+                systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
+                sampleRate: Self.renderSampleRate,
+                conditioner: conditioner)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return .skipped(.renderFailed(String(describing: error)))
+        }
         try Task.checkCancellation()
 
         do {
@@ -176,7 +183,7 @@ final class MeetingCleanedMicRenderer {
         systemStartOffsetMs: Int,
         sampleRate: Int,
         conditioner: any MicConditioning
-    ) -> ConditionedOutput {
+    ) throws -> ConditionedOutput {
         // Finalize/recovery pass freshly built conditioners today; keep this
         // defensive reset so direct tests or future callers cannot reuse stale
         // adaptive filter state accidentally.
@@ -195,6 +202,7 @@ final class MeetingCleanedMicRenderer {
         let chunkSize = 4_096
         var cursor = 0
         while cursor < microphone.count {
+            try Task.checkCancellation()
             let end = min(cursor + chunkSize, microphone.count)
             let micChunk = Array(microphone[cursor..<end])
             var refChunk: [Float] = []
@@ -388,9 +396,8 @@ final class MeetingCleanedMicRenderer {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic writer start failed")
         }
-        var writerCompleted = false
         defer {
-            if !writerCompleted {
+            if writer.status == .writing {
                 writer.cancelWriting()
             }
         }
@@ -440,7 +447,6 @@ final class MeetingCleanedMicRenderer {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic finalize failed")
         }
-        writerCompleted = true
     }
 
     private static func finishWriting(_ writer: AVAssetWriter) async {
