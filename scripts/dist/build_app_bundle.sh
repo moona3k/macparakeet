@@ -44,6 +44,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 
+. "$ROOT_DIR/scripts/dist/meeting_echo_asset_defaults.sh"
+
 APP_NAME="${APP_NAME:-MacParakeet}"
 BUNDLE_ID="${BUNDLE_ID:-com.macparakeet.MacParakeet}"
 VERSION="${VERSION:-0.0.0}"
@@ -64,8 +66,6 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 LEGAL_DIR="$RESOURCES_DIR/Legal"
 
-DEFAULT_MEETING_ECHO_MODEL_NAME="localvqe-v1.4-aec-200K-f32.gguf"
-DEFAULT_MEETING_ECHO_MODEL_SHA256="b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731"
 DEFAULT_MEETING_ECHO_ASSETS_DIR="$ROOT_DIR/.build/meeting-echo-assets"
 
 rm -rf "$APP_DIR"
