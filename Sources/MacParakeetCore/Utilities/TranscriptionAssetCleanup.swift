@@ -33,6 +33,10 @@ public enum TranscriptionAssetCleanup {
         "meeting.m4a",
         "microphone.m4a",
         "system.m4a",
+        // Derived echo-cancelled mic (plan #605 U3). Listed so the targeted
+        // "Remove Audio Only" detach path deletes it alongside the raw sources
+        // instead of orphaning it.
+        MeetingCleanedMicRenderer.cleanedMicrophoneFileName,
     ]
     private static let managedMeetingAudioExtensions: Set<String> = [
         "aac",

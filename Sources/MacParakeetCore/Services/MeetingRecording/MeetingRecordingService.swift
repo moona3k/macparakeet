@@ -560,8 +560,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             throw MeetingAudioError.noAudioCaptured
         }
 
+        let availableSources = Set(inputURLs.map(source(for:)))
         let sourceAlignment = buildSourceAlignment(
-            availableSources: Set(inputURLs.map(source(for:))),
+            availableSources: availableSources,
             writerMetrics: writerMetrics
         )
         do {
@@ -591,6 +592,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             )
             preservePlayableMeetingAudioFallback(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
         }
+
+        let cleanedMicrophoneAudioURL = await renderCleanedMicrophone(
+            session: session,
+            availableSources: availableSources,
+            sourceAlignment: sourceAlignment
+        )
 
         let finalNotes = currentNotes
         let notesFileManager = MeetingNotesFile.SendableFileManager(fileManager)
@@ -644,6 +651,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             mixedAudioURL: session.mixedAudioURL,
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
+            cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
             durationSeconds: durationSeconds,
             sourceAlignment: sourceAlignment,
             speechEngine: session.speechEngine,
@@ -1236,6 +1244,56 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             assertionFailure("Unexpected URL passed to source(for:): \(url.path)")
         }
         return .system
+    }
+
+    /// Derive `microphone-cleaned.m4a` from the raw mic + system sources using a
+    /// freshly built echo suppressor (plan #605 U3). Returns the cleaned file URL
+    /// when a real suppressor is loaded and both sources exist; `nil` (raw mic
+    /// stays the truth) for single-source meetings, when no AEC assets are
+    /// bundled, or on any render failure. Never throws into finalize.
+    private func renderCleanedMicrophone(
+        session: Session,
+        availableSources: Set<AudioSource>,
+        sourceAlignment: MeetingSourceAlignment
+    ) async -> URL? {
+        // A cleaned mic needs a system reference to cancel against; single-source
+        // meetings have nothing to subtract.
+        guard availableSources.contains(.microphone),
+              availableSources.contains(.system) else {
+            return nil
+        }
+
+        let microphoneURL = session.microphoneAudioURL
+        let systemURL = session.systemAudioURL
+        let outputURL = session.folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        let conditionerFactory = micConditionerFactory
+
+        // Heavy decode/DSP/encode runs off the actor; the suppressor (and its
+        // dylib load) is built inside the detached task so it never blocks
+        // recording state. A fresh suppressor starts from clean filter state
+        // rather than inheriting the live preview's adapted taps.
+        let outcome = await Task.detached(priority: .utility) {
+            MeetingCleanedMicRenderer().render(
+                microphoneURL: microphoneURL,
+                systemURL: systemURL,
+                sourceAlignment: sourceAlignment,
+                outputURL: outputURL,
+                conditioner: conditionerFactory())
+        }.value
+
+        switch outcome {
+        case .rendered(let result):
+            AudioCaptureDiagnostics.append(
+                "meeting_cleaned_mic session=\(session.id.uuidString) outcome=rendered duration_s=\(String(format: "%.3f", result.durationSeconds)) processed_frames=\(result.processedFrames) raw_fallback_frames=\(result.rawFallbackFrames) failures=\(result.processingFailures) rms_ratio=\(String(format: "%.2f", result.outputToRawRmsRatio))"
+            )
+            return result.outputURL
+        case .skipped(let reason):
+            AudioCaptureDiagnostics.append(
+                "meeting_cleaned_mic session=\(session.id.uuidString) outcome=skipped reason=\(String(describing: reason))"
+            )
+            return nil
+        }
     }
 
     private func buildSourceAlignment(

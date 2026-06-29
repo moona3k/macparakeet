@@ -1327,7 +1327,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private func meetingAudioURL(for source: AudioSource, recording: MeetingRecordingOutput) -> URL {
         switch source {
         case .microphone:
-            return recording.microphoneAudioURL
+            // Transcribe the echo-cancelled mic when it was derived (plan #605
+            // U3/U4) so remote speaker bleed does not surface as false "Me"
+            // text; falls back to the raw mic when no cleaned artifact exists.
+            return recording.microphoneTranscriptionURL()
         case .system:
             return recording.systemAudioURL
         }

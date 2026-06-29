@@ -1335,6 +1335,103 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - #605 U3 — cleaned-mic finalize hook
+
+    func testStopRecordingRendersCleanedMicForDualSourceWhenSuppressorLoaded() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        // A loaded, non-passthrough suppressor (NLMS over the real streaming
+        // wrapper) stands in for the bundled echo model so the render path runs
+        // without the proprietary dylib.
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                StreamingMeetingEchoSuppressor(
+                    processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
+            }
+        )
+
+        try await service.startRecording()
+        for offset in 0..<5 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
+            await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+            await captureService.yield(.systemBuffer(systemBuffer, time))
+        }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let cleanedURL = try XCTUnwrap(
+            output.cleanedMicrophoneAudioURL,
+            "a loaded suppressor on a dual-source meeting derives a cleaned mic")
+        XCTAssertEqual(cleanedURL.lastPathComponent, "microphone-cleaned.m4a")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
+        // The cleaned mic is derived; the raw sources stay the source of truth.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.microphoneAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.systemAudioURL.path))
+        // The U4 routing policy prefers the cleaned artifact for the "Me" track.
+        XCTAssertEqual(output.microphoneTranscriptionURL(), cleanedURL)
+    }
+
+    func testStopRecordingSkipsCleanedMicForSingleSource() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                StreamingMeetingEchoSuppressor(
+                    processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
+            }
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNil(
+            output.cleanedMicrophoneAudioURL,
+            "a mic-only meeting has no system reference to cancel against")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: output.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
+        // Routing falls back to the raw mic when no cleaned artifact exists.
+        XCTAssertEqual(output.microphoneTranscriptionURL(), output.microphoneAudioURL)
+    }
+
+    func testStopRecordingSkipsCleanedMicWhenSuppressorIsPassthrough() async throws {
+        // Default factory (no AEC env config) resolves to passthrough → nothing
+        // to derive, so a dual-source meeting still yields no cleaned mic.
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        for offset in 0..<3 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
+            await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+            await captureService.yield(.systemBuffer(systemBuffer, time))
+        }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+    }
+
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,

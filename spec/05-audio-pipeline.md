@@ -217,6 +217,17 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   speaker bleed, not a complete AEC substitute. When VPIO is explicitly
   requested and engages, macOS applies AEC/noise suppression/AGC before buffers
   reach `MeetingRecordingService`.
+- Live suppression is **preview only**: `microphone.m4a` is always the raw mic.
+  After stop, when a suppressor is loaded and both source streams exist,
+  `MeetingCleanedMicRenderer` derives `microphone-cleaned.m4a` offline — it
+  re-decodes the raw mic + system to 16 kHz mono, re-aligns the reference by the
+  recorded `MeetingSourceAlignment` start offsets, and streams the pair through a
+  freshly built suppressor (clean filter state, not the live preview's adapted
+  taps). Every output frame is either echo-cancelled or raw-fallback, so the
+  cleaned mic is never worse than raw per frame. Single-source meetings and
+  bundles without AEC assets produce no cleaned file, and rendering never throws
+  into finalize (failures resolve to "no cleaned file"). The same derivation runs
+  in `MeetingRecordingRecoveryService` so recovered meetings get equal treatment.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
 - After recording stops, the captured source M4As are finalized and merged into
@@ -227,9 +238,13 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 - Final meeting STT does **not** transcribe `meeting.m4a`. A background queue
   transcribes the captured source files separately with the engine captured at
   recording start, then merges those fresh results by persisted
-  `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export
-  artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md`
-  for the full pipeline and tradeoffs.
+  `MeetingSourceAlignment`. The local (`Me`) microphone track prefers
+  `microphone-cleaned.m4a` when it exists (echo-cancelled; resolved through
+  `MeetingRecordingOutput.microphoneTranscriptionURL`) and otherwise falls back
+  to the raw `microphone.m4a`; the system track is unchanged. `meeting.m4a` is
+  kept as the playback/export artifact. See
+  `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full
+  pipeline and tradeoffs.
 - Recovery locks and retention safety are a tested boundary contract. See [`spec/contracts/meeting-recovery-retention.md`](contracts/meeting-recovery-retention.md) before changing lock-file predicates or automatic meeting-audio deletion.
 - Live chunk enqueue keeps a conservative guard: when recent system energy strongly dominates processed mic energy for a short freshness window, mic chunks are skipped for live transcription only. Mic audio is still written to disk and included in final mix/output.
 - Joiner queue overflow, long-session sync lag, and runtime capture failures are emitted as diagnostics for observability (`MeetingAudioCaptureEvent.error` where available).
@@ -244,6 +259,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>` with unbounded buffering and runtime error emission where available |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
 | `MicConditioner` | Meeting-side seam for mic samples; passthrough is the default, and an optional `StreamingMeetingEchoSuppressor` can use paired system reference samples when the runtime/model are available |
+| `MeetingCleanedMicRenderer` | Post-stop offline derivation of `microphone-cleaned.m4a` from the raw mic + system sources through a freshly built suppressor; skips when passthrough/single-source and never throws into finalize |
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
 | `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
@@ -295,8 +311,9 @@ the stopped meeting waits for that job to finish; once the slot is free,
 
 ```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
-    ├── microphone.m4a    # Mic audio when captured (AAC, 48kHz mono)
+    ├── microphone.m4a    # Raw mic audio when captured (AAC, 48kHz mono) — source of truth
     ├── system.m4a        # System audio when captured (AAC, 48kHz mono)
+    ├── microphone-cleaned.m4a  # Optional derived echo-cancelled mic (16kHz mono); STT input for the "Me" track when a suppressor is loaded
     ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
     ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine for post-stop merge
     ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine

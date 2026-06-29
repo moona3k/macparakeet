@@ -7,6 +7,12 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let mixedAudioURL: URL
     public let microphoneAudioURL: URL
     public let systemAudioURL: URL
+    /// Echo-cancelled microphone derived from the raw mic + system reference
+    /// after stop (plan #605 U3). `nil` for single-source meetings or when no
+    /// AEC assets are bundled. The raw `microphoneAudioURL` always stays the
+    /// source of truth; this is a derived artifact preferred for the local
+    /// ("Me") transcript via `microphoneTranscriptionURL(fileManager:)`.
+    public let cleanedMicrophoneAudioURL: URL?
     public let durationSeconds: TimeInterval
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
@@ -24,6 +30,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         mixedAudioURL: URL,
         microphoneAudioURL: URL,
         systemAudioURL: URL,
+        cleanedMicrophoneAudioURL: URL? = nil,
         durationSeconds: TimeInterval,
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
@@ -36,11 +43,24 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.mixedAudioURL = mixedAudioURL
         self.microphoneAudioURL = microphoneAudioURL
         self.systemAudioURL = systemAudioURL
+        self.cleanedMicrophoneAudioURL = cleanedMicrophoneAudioURL
         self.durationSeconds = durationSeconds
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.userNotes = userNotes
+    }
+
+    /// The microphone audio to transcribe for the local ("Me") track: the
+    /// echo-cancelled artifact when it was derived and still exists on disk,
+    /// otherwise the raw mic. Centralizes the #605 cleaned-mic preference so
+    /// finalize-time transcription and recovery agree on one rule.
+    public func microphoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
+        if let cleanedMicrophoneAudioURL,
+           fileManager.fileExists(atPath: cleanedMicrophoneAudioURL.path) {
+            return cleanedMicrophoneAudioURL
+        }
+        return microphoneAudioURL
     }
 
     public static func loadArchived(
@@ -52,6 +72,11 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let metadata = try MeetingRecordingMetadataStore.load(from: folderURL)
         let microphoneAudioURL = folderURL.appendingPathComponent("microphone.m4a")
         let systemAudioURL = folderURL.appendingPathComponent("system.m4a")
+        let cleanedURL = folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        let cleanedMicrophoneAudioURL = FileManager.default.fileExists(atPath: cleanedURL.path)
+            ? cleanedURL
+            : nil
 
         if metadata.sourceAlignment.microphone != nil,
            !FileManager.default.fileExists(atPath: microphoneAudioURL.path) {
@@ -70,6 +95,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             mixedAudioURL: mixedAudioURL,
             microphoneAudioURL: microphoneAudioURL,
             systemAudioURL: systemAudioURL,
+            cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
             durationSeconds: durationSeconds,
             sourceAlignment: metadata.sourceAlignment,
             speechEngine: metadata.speechEngine,
