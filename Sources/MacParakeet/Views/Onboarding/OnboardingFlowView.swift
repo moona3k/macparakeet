@@ -529,7 +529,7 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; if Fn is unavailable, file transcription still works from the main app.")
+            Text("Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; external keyboards can use keys like F13/F19 or End, modifier+key shortcuts, or modifier-only chords such as Control+Option.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }

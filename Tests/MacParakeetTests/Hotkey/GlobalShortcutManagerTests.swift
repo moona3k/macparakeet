@@ -135,6 +135,22 @@ final class GlobalShortcutManagerTests: XCTestCase {
         XCTAssertEqual(triggerCount, 1)
     }
 
+    func testControlBacktickChordTriggersAndSwallows() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 50)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        let swallowed = manager.handleChordEventForTesting(
+            type: .keyDown,
+            keyCode: 50,
+            flags: trigger.chordEventFlags
+        )
+
+        XCTAssertTrue(swallowed)
+        XCTAssertEqual(triggerCount, 1)
+    }
+
     func testFunctionKeyChordTriggersWithPhantomFnFlagBit() {
         // Hardware F-key events carry NX_SECONDARYFNMASK even when the
         // physical Fn key is not held. A ⌃F19 chord must still fire.

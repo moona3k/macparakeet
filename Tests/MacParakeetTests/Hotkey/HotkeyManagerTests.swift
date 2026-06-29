@@ -433,6 +433,21 @@ final class HotkeyManagerTests: XCTestCase {
         }
     }
 
+    func testControlBacktickChordStartsHandsFreeDictation() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 50)
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let keyDown = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 50,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_000
+        )
+
+        XCTAssertEqual(keyDown.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(keyDown.shouldSwallow)
+    }
+
     func testDefaultFnSpaceChordCancelsPendingPushToTalkBeforeHandsFreeStarts() {
         let pushToTalk = HotkeyManager(
             trigger: .defaultPushToTalk,
