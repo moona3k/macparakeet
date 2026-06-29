@@ -56,6 +56,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// echo-cancelled artifact when it was derived and is non-empty, otherwise
     /// the raw mic. This public helper is intentionally cheap for UI/list paths;
     /// STT routing uses `validatedMicrophoneTranscriptionURL(fileManager:)`.
+    /// Performs synchronous filesystem stat calls, so avoid hot main-actor loops.
     public func microphoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
         if let cleanedMicrophoneAudioURL,
            Self.hasNonEmptyFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {

@@ -342,11 +342,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             try fileManager.removeItem(at: outputURL)
         } catch {
             let removeError = error
-            do {
-                try Data().write(to: outputURL, options: .atomic)
+            if fileManager.createFile(atPath: outputURL.path, contents: Data(), attributes: nil) {
                 logger.warning("meeting_recovery_cleaned_mic_cleanup session=\(sessionID.uuidString, privacy: .public) outcome=truncated reason=\(reason, privacy: .public) remove_error=\(removeError.localizedDescription, privacy: .private)")
-            } catch {
-                logger.error("meeting_recovery_cleaned_mic_cleanup session=\(sessionID.uuidString, privacy: .public) outcome=failed reason=\(reason, privacy: .public) remove_error=\(removeError.localizedDescription, privacy: .private) truncate_error=\(error.localizedDescription, privacy: .private)")
+            } else {
+                logger.error("meeting_recovery_cleaned_mic_cleanup session=\(sessionID.uuidString, privacy: .public) outcome=failed reason=\(reason, privacy: .public) remove_error=\(removeError.localizedDescription, privacy: .private) truncate_error=createFile returned false")
             }
         }
     }

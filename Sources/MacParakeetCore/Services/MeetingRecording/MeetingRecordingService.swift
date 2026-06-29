@@ -1313,13 +1313,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             try fileManager.removeItem(at: outputURL)
         } catch {
             let removeError = error
-            do {
-                try Data().write(to: outputURL, options: .atomic)
+            if fileManager.createFile(atPath: outputURL.path, contents: Data(), attributes: nil) {
                 AudioCaptureDiagnostics.append(
                     "meeting_cleaned_mic_cleanup session=\(sessionID.uuidString) outcome=truncated reason=\(reason) remove_error=\(removeError.localizedDescription)")
-            } catch {
+            } else {
                 AudioCaptureDiagnostics.append(
-                    "meeting_cleaned_mic_cleanup session=\(sessionID.uuidString) outcome=failed reason=\(reason) remove_error=\(removeError.localizedDescription) truncate_error=\(error.localizedDescription)")
+                    "meeting_cleaned_mic_cleanup session=\(sessionID.uuidString) outcome=failed reason=\(reason) remove_error=\(removeError.localizedDescription) truncate_error=createFile returned false")
             }
         }
     }

@@ -152,6 +152,9 @@ final class MeetingCleanedMicRenderer {
         sampleRate: Int,
         conditioner: any MicConditioning
     ) -> ConditionedOutput {
+        // Finalize/recovery pass freshly built conditioners today; keep this
+        // defensive reset so direct tests or future callers cannot reuse stale
+        // adaptive filter state accidentally.
         conditioner.reset()
         // Place the system reference on the microphone's timeline: a sample at
         // mic position p must be cancelled against the system audio at the same
