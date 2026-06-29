@@ -244,6 +244,32 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertTrue(rows.first?.recoveredFromCrash == true)
     }
 
+    func testRecoverSkipsCleanedMicWhenRecoveredAlignmentIsSynthetic() async throws {
+        let fixture = try makeRecoverableSession()
+        let conditionerProbe = RecoveryMicConditionerFactoryProbe()
+        recoveryService = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            micConditionerFactory: { @Sendable in conditionerProbe.make() }
+        )
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        XCTAssertNil(
+            recording.cleanedMicrophoneAudioURL,
+            "recovery synthesizes zero source offsets, so it must not prefer a derived cleaned mic")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
+        XCTAssertEqual(
+            conditionerProbe.buildCount,
+            0,
+            "synthetic alignment should skip before building or running the cleaner")
+    }
+
     private enum SourceFixture {
         case valid
         case corrupt
@@ -501,6 +527,34 @@ private enum RecoveryTestError: Error {
     case transcriptionFailed
     case lockDeleteFailed
     case mixFailed
+}
+
+private final class RecoveryMicConditionerFactoryProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var buildCount: Int {
+        lock.withLock { count }
+    }
+
+    func make() -> any MicConditioning {
+        lock.withLock {
+            count += 1
+        }
+        return RecoveryLoadedMicConditioner()
+    }
+}
+
+private final class RecoveryLoadedMicConditioner: MicConditioning, @unchecked Sendable {
+    var diagnostics: MeetingEchoSuppressionDiagnostics {
+        .passthrough(processorName: "test-loaded-cleaner", loaded: true)
+    }
+
+    func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
+        microphone
+    }
+
+    func reset() {}
 }
 
 private struct RecoveryProcessChecker: ProcessAliveChecking {

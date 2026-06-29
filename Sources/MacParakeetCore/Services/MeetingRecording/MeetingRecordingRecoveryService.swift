@@ -46,13 +46,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private let audioConverter: AudioFileConverting
     private let fileManager: FileManager
     /// Builds the echo suppressor used to re-derive `microphone-cleaned.m4a`
-    /// during recovery, mirroring the live recording path (plan #605 U3). Set
-    /// from the injected `echoSuppressionConfiguration` so recovered dual-source
-    /// meetings get the same cleaned-mic treatment as ones finalized in-process.
-    /// Resolves to passthrough (→ no cleaned file) without bundled AEC assets.
+    /// during recovery when trustworthy source alignment is available. Set from
+    /// the injected `echoSuppressionConfiguration`; resolves to passthrough
+    /// (→ no cleaned file) without bundled AEC assets.
     private let micConditionerFactory: @Sendable () -> any MicConditioning
 
-    public init(
+    public convenience init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
@@ -61,16 +60,36 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         fileManager: FileManager = .default,
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
     ) {
+        self.init(
+            meetingsRoot: meetingsRoot,
+            lockFileStore: lockFileStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            fileManager: fileManager,
+            micConditionerFactory: {
+                MeetingEchoSuppressionFactory.makeConditioner(
+                    configuration: echoSuppressionConfiguration)
+            }
+        )
+    }
+
+    init(
+        meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
+        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
+        transcriptionService: TranscriptionServiceProtocol,
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        audioConverter: AudioFileConverting = AudioFileConverter(),
+        fileManager: FileManager = .default,
+        micConditionerFactory: @escaping @Sendable () -> any MicConditioning
+    ) {
         self.meetingsRoot = meetingsRoot
         self.lockFileStore = lockFileStore
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.audioConverter = audioConverter
         self.fileManager = fileManager
-        self.micConditionerFactory = {
-            MeetingEchoSuppressionFactory.makeConditioner(
-                configuration: echoSuppressionConfiguration)
-        }
+        self.micConditionerFactory = micConditionerFactory
     }
 
     /// Minimum size (bytes) for either `microphone.m4a` or `system.m4a` to
@@ -260,9 +279,11 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     }
 
     /// Re-derive `microphone-cleaned.m4a` from the recovered mic + system audio
-    /// (plan #605 U3). Mirrors `MeetingRecordingService`; returns `nil` for
-    /// single-source recoveries, without AEC assets, or on render failure so the
-    /// raw mic stays the truth. Never throws into the recovery path.
+    /// (plan #605 U3) only when source alignment is trustworthy. Interrupted
+    /// sessions currently synthesize zero start offsets because lock files do not
+    /// persist per-source host times; in that case, return `nil` so final STT
+    /// falls back to raw mic instead of preferring a possibly misaligned cleaned
+    /// artifact. Never throws into the recovery path.
     private func renderCleanedMicrophone(
         folderURL: URL,
         microphoneURL: URL?,
@@ -271,6 +292,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         sessionID: UUID
     ) async -> URL? {
         guard let microphoneURL, let systemURL else { return nil }
+        guard sourceAlignment.meetingOriginHostTime != nil,
+              sourceAlignment.microphone?.firstHostTime != nil,
+              sourceAlignment.system?.firstHostTime != nil else {
+            logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=synthetic_alignment")
+            return nil
+        }
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         let conditionerFactory = micConditionerFactory
