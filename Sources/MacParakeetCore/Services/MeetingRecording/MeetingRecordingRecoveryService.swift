@@ -294,13 +294,15 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         guard let microphoneURL, let systemURL else {
-            try? fileManager.removeItem(at: outputURL)
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: sessionID, reason: "missing_source")
             return nil
         }
         guard sourceAlignment.meetingOriginHostTime != nil,
               sourceAlignment.microphone?.firstHostTime != nil,
               sourceAlignment.system?.firstHostTime != nil else {
-            try? fileManager.removeItem(at: outputURL)
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: sessionID, reason: "synthetic_alignment")
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=synthetic_alignment")
             return nil
         }
@@ -321,9 +323,31 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=rendered failures=\(result.processingFailures, privacy: .public)")
             return result.outputURL
         case .skipped(let reason):
-            try? fileManager.removeItem(at: outputURL)
+            discardCleanedMicrophoneArtifact(
+                at: outputURL,
+                sessionID: sessionID,
+                reason: "renderer_skipped_\(String(describing: reason))")
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=\(String(describing: reason), privacy: .public)")
             return nil
+        }
+    }
+
+    private func discardCleanedMicrophoneArtifact(
+        at outputURL: URL,
+        sessionID: UUID,
+        reason: String
+    ) {
+        guard fileManager.fileExists(atPath: outputURL.path) else { return }
+        do {
+            try fileManager.removeItem(at: outputURL)
+        } catch {
+            let removeError = error
+            do {
+                try Data().write(to: outputURL, options: .atomic)
+                logger.warning("meeting_recovery_cleaned_mic_cleanup session=\(sessionID.uuidString, privacy: .public) outcome=truncated reason=\(reason, privacy: .public) remove_error=\(removeError.localizedDescription, privacy: .private)")
+            } catch {
+                logger.error("meeting_recovery_cleaned_mic_cleanup session=\(sessionID.uuidString, privacy: .public) outcome=failed reason=\(reason, privacy: .public) remove_error=\(removeError.localizedDescription, privacy: .private) truncate_error=\(error.localizedDescription, privacy: .private)")
+            }
         }
     }
 

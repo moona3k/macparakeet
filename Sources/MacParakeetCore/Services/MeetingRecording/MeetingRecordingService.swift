@@ -1262,7 +1262,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // meetings have nothing to subtract.
         guard availableSources.contains(.microphone),
               availableSources.contains(.system) else {
-            try? fileManager.removeItem(at: outputURL)
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: session.id, reason: "missing_source")
             return nil
         }
 
@@ -1291,11 +1292,35 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             )
             return result.outputURL
         case .skipped(let reason):
-            try? fileManager.removeItem(at: outputURL)
+            discardCleanedMicrophoneArtifact(
+                at: outputURL,
+                sessionID: session.id,
+                reason: "renderer_skipped_\(String(describing: reason))")
             AudioCaptureDiagnostics.append(
                 "meeting_cleaned_mic session=\(session.id.uuidString) outcome=skipped reason=\(String(describing: reason))"
             )
             return nil
+        }
+    }
+
+    private func discardCleanedMicrophoneArtifact(
+        at outputURL: URL,
+        sessionID: UUID,
+        reason: String
+    ) {
+        guard fileManager.fileExists(atPath: outputURL.path) else { return }
+        do {
+            try fileManager.removeItem(at: outputURL)
+        } catch {
+            let removeError = error
+            do {
+                try Data().write(to: outputURL, options: .atomic)
+                AudioCaptureDiagnostics.append(
+                    "meeting_cleaned_mic_cleanup session=\(sessionID.uuidString) outcome=truncated reason=\(reason) remove_error=\(removeError.localizedDescription)")
+            } catch {
+                AudioCaptureDiagnostics.append(
+                    "meeting_cleaned_mic_cleanup session=\(sessionID.uuidString) outcome=failed reason=\(reason) remove_error=\(removeError.localizedDescription) truncate_error=\(error.localizedDescription)")
+            }
         }
     }
 
