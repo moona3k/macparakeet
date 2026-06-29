@@ -93,7 +93,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public static func loadArchived(
         displayName: String,
         mixedAudioURL: URL,
-        durationSeconds: TimeInterval
+        durationSeconds: TimeInterval,
+        fileManager: FileManager = .default
     ) throws -> MeetingRecordingOutput {
         let folderURL = mixedAudioURL.deletingLastPathComponent()
         let metadata = try MeetingRecordingMetadataStore.load(from: folderURL)
@@ -105,17 +106,17 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         // The decodability probe stays in `microphoneTranscriptionURL`, which is
         // the actual STT routing gate and falls back to raw if the artifact is
         // corrupt or partial.
-        let cleanedMicrophoneAudioURL = hasNonEmptyFile(at: cleanedURL)
+        let cleanedMicrophoneAudioURL = hasNonEmptyFile(at: cleanedURL, fileManager: fileManager)
             ? cleanedURL
             : nil
 
         if metadata.sourceAlignment.microphone != nil,
-           !FileManager.default.fileExists(atPath: microphoneAudioURL.path) {
+           !fileManager.fileExists(atPath: microphoneAudioURL.path) {
             throw MeetingAudioError.storageFailed("Missing archived meeting source file: microphone.m4a")
         }
 
         if metadata.sourceAlignment.system != nil,
-           !FileManager.default.fileExists(atPath: systemAudioURL.path) {
+           !fileManager.fileExists(atPath: systemAudioURL.path) {
             throw MeetingAudioError.storageFailed("Missing archived meeting source file: system.m4a")
         }
 
