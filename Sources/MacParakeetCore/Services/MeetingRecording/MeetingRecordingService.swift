@@ -1256,25 +1256,27 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         availableSources: Set<AudioSource>,
         sourceAlignment: MeetingSourceAlignment
     ) async -> URL? {
+        let outputURL = session.folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // A cleaned mic needs a system reference to cancel against; single-source
         // meetings have nothing to subtract.
         guard availableSources.contains(.microphone),
               availableSources.contains(.system) else {
+            try? fileManager.removeItem(at: outputURL)
             return nil
         }
 
         let microphoneURL = session.microphoneAudioURL
         let systemURL = session.systemAudioURL
-        let outputURL = session.folderURL.appendingPathComponent(
-            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         let conditionerFactory = micConditionerFactory
+        let rendererFileManager = fileManager
 
         // Heavy decode/DSP/encode runs off the actor; the suppressor (and its
         // dylib load) is built inside the detached task so it never blocks
         // recording state. A fresh suppressor starts from clean filter state
         // rather than inheriting the live preview's adapted taps.
         let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer().render(
+            await MeetingCleanedMicRenderer(fileManager: rendererFileManager).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
@@ -1289,6 +1291,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             )
             return result.outputURL
         case .skipped(let reason):
+            try? fileManager.removeItem(at: outputURL)
             AudioCaptureDiagnostics.append(
                 "meeting_cleaned_mic session=\(session.id.uuidString) outcome=skipped reason=\(String(describing: reason))"
             )

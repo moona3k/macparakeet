@@ -305,9 +305,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             return nil
         }
         let conditionerFactory = micConditionerFactory
+        let rendererFileManager = fileManager
 
         let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer().render(
+            await MeetingCleanedMicRenderer(fileManager: rendererFileManager).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
@@ -320,6 +321,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=rendered failures=\(result.processingFailures, privacy: .public)")
             return result.outputURL
         case .skipped(let reason):
+            try? fileManager.removeItem(at: outputURL)
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=\(String(describing: reason), privacy: .public)")
             return nil
         }
