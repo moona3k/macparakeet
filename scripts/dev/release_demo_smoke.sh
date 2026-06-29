@@ -26,12 +26,70 @@ EOF
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cli_path="${MACPARAKEET_CLI:-}"
 allow_swift_run=0
-output_dir=""
+output_dir="$repo_root/.codex/release-demo-smoke/$(date -u +%Y%m%dT%H%M%SZ)"
+summary_result=""
+failure_context=""
+CLI_CMD=()
+
+configure_output_paths() {
+  command_log="$output_dir/commands.log"
+  summary="$output_dir/summary.md"
+  fixture_text="$output_dir/fixture.txt"
+  fixture_aiff="$output_dir/fixture.aiff"
+  fixture_wav="$output_dir/fixture.wav"
+  smoke_db="$output_dir/smoke.sqlite"
+  health_json="$output_dir/health.json"
+  transcribe_json="$output_dir/transcribe.json"
+  export_md="$output_dir/export.md"
+}
+
+write_summary() {
+  local result="$1"
+  local transcription_id="${2:-}"
+  local transcript_preview="${3:-}"
+  summary_result="$result"
+
+  mkdir -p "$output_dir"
+  {
+    printf '# MacParakeet Release Demo Smoke\n\n'
+    printf '%s\n' "- Result: \`$result\`"
+    printf '%s\n' "- CLI: \`${CLI_CMD[*]-<unresolved>}\`"
+    printf '%s\n' "- Evidence directory: \`$output_dir\`"
+    printf '%s\n' "- Isolated database: \`$smoke_db\`"
+    if [[ -n "$failure_context" ]]; then
+      printf '%s\n' "- Failure: \`$failure_context\`"
+    fi
+    if [[ -n "$transcription_id" ]]; then
+      printf '%s\n' "- Transcription ID: \`$transcription_id\`"
+    fi
+    if [[ -n "$transcript_preview" ]]; then
+      printf '%s\n' "- Transcript preview: \`$transcript_preview\`"
+    fi
+    printf '\n## Evidence Files\n\n'
+    printf '%s\n' '- `commands.log` - executed commands and exit statuses'
+    printf '%s\n' '- `health.json` / `health.stderr` - health readiness probe'
+    printf '%s\n' '- `fixture.wav` - generated local audio fixture'
+    printf '%s\n' '- `transcribe.json` / `transcribe.stderr` - transcription result'
+    printf '%s\n' '- `export.md` / `export.stderr` - markdown export proof'
+  } >"$summary"
+}
+
+fail_with_summary() {
+  local status="$1"
+  local message="$2"
+  failure_context="$message"
+  write_summary "fail"
+  echo "$message" >&2
+  echo "Evidence kept at: $output_dir" >&2
+  exit "$status"
+}
+
+configure_output_paths
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cli)
-      [[ $# -ge 2 ]] || { echo "--cli requires a path" >&2; exit 64; }
+      [[ $# -ge 2 ]] || fail_with_summary 64 "--cli requires a path"
       cli_path="$2"
       shift 2
       ;;
@@ -40,8 +98,9 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --output-dir)
-      [[ $# -ge 2 ]] || { echo "--output-dir requires a path" >&2; exit 64; }
+      [[ $# -ge 2 ]] || fail_with_summary 64 "--output-dir requires a path"
       output_dir="$2"
+      configure_output_paths
       shift 2
       ;;
     -h|--help)
@@ -51,36 +110,16 @@ while [[ $# -gt 0 ]]; do
     *)
       echo "Unknown option: $1" >&2
       usage >&2
-      exit 64
+      fail_with_summary 64 "Unknown option: $1"
       ;;
   esac
 done
 
-if [[ -z "$output_dir" ]]; then
-  output_dir="$repo_root/.codex/release-demo-smoke/$(date -u +%Y%m%dT%H%M%SZ)"
-fi
 mkdir -p "$output_dir"
 
-command_log="$output_dir/commands.log"
-summary="$output_dir/summary.md"
-fixture_text="$output_dir/fixture.txt"
-fixture_aiff="$output_dir/fixture.aiff"
-fixture_wav="$output_dir/fixture.wav"
-smoke_db="$output_dir/smoke.sqlite"
-health_json="$output_dir/health.json"
-transcribe_json="$output_dir/transcribe.json"
-export_md="$output_dir/export.md"
-summary_result=""
-failure_context=""
-
-CLI_CMD=()
 resolve_cli() {
   if [[ -n "$cli_path" ]]; then
-    [[ -x "$cli_path" ]] || {
-      failure_context="CLI is not executable: $cli_path"
-      echo "CLI is not executable: $cli_path" >&2
-      exit 69
-    }
+    [[ -x "$cli_path" ]] || fail_with_summary 69 "CLI is not executable: $cli_path"
     CLI_CMD=("$cli_path")
     return
   fi
@@ -142,36 +181,6 @@ run_capture() {
   fi
 }
 
-write_summary() {
-  local result="$1"
-  local transcription_id="${2:-}"
-  local transcript_preview="${3:-}"
-  summary_result="$result"
-
-  {
-    printf '# MacParakeet Release Demo Smoke\n\n'
-    printf '%s\n' "- Result: \`$result\`"
-    printf '%s\n' "- CLI: \`${CLI_CMD[*]}\`"
-    printf '%s\n' "- Evidence directory: \`$output_dir\`"
-    printf '%s\n' "- Isolated database: \`$smoke_db\`"
-    if [[ -n "$failure_context" ]]; then
-      printf '%s\n' "- Failure: \`$failure_context\`"
-    fi
-    if [[ -n "$transcription_id" ]]; then
-      printf '%s\n' "- Transcription ID: \`$transcription_id\`"
-    fi
-    if [[ -n "$transcript_preview" ]]; then
-      printf '%s\n' "- Transcript preview: \`$transcript_preview\`"
-    fi
-    printf '\n## Evidence Files\n\n'
-    printf '%s\n' '- `commands.log` - executed commands and exit statuses'
-    printf '%s\n' '- `health.json` / `health.stderr` - health readiness probe'
-    printf '%s\n' '- `fixture.wav` - generated local audio fixture'
-    printf '%s\n' '- `transcribe.json` / `transcribe.stderr` - transcription result'
-    printf '%s\n' '- `export.md` / `export.stderr` - markdown export proof'
-  } >"$summary"
-}
-
 write_fail_summary_on_exit() {
   local status=$?
   if [[ "$status" -ne 0 && -z "$summary_result" ]]; then
@@ -183,6 +192,7 @@ write_fail_summary_on_exit() {
     echo "Evidence kept at: $output_dir" >&2
     echo "Summary: $summary" >&2
   fi
+  return "$status"
 }
 
 write_fail_summary_on_err() {
