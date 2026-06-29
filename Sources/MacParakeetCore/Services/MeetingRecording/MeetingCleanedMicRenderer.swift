@@ -386,6 +386,12 @@ final class MeetingCleanedMicRenderer {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic writer start failed")
         }
+        var writerCompleted = false
+        defer {
+            if !writerCompleted {
+                writer.cancelWriting()
+            }
+        }
         writer.startSession(atSourceTime: .zero)
 
         let sampleBufferFactory = PCMBufferToSampleBuffer()
@@ -432,6 +438,7 @@ final class MeetingCleanedMicRenderer {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic finalize failed")
         }
+        writerCompleted = true
     }
 
     private static func finishWriting(_ writer: AVAssetWriter) async {
