@@ -1270,14 +1270,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let microphoneURL = session.microphoneAudioURL
         let systemURL = session.systemAudioURL
         let conditionerFactory = micConditionerFactory
-        let rendererFileManager = fileManager
+        let rendererFileManager = UncheckedSendableBox(fileManager)
 
         // Heavy decode/DSP/encode runs off the actor; the suppressor (and its
         // dylib load) is built inside the detached task so it never blocks
         // recording state. A fresh suppressor starts from clean filter state
         // rather than inheriting the live preview's adapted taps.
         let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer(fileManager: rendererFileManager).render(
+            await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,

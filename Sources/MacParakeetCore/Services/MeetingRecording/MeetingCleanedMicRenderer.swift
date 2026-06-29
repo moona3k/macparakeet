@@ -377,7 +377,7 @@ final class MeetingCleanedMicRenderer {
 
         input.markAsFinished()
         await finishWriting(writer)
-        if writer.status == .failed {
+        if writer.status != .completed {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic finalize failed")
         }
@@ -395,7 +395,7 @@ final class MeetingCleanedMicRenderer {
 
 /// Minimal Sendable box so the non-Sendable `AVAssetWriter` can be referenced
 /// from `finishWriting`'s `@Sendable` completion without capturing `self`.
-private struct UncheckedSendableBox<T>: @unchecked Sendable {
+struct UncheckedSendableBox<T>: @unchecked Sendable {
     let value: T
     init(_ value: T) { self.value = value }
 }

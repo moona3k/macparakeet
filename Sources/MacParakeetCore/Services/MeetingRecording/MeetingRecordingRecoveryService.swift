@@ -307,10 +307,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             return nil
         }
         let conditionerFactory = micConditionerFactory
-        let rendererFileManager = fileManager
+        let rendererFileManager = UncheckedSendableBox(fileManager)
 
         let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer(fileManager: rendererFileManager).render(
+            await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
