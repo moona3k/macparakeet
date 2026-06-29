@@ -71,11 +71,16 @@ health_json="$output_dir/health.json"
 transcribe_json="$output_dir/transcribe.json"
 export_md="$output_dir/export.md"
 summary_result=""
+failure_context=""
 
 CLI_CMD=()
 resolve_cli() {
   if [[ -n "$cli_path" ]]; then
-    [[ -x "$cli_path" ]] || { echo "CLI is not executable: $cli_path" >&2; exit 69; }
+    [[ -x "$cli_path" ]] || {
+      failure_context="CLI is not executable: $cli_path"
+      echo "CLI is not executable: $cli_path" >&2
+      exit 69
+    }
     CLI_CMD=("$cli_path")
     return
   fi
@@ -102,6 +107,7 @@ No installed macparakeet-cli was found.
 Install/open the released MacParakeet app, pass --cli PATH, set MACPARAKEET_CLI,
 or rerun with --allow-swift-run for a development-build smoke.
 EOF
+  failure_context="no installed macparakeet-cli found"
   exit 69
 }
 
@@ -128,6 +134,7 @@ run_capture() {
   else
     local status=$?
     printf 'status: %s\n' "$status" >>"$command_log"
+    failure_context="$label exited with status $status"
     write_summary "fail"
     echo "Command failed during $label: exit status $status" >&2
     echo "Evidence kept at: $output_dir" >&2
@@ -147,6 +154,9 @@ write_summary() {
     printf '%s\n' "- CLI: \`${CLI_CMD[*]}\`"
     printf '%s\n' "- Evidence directory: \`$output_dir\`"
     printf '%s\n' "- Isolated database: \`$smoke_db\`"
+    if [[ -n "$failure_context" ]]; then
+      printf '%s\n' "- Failure: \`$failure_context\`"
+    fi
     if [[ -n "$transcription_id" ]]; then
       printf '%s\n' "- Transcription ID: \`$transcription_id\`"
     fi
@@ -165,6 +175,9 @@ write_summary() {
 write_fail_summary_on_exit() {
   local status=$?
   if [[ "$status" -ne 0 && -z "$summary_result" ]]; then
+    if [[ -z "$failure_context" ]]; then
+      failure_context="unexpected exit status $status"
+    fi
     write_summary "fail"
     echo "Release demo smoke failed with exit status $status." >&2
     echo "Evidence kept at: $output_dir" >&2
@@ -172,11 +185,25 @@ write_fail_summary_on_exit() {
   fi
 }
 
+write_fail_summary_on_err() {
+  local status=$?
+  local line="${1:-unknown}"
+  if [[ "$status" -ne 0 && -z "$summary_result" ]]; then
+    failure_context="unexpected error at line $line (status $status)"
+    write_summary "fail"
+    echo "Release demo smoke failed at line $line with exit status $status." >&2
+    echo "Evidence kept at: $output_dir" >&2
+    echo "Summary: $summary" >&2
+  fi
+}
+
+trap 'write_fail_summary_on_err "$LINENO"' ERR
 trap write_fail_summary_on_exit EXIT
 
 require_file() {
   local path="$1"
   [[ -s "$path" ]] || {
+    failure_context="missing expected non-empty file: $path"
     write_summary "fail"
     echo "Expected non-empty file missing: $path" >&2
     echo "Evidence kept at: $output_dir" >&2
@@ -190,14 +217,15 @@ validate_json() {
     return 0
   fi
 
+  failure_context="invalid JSON: $path"
   write_summary "fail"
   echo "Invalid JSON: $path" >&2
   echo "Evidence kept at: $output_dir" >&2
   exit 1
 }
 
-resolve_cli
 : >"$command_log"
+resolve_cli
 
 printf 'MacParakeet release demo smoke fixture. This short local audio proves transcription and export.\n' >"$fixture_text"
 
@@ -220,6 +248,7 @@ transcript_preview="${clean_transcript:-$raw_transcript}"
 transcript_preview="$(printf '%s' "$transcript_preview" | tr '\n' ' ' | cut -c 1-180)"
 
 if [[ "$transcription_status" != "completed" ]]; then
+  failure_context="transcription status was $transcription_status"
   write_summary "fail" "$transcription_id" "$transcript_preview"
   echo "Transcription status was not completed: $transcription_status" >&2
   echo "Evidence kept at: $output_dir" >&2
@@ -227,6 +256,7 @@ if [[ "$transcription_status" != "completed" ]]; then
 fi
 
 if [[ -z "${raw_transcript}${clean_transcript}" ]]; then
+  failure_context="transcription completed without transcript text"
   write_summary "fail" "$transcription_id"
   echo "Transcription completed but produced no transcript text." >&2
   echo "Evidence kept at: $output_dir" >&2

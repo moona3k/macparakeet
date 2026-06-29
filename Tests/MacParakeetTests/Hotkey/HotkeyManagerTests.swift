@@ -440,7 +440,7 @@ final class HotkeyManagerTests: XCTestCase {
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
             keyCode: 50,
-            flags: CGEventFlags.maskControl.rawValue,
+            flags: trigger.chordEventFlags,
             timestampMs: 1_000
         )
 

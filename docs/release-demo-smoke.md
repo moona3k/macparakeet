@@ -25,11 +25,15 @@ scripts/dev/release_demo_smoke.sh --allow-swift-run
 ```
 
 Evidence is written under `.codex/release-demo-smoke/<UTC timestamp>/` unless
-`--output-dir` is provided. A passing run produces:
+`--output-dir` is provided. Every started run writes:
 
-- `summary.md` with the pass result, CLI path, isolated database, transcription
-  ID, transcript preview, and evidence file list
+- `summary.md` with the pass/fail result, CLI path, isolated database, failure
+  detail when applicable, transcription ID, transcript preview, and evidence
+  file list
 - `commands.log` with every command and exit status
+
+A passing run also produces:
+
 - `health.json` plus `health.stderr`
 - `fixture.wav`, generated locally via `say` and `afconvert`
 - `transcribe.json` plus `transcribe.stderr`

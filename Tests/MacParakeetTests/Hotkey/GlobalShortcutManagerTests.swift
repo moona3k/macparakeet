@@ -144,7 +144,7 @@ final class GlobalShortcutManagerTests: XCTestCase {
         let swallowed = manager.handleChordEventForTesting(
             type: .keyDown,
             keyCode: 50,
-            flags: CGEventFlags.maskControl.rawValue
+            flags: trigger.chordEventFlags
         )
 
         XCTAssertTrue(swallowed)
