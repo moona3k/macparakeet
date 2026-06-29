@@ -30,6 +30,18 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
     }
 
+    func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsEmpty() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        FileManager.default.createFile(atPath: cleanedURL.path, contents: Data())
+
+        let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
+        XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
+    }
+
     func testMicrophoneTranscriptionURLFallsBackToRawWhenNoCleanedURL() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

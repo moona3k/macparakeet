@@ -81,7 +81,7 @@ final class MeetingCleanedMicRenderer {
         // and unavailable (load failed) both leave the raw mic as the truth.
         let diagnostics = conditioner.diagnostics
         guard diagnostics.loaded,
-              diagnostics.processorName != PassthroughMicConditioner().diagnostics.processorName else {
+              !(conditioner is PassthroughMicConditioner) else {
             return .skipped(.conditionerUnavailable)
         }
         guard fileManager.fileExists(atPath: microphoneURL.path) else {
