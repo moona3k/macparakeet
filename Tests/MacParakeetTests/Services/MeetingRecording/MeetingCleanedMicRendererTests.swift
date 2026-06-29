@@ -96,7 +96,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
             scenario.farEnd, sampleRate: 16_000, to: sysURL, fileManager: .default)
 
         let outURL = dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let outcome = await MeetingCleanedMicRenderer().render(
+        let outcome = try await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL, systemURL: sysURL,
             sourceAlignment: equalAlignment(),
             outputURL: outURL,
@@ -121,7 +121,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let (micURL, sysURL) = try await writeSourcePair(in: dir)
 
-        let outcome = await MeetingCleanedMicRenderer().render(
+        let outcome = try await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL, systemURL: sysURL,
             sourceAlignment: equalAlignment(),
             outputURL: dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName),
@@ -135,7 +135,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let (micURL, _) = try await writeSourcePair(in: dir, includeSystem: false)
 
-        let outcome = await MeetingCleanedMicRenderer().render(
+        let outcome = try await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL,
             systemURL: dir.appendingPathComponent("system.m4a"),
             sourceAlignment: equalAlignment(),

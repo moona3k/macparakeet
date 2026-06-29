@@ -593,7 +593,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             preservePlayableMeetingAudioFallback(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
         }
 
-        let cleanedMicrophoneAudioURL = await renderCleanedMicrophone(
+        let cleanedMicrophoneAudioURL = try await renderCleanedMicrophone(
             session: session,
             availableSources: availableSources,
             sourceAlignment: sourceAlignment
@@ -1255,7 +1255,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         session: Session,
         availableSources: Set<AudioSource>,
         sourceAlignment: MeetingSourceAlignment
-    ) async -> URL? {
+    ) async throws -> URL? {
         let outputURL = session.folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // A cleaned mic needs a system reference to cancel against; single-source
@@ -1276,14 +1276,35 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // dylib load) is built inside the detached task so it never blocks
         // recording state. A fresh suppressor starts from clean filter state
         // rather than inheriting the live preview's adapted taps.
-        let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
+        let task = Task.detached(priority: .utility) {
+            try await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
                 outputURL: outputURL,
                 conditioner: conditionerFactory())
-        }.value
+        }
+
+        let outcome: MeetingCleanedMicRenderer.Outcome
+        do {
+            outcome = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        } catch is CancellationError {
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: session.id, reason: "renderer_cancelled")
+            AudioCaptureDiagnostics.append(
+                "meeting_cleaned_mic session=\(session.id.uuidString) outcome=cancelled")
+            throw CancellationError()
+        } catch {
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: session.id, reason: "renderer_threw")
+            AudioCaptureDiagnostics.append(
+                "meeting_cleaned_mic session=\(session.id.uuidString) outcome=skipped reason=renderer_threw_\(error.localizedDescription)")
+            return nil
+        }
 
         switch outcome {
         case .rendered(let result):

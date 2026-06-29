@@ -13,15 +13,16 @@ import OSLog
 /// `MicConditioning` seam the live path uses (so the bundled echo suppressor and
 /// its adaptive delay estimator do the cancellation), and encodes the result.
 ///
-/// It never throws into the recording-finalize path: every failure resolves to a
-/// `.skipped(reason)` outcome and leaves the raw sources intact, so a meeting
-/// always completes even when cleaning is unavailable or fails.
+/// Non-cancellation failures never throw into the recording-finalize path: they
+/// resolve to a `.skipped(reason)` outcome and leave the raw sources intact, so
+/// a meeting completes even when cleaning is unavailable or fails.
 final class MeetingCleanedMicRenderer {
     static let cleanedMicrophoneFileName = "microphone-cleaned.m4a"
 
     /// Sample rate the echo suppressor expects; the cleaned artifact is a derived
     /// STT input (not the playback/export `meeting.m4a`), so 16 kHz mono is fine.
     static let renderSampleRate = 16_000
+    static let maxDecodedFrames = renderSampleRate * 4 * 3_600
 
     private static let logger = Logger(
         subsystem: "com.macparakeet.core", category: "MeetingCleanedMicRenderer")
@@ -52,6 +53,7 @@ final class MeetingCleanedMicRenderer {
         case missingMicrophoneSource
         case missingSystemReference
         case emptyMicrophone
+        case inputTooLong(frameCount: Int, maxFrames: Int)
         case decodeFailed(String)
         case renderFailed(String)
     }
@@ -69,14 +71,15 @@ final class MeetingCleanedMicRenderer {
 
     /// Render the cleaned mic. `conditioner` is the live factory's product; the
     /// caller passes a freshly built one. Do the heavy decode/encode off the
-    /// main actor.
+    /// main actor. Normal render failures return `.skipped`; cooperative
+    /// cancellation is rethrown so detached callers can be interrupted.
     func render(
         microphoneURL: URL,
         systemURL: URL,
         sourceAlignment: MeetingSourceAlignment,
         outputURL: URL,
         conditioner: any MicConditioning
-    ) async -> Outcome {
+    ) async throws -> Outcome {
         // Only derive when a real echo processor loaded. Passthrough (no assets)
         // and unavailable (load failed) both leave the raw mic as the truth.
         let diagnostics = conditioner.diagnostics
@@ -94,12 +97,30 @@ final class MeetingCleanedMicRenderer {
         let microphone: [Float]
         let system: [Float]
         do {
-            microphone = try Self.decodeMonoFloat(url: microphoneURL, sampleRate: Self.renderSampleRate)
-            system = try Self.decodeMonoFloat(url: systemURL, sampleRate: Self.renderSampleRate)
+            try Task.checkCancellation()
+            microphone = try Self.decodeMonoFloat(
+                url: microphoneURL,
+                sampleRate: Self.renderSampleRate,
+                maxFrames: Self.maxDecodedFrames)
+            try Task.checkCancellation()
+            system = try Self.decodeMonoFloat(
+                url: systemURL,
+                sampleRate: Self.renderSampleRate,
+                maxFrames: Self.maxDecodedFrames)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch DecodeLimitExceeded.tooManyFrames(let frameCount, let maxFrames) {
+            return .skipped(.inputTooLong(frameCount: frameCount, maxFrames: maxFrames))
         } catch {
             return .skipped(.decodeFailed(String(describing: error)))
         }
         guard !microphone.isEmpty else { return .skipped(.emptyMicrophone) }
+        guard max(microphone.count, system.count) <= Self.maxDecodedFrames else {
+            return .skipped(.inputTooLong(
+                frameCount: max(microphone.count, system.count),
+                maxFrames: Self.maxDecodedFrames))
+        }
+        try Task.checkCancellation()
 
         let conditioned = Self.alignAndCondition(
             microphone: microphone,
@@ -108,11 +129,15 @@ final class MeetingCleanedMicRenderer {
             systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
             sampleRate: Self.renderSampleRate,
             conditioner: conditioner)
+        try Task.checkCancellation()
 
         do {
             try await Self.encodeMonoFloat(
                 conditioned.output, sampleRate: Self.renderSampleRate, to: outputURL,
                 fileManager: fileManager)
+        } catch is CancellationError {
+            try? fileManager.removeItem(at: outputURL)
+            throw CancellationError()
         } catch {
             try? fileManager.removeItem(at: outputURL)
             return .skipped(.renderFailed(String(describing: error)))
@@ -221,7 +246,15 @@ final class MeetingCleanedMicRenderer {
     /// acceptable for a bounded, off-actor, post-stop one-shot render. If
     /// multi-hour meetings prove this too heavy, stream decode→condition→encode
     /// in chunks instead (deferred; the path is inert until U5 bundles assets).
-    static func decodeMonoFloat(url: URL, sampleRate: Int) throws -> [Float] {
+    enum DecodeLimitExceeded: Error, Equatable {
+        case tooManyFrames(frameCount: Int, maxFrames: Int)
+    }
+
+    static func decodeMonoFloat(
+        url: URL,
+        sampleRate: Int,
+        maxFrames: Int? = nil
+    ) throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
         guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -247,6 +280,7 @@ final class MeetingCleanedMicRenderer {
         var reachedEnd = false
 
         while !reachedEnd {
+            try Task.checkCancellation()
             guard let inputBuffer = AVAudioPCMBuffer(
                 pcmFormat: file.processingFormat, frameCapacity: readFrames
             ) else {
@@ -286,11 +320,17 @@ final class MeetingCleanedMicRenderer {
                 samples.append(contentsOf: UnsafeBufferPointer(
                     start: channel, count: Int(outputBuffer.frameLength)))
             }
+            if let maxFrames, samples.count > maxFrames {
+                throw DecodeLimitExceeded.tooManyFrames(
+                    frameCount: samples.count,
+                    maxFrames: maxFrames)
+            }
             if providedFrames < readFrames { reachedEnd = true }
         }
 
         // Flush any samples the converter is holding (e.g. resampler tail).
         if let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: readFrames) {
+            try Task.checkCancellation()
             var flushError: NSError?
             let status = converter.convert(to: outputBuffer, error: &flushError) { _, outStatus in
                 outStatus.pointee = .endOfStream
@@ -300,6 +340,11 @@ final class MeetingCleanedMicRenderer {
                outputBuffer.frameLength > 0 {
                 samples.append(contentsOf: UnsafeBufferPointer(
                     start: channel, count: Int(outputBuffer.frameLength)))
+                if let maxFrames, samples.count > maxFrames {
+                    throw DecodeLimitExceeded.tooManyFrames(
+                        frameCount: samples.count,
+                        maxFrames: maxFrames)
+                }
             }
         }
         return samples
@@ -348,6 +393,7 @@ final class MeetingCleanedMicRenderer {
         var written: Int64 = 0
         var cursor = 0
         while cursor < samples.count {
+            try Task.checkCancellation()
             let end = min(cursor + blockFrames, samples.count)
             let frameCount = AVAudioFrameCount(end - cursor)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: pcmFormat, frameCapacity: frameCount),

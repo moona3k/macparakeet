@@ -217,7 +217,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         let recoveredBySource = Dictionary(
             recoveredSources.map { ($0.source, $0.url) }, uniquingKeysWith: { first, _ in first })
-        let cleanedMicrophoneAudioURL = await renderCleanedMicrophone(
+        let cleanedMicrophoneAudioURL = try await renderCleanedMicrophone(
             folderURL: folderURL,
             microphoneURL: recoveredBySource[.microphone],
             systemURL: recoveredBySource[.system],
@@ -290,7 +290,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         systemURL: URL?,
         sourceAlignment: MeetingSourceAlignment,
         sessionID: UUID
-    ) async -> URL? {
+    ) async throws -> URL? {
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         guard let microphoneURL, let systemURL else {
@@ -309,14 +309,33 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         let conditionerFactory = micConditionerFactory
         let rendererFileManager = UncheckedSendableBox(fileManager)
 
-        let outcome = await Task.detached(priority: .utility) {
-            await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
+        let task = Task.detached(priority: .utility) {
+            try await MeetingCleanedMicRenderer(fileManager: rendererFileManager.value).render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
                 outputURL: outputURL,
                 conditioner: conditionerFactory())
-        }.value
+        }
+
+        let outcome: MeetingCleanedMicRenderer.Outcome
+        do {
+            outcome = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        } catch is CancellationError {
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: sessionID, reason: "renderer_cancelled")
+            logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=cancelled")
+            throw CancellationError()
+        } catch {
+            discardCleanedMicrophoneArtifact(
+                at: outputURL, sessionID: sessionID, reason: "renderer_threw")
+            logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=renderer_threw")
+            return nil
+        }
 
         switch outcome {
         case .rendered(let result):
