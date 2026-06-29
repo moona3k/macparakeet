@@ -88,8 +88,15 @@ enum MeetingRecordingMetadataStore {
         try data.write(to: metadataURL(for: folderURL), options: .atomic)
     }
 
-    static func load(from folderURL: URL) throws -> MeetingRecordingMetadata {
-        let data = try Data(contentsOf: metadataURL(for: folderURL))
+    static func load(
+        from folderURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> MeetingRecordingMetadata {
+        let url = metadataURL(for: folderURL)
+        guard let data = fileManager.contents(atPath: url.path) else {
+            throw MeetingAudioError.storageFailed(
+                "Missing archived meeting metadata: \(MeetingRecordingMetadata.fileName)")
+        }
         return try JSONDecoder.meetingRecordingMetadata.decode(MeetingRecordingMetadata.self, from: data)
     }
 }

@@ -94,7 +94,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         fileManager: FileManager = .default
     ) throws -> MeetingRecordingOutput {
         let folderURL = mixedAudioURL.deletingLastPathComponent()
-        let metadata = try MeetingRecordingMetadataStore.load(from: folderURL)
+        let metadata = try MeetingRecordingMetadataStore.load(
+            from: folderURL,
+            fileManager: fileManager)
         let microphoneAudioURL = folderURL.appendingPathComponent("microphone.m4a")
         let systemAudioURL = folderURL.appendingPathComponent("system.m4a")
         let cleanedURL = folderURL.appendingPathComponent(
