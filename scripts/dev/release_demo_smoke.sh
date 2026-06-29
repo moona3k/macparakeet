@@ -70,6 +70,7 @@ smoke_db="$output_dir/smoke.sqlite"
 health_json="$output_dir/health.json"
 transcribe_json="$output_dir/transcribe.json"
 export_md="$output_dir/export.md"
+summary_result=""
 
 CLI_CMD=()
 resolve_cli() {
@@ -124,17 +125,21 @@ run_capture() {
   if "$@" >"$stdout_path" 2>"$stderr_path"; then
     printf 'status: 0\n' >>"$command_log"
     return 0
+  else
+    local status=$?
+    printf 'status: %s\n' "$status" >>"$command_log"
+    write_summary "fail"
+    echo "Command failed during $label: exit status $status" >&2
+    echo "Evidence kept at: $output_dir" >&2
+    exit "$status"
   fi
-
-  local status=$?
-  printf 'status: %s\n' "$status" >>"$command_log"
-  return "$status"
 }
 
 write_summary() {
   local result="$1"
   local transcription_id="${2:-}"
   local transcript_preview="${3:-}"
+  summary_result="$result"
 
   {
     printf '# MacParakeet Release Demo Smoke\n\n'
@@ -156,6 +161,18 @@ write_summary() {
     printf '%s\n' '- `export.md` / `export.stderr` - markdown export proof'
   } >"$summary"
 }
+
+write_fail_summary_on_exit() {
+  local status=$?
+  if [[ "$status" -ne 0 && -z "$summary_result" ]]; then
+    write_summary "fail"
+    echo "Release demo smoke failed with exit status $status." >&2
+    echo "Evidence kept at: $output_dir" >&2
+    echo "Summary: $summary" >&2
+  fi
+}
+
+trap write_fail_summary_on_exit EXIT
 
 require_file() {
   local path="$1"

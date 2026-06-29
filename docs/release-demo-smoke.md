@@ -1,9 +1,10 @@
 # Release Demo Smoke
 
 This smoke path proves a released MacParakeet CLI can run a local demo without
-touching the user's app database. It checks CLI availability, records health
-readiness, synthesizes a tiny local audio fixture, transcribes it into an
-isolated SQLite database, and exports the saved transcription to Markdown.
+writing demo transcription history to the user's app database. It checks CLI
+availability, records health readiness, synthesizes a tiny local audio fixture,
+transcribes it into an isolated SQLite database, and exports the saved
+transcription to Markdown.
 
 Run it against the installed app-bundled CLI:
 
@@ -46,8 +47,12 @@ Pass/fail criteria:
 Notes:
 
 - The script intentionally does not use `--no-history`; export needs a persisted
-  transcription ID. The `--database` option keeps that persistence inside the
-  evidence directory instead of the user's MacParakeet database.
+  transcription ID. The `--database` option keeps transcription/export
+  persistence inside the evidence directory instead of the user's MacParakeet
+  database.
+- `health --json` reports the installed app's normal health surface, including
+  the app database path and counts when that database already exists. It is not
+  a database-isolated command.
 - The script does not repair models, download helper binaries, change signing,
   or alter distribution credentials. `health --json` is a non-mutating readiness
   probe; missing models or helpers remain visible in the saved evidence.
