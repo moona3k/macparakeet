@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-#if canImport(WhisperKit)
+#if MACPARAKEET_HAS_WHISPERKIT
 import WhisperKit
 #endif
 
@@ -19,7 +19,7 @@ public actor WhisperEngine: STTTranscribing {
     private let defaults: UserDefaults
     private let transcriptionPermit = AsyncPermit()
 
-    #if canImport(WhisperKit)
+    #if MACPARAKEET_HAS_WHISPERKIT
     private var whisperKit: WhisperKit?
     private var isLoaded = false
     #endif
@@ -168,7 +168,7 @@ public actor WhisperEngine: STTTranscribing {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         do {
             try await prepareLocked(onProgress: nil)
             guard let whisperKit else {
@@ -204,7 +204,7 @@ public actor WhisperEngine: STTTranscribing {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         do {
             try await prepareLocked(onProgress: nil)
             guard let whisperKit else {
@@ -243,7 +243,7 @@ public actor WhisperEngine: STTTranscribing {
     }
 
     private func prepareLocked(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         if isLoaded, whisperKit != nil { return }
         guard let modelFolder = Self.localModelFolder(model: modelVariant, downloadBase: downloadBase) else {
             throw STTError.engineStartFailed(
@@ -313,7 +313,7 @@ public actor WhisperEngine: STTTranscribing {
         defer { transcriptionPermit.signal() }
         guard !Task.isCancelled else { return }
 
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         await whisperKit?.unloadModels()
         whisperKit = nil
         isLoaded = false
@@ -321,7 +321,7 @@ public actor WhisperEngine: STTTranscribing {
     }
 
     public func isReady() -> Bool {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         isLoaded && whisperKit != nil
         #else
         false
@@ -333,7 +333,7 @@ public actor WhisperEngine: STTTranscribing {
         downloadBase: URL = WhisperEngine.defaultDownloadBase,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> URL {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         try AppPaths.ensureDirectories()
         return try await WhisperKit.download(
             variant: normalizeModelVariant(model),
@@ -365,7 +365,7 @@ public actor WhisperEngine: STTTranscribing {
         )
     }
 
-    #if canImport(WhisperKit)
+    #if MACPARAKEET_HAS_WHISPERKIT
     static func makeDecodingOptions(language: String?) -> DecodingOptions {
         let resolvedLanguage = SpeechEnginePreference.normalizeLanguage(language)
         return DecodingOptions(

@@ -13,21 +13,28 @@ let packageDependencies: [Package.Dependency] = [
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)
-    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0")
-] + (skipWhisperKit ? [] : [
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0"),
+    // FluidAudio's Swift module exposes yyjson under current Xcode/Swift.
+    .package(url: "https://github.com/ibireme/yyjson.git", exact: "0.12.0"),
     // WhisperKit for multilingual STT fallback (Korean + 95 other languages).
     // Argmax is not Swift 6 language-mode clean yet, so CI can omit this package
-    // only for the first-party Swift 6 syntax/concurrency compile check.
+    // as a target dependency for the first-party Swift 6 syntax/concurrency
+    // compile check without removing its lockfile pins.
     .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "0.18.0")
-])
+]
 
 let coreDependencies: [Target.Dependency] = [
     .product(name: "GRDB", package: "GRDB.swift"),
     .product(name: "FluidAudio", package: "FluidAudio"),
+    .product(name: "yyjson", package: "yyjson"),
     "MacParakeetObjCShims"
 ] + (skipWhisperKit ? [] : [
     .product(name: "WhisperKit", package: "argmax-oss-swift")
 ])
+
+let whisperKitSwiftSettings: [SwiftSetting] = skipWhisperKit ? [] : [
+    .define("MACPARAKEET_HAS_WHISPERKIT")
+]
 
 let package = Package(
     name: "MacParakeet",
@@ -89,7 +96,8 @@ let package = Package(
                 "Services/System/README.md",
                 "STT/README.md",
                 "TextProcessing/README.md",
-            ]
+            ],
+            swiftSettings: whisperKitSwiftSettings
         ),
         // ViewModels library (testable, depends on Core + AppKit/SwiftUI)
         .target(
@@ -101,7 +109,8 @@ let package = Package(
         .testTarget(
             name: "MacParakeetTests",
             dependencies: ["MacParakeet", "MacParakeetCore", "MacParakeetViewModels", "MacParakeetObjCShims"],
-            path: "Tests/MacParakeetTests"
+            path: "Tests/MacParakeetTests",
+            swiftSettings: whisperKitSwiftSettings
         ),
         .testTarget(
             name: "CLITests",
