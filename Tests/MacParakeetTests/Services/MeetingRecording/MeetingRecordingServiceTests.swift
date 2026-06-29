@@ -1372,8 +1372,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         // The cleaned mic is derived; the raw sources stay the source of truth.
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.microphoneAudioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.systemAudioURL.path))
-        // The U4 routing policy prefers the cleaned artifact for the "Me" track.
-        XCTAssertEqual(output.microphoneTranscriptionURL(), cleanedURL)
+        // The U4 routing policy prefers the cleaned artifact for the "Me" STT track.
+        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), cleanedURL)
     }
 
     func testStopRecordingSkipsCleanedMicForSingleSource() async throws {
@@ -1403,8 +1403,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
             "a mic-only meeting has no system reference to cancel against")
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: output.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
-        // Routing falls back to the raw mic when no cleaned artifact exists.
-        XCTAssertEqual(output.microphoneTranscriptionURL(), output.microphoneAudioURL)
+        // STT routing falls back to the raw mic when no cleaned artifact exists.
+        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), output.microphoneAudioURL)
     }
 
     func testStopRecordingSkipsCleanedMicWhenSuppressorIsPassthrough() async throws {

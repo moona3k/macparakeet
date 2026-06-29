@@ -1330,7 +1330,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             // Transcribe the echo-cancelled mic when it was derived (plan #605
             // U3/U4) so remote speaker bleed does not surface as false "Me"
             // text; falls back to the raw mic when no cleaned artifact exists.
-            return recording.microphoneTranscriptionURL()
+            return recording.validatedMicrophoneTranscriptionURL()
         case .system:
             return recording.systemAudioURL
         }

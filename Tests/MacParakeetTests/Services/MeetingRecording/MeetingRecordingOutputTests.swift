@@ -4,8 +4,9 @@ import XCTest
 @testable import MacParakeetCore
 
 /// Coverage for the #605 cleaned-mic surface on `MeetingRecordingOutput`: the
-/// `microphoneTranscriptionURL` preference policy (U4) and the `loadArchived`
-/// disk probe that re-surfaces a derived cleaned mic on re-open.
+/// `microphoneTranscriptionURL` preference policy, the validated STT routing
+/// gate (U4), and the `loadArchived` disk probe that re-surfaces a derived
+/// cleaned mic on re-open.
 final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLPrefersExistingCleanedMic() throws {
         let dir = try makeTempDir()
@@ -31,7 +32,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
     }
 
-    func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsCorrupt() throws {
+    func testMicrophoneTranscriptionURLIsCheapAndDoesNotDecodeCorruptCleanedMic() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let rawURL = dir.appendingPathComponent("microphone.m4a")
@@ -40,7 +41,19 @@ final class MeetingRecordingOutputTests: XCTestCase {
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
 
         let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
-        XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
+        XCTAssertEqual(output.microphoneTranscriptionURL(), cleanedURL)
+    }
+
+    func testValidatedMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsCorrupt() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data("partial m4a fragment".utf8).write(to: cleanedURL)
+
+        let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
+        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), rawURL)
     }
 
     func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsEmpty() throws {
@@ -90,7 +103,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
         XCTAssertEqual(output.cleanedMicrophoneAudioURL, cleanedURL)
-        XCTAssertEqual(output.microphoneTranscriptionURL(), output.microphoneAudioURL)
+        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), output.microphoneAudioURL)
     }
 
     func testLoadArchivedHasNoCleanedMicWhenAbsent() throws {

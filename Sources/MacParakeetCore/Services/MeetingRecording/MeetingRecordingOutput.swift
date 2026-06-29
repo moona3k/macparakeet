@@ -53,10 +53,21 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     }
 
     /// The microphone audio to transcribe for the local ("Me") track: the
-    /// echo-cancelled artifact when it was derived and remains decodable,
-    /// otherwise the raw mic. Centralizes the #605 cleaned-mic preference so
-    /// finalize-time transcription and recovery agree on one rule.
+    /// echo-cancelled artifact when it was derived and is non-empty, otherwise
+    /// the raw mic. This public helper is intentionally cheap for UI/list paths;
+    /// STT routing uses `validatedMicrophoneTranscriptionURL(fileManager:)`.
     public func microphoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
+        if let cleanedMicrophoneAudioURL,
+           Self.hasNonEmptyFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
+            return cleanedMicrophoneAudioURL
+        }
+        return microphoneAudioURL
+    }
+
+    /// The microphone audio to transcribe for the local ("Me") STT track. This
+    /// performs a synchronous decodability probe and should be called from
+    /// background/actor transcription paths, not UI list population.
+    func validatedMicrophoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
         if let cleanedMicrophoneAudioURL,
            Self.isViableCleanedMicrophoneFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
             return cleanedMicrophoneAudioURL

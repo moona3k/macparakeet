@@ -234,7 +234,10 @@ final class MeetingCleanedMicRenderer {
 
         var samples: [Float] = []
         let sourceRate = file.processingFormat.sampleRate
-        let ratio = targetFormat.sampleRate / max(sourceRate, 1)
+        // Corrupt files should not explode output-buffer sizing with zero or
+        // sub-Hz source rates; floor at 1.0 Hz and fail gracefully downstream if
+        // allocation/conversion still cannot proceed.
+        let ratio = targetFormat.sampleRate / max(sourceRate, 1.0)
         let readFrames: AVAudioFrameCount = 16_384
         var reachedEnd = false
 
