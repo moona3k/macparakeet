@@ -16,6 +16,7 @@ set -euo pipefail
 #   CREATE_DMG            (default: 1)
 #   NOTARY_TIMEOUT_SECONDS       (default: 1800)
 #   NOTARY_POLL_INTERVAL_SECONDS (default: 15)
+#   MACPARAKEET_ALLOW_DEV_VERSION_SIGNING (default: 0; set 1 only for diagnostic signing)
 #
 # Outputs:
 #   dist/MacParakeet.app (signed + stapled)
