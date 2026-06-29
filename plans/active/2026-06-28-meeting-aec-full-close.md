@@ -51,6 +51,16 @@ assets or hardware that cannot be produced in a sandbox.
   removal (mic that was mostly bleed → correctly quiet) from a model that mutes
   near-end voice; that near-end-fidelity risk is owned by model selection
   (U5 chose echo-only v1.4) and real QA (U9), not a runtime heuristic.
+- **U5 — release verification + model decision gate: IN PROGRESS.** The
+  packaging/verification half landed in PR #646
+  (`scripts/dist/verify_meeting_echo_assets.sh`, runtime asset gates). The model
+  decision gate was scored on the synthetic harness (PR #650,
+  `MeetingAecModelScoringTests`): **echo-only `localvqe-v1.4-aec-200K-f32` is the
+  chosen release default candidate** because the joint `v1.2` model zeroes the
+  near-end voice (retain 0.00) while v1.4 preserves it (retain ~1.0) at 35.6 dB
+  ERLE — see "Model decision gate — result (2026-06-28)" under U5. Remaining U5:
+  build/sign/notarize the proprietary universal `liblocalvqe.dylib` + bundle the
+  chosen model, then flip `defaultModelName`.
 - **U8 — docs: UPDATED.** `spec/05-audio-pipeline.md` and
   `spec/contracts/meeting-artifacts-v1.md` describe the derived artifact + STT
   routing. CLI artifact output intentionally omits the cleaned mic: it is an
@@ -60,10 +70,8 @@ assets or hardware that cannot be produced in a sandbox.
   final STT reads raw `microphone.m4a` exactly as today. Landing the wiring now is
   safe (no behavior change without assets), fully tested, and is the prerequisite
   for U9; it is no longer deferred.
-- **U5/U6/U9 — REMAINING.** U5: bundle + sign/notarize the proprietary LocalVQE
-  dylib + chosen v1.4 model (model decision recorded below). U6: optional WebRTC
-  AEC3 benchmark or skip-decision record. U9: real no-headphones speaker-mode QA
-  closes #605.
+- **U6/U9 — REMAINING.** U6: optional WebRTC AEC3 benchmark or skip-decision
+  record. U9: real no-headphones speaker-mode QA closes #605.
 
 ## Goal Capsule
 
@@ -325,6 +333,74 @@ flowchart TB
   - Bundled release verification fails if only one of library/model exists.
   - Bundled release verification passes when both assets exist, checksum matches, and dylib dependencies are acceptable.
 - **Verification:** Runtime tests pass and distribution verification proves a release app either contains valid echo assets or intentionally refuses to claim AEC readiness.
+
+#### Model decision gate — result (2026-06-28)
+
+Scored the two real LocalVQE candidates through the **production-faithful**
+conditioner (`MeetingEchoSuppressionFactory.makeConditioner(mode: .dynamicLibrary, …)`,
+adaptive delay estimator on) on the synthetic harness, via the new env-gated
+`MeetingAecModelScoringTests`. Deterministic and reproducible:
+
+| model | far-end ERLE | near-end retain | double-talk vs raw (dtImpr) |
+| --- | --- | --- | --- |
+| `localvqe-v1.4-aec-200K-f32` (echo-only) | 35.6 dB | **1.02 — voice preserved** | −6.1 dB\* |
+| `localvqe-v1.2-1.3M-f32` (joint AEC+denoise) | 66.2 dB | **0.00 — voice removed** | −3.5 dB\* |
+
+`retain` = output/mic RMS on the near-end-only scenario (~1.0 keeps the local voice,
+0 = silent). The adaptive estimator locked the true 120-sample echo delay for both.
+
+**Decision: ship `localvqe-v1.4-aec-200K-f32` (echo-only) as the release default
+candidate**, by the gate's rule (best near-end retention at acceptable far-end ERLE;
+prefer echo-only v1.4 on a tie):
+
+- The joint **v1.2 model zeroes the near-end voice** (retain 0.00) when the remote is
+  silent — its denoise front-end acts on the microphone regardless of the reference, so
+  it treats the local talker as noise. Its 66 dB ERLE is *real* echo removal, but it is
+  achieved by **non-selective muting**: the same model also zeroes the output in the
+  near-end-only and double-talk scenarios (retain 0.00, with **zero processing
+  failures** — this is genuine model behavior, not raw-fallback frames). This is the
+  disqualifying "chews up the user's own voice" failure the gate exists to catch, and it
+  is **structural, not a tone artifact**: an echo-only canceller cannot remove the
+  near-end when the reference is silent, a joint denoiser will.
+- The echo-only **v1.4 model preserves near-end energy** (retain ~1.0, zero processing
+  failures) while still removing strong far-end echo (35.6 dB) — ample to suppress the
+  speaker bleed that produces false `Me` text.
+
+\***Caveat — the honest limit of this gate (sharpened by independent review).** Both
+models show a *negative* synthetic double-talk improvement, and v1.4's near-end error is
+positive (+4.5 dB). This is **consistent with** synthetic-tone reshaping — the harness
+near-end is decorrelated formant tones, not speech, and a neural enhancer trained on real
+speech reshapes those tones so that exact-waveform error is penalized even when energy is
+preserved. But the harness **cannot distinguish** that benign hypothesis from genuine
+waveform damage (spectral coloring, phase/group-delay smear) that would also hurt real
+speech. So the gate **negatively screens** (it cleanly rejects v1.2's unambiguous
+near-end destruction) but **cannot positively certify** double-talk fidelity for *either*
+model. This decision selects v1.4 as the candidate to **bundle and QA**; it does **not**
+establish that v1.4's near-end is safe. Real speaker-mode QA (U9) is the binding gate
+before any default-on, per KTD6, and must confirm on real speech that (a) the local voice
+stays intelligible and undistorted and (b) far-end echo does not appear in the `Me`
+transcript. If v1.4's double-talk near-end is still damaged on real speech, the
+echo-only-vs-joint choice — or LocalVQE itself (WebRTC AEC3, plan U6) — must be revisited.
+
+**Follow-up (its own reviewed change, not done in the scoring branch).** When a
+canceller is bundled, set `MeetingEchoSuppressionFactory.defaultModelName` to
+`localvqe-v1.4-aec-200K-f32.gguf` (currently `localvqe-v1.2-1.3M-f32.gguf`) and bundle
+that file via `MACPARAKEET_MEETING_ECHO_MODEL_SRC`/`_NAME`. The runtime resolves
+`Resources/MeetingEchoSuppression/<defaultModelName>`, so the constant and the bundled
+basename must match.
+
+**Reproduce:**
+
+```bash
+MACPARAKEET_TEST_LOCALVQE_LIBRARY=/path/to/liblocalvqe.dylib \
+MACPARAKEET_TEST_LOCALVQE_MODELS=/path/to/v1.4-aec.gguf:/path/to/v1.2.gguf \
+swift test --filter MeetingAecModelScoringTests
+```
+
+Scored assets (sha256): `localvqe-v1.4-aec-200K-f32` `b6e43138…3c731`;
+`localvqe-v1.2-1.3M-f32` `4856ecf5…2ba9ce`. The repo-internal `gtcrn_aec.gguf` is not a
+loadable LocalVQE model in this runtime and is excluded by the test's load preflight. The
+test skips when the env vars are unset, so CI stays green without the private assets.
 
 ### U6. Benchmark WebRTC AEC3 or record the skip decision
 
