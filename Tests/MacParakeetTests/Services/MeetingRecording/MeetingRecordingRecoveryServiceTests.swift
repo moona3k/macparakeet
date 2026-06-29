@@ -571,7 +571,16 @@ private final class RecoveryMicConditionerFactoryProbe: @unchecked Sendable {
 
 private final class RecoveryLoadedMicConditioner: MicConditioning, @unchecked Sendable {
     var diagnostics: MeetingEchoSuppressionDiagnostics {
-        .passthrough(processorName: "test-loaded-cleaner", loaded: true)
+        MeetingEchoSuppressionDiagnostics(
+            processorName: "test-loaded-cleaner",
+            loaded: true,
+            micFrames: 0,
+            processedFrames: 0,
+            rawFallbackFrames: 0,
+            fullReferenceFrames: 0,
+            partialReferenceFrames: 0,
+            missingReferenceFrames: 0,
+            processingFailures: 0)
     }
 
     func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {

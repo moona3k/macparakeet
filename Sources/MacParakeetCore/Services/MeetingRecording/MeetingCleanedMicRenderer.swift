@@ -218,6 +218,7 @@ final class MeetingCleanedMicRenderer {
                 microphone: micChunk, speaker: refChunk, hasSpeakerReference: true)
             cursor = end
         }
+        try Task.checkCancellation()
         output += conditioner.flush()
         // `flush()` rounds the final partial frame up, so the conditioner can
         // emit a few samples past the mic length; trim them so the cleaned file
@@ -338,24 +339,28 @@ final class MeetingCleanedMicRenderer {
         }
 
         // Flush any samples the converter is holding (e.g. resampler tail).
-        if let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: readFrames) {
-            try Task.checkCancellation()
-            var flushError: NSError?
-            let status = converter.convert(to: outputBuffer, error: &flushError) { _, outStatus in
-                outStatus.pointee = .endOfStream
-                return nil
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: targetFormat,
+            frameCapacity: readFrames
+        ) else {
+            throw MeetingAudioError.storageFailed("decode flush buffer alloc failed")
+        }
+        try Task.checkCancellation()
+        var flushError: NSError?
+        let status = converter.convert(to: outputBuffer, error: &flushError) { _, outStatus in
+            outStatus.pointee = .endOfStream
+            return nil
+        }
+        if status != .error, let channel = outputBuffer.floatChannelData?.pointee,
+           outputBuffer.frameLength > 0 {
+            samples.append(contentsOf: UnsafeBufferPointer(
+                start: channel, count: Int(outputBuffer.frameLength)))
+            if let maxFrames, samples.count > maxFrames {
+                throw DecodeLimitExceeded.tooManyFrames(
+                    frameCount: samples.count,
+                    maxFrames: maxFrames)
             }
-            if status != .error, let channel = outputBuffer.floatChannelData?.pointee,
-               outputBuffer.frameLength > 0 {
-                samples.append(contentsOf: UnsafeBufferPointer(
-                    start: channel, count: Int(outputBuffer.frameLength)))
-                if let maxFrames, samples.count > maxFrames {
-                    throw DecodeLimitExceeded.tooManyFrames(
-                        frameCount: samples.count,
-                        maxFrames: maxFrames)
-                }
-                await Task.yield()
-            }
+            await Task.yield()
         }
         return samples
     }
