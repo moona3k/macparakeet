@@ -131,6 +131,19 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
     }
 
+    func testMetadataLoadDoesNotTreatFailedContentsProbeAsMissingFile() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+
+        let metadata = try MeetingRecordingMetadataStore.load(
+            from: dir,
+            fileManager: ContentsProbeFailingFileManager())
+
+        XCTAssertNil(metadata.sourceAlignment.microphone)
+        XCTAssertNil(metadata.sourceAlignment.system)
+    }
+
     // MARK: Helpers
 
     private func makeTempDir() throws -> URL {
@@ -198,5 +211,15 @@ final class MeetingRecordingOutputTests: XCTestCase {
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil, microphone: nil, system: nil)
         )
+    }
+}
+
+private final class ContentsProbeFailingFileManager: FileManager {
+    override func fileExists(atPath path: String) -> Bool {
+        true
+    }
+
+    override func contents(atPath path: String) -> Data? {
+        nil
     }
 }

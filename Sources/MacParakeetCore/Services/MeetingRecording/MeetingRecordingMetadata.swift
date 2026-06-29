@@ -93,10 +93,11 @@ enum MeetingRecordingMetadataStore {
         fileManager: FileManager = .default
     ) throws -> MeetingRecordingMetadata {
         let url = metadataURL(for: folderURL)
-        guard let data = fileManager.contents(atPath: url.path) else {
+        guard fileManager.fileExists(atPath: url.path) else {
             throw MeetingAudioError.storageFailed(
                 "Missing archived meeting metadata: \(MeetingRecordingMetadata.fileName)")
         }
+        let data = try Data(contentsOf: url)
         return try JSONDecoder.meetingRecordingMetadata.decode(MeetingRecordingMetadata.self, from: data)
     }
 }
