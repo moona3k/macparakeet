@@ -97,7 +97,10 @@ enum MeetingRecordingMetadataStore {
             throw MeetingAudioError.storageFailed(
                 "Missing archived meeting metadata: \(MeetingRecordingMetadata.fileName)")
         }
-        let data = try Data(contentsOf: url)
+        guard let data = fileManager.contents(atPath: url.path) else {
+            throw MeetingAudioError.storageFailed(
+                "Unable to read archived meeting metadata: \(MeetingRecordingMetadata.fileName)")
+        }
         return try JSONDecoder.meetingRecordingMetadata.decode(MeetingRecordingMetadata.self, from: data)
     }
 }

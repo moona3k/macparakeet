@@ -131,17 +131,18 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
     }
 
-    func testMetadataLoadDoesNotTreatFailedContentsProbeAsMissingFile() throws {
+    func testMetadataLoadReportsFailedContentsProbeAsUnreadableNotMissing() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
 
-        let metadata = try MeetingRecordingMetadataStore.load(
+        XCTAssertThrowsError(try MeetingRecordingMetadataStore.load(
             from: dir,
-            fileManager: ContentsProbeFailingFileManager())
-
-        XCTAssertNil(metadata.sourceAlignment.microphone)
-        XCTAssertNil(metadata.sourceAlignment.system)
+            fileManager: ContentsProbeFailingFileManager())) { error in
+                XCTAssertTrue(
+                    error.localizedDescription.contains("Unable to read archived meeting metadata"),
+                    "Unexpected error: \(error)")
+        }
     }
 
     // MARK: Helpers
