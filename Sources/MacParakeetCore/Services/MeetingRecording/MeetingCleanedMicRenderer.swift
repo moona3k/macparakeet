@@ -227,6 +227,12 @@ final class MeetingCleanedMicRenderer {
         if output.count > microphone.count {
             output.removeLast(output.count - microphone.count)
         }
+        if output.count < microphone.count {
+            // A conditioner that under-flushes must not shorten the derived STT
+            // artifact; keep the 1:1 duration contract by falling back to the
+            // raw mic tail for any missing samples.
+            output.append(contentsOf: microphone[output.count..<microphone.count])
+        }
 
         let diagnostics = conditioner.diagnostics
         return ConditionedOutput(
@@ -350,6 +356,10 @@ final class MeetingCleanedMicRenderer {
         let status = converter.convert(to: outputBuffer, error: &flushError) { _, outStatus in
             outStatus.pointee = .endOfStream
             return nil
+        }
+        if status == .error {
+            throw MeetingAudioError.storageFailed(
+                flushError?.localizedDescription ?? "decode flush conversion failed")
         }
         if status != .error, let channel = outputBuffer.floatChannelData?.pointee,
            outputBuffer.frameLength > 0 {
