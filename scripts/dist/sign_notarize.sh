@@ -85,6 +85,8 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+"$ROOT_DIR/scripts/dist/verify_release_version.sh" "$APP_PATH"
+
 echo "[1/8] Clearing extended attributes…"
 xattr -cr "$APP_PATH" || true
 
