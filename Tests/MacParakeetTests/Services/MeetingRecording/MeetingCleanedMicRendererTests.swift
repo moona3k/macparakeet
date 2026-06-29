@@ -42,6 +42,11 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         XCTAssertGreaterThan(erle, 8, "an aligned reference cancels the synthetic echo (ERLE \(erle) dB)")
         XCTAssertGreaterThan(result.processedFrames, 0)
         XCTAssertEqual(result.processingFailures, 0)
+        // The frame-carrying suppressor (unlike passthrough) can hold a partial
+        // final frame; the renderer clamps the flushed tail so the cleaned output
+        // still aligns 1:1 with the raw mic.
+        XCTAssertEqual(result.output.count, scenario.mic.count,
+            "cleaned output stays aligned 1:1 with the raw mic after flush")
     }
 
     func testAlignAndConditionAppliesRecordedStartOffset() {

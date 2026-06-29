@@ -178,6 +178,13 @@ final class MeetingCleanedMicRenderer {
             cursor = end
         }
         output += conditioner.flush()
+        // `flush()` rounds the final partial frame up, so the conditioner can
+        // emit a few samples past the mic length; trim them so the cleaned file
+        // is never longer than the raw mic (the 1:1 guarantee above) and its
+        // reported duration matches the source.
+        if output.count > microphone.count {
+            output.removeLast(output.count - microphone.count)
+        }
 
         let diagnostics = conditioner.diagnostics
         return ConditionedOutput(
@@ -219,7 +226,10 @@ final class MeetingCleanedMicRenderer {
     // MARK: Audio I/O
 
     /// Decode an audio file to mono Float32 at `sampleRate`, fully in memory.
-    /// A post-stop one-shot render; the live path is the memory-sensitive one.
+    /// Peak scales with meeting length (~230 MB/hour/track at 16 kHz), which is
+    /// acceptable for a bounded, off-actor, post-stop one-shot render. If
+    /// multi-hour meetings prove this too heavy, stream decode→condition→encode
+    /// in chunks instead (deferred; the path is inert until U5 bundles assets).
     static func decodeMonoFloat(url: URL, sampleRate: Int) throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
         guard let targetFormat = AVAudioFormat(
@@ -352,6 +362,15 @@ final class MeetingCleanedMicRenderer {
             let sampleBuffer = try sampleBufferFactory.makeSampleBuffer(
                 from: buffer, presentationTimeSamples: written)
             while !input.isReadyForMoreMediaData {
+                // A failed writer (disk full, sandbox I/O error) can leave
+                // `isReadyForMoreMediaData` false forever; bail instead of
+                // spinning so finalize/recovery never hang on a broken render.
+                // Mirrors the live storage writer, which also gates on
+                // `writer.status == .writing`.
+                guard writer.status == .writing else {
+                    throw MeetingAudioError.storageFailed(
+                        writer.error?.localizedDescription ?? "cleaned mic writer failed while waiting")
+                }
                 Thread.sleep(forTimeInterval: 0.001)
             }
             guard input.append(sampleBuffer) else {
