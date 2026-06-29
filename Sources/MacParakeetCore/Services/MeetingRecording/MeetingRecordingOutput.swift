@@ -103,9 +103,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let cleanedURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // Keep archive loading cheap; this is called from UI list/reopen paths.
-        // The decodability probe stays in `microphoneTranscriptionURL`, which is
-        // the actual STT routing gate and falls back to raw if the artifact is
-        // corrupt or partial.
+        // The decodability probe stays in `validatedMicrophoneTranscriptionURL`,
+        // which is the actual STT routing gate and falls back to raw if the
+        // artifact is corrupt or partial.
         let cleanedMicrophoneAudioURL = hasNonEmptyFile(at: cleanedURL, fileManager: fileManager)
             ? cleanedURL
             : nil
