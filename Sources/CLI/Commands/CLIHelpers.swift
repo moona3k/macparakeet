@@ -1,4 +1,5 @@
 import ArgumentParser
+import Darwin
 import Foundation
 import MacParakeetCore
 
@@ -239,6 +240,63 @@ func printJSON<T: Encodable>(_ value: T) throws {
 /// Append a trailing newline.
 func printErr(_ s: String) {
     try? FileHandle.standardError.write(contentsOf: Data((s + "\n").utf8))
+}
+
+/// Some native model runtimes write diagnostics directly to the process stdout
+/// file descriptor, bypassing Swift logging. Keep those diagnostics off the
+/// CLI payload channel while long-running model work executes.
+///
+/// - Important: This helper redirects process-wide `STDOUT_FILENO` and is not
+///   thread-safe. Only wrap work that does not intentionally write stdout
+///   payloads; emit machine-readable CLI output after this helper returns.
+func withStandardOutputRedirectedToStandardError<T>(
+    _ operation: () async throws -> T
+) async throws -> T {
+    fflush(stdout)
+    let originalStdout = dup(STDOUT_FILENO)
+    guard originalStdout >= 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+    let fdFlags = fcntl(originalStdout, F_GETFD)
+    guard fdFlags >= 0, fcntl(originalStdout, F_SETFD, fdFlags | FD_CLOEXEC) >= 0 else {
+        let cloexecErrno = errno
+        close(originalStdout)
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(cloexecErrno))
+    }
+
+    var restored = false
+    func restoreStdout() throws {
+        guard !restored else { return }
+        restored = true
+        fflush(stdout)
+        defer { close(originalStdout) }
+        guard dup2(originalStdout, STDOUT_FILENO) >= 0 else {
+            let restoreErrno = errno
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(restoreErrno))
+        }
+    }
+
+    guard dup2(STDERR_FILENO, STDOUT_FILENO) >= 0 else {
+        let redirectErrno = errno
+        close(originalStdout)
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(redirectErrno))
+    }
+
+    do {
+        let result = try await operation()
+        try restoreStdout()
+        return result
+    } catch {
+        // Prefer the operation error if restoration also fails; callers need
+        // the underlying command failure.
+        do {
+            try restoreStdout()
+        } catch let restoreError {
+            let message = "Warning: stdout restoration failed: \(restoreError.localizedDescription)"
+            printErr(message)
+        }
+        throw error
+    }
 }
 
 // MARK: - Failure envelope (--json contract)

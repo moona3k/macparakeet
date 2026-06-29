@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -313,5 +314,21 @@ final class CLIHelpersTests: XCTestCase {
         let path = resolvedDatabasePath("~/macparakeet-test.db")
         XCTAssertFalse(path.hasPrefix("~"))
         XCTAssertTrue(path.hasSuffix("/macparakeet-test.db"))
+    }
+
+    // MARK: - stdout quarantine
+
+    func testRedirectStandardOutputToStandardErrorKeepsNativeNoiseOutOfStdout() async throws {
+        let output = try await captureStandardOutput {
+            let value = try await withStandardOutputRedirectedToStandardError {
+                fputs("native runtime diagnostic\n", stdout)
+                fflush(stdout)
+                return "payload"
+            }
+            try printJSON(["result": value])
+        }
+
+        XCTAssertFalse(output.contains("native runtime diagnostic"))
+        XCTAssertTrue(output.contains(#""result" : "payload""#), output)
     }
 }
