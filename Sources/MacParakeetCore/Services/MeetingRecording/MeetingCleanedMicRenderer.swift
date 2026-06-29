@@ -98,12 +98,12 @@ final class MeetingCleanedMicRenderer {
         let system: [Float]
         do {
             try Task.checkCancellation()
-            microphone = try Self.decodeMonoFloat(
+            microphone = try await Self.decodeMonoFloat(
                 url: microphoneURL,
                 sampleRate: Self.renderSampleRate,
                 maxFrames: Self.maxDecodedFrames)
             try Task.checkCancellation()
-            system = try Self.decodeMonoFloat(
+            system = try await Self.decodeMonoFloat(
                 url: systemURL,
                 sampleRate: Self.renderSampleRate,
                 maxFrames: Self.maxDecodedFrames)
@@ -254,7 +254,7 @@ final class MeetingCleanedMicRenderer {
         url: URL,
         sampleRate: Int,
         maxFrames: Int? = nil
-    ) throws -> [Float] {
+    ) async throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
         guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -325,6 +325,7 @@ final class MeetingCleanedMicRenderer {
                     frameCount: samples.count,
                     maxFrames: maxFrames)
             }
+            await Task.yield()
             if providedFrames < readFrames { reachedEnd = true }
         }
 
@@ -345,6 +346,7 @@ final class MeetingCleanedMicRenderer {
                         frameCount: samples.count,
                         maxFrames: maxFrames)
                 }
+                await Task.yield()
             }
         }
         return samples

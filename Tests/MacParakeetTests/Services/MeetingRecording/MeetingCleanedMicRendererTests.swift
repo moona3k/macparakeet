@@ -110,7 +110,8 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         XCTAssertGreaterThan(result.processedFrames, 0)
         XCTAssertEqual(result.processingFailures, 0)
 
-        let decoded = try MeetingCleanedMicRenderer.decodeMonoFloat(url: outURL, sampleRate: 16_000)
+        let decoded = try await MeetingCleanedMicRenderer.decodeMonoFloat(
+            url: outURL, sampleRate: 16_000)
         let expected = Double(scenario.mic.count) / 16_000.0
         let actual = Double(decoded.count) / 16_000.0
         XCTAssertEqual(actual, expected, accuracy: 0.3, "cleaned duration ~ raw mic duration")

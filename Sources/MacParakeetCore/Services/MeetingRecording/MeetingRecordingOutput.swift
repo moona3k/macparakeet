@@ -80,11 +80,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         at url: URL,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard fileManager.fileExists(atPath: url.path),
-              let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber else {
-            return false
-        }
-        guard size.int64Value > 0,
+        guard hasNonEmptyFile(at: url, fileManager: fileManager),
               let file = try? AVAudioFile(forReading: url) else {
             return false
         }
@@ -112,12 +108,12 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             : nil
 
         if metadata.sourceAlignment.microphone != nil,
-           !fileManager.fileExists(atPath: microphoneAudioURL.path) {
+           !hasFile(at: microphoneAudioURL, fileManager: fileManager) {
             throw MeetingAudioError.storageFailed("Missing archived meeting source file: microphone.m4a")
         }
 
         if metadata.sourceAlignment.system != nil,
-           !fileManager.fileExists(atPath: systemAudioURL.path) {
+           !hasFile(at: systemAudioURL, fileManager: fileManager) {
             throw MeetingAudioError.storageFailed("Missing archived meeting source file: system.m4a")
         }
 
@@ -140,10 +136,17 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         at url: URL,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard fileManager.fileExists(atPath: url.path),
+        guard hasFile(at: url, fileManager: fileManager),
               let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber else {
             return false
         }
         return size.int64Value > 0
+    }
+
+    private static func hasFile(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        fileManager.fileExists(atPath: url.path)
     }
 }
