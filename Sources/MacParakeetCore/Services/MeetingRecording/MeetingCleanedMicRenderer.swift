@@ -234,10 +234,12 @@ final class MeetingCleanedMicRenderer {
 
         var samples: [Float] = []
         let sourceRate = file.processingFormat.sampleRate
-        // Corrupt files should not explode output-buffer sizing with zero or
-        // sub-Hz source rates; floor at 1.0 Hz and fail gracefully downstream if
-        // allocation/conversion still cannot proceed.
-        let ratio = targetFormat.sampleRate / max(sourceRate, 1.0)
+        // Corrupt files can report zero/sub-Hz source rates; fail before ratio
+        // math so output-buffer sizing cannot explode into OOM-scale requests.
+        guard sourceRate.isFinite, sourceRate >= 1_000 else {
+            throw MeetingAudioError.storageFailed("invalid source sample rate")
+        }
+        let ratio = targetFormat.sampleRate / sourceRate
         let readFrames: AVAudioFrameCount = 16_384
         var reachedEnd = false
 
