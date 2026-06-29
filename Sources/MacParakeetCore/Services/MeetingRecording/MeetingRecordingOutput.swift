@@ -90,7 +90,11 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let systemAudioURL = folderURL.appendingPathComponent("system.m4a")
         let cleanedURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let cleanedMicrophoneAudioURL = isViableCleanedMicrophoneFile(at: cleanedURL)
+        // Keep archive loading cheap; this is called from UI list/reopen paths.
+        // The decodability probe stays in `microphoneTranscriptionURL`, which is
+        // the actual STT routing gate and falls back to raw if the artifact is
+        // corrupt or partial.
+        let cleanedMicrophoneAudioURL = hasNonEmptyFile(at: cleanedURL)
             ? cleanedURL
             : nil
 
@@ -117,5 +121,16 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             speechEngine: metadata.speechEngine,
             speechEngineWasCaptured: metadata.speechEngineWasCaptured
         )
+    }
+
+    private static func hasNonEmptyFile(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard fileManager.fileExists(atPath: url.path),
+              let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber else {
+            return false
+        }
+        return size.int64Value > 0
     }
 }

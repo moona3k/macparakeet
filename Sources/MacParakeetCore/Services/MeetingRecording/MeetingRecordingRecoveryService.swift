@@ -291,9 +291,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         sourceAlignment: MeetingSourceAlignment,
         sessionID: UUID
     ) async -> URL? {
-        guard let microphoneURL, let systemURL else { return nil }
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        guard let microphoneURL, let systemURL else {
+            try? fileManager.removeItem(at: outputURL)
+            return nil
+        }
         guard sourceAlignment.meetingOriginHostTime != nil,
               sourceAlignment.microphone?.firstHostTime != nil,
               sourceAlignment.system?.firstHostTime != nil else {

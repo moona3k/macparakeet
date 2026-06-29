@@ -79,16 +79,18 @@ final class MeetingRecordingOutputTests: XCTestCase {
             dir.appendingPathComponent("microphone-cleaned.m4a"))
     }
 
-    func testLoadArchivedIgnoresCorruptCleanedMic() throws {
+    func testLoadArchivedSurfacesNonEmptyCleanedMicForDeferredValidation() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
         let mixedURL = dir.appendingPathComponent("meeting.m4a")
-        try Data("partial m4a fragment".utf8).write(to: dir.appendingPathComponent("microphone-cleaned.m4a"))
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data("partial m4a fragment".utf8).write(to: cleanedURL)
 
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
-        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+        XCTAssertEqual(output.cleanedMicrophoneAudioURL, cleanedURL)
+        XCTAssertEqual(output.microphoneTranscriptionURL(), output.microphoneAudioURL)
     }
 
     func testLoadArchivedHasNoCleanedMicWhenAbsent() throws {
@@ -96,6 +98,20 @@ final class MeetingRecordingOutputTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
         let mixedURL = dir.appendingPathComponent("meeting.m4a")
+
+        let output = try MeetingRecordingOutput.loadArchived(
+            displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
+        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+    }
+
+    func testLoadArchivedHasNoCleanedMicWhenEmpty() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent("microphone-cleaned.m4a").path,
+            contents: Data())
 
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)

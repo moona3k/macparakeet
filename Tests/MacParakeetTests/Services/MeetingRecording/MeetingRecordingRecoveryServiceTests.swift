@@ -282,6 +282,18 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             "synthetic recovery alignment must remove stale cleaned artifacts so reopened sessions use raw mic")
     }
 
+    func testRecoverDeletesStaleCleanedMicWhenSourceMissing() async throws {
+        let fixture = try makeRecoverableSession(systemAudio: .corrupt)
+        let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try Data("partial m4a fragment".utf8).write(to: staleCleanedURL)
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: staleCleanedURL.path),
+            "missing recovered sources must remove stale cleaned artifacts so reopened sessions use raw mic")
+    }
+
     private enum SourceFixture {
         case valid
         case corrupt

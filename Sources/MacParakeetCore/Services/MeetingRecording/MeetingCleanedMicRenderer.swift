@@ -162,9 +162,6 @@ final class MeetingCleanedMicRenderer {
         let relativeShiftSamples = Int(
             (Double(systemStartOffsetMs - microphoneStartOffsetMs) / 1000.0
                 * Double(sampleRate)).rounded())
-        let alignedReference = shiftReference(
-            system, by: relativeShiftSamples, toMatchCount: microphone.count)
-
         var output: [Float] = []
         output.reserveCapacity(microphone.count)
         let chunkSize = 4_096
@@ -172,7 +169,15 @@ final class MeetingCleanedMicRenderer {
         while cursor < microphone.count {
             let end = min(cursor + chunkSize, microphone.count)
             let micChunk = Array(microphone[cursor..<end])
-            let refChunk = Array(alignedReference[cursor..<end])
+            var refChunk: [Float] = []
+            refChunk.reserveCapacity(end - cursor)
+            for destinationIndex in cursor..<end {
+                let sourceIndex = destinationIndex - relativeShiftSamples
+                refChunk.append(
+                    sourceIndex >= 0 && sourceIndex < system.count
+                    ? system[sourceIndex]
+                    : 0)
+            }
             output += conditioner.condition(
                 microphone: micChunk, speaker: refChunk, hasSpeakerReference: true)
             cursor = end
@@ -192,23 +197,6 @@ final class MeetingCleanedMicRenderer {
             processedFrames: diagnostics.processedFrames,
             rawFallbackFrames: diagnostics.rawFallbackFrames,
             processingFailures: diagnostics.processingFailures)
-    }
-
-    /// Reposition `reference` so index i lines up with the microphone's index i,
-    /// padding/truncating to exactly `count` samples (the reference is read at the
-    /// mic's own position; the conditioner applies the echo-path delay on top).
-    private static func shiftReference(
-        _ reference: [Float], by shiftSamples: Int, toMatchCount count: Int
-    ) -> [Float] {
-        var aligned = [Float](repeating: 0, count: count)
-        // Destination index d corresponds to source index (d - shiftSamples).
-        for d in 0..<count {
-            let s = d - shiftSamples
-            if s >= 0, s < reference.count {
-                aligned[d] = reference[s]
-            }
-        }
-        return aligned
     }
 
     private static func rmsRatio(_ a: [Float], _ b: [Float]) -> Float {
