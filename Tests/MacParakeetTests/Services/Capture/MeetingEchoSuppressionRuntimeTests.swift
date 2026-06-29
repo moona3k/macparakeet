@@ -83,6 +83,13 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertEqual(configuration.frameSize, 256)
     }
 
+    func testDefaultModelNameUsesSelectedV14EchoOnlyModel() {
+        XCTAssertEqual(
+            MeetingEchoSuppressionFactory.defaultModelName,
+            "localvqe-v1.4-aec-200K-f32.gguf"
+        )
+    }
+
     func testConfigurationParsesUnescapedFileURLWithSpaces() {
         let configuration = MeetingEchoSuppressionConfiguration.fromEnvironment([
             MeetingEchoSuppressionConfiguration.modelPathEnvironmentKey:
@@ -189,13 +196,15 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try Data("v12".utf8).write(
+        try Data("v14".utf8).write(
             to: modelDirectory.appendingPathComponent(
                 MeetingEchoSuppressionFactory.defaultModelName
             )
         )
-        try Data("v14".utf8).write(
-            to: modelDirectory.appendingPathComponent("localvqe-v1.4-aec-200K-f32.gguf")
+        try Data("v12".utf8).write(
+            to: modelDirectory.appendingPathComponent(
+                MeetingEchoSuppressionFactory.legacyJointModelName
+            )
         )
         try Data("custom".utf8).write(
             to: modelDirectory.appendingPathComponent("custom-localvqe-test.gguf")
@@ -217,8 +226,8 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
         let firstCandidate = try XCTUnwrap(candidateURLs.first)
         XCTAssertNil(firstCandidate)
-        XCTAssertEqual(candidates[0], "localvqe-v1.4-aec-200K-f32.gguf")
-        XCTAssertTrue(candidates.contains(MeetingEchoSuppressionFactory.defaultModelName))
+        XCTAssertEqual(candidates[0], MeetingEchoSuppressionFactory.defaultModelName)
+        XCTAssertTrue(candidates.contains(MeetingEchoSuppressionFactory.legacyJointModelName))
         XCTAssertEqual(candidates.last, "custom-localvqe-test.gguf")
         XCTAssertFalse(candidates.contains("linked-localvqe-test.gguf"))
     }
@@ -356,7 +365,7 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
         let secondModelURL = appURL.appendingPathComponent(
             "Contents/Resources/MeetingEchoSuppression/" +
-                MeetingEchoSuppressionFactory.defaultModelName
+                MeetingEchoSuppressionFactory.legacyJointModelName
         )
         try Data("second model".utf8).write(to: secondModelURL)
 

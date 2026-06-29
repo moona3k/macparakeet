@@ -194,15 +194,17 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source
   `MeetingLiveAudioChunking` strategies. Single-source sessions skip the
   unselected stream and produce a mono `meeting.m4a`.
-- Mic conditioning is pass-through by default. Raw capture applies no platform
-  AEC/noise suppression/AGC. The optional `StreamingMeetingEchoSuppressor`
-  can transform paired mic/system samples when a LocalVQE-compatible runtime
-  and model are available; otherwise it falls back to raw mic samples with
-  diagnostics. Release bundles that claim meeting AEC readiness must include
+- Raw capture applies no platform AEC/noise suppression/AGC. Meeting mic
+  conditioning starts in automatic mode: release bundles with LocalVQE assets
+  run `StreamingMeetingEchoSuppressor` over paired mic/system samples, while
+  local/dev bundles without those assets fall back to raw mic samples with
+  diagnostics. AEC-ready release bundles must include
   `Contents/Frameworks/liblocalvqe.dylib` plus exactly one selected GGUF under
   `Contents/Resources/MeetingEchoSuppression/`; distribution verification
   checks the model checksum, required LocalVQE C symbols, executable bit, and
-  portable dylib references before the app can claim that path. When the
+  portable dylib references before the app can claim that path. The selected
+  bundled default is the v1.4 echo-only model
+  (`localvqe-v1.4-aec-200K-f32.gguf`). When the
   suppressor runs it aligns the system reference to the
   microphone using a runtime delay recovered from the audio by
   `MeetingEchoDelayEstimator` (normalized cross-correlation, confidence-gated),

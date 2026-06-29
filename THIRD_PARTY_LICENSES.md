@@ -23,6 +23,19 @@ This project bundles or downloads third-party software components. The following
 - Source: <https://nodejs.org/>
 - Used for: Bundled runtime for yt-dlp JavaScript extractors
 
+## LocalVQE
+
+- License: Apache License 2.0
+- Source: <https://github.com/localai-org/LocalVQE>
+- Model source: <https://huggingface.co/LocalAI-io/LocalVQE>
+- Used for: Optional bundled meeting echo suppression runtime and GGUF model
+
+## ggml
+
+- License: MIT License
+- Source: <https://github.com/ggml-org/ggml>
+- Used for: LocalVQE runtime backend linked into the meeting echo suppression runtime
+
 ## Swift Package Dependencies
 
 ### GRDB.swift

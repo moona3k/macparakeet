@@ -143,10 +143,11 @@ enum MeetingEchoSuppressionFactory {
     static let processorName = "localvqe"
     static let defaultLibraryName = "liblocalvqe.dylib"
     static let defaultModelDirectoryName = "MeetingEchoSuppression"
-    static let defaultModelName = "localvqe-v1.2-1.3M-f32.gguf"
+    static let defaultModelName = "localvqe-v1.4-aec-200K-f32.gguf"
+    static let legacyJointModelName = "localvqe-v1.2-1.3M-f32.gguf"
     static let bundledModelNames = [
-        "localvqe-v1.4-aec-200K-f32.gguf",
         defaultModelName,
+        legacyJointModelName,
         "localvqe-v1.3-4.8M-f32.gguf",
         "localvqe-v1.4-aec-200K-bf16.gguf",
         "localvqe-v1.4-aec-2.7K-f32.gguf",
