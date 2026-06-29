@@ -593,7 +593,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             preservePlayableMeetingAudioFallback(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
         }
 
-        let cleanedMicrophoneAudioURL = try await renderCleanedMicrophone(
+        let cleanedMicrophoneAudioURL = await renderCleanedMicrophone(
             session: session,
             availableSources: availableSources,
             sourceAlignment: sourceAlignment
@@ -1250,12 +1250,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// freshly built echo suppressor (plan #605 U3). Returns the cleaned file URL
     /// when a real suppressor is loaded and both sources exist; `nil` (raw mic
     /// stays the truth) for single-source meetings, when no AEC assets are
-    /// bundled, or on any render failure. Never throws into finalize.
+    /// bundled, or on any render failure/cancellation. Never throws into finalize.
     private func renderCleanedMicrophone(
         session: Session,
         availableSources: Set<AudioSource>,
         sourceAlignment: MeetingSourceAlignment
-    ) async throws -> URL? {
+    ) async -> URL? {
         let outputURL = session.folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // A cleaned mic needs a system reference to cancel against; single-source
@@ -1297,7 +1297,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 at: outputURL, sessionID: session.id, reason: "renderer_cancelled")
             AudioCaptureDiagnostics.append(
                 "meeting_cleaned_mic session=\(session.id.uuidString) outcome=cancelled")
-            throw CancellationError()
+            return nil
         } catch {
             discardCleanedMicrophoneArtifact(
                 at: outputURL, sessionID: session.id, reason: "renderer_threw")

@@ -217,7 +217,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         let recoveredBySource = Dictionary(
             recoveredSources.map { ($0.source, $0.url) }, uniquingKeysWith: { first, _ in first })
-        let cleanedMicrophoneAudioURL = try await renderCleanedMicrophone(
+        let cleanedMicrophoneAudioURL = await renderCleanedMicrophone(
             folderURL: folderURL,
             microphoneURL: recoveredBySource[.microphone],
             systemURL: recoveredBySource[.system],
@@ -283,14 +283,15 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     /// sessions currently synthesize zero start offsets because lock files do not
     /// persist per-source host times; in that case, return `nil` so final STT
     /// falls back to raw mic instead of preferring a possibly misaligned cleaned
-    /// artifact. Never throws into the recovery path.
+    /// artifact. Render failures/cancellation fall back to raw mic and never
+    /// throw into the recovery path.
     private func renderCleanedMicrophone(
         folderURL: URL,
         microphoneURL: URL?,
         systemURL: URL?,
         sourceAlignment: MeetingSourceAlignment,
         sessionID: UUID
-    ) async throws -> URL? {
+    ) async -> URL? {
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         guard let microphoneURL, let systemURL else {
@@ -329,7 +330,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             discardCleanedMicrophoneArtifact(
                 at: outputURL, sessionID: sessionID, reason: "renderer_cancelled")
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=cancelled")
-            throw CancellationError()
+            return nil
         } catch {
             discardCleanedMicrophoneArtifact(
                 at: outputURL, sessionID: sessionID, reason: "renderer_threw")
