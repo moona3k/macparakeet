@@ -271,6 +271,9 @@ final class MeetingCleanedMicRenderer {
                 throw MeetingAudioError.storageFailed(
                     conversionError?.localizedDescription ?? "decode conversion failed")
             }
+            if status == .endOfStream {
+                reachedEnd = true
+            }
             if let channel = outputBuffer.floatChannelData?.pointee {
                 samples.append(contentsOf: UnsafeBufferPointer(
                     start: channel, count: Int(outputBuffer.frameLength)))
