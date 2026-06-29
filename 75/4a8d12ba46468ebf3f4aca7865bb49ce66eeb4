@@ -1,0 +1,20 @@
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_3e1204f9e52983::t_ae898035b1a94c 12,25,84-88,156,172,177-196,225-227
+  s_3e1204f9e52983::t_a91e511021ae69 77-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "754a8d12ba46468ebf3f4aca7865bb49ce66eeb4",
+  "prompts": {},
+  "sessions": {
+    "s_3e1204f9e52983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1200-bdf1-7070-a1b9-d324f6a3e675",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
