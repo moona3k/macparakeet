@@ -32,7 +32,7 @@ final class MeetingCleanedMicRenderer {
         /// Frames the processor cleaned vs. served raw (a processor that throws
         /// falls back to raw). Emitted as diagnostics for U9 QA and telemetry,
         /// not a routing gate — U4 prefers the cleaned mic purely on its
-        /// existence on disk (see `outputToRawRmsRatio`).
+        /// valid artifact (see `outputToRawRmsRatio`).
         let processedFrames: Int
         let rawFallbackFrames: Int
         let processingFailures: Int
@@ -68,15 +68,15 @@ final class MeetingCleanedMicRenderer {
     }
 
     /// Render the cleaned mic. `conditioner` is the live factory's product; the
-    /// caller passes a freshly built one. Synchronous: do blocking decode/encode
-    /// off the main actor.
+    /// caller passes a freshly built one. Do the heavy decode/encode off the
+    /// main actor.
     func render(
         microphoneURL: URL,
         systemURL: URL,
         sourceAlignment: MeetingSourceAlignment,
         outputURL: URL,
         conditioner: any MicConditioning
-    ) -> Outcome {
+    ) async -> Outcome {
         // Only derive when a real echo processor loaded. Passthrough (no assets)
         // and unavailable (load failed) both leave the raw mic as the truth.
         let diagnostics = conditioner.diagnostics
@@ -110,7 +110,7 @@ final class MeetingCleanedMicRenderer {
             conditioner: conditioner)
 
         do {
-            try Self.encodeMonoFloat(
+            try await Self.encodeMonoFloat(
                 conditioned.output, sampleRate: Self.renderSampleRate, to: outputURL,
                 fileManager: fileManager)
         } catch {
@@ -309,7 +309,7 @@ final class MeetingCleanedMicRenderer {
     /// Encode mono Float32 samples to an AAC `.m4a` at `sampleRate`.
     static func encodeMonoFloat(
         _ samples: [Float], sampleRate: Int, to outputURL: URL, fileManager: FileManager
-    ) throws {
+    ) async throws {
         try? fileManager.removeItem(at: outputURL)
         guard let pcmFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -371,7 +371,7 @@ final class MeetingCleanedMicRenderer {
                     throw MeetingAudioError.storageFailed(
                         writer.error?.localizedDescription ?? "cleaned mic writer failed while waiting")
                 }
-                Thread.sleep(forTimeInterval: 0.001)
+                try await Task.sleep(nanoseconds: 1_000_000)
             }
             guard input.append(sampleBuffer) else {
                 throw MeetingAudioError.storageFailed(
@@ -382,16 +382,19 @@ final class MeetingCleanedMicRenderer {
         }
 
         input.markAsFinished()
-        let semaphore = DispatchSemaphore(value: 0)
-        let box = UncheckedSendableBox(writer)
-        writer.finishWriting {
-            semaphore.signal()
-            _ = box
-        }
-        semaphore.wait()
+        await finishWriting(writer)
         if writer.status == .failed {
             throw MeetingAudioError.storageFailed(
                 writer.error?.localizedDescription ?? "cleaned mic finalize failed")
+        }
+    }
+
+    private static func finishWriting(_ writer: AVAssetWriter) async {
+        let box = UncheckedSendableBox(writer)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            box.value.finishWriting {
+                continuation.resume()
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 public struct MeetingRecordingOutput: Sendable, Equatable {
@@ -52,23 +53,30 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     }
 
     /// The microphone audio to transcribe for the local ("Me") track: the
-    /// echo-cancelled artifact when it was derived and still exists on disk,
+    /// echo-cancelled artifact when it was derived and remains decodable,
     /// otherwise the raw mic. Centralizes the #605 cleaned-mic preference so
     /// finalize-time transcription and recovery agree on one rule.
     public func microphoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
         if let cleanedMicrophoneAudioURL,
-           Self.hasNonEmptyFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
+           Self.isViableCleanedMicrophoneFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
             return cleanedMicrophoneAudioURL
         }
         return microphoneAudioURL
     }
 
-    private static func hasNonEmptyFile(at url: URL, fileManager: FileManager) -> Bool {
+    private static func isViableCleanedMicrophoneFile(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
         guard fileManager.fileExists(atPath: url.path),
               let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber else {
             return false
         }
-        return size.int64Value > 0
+        guard size.int64Value > 0,
+              let file = try? AVAudioFile(forReading: url) else {
+            return false
+        }
+        return file.length > 0
     }
 
     public static func loadArchived(
@@ -82,7 +90,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let systemAudioURL = folderURL.appendingPathComponent("system.m4a")
         let cleanedURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let cleanedMicrophoneAudioURL = FileManager.default.fileExists(atPath: cleanedURL.path)
+        let cleanedMicrophoneAudioURL = isViableCleanedMicrophoneFile(at: cleanedURL)
             ? cleanedURL
             : nil
 

@@ -292,18 +292,19 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         sessionID: UUID
     ) async -> URL? {
         guard let microphoneURL, let systemURL else { return nil }
+        let outputURL = folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         guard sourceAlignment.meetingOriginHostTime != nil,
               sourceAlignment.microphone?.firstHostTime != nil,
               sourceAlignment.system?.firstHostTime != nil else {
+            try? fileManager.removeItem(at: outputURL)
             logger.info("meeting_recovery_cleaned_mic session=\(sessionID.uuidString, privacy: .public) outcome=skipped reason=synthetic_alignment")
             return nil
         }
-        let outputURL = folderURL.appendingPathComponent(
-            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         let conditionerFactory = micConditionerFactory
 
         let outcome = await Task.detached(priority: .utility) {
-            MeetingCleanedMicRenderer().render(
+            await MeetingCleanedMicRenderer().render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,

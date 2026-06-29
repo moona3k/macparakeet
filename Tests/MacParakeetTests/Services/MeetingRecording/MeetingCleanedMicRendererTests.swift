@@ -82,7 +82,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
 
     // MARK: I/O round-trip
 
-    func testRenderProducesDecodableCleanedFile() throws {
+    func testRenderProducesDecodableCleanedFile() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
@@ -90,13 +90,13 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
             name: "double-talk", nearEndActive: true, farEndActive: true, echoPath: echoPath)
         let micURL = dir.appendingPathComponent("microphone.m4a")
         let sysURL = dir.appendingPathComponent("system.m4a")
-        try MeetingCleanedMicRenderer.encodeMonoFloat(
+        try await MeetingCleanedMicRenderer.encodeMonoFloat(
             scenario.mic, sampleRate: 16_000, to: micURL, fileManager: .default)
-        try MeetingCleanedMicRenderer.encodeMonoFloat(
+        try await MeetingCleanedMicRenderer.encodeMonoFloat(
             scenario.farEnd, sampleRate: 16_000, to: sysURL, fileManager: .default)
 
         let outURL = dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let outcome = MeetingCleanedMicRenderer().render(
+        let outcome = await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL, systemURL: sysURL,
             sourceAlignment: equalAlignment(),
             outputURL: outURL,
@@ -116,12 +116,12 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         XCTAssertEqual(actual, expected, accuracy: 0.3, "cleaned duration ~ raw mic duration")
     }
 
-    func testRenderSkipsWhenConditionerIsPassthrough() throws {
+    func testRenderSkipsWhenConditionerIsPassthrough() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (micURL, sysURL) = try writeSourcePair(in: dir)
+        let (micURL, sysURL) = try await writeSourcePair(in: dir)
 
-        let outcome = MeetingCleanedMicRenderer().render(
+        let outcome = await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL, systemURL: sysURL,
             sourceAlignment: equalAlignment(),
             outputURL: dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName),
@@ -130,12 +130,12 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         XCTAssertEqual(outcome, .skipped(.conditionerUnavailable))
     }
 
-    func testRenderSkipsWhenSystemReferenceMissing() throws {
+    func testRenderSkipsWhenSystemReferenceMissing() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (micURL, _) = try writeSourcePair(in: dir, includeSystem: false)
+        let (micURL, _) = try await writeSourcePair(in: dir, includeSystem: false)
 
-        let outcome = MeetingCleanedMicRenderer().render(
+        let outcome = await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL,
             systemURL: dir.appendingPathComponent("system.m4a"),
             sourceAlignment: equalAlignment(),
@@ -160,15 +160,15 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
     }
 
     @discardableResult
-    private func writeSourcePair(in dir: URL, includeSystem: Bool = true) throws -> (URL, URL) {
+    private func writeSourcePair(in dir: URL, includeSystem: Bool = true) async throws -> (URL, URL) {
         let scenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: true, farEndActive: true, echoPath: echoPath)
         let micURL = dir.appendingPathComponent("microphone.m4a")
         let sysURL = dir.appendingPathComponent("system.m4a")
-        try MeetingCleanedMicRenderer.encodeMonoFloat(
+        try await MeetingCleanedMicRenderer.encodeMonoFloat(
             scenario.mic, sampleRate: 16_000, to: micURL, fileManager: .default)
         if includeSystem {
-            try MeetingCleanedMicRenderer.encodeMonoFloat(
+            try await MeetingCleanedMicRenderer.encodeMonoFloat(
                 scenario.farEnd, sampleRate: 16_000, to: sysURL, fileManager: .default)
         }
         return (micURL, sysURL)

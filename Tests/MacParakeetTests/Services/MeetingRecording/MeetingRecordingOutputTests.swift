@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import XCTest
 @testable import MacParakeetCore
@@ -12,7 +13,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let rawURL = dir.appendingPathComponent("microphone.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
-        try Data([0x00]).write(to: cleanedURL)
+        try writeM4A(to: cleanedURL)
 
         let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
         XCTAssertEqual(output.microphoneTranscriptionURL(), cleanedURL)
@@ -25,6 +26,18 @@ final class MeetingRecordingOutputTests: XCTestCase {
         try Data([0x00]).write(to: rawURL)
         // URL is set but the file was never written / was deleted by retention.
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+
+        let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
+        XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
+    }
+
+    func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsCorrupt() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data("partial m4a fragment".utf8).write(to: cleanedURL)
 
         let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
         XCTAssertEqual(output.microphoneTranscriptionURL(), rawURL)
@@ -57,13 +70,25 @@ final class MeetingRecordingOutputTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
         let mixedURL = dir.appendingPathComponent("meeting.m4a")
-        try Data([0x00]).write(to: dir.appendingPathComponent("microphone-cleaned.m4a"))
+        try writeM4A(to: dir.appendingPathComponent("microphone-cleaned.m4a"))
 
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
         XCTAssertEqual(
             output.cleanedMicrophoneAudioURL,
             dir.appendingPathComponent("microphone-cleaned.m4a"))
+    }
+
+    func testLoadArchivedIgnoresCorruptCleanedMic() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        try Data("partial m4a fragment".utf8).write(to: dir.appendingPathComponent("microphone-cleaned.m4a"))
+
+        let output = try MeetingRecordingOutput.loadArchived(
+            displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
+        XCTAssertNil(output.cleanedMicrophoneAudioURL)
     }
 
     func testLoadArchivedHasNoCleanedMicWhenAbsent() throws {
@@ -98,6 +123,33 @@ final class MeetingRecordingOutputTests: XCTestCase {
             ),
             folderURL: dir
         )
+    }
+
+    private func writeM4A(to url: URL, sampleRate: Double = 16_000) throws {
+        let frameCount = Int(sampleRate / 10)
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false
+        )!
+        let file = try AVAudioFile(
+            forWriting: url,
+            settings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: sampleRate,
+                AVNumberOfChannelsKey: 1,
+            ],
+            commonFormat: .pcmFormatFloat32,
+            interleaved: false
+        )
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let samples = buffer.floatChannelData![0]
+        for index in 0..<frameCount {
+            samples[index] = 0.1
+        }
+        try file.write(from: buffer)
     }
 
     private func makeOutput(

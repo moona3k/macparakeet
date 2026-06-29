@@ -1274,7 +1274,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // recording state. A fresh suppressor starts from clean filter state
         // rather than inheriting the live preview's adapted taps.
         let outcome = await Task.detached(priority: .utility) {
-            MeetingCleanedMicRenderer().render(
+            await MeetingCleanedMicRenderer().render(
                 microphoneURL: microphoneURL,
                 systemURL: systemURL,
                 sourceAlignment: sourceAlignment,
