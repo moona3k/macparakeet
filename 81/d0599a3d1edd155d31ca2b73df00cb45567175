@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicRenderer.swift
+  s_8e33cad55ef48f::t_51c0b87aa2703a 33-35,39-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "81d0599a3d1edd155d31ca2b73df00cb45567175",
+  "prompts": {},
+  "sessions": {
+    "s_8e33cad55ef48f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23d0d807-0f9e-4fd5-9808-a12480cc164e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
