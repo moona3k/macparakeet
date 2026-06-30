@@ -7,6 +7,7 @@ struct BulkTranscriptionSelectionBar: View {
     let areAllVisibleSelected: Bool
     let isPerformingOperation: Bool
     var operationLabel = "Deleting..."
+    var isExportDisabled = false
     let onSelectVisible: () -> Void
     let onClear: () -> Void
     let onCancel: () -> Void
@@ -187,7 +188,7 @@ struct BulkTranscriptionSelectionBar: View {
                 title: "Export...",
                 systemImage: "arrow.down.doc",
                 tone: .utility,
-                isDisabled: selectedCount == 0 || isPerformingOperation,
+                isDisabled: isExportDisabled || selectedCount == 0 || isPerformingOperation,
                 action: onExport
             )
         }

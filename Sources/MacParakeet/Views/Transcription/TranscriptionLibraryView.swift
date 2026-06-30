@@ -405,6 +405,7 @@ struct TranscriptionLibraryView: View {
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
             isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportInProgress,
             operationLabel: bulkExportInProgress ? "Exporting..." : "Deleting...",
+            isExportDisabled: isBulkExportActionDisabled,
             onSelectVisible: { viewModel.selectLoadedVisibleTranscriptions() },
             onClear: { viewModel.clearSelection() },
             onCancel: { viewModel.exitBulkSelection() },
