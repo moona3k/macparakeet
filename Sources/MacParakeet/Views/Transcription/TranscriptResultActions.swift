@@ -146,6 +146,7 @@ enum TranscriptResultActions {
             }
         }
 
+        let exportService = ExportService()
         for transcription in transcriptions {
             try Task.checkCancellation()
             let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
@@ -161,9 +162,14 @@ enum TranscriptResultActions {
                     transcription: transcription,
                     format: format,
                     options: resolvedOptions,
-                    to: fileURL
+                    to: fileURL,
+                    using: exportService
                 )
                 exportedURLs.append(fileURL)
+            } catch is CancellationError {
+                // Cancellation is not a per-item file failure — let it
+                // propagate out of the batch so the caller can stop cleanly.
+                throw CancellationError()
             } catch {
                 failedCount += 1
                 if firstErrorDescription == nil {
@@ -223,10 +229,9 @@ enum TranscriptResultActions {
         transcription: Transcription,
         format: TranscriptExportFormat,
         options: TranscriptExportOptions,
-        to fileURL: URL
+        to fileURL: URL,
+        using exportService: ExportService
     ) async throws {
-        let exportService = ExportService()
-
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)

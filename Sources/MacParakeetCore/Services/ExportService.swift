@@ -135,7 +135,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(transcription)
-        try data.write(to: url)
+        try data.write(to: url, options: .atomic)
     }
 
     /// Export transcription as PDF file using Core Graphics PDF context.
@@ -219,7 +219,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             from: range,
             documentAttributes: [.documentType: NSAttributedString.DocumentType.officeOpenXML]
         )
-        try data.write(to: url)
+        try data.write(to: url, options: .atomic)
     }
 
     /// Format word timestamps as SRT subtitle string

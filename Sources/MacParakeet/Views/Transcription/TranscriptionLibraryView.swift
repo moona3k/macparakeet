@@ -20,7 +20,6 @@ struct TranscriptionLibraryView: View {
     @State private var selectedBulkExportFormat: TranscriptExportFormat = .txt
     @State private var bulkExportOptions = TranscriptExportOptions.default
     @State private var bulkExportInProgress = false
-    @State private var bulkExportPanelShowing = false
     @State private var bulkExportResult: BulkTranscriptExportResult?
     @State private var bulkExportErrorMessage: String?
     @State private var bulkExportCoordinatorTask: Task<Void, Never>?
@@ -235,7 +234,7 @@ struct TranscriptionLibraryView: View {
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled
                         ) {
-                            if viewModel.isBulkOperationInProgress {
+                            if viewModel.isBulkOperationInProgress || bulkExportInProgress {
                                 return
                             }
                             if viewModel.isBulkSelectionModeEnabled {
@@ -271,7 +270,7 @@ struct TranscriptionLibraryView: View {
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             onTap: {
-                                if viewModel.isBulkOperationInProgress {
+                                if viewModel.isBulkOperationInProgress || bulkExportInProgress {
                                     return
                                 }
                                 if viewModel.isBulkSelectionModeEnabled {
@@ -397,8 +396,8 @@ struct TranscriptionLibraryView: View {
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
             isMeetingContext: isMeetingListMode,
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
-            isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportPanelShowing || bulkExportInProgress,
-            operationLabel: bulkExportPanelShowing ? "Choosing folder..." : (bulkExportInProgress ? "Exporting..." : "Deleting..."),
+            isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportInProgress,
+            operationLabel: bulkExportInProgress ? "Exporting..." : "Deleting...",
             onSelectVisible: { viewModel.selectLoadedVisibleTranscriptions() },
             onClear: { viewModel.clearSelection() },
             onCancel: { viewModel.exitBulkSelection() },
@@ -437,7 +436,10 @@ struct TranscriptionLibraryView: View {
         }
     }
 
-    private var bulkExportFormatOrder: [TranscriptExportFormat] {
+    // Static so the completeness assertion runs once at first use rather than
+    // allocating two Sets on every body re-render (the popover re-renders on
+    // each format selection).
+    private static let bulkExportFormatOrder: [TranscriptExportFormat] = {
         let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
         assert(
             preferredOrder.count == TranscriptExportFormat.allCases.count &&
@@ -445,7 +447,7 @@ struct TranscriptionLibraryView: View {
             "Bulk export format order must include every TranscriptExportFormat case"
         )
         return preferredOrder
-    }
+    }()
 
     private var bulkExportOptionsPopover: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
@@ -482,7 +484,7 @@ struct TranscriptionLibraryView: View {
                     alignment: .leading,
                     spacing: 8
                 ) {
-                    ForEach(bulkExportFormatOrder) { format in
+                    ForEach(Self.bulkExportFormatOrder) { format in
                         Button {
                             selectedBulkExportFormat = format
                         } label: {
@@ -546,7 +548,7 @@ struct TranscriptionLibraryView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(viewModel.selectedTranscriptionCount == 0 || bulkExportPanelShowing || bulkExportInProgress)
+                .disabled(viewModel.selectedTranscriptionCount == 0 || bulkExportInProgress)
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -625,9 +627,7 @@ struct TranscriptionLibraryView: View {
                 bulkExportWorkerTask = nil
             }
 
-            bulkExportPanelShowing = true
-            let outcome = await runBulkExportFolderPanel()
-            bulkExportPanelShowing = false
+            let outcome = runBulkExportFolderPanel()
             guard !Task.isCancelled, case .selected(let directory) = outcome else { return }
 
             do {
@@ -679,8 +679,8 @@ struct TranscriptionLibraryView: View {
         bulkExportCoordinatorTask = nil
         bulkExportWorkerTask?.cancel()
         bulkExportWorkerTask = nil
-        bulkExportPanelShowing = false
         bulkExportInProgress = false
+        bulkExportResult = nil
     }
 
     private enum BulkExportFolderOutcome: Sendable {
@@ -688,8 +688,12 @@ struct TranscriptionLibraryView: View {
         case cancelled
     }
 
+    // Synchronous app-modal panel, matching MeetingAudioActions.runSaveAudioPanel
+    // and DictationHistoryViewModel. Modal blocks app interaction while open, so
+    // the coordinator task can't be cancelled mid-panel and there's no dangling
+    // continuation to leak.
     @MainActor
-    private func runBulkExportFolderPanel() async -> BulkExportFolderOutcome {
+    private func runBulkExportFolderPanel() -> BulkExportFolderOutcome {
         let panel = NSOpenPanel()
         panel.title = "Choose Export Folder"
         panel.prompt = "Export"
@@ -702,16 +706,8 @@ struct TranscriptionLibraryView: View {
             panel.directoryURL = downloads
         }
 
-        return await withCheckedContinuation { continuation in
-            panel.begin { response in
-                guard response == .OK, let directory = panel.url else {
-                    continuation.resume(returning: .cancelled)
-                    return
-                }
-
-                continuation.resume(returning: .selected(directory))
-            }
-        }
+        guard panel.runModal() == .OK, let directory = panel.url else { return .cancelled }
+        return .selected(directory)
     }
 
     private var emptyState: some View {
