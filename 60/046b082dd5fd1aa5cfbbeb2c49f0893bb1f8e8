@@ -1,0 +1,21 @@
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_37d9f8035e12fe::t_503ea0b012fc79 942-945
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_37d9f8035e12fe::t_503ea0b012fc79 925,953-974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "60046b082dd5fd1aa5cfbbeb2c49f0893bb1f8e8",
+  "prompts": {},
+  "sessions": {
+    "s_37d9f8035e12fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f168e-cad7-71b1-ac7c-195080efbc9a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
