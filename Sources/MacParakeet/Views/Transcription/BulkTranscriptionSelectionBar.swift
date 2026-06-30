@@ -188,7 +188,7 @@ struct BulkTranscriptionSelectionBar: View {
                 title: "Export...",
                 systemImage: "arrow.down.doc",
                 tone: .utility,
-                isDisabled: isExportDisabled || selectedCount == 0 || isPerformingOperation,
+                isDisabled: isExportDisabled,
                 action: onExport
             )
         }
