@@ -572,7 +572,11 @@ struct TranscriptionLibraryView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(viewModel.selectedTranscriptionCount == 0 || bulkExportInProgress)
+                .disabled(
+                    viewModel.selectedTranscriptionCount == 0 ||
+                        bulkExportInProgress ||
+                        viewModel.isBulkOperationInProgress
+                )
             }
         }
         .padding(DesignSystem.Spacing.md)
