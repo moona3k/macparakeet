@@ -473,8 +473,12 @@ struct TranscriptionLibraryView: View {
         )
     }
 
+    private var selectedBulkExportTargets: [Transcription] {
+        viewModel.selectedLoadedTranscriptionsForExport
+    }
+
     private var isBulkExportActionDisabled: Bool {
-        viewModel.selectedTranscriptionCount == 0 ||
+        selectedBulkExportTargets.isEmpty ||
             bulkExportInProgress ||
             viewModel.isBulkOperationInProgress
     }
@@ -646,9 +650,8 @@ struct TranscriptionLibraryView: View {
     }
 
     private func runBulkExport() {
-        let targets = viewModel.selectedLoadedTranscriptionsForExport
-        guard !targets.isEmpty else { return }
         guard !isBulkExportActionDisabled else { return }
+        let targets = selectedBulkExportTargets
 
         cancelBulkExport()
         let outcome = runBulkExportFolderPanel()
