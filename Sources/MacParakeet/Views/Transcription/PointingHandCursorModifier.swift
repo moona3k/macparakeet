@@ -14,6 +14,9 @@ private struct PointingHandCursorModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .onAppear {
+                updateCursor(isActive: isActive)
+            }
             .onChange(of: isActive) { _, isActive in
                 updateCursor(isActive: isActive)
             }
