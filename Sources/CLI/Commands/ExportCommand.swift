@@ -90,7 +90,10 @@ struct ExportCommand: AsyncParsableCommand {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(transcription)
-            return String(data: data, encoding: .utf8) ?? "{}"
+            guard let string = String(data: data, encoding: .utf8) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return string
         }
     }
 

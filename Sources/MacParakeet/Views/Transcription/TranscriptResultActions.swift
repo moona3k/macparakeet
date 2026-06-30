@@ -134,6 +134,13 @@ enum TranscriptResultActions {
         options: TranscriptExportOptions = .default,
         directory: URL
     ) async throws -> BulkTranscriptExportResult {
+        let accessedSecurityScope = directory.startAccessingSecurityScopedResource()
+        defer {
+            if accessedSecurityScope {
+                directory.stopAccessingSecurityScopedResource()
+            }
+        }
+
         let directoryExisted = FileManager.default.fileExists(atPath: directory.path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
@@ -177,6 +184,8 @@ enum TranscriptResultActions {
                 }
             }
         }
+
+        try Task.checkCancellation()
 
         if !exportedURLs.isEmpty {
             Telemetry.send(.exportUsed(format: format.rawValue))
