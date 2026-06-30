@@ -136,7 +136,8 @@ enum TranscriptResultActions {
         transcriptions: [Transcription],
         format: TranscriptExportFormat,
         options: TranscriptExportOptions = .default,
-        directory: URL
+        directory: URL,
+        onFileExported: (@Sendable (URL) async -> Void)? = nil
     ) async throws -> BulkTranscriptExportResult {
         try Task.checkCancellation()
 
@@ -182,6 +183,10 @@ enum TranscriptResultActions {
                         using: exportService
                     )
                     exportedURLs.append(fileURL)
+                    if let onFileExported {
+                        await onFileExported(fileURL)
+                        try Task.checkCancellation()
+                    }
                 } catch is CancellationError {
                     // Cancellation is not a per-item file failure — let it
                     // propagate out of the batch so the caller can stop cleanly.

@@ -503,7 +503,7 @@ struct TranscriptionLibraryView: View {
             }
 
             Text(
-                "\(viewModel.selectedTranscriptionCount) \(viewModel.selectedTranscriptionCount == 1 ? "item" : "items")"
+                "\(selectedBulkExportTargets.count) \(selectedBulkExportTargets.count == 1 ? "item" : "items")"
             )
             .font(DesignSystem.Typography.caption.weight(.medium))
             .foregroundStyle(DesignSystem.Colors.textSecondary)

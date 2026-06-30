@@ -105,49 +105,73 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertFalse(editedContent.contains("**[0:00]**"))
     }
 
-    func testBulkExportPropagatesCancellationAndCleansEmptyCreatedDirectory() async throws {
+    func testBulkExportCancellationRemovesPartialFilesAndCreatedDirectory() async throws {
         let outputDir = tempDir.appendingPathComponent("cancelled-export", isDirectory: true)
-        let transcription = Transcription(
-            fileName: "cancel-me.m4a",
-            rawTranscript: "Should not export",
+        let first = Transcription(
+            fileName: "first.m4a",
+            rawTranscript: "First export should be removed",
             status: .completed
         )
-        let gate = CancellationStartGate()
+        let second = Transcription(
+            fileName: "second.m4a",
+            rawTranscript: "Second export should never start",
+            status: .completed
+        )
+        let cancellationProbe = MidExportCancellationProbe()
 
         let task = Task.detached {
-            await gate.wait()
             return try await TranscriptResultActions.exportTranscriptsToDirectory(
-                transcriptions: [transcription],
+                transcriptions: [first, second],
                 format: .txt,
-                directory: outputDir
+                directory: outputDir,
+                onFileExported: { url in
+                    await cancellationProbe.recordAndCancel(url)
+                }
             )
         }
-        task.cancel()
-        await gate.open()
+        await cancellationProbe.setTask(task)
 
         do {
             _ = try await task.value
             XCTFail("Expected cancellation to propagate out of bulk export")
         } catch is CancellationError {
+            let exportedURLs = await cancellationProbe.exportedURLs
+            XCTAssertEqual(exportedURLs.map(\.lastPathComponent), ["first.txt"])
             XCTAssertFalse(FileManager.default.fileExists(atPath: outputDir.path))
         }
     }
 }
 
-private actor CancellationStartGate {
-    private var isOpen = false
-    private var continuation: CheckedContinuation<Void, Never>?
+private actor MidExportCancellationProbe {
+    private var task: Task<BulkTranscriptExportResult, Error>?
+    private var taskWaiters: [CheckedContinuation<Task<BulkTranscriptExportResult, Error>, Never>] = []
+    private var recordedURLs: [URL] = []
 
-    func wait() async {
-        if isOpen { return }
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
+    var exportedURLs: [URL] {
+        recordedURLs
+    }
+
+    func setTask(_ task: Task<BulkTranscriptExportResult, Error>) {
+        self.task = task
+        let waiters = taskWaiters
+        taskWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume(returning: task)
         }
     }
 
-    func open() {
-        isOpen = true
-        continuation?.resume()
-        continuation = nil
+    func recordAndCancel(_ url: URL) async {
+        recordedURLs.append(url)
+        let task = await taskHandle()
+        task.cancel()
+    }
+
+    private func taskHandle() async -> Task<BulkTranscriptExportResult, Error> {
+        if let task {
+            return task
+        }
+        return await withCheckedContinuation { continuation in
+            taskWaiters.append(continuation)
+        }
     }
 }
