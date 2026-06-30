@@ -138,6 +138,8 @@ enum TranscriptResultActions {
         options: TranscriptExportOptions = .default,
         directory: URL
     ) async throws -> BulkTranscriptExportResult {
+        try Task.checkCancellation()
+
         let accessedSecurityScope = directory.startAccessingSecurityScopedResource()
         defer {
             if accessedSecurityScope {

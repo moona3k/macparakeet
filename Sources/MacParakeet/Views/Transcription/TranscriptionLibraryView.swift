@@ -632,8 +632,18 @@ struct TranscriptionLibraryView: View {
         guard !targets.isEmpty else { return }
 
         cancelBulkExport()
+        let outcome = runBulkExportFolderPanel()
+        guard case .selected(let directory) = outcome else { return }
+
         let runID = UUID()
+        let format = selectedBulkExportFormat
+        let options = bulkExportOptions
+
         bulkExportRunID = runID
+        bulkExportInProgress = true
+        bulkExportErrorMessage = nil
+        bulkExportResult = nil
+
         bulkExportCoordinatorTask = Task { @MainActor in
             defer {
                 if bulkExportRunID == runID {
@@ -642,18 +652,10 @@ struct TranscriptionLibraryView: View {
                 }
             }
 
-            let outcome = runBulkExportFolderPanel()
-            guard bulkExportRunID == runID, !Task.isCancelled, case .selected(let directory) = outcome else { return }
-
             do {
-                bulkExportInProgress = true
-                bulkExportErrorMessage = nil
-                bulkExportResult = nil
                 await Task.yield()
                 guard bulkExportRunID == runID, !Task.isCancelled else { return }
 
-                let format = selectedBulkExportFormat
-                let options = bulkExportOptions
                 let exportTask = Task.detached(priority: .userInitiated) {
                     try await TranscriptResultActions.exportTranscriptsToDirectory(
                         transcriptions: targets,
@@ -710,9 +712,8 @@ struct TranscriptionLibraryView: View {
     }
 
     // Synchronous app-modal panel, matching MeetingAudioActions.runSaveAudioPanel
-    // and DictationHistoryViewModel. Modal blocks app interaction while open, so
-    // the coordinator task can't be cancelled mid-panel and there's no dangling
-    // continuation to leak.
+    // and DictationHistoryViewModel. It runs before the async export coordinator
+    // starts, so no Task is suspended inside the modal interaction.
     @MainActor
     private func runBulkExportFolderPanel() -> BulkExportFolderOutcome {
         let panel = NSOpenPanel()
