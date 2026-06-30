@@ -1,0 +1,49 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_2d764f067015ce::t_6a64dca6fbe87c 1,19-24,200-214
+  s_2d764f067015ce::t_fd9a6f0ba4cb47 457-461,491-494,550-551,560-564,599-600
+  s_2d764f067015ce::t_b1adddafa8646a 619,622-631
+  s_2d764f067015ce::t_3c66213d5dc383 507-508
+  s_2d764f067015ce::t_dee2427937a953 394-395,399,403-405
+  s_2d764f067015ce::t_68b7b9878a0d37 215,434-456,462-490,495-506,509-549,552-559,565-598,601-618,620-621,632-673
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_2d764f067015ce::t_4da7eb623c4e56 2,54-55
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_2d764f067015ce::t_44ae511be39a99 22,39,68,89
+  s_2d764f067015ce::t_67b977f589dccc 1-21,23-38,40-67,69-88,90-107
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_2d764f067015ce::t_67b977f589dccc 318-332
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_2d764f067015ce::t_7ff1dff8e9ab34 52-68,117,132-135,137-152,154-188,196-214,241-252
+  s_2d764f067015ce::t_0fa96b13a6d7c0 254
+  s_2d764f067015ce::t_12d12fccdddfa9 5,51,131,136,153,215-240
+  s_2d764f067015ce::t_5766a99d730231 253
+Sources/CLI/Commands/ExportCommand.swift
+  s_2d764f067015ce::t_4c035ab64e26fb 46
+  s_2d764f067015ce::t_7eb6d5594bcd0d 52,55,63,78,81,83,85,87,100,103,105,107,109,111
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_2d764f067015ce::t_bf6ee2a4e5075e 146
+  s_2d764f067015ce::t_8b38d9d789aae3 149,157,159
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_2d764f067015ce::t_c1ee49670d6c19 9,13,183,185-193
+  s_2d764f067015ce::t_feb482ba0e2f9c 50,89,184
+  s_2d764f067015ce::t_6d0dcf1ad61766 121,139
+  s_2d764f067015ce::t_fbba1ff4fa81e9 194-195
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_2d764f067015ce::t_5c3e5180118dc3 163-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "7895180176d8f2047289bda30a885e11904fc08b",
+  "prompts": {},
+  "sessions": {
+    "s_2d764f067015ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e1-877a-7e73-9360-aa4775c1de42",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
