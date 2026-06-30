@@ -922,6 +922,7 @@ private struct LibraryFilterChip: View {
     let onTap: () -> Void
 
     @State private var isHovered = false
+    @State private var didPushCursor = false
 
     private var foreground: Color {
         if isSelected { return DesignSystem.Colors.accent }
@@ -949,7 +950,28 @@ private struct LibraryFilterChip: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            updateCursor(isHovering: hovering)
+        }
+        .onDisappear {
+            releaseCursorIfNeeded()
+        }
+    }
+
+    private func updateCursor(isHovering: Bool) {
+        if isHovering, !didPushCursor {
+            NSCursor.pointingHand.push()
+            didPushCursor = true
+            return
+        }
+        if !isHovering {
+            releaseCursorIfNeeded()
+        }
+    }
+
+    private func releaseCursorIfNeeded() {
+        if didPushCursor {
+            NSCursor.pop()
+            didPushCursor = false
         }
     }
 }

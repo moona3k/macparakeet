@@ -939,7 +939,10 @@ private func exportContent(
             transcription,
             promptResultCount: promptResultCount
         ))
-        return String(data: data, encoding: .utf8) ?? "{}"
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        return string
     }
 }
 
