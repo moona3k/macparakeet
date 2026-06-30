@@ -140,6 +140,35 @@ final class TranscriptResultActionsTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: outputDir.path))
         }
     }
+
+    func testBulkExportCancellationAfterFinalFileKeepsCompletedExport() async throws {
+        let outputDir = tempDir.appendingPathComponent("completed-export", isDirectory: true)
+        let transcription = Transcription(
+            fileName: "final.m4a",
+            rawTranscript: "Final export should remain",
+            status: .completed
+        )
+        let cancellationProbe = MidExportCancellationProbe()
+
+        let task = Task.detached {
+            return try await TranscriptResultActions.exportTranscriptsToDirectory(
+                transcriptions: [transcription],
+                format: .txt,
+                directory: outputDir,
+                onFileExported: { url in
+                    await cancellationProbe.recordAndCancel(url)
+                }
+            )
+        }
+        await cancellationProbe.setTask(task)
+
+        let result = try await task.value
+        let exportedURLs = await cancellationProbe.exportedURLs
+        XCTAssertEqual(result.exportedCount, 1)
+        XCTAssertEqual(result.failedCount, 0)
+        XCTAssertEqual(exportedURLs.map(\.lastPathComponent), ["final.txt"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputDir.appendingPathComponent("final.txt").path))
+    }
 }
 
 private actor MidExportCancellationProbe {

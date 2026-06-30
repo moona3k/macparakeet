@@ -399,7 +399,7 @@ struct TranscriptionLibraryView: View {
 
     private var selectionActionsBar: some View {
         BulkTranscriptionSelectionBar(
-            selectedCount: viewModel.selectedTranscriptionCount,
+            selectedCount: selectedBulkExportTargets.count,
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
             isMeetingContext: isMeetingListMode,
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,

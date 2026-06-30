@@ -185,7 +185,6 @@ enum TranscriptResultActions {
                     exportedURLs.append(fileURL)
                     if let onFileExported {
                         await onFileExported(fileURL)
-                        try Task.checkCancellation()
                     }
                 } catch is CancellationError {
                     // Cancellation is not a per-item file failure — let it
