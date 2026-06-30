@@ -473,6 +473,12 @@ struct TranscriptionLibraryView: View {
         )
     }
 
+    private var isBulkExportActionDisabled: Bool {
+        viewModel.selectedTranscriptionCount == 0 ||
+            bulkExportInProgress ||
+            viewModel.isBulkOperationInProgress
+    }
+
     private var bulkExportOptionsPopover: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: DesignSystem.Spacing.sm) {
@@ -572,11 +578,7 @@ struct TranscriptionLibraryView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(
-                    viewModel.selectedTranscriptionCount == 0 ||
-                        bulkExportInProgress ||
-                        viewModel.isBulkOperationInProgress
-                )
+                .disabled(isBulkExportActionDisabled)
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -646,7 +648,7 @@ struct TranscriptionLibraryView: View {
     private func runBulkExport() {
         let targets = viewModel.selectedLoadedTranscriptionsForExport
         guard !targets.isEmpty else { return }
-        guard !viewModel.isBulkOperationInProgress, !bulkExportInProgress else { return }
+        guard !isBulkExportActionDisabled else { return }
 
         cancelBulkExport()
         let outcome = runBulkExportFolderPanel()
@@ -663,11 +665,7 @@ struct TranscriptionLibraryView: View {
 
         bulkExportCoordinatorTask = Task { @MainActor in
             defer {
-                if bulkExportRunID == runID {
-                    bulkExportInProgress = false
-                    bulkExportCoordinatorTask = nil
-                    bulkExportWorkerTask = nil
-                }
+                finishBulkExportRun(runID)
             }
 
             do {
@@ -707,6 +705,14 @@ struct TranscriptionLibraryView: View {
                 SoundManager.shared.play(.errorSoft)
             }
         }
+    }
+
+    @MainActor
+    private func finishBulkExportRun(_ runID: UUID) {
+        guard bulkExportRunID == runID else { return }
+        bulkExportInProgress = false
+        bulkExportCoordinatorTask = nil
+        bulkExportWorkerTask = nil
     }
 
     @MainActor
