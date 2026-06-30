@@ -640,8 +640,7 @@ struct TranscriptionLibraryView: View {
         if result.exportedCount > 0 {
             return "Exported \(result.exportedCount) of \(result.requestedCount)"
         }
-        assertionFailure("Bulk export result popover should only be shown after at least one file exports")
-        return "Exported 0 of \(result.requestedCount)"
+        preconditionFailure("Bulk export result popover should only be shown after at least one file exports")
     }
 
     private func runBulkExport() {
