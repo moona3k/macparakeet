@@ -964,6 +964,7 @@ private struct LibraryPrimaryActionButton: View {
     let action: () -> Void
 
     @State private var isHovered = false
+    @State private var didPushCursor = false
 
     var body: some View {
         Button(action: action) {
@@ -989,10 +990,31 @@ private struct LibraryPrimaryActionButton: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            updateCursor(isHovering: hovering)
+        }
+        .onDisappear {
+            releaseCursorIfNeeded()
         }
         .accessibilityLabel(title)
         .accessibilityHint("Starts a new transcription")
+    }
+
+    private func updateCursor(isHovering: Bool) {
+        if isHovering, !didPushCursor {
+            NSCursor.pointingHand.push()
+            didPushCursor = true
+            return
+        }
+        if !isHovering {
+            releaseCursorIfNeeded()
+        }
+    }
+
+    private func releaseCursorIfNeeded() {
+        if didPushCursor {
+            NSCursor.pop()
+            didPushCursor = false
+        }
     }
 }
 

@@ -191,6 +191,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             // Save graphics state, set up coordinate system for this page.
             // We flip the CGContext so y goes top-down (needed for pagination math)
             // and tell NSGraphicsContext it's flipped so AppKit draws glyphs upright.
+            context.saveGState()
             let nsContext = NSGraphicsContext(cgContext: context, flipped: true)
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = nsContext
@@ -204,6 +205,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: drawOrigin)
 
             NSGraphicsContext.restoreGraphicsState()
+            context.restoreGState()
             context.endPage()
 
             yOffset += textHeight
