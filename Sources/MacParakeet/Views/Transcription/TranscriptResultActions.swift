@@ -254,6 +254,8 @@ enum TranscriptResultActions {
             return
         }
 
+        // PDF/DOCX rendering uses AppKit. Hop per file instead of wrapping the
+        // whole batch so cancellation and UI work can interleave between files.
         try await MainActor.run {
             try exportTranscriptOnMainActor(
                 transcription: transcription,
@@ -300,10 +302,8 @@ enum TranscriptResultActions {
         case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
         case .docx, .pdf:
-            throw NSError(
-                domain: "MacParakeetError",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "\(format.shortName) export must run on the main actor."]
+            preconditionFailure(
+                "\(format.shortName) export must run on the main actor; this path should never be reached."
             )
         }
     }

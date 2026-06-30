@@ -647,6 +647,7 @@ struct TranscriptionLibraryView: View {
         bulkExportCoordinatorTask = Task { @MainActor in
             defer {
                 if bulkExportRunID == runID {
+                    bulkExportInProgress = false
                     bulkExportCoordinatorTask = nil
                     bulkExportWorkerTask = nil
                 }
@@ -672,7 +673,6 @@ struct TranscriptionLibraryView: View {
                 }
                 guard bulkExportRunID == runID else { return }
                 bulkExportWorkerTask = nil
-                bulkExportInProgress = false
 
                 guard result.exportedCount > 0 else {
                     bulkExportErrorMessage = result.firstErrorDescription ?? "No files were exported."
@@ -684,10 +684,8 @@ struct TranscriptionLibraryView: View {
                 bulkExportResult = result
             } catch is CancellationError {
                 guard bulkExportRunID == runID else { return }
-                bulkExportInProgress = false
             } catch {
                 guard bulkExportRunID == runID else { return }
-                bulkExportInProgress = false
                 bulkExportErrorMessage = error.localizedDescription
                 SoundManager.shared.play(.errorSoft)
             }
