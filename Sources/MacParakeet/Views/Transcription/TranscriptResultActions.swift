@@ -193,8 +193,6 @@ enum TranscriptResultActions {
                     }
                 }
             }
-
-            try Task.checkCancellation()
         } catch is CancellationError {
             removeFilesIfPresent(exportedURLs)
             if !directoryExisted {
