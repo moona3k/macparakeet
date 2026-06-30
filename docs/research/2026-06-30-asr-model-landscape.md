@@ -73,6 +73,10 @@ branch, not older plans or memory.
 Legend: `++` strong fit, `+` usable, `0` constrained or situational, `-` poor
 fit without additional product work.
 
+Meeting-final ratings assume viable cleaned or well-separated source audio. ASR
+model selection does not by itself solve speaker bleed, echo, source alignment,
+or no-headset meeting QA.
+
 | Engine/build | Dictation final | Dictation live preview | Meeting final | Meeting live preview | File/media transcription |
 | --- | --- | --- | --- | --- | --- |
 | Parakeet TDT v3 | ++ | + | ++ | + | + |
@@ -258,10 +262,11 @@ automatic language detection, no timestamps, and no speaker diarization.
 FluidAudio's local integration is more specific for MacParakeet: a
 48-layer Conformer encoder, 8-layer Transformer decoder, 35-second baked encoder
 window, 108-token decoder cache, 16,384-token SentencePiece vocabulary, and
-long-audio chunking with 35-second windows and 5-second overlap. Its Core ML
-docs report strong LibriSpeech/FLEURS numbers, but also an important Apple
-runtime shape: multi-GB assets and a large one-time ANE compile cost in fresh
-processes.
+multi-GB Core ML assets. MacParakeet's wrapper guards Cohere's 35-second
+per-call encoder limit and decoder token cap with a fast single-pass path,
+then falls back to <=20-second windows, 4-second overlap, and smaller recursive
+rechunking if the decoder still caps out. The runtime shape is also important:
+fresh processes pay a large one-time ANE compile cost.
 
 MacParakeet implication: Cohere is correctly implemented as batch-only. It
 should not enter live dictation preview or meeting live preview without a
@@ -284,11 +289,11 @@ speaker/timing-rich meeting UX by itself.
 
 | Candidate | Why it matters | Near-term MacParakeet verdict |
 | --- | --- | --- |
-| Qwen3-ASR 0.6B/1.7B + Qwen3-ForcedAligner | Purpose-built Qwen ASR family with 30 languages, 22 Chinese dialects, offline/streaming unified inference, and a separate forced aligner for word/character timestamps in 11 languages. Apache-2.0. | High research value, but not ready for native MacParakeet until an Apple-local runtime exists. Current docs are CUDA/vLLM/bfloat16/FlashAttention-first; streaming has no timestamps. |
+| Qwen3-ASR 0.6B/1.7B + Qwen3-ForcedAligner | Purpose-built Qwen ASR family with 30 languages, 22 Chinese dialects, offline/streaming unified inference, and a separate forced aligner for word/character timestamps in 11 languages. Apache-2.0. | High research value, but not ready for native MacParakeet until an Apple-local runtime exists. Docs now include a Transformers backend, but examples remain Python/Torch and GPU-oriented; streaming is vLLM-only and has no timestamps. |
 | Qwen2.5-Omni / Qwen2-Audio / Qwen-Audio | Strong audio-language baselines and useful benchmark context. | Do not prioritize as MacParakeet ASR engines. They are general audio/omni LLMs, not tight local STT runtimes with timestamps and scheduler-friendly footprints. |
 | NVIDIA Canary 1B Flash/v2 | Strong NVIDIA multilingual batch ASR/ST candidate with word/segment timestamps in some cards and four-language or European-language focus depending variant. | Good batch/file research candidate if a NeMo sidecar is acceptable. Less attractive for native Mac live preview than Nemotron. |
 | SenseVoiceSmall / FunASR | Practical edge candidate for Chinese, Cantonese, Japanese, Korean, and multilingual ASR; GGUF/CPU deployment path exists. | Worth a prototype for CJK file/media and maybe meeting final transcripts. Legal/license review and timestamp story are blockers for first-class adoption. |
-| Moonshine Streaming | Tiny English ASR family designed for low-latency live transcription and voice commands; MIT license. | Best English live-preview experiment outside NVIDIA. Not a meeting/export engine because timestamp and long-form stories are weak. |
+| Moonshine Streaming | Tiny English ASR family designed for low-latency live transcription and voice commands; MIT license. | Promising English live-preview experiment outside NVIDIA, pending Apple-local runtime and MacParakeet latency/quality testing. Not a meeting/export engine because timestamp and long-form stories are weak. |
 | Vosk/Kaldi | Mature offline streaming API with partials, word timings, compact models, Swift-adjacent bindings. | Useful as a control/reference for streaming UX and word timing, but not a quality upgrade over modern neural engines. |
 | wav2vec2/XLSR | Strong self-supervised/fine-tuning substrate. | Research substrate only; too much productization for current MacParakeet needs. |
 | SeamlessM4T v2 | Translation-heavy speech model with broad language ambition. | Not viable for bundled commercial MacParakeet because of non-commercial license and translation-first scope. |
@@ -298,7 +303,8 @@ speaker/timing-rich meeting UX by itself.
 ### Defaults and User-Facing Positioning
 
 1. Keep Parakeet v3 as the default because it is local, fast, timestamp-capable,
-   and has the best default coverage for MacParakeet's current user base.
+   and has the best default coverage among currently integrated local engines,
+   pending MacParakeet-owned benchmarks.
 2. Keep Parakeet v2 visible as the "English stability / timestamps" option, not
    as a legacy leftover.
 3. Position Parakeet Unified as "best English readability/live partials, no word
@@ -387,11 +393,20 @@ speaker/timing-rich meeting UX by itself.
   <https://github.com/QwenLM/Qwen3-ASR>,
   <https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf>,
   <https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf>
+- Qwen audio/omni contextual model cards:
+  <https://huggingface.co/Qwen/Qwen2.5-Omni-7B>,
+  <https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct>,
+  <https://huggingface.co/Qwen/Qwen-Audio-Chat>
 - NVIDIA Canary model card:
-  <https://huggingface.co/nvidia/canary-1b-flash>
-- SenseVoiceSmall model card:
-  <https://huggingface.co/FunAudioLLM/SenseVoiceSmall>
+  <https://huggingface.co/nvidia/canary-1b-flash>,
+  <https://huggingface.co/nvidia/canary-1b-v2>
+- SenseVoiceSmall model cards:
+  <https://huggingface.co/FunAudioLLM/SenseVoiceSmall>,
+  <https://huggingface.co/FunAudioLLM/SenseVoiceSmall-GGUF>
 - Moonshine Streaming model card:
   <https://huggingface.co/UsefulSensors/moonshine-streaming-medium>
 - Vosk documentation:
   <https://alphacephei.com/vosk/>
+- wav2vec2/XLSR and SeamlessM4T v2 model cards:
+  <https://huggingface.co/facebook/wav2vec2-large-xlsr-53>,
+  <https://huggingface.co/facebook/seamless-m4t-v2-large>
