@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
@@ -15,6 +16,15 @@ struct TranscriptionLibraryView: View {
     @State private var pendingDelete: Transcription?
     @State private var pendingDeleteAudio: Transcription?
     @State private var audioSaveErrorMessage: String?
+    @State private var showingBulkExportOptions = false
+    @State private var selectedBulkExportFormat: TranscriptExportFormat = .txt
+    @State private var bulkExportOptions = TranscriptExportOptions.default
+    @State private var bulkExportInProgress = false
+    @State private var bulkExportPanelShowing = false
+    @State private var bulkExportResult: BulkTranscriptExportResult?
+    @State private var bulkExportErrorMessage: String?
+    @State private var bulkExportCoordinatorTask: Task<Void, Never>?
+    @State private var bulkExportWorkerTask: Task<BulkTranscriptExportResult, Error>?
     @FocusState private var selectionKeyboardFocused: Bool
 
     private var visibleLibraryFilters: [LibraryFilter] {
@@ -189,6 +199,25 @@ struct TranscriptionLibraryView: View {
             }
         } message: {
             Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
+        }
+        .alert(
+            "Export Failed",
+            isPresented: Binding(
+                get: { bulkExportErrorMessage != nil },
+                set: { if !$0 { bulkExportErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                bulkExportErrorMessage = nil
+            }
+        } message: {
+            Text(bulkExportErrorMessage ?? "Unable to export selected transcripts.")
+        }
+        .popover(item: $bulkExportResult, arrowEdge: .top) { result in
+            bulkExportConfirmationPopover(result)
+        }
+        .onDisappear {
+            cancelBulkExport()
         }
     }
 
@@ -368,13 +397,18 @@ struct TranscriptionLibraryView: View {
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
             isMeetingContext: isMeetingListMode,
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
-            isPerformingOperation: viewModel.isBulkOperationInProgress,
+            isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportPanelShowing || bulkExportInProgress,
+            operationLabel: bulkExportPanelShowing ? "Choosing folder..." : (bulkExportInProgress ? "Exporting..." : "Deleting..."),
             onSelectVisible: { viewModel.selectLoadedVisibleTranscriptions() },
             onClear: { viewModel.clearSelection() },
             onCancel: { viewModel.exitBulkSelection() },
+            onExport: { showingBulkExportOptions = true },
             onDeleteAudioOnly: { viewModel.requestDeleteSelectedMeetingAudio() },
             onDeleteItems: { viewModel.requestDeleteSelectedItems() }
         )
+        .popover(isPresented: $showingBulkExportOptions, arrowEdge: .top) {
+            bulkExportOptionsPopover
+        }
     }
 
     private var showsSelectManyButton: Bool {
@@ -399,6 +433,283 @@ struct TranscriptionLibraryView: View {
                 }
             } catch {
                 audioSaveErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private var bulkExportFormatOrder: [TranscriptExportFormat] {
+        let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
+        assert(
+            preferredOrder.count == TranscriptExportFormat.allCases.count &&
+                Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
+            "Bulk export format order must include every TranscriptExportFormat case"
+        )
+        return preferredOrder
+    }
+
+    private var bulkExportOptionsPopover: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Label("Export Selected", systemImage: "arrow.down.doc")
+                    .font(DesignSystem.Typography.body.bold())
+
+                Spacer()
+
+                Button {
+                    showingBulkExportOptions = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close export options")
+            }
+
+            Text(
+                "\(viewModel.selectedTranscriptionCount) \(viewModel.selectedTranscriptionCount == 1 ? "item" : "items")"
+            )
+            .font(DesignSystem.Typography.caption.weight(.medium))
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Format")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(bulkExportFormatOrder) { format in
+                        Button {
+                            selectedBulkExportFormat = format
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: format.iconName)
+                                    .frame(width: 16)
+                                Text(format.shortName)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer(minLength: 0)
+                            }
+                            .font(DesignSystem.Typography.caption)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(
+                                        selectedBulkExportFormat == format
+                                            ? DesignSystem.Colors.accent.opacity(0.14)
+                                            : DesignSystem.Colors.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(
+                                        selectedBulkExportFormat == format
+                                            ? DesignSystem.Colors.accent.opacity(0.7)
+                                            : DesignSystem.Colors.border.opacity(0.7),
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(format.displayName)
+                        .accessibilityValue(selectedBulkExportFormat == format ? "Selected" : "")
+                    }
+                }
+            }
+
+            if selectedBulkExportFormat.supportsTranscriptOptions {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text("Options")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    Toggle("Include timestamps when available", isOn: $bulkExportOptions.includeTimestamps)
+                    Toggle("Include speaker labels when available", isOn: $bulkExportOptions.includeSpeakerLabels)
+                    Toggle("Include metadata", isOn: $bulkExportOptions.includeMetadata)
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button {
+                    showingBulkExportOptions = false
+                    runBulkExport()
+                } label: {
+                    Label("Choose Folder...", systemImage: "folder")
+                }
+                .parakeetAction(.primaryProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(viewModel.selectedTranscriptionCount == 0 || bulkExportPanelShowing || bulkExportInProgress)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(width: 390)
+    }
+
+    @ViewBuilder
+    private func bulkExportConfirmationPopover(_ result: BulkTranscriptExportResult) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: result.isCompleteSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(
+                        result.isCompleteSuccess ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bulkExportResultTitle(result))
+                        .font(DesignSystem.Typography.body.bold())
+                    Text(result.directory.lastPathComponent)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if result.failedCount > 0 {
+                        Text("\(result.failedCount) \(result.failedCount == 1 ? "file" : "files") failed.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                Button {
+                    bulkExportResult = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close export confirmation")
+            }
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting(result.exportedURLs)
+                bulkExportResult = nil
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
+                    .font(DesignSystem.Typography.caption)
+            }
+            .parakeetAction(.secondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(minWidth: 240)
+    }
+
+    private func bulkExportResultTitle(_ result: BulkTranscriptExportResult) -> String {
+        if result.isCompleteSuccess {
+            return
+                "Exported \(result.exportedCount) \(result.format.shortName) \(result.exportedCount == 1 ? "file" : "files")"
+        }
+        if result.exportedCount > 0 {
+            return "Exported \(result.exportedCount) of \(result.requestedCount)"
+        }
+        assertionFailure("Bulk export result popover should only be shown after at least one file exports")
+        return "Exported 0 of \(result.requestedCount)"
+    }
+
+    private func runBulkExport() {
+        let targets = viewModel.selectedLoadedTranscriptionsForExport
+        guard !targets.isEmpty else { return }
+
+        cancelBulkExport()
+        bulkExportCoordinatorTask = Task { @MainActor in
+            defer {
+                bulkExportCoordinatorTask = nil
+                bulkExportWorkerTask = nil
+            }
+
+            bulkExportPanelShowing = true
+            let outcome = await runBulkExportFolderPanel()
+            bulkExportPanelShowing = false
+            guard !Task.isCancelled, case .selected(let directory) = outcome else { return }
+
+            do {
+                bulkExportInProgress = true
+                bulkExportErrorMessage = nil
+                bulkExportResult = nil
+                await Task.yield()
+
+                let format = selectedBulkExportFormat
+                let options = bulkExportOptions
+                let exportTask = Task.detached(priority: .userInitiated) {
+                    try await TranscriptResultActions.exportTranscriptsToDirectory(
+                        transcriptions: targets,
+                        format: format,
+                        options: options,
+                        directory: directory
+                    )
+                }
+                bulkExportWorkerTask = exportTask
+                let result = try await withTaskCancellationHandler {
+                    try await exportTask.value
+                } onCancel: {
+                    exportTask.cancel()
+                }
+                bulkExportWorkerTask = nil
+                bulkExportInProgress = false
+
+                guard result.exportedCount > 0 else {
+                    bulkExportErrorMessage = result.firstErrorDescription ?? "No files were exported."
+                    SoundManager.shared.play(.errorSoft)
+                    return
+                }
+
+                SoundManager.shared.play(result.isCompleteSuccess ? .transcriptionComplete : .errorSoft)
+                bulkExportResult = result
+            } catch is CancellationError {
+                bulkExportInProgress = false
+            } catch {
+                bulkExportInProgress = false
+                bulkExportErrorMessage = error.localizedDescription
+                SoundManager.shared.play(.errorSoft)
+            }
+        }
+    }
+
+    @MainActor
+    private func cancelBulkExport() {
+        bulkExportCoordinatorTask?.cancel()
+        bulkExportCoordinatorTask = nil
+        bulkExportWorkerTask?.cancel()
+        bulkExportWorkerTask = nil
+        bulkExportPanelShowing = false
+        bulkExportInProgress = false
+    }
+
+    private enum BulkExportFolderOutcome: Sendable {
+        case selected(URL)
+        case cancelled
+    }
+
+    @MainActor
+    private func runBulkExportFolderPanel() async -> BulkExportFolderOutcome {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Export Folder"
+        panel.prompt = "Export"
+        panel.message = "Choose a folder for the selected transcript files."
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            panel.directoryURL = downloads
+        }
+
+        return await withCheckedContinuation { continuation in
+            panel.begin { response in
+                guard response == .OK, let directory = panel.url else {
+                    continuation.resume(returning: .cancelled)
+                    return
+                }
+
+                continuation.resume(returning: .selected(directory))
             }
         }
     }

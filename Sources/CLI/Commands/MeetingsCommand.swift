@@ -143,10 +143,10 @@ struct MeetingsCommand: AsyncParsableCommand {
         var database: String?
 
         func run() async throws {
-            try await emitJSONOrRethrow(json: format == .json) {
+            try emitJSONOrRethrow(json: format == .json) {
                 let repo = try makeTranscriptionRepository(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repo)
-                let exportService = await ExportService()
+                let exportService = ExportService()
 
                 switch format {
                 case .text:
@@ -154,9 +154,9 @@ struct MeetingsCommand: AsyncParsableCommand {
                 case .json:
                     try printJSON(MeetingTranscriptRecord(transcription))
                 case .srt:
-                    print(await exportService.formatSRT(transcription: transcription))
+                    print(exportService.formatSRT(transcription: transcription))
                 case .vtt:
-                    print(await exportService.formatVTT(transcription: transcription))
+                    print(exportService.formatVTT(transcription: transcription))
                 }
             }
         }

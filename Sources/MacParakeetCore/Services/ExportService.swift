@@ -1,7 +1,6 @@
-import Foundation
 import AppKit
+import Foundation
 
-@MainActor
 public protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
     func exportToSRT(transcription: Transcription, url: URL) throws
@@ -52,8 +51,8 @@ public struct TranscriptExportOptions: Sendable, Equatable {
 }
 
 /// Handles exporting transcriptions to files and clipboard.
-/// @MainActor because PDF/DOCX paths use NSTextStorage/NSLayoutManager (AppKit, not thread-safe).
-@MainActor
+/// PDF/DOCX paths stay on MainActor because they use NSTextStorage/NSLayoutManager
+/// (AppKit, not thread-safe). Text, subtitle, and JSON exports are safe off-main.
 public final class ExportService: ExportServiceProtocol, Sendable {
     public init() {}
 

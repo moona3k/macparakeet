@@ -6,9 +6,11 @@ struct BulkTranscriptionSelectionBar: View {
     let isMeetingContext: Bool
     let areAllVisibleSelected: Bool
     let isPerformingOperation: Bool
+    var operationLabel = "Deleting..."
     let onSelectVisible: () -> Void
     let onClear: () -> Void
     let onCancel: () -> Void
+    var onExport: (() -> Void)?
     let onDeleteAudioOnly: () -> Void
     let onDeleteItems: () -> Void
 
@@ -45,7 +47,7 @@ struct BulkTranscriptionSelectionBar: View {
                 .opacity(0.55)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(isPerformingOperation ? "Deleting selected items" : "\(selectedCount) selected")
+        .accessibilityLabel(isPerformingOperation ? operationLabel : "\(selectedCount) selected")
         // Resolve the bar's internal layout as one unit so the enclosing
         // selection-mode animation moves it as a cohesive block. Without this,
         // the container animation interpolates the inner `Spacer` from
@@ -84,7 +86,7 @@ struct BulkTranscriptionSelectionBar: View {
                     .foregroundStyle(DesignSystem.Colors.accent)
             }
 
-            Text(isPerformingOperation ? "Deleting..." : "\(selectedCount) selected")
+            Text(isPerformingOperation ? operationLabel : "\(selectedCount) selected")
                 .font(DesignSystem.Typography.bodySmall.weight(.semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
         }
@@ -116,6 +118,7 @@ struct BulkTranscriptionSelectionBar: View {
             cancelAction
             selectVisibleAction
             clearAction
+            exportAction
         }
     }
 
@@ -133,6 +136,7 @@ struct BulkTranscriptionSelectionBar: View {
             cancelAction
             selectVisibleAction
             clearAction
+            exportAction
             if showsAudioAction {
                 deleteAudioAction
             }
@@ -174,6 +178,19 @@ struct BulkTranscriptionSelectionBar: View {
             isDisabled: selectedCount == 0 || isPerformingOperation,
             action: onClear
         )
+    }
+
+    @ViewBuilder
+    private var exportAction: some View {
+        if let onExport {
+            SelectionBarActionButton(
+                title: "Export...",
+                systemImage: "arrow.down.doc",
+                tone: .utility,
+                isDisabled: selectedCount == 0 || isPerformingOperation,
+                action: onExport
+            )
+        }
     }
 
     private var deleteAudioAction: some View {

@@ -160,6 +160,10 @@ public final class TranscriptionLibraryViewModel {
         selectedLoadedTranscriptions.filter(Self.hasAvailableMeetingAudio).count
     }
 
+    public var selectedLoadedTranscriptionsForExport: [Transcription] {
+        selectedLoadedTranscriptions
+    }
+
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
         guard !items.isEmpty else { return [] }
         let now = nowProvider()

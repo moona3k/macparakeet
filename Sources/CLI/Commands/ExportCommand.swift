@@ -43,16 +43,16 @@ struct ExportCommand: AsyncParsableCommand {
     var database: String?
 
     func run() async throws {
-        try await emitJSONOrRethrow(json: stdout && format == .json) {
+        try emitJSONOrRethrow(json: stdout && format == .json) {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
             let transcription = try findTranscription(id: id, repo: repo)
-            let exportService = await ExportService()
+            let exportService = ExportService()
 
             if stdout {
-                let content = await formatContent(transcription: transcription, exportService: exportService)
+                let content = try formatContent(transcription: transcription, exportService: exportService)
                 print(content)
             } else {
                 let outputURL = resolveOutputURL(transcription: transcription)
@@ -60,7 +60,7 @@ struct ExportCommand: AsyncParsableCommand {
                     at: outputURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try await writeExport(transcription: transcription, exportService: exportService, url: outputURL)
+                try writeExport(transcription: transcription, exportService: exportService, url: outputURL)
                 print("Exported to \(outputURL.path)")
             }
         }
@@ -75,40 +75,37 @@ struct ExportCommand: AsyncParsableCommand {
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
     }
 
-    private func formatContent(transcription: Transcription, exportService: ExportService) async -> String {
+    private func formatContent(transcription: Transcription, exportService: ExportService) throws -> String {
         switch format {
         case .txt:
-            return await exportService.formatForClipboard(transcription: transcription)
+            return exportService.formatForClipboard(transcription: transcription)
         case .markdown:
-            return await exportService.formatMarkdown(transcription: transcription)
+            return exportService.formatMarkdown(transcription: transcription)
         case .srt:
-            return await exportService.formatSRT(transcription: transcription)
+            return exportService.formatSRT(transcription: transcription)
         case .vtt:
-            return await exportService.formatVTT(transcription: transcription)
+            return exportService.formatVTT(transcription: transcription)
         case .json:
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
-            if let data = try? encoder.encode(transcription),
-               let str = String(data: data, encoding: .utf8) {
-                return str
-            }
-            return "{}"
+            let data = try encoder.encode(transcription)
+            return String(data: data, encoding: .utf8) ?? "{}"
         }
     }
 
-    private func writeExport(transcription: Transcription, exportService: ExportService, url: URL) async throws {
+    private func writeExport(transcription: Transcription, exportService: ExportService, url: URL) throws {
         switch format {
         case .txt:
-            try await exportService.exportToTxt(transcription: transcription, url: url)
+            try exportService.exportToTxt(transcription: transcription, url: url)
         case .markdown:
-            try await exportService.exportToMarkdown(transcription: transcription, url: url)
+            try exportService.exportToMarkdown(transcription: transcription, url: url)
         case .srt:
-            try await exportService.exportToSRT(transcription: transcription, url: url)
+            try exportService.exportToSRT(transcription: transcription, url: url)
         case .vtt:
-            try await exportService.exportToVTT(transcription: transcription, url: url)
+            try exportService.exportToVTT(transcription: transcription, url: url)
         case .json:
-            try await exportService.exportToJSON(transcription: transcription, url: url)
+            try exportService.exportToJSON(transcription: transcription, url: url)
         }
     }
 }

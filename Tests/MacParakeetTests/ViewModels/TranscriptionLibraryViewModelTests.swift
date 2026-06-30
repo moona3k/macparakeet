@@ -315,6 +315,21 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedTranscriptionIDs, [matching.id])
     }
 
+    func testSelectedLoadedTranscriptionsForExportFollowsVisibleOrder() async throws {
+        let first = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "first.mp3", status: .completed)
+        let second = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "second.mp3", status: .completed)
+        try repo.save(second)
+        try repo.save(first)
+
+        await load()
+
+        vm.beginBulkSelection()
+        vm.selectLoadedVisibleTranscriptions()
+
+        XCTAssertEqual(vm.filteredTranscriptions.map(\.id), [first.id, second.id])
+        XCTAssertEqual(vm.selectedLoadedTranscriptionsForExport.map(\.id), [first.id, second.id])
+    }
+
     func testAllLoadedVisibleTranscriptionsSelectedWhenSearchHasNoMatches() async throws {
         let matching = Transcription(fileName: "Swift Tutorial", status: .completed)
         try repo.save(matching)
