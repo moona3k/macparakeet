@@ -91,7 +91,7 @@ struct ExportCommand: AsyncParsableCommand {
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(transcription)
             guard let string = String(data: data, encoding: .utf8) else {
-                throw CocoaError(.fileWriteUnknown)
+                throw CocoaError(.fileReadInapplicableStringEncoding)
             }
             return string
         }
