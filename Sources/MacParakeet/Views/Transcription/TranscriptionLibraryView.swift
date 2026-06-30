@@ -24,6 +24,7 @@ struct TranscriptionLibraryView: View {
     @State private var bulkExportErrorMessage: String?
     @State private var bulkExportCoordinatorTask: Task<Void, Never>?
     @State private var bulkExportWorkerTask: Task<BulkTranscriptExportResult, Error>?
+    @State private var bulkExportRunID = UUID()
     @FocusState private var selectionKeyboardFocused: Bool
 
     private var visibleLibraryFilters: [LibraryFilter] {
@@ -621,20 +622,25 @@ struct TranscriptionLibraryView: View {
         guard !targets.isEmpty else { return }
 
         cancelBulkExport()
+        let runID = UUID()
+        bulkExportRunID = runID
         bulkExportCoordinatorTask = Task { @MainActor in
             defer {
-                bulkExportCoordinatorTask = nil
-                bulkExportWorkerTask = nil
+                if bulkExportRunID == runID {
+                    bulkExportCoordinatorTask = nil
+                    bulkExportWorkerTask = nil
+                }
             }
 
             let outcome = runBulkExportFolderPanel()
-            guard !Task.isCancelled, case .selected(let directory) = outcome else { return }
+            guard bulkExportRunID == runID, !Task.isCancelled, case .selected(let directory) = outcome else { return }
 
             do {
                 bulkExportInProgress = true
                 bulkExportErrorMessage = nil
                 bulkExportResult = nil
                 await Task.yield()
+                guard bulkExportRunID == runID, !Task.isCancelled else { return }
 
                 let format = selectedBulkExportFormat
                 let options = bulkExportOptions
@@ -652,6 +658,7 @@ struct TranscriptionLibraryView: View {
                 } onCancel: {
                     exportTask.cancel()
                 }
+                guard bulkExportRunID == runID else { return }
                 bulkExportWorkerTask = nil
                 bulkExportInProgress = false
 
@@ -664,8 +671,10 @@ struct TranscriptionLibraryView: View {
                 SoundManager.shared.play(result.isCompleteSuccess ? .transcriptionComplete : .errorSoft)
                 bulkExportResult = result
             } catch is CancellationError {
+                guard bulkExportRunID == runID else { return }
                 bulkExportInProgress = false
             } catch {
+                guard bulkExportRunID == runID else { return }
                 bulkExportInProgress = false
                 bulkExportErrorMessage = error.localizedDescription
                 SoundManager.shared.play(.errorSoft)
@@ -681,6 +690,8 @@ struct TranscriptionLibraryView: View {
         bulkExportWorkerTask = nil
         bulkExportInProgress = false
         bulkExportResult = nil
+        bulkExportErrorMessage = nil
+        bulkExportRunID = UUID()
     }
 
     private enum BulkExportFolderOutcome: Sendable {
