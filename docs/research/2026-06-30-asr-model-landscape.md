@@ -1,6 +1,7 @@
 # ASR Model Landscape for MacParakeet
 
-Research date: 2026-06-30  
+Research date: 2026-06-30
+
 Audience: product, engineering, and release reviewers deciding which speech
 models should power MacParakeet's dictation, meetings, and file/media
 transcription surfaces.
