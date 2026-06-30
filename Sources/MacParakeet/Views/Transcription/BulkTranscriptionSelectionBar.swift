@@ -269,7 +269,6 @@ private struct SelectionBarActionButton: View {
     let action: () -> Void
 
     @State private var isHovered = false
-    @State private var didPushCursor = false
 
     var body: some View {
         Group {
@@ -309,37 +308,14 @@ private struct SelectionBarActionButton: View {
         .opacity(isDisabled ? 0.48 : 1)
         .onHover { hovering in
             isHovered = hovering && !isDisabled
-            updateCursor(isHovering: hovering)
         }
         .onChange(of: isDisabled) { _, _ in
             if isDisabled {
                 isHovered = false
             }
-            updateCursor(isHovering: isHovered)
         }
-        .onDisappear {
-            releaseCursorIfNeeded()
-        }
+        .pointingHandCursor(isActive: isHovered && !isDisabled)
         .animation(DesignSystem.Animation.hoverTransition, value: isHovered)
         .animation(DesignSystem.Animation.hoverTransition, value: isDisabled)
-    }
-
-    private func updateCursor(isHovering: Bool) {
-        let shouldShowPointer = isHovering && !isDisabled
-        if shouldShowPointer, !didPushCursor {
-            NSCursor.pointingHand.push()
-            didPushCursor = true
-            return
-        }
-        if !shouldShowPointer, didPushCursor {
-            releaseCursorIfNeeded()
-        }
-    }
-
-    private func releaseCursorIfNeeded() {
-        if didPushCursor {
-            NSCursor.pop()
-            didPushCursor = false
-        }
     }
 }

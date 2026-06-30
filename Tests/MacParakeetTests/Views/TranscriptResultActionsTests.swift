@@ -50,6 +50,7 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertEqual(result.requestedCount, 2)
         XCTAssertEqual(result.exportedCount, 2)
         XCTAssertEqual(result.failedCount, 0)
+        XCTAssertTrue(result.isCompleteSuccess)
         XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["call (1).txt", "call (2).txt"])
         XCTAssertEqual(
             try String(contentsOf: tempDir.appendingPathComponent("call (1).txt"), encoding: .utf8),
@@ -63,6 +64,19 @@ final class TranscriptResultActionsTests: XCTestCase {
             try String(contentsOf: tempDir.appendingPathComponent("call.txt"), encoding: .utf8),
             "Existing"
         )
+    }
+
+    func testBulkExportCompleteSuccessRequiresEveryRequestedFile() {
+        let result = BulkTranscriptExportResult(
+            directory: tempDir,
+            format: .txt,
+            requestedCount: 2,
+            exportedURLs: [tempDir.appendingPathComponent("one.txt")],
+            failedCount: 0,
+            firstErrorDescription: nil
+        )
+
+        XCTAssertFalse(result.isCompleteSuccess)
     }
 
     func testBulkExportResolvesOptionsPerTranscript() async throws {

@@ -66,7 +66,7 @@ struct BulkTranscriptExportResult: Identifiable, Sendable {
     }
 
     var isCompleteSuccess: Bool {
-        requestedCount > 0 && failedCount == 0
+        requestedCount > 0 && failedCount == 0 && exportedCount == requestedCount
     }
 }
 
