@@ -104,4 +104,50 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertEqual(editedContent.trimmingCharacters(in: .whitespacesAndNewlines), "Edited transcript")
         XCTAssertFalse(editedContent.contains("**[0:00]**"))
     }
+
+    func testBulkExportPropagatesCancellationAndCleansEmptyCreatedDirectory() async throws {
+        let outputDir = tempDir.appendingPathComponent("cancelled-export", isDirectory: true)
+        let transcription = Transcription(
+            fileName: "cancel-me.m4a",
+            rawTranscript: "Should not export",
+            status: .completed
+        )
+        let gate = CancellationStartGate()
+
+        let task = Task.detached {
+            await gate.wait()
+            return try await TranscriptResultActions.exportTranscriptsToDirectory(
+                transcriptions: [transcription],
+                format: .txt,
+                directory: outputDir
+            )
+        }
+        task.cancel()
+        await gate.open()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation to propagate out of bulk export")
+        } catch is CancellationError {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: outputDir.path))
+        }
+    }
+}
+
+private actor CancellationStartGate {
+    private var isOpen = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
+    }
 }
