@@ -84,7 +84,7 @@ or no-headset meeting QA.
 | Parakeet Unified EN | ++ for English readability | ++ | + but no word timings | 0 | + for English |
 | Nemotron multilingual | + beta | ++ | + | + | + |
 | Nemotron English | + beta for English | ++ | + for English | + for English | + for English |
-| Whisper Large v3 Turbo | 0 to + depending language and cold state | 0 | + | 0 to + | ++ for broad language coverage |
+| Whisper Large v3 Turbo | 0 to + depending on language and cold state | 0 | + | 0 to + | ++ for broad language coverage |
 | Cohere Transcribe | + for batch-only dictation | - | 0 to + plain text only | - | + when batch quality beats timestamp needs |
 
 ## Internal Constraints That Shape Recommendations
@@ -140,7 +140,7 @@ support. The official model card reports English Open ASR leaderboard results
 close to Parakeet v2, plus multilingual FLEURS/MLS/CoVoST numbers. FluidAudio's
 Core ML conversion is the app-relevant runtime: it runs on-device on Apple
 platforms after download, targets macOS 14+ and iOS 17+, and reports about
-110x real-time factor on M4 Pro batch ASR.
+110x real-time speed on M4 Pro batch ASR.
 
 MacParakeet implication: keep this as the "works for most local users" default,
 but do not oversell it as universal multilingual ASR. Its coverage is European,
@@ -277,7 +277,7 @@ speaker/timing-rich meeting UX by itself.
 
 | Model/build | Architecture | Coverage | Native streaming | Timestamps in current MacParakeet path | Primary risk |
 | --- | --- | --- | --- | --- | --- |
-| Parakeet TDT v3 | FastConformer-TDT | 25 European languages | No; tail-window batch preview | Word timings | European-only scope and language auto-detect on short speech |
+| Parakeet TDT v3 | FastConformer-TDT | English + 24 European languages | No; tail-window batch preview | Word timings | European-only scope and language auto-detect on short speech |
 | Parakeet TDT v2 | FastConformer-TDT | English | No; tail-window batch preview | Word timings | English-only and noise sensitivity |
 | Parakeet Unified EN | FastConformer-RNNT unified offline/streaming | English | Yes, buffered streaming | No | No word timings; buffered streaming recomputes context |
 | Nemotron English | Cache-aware FastConformer-RNNT | English | Yes | Token-derived word timings in app | Beta maturity and chunk-size quality tradeoff |
@@ -291,7 +291,7 @@ speaker/timing-rich meeting UX by itself.
 | --- | --- | --- |
 | Qwen3-ASR 0.6B/1.7B + Qwen3-ForcedAligner | Purpose-built Qwen ASR family with 30 languages, 22 Chinese dialects, offline/streaming unified inference, and a separate forced aligner for word/character timestamps in 11 languages. Apache-2.0. | High research value, but not ready for native MacParakeet until an Apple-local runtime exists. Docs now include a Transformers backend, but examples remain Python/Torch and GPU-oriented; streaming is vLLM-only and has no timestamps. |
 | Qwen2.5-Omni / Qwen2-Audio / Qwen-Audio | Strong audio-language baselines and useful benchmark context. | Do not prioritize as MacParakeet ASR engines. They are general audio/omni LLMs, not tight local STT runtimes with timestamps and scheduler-friendly footprints. |
-| NVIDIA Canary 1B Flash/v2 | Strong NVIDIA multilingual batch ASR/ST candidate with word/segment timestamps in some cards and four-language or European-language focus depending variant. | Good batch/file research candidate if a NeMo sidecar is acceptable. Less attractive for native Mac live preview than Nemotron. |
+| NVIDIA Canary 1B Flash/v2 | Strong NVIDIA multilingual batch ASR/ST candidate with word/segment timestamps in some cards and four-language or European-language focus depending on the variant. | Good batch/file research candidate if a NeMo sidecar is acceptable. Less attractive for native Mac live preview than Nemotron. |
 | SenseVoiceSmall / FunASR | Practical edge candidate for Chinese, Cantonese, Japanese, Korean, and multilingual ASR; GGUF/CPU deployment path exists. | Worth a prototype for CJK file/media and maybe meeting final transcripts. Legal/license review and timestamp story are blockers for first-class adoption. |
 | Moonshine Streaming | Tiny English ASR family designed for low-latency live transcription and voice commands; MIT license. | Promising English live-preview experiment outside NVIDIA, pending Apple-local runtime and MacParakeet latency/quality testing. Not a meeting/export engine because timestamp and long-form stories are weak. |
 | Vosk/Kaldi | Mature offline streaming API with partials, word timings, compact models, Swift-adjacent bindings. | Useful as a control/reference for streaming UX and word timing, but not a quality upgrade over modern neural engines. |
