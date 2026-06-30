@@ -282,7 +282,7 @@ speaker/timing-rich meeting UX by itself.
 | Parakeet Unified EN | FastConformer-RNNT unified offline/streaming | English | Yes, buffered streaming | No | No word timings; buffered streaming recomputes context |
 | Nemotron English | Cache-aware FastConformer-RNNT | English | Yes | Token-derived word timings in app | Beta maturity and chunk-size quality tradeoff |
 | Nemotron 3.5 | Cache-aware FastConformer-RNNT with language prompt | 40 locales, uneven tiers | Yes | Token-derived word timings in app | Uneven language tiers; Core ML/local parity needs continuing QA |
-| Whisper Large v3 Turbo | Seq2seq Transformer | Broad multilingual | No native session in app | Word timings | Hallucination/repetition, cold optimize, uneven languages |
+| Whisper Large v3 Turbo | Seq2seq Transformer | Broad multilingual | No native session in app | Word timings | Hallucination/repetition, cold start latency, uneven languages |
 | Cohere Transcribe | Conformer encoder + Transformer decoder | 14 languages | No | No | No auto-detect, no timings, heavy batch runtime |
 
 ## Candidate Models Not Yet First-Class
