@@ -867,7 +867,11 @@ struct TranscriptionLibraryView: View {
     }
 
     private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
-        guard viewModel.isBulkSelectionModeEnabled, !viewModel.isBulkOperationInProgress else { return .ignored }
+        guard
+            viewModel.isBulkSelectionModeEnabled,
+            !viewModel.isBulkOperationInProgress,
+            !bulkExportInProgress
+        else { return .ignored }
         if press.key == .delete || press.key == .deleteForward {
             guard viewModel.hasSelectedTranscriptions else { return .ignored }
             viewModel.requestDeleteSelectedItems()
