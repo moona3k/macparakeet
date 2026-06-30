@@ -23,7 +23,7 @@ seven selectable local ASR builds across four engine families:
 7. Cohere Transcribe through FluidAudio, a batch-only local accuracy engine.
 
 The most important product distinction is not simply "which model has the
-lowest WER." MacParakeet has four different ASR jobs with different failure
+lowest WER." MacParakeet has five different ASR surfaces with different failure
 costs:
 
 | Product surface | Primary success criterion | Capabilities that matter most |
