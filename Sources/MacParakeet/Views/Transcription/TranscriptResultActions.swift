@@ -159,41 +159,49 @@ enum TranscriptResultActions {
             }
         }
 
-        let exportService = ExportService()
-        for transcription in transcriptions {
-            try Task.checkCancellation()
-            await Task.yield()
+        do {
+            let exportService = ExportService()
+            for transcription in transcriptions {
+                try Task.checkCancellation()
+                await Task.yield()
 
-            let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
-            let fileURL = nextAvailableURL(in: directory, stem: stem, format: format)
-            let resolvedOptions = resolvedOptions(
-                for: transcription,
-                format: format,
-                preferredOptions: options
-            )
-
-            do {
-                try await exportTranscriptForBulk(
-                    transcription: transcription,
+                let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
+                let fileURL = nextAvailableURL(in: directory, stem: stem, format: format)
+                let resolvedOptions = resolvedOptions(
+                    for: transcription,
                     format: format,
-                    options: resolvedOptions,
-                    to: fileURL,
-                    using: exportService
+                    preferredOptions: options
                 )
-                exportedURLs.append(fileURL)
-            } catch is CancellationError {
-                // Cancellation is not a per-item file failure — let it
-                // propagate out of the batch so the caller can stop cleanly.
-                throw CancellationError()
-            } catch {
-                failedCount += 1
-                if firstErrorDescription == nil {
-                    firstErrorDescription = error.localizedDescription
+
+                do {
+                    try await exportTranscriptForBulk(
+                        transcription: transcription,
+                        format: format,
+                        options: resolvedOptions,
+                        to: fileURL,
+                        using: exportService
+                    )
+                    exportedURLs.append(fileURL)
+                } catch is CancellationError {
+                    // Cancellation is not a per-item file failure — let it
+                    // propagate out of the batch so the caller can stop cleanly.
+                    throw CancellationError()
+                } catch {
+                    failedCount += 1
+                    if firstErrorDescription == nil {
+                        firstErrorDescription = error.localizedDescription
+                    }
                 }
             }
-        }
 
-        try Task.checkCancellation()
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            removeFilesIfPresent(exportedURLs)
+            if !directoryExisted {
+                removeEmptyDirectoryIfPresent(at: directory)
+            }
+            throw CancellationError()
+        }
 
         if !exportedURLs.isEmpty {
             Telemetry.send(.exportUsed(format: format.rawValue))
@@ -322,6 +330,12 @@ enum TranscriptResultActions {
         }
 
         try? FileManager.default.removeItem(at: directory)
+    }
+
+    nonisolated private static func removeFilesIfPresent(_ urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     nonisolated private static func resolvedOptions(

@@ -646,6 +646,7 @@ struct TranscriptionLibraryView: View {
     private func runBulkExport() {
         let targets = viewModel.selectedLoadedTranscriptionsForExport
         guard !targets.isEmpty else { return }
+        guard !viewModel.isBulkOperationInProgress, !bulkExportInProgress else { return }
 
         cancelBulkExport()
         let outcome = runBulkExportFolderPanel()
