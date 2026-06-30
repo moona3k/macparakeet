@@ -46,6 +46,10 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
     var supportsTranscriptOptions: Bool {
         self == .txt || self == .md
     }
+
+    var usesAppKitRenderer: Bool {
+        self == .docx || self == .pdf
+    }
 }
 
 struct BulkTranscriptExportResult: Identifiable, Sendable {
@@ -221,17 +225,13 @@ enum TranscriptResultActions {
         options: TranscriptExportOptions,
         to fileURL: URL
     ) throws {
-        let exportService = ExportService()
-
-        switch format {
-        case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
-        case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
-        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
-        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
-        case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
-        case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
-        case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
-        }
+        try exportTranscriptOnMainActor(
+            transcription: transcription,
+            format: format,
+            options: options,
+            to: fileURL,
+            using: ExportService()
+        )
     }
 
     nonisolated private static func exportTranscriptForBulk(
@@ -241,20 +241,68 @@ enum TranscriptResultActions {
         to fileURL: URL,
         using exportService: ExportService
     ) async throws {
+        guard format.usesAppKitRenderer else {
+            try exportNonAppKitTranscript(
+                transcription: transcription,
+                format: format,
+                options: options,
+                to: fileURL,
+                using: exportService
+            )
+            return
+        }
+
+        try await MainActor.run {
+            try exportTranscriptOnMainActor(
+                transcription: transcription,
+                format: format,
+                options: options,
+                to: fileURL,
+                using: exportService
+            )
+        }
+    }
+
+    @MainActor private static func exportTranscriptOnMainActor(
+        transcription: Transcription,
+        format: TranscriptExportFormat,
+        options: TranscriptExportOptions,
+        to fileURL: URL,
+        using exportService: ExportService
+    ) throws {
+        switch format {
+        case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
+        case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
+        default:
+            try exportNonAppKitTranscript(
+                transcription: transcription,
+                format: format,
+                options: options,
+                to: fileURL,
+                using: exportService
+            )
+        }
+    }
+
+    nonisolated private static func exportNonAppKitTranscript(
+        transcription: Transcription,
+        format: TranscriptExportFormat,
+        options: TranscriptExportOptions,
+        to fileURL: URL,
+        using exportService: ExportService
+    ) throws {
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
         case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
         case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
-        case .docx:
-            try await MainActor.run {
-                try exportService.exportToDocx(transcription: transcription, url: fileURL)
-            }
-        case .pdf:
-            try await MainActor.run {
-                try exportService.exportToPDF(transcription: transcription, url: fileURL)
-            }
+        case .docx, .pdf:
+            throw NSError(
+                domain: "MacParakeetError",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "\(format.shortName) export must run on the main actor."]
+            )
         }
     }
 

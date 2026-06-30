@@ -17,7 +17,8 @@ struct TranscriptionLibraryView: View {
     @State private var pendingDeleteAudio: Transcription?
     @State private var audioSaveErrorMessage: String?
     @State private var showingBulkExportOptions = false
-    @State private var selectedBulkExportFormat: TranscriptExportFormat = .txt
+    @AppStorage("com.macparakeet.libraryBulkExportFormat")
+    private var selectedBulkExportFormatRawValue = TranscriptExportFormat.txt.rawValue
     @State private var bulkExportOptions = TranscriptExportOptions.default
     @State private var bulkExportInProgress = false
     @State private var bulkExportResult: BulkTranscriptExportResult?
@@ -449,6 +450,15 @@ struct TranscriptionLibraryView: View {
         )
         return preferredOrder
     }()
+
+    private var selectedBulkExportFormat: TranscriptExportFormat {
+        get {
+            TranscriptExportFormat(rawValue: selectedBulkExportFormatRawValue) ?? .txt
+        }
+        nonmutating set {
+            selectedBulkExportFormatRawValue = newValue.rawValue
+        }
+    }
 
     private var bulkExportOptionsPopover: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
