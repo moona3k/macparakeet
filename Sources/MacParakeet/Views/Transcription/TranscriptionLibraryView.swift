@@ -19,7 +19,12 @@ struct TranscriptionLibraryView: View {
     @State private var showingBulkExportOptions = false
     @AppStorage("com.macparakeet.libraryBulkExportFormat")
     private var selectedBulkExportFormatRawValue = TranscriptExportFormat.txt.rawValue
-    @State private var bulkExportOptions = TranscriptExportOptions.default
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeTimestamps")
+    private var bulkExportIncludeTimestamps = true
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeSpeakerLabels")
+    private var bulkExportIncludeSpeakerLabels = true
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeMetadata")
+    private var bulkExportIncludeMetadata = true
     @State private var bulkExportInProgress = false
     @State private var bulkExportResult: BulkTranscriptExportResult?
     @State private var bulkExportErrorMessage: String?
@@ -460,6 +465,14 @@ struct TranscriptionLibraryView: View {
         }
     }
 
+    private var bulkExportOptions: TranscriptExportOptions {
+        TranscriptExportOptions(
+            includeTimestamps: bulkExportIncludeTimestamps,
+            includeSpeakerLabels: bulkExportIncludeSpeakerLabels,
+            includeMetadata: bulkExportIncludeMetadata
+        )
+    }
+
     private var bulkExportOptionsPopover: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: DesignSystem.Spacing.sm) {
@@ -541,9 +554,9 @@ struct TranscriptionLibraryView: View {
                         .font(DesignSystem.Typography.caption.weight(.medium))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                    Toggle("Include timestamps when available", isOn: $bulkExportOptions.includeTimestamps)
-                    Toggle("Include speaker labels when available", isOn: $bulkExportOptions.includeSpeakerLabels)
-                    Toggle("Include metadata", isOn: $bulkExportOptions.includeMetadata)
+                    Toggle("Include timestamps when available", isOn: $bulkExportIncludeTimestamps)
+                    Toggle("Include speaker labels when available", isOn: $bulkExportIncludeSpeakerLabels)
+                    Toggle("Include metadata", isOn: $bulkExportIncludeMetadata)
                 }
             }
 

@@ -162,6 +162,8 @@ enum TranscriptResultActions {
         let exportService = ExportService()
         for transcription in transcriptions {
             try Task.checkCancellation()
+            await Task.yield()
+
             let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
             let fileURL = nextAvailableURL(in: directory, stem: stem, format: format)
             let resolvedOptions = resolvedOptions(
