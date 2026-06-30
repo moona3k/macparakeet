@@ -443,12 +443,12 @@ struct TranscriptionLibraryView: View {
         }
     }
 
-    // Static so the completeness assertion runs once at first use rather than
+    // Static so the completeness check runs once at first use rather than
     // allocating two Sets on every body re-render (the popover re-renders on
     // each format selection).
     private static let bulkExportFormatOrder: [TranscriptExportFormat] = {
         let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
-        assert(
+        precondition(
             preferredOrder.count == TranscriptExportFormat.allCases.count &&
                 Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
             "Bulk export format order must include every TranscriptExportFormat case"
