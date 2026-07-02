@@ -237,7 +237,7 @@
       "license": "Derived metrics only.",
       "language": "en",
       "domain": "cold start, steady RTFx, peak RSS",
-      "expected_size": "24 LibriSpeech files for integrated engines; Cohere reference evidence currently from FluidAudio CLI."
+      "expected_size": "24 LibriSpeech files for integrated engines; Cohere reference evidence currently from FluidAudio CLI, but new runs should use macparakeet-cli."
     }
   ],
   "metrics": [
@@ -449,7 +449,7 @@
         "peak_rss_mb"
       ],
       "status": "current_reference_evidence",
-      "runner": "speed_bench.py",
+      "runner": "speed_bench.py; use cohere-fa-reference only for legacy FluidAudio comparisons.",
       "publication_rule": "Report hardware, macOS version, model path, runtime path, contention assumptions, and whether Cohere was measured through macparakeet-cli or FluidAudio reference CLI."
     }
   ],

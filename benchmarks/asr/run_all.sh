@@ -11,8 +11,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PY="${PY:-python3}"                       # set PY=venv/bin/python3 to use the venv
+PY="${PY:-python3}"                         # set PY=venv/bin/python3 to use the venv
 BOOT="${BOOT:-2000}"; SEED="${SEED:-1234}"  # bootstrap resamples / RNG seed
+COHERE_SPEED_N="${COHERE_SPEED_N:-12}"      # Cohere is memory/cold-start heavy
 # Heavy-path assets (override as needed):
 MP_CLI="${MP_CLI:-$HOME/code/macparakeet/.build/release/macparakeet-cli}"
 FA_CLI="${FA_CLI:-$HOME/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli}"
@@ -46,7 +47,11 @@ speed() {
   for e in parakeet-v2 parakeet-v3 parakeet-unified nemotron-en nemotron-multi whisper; do
     "$PY" speed_bench.py --engine "$e" --cli "$MP_CLI" --dataset-dir "$LS_CLEAN" --n 24 --out "$out"
   done
-  "$PY" speed_bench.py --engine cohere --fa "$FA_CLI" --cohere-model "$COHERE_MODEL" --n 12 --out "$out"
+  "$PY" speed_bench.py --engine cohere --cli "$MP_CLI" --dataset-dir "$LS_CLEAN" \
+    --n "$COHERE_SPEED_N" --out "$out"
+  echo "Legacy Cohere FluidAudio reference speed import, if needed for comparison:"
+  echo "  $PY speed_bench.py --engine cohere-fa-reference --fa \$FA_CLI \\"
+  echo "    --cohere-model \$COHERE_MODEL --n \$COHERE_SPEED_N --out $out"
 }
 
 transcribe() {

@@ -138,7 +138,7 @@ harness conventions.
 | `score.py` | English scorer — canonical normalizer + jiwer → corpus WER, macro-avg, p90, failure-rate, RTFx. `--ci N` adds a bootstrap 95% CI; `--simple` fallback. |
 | `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) via `BasicTextNormalizer`; `--ci N`. |
 | `paired_delta.py` | Paired bootstrap CI on the WER/CER *difference* between two engines (the significance test). |
-| `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. |
+| `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. Uses `macparakeet-cli` for shipping engines, including Cohere; `cohere-fa-reference` is legacy-only. |
 | `test_scorers.py` | Scorer correctness tests (run: `python3 test_scorers.py`). |
 | `manifest.json` | Benchmark contract — engines, datasets, metrics, tasks, product surfaces, and quality gates. |
 | `manifest_tool.py` / `test_manifest.py` | Repo-only contract validation and summary rendering. |
@@ -214,9 +214,10 @@ a larger set before shipping per-language engine routing.
 
 **Method note:** the committed Cohere speed/memory row is still the older
 FluidAudio CLI reference measurement; the other six rows use `macparakeet-cli`.
-MacParakeet now has a Cohere CLI path, so rerun Cohere through `macparakeet-cli`
-before making in-app cold-start or memory claims. Treat the current RAM floor as
-a lower bound.
+`speed_bench.py --engine cohere` now measures MacParakeet's shipping Cohere CLI
+path; use `cohere-fa-reference` only to compare the old FluidAudio reference row.
+Rerun Cohere through `macparakeet-cli` before making in-app cold-start or memory
+claims. Treat the current RAM floor as a lower bound.
 
 The Cohere peak RSS is **constant at 2 / 8 / 12 files** → it's the model's
 resident working set, not harness accumulation (an autoregressive 2B transformer
@@ -290,10 +291,9 @@ macOS 15.
   by up to ~1.5 pt vs the full set and can reorder mid-pack engines — hence the
   full-set English run. `results/{*.jsonl, stride200/}` keep the first-200 +
   stride-200 evidence that motivated it.
-- **Cohere speed/memory** in the committed results is measured via the FluidAudio
-  CLI reference harness, not yet through MacParakeet's current Cohere runtime —
-  treat the figures as a lower bound and confirm in-app before making release or
-  Settings claims.
+- **Cohere speed/memory** in the committed results is measured via the legacy
+  FluidAudio CLI reference harness. The runner now supports MacParakeet's Cohere
+  CLI runtime, so confirm that path before making release or Settings claims.
 - **Not benchmarked:** Qwen3-ASR and Moonshine (need an MLX runtime — deferred).
   Changing defaults or automatic engine routing is a separate ADR/spec-gated
   product change, even when the benchmark evidence is favorable.
