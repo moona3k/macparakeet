@@ -42,9 +42,16 @@ ALLOWED_SURFACES = {
 }
 
 
-def load_manifest(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+def load_manifest(path: Path) -> Any:
+    try:
+        with path.open(encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        print(f"manifest error: file not found: {path}", file=sys.stderr)
+        raise SystemExit(1)
+    except json.JSONDecodeError as exc:
+        print(f"manifest error: invalid JSON in {path}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def _ids(rows: list[Any], kind: str, errors: list[str]) -> set[str]:
@@ -83,8 +90,10 @@ def _require_fields(rows: list[Any], kind: str, errors: list[str]) -> None:
                 errors.append(f"engines.{item_id}.product_surfaces must be a non-empty list")
 
 
-def validate_manifest(data: dict[str, Any]) -> list[str]:
+def validate_manifest(data: Any) -> list[str]:
     errors: list[str] = []
+    if not isinstance(data, dict):
+        return ["manifest root must be a JSON object"]
 
     for field in REQUIRED_TOP_LEVEL:
         if field not in data:
@@ -94,6 +103,17 @@ def validate_manifest(data: dict[str, Any]) -> list[str]:
 
     if data.get("schema_version") != 1:
         errors.append("schema_version must be 1")
+
+    suite = data.get("suite")
+    if not isinstance(suite, dict):
+        errors.append("top-level field 'suite' must be an object")
+    else:
+        name = suite.get("name")
+        purpose = suite.get("purpose")
+        if not isinstance(name, str) or not name.strip():
+            errors.append("suite.name must be a non-empty string")
+        if purpose is not None and not isinstance(purpose, str):
+            errors.append("suite.purpose must be a string")
 
     for kind in ("engines", "datasets", "tasks", "metrics", "quality_gates"):
         if not isinstance(data.get(kind), list):
@@ -148,11 +168,15 @@ def validate_manifest(data: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _md_cell(value: Any) -> str:
+    return str(value).replace("\n", " ").replace("|", "\\|")
+
+
 def markdown_summary(data: dict[str, Any]) -> str:
     lines = [
-        f"# {data['suite']['name']}",
+        f"# {_md_cell(data['suite']['name'])}",
         "",
-        data["suite"].get("purpose", "").strip(),
+        _md_cell(data["suite"].get("purpose", "").strip()),
         "",
         "## Tasks",
         "",
@@ -162,12 +186,12 @@ def markdown_summary(data: dict[str, Any]) -> str:
     for task in data["tasks"]:
         lines.append(
             "| {name} | `{surface}` | {status} | {datasets} | {engines} | `{metric}` |".format(
-                name=task["name"],
-                surface=task["surface"],
-                status=task["status"],
+                name=_md_cell(task["name"]),
+                surface=_md_cell(task["surface"]),
+                status=_md_cell(task["status"]),
                 datasets=", ".join(f"`{d}`" for d in task["datasets"]),
                 engines=", ".join(f"`{e}`" for e in task["engines"]),
-                metric=task["primary_metric"],
+                metric=_md_cell(task["primary_metric"]),
             )
         )
 
@@ -181,10 +205,10 @@ def markdown_summary(data: dict[str, Any]) -> str:
     for engine in data["engines"]:
         lines.append(
             "| {name} | {runtime} | {surfaces} | {caveat} |".format(
-                name=engine["name"],
-                runtime=engine["runtime"],
+                name=_md_cell(engine["name"]),
+                runtime=_md_cell(engine["runtime"]),
                 surfaces=", ".join(f"`{s}`" for s in engine["product_surfaces"]),
-                caveat=engine.get("caveat", ""),
+                caveat=_md_cell(engine.get("caveat", "")),
             )
         )
     return "\n".join(lines) + "\n"

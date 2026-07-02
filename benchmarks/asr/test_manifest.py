@@ -44,9 +44,12 @@ def test_manifest_covers_shipping_engines() -> None:
         "cohere",
     }
     check("all shipping/evaluated engines listed", expected <= engine_ids, str(expected - engine_ids))
-    cohere = next(engine for engine in data["engines"] if engine["id"] == "cohere")
-    check("cohere excluded from live preview", "dictation_live_preview" not in cohere["product_surfaces"])
-    check("cohere caveat records no auto-detect", "no auto language detection" in cohere["caveat"])
+    cohere = next((engine for engine in data["engines"] if engine["id"] == "cohere"), None)
+    if cohere is None:
+        check("cohere engine exists in manifest", False, "cohere engine not found")
+        return
+    check("cohere excluded from live preview", "dictation_live_preview" not in cohere.get("product_surfaces", []))
+    check("cohere caveat records no auto-detect", "no auto language detection" in cohere.get("caveat", ""))
 
 
 def test_summary_mentions_gates() -> None:
@@ -56,6 +59,11 @@ def test_summary_mentions_gates() -> None:
     check("summary includes full English task", "English full-set accuracy" in summary)
     check("summary includes Cohere engine", "Cohere Transcribe" in summary)
     check("summary includes product surface code", "`file_media`" in summary)
+
+    escaped = copy.deepcopy(data)
+    escaped["engines"][0]["caveat"] = "left | right"
+    escaped_summary = manifest_tool.markdown_summary(escaped)
+    check("summary escapes markdown pipes", "left \\| right" in escaped_summary)
 
 
 def test_unknown_references_fail() -> None:
@@ -85,6 +93,14 @@ def test_malformed_manifest_reports_errors() -> None:
     broken_task["tasks"][0]["datasets"] = "not-a-list"
     errors = manifest_tool.validate_manifest(broken_task)
     check("task reference fields must be lists", any("tasks.english_accuracy_full.datasets" in e for e in errors), str(errors))
+
+    errors = manifest_tool.validate_manifest([])
+    check("non-object root rejected", errors == ["manifest root must be a JSON object"], str(errors))
+
+    broken_suite = copy.deepcopy(data)
+    broken_suite["suite"] = {"name": ""}
+    errors = manifest_tool.validate_manifest(broken_suite)
+    check("suite name validated", any("suite.name must be a non-empty string" in e for e in errors), str(errors))
 
 
 def main() -> int:
