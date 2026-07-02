@@ -100,11 +100,12 @@ enum TranscriptResultActions {
             Telemetry.send(.exportUsed(format: format.rawValue))
             return fileURL
         } catch {
-            Telemetry.send(.exportFailed(
-                format: format.rawValue,
-                errorType: TelemetryErrorClassifier.classify(error),
-                errorDetail: TelemetryErrorClassifier.errorDetail(error)
-            ))
+            Telemetry.send(
+                .exportFailed(
+                    format: format.rawValue,
+                    errorType: TelemetryErrorClassifier.classify(error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
             throw error
         }
     }
@@ -123,11 +124,12 @@ enum TranscriptResultActions {
             Telemetry.send(.exportUsed(format: format.rawValue))
             return fileURL
         } catch {
-            Telemetry.send(.exportFailed(
-                format: format.rawValue,
-                errorType: TelemetryErrorClassifier.classify(error),
-                errorDetail: TelemetryErrorClassifier.errorDetail(error)
-            ))
+            Telemetry.send(
+                .exportFailed(
+                    format: format.rawValue,
+                    errorType: TelemetryErrorClassifier.classify(error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
             throw error
         }
     }
@@ -151,11 +153,11 @@ enum TranscriptResultActions {
         let directoryExisted = FileManager.default.fileExists(atPath: directory.path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        var exportedURLs: [URL] = []
+        var exportedFiles: [CreatedExportFile] = []
         var failedCount = 0
         var firstErrorDescription: String?
         defer {
-            if exportedURLs.isEmpty, !directoryExisted {
+            if exportedFiles.isEmpty, !directoryExisted {
                 removeEmptyDirectoryIfPresent(at: directory)
             }
         }
@@ -182,7 +184,7 @@ enum TranscriptResultActions {
                         to: fileURL,
                         using: exportService
                     )
-                    exportedURLs.append(fileURL)
+                    exportedFiles.append(CreatedExportFile(url: fileURL))
                     if let onFileExported {
                         await onFileExported(fileURL)
                     }
@@ -198,22 +200,24 @@ enum TranscriptResultActions {
                 }
             }
         } catch is CancellationError {
-            removeFilesIfPresent(exportedURLs)
+            removeCreatedFilesIfPresent(exportedFiles)
             if !directoryExisted {
                 removeEmptyDirectoryIfPresent(at: directory)
             }
             throw CancellationError()
         }
 
+        let exportedURLs = exportedFiles.map(\.url)
         if !exportedURLs.isEmpty {
             Telemetry.send(.exportUsed(format: format.rawValue))
         }
         if failedCount > 0 {
-            Telemetry.send(.exportFailed(
-                format: format.rawValue,
-                errorType: exportedURLs.isEmpty ? "bulk_total_failure" : "bulk_partial_failure",
-                errorDetail: firstErrorDescription
-            ))
+            Telemetry.send(
+                .exportFailed(
+                    format: format.rawValue,
+                    errorType: exportedURLs.isEmpty ? "bulk_total_failure" : "bulk_partial_failure",
+                    errorDetail: firstErrorDescription
+                ))
         }
 
         return BulkTranscriptExportResult(
@@ -334,9 +338,48 @@ enum TranscriptResultActions {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    nonisolated private static func removeFilesIfPresent(_ urls: [URL]) {
-        for url in urls {
-            try? FileManager.default.removeItem(at: url)
+    private struct CreatedExportFile: Sendable {
+        let url: URL
+        let cleanupIdentity: ExportedFileCleanupIdentity?
+
+        init(url: URL) {
+            self.url = url
+            cleanupIdentity = Self.identity(for: url)
+        }
+
+        func isStillSameFile() -> Bool {
+            guard let cleanupIdentity else { return false }
+            return Self.identity(for: url) == cleanupIdentity
+        }
+
+        private static func identity(for url: URL) -> ExportedFileCleanupIdentity? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+                return nil
+            }
+            let identity = ExportedFileCleanupIdentity(
+                systemNumber: (attributes[.systemNumber] as? NSNumber)?.uint64Value,
+                fileNumber: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
+                size: (attributes[.size] as? NSNumber)?.uint64Value,
+                modificationTime: (attributes[.modificationDate] as? Date)?.timeIntervalSinceReferenceDate
+            )
+            return identity.hasAnyValue ? identity : nil
+        }
+    }
+
+    private struct ExportedFileCleanupIdentity: Equatable, Sendable {
+        let systemNumber: UInt64?
+        let fileNumber: UInt64?
+        let size: UInt64?
+        let modificationTime: TimeInterval?
+
+        var hasAnyValue: Bool {
+            systemNumber != nil || fileNumber != nil || size != nil || modificationTime != nil
+        }
+    }
+
+    nonisolated private static func removeCreatedFilesIfPresent(_ files: [CreatedExportFile]) {
+        for file in files where file.isStillSameFile() {
+            try? FileManager.default.removeItem(at: file.url)
         }
     }
 

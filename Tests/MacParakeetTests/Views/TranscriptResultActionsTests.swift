@@ -155,6 +155,48 @@ final class TranscriptResultActionsTests: XCTestCase {
         }
     }
 
+    func testBulkExportCancellationDoesNotDeleteReplacementFile() async throws {
+        let outputDir = tempDir.appendingPathComponent("replacement-export", isDirectory: true)
+        let first = Transcription(
+            fileName: "first.m4a",
+            rawTranscript: "First export will be replaced",
+            status: .completed
+        )
+        let second = Transcription(
+            fileName: "second.m4a",
+            rawTranscript: "Second export should never start",
+            status: .completed
+        )
+        let replacementText = "Replacement content from another writer"
+        let cancellationProbe = MidExportCancellationProbe()
+
+        let task = Task.detached {
+            return try await TranscriptResultActions.exportTranscriptsToDirectory(
+                transcriptions: [first, second],
+                format: .txt,
+                directory: outputDir,
+                onFileExported: { url in
+                    try? replacementText.write(to: url, atomically: true, encoding: .utf8)
+                    await cancellationProbe.recordAndCancel(url)
+                }
+            )
+        }
+        await cancellationProbe.setTask(task)
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation to propagate out of bulk export")
+        } catch is CancellationError {
+            let exportedURLs = await cancellationProbe.exportedURLs
+            XCTAssertEqual(exportedURLs.map(\.lastPathComponent), ["first.txt"])
+            let replacementURL = try XCTUnwrap(exportedURLs.first)
+            XCTAssertEqual(
+                try String(contentsOf: replacementURL, encoding: .utf8),
+                replacementText
+            )
+        }
+    }
+
     func testBulkExportCancellationAfterFinalFileKeepsCompletedExport() async throws {
         let outputDir = tempDir.appendingPathComponent("completed-export", isDirectory: true)
         let transcription = Transcription(
