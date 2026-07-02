@@ -509,8 +509,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         @MainActor static let tertiary = resolveAgainstLightAppearance(.tertiaryLabelColor)
 
         @MainActor private static func resolveAgainstLightAppearance(_ color: NSColor) -> NSColor {
+            // `.aqua` is effectively always available. If it somehow isn't, fall
+            // back to a fixed dark color rather than resolving the dynamic color
+            // against a possibly-dark ambient appearance (which would defeat the
+            // whole point and could bake near-white text into the export).
             guard let light = NSAppearance(named: .aqua) else {
-                return color.usingColorSpace(.sRGB) ?? color
+                return .black
             }
             var resolved = color
             light.performAsCurrentDrawingAppearance {
