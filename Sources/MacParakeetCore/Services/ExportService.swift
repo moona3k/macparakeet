@@ -495,7 +495,32 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     // MARK: - Rich Text (AppKit)
 
-    @MainActor private func buildRichTranscript(transcription: Transcription) throws -> NSAttributedString {
+    /// Concrete text colors for exported PDF/DOCX documents.
+    ///
+    /// Exported files are standalone artifacts rendered on a white page, so they
+    /// must not follow the app's live appearance. Dynamic label colors
+    /// (`NSColor.labelColor` and friends) resolve to near-white in Dark Mode,
+    /// which bakes invisible text into the exported document. Resolve the
+    /// semantic colors against a fixed light (aqua) appearance once so exports
+    /// stay legible regardless of the running app's theme.
+    private enum ExportTextColor {
+        @MainActor static let primary = resolveAgainstLightAppearance(.labelColor)
+        @MainActor static let secondary = resolveAgainstLightAppearance(.secondaryLabelColor)
+        @MainActor static let tertiary = resolveAgainstLightAppearance(.tertiaryLabelColor)
+
+        @MainActor private static func resolveAgainstLightAppearance(_ color: NSColor) -> NSColor {
+            guard let light = NSAppearance(named: .aqua) else {
+                return color.usingColorSpace(.sRGB) ?? color
+            }
+            var resolved = color
+            light.performAsCurrentDrawingAppearance {
+                resolved = color.usingColorSpace(.sRGB) ?? color
+            }
+            return resolved
+        }
+    }
+
+    @MainActor func buildRichTranscript(transcription: Transcription) throws -> NSAttributedString {
         let result = NSMutableAttributedString()
 
         let titleFont = NSFont.boldSystemFont(ofSize: 24)
@@ -503,8 +528,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         let bodyFont = NSFont.systemFont(ofSize: 12)
         let timestampFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
 
+        // Every run gets an explicit, appearance-independent color: an unset
+        // foreground color would fall back to the dynamic default text color and
+        // render near-white (invisible) on the white page in Dark Mode.
+        let primaryColor = ExportTextColor.primary
+        let secondaryColor = ExportTextColor.secondary
+        let tertiaryColor = ExportTextColor.tertiary
+
         // Title
-        result.append(NSAttributedString(string: transcription.fileName + "\n\n", attributes: [.font: titleFont]))
+        result.append(
+            NSAttributedString(
+                string: transcription.fileName + "\n\n",
+                attributes: [.font: titleFont, .foregroundColor: primaryColor]))
 
         // Metadata
         var metaLines: [String] = []
@@ -518,39 +553,57 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         metaLines.append("Transcribed: \(formatter.string(from: transcription.createdAt))")
-        
+
         if !metaLines.isEmpty {
             let metaText = metaLines.joined(separator: "\n") + "\n\n"
-            result.append(NSAttributedString(string: metaText, attributes: [.font: headerFont, .foregroundColor: NSColor.secondaryLabelColor]))
+            result.append(
+                NSAttributedString(
+                    string: metaText,
+                    attributes: [.font: headerFont, .foregroundColor: secondaryColor]))
         }
 
         // Horizontal line equivalent
-        result.append(NSAttributedString(string: "----------------------------------------------------------\n\n", attributes: [.foregroundColor: NSColor.tertiaryLabelColor]))
+        result.append(
+            NSAttributedString(
+                string: "----------------------------------------------------------\n\n",
+                attributes: [.foregroundColor: tertiaryColor]))
 
         // Content
         if let text = editedTranscriptText(transcription: transcription) {
-            result.append(NSAttributedString(string: text, attributes: [.font: bodyFont]))
+            result.append(
+                NSAttributedString(
+                    string: text,
+                    attributes: [.font: bodyFont, .foregroundColor: primaryColor]))
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             var lastSpeakerId: String? = nil
             for cue in cues {
                 if let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
                    cue.speakerId != lastSpeakerId {
-                    let speakerAttr = NSAttributedString(string: "\(label)\n", attributes: [.font: headerFont, .foregroundColor: NSColor.labelColor])
+                    let speakerAttr = NSAttributedString(
+                        string: "\(label)\n",
+                        attributes: [.font: headerFont, .foregroundColor: primaryColor])
                     result.append(speakerAttr)
                 }
                 lastSpeakerId = cue.speakerId
 
                 let ts = "[" + formatReadableTimestamp(ms: cue.startMs) + "] "
-                let attrTs = NSAttributedString(string: ts, attributes: [.font: timestampFont, .foregroundColor: NSColor.secondaryLabelColor])
+                let attrTs = NSAttributedString(
+                    string: ts,
+                    attributes: [.font: timestampFont, .foregroundColor: secondaryColor])
                 result.append(attrTs)
 
-                let attrText = NSAttributedString(string: cue.text + "\n\n", attributes: [.font: bodyFont])
+                let attrText = NSAttributedString(
+                    string: cue.text + "\n\n",
+                    attributes: [.font: bodyFont, .foregroundColor: primaryColor])
                 result.append(attrText)
             }
         } else {
             let text = preferredText(transcription: transcription)
-            result.append(NSAttributedString(string: text, attributes: [.font: bodyFont]))
+            result.append(
+                NSAttributedString(
+                    string: text,
+                    attributes: [.font: bodyFont, .foregroundColor: primaryColor]))
         }
 
         return result

@@ -717,6 +717,65 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 3661000), "1:01:01")
     }
 
+    // MARK: - Export Color Legibility
+
+    /// Every run in an exported PDF/DOCX must carry an explicit, appearance-
+    /// independent dark color. A missing color falls back to the dynamic default
+    /// text color, and a dynamic label color resolves to near-white in Dark Mode
+    /// — both make the exported document invisible on its white page.
+    func testBuildRichTranscriptUsesAppearanceIndependentDarkColors() throws {
+        let transcription = Transcription(
+            fileName: "colors.mp3",
+            durationMs: 5000,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+
+        // Precondition: the resolver must actually distinguish appearances,
+        // otherwise the per-run checks below would be vacuous. A dynamic label
+        // color resolves dark under Light and near-white under Dark.
+        let dynamicLight = concreteColor(.labelColor, appearance: .aqua)
+        let dynamicDark = concreteColor(.labelColor, appearance: .darkAqua)
+        XCTAssertNotEqual(dynamicLight, dynamicDark, "Precondition: resolver must distinguish light vs dark")
+        XCTAssertGreaterThan(dynamicDark.brightnessComponent, 0.6, "Precondition: labelColor near-white in Dark Mode")
+
+        let attributed = try exportService.buildRichTranscript(transcription: transcription)
+        XCTAssertGreaterThan(attributed.length, 0)
+        let fullRange = NSRange(location: 0, length: attributed.length)
+
+        var inspectedRuns = 0
+        attributed.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
+            inspectedRuns += 1
+            guard let color = value as? NSColor else {
+                XCTFail("Run \(range) has no explicit foreground color; it would vanish on a white page in Dark Mode")
+                return
+            }
+            let light = concreteColor(color, appearance: .aqua)
+            let dark = concreteColor(color, appearance: .darkAqua)
+            XCTAssertEqual(light, dark, "Exported color must not change with app appearance (was it left dynamic?)")
+            XCTAssertLessThan(light.brightnessComponent, 0.6, "Exported text must be dark to read on white")
+        }
+        XCTAssertGreaterThan(inspectedRuns, 0)
+    }
+
+    private func concreteColor(_ color: NSColor, appearance name: NSAppearance.Name) -> NSColor {
+        guard let appearance = NSAppearance(named: name) else {
+            return color.usingColorSpace(.sRGB) ?? color
+        }
+        var resolved = color
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = color.usingColorSpace(.sRGB) ?? color
+        }
+        return resolved
+    }
+
     private func firstPageContentStream(from url: URL) throws -> String {
         guard let document = CGPDFDocument(url as CFURL),
               let page = document.page(at: 1),
