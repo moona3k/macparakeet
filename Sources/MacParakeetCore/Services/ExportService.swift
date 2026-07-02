@@ -516,9 +516,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             guard let light = NSAppearance(named: .aqua) else {
                 return .black
             }
-            var resolved = color
+            var resolved = NSColor.black
             light.performAsCurrentDrawingAppearance {
-                resolved = color.usingColorSpace(.sRGB) ?? color
+                resolved = color.usingColorSpace(.sRGB) ?? .black
             }
             return resolved
         }
