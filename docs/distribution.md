@@ -227,6 +227,11 @@ spctl --assess --type execute --verbose=4 dist/MacParakeet.app
 
 dist/MacParakeet.app/Contents/Resources/yt-dlp --version
 # Expected: prints a yt-dlp version, not a [PYI:ERROR] Python shared library failure
+
+scripts/dev/release_demo_smoke.sh \
+  --cli dist/MacParakeet.app/Contents/MacOS/macparakeet-cli \
+  --output-dir ".codex/release-demo-smoke/release-X.Y.Z"
+# Expected: local health, transcription, and export smoke passes with evidence
 ```
 
 ### Step 3: Upload DMG to R2
