@@ -11,6 +11,7 @@ Engines (`--engine` -> macparakeet-cli flags); --language hint set from the FLEU
     whisper          -> --engine whisper --language <hint>
     nemotron-multi   -> --engine nemotron --nemotron-model multilingual-1120ms --language <hint>
     parakeet-v3      -> --engine parakeet --parakeet-model v3 --language <hint>   (EU+en; not CJK)
+    cohere           -> --engine cohere --language <hint>
 
 Score with score_multi.py (WER for en, CER for ko/ja/zh).
 """
@@ -32,6 +33,7 @@ ENGINES = {
     "whisper": lambda hint: ["--engine", "whisper", "--language", hint],
     "nemotron-multi": lambda hint: ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms", "--language", hint],
     "parakeet-v3": lambda hint: ["--engine", "parakeet", "--parakeet-model", "v3", "--language", hint],
+    "cohere": lambda hint: ["--engine", "cohere", "--language", hint],
 }
 
 

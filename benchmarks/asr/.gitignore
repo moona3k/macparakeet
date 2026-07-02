@@ -1,3 +1,4 @@
 # Full-set per-file hypotheses are large (~13 MB) and regenerable via
 # run_macparakeet.py (no --limit). Commit the summary instead.
 results/full/*.jsonl
+venv/

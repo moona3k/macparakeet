@@ -7,15 +7,61 @@ Open ASR Leaderboard standard), so cross-engine numbers are directly comparable 
 the single most important property a multi-model benchmark must have. It measures
 three axes: **accuracy** (English + multilingual), **speed**, and **memory**.
 
-Engines are the four families MacParakeet ships or is evaluating: **Parakeet**
+Engines are the four families MacParakeet ships and evaluates: **Parakeet**
 (v2 / v3 / unified), **Nemotron** (English / multilingual, Beta), **WhisperKit**
 (large-v3-turbo), and **Cohere** Transcribe (`cohere-transcribe-03-2026`, q8) —
-the model flagged after #520 / #552 / #554 and confirmed runnable on-device via
-the FluidAudio CoreML SDK MacParakeet already ships.
+the model flagged after #520 / #552 / #554 and now available as a batch-only
+MacParakeet engine through the same FluidAudio CoreML SDK.
 
 > Supersedes the LibriSpeech-`test-clean`-only `benchmarks/parakeet-unified/`
 > evidence. English numbers below are the **full** test sets; multilingual is a
 > capped FLEURS pass (see "Status & limitations").
+
+## Benchmark contract
+
+This directory is the source of truth for ASR evidence. It is intentionally
+small: a manifest, deterministic scorers, runners for the shipping CLI path, and
+committed result fixtures that can be re-scored without downloading models.
+
+| Industry practice | MacParakeet implementation |
+|-------------------|----------------------------|
+| Open ASR Leaderboard-style normalization: one text-normalization path before WER/CER | `score.py` and `score_multi.py` apply the same Whisper normalizers to every engine. |
+| NIST/SCTK-style explicit scoring contract | JSONL records carry stable utterance IDs, references, hypotheses, dataset, engine, language, and optional timing. |
+| ESPnet/Kaldi-style reproducible recipe | `run_all.sh` separates repo-only verification from heavy `speed` and `transcribe` regeneration. |
+| Statistical claims need uncertainty | Marginal bootstrap CIs are reported, and engine-vs-engine claims use paired bootstrap deltas. |
+| Accuracy alone is not a product decision | `manifest.json` records product surfaces, speed, memory, live-preview support, and evidence gates. |
+| Public benchmarks are not enough for product UX | Public datasets are kept separate from planned private consented dictation/meeting fixtures. |
+
+## Suite matrix
+
+| Tier | Dataset / fixture | Current status | Purpose | Publishability |
+|------|-------------------|----------------|---------|----------------|
+| English full-set | LibriSpeech `test-clean` + `test-other` | Committed full results | Clean/noisy English model ranking | Final-grade for read-English claims. |
+| Multilingual directional | FLEURS en/ko/ja/zh | Committed capped results, 150/language | Language coverage and failure discovery | Ranking-grade; expand before routing defaults. |
+| Performance | Local speed/memory micro-bench | Committed reference results | Cold start, steady RTFx, peak RSS | Hardware-specific; rerun for release claims. |
+| Meeting public | AMI Meeting Corpus | Planned | Multi-speaker meeting final transcript quality | Needed before meeting-specific engine claims. |
+| Accented/wild English | Earnings-22 | Planned | Real-world accents, long-form speech | Needed before broad noisy/accented claims. |
+| Product regression | Consented MacParakeet fixtures | Planned private | Dictation, meeting, file/media edge cases | Internal gate; do not commit private audio/transcripts. |
+
+`manifest.json` is validated by `manifest_tool.py` and `test_manifest.py` during
+`./run_all.sh verify`. Treat the manifest as the benchmark API: adding a dataset,
+engine, metric, or product decision gate should update it in the same PR.
+
+## Research basis
+
+The suite follows the public evaluation patterns used by the
+[HuggingFace Open ASR Leaderboard](https://github.com/huggingface/open_asr_leaderboard)
+(shared normalization, WER + RTFx), [NIST SCTK/SCLITE](https://github.com/usnistgov/SCTK)
+(explicit reference-vs-hypothesis scoring),
+[ESPnet recipes](https://espnet.github.io/espnet/espnet2_tutorial.html)
+(reproducible data/eval scripts), and meeting-eval work such as
+[MeetEval](https://github.com/fgnt/meeteval) (meeting transcription needs its
+own metric surface). Dataset choices are intentionally layered:
+[LibriSpeech](https://www.openslr.org/12) for saturated English read speech,
+[FLEURS](https://arxiv.org/abs/2205.12446) for multilingual coverage,
+[AMI](https://groups.inf.ed.ac.uk/ami/corpus/) for meetings,
+[Earnings-22](https://arxiv.org/abs/2203.15591) for accented long-form English,
+and a private MacParakeet fixture tier for product regressions.
 
 ## TL;DR (what the evidence says)
 
@@ -24,8 +70,8 @@ the FluidAudio CoreML SDK MacParakeet already ships.
   ANE compile, and runs **~11× realtime** (vs ~70× for Parakeet). Its accuracy
   lead is *statistically real* only on noisy English (`test-other`) and Japanese;
   on clean English, Korean, and Chinese it ties the best alternative within 95%
-  CIs. → **Add Cohere as an opt-in accuracy / noisy-audio / Japanese engine for
-  16 GB+ Macs, not a default.**
+  CIs. → **Keep Cohere as an opt-in accuracy / noisy-audio / Japanese engine for
+  16 GB+ Macs, not the default.**
 - **Parakeet stays the right default** for fast dictation (best speed, ~120 MB
   RAM, English WER within noise of Cohere on clean speech). **Unified slightly
   beats v2** on clean speech (paired Δ −0.22 pt, CI [−0.34, −0.11]) and ties on
@@ -94,9 +140,11 @@ harness conventions.
 | `paired_delta.py` | Paired bootstrap CI on the WER/CER *difference* between two engines (the significance test). |
 | `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. |
 | `test_scorers.py` | Scorer correctness tests (run: `python3 test_scorers.py`). |
+| `manifest.json` | Benchmark contract — engines, datasets, metrics, tasks, product surfaces, and quality gates. |
+| `manifest_tool.py` / `test_manifest.py` | Repo-only contract validation and summary rendering. |
 | `run_macparakeet.py` | Drives `macparakeet-cli transcribe` for integrated engines on LibriSpeech (the real shipping path). |
 | `run_macparakeet_fleurs.py` | Same, over a FLEURS language subset (multilingual). |
-| `fa_json_to_jsonl.py` | Converts a FluidAudio CLI benchmark JSON → the same JSONL, so non-integrated engines (Cohere) score through the same scorer. |
+| `fa_json_to_jsonl.py` | Converts a FluidAudio CLI benchmark JSON → the same JSONL for legacy/reference imports. |
 | `run_all.sh` | Driver: `verify` (repo-only: tests + re-score committed evidence with CIs), `speed`, `transcribe`. |
 | `requirements.txt` | Pinned scorer dependencies. |
 | `results/` | Committed evidence (see "Verification & reproducibility"). |
@@ -164,10 +212,11 @@ a larger set before shipping per-language engine routing.
 | whisper-large-v3-turbo | 2.29 s | ~14× | 274 MB |
 | **cohere-transcribe-03-2026** | **73 s** | **~11×** | **~11.6 GB** |
 
-**Method note:** Cohere is measured via the FluidAudio CLI (the same SDK
-MacParakeet would integrate); the other six via `macparakeet-cli`. So Cohere's
-figures are a *reference-harness* proxy, not yet an in-app measurement — treat the
-RAM floor as a lower bound.
+**Method note:** the committed Cohere speed/memory row is still the older
+FluidAudio CLI reference measurement; the other six rows use `macparakeet-cli`.
+MacParakeet now has a Cohere CLI path, so rerun Cohere through `macparakeet-cli`
+before making in-app cold-start or memory claims. Treat the current RAM floor as
+a lower bound.
 
 The Cohere peak RSS is **constant at 2 / 8 / 12 files** → it's the model's
 resident working set, not harness accumulation (an autoregressive 2B transformer
@@ -193,10 +242,10 @@ punctuation/capitalization. So unified is the better English Parakeet build.
 
 **Recommendation (evidence-based):**
 1. Keep **Parakeet** the default (speed + memory + clean-English parity).
-2. Add **Cohere** as an **opt-in** engine surfaced for noisy audio, Japanese, and
-   accuracy-critical work, gated to **16 GB+ RAM** (reference-harness ~11 GB;
-   confirm the in-app figure before shipping) with a clear cold-start/size
-   warning. Reuses the existing FluidAudio SDK — no new runtime.
+2. Keep **Cohere** as an **opt-in** engine surfaced for noisy audio, Japanese,
+   and accuracy-critical work, gated to **16 GB+ RAM** until an in-app rerun
+   proves otherwise. Its Settings copy should be explicit about cold start,
+   memory, no auto-detect, no live preview, and no word timestamps.
 3. Keep **WhisperKit** as the pragmatic multilingual engine (light, competitive
    Korean/Chinese); it remains the better default for CJK on memory grounds.
    Per-language routing (Japanese→Cohere) is provisional on n=150 — validate on a
@@ -206,10 +255,11 @@ punctuation/capitalization. So unified is the better English Parakeet build.
 ## Verification & reproducibility
 
 - **Scorer/CI determinism.** `./run_all.sh verify` (repo-only, no datasets or
-  models) runs the scorer tests and re-scores the committed (frozen) hypotheses
-  with CIs, reproducing the headline macro WER (2.07 / 2.38 / 2.57 / 3.00 / 3.22 /
-  3.70 / 5.17). This proves the *scorer* is deterministic — it re-scores fixed
-  text, it does not re-transcribe.
+  models) validates the benchmark manifest, runs manifest/scorer tests, and
+  re-scores the committed (frozen) hypotheses with CIs, reproducing the headline
+  macro WER (2.07 / 2.38 / 2.57 / 3.00 / 3.22 / 3.70 / 5.17). This proves the
+  *contract and scorer* are deterministic — it re-scores fixed text, it does not
+  re-transcribe.
 - **Spot pipeline reproduction.** Separately, re-transcribing through a clean
   `macparakeet-cli` and scoring on *identical utterance IDs* gives **Δ = 0.00 pt**
   vs the committed data on a stride-60 `test-clean` subset (six integrated
@@ -226,7 +276,7 @@ punctuation/capitalization. So unified is the better English Parakeet build.
 - **Determinism:** the scorers are deterministic; the bootstrap uses a fixed seed
   (1234). Same inputs → same numbers.
 
-**Provenance.** macparakeet-cli **2.9.0**; FluidAudio **v0.15.4**; CPython
+**Provenance.** macparakeet-cli **2.11.0**; FluidAudio **v0.15.4**; CPython
 **3.14.5** with pinned deps; LibriSpeech test-clean/test-other (OpenSLR SLR12);
 FLEURS via `FluidInference/fleurs-full` (HF); Cohere model
 `FluidInference/cohere-transcribe-03-2026-coreml` (q8); Apple M4 Pro / 48 GB /
@@ -240,10 +290,10 @@ macOS 15.
   by up to ~1.5 pt vs the full set and can reorder mid-pack engines — hence the
   full-set English run. `results/{*.jsonl, stride200/}` keep the first-200 +
   stride-200 evidence that motivated it.
-- **Cohere speed/memory** is measured via the FluidAudio CLI (the same SDK
-  MacParakeet would integrate), not yet through MacParakeet's own runtime (Cohere
-  isn't an integrated engine) — treat the figures as a lower bound and confirm
-  in-app before shipping.
+- **Cohere speed/memory** in the committed results is measured via the FluidAudio
+  CLI reference harness, not yet through MacParakeet's current Cohere runtime —
+  treat the figures as a lower bound and confirm in-app before making release or
+  Settings claims.
 - **Not benchmarked:** Qwen3-ASR and Moonshine (need an MLX runtime — deferred).
-  Integrating any winner (e.g. Cohere as an opt-in FluidAudio engine) is a
-  separate ADR-gated change.
+  Changing defaults or automatic engine routing is a separate ADR/spec-gated
+  product change, even when the benchmark evidence is favorable.

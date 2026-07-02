@@ -12,12 +12,15 @@ speed/memory profile, **one engine at a time, nothing else running**:
     For macparakeet-cli engines we run the same prefix at two sizes (1 file vs
     N files) in fresh processes; the difference cancels the fixed load:
         steady = (audio_N - audio_1) / (wall_N - wall_1)
-    For Cohere (FluidAudio CLI) we read its per-file rtfx and drop file 0.
+    For the current committed Cohere reference result (FluidAudio CLI) we read
+    its per-file rtfx and drop file 0.
   - **peak RSS** = `/usr/bin/time -l` "maximum resident set size" of the
     isolated child process (the whole CLI: Swift runtime + the loaded model).
 
 Backends: macparakeet-cli (parakeet-v2/v3/unified, nemotron-en/multi, whisper)
-and the FluidAudio CLI cohere-benchmark (cohere — not an integrated engine).
+and the FluidAudio CLI cohere-benchmark for the existing Cohere reference
+measurement. Rerun Cohere through macparakeet-cli before making in-app memory or
+cold-start claims.
 
 Usage:
     speed_bench.py --engine parakeet-v3 --cli /path/to/macparakeet-cli \
