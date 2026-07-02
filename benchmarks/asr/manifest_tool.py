@@ -148,9 +148,10 @@ def validate_manifest(data: Any) -> list[str]:
         if not isinstance(task, dict):
             continue
         task_id = task.get("id")
-        surface = task.get("surface")
-        if surface not in ALLOWED_SURFACES:
-            errors.append(f"tasks.{task_id}.surface has unknown surface '{surface}'")
+        if "surface" in task:
+            surface = task["surface"]
+            if surface not in ALLOWED_SURFACES:
+                errors.append(f"tasks.{task_id}.surface has unknown surface '{surface}'")
         datasets = task.get("datasets") if isinstance(task.get("datasets"), list) else []
         engines = task.get("engines") if isinstance(task.get("engines"), list) else []
         metrics = task.get("metrics") if isinstance(task.get("metrics"), list) else []
@@ -160,10 +161,10 @@ def validate_manifest(data: Any) -> list[str]:
         for engine in engines:
             if engine not in engine_ids:
                 errors.append(f"tasks.{task_id}.engines references unknown engine '{engine}'")
-        primary = task.get("primary_metric")
-        if primary not in metric_ids:
+        primary = task.get("primary_metric") if "primary_metric" in task else None
+        if primary is not None and primary not in metric_ids:
             errors.append(f"tasks.{task_id}.primary_metric references unknown metric '{primary}'")
-        if metrics and primary not in metrics:
+        if primary is not None and metrics and primary not in metrics:
             errors.append(f"tasks.{task_id}.primary_metric '{primary}' must also be listed in metrics")
         for metric in metrics:
             if metric not in metric_ids:

@@ -104,6 +104,27 @@ def test_malformed_manifest_reports_errors() -> None:
         str(errors),
     )
 
+    missing_task_surface = copy.deepcopy(data)
+    del missing_task_surface["tasks"][0]["surface"]
+    errors = manifest_tool.validate_manifest(missing_task_surface)
+    check(
+        "missing task surface avoids duplicate unknown-surface error",
+        any("missing required field 'surface'" in e for e in errors)
+        and not any(".surface has unknown surface" in e for e in errors),
+        str(errors),
+    )
+
+    missing_task_primary = copy.deepcopy(data)
+    del missing_task_primary["tasks"][0]["primary_metric"]
+    errors = manifest_tool.validate_manifest(missing_task_primary)
+    check(
+        "missing task primary metric avoids duplicate reference error",
+        any("missing required field 'primary_metric'" in e for e in errors)
+        and not any(".primary_metric references unknown metric" in e for e in errors)
+        and not any(".primary_metric 'None'" in e for e in errors),
+        str(errors),
+    )
+
     missing_engine_field = copy.deepcopy(data)
     del missing_engine_field["engines"][0]["product_surfaces"]
     errors = manifest_tool.validate_manifest(missing_engine_field)
