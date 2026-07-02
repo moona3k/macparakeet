@@ -11,9 +11,10 @@ scored by the same canonical scorer (`score.py`). Pair the emitted JSONL with:
 
 Engines (`--engine` value -> macparakeet-cli flags):
     parakeet-v2 / v3 / unified   -> --engine parakeet --parakeet-model {v2,v3,unified}
-    nemotron-en                  -> --engine nemotron --nemotron-model nemotron-english-1120ms
-    nemotron-multi               -> --engine nemotron --nemotron-model nemotron-multilingual-1120ms
+    nemotron-en                  -> --engine nemotron --nemotron-model english-1120ms
+    nemotron-multi               -> --engine nemotron --nemotron-model multilingual-1120ms
     whisper                      -> --engine whisper
+    cohere                       -> --engine cohere --language en
 
 RTFx note: proc_s is the batch wall-clock (incl. one-time model load) amortized
 across files proportional to audio length, so the scorer's RTFx column reflects
@@ -38,6 +39,7 @@ ENGINES = {
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],
+    "cohere": ["--engine", "cohere", "--language", "en"],
 }
 
 

@@ -12,17 +12,21 @@ speed/memory profile, **one engine at a time, nothing else running**:
     For macparakeet-cli engines we run the same prefix at two sizes (1 file vs
     N files) in fresh processes; the difference cancels the fixed load:
         steady = (audio_N - audio_1) / (wall_N - wall_1)
-    For Cohere (FluidAudio CLI) we read its per-file rtfx and drop file 0.
+    For the legacy Cohere reference result (FluidAudio CLI) we read its per-file
+    rtfx and drop file 0.
   - **peak RSS** = `/usr/bin/time -l` "maximum resident set size" of the
     isolated child process (the whole CLI: Swift runtime + the loaded model).
 
-Backends: macparakeet-cli (parakeet-v2/v3/unified, nemotron-en/multi, whisper)
-and the FluidAudio CLI cohere-benchmark (cohere — not an integrated engine).
+Backends: macparakeet-cli (parakeet-v2/v3/unified, nemotron-en/multi, whisper,
+cohere) and an explicit FluidAudio CLI reference mode
+(`cohere-fa-reference`) for legacy comparisons.
 
 Usage:
     speed_bench.py --engine parakeet-v3 --cli /path/to/macparakeet-cli \
         --dataset-dir ~/asr-bench/LibriSpeech/test-clean --n 24 --out speed.jsonl
-    speed_bench.py --engine cohere --fa /path/to/fluidaudiocli \
+    speed_bench.py --engine cohere --cli /path/to/macparakeet-cli \
+        --dataset-dir ~/asr-bench/LibriSpeech/test-clean --n 12 --out speed.jsonl
+    speed_bench.py --engine cohere-fa-reference --fa /path/to/fluidaudiocli \
         --cohere-model ~/asr-bench/cohere-coreml/q8 --n 12 --out speed.jsonl
 """
 from __future__ import annotations
@@ -44,7 +48,10 @@ MP_ENGINES = {
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],
+    "cohere": ["--engine", "cohere", "--language", "en"],
 }
+REFERENCE_ENGINES = ("cohere-fa-reference",)
+ALL_ENGINES = (*MP_ENGINES, *REFERENCE_ENGINES, "all")
 _RSS_RE = re.compile(r"^\s*(\d+)\s+maximum resident set size", re.MULTILINE)
 
 
@@ -105,8 +112,8 @@ def measure_macparakeet(engine: str, cli: Path, files: list[Path], n: int) -> di
         shutil.rmtree(work, ignore_errors=True)
 
 
-def measure_cohere(fa: Path, model_dir: Path, n: int) -> dict:
-    work = Path(tempfile.mkdtemp(prefix="speed-cohere-"))
+def measure_cohere_reference(fa: Path, model_dir: Path, n: int) -> dict:
+    work = Path(tempfile.mkdtemp(prefix="speed-cohere-fa-reference-"))
     out = work / "cohere.json"
     try:
         # --dataset librispeech matters: it defaults to fleurs, which would
@@ -122,22 +129,27 @@ def measure_cohere(fa: Path, model_dir: Path, n: int) -> dict:
         cold = results[0].get("processingTime") if results else None
         steady = statistics.median(rtfx[1:]) if len(rtfx) > 1 else None
         rss = peak_rss_mb(stderr)
-        return dict(engine="cohere", method="fluidaudio per-file (drop file0)", n_files=len(results),
-                    cold_start_s=round(cold, 2) if cold else None,
-                    steady_rtfx=round(steady, 1) if steady else None,
-                    peak_rss_mb=round(rss) if rss else None,
-                    total_wall_s=round(wall, 1))
+        return dict(
+            engine="cohere-fa-reference",
+            method="fluidaudio reference per-file (drop file0)",
+            n_files=len(results),
+            cold_start_s=round(cold, 2) if cold else None,
+            steady_rtfx=round(steady, 1) if steady else None,
+            peak_rss_mb=round(rss) if rss else None,
+            total_wall_s=round(wall, 1),
+        )
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--engine", required=True, help="one of %s, cohere, or 'all'" % list(MP_ENGINES))
+    ap.add_argument("--engine", required=True, choices=ALL_ENGINES,
+                    help="engine to measure; 'all' runs shipping macparakeet-cli engines")
     ap.add_argument("--cli", type=Path, help="macparakeet-cli (for integrated engines)")
-    ap.add_argument("--fa", type=Path, help="fluidaudiocli (for cohere)")
-    ap.add_argument("--cohere-model", type=Path, help="cohere q8 model dir")
-    ap.add_argument("--dataset-dir", type=Path, help="LibriSpeech test-clean dir (mp engines)")
+    ap.add_argument("--fa", type=Path, help="fluidaudiocli (for cohere-fa-reference)")
+    ap.add_argument("--cohere-model", type=Path, help="cohere q8 model dir (reference mode)")
+    ap.add_argument("--dataset-dir", type=Path, help="LibriSpeech test-clean dir (macparakeet-cli engines)")
     ap.add_argument("--n", type=int, default=24, help="warm-batch size")
     ap.add_argument("--out", type=Path, help="append the result JSON line here")
     args = ap.parse_args()
@@ -146,16 +158,21 @@ def main() -> int:
     if args.dataset_dir:
         files = sorted(args.dataset_dir.expanduser().resolve().glob("*/*/*.flac"))
 
-    engines = list(MP_ENGINES) + ["cohere"] if args.engine == "all" else [args.engine]
+    engines = list(MP_ENGINES) if args.engine == "all" else [args.engine]
     out_records = []
     for eng in engines:
-        print(f">>> measuring {eng} ...", flush=True)
-        if eng == "cohere":
-            rec = measure_cohere(args.fa.expanduser().resolve(),
-                                 args.cohere_model.expanduser().resolve(), args.n)
+        if eng in REFERENCE_ENGINES:
+            if not args.fa or not args.cohere_model:
+                raise SystemExit("--fa and --cohere-model required for cohere-fa-reference")
+            print(f">>> measuring {eng} ...", flush=True)
+            rec = measure_cohere_reference(args.fa.expanduser().resolve(),
+                                           args.cohere_model.expanduser().resolve(), args.n)
         else:
+            if not args.cli:
+                raise SystemExit("--cli required for macparakeet-cli engines")
             if not files:
                 raise SystemExit("--dataset-dir required for macparakeet-cli engines")
+            print(f">>> measuring {eng} ...", flush=True)
             rec = measure_macparakeet(eng, args.cli.expanduser().resolve(), files, args.n)
         print("   " + json.dumps(rec))
         out_records.append(rec)

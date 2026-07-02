@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Reproduce the ASR benchmark. Two tiers:
 #
-#   ./run_all.sh verify     # cheap, repo-only: scorer tests + re-score committed
-#                           # evidence with 95% CIs (no datasets/models needed)
+#   ./run_all.sh verify     # cheap, repo-only: manifest + scorer tests + re-score
+#                           # committed evidence with 95% CIs (no datasets/models)
 #   ./run_all.sh speed      # heavy: speed/memory micro-benchmark (needs assets)
 #   ./run_all.sh transcribe # heavy: regenerate hypotheses from audio (needs assets)
 #
@@ -11,8 +11,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PY="${PY:-python3}"                       # set PY=venv/bin/python3 to use the venv
+PY="${PY:-python3}"                         # set PY=venv/bin/python3 to use the venv
 BOOT="${BOOT:-2000}"; SEED="${SEED:-1234}"  # bootstrap resamples / RNG seed
+COHERE_SPEED_N="${COHERE_SPEED_N:-12}"      # Cohere is memory/cold-start heavy
 # Heavy-path assets (override as needed):
 MP_CLI="${MP_CLI:-$HOME/code/macparakeet/.build/release/macparakeet-cli}"
 FA_CLI="${FA_CLI:-$HOME/asr-bench/FluidAudio-0154/.build/release/fluidaudiocli}"
@@ -20,6 +21,10 @@ COHERE_MODEL="${COHERE_MODEL:-$HOME/asr-bench/cohere-coreml/q8}"
 LS_CLEAN="${LS_CLEAN:-$HOME/asr-bench/LibriSpeech/test-clean}"
 
 verify() {
+  echo "== manifest contract =="
+  "$PY" manifest_tool.py validate manifest.json
+  "$PY" test_manifest.py
+  echo
   echo "== scorer unit tests =="
   "$PY" test_scorers.py
   echo; echo "== re-score committed multilingual (with 95% CI) =="
@@ -42,19 +47,24 @@ speed() {
   for e in parakeet-v2 parakeet-v3 parakeet-unified nemotron-en nemotron-multi whisper; do
     "$PY" speed_bench.py --engine "$e" --cli "$MP_CLI" --dataset-dir "$LS_CLEAN" --n 24 --out "$out"
   done
-  "$PY" speed_bench.py --engine cohere --fa "$FA_CLI" --cohere-model "$COHERE_MODEL" --n 12 --out "$out"
+  "$PY" speed_bench.py --engine cohere --cli "$MP_CLI" --dataset-dir "$LS_CLEAN" \
+    --n "$COHERE_SPEED_N" --out "$out"
+  echo "Legacy Cohere FluidAudio reference speed import, if needed for comparison:"
+  echo "  $PY speed_bench.py --engine cohere-fa-reference --fa \$FA_CLI \\"
+  echo "    --cohere-model \$COHERE_MODEL --n \$COHERE_SPEED_N --out $out"
 }
 
 transcribe() {
   echo "== regenerate English hypotheses via macparakeet-cli (full sets) =="
   for sub in test-clean test-other; do
-    for e in parakeet-v2 parakeet-v3 parakeet-unified nemotron-en nemotron-multi whisper; do
+    for e in parakeet-v2 parakeet-v3 parakeet-unified nemotron-en nemotron-multi whisper cohere; do
       "$PY" run_macparakeet.py --cli "$MP_CLI" \
         --dataset-dir "$HOME/asr-bench/LibriSpeech/$sub" --dataset-name "$sub" \
         --engine "$e" --records "results/full/${e}__${sub}.jsonl"
     done
   done
-  echo "Cohere via FluidAudio: fluidaudiocli cohere-benchmark --dataset librispeech \\"
+  echo "Legacy Cohere FluidAudio reference import, if needed for result comparison:"
+  echo "  fluidaudiocli cohere-benchmark --dataset librispeech \\"
   echo "  --subset test-clean --model-dir \$COHERE_MODEL --output cohere.json"
   echo "then: python3 fa_json_to_jsonl.py cohere.json --engine cohere --dataset test-clean --out ..."
 }
