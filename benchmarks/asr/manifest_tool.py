@@ -47,9 +47,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
         return json.load(fh)
 
 
-def _ids(rows: list[dict[str, Any]], kind: str, errors: list[str]) -> set[str]:
+def _ids(rows: list[Any], kind: str, errors: list[str]) -> set[str]:
     seen: set[str] = set()
     for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
         item_id = row.get("id")
         if not isinstance(item_id, str) or not item_id.strip():
             errors.append(f"{kind}[{idx}] is missing a non-empty id")
@@ -60,9 +62,12 @@ def _ids(rows: list[dict[str, Any]], kind: str, errors: list[str]) -> set[str]:
     return seen
 
 
-def _require_fields(rows: list[dict[str, Any]], kind: str, errors: list[str]) -> None:
+def _require_fields(rows: list[Any], kind: str, errors: list[str]) -> None:
     required = REQUIRED_LIST_FIELDS[kind]
-    for row in rows:
+    for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            errors.append(f"{kind}[{idx}] must be an object")
+            continue
         item_id = row.get("id", "<missing>")
         for field in required:
             if field not in row:
@@ -106,27 +111,37 @@ def validate_manifest(data: dict[str, Any]) -> list[str]:
     _ids(data["quality_gates"], "quality_gates", errors)
 
     for engine in data["engines"]:
-        for surface in engine.get("product_surfaces", []):
+        if not isinstance(engine, dict):
+            continue
+        surfaces = engine.get("product_surfaces")
+        if not isinstance(surfaces, list):
+            continue
+        for surface in surfaces:
             if surface not in ALLOWED_SURFACES:
                 errors.append(f"engines.{engine.get('id')}.product_surfaces has unknown surface '{surface}'")
 
     for task in data["tasks"]:
+        if not isinstance(task, dict):
+            continue
         task_id = task.get("id")
         surface = task.get("surface")
         if surface not in ALLOWED_SURFACES:
             errors.append(f"tasks.{task_id}.surface has unknown surface '{surface}'")
-        for dataset in task.get("datasets", []):
+        datasets = task.get("datasets") if isinstance(task.get("datasets"), list) else []
+        engines = task.get("engines") if isinstance(task.get("engines"), list) else []
+        metrics = task.get("metrics") if isinstance(task.get("metrics"), list) else []
+        for dataset in datasets:
             if dataset not in dataset_ids:
                 errors.append(f"tasks.{task_id}.datasets references unknown dataset '{dataset}'")
-        for engine in task.get("engines", []):
+        for engine in engines:
             if engine not in engine_ids:
                 errors.append(f"tasks.{task_id}.engines references unknown engine '{engine}'")
         primary = task.get("primary_metric")
         if primary not in metric_ids:
             errors.append(f"tasks.{task_id}.primary_metric references unknown metric '{primary}'")
-        if primary not in task.get("metrics", []):
+        if metrics and primary not in metrics:
             errors.append(f"tasks.{task_id}.primary_metric '{primary}' must also be listed in metrics")
-        for metric in task.get("metrics", []):
+        for metric in metrics:
             if metric not in metric_ids:
                 errors.append(f"tasks.{task_id}.metrics references unknown metric '{metric}'")
 

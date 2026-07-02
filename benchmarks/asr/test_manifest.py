@@ -67,12 +67,33 @@ def test_unknown_references_fail() -> None:
     check("unknown engine rejected", any("missing-engine" in error for error in errors), str(errors))
 
 
+def test_malformed_manifest_reports_errors() -> None:
+    print("malformed manifest handling:")
+    data = manifest_tool.load_manifest(_HERE / "manifest.json")
+
+    broken_top = copy.deepcopy(data)
+    broken_top["engines"] = {"id": "not-a-list"}
+    errors = manifest_tool.validate_manifest(broken_top)
+    check("non-list top-level section rejected", any("'engines' must be a list" in e for e in errors), str(errors))
+
+    broken_entry = copy.deepcopy(data)
+    broken_entry["engines"][0] = "not-an-object"
+    errors = manifest_tool.validate_manifest(broken_entry)
+    check("non-object list entry rejected", any("engines[0] must be an object" in e for e in errors), str(errors))
+
+    broken_task = copy.deepcopy(data)
+    broken_task["tasks"][0]["datasets"] = "not-a-list"
+    errors = manifest_tool.validate_manifest(broken_task)
+    check("task reference fields must be lists", any("tasks.english_accuracy_full.datasets" in e for e in errors), str(errors))
+
+
 def main() -> int:
     for test in (
         test_manifest_validates,
         test_manifest_covers_shipping_engines,
         test_summary_mentions_gates,
         test_unknown_references_fail,
+        test_malformed_manifest_reports_errors,
     ):
         test()
     print()
