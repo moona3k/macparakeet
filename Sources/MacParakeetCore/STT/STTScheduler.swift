@@ -167,6 +167,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         }
     }
 
+    public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
+        await runtime.currentSpeechEngineSelection()
+    }
+
     public func transcribe(
         audioPath: String,
         job: STTJobKind,

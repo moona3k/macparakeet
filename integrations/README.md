@@ -53,10 +53,10 @@ sitting at a keyboard, it lives in the .app.
 
 ## What `macparakeet-cli` gives your agent
 
-- **Local Parakeet TDT speech-to-text** at ~155x realtime on Apple Silicon,
-  with v3 multilingual default and v2 English-only opt-in
-  with ~2.5% WER, running on the Neural Engine. No cloud, no API keys, no
-  per-minute charges.
+- **Local Parakeet speech-to-text** on Apple Silicon, with v3 for English plus
+  supported European languages, v2 for English timestamped transcripts, and
+  Unified for readable English without word timestamps. Runs on the Neural Engine.
+  No cloud, no API keys, no per-minute charges.
 - **Audio + video file transcription** -- accepts MP3 / WAV / MP4 / MOV /
   WebM / etc. via the bundled FFmpeg, with sequential folder/multi-file batch
   output.
@@ -113,11 +113,12 @@ ln -s /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli \
 ## Why Apple Silicon specifically
 
 Parakeet TDT runs on the Apple Neural Engine via CoreML. That is the entire
-performance story: 155x realtime, ~66 MB working memory per inference slot.
-On VPS hosts without Apple Silicon (typical for cloud-deployed agent
-daemons), Parakeet falls back to CPU and Whisper.cpp is competitive. **The
-compelling deployment target is a Mac mini (M1+) running headless** as a
-personal AI compute box -- unified memory, ANE, ~8W idle, silent.
+performance story: fast local transcription without GPU rental, API keys, or
+per-minute charges. On VPS hosts without Apple Silicon (typical for
+cloud-deployed agent daemons), Parakeet falls back to CPU and Whisper.cpp is
+competitive. **The compelling deployment target is a Mac mini (M1+) running
+headless** as a personal AI compute box -- unified memory, ANE, ~8W idle,
+silent.
 
 ## Common commands (the agent vocabulary)
 
@@ -200,10 +201,12 @@ meetings.
 MacParakeet history. For media URL and podcast inputs, downloaded audio is
 temporary when `--no-history` is set.
 
-Parakeet is the default engine for compatibility with existing scripts. Use
-`--parakeet-model v2` or `config set parakeet-model v2` for the English-only
-Parakeet build. Use Nemotron Beta, Cohere, or Whisper per invocation for
-multilingual or accuracy-focused coverage outside the default Parakeet lane:
+Parakeet is the default local engine for compatibility with existing scripts:
+use v3 for English plus supported European languages, v2 for English timestamped
+transcripts, or Unified for readable English output when word timestamps are not
+needed. Use Nemotron Beta when streaming preview matters, Whisper for
+broad-language files/media/retranscription, and Cohere only for local batch plain
+text with an explicit language.
 
 Nemotron, Cohere, and Whisper require local model downloads before first use:
 

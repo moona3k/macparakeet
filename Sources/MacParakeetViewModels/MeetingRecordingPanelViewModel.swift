@@ -16,6 +16,7 @@ public final class MeetingRecordingPanelViewModel {
         case preparingSpeechModel(message: String?)
         case listening
         case live
+        case previewUnsupported(engine: SpeechEnginePreference)
         case previewUnavailable
     }
 
@@ -209,6 +210,9 @@ public final class MeetingRecordingPanelViewModel {
             if isTranscriptionLagging {
                 return "Live transcript preview is catching up. The final transcript will still include the full meeting."
             }
+            if let livePreviewStatusMessage {
+                return livePreviewStatusMessage
+            }
             return "Live transcript preview updates while the flower pill stays pinned."
         case .transcribing:
             return "Meeting audio is being transcribed and saved to your library."
@@ -271,6 +275,8 @@ public final class MeetingRecordingPanelViewModel {
             return "Preparing speech model..."
         case .listening, .live:
             return canStop ? "Listening..." : "Transcription in progress..."
+        case .previewUnsupported(let engine):
+            return "Live preview off for \(engine.displayName)"
         case .previewUnavailable:
             return "Live preview unavailable"
         }
@@ -288,8 +294,21 @@ public final class MeetingRecordingPanelViewModel {
             return Self.cleanWarmUpMessage(message) ?? "Recording continues while local transcription starts."
         case .listening, .live:
             return nil
+        case .previewUnsupported(let engine):
+            return "\(engine.displayName) will transcribe after you stop recording."
         case .previewUnavailable:
-            return "Audio keeps recording; retry transcription from Library if needed."
+            return "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
+        }
+    }
+
+    private var livePreviewStatusMessage: String? {
+        switch liveTranscriptStatus {
+        case .previewUnsupported(let engine):
+            return "\(engine.displayName) is recording now and will transcribe the final meeting after you stop."
+        case .previewUnavailable:
+            return "Audio is still recording. Live preview may stay off until the final transcript is ready."
+        case .startingAudio, .preparingSpeechModel, .listening, .live:
+            return nil
         }
     }
 

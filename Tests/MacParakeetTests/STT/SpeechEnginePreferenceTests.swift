@@ -204,9 +204,28 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         // picker (Settings, `models list`).
         XCTAssertTrue(ParakeetModelVariant.allCases.contains(.unified))
         XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
+    }
+
+    func testSpeechModelVariantSummariesStayUserFacing() {
+        XCTAssertEqual(
+            ParakeetModelVariant.v3.coverageSummary,
+            "Fast local default for English and supported European languages. Includes word timestamps."
+        )
+        XCTAssertEqual(
+            ParakeetModelVariant.v2.coverageSummary,
+            "English-only option for stable meetings and exports. Includes word timestamps."
+        )
         XCTAssertEqual(
             ParakeetModelVariant.unified.coverageSummary,
-            "English only. Excellent accuracy and speed, but no word-level timestamps."
+            "Readable English with live preview. No word timestamps for exports."
+        )
+        XCTAssertEqual(
+            NemotronModelVariant.multilingual1120.coverageSummary,
+            "Beta multilingual live preview. Broader coverage, quality varies by language."
+        )
+        XCTAssertEqual(
+            NemotronModelVariant.english1120.coverageSummary,
+            "Beta English live preview. Quality is still being validated."
         )
     }
 

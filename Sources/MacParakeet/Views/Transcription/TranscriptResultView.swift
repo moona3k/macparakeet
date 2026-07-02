@@ -3563,18 +3563,18 @@ private struct EngineOptionCard: View {
         switch selection.engine {
         case .parakeet:
             switch parakeetVariant {
-            case .v3: "Fast • 25 European languages, including English"
-            case .v2: "Fast • English only"
-            case .unified: "Fast • English only, punctuated. No word timestamps."
+            case .v3: "Fast local default • word timestamps"
+            case .v2: "English stability • word timestamps"
+            case .unified: "Readable English • no word timestamps"
             }
         case .nemotron:
             nemotronVariant.isEnglishOnly
-                ? "Beta • Nemotron Speech EN streaming"
-                : "Beta • Nemotron 3.5 multilingual streaming"
+                ? "Beta English streaming • quality still being validated"
+                : "Beta multilingual streaming • quality varies by language"
         case .whisper:
-            "Broader languages • Korean, Chinese, Japanese, and more"
+            "Broad-language fallback • files and saved audio"
         case .cohere:
-            "High accuracy • On-device, 14 languages"
+            "Batch plain text • no timestamps or speaker labels"
         }
     }
 

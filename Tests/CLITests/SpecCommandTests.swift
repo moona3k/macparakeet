@@ -302,18 +302,18 @@ final class SpecCommandTests: XCTestCase {
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
-            "Parakeet build for this run; ignored for Nemotron, Cohere, and Whisper."
+            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English without timestamps."
         )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
         XCTAssertEqual(
             nemotronModel["summary"] as? String,
-            "Nemotron build for this run; ignored for Parakeet, Cohere, and Whisper."
+            "Nemotron Beta build for this run; ignored for Parakeet, Cohere, and Whisper."
         )
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
         XCTAssertEqual(
             language["summary"] as? String,
-            "Language hint for Nemotron, Whisper, or Cohere; the English-only Nemotron build ignores it."
+            "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect."
         )
     }
 

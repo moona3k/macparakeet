@@ -20,7 +20,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// "fr", …); the engine maps it to `CohereAsrConfig.Language`.
     public static let cohereDefaultLanguageKey = "cohereDefaultLanguage"
 
-    /// New users stay on the multilingual `v3` build — it "works for everyone".
+    /// New users stay on the `v3` build for the default local coverage lane.
     /// `v2` (English-only) is surfaced as a clearly-labeled opt-in.
     public static let defaultParakeetModelVariant: ParakeetModelVariant = .v3
 
@@ -381,11 +381,11 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     public var coverageSummary: String {
         switch self {
         case .v3:
-            "English plus 24 European languages. Best for mixed or non-English speech."
+            "Fast local default for English and supported European languages. Includes word timestamps."
         case .v2:
-            "English only. A touch faster, and never mis-hears English as another language."
+            "English-only option for stable meetings and exports. Includes word timestamps."
         case .unified:
-            "English only. Excellent accuracy and speed, but no word-level timestamps."
+            "Readable English with live preview. No word timestamps for exports."
         }
     }
 
@@ -451,9 +451,9 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
     public var coverageSummary: String {
         switch self {
         case .multilingual1120:
-            "Fast multilingual streaming model."
+            "Beta multilingual live preview. Broader coverage, quality varies by language."
         case .english1120:
-            "English only. Strong research-benchmarked accuracy."
+            "Beta English live preview. Quality is still being validated."
         }
     }
 

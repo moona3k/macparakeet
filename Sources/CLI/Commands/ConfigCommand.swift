@@ -32,14 +32,14 @@ struct ConfigCommand: ParsableCommand {
           processing-mode           raw|clean                       default: raw
           speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
           parakeet-model            v3|v2|unified                   default: v3
-                                    (v3=multilingual, v2=English,
-                                    unified=English punctuated)
+                                    (v3=supported languages, v2=English
+                                    timestamps, unified=English no timestamps)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
-                                    english-1120ms (English-only)
+                                    english-1120ms (Beta streaming)
           nemotron-language         auto|<Nemotron language code>   default: auto
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
-          cohere-language           <Cohere language code>          default: en
+          cohere-language           <Cohere language code>          default: en (no auto)
           speaker-detection         on|off                          default: off
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
@@ -90,37 +90,37 @@ struct ConfigCommand: ParsableCommand {
             key: "speech-engine",
             valueSyntax: "parakeet|nemotron|whisper|cohere",
             allowedValues: ["parakeet", "nemotron", "whisper", "cohere"],
-            summary: "Default speech recognition engine."
+            summary: "Default speech recognition engine for app-default transcription."
         ),
         CLIConfigKeySpec(
             key: "parakeet-model",
             valueSyntax: "v3|v2|unified",
             allowedValues: ["v3", "v2", "unified"],
-            summary: "Default Parakeet model variant."
+            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English without timestamps."
         ),
         CLIConfigKeySpec(
             key: "nemotron-model",
             valueSyntax: "multilingual-1120ms|english-1120ms",
             allowedValues: ["multilingual-1120ms", "english-1120ms"],
-            summary: "Default Nemotron model variant."
+            summary: "Default Nemotron Beta streaming build."
         ),
         CLIConfigKeySpec(
             key: "nemotron-language",
             valueSyntax: "auto|<Nemotron language code>",
             allowedValues: nil,
-            summary: "Default Nemotron language hint; auto uses engine detection when available."
+            summary: "Default Nemotron language hint for the multilingual build; auto uses engine detection when available."
         ),
         CLIConfigKeySpec(
             key: "whisper-language",
             valueSyntax: "auto|<Whisper language code>",
             allowedValues: nil,
-            summary: "Default Whisper language hint."
+            summary: "Default Whisper language hint; auto detects when possible."
         ),
         CLIConfigKeySpec(
             key: "cohere-language",
             valueSyntax: CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: "|"),
             allowedValues: CohereTranscribeEngine.supportedLanguages.map(\.code),
-            summary: "Default Cohere Transcribe language."
+            summary: "Default Cohere Transcribe language; Cohere has no auto-detect."
         ),
         CLIConfigKeySpec(
             key: "speaker-detection",

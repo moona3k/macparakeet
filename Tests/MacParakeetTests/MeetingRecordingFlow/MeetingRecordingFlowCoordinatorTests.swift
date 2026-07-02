@@ -204,6 +204,42 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.testHook_state, .recording)
     }
 
+    func testCohereRecordingShowsLivePreviewUnsupportedCopy() async throws {
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            speechEngineSelectionProvider: {
+                SpeechEngineSelection(engine: .cohere, language: "ja")
+            },
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        for _ in 0..<20 {
+            if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewUnsupported(engine: .cohere) {
+                break
+            }
+            await Task.yield()
+        }
+
+        let panelViewModel = try XCTUnwrap(coordinator.testHook_panelViewModel)
+        XCTAssertEqual(panelViewModel.liveTranscriptStatus, .previewUnsupported(engine: .cohere))
+        XCTAssertEqual(panelViewModel.transcriptEmptyStateTitle, "Live preview off for Cohere")
+        XCTAssertEqual(
+            panelViewModel.transcriptEmptyStateDetail,
+            "Cohere will transcribe after you stop recording."
+        )
+    }
+
     // MARK: - Quit-time pill teardown (fix/meeting-pill-lingers-on-quit)
 
     /// Hiding the floating pill for a quit decision must be flow-neutral: it

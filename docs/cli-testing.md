@@ -190,14 +190,16 @@ the STT input.
 ### Speech Engine Selection
 
 Parakeet remains the no-flag default for semver stability and ignores
-`--language`. Within Parakeet, v3 is the multilingual default, v2 is the
-English-only TDT opt-in, and Unified is the English-only punctuation/capitalization
-opt-in. Use `--parakeet-model app-default|v3|v2|unified` for a single run, or
-`config set parakeet-model unified` / `models select parakeet-unified` to persist it.
+`--language`. Within Parakeet, v3 covers English plus supported European
+languages, v2 is the English timestamped build, and Unified is readable English
+without word timestamps. Use `--parakeet-model app-default|v3|v2|unified` for
+a single run, or `config set parakeet-model unified` /
+`models select parakeet-unified` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
 speech engine, Parakeet model, and Nemotron/Cohere/Whisper language defaults.
-Nemotron is an opt-in Beta engine with two builds: the multilingual default
-and an English-only streaming build. Use `--nemotron-model
+Nemotron is an opt-in Beta engine with two builds: the multilingual build
+for broader live-preview coverage with variable quality, and an English-only
+streaming build. Use `--nemotron-model
 app-default|multilingual-1120ms|english-1120ms` for a single run, or
 `config set nemotron-model english-1120ms` / `models select
 nemotron-english-1120ms` to persist it. Download a build explicitly before
@@ -212,8 +214,9 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --language auto
 ```
 
-Use Whisper explicitly for languages outside Parakeet/Nemotron coverage after
-downloading the local Whisper model:
+Use Whisper explicitly for broad-language files, media, and saved-audio
+retranscription after downloading the local Whisper model. It provides word
+timestamps, but first use can be slow while Core ML prepares the model:
 
 ```bash
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
@@ -223,10 +226,11 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --language ko
 ```
 
-Use Cohere explicitly for batch-only accuracy-focused runs after downloading
-the local Cohere model. Cohere requires a supported language hint or saved
-`cohere-language` default, which you can set or inspect with `config`, and does
-not support live preview:
+Use Cohere explicitly for local batch plain-text runs after downloading the
+local Cohere model. Cohere requires a supported language hint or saved
+`cohere-language` default, which you can set or inspect with `config`. It has no
+live preview, word timestamps, speaker labels, diarization, or auto language
+detection:
 
 ```bash
 swift run macparakeet-cli models download cohere-transcribe

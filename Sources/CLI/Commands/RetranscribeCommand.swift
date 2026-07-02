@@ -141,16 +141,16 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
     @Option(help: "Text processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Parakeet is the local default; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper, Nemotron, or Cohere, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3, v2, unified. Ignored for Nemotron, Cohere, and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English, no word timestamps). Ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
-    @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms. Ignored for Parakeet, Cohere, and Whisper.")
+    @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. Ignored for Parakeet, Cohere, and Whisper.")
     var nemotronModel: TranscribeNemotronModel = .appDefault
 
     @Option(name: .long, help: "Speaker detection for saved transcriptions/meetings: app-default, on, off.")

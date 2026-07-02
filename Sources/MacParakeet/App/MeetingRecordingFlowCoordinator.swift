@@ -48,6 +48,7 @@ final class MeetingRecordingFlowCoordinator {
     private let configStore: LLMConfigStoreProtocol
     private let cliConfigStore: LocalCLIConfigStore
     private let sttManager: (any STTRuntimeManaging)?
+    private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
     private var llmService: LLMServiceProtocol?
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
@@ -103,6 +104,7 @@ final class MeetingRecordingFlowCoordinator {
         configStore: LLMConfigStoreProtocol,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
         sttManager: (any STTRuntimeManaging)? = nil,
+        speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)? = nil,
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
@@ -125,6 +127,7 @@ final class MeetingRecordingFlowCoordinator {
         self.configStore = configStore
         self.cliConfigStore = cliConfigStore
         self.sttManager = sttManager
+        self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
         self.llmService = llmService
         self.pillViewModel = pillViewModel
@@ -457,6 +460,7 @@ final class MeetingRecordingFlowCoordinator {
                 (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
+            refreshInitialLiveTranscriptStatus(for: panelVM)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
             panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
             panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
@@ -540,7 +544,7 @@ final class MeetingRecordingFlowCoordinator {
                         self.panelViewModel?.updateLiveTranscriptStatus(.preparingSpeechModel(message: nil))
                     case .some(.preparingSpeechModel) where isSpeechModelReady:
                         self.panelViewModel?.updateLiveTranscriptStatus(.listening)
-                    case .some(.listening), .some(.live), .some(.previewUnavailable), .none:
+                    case .some(.listening), .some(.live), .some(.previewUnsupported), .some(.previewUnavailable), .none:
                         break
                     case .some(.preparingSpeechModel):
                         break
@@ -1076,6 +1080,9 @@ final class MeetingRecordingFlowCoordinator {
 
     private func handleSpeechWarmUpState(_ state: STTWarmUpState) {
         guard let panelViewModel, panelViewModel.previewLines.isEmpty else { return }
+        if case .previewUnsupported = panelViewModel.liveTranscriptStatus {
+            return
+        }
 
         switch state {
         case .idle:
@@ -1088,6 +1095,19 @@ final class MeetingRecordingFlowCoordinator {
             }
         case .failed:
             panelViewModel.updateLiveTranscriptStatus(.previewUnavailable)
+        }
+    }
+
+    private func refreshInitialLiveTranscriptStatus(for panelViewModel: MeetingRecordingPanelViewModel) {
+        guard let speechEngineSelectionProvider else { return }
+        Task { @MainActor [weak self, weak panelViewModel] in
+            guard let self,
+                  let panelViewModel,
+                  self.panelViewModel === panelViewModel,
+                  let selection = await speechEngineSelectionProvider()
+            else { return }
+            guard selection.engine == .cohere else { return }
+            panelViewModel.updateLiveTranscriptStatus(.previewUnsupported(engine: selection.engine))
         }
     }
 
@@ -1270,5 +1290,9 @@ extension MeetingRecordingFlowCoordinator {
 
     var testHook_panelChatViewModel: TranscriptChatViewModel? {
         panelViewModel?.chatViewModel
+    }
+
+    var testHook_panelViewModel: MeetingRecordingPanelViewModel? {
+        panelViewModel
     }
 }

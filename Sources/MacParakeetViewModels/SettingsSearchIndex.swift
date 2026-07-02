@@ -254,8 +254,11 @@ public enum SettingsSearchIndex {
             id: "engine.selector",
             tab: .engine,
             title: "Speech Recognition",
-            subtitle: "Parakeet, Nemotron, and Whisper engine selector.",
-            keywords: ["engine", "speech", "stt", "parakeet", "whisper", "model", "ane", "neural engine"],
+            subtitle: "Parakeet, Nemotron, Whisper, and Cohere engine selector.",
+            keywords: [
+                "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
+                "model", "preview", "timestamps", "ane", "neural engine"
+            ],
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
@@ -317,8 +320,11 @@ public enum SettingsSearchIndex {
             id: "engine.models",
             tab: .engine,
             title: "Local Models",
-            subtitle: "Parakeet, Nemotron, and Whisper model status.",
-            keywords: ["model", "download", "repair", "disk", "parakeet", "whisper", "coreml", "local"],
+            subtitle: "Parakeet, Nemotron, Whisper, and Cohere model status.",
+            keywords: [
+                "model", "download", "repair", "disk", "parakeet", "nemotron",
+                "whisper", "cohere", "coreml", "local"
+            ],
             cardAnchor: "engine.models"
         ),
 

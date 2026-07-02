@@ -76,10 +76,11 @@ failure. JSON schemas are stable within a major CLI version (semver, see
 UUID, UUID prefix (>= 4 chars), or case-insensitive name. Prompt and LLM
 wrappers should pass `--json` when the skill expects an envelope.
 
-Cohere is a batch-only accuracy engine. It can be used for dictation final
+Cohere is a local batch plain-text engine. It can be used for dictation final
 transcription, file transcription, and meeting finalization, but it has no live
-dictation preview, no meeting live-preview chunks, and no word timestamps or
-speaker labels. The ~2.1 GB model must be downloaded explicitly before
+dictation preview, no meeting live-preview chunks, no word timestamps or
+speaker labels, and no auto language detection. The ~2.1 GB model must be
+downloaded explicitly before
 `--engine cohere`, `models select cohere-transcribe`, or app-default Cohere
 transcription will run; normal transcription paths do not implicitly download
 it.

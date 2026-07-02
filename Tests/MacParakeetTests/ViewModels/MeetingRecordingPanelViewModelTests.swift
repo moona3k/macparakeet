@@ -250,12 +250,29 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Live preview unavailable")
         XCTAssertEqual(
             viewModel.transcriptEmptyStateDetail,
-            "Audio keeps recording; retry transcription from Library if needed."
+            "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
         )
 
         viewModel.updateLiveTranscriptStatus(.listening)
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Listening...")
         XCTAssertNil(viewModel.transcriptEmptyStateDetail)
+    }
+
+    func testUnsupportedLiveTranscriptStatusUsesEngineSpecificCopy() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+
+        viewModel.updateLiveTranscriptStatus(.previewUnsupported(engine: .cohere))
+
+        XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Live preview off for Cohere")
+        XCTAssertEqual(
+            viewModel.transcriptEmptyStateDetail,
+            "Cohere will transcribe after you stop recording."
+        )
+        XCTAssertEqual(
+            viewModel.statusMessage,
+            "Cohere is recording now and will transcribe the final meeting after you stop."
+        )
     }
 
     func testTranscriptContentLocksOutAdvisoryEmptyStatus() {

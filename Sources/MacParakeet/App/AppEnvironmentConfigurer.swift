@@ -305,6 +305,7 @@ final class AppEnvironmentConfigurer {
             quickPromptRepo: env.quickPromptRepo,
             configStore: env.llmConfigStore,
             sttManager: env.sttScheduler,
+            speechEngineSelectionProvider: { await env.sttScheduler.currentSpeechEngineSelection() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
             llmService: hasLLMConfig ? env.llmService : nil,
             pillViewModel: meetingPillViewModel,

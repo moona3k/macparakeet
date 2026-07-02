@@ -442,14 +442,13 @@ struct SettingsView: View {
     /// Engine tab — speech recognition stack, decomposed into cards so each
     /// surface owns one decision the user makes:
     ///
-    /// 1. `engineSelectorCard` — which engine? (Parakeet vs Nemotron vs Whisper)
+    /// 1. `engineSelectorCard` — which engine?
     /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
     ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
     ///    multilingual vs English-only)
     /// 4. `engineCohereModelCard` — GPU vs Neural Engine? (Cohere only)
-    /// 5. `engineLanguageCard` — which language? (Whisper only — Parakeet
-    ///    auto-detects from its 25 supported European languages)
+    /// 5. `engineLanguageCard` — which language? (Whisper only in Settings)
     /// 6. `enginesModelsCard` — what's the local model state?
     ///
     /// Cards 2–5 are mutually exclusive (one per engine), so exactly one
@@ -572,7 +571,7 @@ struct SettingsView: View {
     private func speechEngineSwitchConfirmationMessage(for engine: SpeechEnginePreference) -> String {
         switch engine {
         case .nemotron:
-            return "Nemotron is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
+            return "Nemotron is a Beta streaming engine. It can improve live preview responsiveness, but quality varies by language and audio. Dictation, file transcription, and meetings pause until the switch finishes."
         case .whisper:
             if viewModel.engine.whisperHasBeenOptimized {
                 return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
@@ -581,7 +580,7 @@ struct SettingsView: View {
         case .parakeet:
             return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
         case .cohere:
-            return "Cohere is a high-accuracy engine (~2.1 GB on-device model). Dictation records first and transcribes after you stop; live preview stays off because Cohere is batch-only. The first transcription may take a moment while Core ML prepares the model. Dictation, file transcription, and meetings pause until the switch finishes."
+            return "Cohere is a local batch engine. It records first and transcribes after you stop, with no live preview, word timestamps, speaker labels, or auto language detection. Dictation, file transcription, and meetings pause until the switch finishes."
         }
     }
 
@@ -962,10 +961,10 @@ struct SettingsView: View {
 
     private var liveDictationPreviewDetail: String {
         if viewModel.engine.speechEnginePreference == .cohere {
-            return "Cohere transcribes after you stop recording, so live preview is unavailable with this engine."
+            return "Cohere is batch-only, so preview stays off until transcription finishes."
         }
 
-        return "Shows a running transcript above the dictation pill as you speak. Works with Parakeet and Nemotron; not yet available with Whisper."
+        return "Shows a running transcript above the dictation pill as you speak. Parakeet and Nemotron support preview; Whisper is final-transcription only."
     }
 
     private var dictationCard: some View {
@@ -2201,7 +2200,7 @@ struct SettingsView: View {
     private var engineSelectorCard: some View {
         SettingsCard(
             title: "Speech Recognition",
-            subtitle: "Choose the engine that powers dictation, file transcription, and meetings.",
+            subtitle: "Choose the local engine for dictation, files, and meetings. Clean meeting audio often matters as much as model choice.",
             icon: "cpu",
             status: engineSelectorCardStatus
         ) {
@@ -2214,13 +2213,13 @@ struct SettingsView: View {
                     EngineOptionTile(
                         icon: "bolt.fill",
                         name: "Parakeet",
-                        tagline: "Fastest local engine",
+                        tagline: "Everyday local default",
                         strengths: [
-                            "English + 24 European languages",
-                            "155× realtime on Apple Silicon",
-                            "Best default for everyday dictation"
+                            "Fast dictation and meetings",
+                            "Timestamps for exports",
+                            "English + supported European languages"
                         ],
-                        helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
+                        helpText: "Choose Parakeet for fast dictation, meetings, and exports in supported languages. Use Whisper when the audio is outside Parakeet's language coverage.",
                         modelStatus: displayedParakeetModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .parakeet,
                         isBusy: viewModel.engine.speechEngineSwitching,
@@ -2231,13 +2230,13 @@ struct SettingsView: View {
                     EngineOptionTile(
                         icon: "sparkles",
                         name: "Nemotron",
-                        tagline: "Streaming local models (Beta)",
+                        tagline: "Beta live preview",
                         strengths: [
-                            "Multilingual or English-only builds",
-                            "Korean, Mandarin, Japanese, Hindi",
-                            "Cache-aware low-latency streaming"
+                            "Live preview while you speak",
+                            "English or multilingual builds",
+                            "Quality varies by language and audio"
                         ],
-                        helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy.",
+                        helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
                         modelStatus: displayedNemotronModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .nemotron,
                         isBusy: viewModel.engine.speechEngineSwitching,
@@ -2248,13 +2247,13 @@ struct SettingsView: View {
                     EngineOptionTile(
                         icon: "globe",
                         name: "Whisper",
-                        tagline: "Broad language fallback",
+                        tagline: "Files + broad languages",
                         strengths: [
-                            "Korean, Japanese, Chinese, Thai +95 more",
-                            "Mature mixed-language recognition",
-                            "Local Whisper Large v3 Turbo"
+                            "Files, media, retranscription",
+                            "Word timestamps for subtitles",
+                            "Slower cold starts; no live preview"
                         ],
-                        helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
+                        helpText: "Choose Whisper for files, media, and saved-audio retranscription outside Parakeet or Nemotron coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
                         modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .whisper,
                         isBusy: viewModel.engine.speechEngineSwitching,
@@ -2268,14 +2267,13 @@ struct SettingsView: View {
                         EngineOptionTile(
                             icon: "waveform",
                             name: "Cohere",
-                            tagline: "Highest-accuracy engine",
+                            tagline: "Local batch plain text",
                             strengths: [
-                                "State-of-the-art accuracy (Cohere Transcribe)",
-                                "Fully on-device Core ML — audio never leaves your Mac",
-                                "Record-then-transcribe dictation, files, and final meeting transcripts",
-                                "No live preview, word timestamps, or speaker labels"
+                                "Local record-then-transcribe",
+                                "Plain text with set language",
+                                "No preview, timestamps, or speaker labels"
                             ],
-                            helpText: "Cohere Transcribe (03-2026) running fully on-device via Core ML — the highest accuracy of the available engines, at the cost of a ~2.1 GB model download and higher memory use than the default engines. Requires 16 GB of memory or more. Powers record-then-transcribe dictation, file transcription, and final meeting transcription. Note: Cohere produces no word timestamps, so meetings transcribed with it are plain text without live preview or speaker labels — switch to Parakeet for speaker-labeled, timestamped meetings.",
+                            helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
                             modelStatus: displayedCohereModelStatus,
                             isSelected: viewModel.engine.speechEnginePreference == .cohere,
                             isBusy: viewModel.engine.speechEngineSwitching,
@@ -2337,7 +2335,7 @@ struct SettingsView: View {
         if viewModel.engine.speechEnginePreference == .parakeet {
             SettingsCard(
                 title: "Parakeet Model",
-                subtitle: "Pick how Parakeet handles language. The English-only builds are a touch faster and never mistake English for another language; Unified adds punctuation and capitalization.",
+                subtitle: "Pick what Parakeet optimizes for: supported-language coverage, English timestamps, or readable English live preview.",
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
@@ -2459,7 +2457,7 @@ struct SettingsView: View {
         if viewModel.engine.speechEnginePreference == .nemotron {
             SettingsCard(
                 title: "Nemotron Model",
-                subtitle: "Pick which Nemotron build loads. English-only is a smaller download.",
+                subtitle: "Pick the Beta streaming build: multilingual for broader live preview, English for a smaller English-only path.",
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
@@ -2547,20 +2545,18 @@ struct SettingsView: View {
         }
     }
 
-    /// Cohere-only contextual card: where Cohere runs its model. `.gpu` is the
-    /// fastest warm latency but pays a one-time ~2-minute Core ML optimization in
-    /// the background after each launch; `.ane` is a bit slower per phrase with no
-    /// startup wait. The choice takes effect the next time Cohere loads (the engine
-    /// captures the policy at construction), so the copy says so rather than
-    /// implying an instant switch. Mirrors `engineLanguageCard` (one contextual
-    /// card, gated on the active engine, `.transition(.opacity)`).
+    /// Cohere-only contextual card: where Cohere runs its model. The choice takes
+    /// effect the next time Cohere loads (the engine captures the policy at
+    /// construction), so the copy says so rather than implying an instant switch.
+    /// Mirrors `engineLanguageCard` (one contextual card, gated on the active
+    /// engine, `.transition(.opacity)`).
     @ViewBuilder
     private var engineCohereModelCard: some View {
         @Bindable var engine = viewModel.engine
         if engine.speechEnginePreference == .cohere {
             SettingsCard(
                 title: "Cohere Performance",
-                subtitle: "Fastest runs on the GPU (~0.6 s per phrase) and pays a one-time ~2-minute optimization in the background after each launch. Balanced runs on the Apple Neural Engine (ANE, ~1.5 s) with no startup wait. Takes effect the next time Cohere loads.",
+                subtitle: "GPU can finish Cohere batches faster after Core ML setup. Neural Engine avoids that setup wait. Changes apply next time Cohere loads.",
                 icon: "bolt"
             ) {
                 HStack(alignment: .center) {
@@ -2570,7 +2566,7 @@ struct SettingsView: View {
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     Picker("Compute", selection: $engine.cohereComputePolicy) {
-                        Text("Fastest (GPU)").tag(CohereTranscribeEngine.ComputePolicy.gpu)
+                        Text("Faster (GPU)").tag(CohereTranscribeEngine.ComputePolicy.gpu)
                         Text("Balanced (ANE)").tag(CohereTranscribeEngine.ComputePolicy.ane)
                     }
                     .labelsHidden()
@@ -2929,7 +2925,7 @@ struct SettingsView: View {
         }
         switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
-            return (.download, "632 MB · downloads once, runs locally afterwards")
+            return (.download, "632 MB · broad-language file and retranscription fallback")
         case .repairing:
             return (.downloading, viewModel.engine.whisperModelStatusDetail)
         case .failed:
@@ -2946,7 +2942,10 @@ struct SettingsView: View {
         }
         switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
-            return (.download, "\(viewModel.engine.nemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
+            let qualityNote = viewModel.engine.nemotronModelVariant.isEnglishOnly
+                ? "quality still being validated"
+                : "quality varies by language"
+            return (.download, "\(viewModel.engine.nemotronModelVariant.approximateDownloadSize) · Beta streaming model, \(qualityNote)")
         case .repairing:
             return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         case .failed:
@@ -2965,7 +2964,7 @@ struct SettingsView: View {
         }
         switch viewModel.engine.cohereModelStatus {
         case .notDownloaded:
-            return (.download, "About 2.1 GB · downloads once, runs locally afterwards")
+            return (.download, "About 2.1 GB · local batch transcripts, no preview or timestamps")
         case .repairing:
             return (.downloading, viewModel.engine.cohereModelStatusDetail)
         case .failed:

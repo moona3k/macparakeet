@@ -64,9 +64,9 @@ Render target: 1920×1080 @ 60fps. Voice via Kokoro-82M by default (or Higgs Aud
 2. Cursor — `"TODO refactor this function to use async await instead of completions"`
 3. Browser address bar — `"best ramen in the mission district"`
 
-**Lower-third:** Apple Silicon · 155× realtime · runs offline
+**Lower-third:** Apple Silicon · fast local dictation · runs offline
 
-**VO:** "MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. 155 times realtime. Runs offline."
+**VO:** "MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. Local transcription. Runs offline."
 
 ### 0:22 – 0:38 · Mode 2: Transcription
 **Visual sequence:**
@@ -178,7 +178,7 @@ Most Mac voice apps do one thing. MacParakeet does all three — dictation, file
 *Last verified: 2026-05.*
 
 ### Body paragraph
-MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built on Apple's Neural Engine via FluidAudio's Parakeet CoreML pipeline (v3 default at ≈155× realtime / ≈2.5% WER, v2 and Unified English opt-ins) with optional WhisperKit for non-Parakeet languages.
+MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built around local Apple Silicon speech recognition: Parakeet v3 is the default for English and supported European languages, English-only Parakeet builds cover timestamped exports or readable live preview, Whisper handles broader-language files and retranscription, Nemotron is Beta live preview, and Cohere is local batch plain text.
 
 ## CTA Conventions
 

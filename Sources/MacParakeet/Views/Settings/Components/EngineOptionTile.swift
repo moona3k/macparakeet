@@ -340,13 +340,13 @@ struct EngineDownloadBanner: View {
             EngineOptionTile(
                 icon: "bolt.fill",
                 name: "Parakeet",
-                tagline: "Fastest local engine",
+                tagline: "Everyday local default",
                 strengths: [
-                    "English + 24 European languages",
-                    "155× realtime on Apple Silicon",
-                    "Best default for everyday dictation"
+                    "Fast dictation and meetings",
+                    "Timestamps for exports",
+                    "English + supported European languages"
                 ],
-                helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
+                helpText: "Choose Parakeet for fast dictation, meetings, and exports in supported languages. Use Whisper when the audio is outside Parakeet's language coverage.",
                 modelStatus: .ready,
                 isSelected: true,
                 isBusy: false,
@@ -357,13 +357,13 @@ struct EngineDownloadBanner: View {
             EngineOptionTile(
                 icon: "globe",
                 name: "Whisper",
-                tagline: "Broad language fallback",
+                tagline: "Files + broad languages",
                 strengths: [
-                    "Korean, Japanese, Chinese, Thai +95 more",
-                    "Mature mixed-language recognition",
-                    "Local Whisper Large v3 Turbo"
+                    "Files, media, retranscription",
+                    "Word timestamps for subtitles",
+                    "Slower cold starts; no live preview"
                 ],
-                helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
+                helpText: "Choose Whisper for files, media, and saved-audio retranscription outside Parakeet or Nemotron coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
                 modelStatus: .notDownloaded,
                 isSelected: false,
                 isBusy: false,
