@@ -167,15 +167,13 @@ def main() -> int:
             print(f">>> measuring {eng} ...", flush=True)
             rec = measure_cohere_reference(args.fa.expanduser().resolve(),
                                            args.cohere_model.expanduser().resolve(), args.n)
-        elif eng in MP_ENGINES:
+        else:
             if not args.cli:
                 raise SystemExit("--cli required for macparakeet-cli engines")
             if not files:
                 raise SystemExit("--dataset-dir required for macparakeet-cli engines")
             print(f">>> measuring {eng} ...", flush=True)
             rec = measure_macparakeet(eng, args.cli.expanduser().resolve(), files, args.n)
-        else:
-            raise SystemExit(f"unknown engine {eng!r}; expected one of {ALL_ENGINES}")
         print("   " + json.dumps(rec))
         out_records.append(rec)
         if args.out:

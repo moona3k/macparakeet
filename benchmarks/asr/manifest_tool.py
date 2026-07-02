@@ -81,11 +81,15 @@ def _require_fields(rows: list[Any], kind: str, errors: list[str]) -> None:
                 errors.append(f"{kind}.{item_id} missing required field '{field}'")
         if kind == "tasks":
             for field in ("datasets", "engines", "metrics"):
-                value = row.get(field)
+                if field not in row:
+                    continue
+                value = row[field]
                 if not isinstance(value, list) or not value:
                     errors.append(f"tasks.{item_id}.{field} must be a non-empty list")
         if kind == "engines":
-            surfaces = row.get("product_surfaces")
+            if "product_surfaces" not in row:
+                continue
+            surfaces = row["product_surfaces"]
             if not isinstance(surfaces, list) or not surfaces:
                 errors.append(f"engines.{item_id}.product_surfaces must be a non-empty list")
 

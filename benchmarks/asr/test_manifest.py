@@ -94,6 +94,26 @@ def test_malformed_manifest_reports_errors() -> None:
     errors = manifest_tool.validate_manifest(broken_task)
     check("task reference fields must be lists", any("tasks.english_accuracy_full.datasets" in e for e in errors), str(errors))
 
+    missing_task_field = copy.deepcopy(data)
+    del missing_task_field["tasks"][0]["datasets"]
+    errors = manifest_tool.validate_manifest(missing_task_field)
+    check(
+        "missing task list field avoids duplicate type error",
+        any("missing required field 'datasets'" in e for e in errors)
+        and not any(".datasets must be a non-empty list" in e for e in errors),
+        str(errors),
+    )
+
+    missing_engine_field = copy.deepcopy(data)
+    del missing_engine_field["engines"][0]["product_surfaces"]
+    errors = manifest_tool.validate_manifest(missing_engine_field)
+    check(
+        "missing engine surface field avoids duplicate type error",
+        any("missing required field 'product_surfaces'" in e for e in errors)
+        and not any(".product_surfaces must be a non-empty list" in e for e in errors),
+        str(errors),
+    )
+
     errors = manifest_tool.validate_manifest([])
     check("non-object root rejected", errors == ["manifest root must be a JSON object"], str(errors))
 
