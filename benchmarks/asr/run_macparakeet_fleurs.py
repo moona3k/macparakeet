@@ -21,6 +21,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -84,6 +85,7 @@ def main() -> int:
         for p in wavs:
             tx = out_dir / f"{p.stem}.txt"
             if not tx.exists():
+                print(f"  WARN missing transcript: {tx.name}", file=sys.stderr)
                 continue
             rec = {"id": p.stem, "ref": refs[p.stem], "hyp": tx.read_text(encoding="utf-8").strip(),
                    "lang": args.lang, "engine": args.engine}
