@@ -1,6 +1,6 @@
 import XCTest
 @testable import MacParakeetCore
-#if canImport(WhisperKit)
+#if MACPARAKEET_HAS_WHISPERKIT
 import WhisperKit
 #endif
 
@@ -83,7 +83,7 @@ final class STTClientTests: XCTestCase {
     }
 
     func testWhisperDecodeOptionsForForcedLanguageUsesPrefillPrompt() {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         let options = WhisperEngine.makeDecodingOptions(language: "KO_kr")
 
         XCTAssertEqual(options.language, "ko")
@@ -94,7 +94,7 @@ final class STTClientTests: XCTestCase {
     }
 
     func testWhisperDecodeOptionsForAutoLanguageDetectsWithoutPrefillPrompt() {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         let options = WhisperEngine.makeDecodingOptions(language: "auto")
 
         XCTAssertNil(options.language)
@@ -105,7 +105,7 @@ final class STTClientTests: XCTestCase {
     }
 
     func testWhisperForcedLanguageFallbackOnlyRetriesEmptyResults() {
-        #if canImport(WhisperKit)
+        #if MACPARAKEET_HAS_WHISPERKIT
         let empty = TranscriptionResult(text: "  \n", segments: [], language: "ko", timings: TranscriptionTimings())
         XCTAssertTrue(WhisperEngine.shouldRetryWithoutForcedLanguage(empty))
 
