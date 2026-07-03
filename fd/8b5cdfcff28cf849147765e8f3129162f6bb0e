@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_10ae363610b80c::t_08116c1e9e68bf 107,115-116,122
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_10ae363610b80c::t_08116c1e9e68bf 987
+Sources/MacParakeetViewModels/MediaPlayerViewModel.swift
+  s_10ae363610b80c::t_08116c1e9e68bf 262,374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "fd8b5cdfcff28cf849147765e8f3129162f6bb0e",
+  "prompts": {},
+  "sessions": {
+    "s_10ae363610b80c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29df-946a-7f83-aa2d-5dfbc3d25a7c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
