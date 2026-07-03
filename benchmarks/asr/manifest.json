@@ -1,0 +1,494 @@
+{
+  "schema_version": 1,
+  "suite": {
+    "name": "MacParakeet ASR Benchmark Suite",
+    "owner": "MacParakeet",
+    "source_of_truth": "benchmarks/asr/README.md",
+    "purpose": "A product-owned, reproducible benchmark contract for choosing local ASR engines on Apple Silicon across accuracy, latency, memory, language coverage, and MacParakeet product surfaces.",
+    "principles": [
+      "Score every hypothesis through the same normalizer and metric implementation.",
+      "Keep public research datasets separate from private product fixtures.",
+      "Report uncertainty and use paired tests for engine-vs-engine claims.",
+      "Measure accuracy, speed, memory, and product-surface support separately.",
+      "Publish enough provenance for another MacParakeet checkout to reproduce the numbers."
+    ]
+  },
+  "engines": [
+    {
+      "id": "parakeet-v3",
+      "name": "Parakeet TDT 0.6B v3",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_default",
+      "language_scope": "multilingual",
+      "product_surfaces": [
+        "dictation_final",
+        "dictation_live_preview",
+        "meeting_final",
+        "meeting_live_preview",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "parakeet",
+        "--parakeet-model",
+        "v3"
+      ],
+      "caveat": "Fast default, but current FLEURS evidence shows CJK/Korean failures."
+    },
+    {
+      "id": "parakeet-v2",
+      "name": "Parakeet TDT 0.6B v2",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_opt_in",
+      "language_scope": "English",
+      "product_surfaces": [
+        "dictation_final",
+        "dictation_live_preview",
+        "meeting_final",
+        "meeting_live_preview",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "parakeet",
+        "--parakeet-model",
+        "v2"
+      ],
+      "caveat": "English-only no-punctuation TDT build."
+    },
+    {
+      "id": "parakeet-unified",
+      "name": "Parakeet Unified",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_opt_in",
+      "language_scope": "English",
+      "product_surfaces": [
+        "dictation_final",
+        "dictation_live_preview",
+        "meeting_final",
+        "meeting_live_preview",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "parakeet",
+        "--parakeet-model",
+        "unified"
+      ],
+      "caveat": "English-only build with punctuation/capitalization."
+    },
+    {
+      "id": "nemotron-en",
+      "name": "Nemotron English 1120ms Beta",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_beta",
+      "language_scope": "English",
+      "product_surfaces": [
+        "dictation_final",
+        "dictation_live_preview",
+        "meeting_final",
+        "meeting_live_preview",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "nemotron",
+        "--nemotron-model",
+        "english-1120ms"
+      ],
+      "caveat": "Beta engine; benchmarked as dominated by Parakeet on current English evidence."
+    },
+    {
+      "id": "nemotron-multi",
+      "name": "Nemotron Multilingual 1120ms Beta",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_beta",
+      "language_scope": "multilingual",
+      "product_surfaces": [
+        "dictation_final",
+        "dictation_live_preview",
+        "meeting_final",
+        "meeting_live_preview",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "nemotron",
+        "--nemotron-model",
+        "multilingual-1120ms"
+      ],
+      "caveat": "Beta engine; keep benchmarked but do not promote without new evidence."
+    },
+    {
+      "id": "whisper",
+      "name": "WhisperKit large-v3-turbo",
+      "runtime": "WhisperKit via macparakeet-cli",
+      "status": "shipping_opt_in",
+      "language_scope": "multilingual",
+      "product_surfaces": [
+        "dictation_final",
+        "meeting_final",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "whisper"
+      ],
+      "caveat": "Light multilingual fallback; live preview remains default-off pending latency evidence."
+    },
+    {
+      "id": "cohere",
+      "name": "Cohere Transcribe 03-2026 q8",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_opt_in",
+      "language_scope": "selected_languages",
+      "product_surfaces": [
+        "dictation_final",
+        "meeting_final",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "cohere",
+        "--language",
+        "en"
+      ],
+      "caveat": "Batch-only, no live preview, no word timestamps, no auto language detection, and should stay 16 GB+ gated unless new memory evidence says otherwise."
+    }
+  ],
+  "datasets": [
+    {
+      "id": "librispeech-test-clean",
+      "name": "LibriSpeech test-clean",
+      "tier": "public_research",
+      "status": "committed_full_results",
+      "license": "Public-domain-derived audiobook corpus; see OpenSLR SLR12.",
+      "source_url": "https://www.openslr.org/12",
+      "language": "en",
+      "domain": "clean read speech",
+      "expected_size": "2620 utterances"
+    },
+    {
+      "id": "librispeech-test-other",
+      "name": "LibriSpeech test-other",
+      "tier": "public_research",
+      "status": "committed_full_results",
+      "license": "Public-domain-derived audiobook corpus; see OpenSLR SLR12.",
+      "source_url": "https://www.openslr.org/12",
+      "language": "en",
+      "domain": "noisier read speech",
+      "expected_size": "2939 utterances"
+    },
+    {
+      "id": "fleurs-en-ko-ja-zh",
+      "name": "FLEURS en/ko/ja/zh",
+      "tier": "public_research",
+      "status": "committed_capped_results",
+      "license": "See FLEURS dataset terms.",
+      "source_url": "https://arxiv.org/abs/2205.12446",
+      "language": "en, ko, ja, zh",
+      "domain": "parallel multilingual read speech",
+      "expected_size": "150 utterances per language in committed evidence; expand before publishing language-routing absolutes."
+    },
+    {
+      "id": "ami-meetings",
+      "name": "AMI Meeting Corpus",
+      "tier": "planned_public_meeting",
+      "status": "planned",
+      "license": "See AMI corpus terms.",
+      "source_url": "https://groups.inf.ed.ac.uk/ami/corpus/",
+      "language": "en",
+      "domain": "multi-speaker meetings",
+      "expected_size": "Use a fixed, documented subset before promoting meeting-engine decisions."
+    },
+    {
+      "id": "earnings22-accented",
+      "name": "Earnings-22",
+      "tier": "planned_public_wild",
+      "status": "planned",
+      "license": "Free-to-use benchmark; see dataset paper/card.",
+      "source_url": "https://arxiv.org/abs/2203.15591",
+      "language": "en",
+      "domain": "accented, long-form earnings calls",
+      "expected_size": "125 files / about 119 hours."
+    },
+    {
+      "id": "macparakeet-private-product-fixtures",
+      "name": "MacParakeet private product fixtures",
+      "tier": "private_product",
+      "status": "planned_private",
+      "license": "Do not commit audio or transcripts without explicit consent.",
+      "language": "mixed",
+      "domain": "real dictation, meeting, file, and media workflows",
+      "expected_size": "Small consented regression set plus rotating internal challenge set."
+    },
+    {
+      "id": "speed-memory-local",
+      "name": "Local speed and memory micro-benchmark",
+      "tier": "local_performance",
+      "status": "committed_reference_results",
+      "license": "Derived metrics only.",
+      "language": "en",
+      "domain": "cold start, steady RTFx, peak RSS",
+      "expected_size": "24 LibriSpeech files for integrated engines; Cohere reference evidence currently from FluidAudio CLI, but new runs should use macparakeet-cli."
+    }
+  ],
+  "metrics": [
+    {
+      "id": "wer",
+      "name": "Word error rate",
+      "kind": "accuracy",
+      "implementation": "score.py / score_multi.py",
+      "notes": "Corpus WER after canonical normalization."
+    },
+    {
+      "id": "cer",
+      "name": "Character error rate",
+      "kind": "accuracy",
+      "implementation": "score_multi.py",
+      "notes": "Used for Korean, Japanese, Chinese, Thai, and related no-space languages."
+    },
+    {
+      "id": "paired_delta_ci",
+      "name": "Paired bootstrap delta CI",
+      "kind": "significance",
+      "implementation": "paired_delta.py",
+      "notes": "Required for engine-vs-engine claims on shared utterance sets."
+    },
+    {
+      "id": "bootstrap_ci",
+      "name": "Bootstrap confidence interval",
+      "kind": "uncertainty",
+      "implementation": "score.py / score_multi.py",
+      "notes": "95% CI by resampling utterances with a fixed seed."
+    },
+    {
+      "id": "rtfx",
+      "name": "Realtime factor throughput",
+      "kind": "performance",
+      "implementation": "score.py / speed_bench.py",
+      "notes": "audio_seconds / wall_seconds; higher is faster."
+    },
+    {
+      "id": "cold_start_s",
+      "name": "Cold start seconds",
+      "kind": "performance",
+      "implementation": "speed_bench.py",
+      "notes": "Fresh-process time to first transcript."
+    },
+    {
+      "id": "peak_rss_mb",
+      "name": "Peak RSS MB",
+      "kind": "memory",
+      "implementation": "speed_bench.py",
+      "notes": "Maximum resident set size from /usr/bin/time -l."
+    },
+    {
+      "id": "surface_support",
+      "name": "Product surface support",
+      "kind": "product_fit",
+      "implementation": "manifest.json",
+      "notes": "Explicitly records whether an engine can serve live preview, final transcription, meeting, file/media, and performance tasks."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "english_accuracy_full",
+      "name": "English full-set accuracy",
+      "surface": "file_media",
+      "datasets": [
+        "librispeech-test-clean",
+        "librispeech-test-other"
+      ],
+      "engines": [
+        "parakeet-v2",
+        "parakeet-v3",
+        "parakeet-unified",
+        "nemotron-en",
+        "nemotron-multi",
+        "whisper",
+        "cohere"
+      ],
+      "primary_metric": "wer",
+      "metrics": [
+        "wer",
+        "bootstrap_ci",
+        "paired_delta_ci",
+        "rtfx"
+      ],
+      "status": "current_committed_evidence",
+      "runner": "run_macparakeet.py for shipping engines; fa_json_to_jsonl.py only for legacy FluidAudio reference imports.",
+      "publication_rule": "Use full test-clean and test-other for English claims; do not cite first-N subsets as final."
+    },
+    {
+      "id": "multilingual_accuracy_capped",
+      "name": "Multilingual directional accuracy",
+      "surface": "file_media",
+      "datasets": [
+        "fleurs-en-ko-ja-zh"
+      ],
+      "engines": [
+        "parakeet-v3",
+        "nemotron-multi",
+        "whisper",
+        "cohere"
+      ],
+      "primary_metric": "cer",
+      "metrics": [
+        "wer",
+        "cer",
+        "bootstrap_ci",
+        "paired_delta_ci"
+      ],
+      "status": "current_capped_evidence",
+      "runner": "run_macparakeet_fleurs.py for shipping engines; fa_json_to_jsonl.py only for legacy FluidAudio reference imports.",
+      "publication_rule": "Treat n=150/language as ranking-grade; expand before shipping automatic language routing."
+    },
+    {
+      "id": "meeting_accuracy_planned",
+      "name": "Meeting transcription accuracy",
+      "surface": "meeting_final",
+      "datasets": [
+        "ami-meetings",
+        "macparakeet-private-product-fixtures"
+      ],
+      "engines": [
+        "parakeet-v3",
+        "parakeet-unified",
+        "nemotron-multi",
+        "whisper",
+        "cohere"
+      ],
+      "primary_metric": "wer",
+      "metrics": [
+        "wer",
+        "bootstrap_ci",
+        "paired_delta_ci",
+        "surface_support"
+      ],
+      "status": "planned",
+      "runner": "future meeting fixture runner",
+      "publication_rule": "Separate final transcript quality from live-preview behavior and speaker-label quality."
+    },
+    {
+      "id": "live_preview_support",
+      "name": "Live preview suitability",
+      "surface": "dictation_live_preview",
+      "datasets": [
+        "macparakeet-private-product-fixtures"
+      ],
+      "engines": [
+        "parakeet-v2",
+        "parakeet-v3",
+        "parakeet-unified",
+        "nemotron-en",
+        "nemotron-multi"
+      ],
+      "primary_metric": "surface_support",
+      "metrics": [
+        "surface_support",
+        "rtfx"
+      ],
+      "status": "planned_private",
+      "runner": "future live-preview latency/stability harness",
+      "publication_rule": "Do not infer live-preview quality from batch WER alone; Cohere and Whisper are excluded until product support changes."
+    },
+    {
+      "id": "accent_wild_planned",
+      "name": "Accented real-world English",
+      "surface": "research",
+      "datasets": [
+        "earnings22-accented"
+      ],
+      "engines": [
+        "parakeet-v2",
+        "parakeet-v3",
+        "parakeet-unified",
+        "nemotron-en",
+        "nemotron-multi",
+        "whisper",
+        "cohere"
+      ],
+      "primary_metric": "wer",
+      "metrics": [
+        "wer",
+        "bootstrap_ci",
+        "paired_delta_ci"
+      ],
+      "status": "planned",
+      "runner": "future long-form runner",
+      "publication_rule": "Use when evaluating noisy/accented claims; LibriSpeech alone is not enough."
+    },
+    {
+      "id": "speed_memory_local",
+      "name": "Speed and memory",
+      "surface": "performance",
+      "datasets": [
+        "speed-memory-local"
+      ],
+      "engines": [
+        "parakeet-v2",
+        "parakeet-v3",
+        "parakeet-unified",
+        "nemotron-en",
+        "nemotron-multi",
+        "whisper",
+        "cohere"
+      ],
+      "primary_metric": "rtfx",
+      "metrics": [
+        "rtfx",
+        "cold_start_s",
+        "peak_rss_mb"
+      ],
+      "status": "current_reference_evidence",
+      "runner": "speed_bench.py; use cohere-fa-reference only for legacy FluidAudio comparisons.",
+      "publication_rule": "Report hardware, macOS version, model path, runtime path, contention assumptions, and whether Cohere was measured through macparakeet-cli or FluidAudio reference CLI."
+    }
+  ],
+  "quality_gates": [
+    {
+      "id": "repo_verify",
+      "name": "Repo-only verifier",
+      "scope": "pull_request",
+      "required_evidence": [
+        "./run_all.sh verify passes",
+        "manifest_tool.py validate manifest.json passes",
+        "scorer tests pass",
+        "committed JSONL evidence re-scores deterministically"
+      ]
+    },
+    {
+      "id": "product_default_change",
+      "name": "Speech-engine default or routing change",
+      "scope": "product_decision",
+      "required_evidence": [
+        "Full English LibriSpeech test-clean and test-other results",
+        "Relevant multilingual or domain dataset results",
+        "Paired bootstrap deltas for claimed wins",
+        "Speed, cold-start, and peak-RSS measurements on supported hardware",
+        "Explicit product-surface support check for dictation, meeting, file/media, and live preview"
+      ]
+    },
+    {
+      "id": "published_result_refresh",
+      "name": "Published benchmark refresh",
+      "scope": "research_release",
+      "required_evidence": [
+        "Pinned MacParakeet commit and CLI version",
+        "Pinned model/runtime versions",
+        "Dataset source, split, utterance count, and selection policy",
+        "Normalizer and scorer version",
+        "Hardware and macOS version",
+        "Raw hypotheses or compressed artifact available when license-safe"
+      ]
+    }
+  ]
+}
