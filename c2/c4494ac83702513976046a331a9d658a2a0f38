@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/Services/Capture/MeetingAecModelScoringTests.swift
+  s_b57fde6fe2c5fb::t_27e82ccf12e613 169,174
+  s_b57fde6fe2c5fb::t_acdd65546dc6d7 376-378,381,469-471,476-482
+Tests/MacParakeetTests/Services/Capture/MeetingAecMeasurementTests.swift
+  s_b57fde6fe2c5fb::t_bfc4fe35b9a3b5 232-277
+Tests/MacParakeetTests/Services/Capture/MeetingAecMeasurementHarness.swift
+  s_b57fde6fe2c5fb::t_ace96d008f93af 145-151,257,260-267,284-310,317-326,328,341,344,353,361,368,371,377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "c2c4494ac83702513976046a331a9d658a2a0f38",
+  "prompts": {},
+  "sessions": {
+    "s_b57fde6fe2c5fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29ee-31a9-7682-844e-42525cdcfc89",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
