@@ -155,10 +155,13 @@ final class MeetingAecModelScoringTests: XCTestCase {
 
         var scores: [ModelScore] = []
         for modelURL in modelURLs {
+            let makeCandidateConditioner = {
+                self.makeConditioner(libraryURL: libraryURL, modelURL: modelURL)
+            }
             // Preflight: the factory falls back to an unavailable passthrough
             // (loaded == false) when the dylib/model can't instantiate. Fail with
             // one crisp message rather than scoring a bogus passthrough as the model.
-            let preflight = makeConditioner(libraryURL: libraryURL, modelURL: modelURL)
+            let preflight = makeCandidateConditioner()
             guard preflight.diagnostics.loaded,
                   preflight.diagnostics.processorName == MeetingEchoSuppressionFactory.processorName else {
                 XCTFail("\(modelURL.lastPathComponent): not a loadable LocalVQE model — the runtime "
@@ -166,12 +169,11 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 continue
             }
             for (echoLabel, echoPath) in echoPaths {
-                let conditioner = makeConditioner(libraryURL: libraryURL, modelURL: modelURL)
                 scores.append(scoreModel(
                     label: modelURL.lastPathComponent,
                     modelKey: modelURL.path,
                     echoLabel: echoLabel,
-                    conditioner: conditioner,
+                    makeConditioner: makeCandidateConditioner,
                     echoPath: echoPath))
             }
         }
@@ -221,22 +223,24 @@ final class MeetingAecModelScoringTests: XCTestCase {
         label: String,
         modelKey: String,
         echoLabel: String,
-        conditioner: any MicConditioning,
+        makeConditioner: () -> any MicConditioning,
         echoPath: MeetingAecEchoPath
     ) -> ModelScore {
         // Far-end-only → ERLE (any mic energy is echo by construction).
         let farScenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: false, farEndActive: true, echoPath: echoPath)
-        let farOut = MeetingAecRunner.run(conditioner, scenario: farScenario)
-        let farDiagnostics = conditioner.diagnostics
+        let farConditioner = makeConditioner()
+        let farOut = MeetingAecRunner.run(farConditioner, scenario: farScenario)
+        let farDiagnostics = farConditioner.diagnostics
         let farERLE = MeetingAecMetrics.erleDB(
             mic: farScenario.mic, output: farOut, over: farScenario.steadyStateWindow)
 
         // Near-end-only → must preserve the local voice's energy and not go silent.
         let nearScenario = MeetingAecScenarioFactory.make(
             name: "near-end-only", nearEndActive: true, farEndActive: false, echoPath: echoPath)
-        let nearOut = MeetingAecRunner.run(conditioner, scenario: nearScenario)
-        let nearDiagnostics = conditioner.diagnostics
+        let nearConditioner = makeConditioner()
+        let nearOut = MeetingAecRunner.run(nearConditioner, scenario: nearScenario)
+        let nearDiagnostics = nearConditioner.diagnostics
         let nearWindow = nearScenario.steadyStateWindow
         let nearErr = MeetingAecMetrics.nearEndErrorDB(
             output: nearOut, nearEnd: nearScenario.nearEnd, over: nearWindow)
@@ -249,15 +253,16 @@ final class MeetingAecModelScoringTests: XCTestCase {
         // Double-talk → near-end error vs passthrough (reported, not gated).
         let dtScenario = MeetingAecScenarioFactory.make(
             name: "double-talk", nearEndActive: true, farEndActive: true, echoPath: echoPath)
-        let dtOut = MeetingAecRunner.run(conditioner, scenario: dtScenario)
-        let dtDiagnostics = conditioner.diagnostics
+        let dtConditioner = makeConditioner()
+        let dtOut = MeetingAecRunner.run(dtConditioner, scenario: dtScenario)
+        let dtDiagnostics = dtConditioner.diagnostics
         let dtWindow = dtScenario.steadyStateWindow
         let dtErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtOut, nearEnd: dtScenario.nearEnd, over: dtWindow)
         let dtPass = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: dtScenario)
         let dtPassErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtPass, nearEnd: dtScenario.nearEnd, over: dtWindow)
-        let overlapSweep = scoreDoubleTalkSegments(conditioner: conditioner, echoPath: echoPath)
+        let overlapSweep = scoreDoubleTalkSegments(makeConditioner: makeConditioner, echoPath: echoPath)
         let diagnostics = [farDiagnostics, nearDiagnostics, dtDiagnostics] + overlapSweep.diagnostics
 
         return ModelScore(
@@ -273,7 +278,7 @@ final class MeetingAecModelScoringTests: XCTestCase {
     }
 
     private func scoreDoubleTalkSegments(
-        conditioner: any MicConditioning,
+        makeConditioner: () -> any MicConditioning,
         echoPath: MeetingAecEchoPath
     ) -> OverlapSweepResult {
         var rows: [DoubleTalkSegmentScore] = []
@@ -285,8 +290,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 signalToInterferenceDB: sir
             )
             let window = doubleTalk.steadyStateWindow
-            let cleaned = MeetingAecRunner.run(conditioner, scenario: doubleTalk)
-            diagnostics.append(conditioner.diagnostics)
+            let doubleTalkConditioner = makeConditioner()
+            let cleaned = MeetingAecRunner.run(doubleTalkConditioner, scenario: doubleTalk)
+            diagnostics.append(doubleTalkConditioner.diagnostics)
             let raw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: doubleTalk)
             let cleanError = MeetingAecMetrics.nearEndErrorDB(
                 output: cleaned,
@@ -315,8 +321,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 signalToInterferenceDB: sir
             )
             let echoWindow = echoOnly.steadyStateWindow
-            let echoCleaned = MeetingAecRunner.run(conditioner, scenario: echoOnly)
-            diagnostics.append(conditioner.diagnostics)
+            let echoOnlyConditioner = makeConditioner()
+            let echoCleaned = MeetingAecRunner.run(echoOnlyConditioner, scenario: echoOnly)
+            diagnostics.append(echoOnlyConditioner.diagnostics)
             let echoRaw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: echoOnly)
             let echoCleanResidual = MeetingAecMetrics.relativePowerDB(
                 signal: echoCleaned,
