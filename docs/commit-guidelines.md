@@ -61,7 +61,7 @@ reconstructed — the architect's brief, not a stepwise recipe. State
 the goal, the constraints (don't break X, match Y's pattern), and the
 design decisions that were settled before the work began. Reference
 design docs and ADRs by name. Name specific files only when the
-location is itself part of the intent — an agent replaying this
+location is itself part of the intent — an agent reconstructing this
 should be able to rediscover the right files from the intent alone
 (case by case; a surgical fix may warrant them, a feature usually
 doesn't). This section was formerly titled "Prompt That Would Produce
