@@ -300,7 +300,10 @@ enum MeetingAecScenarioFactory {
         let convergenceTolerance = 0.0005
         for _ in 0..<6 {
             let echoPower = MeetingAecMetrics.power(echo, over: window)
-            guard echoPower > 0 else { break }
+            precondition(
+                echoPower > 0,
+                "AEC double-talk calibration underflowed: scaled far-end produced zero echo power"
+            )
             let correction = sqrt(targetEchoPower / echoPower)
             guard correction.isFinite else { break }
             if abs(correction - 1) < convergenceTolerance { break }
@@ -309,6 +312,10 @@ enum MeetingAecScenarioFactory {
             echo = echoPath.apply(to: far)
         }
         let finalEchoPower = MeetingAecMetrics.power(echo, over: window)
+        precondition(
+            finalEchoPower > 0,
+            "AEC double-talk calibration underflowed: scaled far-end produced zero echo power"
+        )
         let finalCorrection = sqrt(targetEchoPower / finalEchoPower)
         precondition(
             finalCorrection.isFinite && abs(finalCorrection - 1) < convergenceTolerance,
