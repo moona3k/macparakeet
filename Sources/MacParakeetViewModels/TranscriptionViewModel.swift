@@ -984,7 +984,7 @@ public final class TranscriptionViewModel {
             // A failed file never aborts the batch — it bumps the failure count
             // (surfaced in the status line + completion banner) and advances.
             batchFailedCount += 1
-            logger.error("Batch file transcription failed error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Batch file transcription failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             loadTranscriptions()
             advanceBatch()
         } else {

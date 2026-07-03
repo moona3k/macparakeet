@@ -259,7 +259,7 @@ public final class MediaPlayerViewModel {
         playerState = .loading
         loadingElapsed = 0
         startLoadingTimer()
-        logger.info("Loading media: mode=\(String(describing: mode), privacy: .public), source=\(transcription.sourceURL ?? transcription.filePath ?? "none", privacy: .private)")
+        logger.info("Loading media: mode=\(String(describing: mode), privacy: .public), sourceType=\(transcription.sourceType.rawValue, privacy: .public)")
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -371,7 +371,7 @@ public final class MediaPlayerViewModel {
 
         let start = ContinuousClock.now
         do {
-            logger.info("Extracting stream URL via yt-dlp for source=\(sourceURL, privacy: .private)")
+            logger.info("Extracting stream URL via yt-dlp")
             let streamURL = try await videoStreamService.streamURL(for: sourceURL)
             let extractionTime = ContinuousClock.now - start
             logger.info("Stream URL extracted in \(extractionTime)")
