@@ -275,6 +275,17 @@ final class MeetingAecMeasurementTests: XCTestCase {
             MeetingAecMetrics.rmsRatio(output, reference: scenario.nearEnd, over: scenario.steadyStateWindow),
             0
         )
+
+        let quietMic = [Float](repeating: Float(sqrt(0.5e-12)), count: 4)
+        let louderOutput = [Float](repeating: Float(sqrt(0.8e-12)), count: 4)
+        XCTAssertLessThan(
+            MeetingAecMetrics.erleDB(mic: quietMic, output: louderOutput, over: 0..<4),
+            0
+        )
+        XCTAssertEqual(
+            MeetingAecMetrics.erleDB(mic: [0], output: [0], over: 0..<1),
+            0
+        )
     }
 
     // MARK: Formatting helpers

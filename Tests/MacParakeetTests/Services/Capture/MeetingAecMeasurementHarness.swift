@@ -333,7 +333,7 @@ enum MeetingAecMetrics {
     private static func boundedWindow(_ window: Range<Int>, counts: Int...) -> Range<Int>? {
         guard !counts.isEmpty else { return nil }
         let lower = max(0, window.lowerBound)
-        let upper = min(window.upperBound, counts.min() ?? 0)
+        let upper = min(window.upperBound, counts.min()!)
         guard lower < upper else { return nil }
         return lower..<upper
     }
@@ -355,6 +355,10 @@ enum MeetingAecMetrics {
         guard let window = boundedWindow(window, counts: mic.count, output.count) else { return 0 }
         let micPower = power(mic, over: window)
         let outPower = power(output, over: window)
+        if micPower < powerFloor, outPower < powerFloor {
+            guard outPower > micPower else { return 0 }
+            return 10 * log10(max(micPower, Double.leastNonzeroMagnitude) / outPower)
+        }
         return 10 * log10(max(micPower, Double.leastNonzeroMagnitude) / max(outPower, powerFloor))
     }
 
