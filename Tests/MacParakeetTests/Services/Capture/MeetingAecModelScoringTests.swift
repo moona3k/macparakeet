@@ -486,14 +486,16 @@ final class MeetingAecModelScoringTests: XCTestCase {
             let echoClean = group.reduce(0.0) { $0 + $1.row.echoOnlyCleanResidualDB } / n
             let echoRaw = group.reduce(0.0) { $0 + $1.row.echoOnlyRawResidualDB } / n
             let echoERLE = group.reduce(0.0) { $0 + $1.row.echoOnlyERLE } / n
+            let rawRetention = group.reduce(0.0) { $0 + Double($1.row.rawRetentionRatio) } / n
             let cleanRetention = group.reduce(0.0) { $0 + Double($1.row.cleanRetentionRatio) } / n
             print(String(
-                format: "  %-34@ SIR %+4.0f  dtRaw %6.1f  dtClean %6.1f  dtImpr %6.1f  clnRet %.2f  echoRaw %6.1f  echoClean %6.1f  echoERLE %6.1f",
+                format: "  %-34@ SIR %+4.0f  dtRaw %6.1f  dtClean %6.1f  dtImpr %6.1f  rawRet %.2f  clnRet %.2f  echoRaw %6.1f  echoClean %6.1f  echoERLE %6.1f",
                 first.score.label as CVarArg,
                 first.row.signalToInterferenceDB,
                 rawError,
                 cleanError,
                 improvement,
+                rawRetention,
                 cleanRetention,
                 echoRaw,
                 echoClean,
