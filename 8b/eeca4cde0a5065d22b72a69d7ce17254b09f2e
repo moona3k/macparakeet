@@ -1,0 +1,47 @@
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_48a78ecf22550a::t_ff870d021800bf 532,683-684
+  s_a30758998d5bfb::t_d06c7bdedc5a7a 685-686
+Sources/MacParakeet/Views/Components/SoundManager.swift
+  s_48a78ecf22550a::t_ff870d021800bf 63
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_48a78ecf22550a::t_ff870d021800bf 28-80,306-310,323-326,328-331,333,350
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_48a78ecf22550a::t_ff870d021800bf 513
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_48a78ecf22550a::t_ff870d021800bf 218,275,302,355-374
+  s_a30758998d5bfb::t_c122fd5f8cbb92 375-376
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_48a78ecf22550a::t_ff870d021800bf 161,225,245,479-481,491-493
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_48a78ecf22550a::t_ff870d021800bf 1047-1053
+  s_a30758998d5bfb::t_5cccaac23d4657 1046
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_48a78ecf22550a::t_ff870d021800bf 206-214,712-713
+  s_a30758998d5bfb::t_e44570737b4a1c 714
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_48a78ecf22550a::t_ef47e8140cfe72 344-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "8beeca4cde0a5065d22b72a69d7ce17254b09f2e",
+  "prompts": {},
+  "sessions": {
+    "s_48a78ecf22550a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29d3-2061-7900-990d-1ace2d25bda3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a30758998d5bfb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29af-9f07-7893-a4c7-7afcd46dbe42",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
