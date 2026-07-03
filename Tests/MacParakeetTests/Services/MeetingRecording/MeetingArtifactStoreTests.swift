@@ -83,6 +83,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(files["mixedAudioPath"] as? String, transcription.filePath)
         XCTAssertEqual(files["microphoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone.m4a").path)
         XCTAssertEqual(files["systemAudioPath"] as? String, folderURL.appendingPathComponent("system.m4a").path)
+        XCTAssertNil(files["cleanedMicrophoneAudioPath"] as? String)
         XCTAssertEqual(files["metadataPath"] as? String, MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)
         XCTAssertEqual(files["manifestPath"] as? String, snapshot.manifestPath)
         XCTAssertEqual(files["transcriptPath"] as? String, snapshot.transcriptPath)
@@ -103,6 +104,21 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
+    }
+
+    func testMaterializeIncludesCleanedMicrophoneAudioPathWhenArtifactExists() async throws {
+        let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try Data("cleaned".utf8).write(to: cleanedURL)
+        let transcription = makeMeeting(notes: nil)
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let files = try XCTUnwrap(manifest["files"] as? [String: Any])
+        XCTAssertEqual(files["cleanedMicrophoneAudioPath"] as? String, cleanedURL.path)
     }
 
     func testMaterializeRemovesStaleNotesAndPromptResultFiles() async throws {

@@ -244,9 +244,14 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertTrue(rows.first?.recoveredFromCrash == true)
     }
 
-    func testRecoverSkipsCleanedMicWhenRecoveredAlignmentIsSynthetic() async throws {
+    func testRecoverSchedulesCleanedMicThroughReadinessGateForDualSourceSession() async throws {
         let fixture = try makeRecoverableSession()
         let conditionerProbe = RecoveryMicConditionerFactoryProbe()
+        transcriptionService.sourceResolutionPolicy = .init(
+            floorSeconds: 2,
+            durationMultiplier: 0,
+            capSeconds: 2
+        )
         recoveryService = MeetingRecordingRecoveryService(
             meetingsRoot: tempRoot,
             lockFileStore: lockStore,
@@ -259,39 +264,32 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         _ = try await recoveryService.recover(fixture.lock)
 
         let recording = try XCTUnwrap(transcriptionService.recordings.first)
-        XCTAssertNil(
-            recording.cleanedMicrophoneAudioURL,
-            "recovery synthesizes zero source offsets, so it must not prefer a derived cleaned mic")
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
-        XCTAssertEqual(
-            conditionerProbe.buildCount,
-            0,
-            "synthetic alignment should skip before building or running the cleaner")
-    }
-
-    func testRecoverDeletesStaleCleanedMicWhenRecoveredAlignmentIsSynthetic() async throws {
-        let fixture = try makeRecoverableSession()
-        let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
-        try Data("partial m4a fragment".utf8).write(to: staleCleanedURL)
-
-        _ = try await recoveryService.recover(fixture.lock)
-
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: staleCleanedURL.path),
-            "synthetic recovery alignment must remove stale cleaned artifacts so reopened sessions use raw mic")
+        let cleanedURL = try XCTUnwrap(recording.cleanedMicrophoneAudioURL)
+        let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
+        XCTAssertGreaterThanOrEqual(conditionerProbe.buildCount, 1)
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        XCTAssertEqual(decision.url, cleanedURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
     }
 
     func testRecoverDeletesStaleCleanedMicWhenSourceMissing() async throws {
         let fixture = try makeRecoverableSession(systemAudio: .corrupt)
         let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
         try Data("partial m4a fragment".utf8).write(to: staleCleanedURL)
+        transcriptionService.sourceResolutionPolicy = .init(
+            floorSeconds: 0.05,
+            durationMultiplier: 0,
+            capSeconds: 0.05
+        )
 
         _ = try await recoveryService.recover(fixture.lock)
 
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: staleCleanedURL.path),
             "missing recovered sources must remove stale cleaned artifacts so reopened sessions use raw mic")
+        let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
+        XCTAssertEqual(decision.reason, .rawMissingSystemReference)
+        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
     }
 
     private enum SourceFixture {
@@ -525,24 +523,43 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             channels: 1,
             interleaved: false
         )!
-        let file = try AVAudioFile(
-            forWriting: url,
-            settings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: sampleRate,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderBitRateKey: 64_000,
-            ],
-            commonFormat: .pcmFormatFloat32,
-            interleaved: false
-        )
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
         buffer.frameLength = AVAudioFrameCount(frameCount)
         let samples = buffer.floatChannelData![0]
         for index in 0..<frameCount {
             samples[index] = 0.1
         }
-        try file.write(from: buffer)
+
+        do {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                    AVEncoderBitRateKey: 64_000,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        } catch {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                    AVLinearPCMBitDepthKey: 32,
+                    AVLinearPCMIsFloatKey: true,
+                    AVLinearPCMIsBigEndianKey: false,
+                    AVLinearPCMIsNonInterleaved: true,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        }
     }
 
 }
@@ -654,6 +671,8 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
     private(set) var recordings: [MeetingRecordingOutput] = []
     private(set) var finalizedRecordings: [MeetingRecordingOutput] = []
     private(set) var finalizedTranscriptionIDs: [UUID] = []
+    private(set) var sourceDecisions: [MeetingCleanedMicrophoneSourceDecision] = []
+    var sourceResolutionPolicy: MeetingCleanedMicrophoneReadinessPolicy?
     var errorToThrow: Error?
 
     func transcribe(
@@ -677,6 +696,14 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         if let errorToThrow { throw errorToThrow }
+        if let sourceResolutionPolicy {
+            let decision = await recording.resolvedMicrophoneTranscriptionSource(
+                policy: sourceResolutionPolicy
+            )
+            lock.withLock {
+                sourceDecisions.append(decision)
+            }
+        }
         lock.withLock {
             recordings.append(recording)
         }
@@ -698,6 +725,14 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         if let errorToThrow { throw errorToThrow }
+        if let sourceResolutionPolicy {
+            let decision = await recording.resolvedMicrophoneTranscriptionSource(
+                policy: sourceResolutionPolicy
+            )
+            lock.withLock {
+                sourceDecisions.append(decision)
+            }
+        }
         lock.withLock {
             finalizedRecordings.append(recording)
             finalizedTranscriptionIDs.append(transcriptionID)

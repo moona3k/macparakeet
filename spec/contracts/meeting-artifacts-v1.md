@@ -88,9 +88,9 @@ The v1 folder can contain these stable filenames:
 - `promptResults`
 
 `manifest.files` keeps path fields for `folderPath`, `mixedAudioPath`,
-`microphoneAudioPath`, `systemAudioPath`, `metadataPath`, `manifestPath`,
-`transcriptPath`, `notesPath`, `promptResultsPath`, and
-`promptResultsDirectoryPath`.
+`microphoneAudioPath`, `cleanedMicrophoneAudioPath`, `systemAudioPath`,
+`metadataPath`, `manifestPath`, `transcriptPath`, `notesPath`,
+`promptResultsPath`, and `promptResultsDirectoryPath`.
 
 `transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization

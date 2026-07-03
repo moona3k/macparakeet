@@ -240,6 +240,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let playbackConverter: YouTubeAudioPlaybackConverting
     private let meetingArtifactStore: MeetingArtifactStoring?
     private let meetingAutomationHookRunner: MeetingAutomationHookRunning?
+    private let meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -266,7 +267,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
         playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
         meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
-        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner()
+        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
+        meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production
     ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
@@ -294,6 +296,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.playbackConverter = playbackConverter
         self.meetingArtifactStore = meetingArtifactStore
         self.meetingAutomationHookRunner = meetingAutomationHookRunner
+        self.meetingCleanedMicrophoneReadinessPolicy = meetingCleanedMicrophoneReadinessPolicy
     }
 
     public func transcribe(
@@ -1229,9 +1232,16 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         var outputs: [MeetingTranscriptFinalizer.SourceTranscript] = []
         let activeSources = [AudioSource.microphone, .system].filter { recording.sourceAlignment.track(for: $0) != nil }
         let speechEngine = speechEngineOverride ?? (recording.speechEngineWasCaptured ? recording.speechEngine : nil)
+        let microphoneDecision = activeSources.contains(.microphone)
+            ? await resolveMeetingMicrophoneSource(for: recording)
+            : nil
 
         for (index, source) in activeSources.enumerated() {
-            let fileURL = meetingAudioURL(for: source, recording: recording)
+            let fileURL = meetingAudioURL(
+                for: source,
+                recording: recording,
+                microphoneDecision: microphoneDecision
+            )
             lifecycleStage = .audioConversion
             onProgress?(.converting)
             let wavURL = try await audioProcessor.convert(fileURL: fileURL)
@@ -1324,13 +1334,36 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         }
     }
 
-    private func meetingAudioURL(for source: AudioSource, recording: MeetingRecordingOutput) -> URL {
+    private func resolveMeetingMicrophoneSource(
+        for recording: MeetingRecordingOutput
+    ) async -> MeetingCleanedMicrophoneSourceDecision {
+        let decision = await recording.resolvedMicrophoneTranscriptionSource(
+            policy: meetingCleanedMicrophoneReadinessPolicy
+        )
+        let selected = decision.usesCleanedMicrophone ? "cleaned" : "raw"
+        let timeoutSeconds = meetingCleanedMicrophoneReadinessPolicy.timeoutSeconds(
+            for: recording.durationSeconds
+        )
+        logger.info(
+            "meeting_cleaned_mic_source session=\(recording.sessionID.uuidString, privacy: .public) selected=\(selected, privacy: .public) reason=\(decision.reason.rawValue, privacy: .public) timeout_s=\(timeoutSeconds, format: .fixed(precision: 3), privacy: .public)"
+        )
+        AudioCaptureDiagnostics.append(
+            "meeting_cleaned_mic_source session=\(recording.sessionID.uuidString) selected=\(selected) reason=\(decision.reason.rawValue) timeout_s=\(String(format: "%.3f", timeoutSeconds))"
+        )
+        return decision
+    }
+
+    private func meetingAudioURL(
+        for source: AudioSource,
+        recording: MeetingRecordingOutput,
+        microphoneDecision: MeetingCleanedMicrophoneSourceDecision?
+    ) -> URL {
         switch source {
         case .microphone:
             // Transcribe the echo-cancelled mic when it was derived (plan #605
-            // U3/U4) so remote speaker bleed does not surface as false "Me"
-            // text; falls back to the raw mic when no cleaned artifact exists.
-            return recording.validatedMicrophoneTranscriptionURL()
+            // U3/U4) and ready before the bounded deadline so remote speaker
+            // bleed does not surface as false "Me" text.
+            return microphoneDecision?.url ?? recording.validatedMicrophoneTranscriptionURL()
         case .system:
             return recording.systemAudioURL
         }

@@ -9,11 +9,12 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let microphoneAudioURL: URL
     public let systemAudioURL: URL
     /// Echo-cancelled microphone derived from the raw mic + system reference
-    /// after stop (plan #605 U3). `nil` for single-source meetings or when no
-    /// AEC assets are bundled. The raw `microphoneAudioURL` always stays the
-    /// source of truth; this is a derived artifact preferred for the local
-    /// ("Me") transcript via `microphoneTranscriptionURL(fileManager:)`.
+    /// after stop (plan #605 U3). For dual-source meetings this may be the
+    /// scheduled output path before the background render has completed. The raw
+    /// `microphoneAudioURL` always stays the source of truth; STT finalization
+    /// waits on `cleanedMicrophoneReadiness` before preferring this artifact.
     public let cleanedMicrophoneAudioURL: URL?
+    let cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness?
     public let durationSeconds: TimeInterval
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
@@ -38,6 +39,38 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         speechEngineWasCaptured: Bool = true,
         userNotes: String? = nil
     ) {
+        self.init(
+            sessionID: sessionID,
+            displayName: displayName,
+            folderURL: folderURL,
+            mixedAudioURL: mixedAudioURL,
+            microphoneAudioURL: microphoneAudioURL,
+            systemAudioURL: systemAudioURL,
+            cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
+            cleanedMicrophoneReadiness: nil,
+            durationSeconds: durationSeconds,
+            sourceAlignment: sourceAlignment,
+            speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
+            userNotes: userNotes
+        )
+    }
+
+    init(
+        sessionID: UUID,
+        displayName: String,
+        folderURL: URL,
+        mixedAudioURL: URL,
+        microphoneAudioURL: URL,
+        systemAudioURL: URL,
+        cleanedMicrophoneAudioURL: URL? = nil,
+        cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness?,
+        durationSeconds: TimeInterval,
+        sourceAlignment: MeetingSourceAlignment,
+        speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
+        speechEngineWasCaptured: Bool = true,
+        userNotes: String? = nil
+    ) {
         self.sessionID = sessionID
         self.displayName = displayName
         self.folderURL = folderURL
@@ -45,6 +78,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.microphoneAudioURL = microphoneAudioURL
         self.systemAudioURL = systemAudioURL
         self.cleanedMicrophoneAudioURL = cleanedMicrophoneAudioURL
+        self.cleanedMicrophoneReadiness = cleanedMicrophoneReadiness
         self.durationSeconds = durationSeconds
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
@@ -76,7 +110,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         return microphoneAudioURL
     }
 
-    private static func isViableCleanedMicrophoneFile(
+    static func isViableCleanedMicrophoneFile(
         at url: URL,
         fileManager: FileManager = .default
     ) -> Bool {
@@ -150,5 +184,20 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         fileManager: FileManager = .default
     ) -> Bool {
         fileManager.fileExists(atPath: url.path)
+    }
+
+    public static func == (lhs: MeetingRecordingOutput, rhs: MeetingRecordingOutput) -> Bool {
+        lhs.sessionID == rhs.sessionID
+            && lhs.displayName == rhs.displayName
+            && lhs.folderURL == rhs.folderURL
+            && lhs.mixedAudioURL == rhs.mixedAudioURL
+            && lhs.microphoneAudioURL == rhs.microphoneAudioURL
+            && lhs.systemAudioURL == rhs.systemAudioURL
+            && lhs.cleanedMicrophoneAudioURL == rhs.cleanedMicrophoneAudioURL
+            && lhs.durationSeconds == rhs.durationSeconds
+            && lhs.sourceAlignment == rhs.sourceAlignment
+            && lhs.speechEngine == rhs.speechEngine
+            && lhs.speechEngineWasCaptured == rhs.speechEngineWasCaptured
+            && lhs.userNotes == rhs.userNotes
     }
 }
