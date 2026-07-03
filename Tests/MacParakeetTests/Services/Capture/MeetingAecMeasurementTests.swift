@@ -261,16 +261,18 @@ final class MeetingAecMeasurementTests: XCTestCase {
 
         XCTAssertTrue(scenario.steadyStateWindow.isEmpty)
         XCTAssertEqual(MeetingAecMetrics.power(scenario.mic, over: scenario.steadyStateWindow), 0)
+        let output = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: scenario)
+        XCTAssertEqual(output.count, scenario.sampleCount)
         XCTAssertEqual(
             MeetingAecMetrics.relativePowerDB(
-                signal: [],
+                signal: output,
                 reference: scenario.nearEnd,
                 over: scenario.steadyStateWindow
             ),
             0
         )
         XCTAssertEqual(
-            MeetingAecMetrics.rmsRatio([], reference: scenario.nearEnd, over: scenario.steadyStateWindow),
+            MeetingAecMetrics.rmsRatio(output, reference: scenario.nearEnd, over: scenario.steadyStateWindow),
             0
         )
     }
