@@ -104,7 +104,7 @@ public final class AutoSaveService {
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
 
-            logger.info("Auto-saved \(scope.rawValue) transcript to \(fileURL.lastPathComponent)")
+            logger.info("auto_save_completed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=success")
             sendAutoSaveOperation(
                 operationContext: operationContext,
                 scope: scope,
@@ -112,13 +112,14 @@ public final class AutoSaveService {
                 outcome: .success
             )
         } catch {
-            logger.error("Auto-save failed for \(scope.rawValue): \(error.localizedDescription)")
+            let errorType = Observability.errorType(for: error)
+            logger.error("auto_save_failed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=failure error_type=\(errorType, privacy: .public)")
             sendAutoSaveOperation(
                 operationContext: operationContext,
                 scope: scope,
                 format: format,
                 outcome: .failure,
-                errorType: Observability.errorType(for: error)
+                errorType: errorType
             )
         }
     }

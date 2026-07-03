@@ -272,7 +272,7 @@ public final class TranscriptionViewModel {
         do {
             transcriptions = try repo.fetchAll(limit: 50)
         } catch {
-            logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to load transcriptions error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             transcriptions = []
         }
     }
@@ -641,7 +641,7 @@ public final class TranscriptionViewModel {
                     // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
                     completeSuccessfulTranscription(taskID: taskID, result: updatedResult, runAutoPrompts: false)
                 } catch {
-                    logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")
+                    logger.error("Failed to save transcription result error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
                     completeFailedTranscription(taskID: taskID, error: error)
                 }
             } catch is CancellationError {
@@ -984,7 +984,7 @@ public final class TranscriptionViewModel {
             // A failed file never aborts the batch — it bumps the failure count
             // (surfaced in the status line + completion banner) and advances.
             batchFailedCount += 1
-            logger.error("Batch file transcription failed error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Batch file transcription failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             loadTranscriptions()
             advanceBatch()
         } else {
@@ -1204,7 +1204,7 @@ public final class TranscriptionViewModel {
             }
             return true
         } catch {
-            logger.error("Failed to persist transcript edit error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             return false
         }
     }
@@ -1231,7 +1231,7 @@ public final class TranscriptionViewModel {
             }
             return true
         } catch {
-            logger.error("Failed to persist transcript revert error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to persist transcript revert error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             return false
         }
     }
@@ -1250,7 +1250,7 @@ public final class TranscriptionViewModel {
         do {
             try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
         } catch {
-            logger.error("Failed to persist speaker rename error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to persist speaker rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
         }
     }
 
@@ -1269,7 +1269,7 @@ public final class TranscriptionViewModel {
                 transcriptions[index].derivedTitle = trimmed
             }
         } catch {
-            logger.error("Failed to persist transcription rename error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to persist transcription rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
         }
     }
 
@@ -1282,7 +1282,7 @@ public final class TranscriptionViewModel {
         do {
             hasPromptResultTabs = try promptResultRepo?.hasPromptResults(transcriptionId: transcriptionID) ?? false
         } catch {
-            logger.error("Failed to query prompt results error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to query prompt results error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             hasPromptResultTabs = false
         }
     }

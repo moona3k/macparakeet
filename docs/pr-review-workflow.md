@@ -114,6 +114,11 @@ the strongest readiness signal we have.
 
 ## What makes a good PR description
 
+Deep guide: [`docs/pr-description-guidelines.md`](./pr-description-guidelines.md)
+— scaffolding, when to include sequence/flow/state diagrams (GitHub
+renders Mermaid) or before→after tables, and the no-code-PR convention.
+The short version:
+
 Reader-friendly first. The reviewer (and the future archaeologist) should
 understand the change without reading the diff. Mirror the rich-commit
 sections (`docs/commit-guidelines.md`):
