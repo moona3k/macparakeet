@@ -166,11 +166,12 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 continue
             }
             for (echoLabel, echoPath) in echoPaths {
+                let conditioner = makeConditioner(libraryURL: libraryURL, modelURL: modelURL)
                 scores.append(scoreModel(
                     label: modelURL.lastPathComponent,
                     modelKey: modelURL.path,
                     echoLabel: echoLabel,
-                    conditioner: preflight,
+                    conditioner: conditioner,
                     echoPath: echoPath))
             }
         }
@@ -372,12 +373,12 @@ final class MeetingAecModelScoringTests: XCTestCase {
             let retentions = group.map { $0.nearEndRetentionRatio }
             return ModelAggregate(
                 label: group.first?.label ?? "?",
-                meanFarERLE: group.reduce(0) { $0 + $1.farEndERLE } / n,
-                meanDoubleTalkError: group.reduce(0) { $0 + $1.doubleTalkErrorDB } / n,
-                meanDoubleTalkImprovement: group.reduce(0) { $0 + $1.doubleTalkImprovement } / n,
+                meanFarERLE: group.reduce(0.0) { $0 + $1.farEndERLE } / n,
+                meanDoubleTalkError: group.reduce(0.0) { $0 + $1.doubleTalkErrorDB } / n,
+                meanDoubleTalkImprovement: group.reduce(0.0) { $0 + $1.doubleTalkImprovement } / n,
                 minRetention: retentions.min() ?? 0,
                 maxRetention: retentions.max() ?? 0,
-                meanNearError: group.reduce(0) { $0 + $1.nearEndErrorDB } / n,
+                meanNearError: group.reduce(0.0) { $0 + $1.nearEndErrorDB } / n,
                 totalProcessingFailures: group.reduce(0) { $0 + $1.processingFailures })
         }
     }
@@ -465,17 +466,20 @@ final class MeetingAecModelScoringTests: XCTestCase {
             if l?.score.label != r?.score.label {
                 return (l?.score.label ?? "") < (r?.score.label ?? "")
             }
+            if l?.score.modelKey != r?.score.modelKey {
+                return (l?.score.modelKey ?? "") < (r?.score.modelKey ?? "")
+            }
             return (l?.row.signalToInterferenceDB ?? 0) < (r?.row.signalToInterferenceDB ?? 0)
         }) {
             guard let first = group.first else { continue }
             let n = Double(group.count)
-            let cleanError = group.reduce(0) { $0 + $1.row.cleanErrorDB } / n
-            let rawError = group.reduce(0) { $0 + $1.row.rawErrorDB } / n
-            let improvement = group.reduce(0) { $0 + $1.row.improvementDB } / n
-            let echoClean = group.reduce(0) { $0 + $1.row.echoOnlyCleanResidualDB } / n
-            let echoRaw = group.reduce(0) { $0 + $1.row.echoOnlyRawResidualDB } / n
-            let echoERLE = group.reduce(0) { $0 + $1.row.echoOnlyERLE } / n
-            let cleanRetention = group.reduce(0) { $0 + Double($1.row.cleanRetentionRatio) } / n
+            let cleanError = group.reduce(0.0) { $0 + $1.row.cleanErrorDB } / n
+            let rawError = group.reduce(0.0) { $0 + $1.row.rawErrorDB } / n
+            let improvement = group.reduce(0.0) { $0 + $1.row.improvementDB } / n
+            let echoClean = group.reduce(0.0) { $0 + $1.row.echoOnlyCleanResidualDB } / n
+            let echoRaw = group.reduce(0.0) { $0 + $1.row.echoOnlyRawResidualDB } / n
+            let echoERLE = group.reduce(0.0) { $0 + $1.row.echoOnlyERLE } / n
+            let cleanRetention = group.reduce(0.0) { $0 + Double($1.row.cleanRetentionRatio) } / n
             print(String(
                 format: "  %-34@ SIR %+4.0f  dtRaw %6.1f  dtClean %6.1f  dtImpr %6.1f  clnRet %.2f  echoRaw %6.1f  echoClean %6.1f  echoERLE %6.1f",
                 first.score.label as CVarArg,

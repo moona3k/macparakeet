@@ -84,7 +84,6 @@ enum MeetingAecSignal {
     }
 
     static func scaled(_ signal: [Float], by scale: Float) -> [Float] {
-        guard scale != 1 else { return signal }
         return signal.map { $0 * scale }
     }
 
@@ -143,7 +142,13 @@ struct MeetingAecScenario {
     /// samples keeps that uncancelled tail out of the measurement. (256 is the
     /// LocalVQE hop and every processor's frame size here.)
     static let maxFrameSize = 256
-    var steadyStateWindow: Range<Int> { (sampleCount / 2)..<(sampleCount - Self.maxFrameSize) }
+    var steadyStateWindow: Range<Int> { Self.steadyStateWindow(sampleCount: sampleCount) }
+
+    static func steadyStateWindow(sampleCount: Int) -> Range<Int> {
+        let lower = sampleCount / 2
+        let upper = max(lower, sampleCount - maxFrameSize)
+        return lower..<upper
+    }
 }
 
 enum MeetingAecScenarioFactory {
@@ -249,14 +254,17 @@ enum MeetingAecScenarioFactory {
             formants: farFormants,
             seed: farSeed
         )
-        let baseEcho = echoPath.apply(to: baseFar)
-        let window = steadyStateWindow(sampleCount: sampleCount)
+        let window = MeetingAecScenario.steadyStateWindow(sampleCount: sampleCount)
         let nearPower = MeetingAecMetrics.power(canonicalNear, over: window)
-        let echoPower = MeetingAecMetrics.power(baseEcho, over: window)
         let targetEchoPower = nearPower / pow(10, signalToInterferenceDB / 10)
-        let scale = Float(sqrt(targetEchoPower / max(echoPower, 1e-12)))
-        let far = MeetingAecSignal.scaled(baseFar, by: scale)
-        let echo = MeetingAecSignal.scaled(baseEcho, by: scale)
+        let calibrated = calibrateFarEnd(
+            baseFar,
+            echoPath: echoPath,
+            targetEchoPower: targetEchoPower,
+            over: window
+        )
+        let far = calibrated.far
+        let echo = calibrated.echo
 
         var noise = MeetingAecRandom(seed: noiseSeed)
         var mic = [Float](repeating: 0, count: sampleCount)
@@ -273,18 +281,51 @@ enum MeetingAecScenarioFactory {
         )
     }
 
-    private static func steadyStateWindow(sampleCount: Int) -> Range<Int> {
-        let lower = sampleCount / 2
-        let upper = max(lower, sampleCount - MeetingAecScenario.maxFrameSize)
-        return lower..<upper
+    private static func calibrateFarEnd(
+        _ baseFar: [Float],
+        echoPath: MeetingAecEchoPath,
+        targetEchoPower: Double,
+        over window: Range<Int>
+    ) -> (far: [Float], echo: [Float]) {
+        let baseEcho = echoPath.apply(to: baseFar)
+        let baseEchoPower = MeetingAecMetrics.power(baseEcho, over: window)
+        guard targetEchoPower > 0, baseEchoPower > 0 else {
+            let silence = MeetingAecSignal.silence(sampleCount: baseFar.count)
+            return (silence, silence)
+        }
+
+        var scale = Float(sqrt(targetEchoPower / baseEchoPower))
+        var far = MeetingAecSignal.scaled(baseFar, by: scale)
+        var echo = echoPath.apply(to: far)
+        for _ in 0..<6 {
+            let echoPower = MeetingAecMetrics.power(echo, over: window)
+            guard echoPower > 0 else { break }
+            let correction = sqrt(targetEchoPower / echoPower)
+            guard correction.isFinite else { break }
+            if abs(correction - 1) < 0.0005 { break }
+            scale *= Float(correction)
+            far = MeetingAecSignal.scaled(baseFar, by: scale)
+            echo = echoPath.apply(to: far)
+        }
+        return (far, echo)
     }
 }
 
 // MARK: Metrics
 
 enum MeetingAecMetrics {
+    private static let powerFloor = 1e-12
+
+    private static func boundedWindow(_ window: Range<Int>, counts: Int...) -> Range<Int>? {
+        guard !counts.isEmpty else { return nil }
+        let lower = max(0, window.lowerBound)
+        let upper = min(window.upperBound, counts.min() ?? 0)
+        guard lower < upper else { return nil }
+        return lower..<upper
+    }
+
     static func power(_ signal: [Float], over window: Range<Int>) -> Double {
-        guard !window.isEmpty else { return 0 }
+        guard let window = boundedWindow(window, counts: signal.count) else { return 0 }
         var acc = 0.0
         for i in window {
             let v = Double(signal[i])
@@ -297,9 +338,10 @@ enum MeetingAecMetrics {
     /// unprocessed mic. Higher = more echo removed. Meaningful for far-end-only
     /// fixtures, where any mic energy is echo by construction.
     static func erleDB(mic: [Float], output: [Float], over window: Range<Int>) -> Double {
+        guard let window = boundedWindow(window, counts: mic.count, output.count) else { return 0 }
         let micPower = power(mic, over: window)
         let outPower = power(output, over: window)
-        return 10 * log10(micPower / max(outPower, 1e-12))
+        return 10 * log10(max(micPower, powerFloor) / max(outPower, powerFloor))
     }
 
     /// Near-end error (dB relative to near-end power): how far the output drifts
@@ -308,7 +350,7 @@ enum MeetingAecMetrics {
     /// Lower (more negative) is better; 0 dB means the error is as loud as the
     /// voice we wanted to keep.
     static func nearEndErrorDB(output: [Float], nearEnd: [Float], over window: Range<Int>) -> Double {
-        guard !window.isEmpty else { return 0 }
+        guard let window = boundedWindow(window, counts: output.count, nearEnd.count) else { return 0 }
         var errAcc = 0.0
         for i in window {
             let d = Double(output[i]) - Double(nearEnd[i])
@@ -316,21 +358,23 @@ enum MeetingAecMetrics {
         }
         let errPower = errAcc / Double(window.count)
         let nearPower = power(nearEnd, over: window)
-        return 10 * log10(errPower / max(nearPower, 1e-12))
+        return 10 * log10(max(errPower, powerFloor) / max(nearPower, powerFloor))
     }
 
     /// Signal power relative to a reference signal, in dB. Used for echo-only
     /// rows where the ideal transcript is empty: lower residual power relative
     /// to a nominal local voice means less speech-like echo left to transcribe.
     static func relativePowerDB(signal: [Float], reference: [Float], over window: Range<Int>) -> Double {
+        guard let window = boundedWindow(window, counts: signal.count, reference.count) else { return 0 }
         let signalPower = power(signal, over: window)
         let referencePower = power(reference, over: window)
-        return 10 * log10(signalPower / max(referencePower, 1e-12))
+        return 10 * log10(max(signalPower, powerFloor) / max(referencePower, powerFloor))
     }
 
     /// RMS ratio of a candidate output to an expected reference. ~1 means energy
     /// was preserved, <1 means suppression, >1 usually means residual echo/noise.
     static func rmsRatio(_ output: [Float], reference: [Float], over window: Range<Int>) -> Float {
+        guard let window = boundedWindow(window, counts: output.count, reference.count) else { return 0 }
         let outputPower = power(output, over: window)
         let referencePower = power(reference, over: window)
         guard referencePower > 0 else { return 0 }

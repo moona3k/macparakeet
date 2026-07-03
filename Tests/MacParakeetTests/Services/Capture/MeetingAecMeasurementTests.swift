@@ -229,6 +229,52 @@ final class MeetingAecMeasurementTests: XCTestCase {
         }
     }
 
+    func testDoubleTalkScenarioKeepsEchoPathConsistentWhenPathIsNonlinear() {
+        let targetSIR = 6.0
+        let nonlinearEcho = MeetingAecEchoPath(
+            taps: [(delay: 120, gain: 0.6), (delay: 180, gain: 0.25)],
+            nonlinearity: 0.4
+        )
+        let scenario = MeetingAecScenarioFactory.makeDoubleTalk(
+            name: "nonlinear-double-talk",
+            echoPath: nonlinearEcho,
+            signalToInterferenceDB: targetSIR
+        )
+
+        let recomputedEcho = nonlinearEcho.apply(to: scenario.farEnd)
+        let worstDrift = MeetingAecMetrics.maxAbsDifference(recomputedEcho, scenario.echo)
+        XCTAssertLessThan(worstDrift, 1e-6, "scenario echo must remain the echo path applied to farEnd")
+
+        let nearPower = MeetingAecMetrics.power(scenario.nearEnd, over: scenario.steadyStateWindow)
+        let echoPower = MeetingAecMetrics.power(scenario.echo, over: scenario.steadyStateWindow)
+        let measuredSIR = 10 * log10(nearPower / max(echoPower, 1e-12))
+        XCTAssertEqual(measuredSIR, targetSIR, accuracy: 0.05)
+    }
+
+    func testShortScenarioSteadyStateWindowAndMetricsStayFinite() {
+        let scenario = MeetingAecScenarioFactory.makeDoubleTalk(
+            name: "short-double-talk",
+            echoPath: singleTapEcho,
+            signalToInterferenceDB: 0,
+            sampleCount: 300
+        )
+
+        XCTAssertTrue(scenario.steadyStateWindow.isEmpty)
+        XCTAssertEqual(MeetingAecMetrics.power(scenario.mic, over: scenario.steadyStateWindow), 0)
+        XCTAssertEqual(
+            MeetingAecMetrics.relativePowerDB(
+                signal: [],
+                reference: scenario.nearEnd,
+                over: scenario.steadyStateWindow
+            ),
+            0
+        )
+        XCTAssertEqual(
+            MeetingAecMetrics.rmsRatio([], reference: scenario.nearEnd, over: scenario.steadyStateWindow),
+            0
+        )
+    }
+
     // MARK: Formatting helpers
 
     private func fmt(_ value: Double) -> String {
