@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/Calendar/CalendarService.swift
+  s_a7c8f93432c670::t_5a6e7e0ba6272d 176-180,182-183
+  s_a7c8f93432c670::t_fa4eb913ba032c 227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2876237b02f5f875ec8bcc459ec22a7f128b5d14",
+  "prompts": {},
+  "sessions": {
+    "s_a7c8f93432c670": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30ce2f51-9dd7-4e0c-a410-1d45da0d9b46",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

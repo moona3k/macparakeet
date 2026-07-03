@@ -1,0 +1,32 @@
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_e12253d018f692::t_86ca7e3e1d86f2 86-92,199,204-207,229-230,368
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_e12253d018f692::t_7ec165fe373e8c 146-147,150
+docs/distribution.md
+  s_e12253d018f692::t_090844461d17c9 36-56,68-70
+THIRD_PARTY_LICENSES.md
+  s_e12253d018f692::t_ee7e30178dc369 26-38
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_e12253d018f692::t_4e5abb0c1cdc3f 1-201
+scripts/dist/build_app_bundle.sh
+  s_e12253d018f692::t_81c7d261404c2c 34,36-37,67-70,418-420,438-466,476,488,491,495,498,505-507,512,526-528
+  s_e12253d018f692::t_5ef6d052cd40fe 429,483-487,489
+spec/05-audio-pipeline.md
+  s_e12253d018f692::t_f9d33a09e54a71 197-201,205-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d26a1f8aa836ed5945f20d5c538f0939168e0361",
+  "prompts": {},
+  "sessions": {
+    "s_e12253d018f692": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1188-bb6e-7b93-a39d-cb4b10ac5786",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

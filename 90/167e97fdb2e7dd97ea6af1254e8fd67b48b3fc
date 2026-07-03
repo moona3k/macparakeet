@@ -1,0 +1,19 @@
+Sources/CLI/README.md
+  s_be69dd51f6ad0c::t_5cfbb68e678af8 61-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "90167e97fdb2e7dd97ea6af1254e8fd67b48b3fc",
+  "prompts": {},
+  "sessions": {
+    "s_be69dd51f6ad0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33b94ec7-6251-4be6-b9f1-24ccf4d42592",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+Sources/CLI/Commands/PromptsCommand.swift
+  s_4115897087fa9e::t_ffe34f183d0559 361,372
+Tests/CLITests/PromptsCommandTests.swift
+  s_4115897087fa9e::t_65d9e424f0448f 371,374,382-389,398-399
+Sources/CLI/Commands/SpecCommand.swift
+  s_4115897087fa9e::t_ffe34f183d0559 443
+Tests/CLITests/SpecCommandTests.swift
+  s_4115897087fa9e::t_65d9e424f0448f 210-215
+Tests/MacParakeetTests/Database/PromptRepositoryTests.swift
+  s_4115897087fa9e::t_65d9e424f0448f 582,587,593
+Sources/MacParakeetCore/Database/PromptRepository.swift
+  s_4115897087fa9e::t_ffe34f183d0559 168,172-175,182-190
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_4115897087fa9e::t_8990cf9638c0fb 476-478
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_4115897087fa9e::t_b052981220b178 105-106,119
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_4115897087fa9e::t_65d9e424f0448f 436-455
+Sources/MacParakeetCore/Audio/AudioDeviceManager.swift
+  s_4115897087fa9e::t_b052981220b178 156,166-167,175-177
+  s_faac8bc87cd188::t_3b27b176e754e8 178-179
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_4115897087fa9e::t_b052981220b178 102,146
+  s_4115897087fa9e::t_d2d3b4f24d2e84 93-94
+Sources/CLI/MacParakeetCLI.swift
+  s_4115897087fa9e::t_68859c0a54967e 11
+Sources/CLI/CHANGELOG.md
+  s_4115897087fa9e::t_68859c0a54967e 92-93,159-161
+Sources/CLI/Commands/ConfigCommand.swift
+  s_4115897087fa9e::t_68859c0a54967e 107,113,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d87d1a9741f2c03731254bd6df9c4527da55914b",
+  "prompts": {},
+  "sessions": {
+    "s_4115897087fa9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d05-3096-7d02-870b-7c0fb3761279",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

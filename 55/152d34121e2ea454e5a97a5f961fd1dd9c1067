@@ -1,0 +1,46 @@
+Sources/MacParakeetCore/Services/Telemetry/Observability.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 158-168
+Tests/MacParakeetTests/Services/Telemetry/ObservabilityTests.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 1-14
+Sources/CLI/Commands/SpecCommand.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 234
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 177,367,592-593,629
+Tests/CLITests/RetranscribeCommandTests.swift
+  s_5285fbc3874fa6::t_6fc06ad24b46da 229
+  s_5285fbc3874fa6::t_be24d24332434d 206,226,270,272
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 251,258-269,271,273-278
+  s_f9b08b4a737cce::t_e3bd0cc9175d0b 279-280
+integrations/README.md
+  s_5285fbc3874fa6::t_ef176ba81a8b4c 193-194
+Tests/CLITests/CLITelemetryTests.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 220-234
+docs/cli-testing.md
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 266-269
+Tests/CLITests/SpecCommandTests.swift
+  s_5285fbc3874fa6::t_5c2ec72bf566a8 341,346,350,352-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "55152d34121e2ea454e5a97a5f961fd1dd9c1067",
+  "prompts": {},
+  "sessions": {
+    "s_5285fbc3874fa6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0dd2-a729-7af1-8e59-e338c68ac09f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f9b08b4a737cce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d90-3f8b-7d42-b435-bf2bd84a46ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

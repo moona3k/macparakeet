@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  s_120678c055c53c::t_3f18c4a42d5987 343-350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "714233f6a3db982b0c08775e1b2dd3b2be903d22",
+  "prompts": {},
+  "sessions": {
+    "s_120678c055c53c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b905448-9acf-448a-9582-b11bbe1fa830",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

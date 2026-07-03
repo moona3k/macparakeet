@@ -1,0 +1,28 @@
+AGENTS.md
+  s_faac8bc87cd188::t_5ea25eefa53720 37,112-114
+docs/pr-review-workflow.md
+  s_faac8bc87cd188::t_5ea25eefa53720 56-62,64-67,69,73,76,134
+  s_faac8bc87cd188::t_7e65ef31f67f13 63
+CLAUDE.md
+  s_faac8bc87cd188::t_5ea25eefa53720 86-89
+scripts/dev/greptile_review.sh
+  s_faac8bc87cd188::t_7e65ef31f67f13 32-34
+  s_faac8bc87cd188::t_5ea25eefa53720 1-21,29-30,36
+  s_faac8bc87cd188::t_56fef4b96496f3 22-28,31,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "21949e0dd96e499ad41686029d80e4f3ea5c2f6f",
+  "prompts": {},
+  "sessions": {
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

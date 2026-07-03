@@ -1,0 +1,58 @@
+docs/distribution.md
+  s_a571ce3d1de216::t_848fa3e23dc1ad 52-54
+  s_a571ce3d1de216::t_e85c1aca021218 36-51,55-63
+  s_a571ce3d1de216::t_8ff7dc5b005053 191-197
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_a571ce3d1de216::t_140e5adfce7b62 149
+  s_a571ce3d1de216::t_f50fc45578d0c3 269-270,276
+  s_a571ce3d1de216::t_deef0caa0890be 147-148,150-153,228-232,240-260,267-268,277
+  s_a571ce3d1de216::t_98b66fd5fe422e 271-275
+  s_a571ce3d1de216::t_c096ec07109a2a 261-266
+  s_a571ce3d1de216::t_793490ec325e27 278-279
+  s_a571ce3d1de216::t_635205c0a0d214 395,406-407,510-511
+scripts/dist/build_app_bundle.sh
+  s_a571ce3d1de216::t_b18fc8a0007039 470-472
+  s_a571ce3d1de216::t_08ba40f93c9634 39,439-444,474,476,478
+  s_a571ce3d1de216::t_b2e413a52587a7 447,449-450
+scripts/dist/verify_meeting_echo_assets.sh
+  s_a571ce3d1de216::t_11c0fc02619549 39,46,49-57
+  s_a571ce3d1de216::t_7b3404e047c360 40-45,47
+  s_a571ce3d1de216::t_881261953cc308 20-28,83-84,105-106,138-139
+  s_a571ce3d1de216::t_46e47787c9e96d 19
+  s_a571ce3d1de216::t_b2e413a52587a7 111-112
+  s_a571ce3d1de216::t_dbd855ed6c3fae 8,11-18,38,48,58-60,74,78-82,85-86,92-104,107-108,129-136,146
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_a571ce3d1de216::t_c12af543211814 1,160-166,191-193,197-203,210-211,213-216,218,221-223,225-258,260-262,297-302,304-314,316-324,326-340,342-350,376-381,383-401,403-434,443-456,461-467,475-488,497-501,506-514,521-529,534-536,539,552-554
+  s_a571ce3d1de216::t_746bd8d88c6e05 515-516,518,537-538,540-546,548-551
+  s_a571ce3d1de216::t_dc809fea0b8655 303,325,341,382,402
+  s_a571ce3d1de216::t_5570b7e5dee38d 315
+  s_a571ce3d1de216::t_2d5674696450ae 263-267,271-296
+  s_a571ce3d1de216::t_243ce6f5fa7c72 167-174,194-196,268-270
+  s_a571ce3d1de216::t_12433195330dea 352-358,361-365,370-372,374-375
+  s_a571ce3d1de216::t_ca8e44a6a4704a 175-190,259
+  s_a571ce3d1de216::t_ecdaaeca1f784e 204-209,224
+  s_a571ce3d1de216::t_d6756b7388d342 219-220
+  s_a571ce3d1de216::t_8e70d12e1d3536 359-360,435-442,468-474,502-505,517,519-520,530-533
+  s_a571ce3d1de216::t_3f4d6f5099f6ab 212,217,457-460
+  s_a571ce3d1de216::t_bbb37459c06fb8 547
+  s_a571ce3d1de216::t_e2d700b5770b37 351,366-369,373
+  s_a571ce3d1de216::t_7fe5f5669eee20 489-496
+spec/05-audio-pipeline.md
+  s_a571ce3d1de216::t_0f49bcb572ae14 201-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9bf4949996c980dc8392f31139e12dea216a0310",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

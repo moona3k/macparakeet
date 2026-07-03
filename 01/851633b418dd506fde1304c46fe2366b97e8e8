@@ -1,0 +1,52 @@
+Tests/MacParakeetTests/Services/MeetingRecording/TranscriptionAssetCleanupCleanedMicTests.swift
+  s_8e33cad55ef48f::t_9e60f5e00ce285 1-44
+spec/contracts/meeting-artifacts-v1.md
+  s_8e33cad55ef48f::t_c6e01418d09533 48-53
+Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift
+  s_8e33cad55ef48f::t_a5b78c5ad5a98c 36-39
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_8e33cad55ef48f::t_974e558c5f3ebc 1-109
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_8e33cad55ef48f::t_5b940791553402 1249-1298
+  s_8e33cad55ef48f::t_0fa7714be6e5da 596-601
+  s_8e33cad55ef48f::t_3fcd8bd4eabcb2 654
+  s_8e33cad55ef48f::t_ac1391b6325bdc 563,565
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_8e33cad55ef48f::t_776b59ea5a5aa2 1330-1333
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_8e33cad55ef48f::t_d6870e02072b00 75-79
+  s_8e33cad55ef48f::t_3124dc574c71bb 98
+  s_8e33cad55ef48f::t_62b43ab791e7b8 10-15
+  s_8e33cad55ef48f::t_00e375a206a1ae 33,46
+  s_8e33cad55ef48f::t_2f3072816eda18 54-65
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_8e33cad55ef48f::t_7290748be7e0b0 224
+  s_8e33cad55ef48f::t_04480e0ee280a4 48-53,61-62,70-73
+  s_8e33cad55ef48f::t_ace1a440a9e8f4 262-296
+  s_8e33cad55ef48f::t_feaa1ad49ff956 199-208
+spec/05-audio-pipeline.md
+  s_8e33cad55ef48f::t_d466360b00916a 262
+  s_8e33cad55ef48f::t_30bc9bc0f6fd40 241-247
+  s_8e33cad55ef48f::t_f4fd97b6a57a6f 220-230
+  s_8e33cad55ef48f::t_70b334473ef3be 314,316
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_8e33cad55ef48f::t_77f2a580b16460 34-66
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_8e33cad55ef48f::t_7a2c9f0dd079f6 1338-1434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "01851633b418dd506fde1304c46fe2366b97e8e8",
+  "prompts": {},
+  "sessions": {
+    "s_8e33cad55ef48f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23d0d807-0f9e-4fd5-9808-a12480cc164e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

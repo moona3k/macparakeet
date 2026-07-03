@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Views/SpeakerTurnIdentityTests.swift
+  s_6ce264619b63af::t_0eb377a5d842cf 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "99331d3775e1df27d71abbfea8be0fbfb1038e78",
+  "prompts": {},
+  "sessions": {
+    "s_6ce264619b63af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69e82a21-69cb-4db7-9055-bea1e42fa2d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_a51e6d064beb7f::t_84871f2e83c03e 240
+Sources/MacParakeetCore/STT/README.md
+  s_a51e6d064beb7f::t_f5f62cd521a649 69-72
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_a51e6d064beb7f::t_20e0a57b59f797 3125-3128
+  s_a51e6d064beb7f::t_26ed0d376ce5a8 2278
+  s_a51e6d064beb7f::t_13b3af1b01ddbe 2794-2796
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_a51e6d064beb7f::t_9a21e4c3c4641a 846-864
+  s_a51e6d064beb7f::t_3f5a3a11dbcae0 173-175
+  s_a51e6d064beb7f::t_025afe767a35c1 710-713
+  s_a51e6d064beb7f::t_1cd50a3e7f11e5 110-119
+  s_a51e6d064beb7f::t_9255396606b59e 210-212
+  s_a51e6d064beb7f::t_310bc4cb9daa99 224
+Tests/MacParakeetTests/ViewModels/EngineSettingsViewModelTests.swift
+  s_a51e6d064beb7f::t_7453805018089d 284-325
+  s_a51e6d064beb7f::t_c8bf4354d15d99 31-34,45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c250d347a7e397e4910ec568547e2de701d7c414",
+  "prompts": {},
+  "sessions": {
+    "s_a51e6d064beb7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d150d7b0-9c2e-476e-b316-3eb675ab17fa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

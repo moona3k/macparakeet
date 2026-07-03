@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/STT/CohereTranscribeEngineTests.swift
+  s_be69dd51f6ad0c::t_753e574feaa8b2 353-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a16518622f210f83b4844f984c886f034b7249f9",
+  "prompts": {},
+  "sessions": {
+    "s_be69dd51f6ad0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33b94ec7-6251-4be6-b9f1-24ccf4d42592",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

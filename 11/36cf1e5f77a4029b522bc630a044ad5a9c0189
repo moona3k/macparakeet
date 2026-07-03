@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_93e33126c21eab::t_1ac084696f0e8a 222-223
+  s_93e33126c21eab::t_aa2bbce3f40aaf 224-225,310,315,334,338,408,477-478,480,490-518,522-525,536-538,541,543-545,566-567
+Sources/CLI/CHANGELOG.md
+  s_93e33126c21eab::t_02b783f88e2add 432-433
+  s_93e33126c21eab::t_1ac084696f0e8a 427-431
+plans/active/2026-06-14-meeting-auto-stop.md
+  s_93e33126c21eab::t_42ea6b12bf9e2a 3,86
+Sources/CLI/Commands/SpecCommand.swift
+  s_93e33126c21eab::t_02b783f88e2add 993,1001
+integrations/README.md
+  s_93e33126c21eab::t_02b783f88e2add 545-548,584-588
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_93e33126c21eab::t_aa2bbce3f40aaf 72-98,899,904-907,947
+Package.swift
+  s_93e33126c21eab::t_42ea6b12bf9e2a 68
+Tests/CLITests/SpecCommandTests.swift
+  s_93e33126c21eab::t_02b783f88e2add 387
+plans/README.md
+  s_93e33126c21eab::t_42ea6b12bf9e2a 76-78,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1136cf1e5f77a4029b522bc630a044ad5a9c0189",
+  "prompts": {},
+  "sessions": {
+    "s_93e33126c21eab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f44-fe57-7750-9bc9-7a96819f5c4a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

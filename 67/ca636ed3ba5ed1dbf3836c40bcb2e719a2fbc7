@@ -1,0 +1,21 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_f9b08b4a737cce::t_28f4a1cfc41244 789-792
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_f9b08b4a737cce::t_28f4a1cfc41244 15,316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "67ca636ed3ba5ed1dbf3836c40bcb2e719a2fbc7",
+  "prompts": {},
+  "sessions": {
+    "s_f9b08b4a737cce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d90-3f8b-7d42-b435-bf2bd84a46ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

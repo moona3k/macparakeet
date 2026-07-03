@@ -1,0 +1,20 @@
+docs/research/2026-06-30-asr-model-landscape.md
+  s_11cf0f9121451d::t_e639b2c2fe5657 104,106-107,109-227,233-334,357-392,395-396
+  s_11cf0f9121451d::t_c8544a98ca0d4d 228-232,351-352,393-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "51ad32876cc2bfd14c441a1561c269e59d8edee9",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

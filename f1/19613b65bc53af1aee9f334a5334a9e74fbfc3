@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  s_6809908c5c0ff3::t_75197c3f51264e 361-362,370-371,379-380,389-394,437-553
+Tests/MacParakeetTests/STT/CohereTranscribeEngineTests.swift
+  s_6809908c5c0ff3::t_2fc08b2219edf3 121-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f119613b65bc53af1aee9f334a5334a9e74fbfc3",
+  "prompts": {},
+  "sessions": {
+    "s_6809908c5c0ff3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef051-2c21-7611-b4ff-bc7361dd637a",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

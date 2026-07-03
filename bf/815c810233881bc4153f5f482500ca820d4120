@@ -1,0 +1,34 @@
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_a571ce3d1de216::t_fd6cf5d9f4d1ab 275-290,292,309-326
+  s_a571ce3d1de216::t_20b6cf7b561d96 327
+Sources/MacParakeetCore/Services/Capture/MicConditioner.swift
+  s_a571ce3d1de216::t_767b171afe4a9c 2,130-131,478-481,486-487,489-490
+  s_a571ce3d1de216::t_50c6ff4fbd7079 485,488
+spec/05-audio-pipeline.md
+  s_a571ce3d1de216::t_30ecb8cb70faa3 208-210
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_a571ce3d1de216::t_480dae9b4138ac 28-30
+  s_a571ce3d1de216::t_7f52bbae635272 26-27
+Tests/MacParakeetTests/Services/Capture/MeetingEchoDelayEstimatorTests.swift
+  s_a571ce3d1de216::t_608f36cbfb3150 58-72
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_a571ce3d1de216::t_517981f729a17f 49-78
+Sources/MacParakeetCore/Services/Capture/MeetingEchoDelayEstimator.swift
+  s_a571ce3d1de216::t_a98c7e329753b4 52,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "bf815c810233881bc4153f5f482500ca820d4120",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

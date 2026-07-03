@@ -1,0 +1,37 @@
+benchmarks/asr/README.md
+  s_11cf0f9121451d::t_45685c97cf45bd 52-64
+  s_11cf0f9121451d::t_4f1366128b84bd 10,13-14,20-51,65,73-74,143-144,147,215-219,245-248,258-262,279,293-296,298-299
+benchmarks/asr/run_all.sh
+  s_11cf0f9121451d::t_9041325b104c49 4-5,23-26,55,61-62
+benchmarks/asr/speed_bench.py
+  s_11cf0f9121451d::t_700804fbb1736a 15-16,21-23
+benchmarks/asr/.gitignore
+  s_11cf0f9121451d::t_63c2fa6903b035 4
+benchmarks/asr/manifest.json
+  s_11cf0f9121451d::t_f876cd21a8ad45 1-494
+benchmarks/asr/test_manifest.py
+  s_11cf0f9121451d::t_802c79793c09c9 1-13,15-27,29-34,36-53,55-62,64-87
+  s_11cf0f9121451d::t_16a0ada61d3c61 14,28,35,54,63
+benchmarks/asr/manifest_tool.py
+  s_11cf0f9121451d::t_82c4cba2d1da9a 1-199
+benchmarks/asr/run_macparakeet.py
+  s_11cf0f9121451d::t_f4c311059c2187 14-15,17,42
+benchmarks/asr/run_macparakeet_fleurs.py
+  s_11cf0f9121451d::t_88af2ce24e4174 14,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "a842e905392bc9b934b249c1f23db886b9243392",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

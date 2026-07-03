@@ -1,0 +1,43 @@
+Sources/CLI/MacParakeetCLI.swift
+  s_f9b08b4a737cce::t_242e17e14484a7 19
+Sources/CLI/Commands/CLIHelpers.swift
+  s_f9b08b4a737cce::t_242e17e14484a7 382-391,424-435,519
+  s_f9b08b4a737cce::t_932afcbf3cc102 520-521
+Sources/CLI/Commands/SpecCommand.swift
+  s_f9b08b4a737cce::t_ee4c27415c8380 213-237
+  s_f9b08b4a737cce::t_581f9cb6441969 212
+Tests/CLITests/RetranscribeCommandTests.swift
+  s_f9b08b4a737cce::t_c1262d377923a1 254-276
+  s_f9b08b4a737cce::t_278a927cc68f93 1-152,170-253,277-336
+  s_f9b08b4a737cce::t_0464574d8b926b 153-169
+Tests/CLITests/SpecCommandTests.swift
+  s_f9b08b4a737cce::t_278a927cc68f93 114,154,290-318
+  s_f9b08b4a737cce::t_d9635a4bc74e0a 319-320
+docs/cli-testing.md
+  s_f9b08b4a737cce::t_11ed70610d1024 247-269
+Sources/CLI/CHANGELOG.md
+  s_f9b08b4a737cce::t_ee4c27415c8380 92-102
+integrations/README.md
+  s_f9b08b4a737cce::t_11ed70610d1024 180-197
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_f9b08b4a737cce::t_a26cb513b6534c 48,74,222,287
+  s_f9b08b4a737cce::t_b1719c935e642f 359,377-384
+  s_f9b08b4a737cce::t_242e17e14484a7 1-47,49-73,75-221,223-286,288-358,360-376,385-522,524-531,535-544,548-556,560-678
+  s_f9b08b4a737cce::t_c1aa5bae4304e3 523,532-534,545-547,557-559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "15c52d8ece21034a171ca7739b83cdcfc0e4cb86",
+  "prompts": {},
+  "sessions": {
+    "s_f9b08b4a737cce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d90-3f8b-7d42-b435-bf2bd84a46ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

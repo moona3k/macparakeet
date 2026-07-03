@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_37d9f8035e12fe::t_3c19d04635dff4 506
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_37d9f8035e12fe::t_3c19d04635dff4 108,110-117,120,124,126-129,132,138-139,145-152,154-159,163-175
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_37d9f8035e12fe::t_3c19d04635dff4 139-140,186-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "22d365a24cb180e53b14426330501b6c2cc185a4",
+  "prompts": {},
+  "sessions": {
+    "s_37d9f8035e12fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f168e-cad7-71b1-ac7c-195080efbc9a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

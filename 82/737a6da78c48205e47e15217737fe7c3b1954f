@@ -1,0 +1,31 @@
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_5600a8e9f2f999::t_e7641d5b5401c0 498-523,531-537,556,583-585,591-593,596-598
+  s_5600a8e9f2f999::t_d5994e92416dd8 559-562
+  s_5600a8e9f2f999::t_2a9e84e75ace44 573-576
+  s_5600a8e9f2f999::t_ff88c0727cd868 603-606
+  s_5600a8e9f2f999::t_44d8e8f01b1274 566-569
+  s_5600a8e9f2f999::t_484ff7a4695716 539-542
+Tests/MacParakeetTests/Services/ExportServiceTests.swift
+  s_5600a8e9f2f999::t_e810f822114a84 747
+  s_5600a8e9f2f999::t_2948456f2ea945 720-740,749-756,758-762,764-777
+  s_5600a8e9f2f999::t_7ac2ce3c536550 757,763
+  s_5600a8e9f2f999::t_d055595b64a94c 741-745,748
+  s_5600a8e9f2f999::t_52bbedb195b390 746
+  s_5600a8e9f2f999::t_456ab88a463a5a 719
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "82737a6da78c48205e47e15217737fe7c3b1954f",
+  "prompts": {},
+  "sessions": {
+    "s_5600a8e9f2f999": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2cc4594-da07-4d0b-9933-46cd6f3d7b63",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

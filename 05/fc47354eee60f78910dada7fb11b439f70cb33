@@ -1,0 +1,29 @@
+AGENTS.md
+  s_f1803faa18efa7::t_4da99473bd230e 71-74,79-80
+Sources/MacParakeetCore/Services/System/README.md
+  s_f1803faa18efa7::t_4da99473bd230e 1-56
+docs/agent-memory-governance.md
+  s_f1803faa18efa7::t_405741164879b4 82-84
+spec/04-ui-patterns.md
+  s_f1803faa18efa7::t_4da99473bd230e 630-631
+Package.swift
+  s_f1803faa18efa7::t_505ff878634f09 89
+spec/09-testing.md
+  s_f1803faa18efa7::t_4da99473bd230e 77-79,83-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "05fc47354eee60f78910dada7fb11b439f70cb33",
+  "prompts": {},
+  "sessions": {
+    "s_f1803faa18efa7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f63-20bb-72f1-8484-b1e680e82276",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

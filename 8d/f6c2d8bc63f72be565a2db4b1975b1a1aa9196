@@ -1,0 +1,22 @@
+benchmarks/asr/manifest_tool.py
+  s_11cf0f9121451d::t_8dd985a1ad29f1 130-133,136,142,144
+  s_11cf0f9121451d::t_c0b9369b728466 50,53-54,65,67-70,114-119,124-125
+benchmarks/asr/test_manifest.py
+  s_11cf0f9121451d::t_59ffdbca5641c8 70-89,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "8df6c2d8bc63f72be565a2db4b1975b1a1aa9196",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

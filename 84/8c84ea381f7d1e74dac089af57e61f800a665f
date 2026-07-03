@@ -1,0 +1,27 @@
+integrations/openclaw/README.md
+  s_93e33126c21eab::t_c355945e5c2e4f 70-74
+.github/workflows/ci.yml
+  s_93e33126c21eab::t_e53bb9d4adb9f6 7,11
+docs/cli-testing.md
+  s_93e33126c21eab::t_ec0715f3f7826e 413
+spec/contracts/cli-json-v1.md
+  s_93e33126c21eab::t_c355945e5c2e4f 16-17,30-36
+Sources/CLI/CHANGELOG.md
+  s_93e33126c21eab::t_c355945e5c2e4f 103-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "848c84ea381f7d1e74dac089af57e61f800a665f",
+  "prompts": {},
+  "sessions": {
+    "s_93e33126c21eab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f44-fe57-7750-9bc9-7a96819f5c4a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
