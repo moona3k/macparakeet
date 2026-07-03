@@ -429,7 +429,7 @@ final class MeetingAecModelScoringTests: XCTestCase {
         print("[AEC-SCORE] SIR is local-user speech vs reference bleed. echoResid is echo-only output"
             + " power relative to nominal local speech; lower should approach silence.")
         print(String(
-            format: "  %-34@ %-11@ %5@ %9@ %9@ %8@ %8@ %8@ %10@ %10@ %8@",
+            format: "  %-34@ %-11@ %4@ %8@ %9@ %8@ %8@ %8@ %9@ %10@ %8@",
             "model" as CVarArg, "echo" as CVarArg, "SIR" as CVarArg,
             "dtRaw" as CVarArg, "dtClean" as CVarArg, "dtImpr" as CVarArg,
             "rawRet" as CVarArg, "clnRet" as CVarArg,
