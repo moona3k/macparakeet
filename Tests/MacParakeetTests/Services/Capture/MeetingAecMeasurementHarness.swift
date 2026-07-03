@@ -83,6 +83,11 @@ enum MeetingAecSignal {
         return out
     }
 
+    static func scaled(_ signal: [Float], by scale: Float) -> [Float] {
+        guard scale != 1 else { return signal }
+        return signal.map { $0 * scale }
+    }
+
     static func silence(sampleCount: Int) -> [Float] {
         [Float](repeating: 0, count: sampleCount)
     }
@@ -156,17 +161,19 @@ enum MeetingAecScenarioFactory {
         farEndActive: Bool,
         echoPath: MeetingAecEchoPath,
         sampleCount: Int = 24_000,
-        noiseLevel: Float = 0.001
+        noiseLevel: Float = 0.001,
+        nearAmplitude: Float = 0.3,
+        farAmplitude: Float = 0.3
     ) -> MeetingAecScenario {
         let near = nearEndActive
             ? MeetingAecSignal.voiceLike(
                 sampleCount: sampleCount, sampleRate: sampleRate,
-                formants: nearFormants, seed: nearSeed)
+                formants: nearFormants, seed: nearSeed, amplitude: nearAmplitude)
             : MeetingAecSignal.silence(sampleCount: sampleCount)
         let far = farEndActive
             ? MeetingAecSignal.voiceLike(
                 sampleCount: sampleCount, sampleRate: sampleRate,
-                formants: farFormants, seed: farSeed)
+                formants: farFormants, seed: farSeed, amplitude: farAmplitude)
             : MeetingAecSignal.silence(sampleCount: sampleCount)
         let echo = echoPath.apply(to: far)
 
@@ -178,6 +185,98 @@ enum MeetingAecScenarioFactory {
         return MeetingAecScenario(
             name: name, sampleRate: sampleRate,
             nearEnd: near, farEnd: far, echo: echo, mic: mic)
+    }
+
+    /// Double-talk fixture with a controlled signal-to-interference ratio (SIR):
+    /// local-user speech power vs reference bleed power in the steady-state
+    /// scoring window. The whole steady-state window is overlap by construction,
+    /// so metrics computed there are specifically double-talk metrics.
+    static func makeDoubleTalk(
+        name: String,
+        echoPath: MeetingAecEchoPath,
+        signalToInterferenceDB: Double,
+        sampleCount: Int = 24_000,
+        noiseLevel: Float = 0.001
+    ) -> MeetingAecScenario {
+        makeOverlapScenario(
+            name: name,
+            nearEndActive: true,
+            echoPath: echoPath,
+            signalToInterferenceDB: signalToInterferenceDB,
+            sampleCount: sampleCount,
+            noiseLevel: noiseLevel
+        )
+    }
+
+    /// Echo-only companion for `makeDoubleTalk`: same reference-bleed level as
+    /// the requested SIR, but with no local-user speech. This exposes the other
+    /// failure direction: residual echo should approach silence/empty transcript.
+    static func makeEchoOnlyAtDoubleTalkLevel(
+        name: String,
+        echoPath: MeetingAecEchoPath,
+        signalToInterferenceDB: Double,
+        sampleCount: Int = 24_000,
+        noiseLevel: Float = 0.001
+    ) -> MeetingAecScenario {
+        makeOverlapScenario(
+            name: name,
+            nearEndActive: false,
+            echoPath: echoPath,
+            signalToInterferenceDB: signalToInterferenceDB,
+            sampleCount: sampleCount,
+            noiseLevel: noiseLevel
+        )
+    }
+
+    private static func makeOverlapScenario(
+        name: String,
+        nearEndActive: Bool,
+        echoPath: MeetingAecEchoPath,
+        signalToInterferenceDB: Double,
+        sampleCount: Int,
+        noiseLevel: Float
+    ) -> MeetingAecScenario {
+        let canonicalNear = MeetingAecSignal.voiceLike(
+            sampleCount: sampleCount,
+            sampleRate: sampleRate,
+            formants: nearFormants,
+            seed: nearSeed
+        )
+        let near = nearEndActive ? canonicalNear : MeetingAecSignal.silence(sampleCount: sampleCount)
+        let baseFar = MeetingAecSignal.voiceLike(
+            sampleCount: sampleCount,
+            sampleRate: sampleRate,
+            formants: farFormants,
+            seed: farSeed
+        )
+        let baseEcho = echoPath.apply(to: baseFar)
+        let window = steadyStateWindow(sampleCount: sampleCount)
+        let nearPower = MeetingAecMetrics.power(canonicalNear, over: window)
+        let echoPower = MeetingAecMetrics.power(baseEcho, over: window)
+        let targetEchoPower = nearPower / pow(10, signalToInterferenceDB / 10)
+        let scale = Float(sqrt(targetEchoPower / max(echoPower, 1e-12)))
+        let far = MeetingAecSignal.scaled(baseFar, by: scale)
+        let echo = MeetingAecSignal.scaled(baseEcho, by: scale)
+
+        var noise = MeetingAecRandom(seed: noiseSeed)
+        var mic = [Float](repeating: 0, count: sampleCount)
+        for i in 0..<sampleCount {
+            mic[i] = near[i] + echo[i] + noiseLevel * noise.nextSymmetric()
+        }
+        return MeetingAecScenario(
+            name: name,
+            sampleRate: sampleRate,
+            nearEnd: near,
+            farEnd: far,
+            echo: echo,
+            mic: mic
+        )
+    }
+
+    private static func steadyStateWindow(sampleCount: Int) -> Range<Int> {
+        let lower = sampleCount / 2
+        let upper = max(lower, sampleCount - MeetingAecScenario.maxFrameSize)
+        return lower..<upper
     }
 }
 
@@ -218,6 +317,24 @@ enum MeetingAecMetrics {
         let errPower = errAcc / Double(window.count)
         let nearPower = power(nearEnd, over: window)
         return 10 * log10(errPower / max(nearPower, 1e-12))
+    }
+
+    /// Signal power relative to a reference signal, in dB. Used for echo-only
+    /// rows where the ideal transcript is empty: lower residual power relative
+    /// to a nominal local voice means less speech-like echo left to transcribe.
+    static func relativePowerDB(signal: [Float], reference: [Float], over window: Range<Int>) -> Double {
+        let signalPower = power(signal, over: window)
+        let referencePower = power(reference, over: window)
+        return 10 * log10(signalPower / max(referencePower, 1e-12))
+    }
+
+    /// RMS ratio of a candidate output to an expected reference. ~1 means energy
+    /// was preserved, <1 means suppression, >1 usually means residual echo/noise.
+    static func rmsRatio(_ output: [Float], reference: [Float], over window: Range<Int>) -> Float {
+        let outputPower = power(output, over: window)
+        let referencePower = power(reference, over: window)
+        guard referencePower > 0 else { return 0 }
+        return Float((outputPower / referencePower).squareRoot())
     }
 
     /// Largest absolute sample deviation from a reference signal. Used to assert

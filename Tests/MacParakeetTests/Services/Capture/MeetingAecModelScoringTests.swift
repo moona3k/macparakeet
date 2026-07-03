@@ -20,14 +20,18 @@ import XCTest
 /// **What the harness can and cannot prove.** The near-end is decorrelated,
 /// voiced-like *tones*, not speech. So the gate asserts only on the axes the
 /// fixture measures reliably — far-end echo removal (ERLE) and near-end *energy*
-/// retention — and merely *reports* the waveform-fidelity numbers (near-end
-/// error, double-talk improvement), because a neural model trained on real speech
-/// reshapes synthetic tones in ways that penalize exact-waveform error whether or
-/// not it would damage real speech. Real speaker-mode QA (plan unit U9) owns
-/// fidelity and remains the binding gate before any default-on.
+/// retention — and reports overlap-segment accuracy using the harness's existing
+/// near-end error metric at 0/+6/+12 dB SIR. This is the synthetic equivalent of
+/// double-talk WER: it is computed only where local speech overlaps reference
+/// playback. It is still not a substitute for real-speech WER, because a neural
+/// model trained on real speech reshapes synthetic tones in ways that penalize
+/// exact-waveform error whether or not it would damage real speech. Real
+/// speaker-mode QA (plan unit U9) owns fidelity and remains the binding gate
+/// before any default-on.
 final class MeetingAecModelScoringTests: XCTestCase {
     private static let libraryKey = "MACPARAKEET_TEST_LOCALVQE_LIBRARY"
     private static let modelsKey = "MACPARAKEET_TEST_LOCALVQE_MODELS"
+    private static let doubleTalkSignalToInterferenceDBs = [0.0, 6.0, 12.0]
 
     // Robust-axis gates (calibrated with margin to the chosen v1.4 candidate:
     // ERLE 35.6 dB, retain 1.02). A shippable model must remove strong echo and
@@ -42,6 +46,31 @@ final class MeetingAecModelScoringTests: XCTestCase {
     private let multiTapEcho = MeetingAecEchoPath(
         taps: [(delay: 120, gain: 0.6), (delay: 180, gain: 0.25), (delay: 240, gain: 0.12)]
     )
+
+    private struct DoubleTalkSegmentScore {
+        let signalToInterferenceDB: Double
+        /// Overlap-segment near-end error. Lower is better; this is the harness's
+        /// synthetic accuracy proxy for WER on local speech during double-talk.
+        let cleanErrorDB: Double
+        let rawErrorDB: Double
+        /// Double-talk RMS ratio vs the expected local voice. Low values can
+        /// expose over-suppression of the user; high values usually mean residual
+        /// echo remains in the cleaned mic.
+        let cleanRetentionRatio: Float
+        let rawRetentionRatio: Float
+        /// Echo-only output power relative to the nominal local voice. Lower is
+        /// better, and should move toward silence / empty transcript.
+        let echoOnlyCleanResidualDB: Double
+        let echoOnlyRawResidualDB: Double
+        let echoOnlyERLE: Double
+
+        var improvementDB: Double { rawErrorDB - cleanErrorDB }
+    }
+
+    private struct OverlapSweepResult {
+        let scores: [DoubleTalkSegmentScore]
+        let diagnostics: [MeetingEchoSuppressionDiagnostics]
+    }
 
     private struct ModelScore {
         let label: String      // display name (filename)
@@ -59,6 +88,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
         /// same fixture. Reported, not gated (see fidelity caveat).
         let doubleTalkErrorDB: Double
         let doubleTalkPassthroughErrorDB: Double
+        /// SIR-controlled overlap rows: the new double-talk segment metric and
+        /// the matching echo-only residual metric.
+        let doubleTalkSegmentScores: [DoubleTalkSegmentScore]
         /// Total frames successfully processed across far-end, near-end, and
         /// double-talk runs.
         let processedFrames: Int
@@ -147,6 +179,8 @@ final class MeetingAecModelScoringTests: XCTestCase {
         printScoreTable(scores)
         let aggregates = aggregate(scores)
         printAggregates(aggregates)
+        printDoubleTalkSegmentTable(scores)
+        printDoubleTalkSegmentAggregates(scores)
 
         // No silent contamination: a loaded processor that throws on frames falls
         // back to raw mic, which inflates retention and pollutes ERLE/near-end. And
@@ -205,7 +239,11 @@ final class MeetingAecModelScoringTests: XCTestCase {
         let nearWindow = nearScenario.steadyStateWindow
         let nearErr = MeetingAecMetrics.nearEndErrorDB(
             output: nearOut, nearEnd: nearScenario.nearEnd, over: nearWindow)
-        let retention = rmsRatio(nearOut, scenario: nearScenario, over: nearWindow)
+        let retention = MeetingAecMetrics.rmsRatio(
+            nearOut,
+            reference: nearScenario.mic,
+            over: nearWindow
+        )
 
         // Double-talk → near-end error vs passthrough (reported, not gated).
         let dtScenario = MeetingAecScenarioFactory.make(
@@ -218,7 +256,8 @@ final class MeetingAecModelScoringTests: XCTestCase {
         let dtPass = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: dtScenario)
         let dtPassErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtPass, nearEnd: dtScenario.nearEnd, over: dtWindow)
-        let diagnostics = [farDiagnostics, nearDiagnostics, dtDiagnostics]
+        let overlapSweep = scoreDoubleTalkSegments(conditioner: conditioner, echoPath: echoPath)
+        let diagnostics = [farDiagnostics, nearDiagnostics, dtDiagnostics] + overlapSweep.diagnostics
 
         return ModelScore(
             label: label, modelKey: modelKey, echoLabel: echoLabel,
@@ -226,9 +265,86 @@ final class MeetingAecModelScoringTests: XCTestCase {
             nearEndErrorDB: nearErr,
             nearEndRetentionRatio: retention,
             doubleTalkErrorDB: dtErr, doubleTalkPassthroughErrorDB: dtPassErr,
+            doubleTalkSegmentScores: overlapSweep.scores,
             processedFrames: diagnostics.reduce(0) { $0 + $1.processedFrames },
             processingFailures: diagnostics.reduce(0) { $0 + $1.processingFailures },
             delaySamples: dtDiagnostics.currentDelaySamples)
+    }
+
+    private func scoreDoubleTalkSegments(
+        conditioner: any MicConditioning,
+        echoPath: MeetingAecEchoPath
+    ) -> OverlapSweepResult {
+        var rows: [DoubleTalkSegmentScore] = []
+        var diagnostics: [MeetingEchoSuppressionDiagnostics] = []
+        for sir in Self.doubleTalkSignalToInterferenceDBs {
+            let doubleTalk = MeetingAecScenarioFactory.makeDoubleTalk(
+                name: "double-talk-\(Int(sir))db",
+                echoPath: echoPath,
+                signalToInterferenceDB: sir
+            )
+            let window = doubleTalk.steadyStateWindow
+            let cleaned = MeetingAecRunner.run(conditioner, scenario: doubleTalk)
+            diagnostics.append(conditioner.diagnostics)
+            let raw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: doubleTalk)
+            let cleanError = MeetingAecMetrics.nearEndErrorDB(
+                output: cleaned,
+                nearEnd: doubleTalk.nearEnd,
+                over: window
+            )
+            let rawError = MeetingAecMetrics.nearEndErrorDB(
+                output: raw,
+                nearEnd: doubleTalk.nearEnd,
+                over: window
+            )
+            let cleanRetention = MeetingAecMetrics.rmsRatio(
+                cleaned,
+                reference: doubleTalk.nearEnd,
+                over: window
+            )
+            let rawRetention = MeetingAecMetrics.rmsRatio(
+                raw,
+                reference: doubleTalk.nearEnd,
+                over: window
+            )
+
+            let echoOnly = MeetingAecScenarioFactory.makeEchoOnlyAtDoubleTalkLevel(
+                name: "echo-only-\(Int(sir))db",
+                echoPath: echoPath,
+                signalToInterferenceDB: sir
+            )
+            let echoWindow = echoOnly.steadyStateWindow
+            let echoCleaned = MeetingAecRunner.run(conditioner, scenario: echoOnly)
+            diagnostics.append(conditioner.diagnostics)
+            let echoRaw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: echoOnly)
+            let echoCleanResidual = MeetingAecMetrics.relativePowerDB(
+                signal: echoCleaned,
+                reference: doubleTalk.nearEnd,
+                over: echoWindow
+            )
+            let echoRawResidual = MeetingAecMetrics.relativePowerDB(
+                signal: echoRaw,
+                reference: doubleTalk.nearEnd,
+                over: echoWindow
+            )
+            let echoERLE = MeetingAecMetrics.erleDB(
+                mic: echoOnly.mic,
+                output: echoCleaned,
+                over: echoWindow
+            )
+
+            rows.append(DoubleTalkSegmentScore(
+                signalToInterferenceDB: sir,
+                cleanErrorDB: cleanError,
+                rawErrorDB: rawError,
+                cleanRetentionRatio: cleanRetention,
+                rawRetentionRatio: rawRetention,
+                echoOnlyCleanResidualDB: echoCleanResidual,
+                echoOnlyRawResidualDB: echoRawResidual,
+                echoOnlyERLE: echoERLE
+            ))
+        }
+        return OverlapSweepResult(scores: rows, diagnostics: diagnostics)
     }
 
     private func makeConditioner(libraryURL: URL, modelURL: URL) -> any MicConditioning {
@@ -240,16 +356,12 @@ final class MeetingAecModelScoringTests: XCTestCase {
             bundle: Bundle(for: Self.self))
     }
 
-    private func rmsRatio(
-        _ output: [Float], scenario: MeetingAecScenario, over window: Range<Int>
-    ) -> Float {
-        let outPower = MeetingAecMetrics.power(output, over: window)
-        let micPower = MeetingAecMetrics.power(scenario.mic, over: window)
-        guard micPower > 0 else { return 0 }
-        return Float((outPower / micPower).squareRoot())
-    }
-
     // MARK: Aggregation + reporting
+
+    private struct SegmentAggregateKey: Hashable {
+        let modelKey: String
+        let signalToInterferenceDB: Double
+    }
 
     private func aggregate(_ scores: [ModelScore]) -> [ModelAggregate] {
         // Group by full path, not filename, so a rebuilt model with the same
@@ -302,6 +414,81 @@ final class MeetingAecModelScoringTests: XCTestCase {
         }
         print("[AEC-SCORE] (dtImpr = passthrough dtErr − model dtErr; positive = model helped"
             + " under double-talk. fail = frames that fell back to raw mic.)")
+    }
+
+    private func printDoubleTalkSegmentTable(_ scores: [ModelScore]) {
+        print("[AEC-SCORE] double-talk segment sweep (existing harness accuracy metric, not real-speech WER)")
+        print("[AEC-SCORE] SIR is local-user speech vs reference bleed. echoResid is echo-only output"
+            + " power relative to nominal local speech; lower should approach silence.")
+        print(String(
+            format: "  %-34@ %-11@ %5@ %9@ %9@ %8@ %8@ %8@ %10@ %10@ %8@",
+            "model" as CVarArg, "echo" as CVarArg, "SIR" as CVarArg,
+            "dtRaw" as CVarArg, "dtClean" as CVarArg, "dtImpr" as CVarArg,
+            "rawRet" as CVarArg, "clnRet" as CVarArg,
+            "echoRaw" as CVarArg, "echoClean" as CVarArg, "echoERLE" as CVarArg))
+        for s in scores {
+            for row in s.doubleTalkSegmentScores {
+                print(String(
+                    format: "  %-34@ %-11@ %+4.0f %8.1f %9.1f %8.1f %8.2f %8.2f %9.1f %10.1f %8.1f",
+                    s.label as CVarArg,
+                    s.echoLabel as CVarArg,
+                    row.signalToInterferenceDB,
+                    row.rawErrorDB,
+                    row.cleanErrorDB,
+                    row.improvementDB,
+                    Double(row.rawRetentionRatio),
+                    Double(row.cleanRetentionRatio),
+                    row.echoOnlyRawResidualDB,
+                    row.echoOnlyCleanResidualDB,
+                    row.echoOnlyERLE
+                ))
+            }
+        }
+    }
+
+    private func printDoubleTalkSegmentAggregates(_ scores: [ModelScore]) {
+        let flattened = scores.flatMap { score in
+            score.doubleTalkSegmentScores.map { row in
+                (score: score, row: row)
+            }
+        }
+        let grouped = Dictionary(grouping: flattened) { item in
+            SegmentAggregateKey(
+                modelKey: item.score.modelKey,
+                signalToInterferenceDB: item.row.signalToInterferenceDB
+            )
+        }
+        print("[AEC-SCORE] per-model double-talk aggregate by SIR (mean across echo paths):")
+        for group in grouped.values.sorted(by: { lhs, rhs in
+            let l = lhs.first
+            let r = rhs.first
+            if l?.score.label != r?.score.label {
+                return (l?.score.label ?? "") < (r?.score.label ?? "")
+            }
+            return (l?.row.signalToInterferenceDB ?? 0) < (r?.row.signalToInterferenceDB ?? 0)
+        }) {
+            guard let first = group.first else { continue }
+            let n = Double(group.count)
+            let cleanError = group.reduce(0) { $0 + $1.row.cleanErrorDB } / n
+            let rawError = group.reduce(0) { $0 + $1.row.rawErrorDB } / n
+            let improvement = group.reduce(0) { $0 + $1.row.improvementDB } / n
+            let echoClean = group.reduce(0) { $0 + $1.row.echoOnlyCleanResidualDB } / n
+            let echoRaw = group.reduce(0) { $0 + $1.row.echoOnlyRawResidualDB } / n
+            let echoERLE = group.reduce(0) { $0 + $1.row.echoOnlyERLE } / n
+            let cleanRetention = group.reduce(0) { $0 + Double($1.row.cleanRetentionRatio) } / n
+            print(String(
+                format: "  %-34@ SIR %+4.0f  dtRaw %6.1f  dtClean %6.1f  dtImpr %6.1f  clnRet %.2f  echoRaw %6.1f  echoClean %6.1f  echoERLE %6.1f",
+                first.score.label as CVarArg,
+                first.row.signalToInterferenceDB,
+                rawError,
+                cleanError,
+                improvement,
+                cleanRetention,
+                echoRaw,
+                echoClean,
+                echoERLE
+            ))
+        }
     }
 
     private func printAggregates(_ aggregates: [ModelAggregate]) {

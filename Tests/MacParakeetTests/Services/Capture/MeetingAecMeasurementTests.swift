@@ -15,6 +15,7 @@ final class MeetingAecMeasurementTests: XCTestCase {
         taps: [(delay: 120, gain: 0.6), (delay: 180, gain: 0.25), (delay: 240, gain: 0.12)]
     )
     private let trueDelay = 120
+    private let doubleTalkSIRs = [0.0, 6.0, 12.0]
 
     // MARK: Harness sanity — pass-through changes nothing, so ERLE is ~0 dB.
 
@@ -150,6 +151,82 @@ final class MeetingAecMeasurementTests: XCTestCase {
             "naive NLMS (no double-talk detector) does not meaningfully reduce error under continuous double-talk")
         XCTAssertGreaterThan(singleTalkERLE - improvement, 10.0,
             "double-talk extracts a large penalty vs the no-near-end case (the local voice perturbs adaptation)")
+    }
+
+    func testNLMSDoubleTalkSIRSweepReportsOverlapAccuracyAndEchoOnlyResidual() {
+        print("[AEC] NLMS double-talk SIR sweep (nearErr lower is better; echoResid should approach silence):")
+        print("        SIR    dtRaw   dtNLMS  dtImpr  echoRaw echoNLMS    ERLE")
+        for sir in doubleTalkSIRs {
+            let doubleTalk = MeetingAecScenarioFactory.makeDoubleTalk(
+                name: "double-talk-\(Int(sir))db",
+                echoPath: multiTapEcho,
+                signalToInterferenceDB: sir
+            )
+            let window = doubleTalk.steadyStateWindow
+            let suppressor = StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(),
+                referenceDelaySamples: trueDelay
+            )
+            let processed = MeetingAecRunner.run(suppressor, scenario: doubleTalk)
+            let passthrough = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: doubleTalk)
+            let processedError = MeetingAecMetrics.nearEndErrorDB(
+                output: processed,
+                nearEnd: doubleTalk.nearEnd,
+                over: window
+            )
+            let rawError = MeetingAecMetrics.nearEndErrorDB(
+                output: passthrough,
+                nearEnd: doubleTalk.nearEnd,
+                over: window
+            )
+
+            let echoOnly = MeetingAecScenarioFactory.makeEchoOnlyAtDoubleTalkLevel(
+                name: "echo-only-\(Int(sir))db",
+                echoPath: multiTapEcho,
+                signalToInterferenceDB: sir
+            )
+            let echoWindow = echoOnly.steadyStateWindow
+            let echoSuppressor = StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(),
+                referenceDelaySamples: trueDelay
+            )
+            let echoProcessed = MeetingAecRunner.run(echoSuppressor, scenario: echoOnly)
+            let echoRaw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: echoOnly)
+            let echoProcessedResidual = MeetingAecMetrics.relativePowerDB(
+                signal: echoProcessed,
+                reference: doubleTalk.nearEnd,
+                over: echoWindow
+            )
+            let echoRawResidual = MeetingAecMetrics.relativePowerDB(
+                signal: echoRaw,
+                reference: doubleTalk.nearEnd,
+                over: echoWindow
+            )
+            let echoERLE = MeetingAecMetrics.erleDB(
+                mic: echoOnly.mic,
+                output: echoProcessed,
+                over: echoWindow
+            )
+            let improvement = rawError - processedError
+
+            print(String(
+                format: "      %+4.0f %8.1f %8.1f %7.1f %8.1f %8.1f %7.1f",
+                sir,
+                rawError,
+                processedError,
+                improvement,
+                echoRawResidual,
+                echoProcessedResidual,
+                echoERLE
+            ))
+
+            XCTAssertTrue(processedError.isFinite)
+            XCTAssertTrue(rawError.isFinite)
+            XCTAssertLessThan(
+                echoProcessedResidual,
+                echoRawResidual,
+                "echo-only residual should drop at SIR \(sir) dB")
+        }
     }
 
     // MARK: Formatting helpers
