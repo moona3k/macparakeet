@@ -297,16 +297,23 @@ enum MeetingAecScenarioFactory {
         var scale = Float(sqrt(targetEchoPower / baseEchoPower))
         var far = MeetingAecSignal.scaled(baseFar, by: scale)
         var echo = echoPath.apply(to: far)
+        let convergenceTolerance = 0.0005
         for _ in 0..<6 {
             let echoPower = MeetingAecMetrics.power(echo, over: window)
             guard echoPower > 0 else { break }
             let correction = sqrt(targetEchoPower / echoPower)
             guard correction.isFinite else { break }
-            if abs(correction - 1) < 0.0005 { break }
+            if abs(correction - 1) < convergenceTolerance { break }
             scale *= Float(correction)
             far = MeetingAecSignal.scaled(baseFar, by: scale)
             echo = echoPath.apply(to: far)
         }
+        let finalEchoPower = MeetingAecMetrics.power(echo, over: window)
+        let finalCorrection = sqrt(targetEchoPower / finalEchoPower)
+        precondition(
+            finalCorrection.isFinite && abs(finalCorrection - 1) < convergenceTolerance,
+            String(format: "AEC double-talk calibration failed to converge: correction %.6f", finalCorrection)
+        )
         return (far, echo)
     }
 }
