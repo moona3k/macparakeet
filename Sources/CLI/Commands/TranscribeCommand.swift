@@ -42,6 +42,7 @@ enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Senda
     case v3
     case v2
     case unified
+    case omiMedV1 = "omi-med-v1"
 }
 
 enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -98,7 +99,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English, no word timestamps). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English, no word timestamps), omi-med-v1 (English medical, requires local install). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
     @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. app-default follows the saved preference; ignored for Parakeet, Cohere, and Whisper. The English build ignores --language.")
@@ -270,6 +271,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .v2
         case .unified:
             return .unified
+        case .omiMedV1:
+            return .omiMedV1
         }
     }
 

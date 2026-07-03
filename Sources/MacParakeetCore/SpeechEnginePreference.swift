@@ -358,6 +358,14 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     /// of the shared `AsrManager`. The offline batch path is competitive with
     /// v2 on English and adds punctuation/capitalization (issue #520).
     case unified
+    /// Omi Med STT v1 (`omi-health/omi-med-stt-v1`): an English medical
+    /// fine-tune of Parakeet TDT 0.6B v2 for clinical dialogue. Same
+    /// architecture, tokenizer, and CoreML component contract as `v2`, so it
+    /// runs on the shared TDT `AsrManager` as `AsrModelVersion.v2` — only the
+    /// weights differ. Unlike the stock builds it has no FluidAudio download
+    /// repo: the CoreML bundle is converted offline and installed locally
+    /// (see ``usesLocalInstallOnly`` and `OmiMedParakeetModel`).
+    case omiMedV1 = "omi-med-v1"
 
     /// Short label for the variant's language posture.
     public var displayName: String {
@@ -365,6 +373,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3: "Multilingual"
         case .v2: "English only"
         case .unified: "English (Unified)"
+        case .omiMedV1: "English (Medical)"
         }
     }
 
@@ -374,6 +383,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3: "Parakeet TDT 0.6B v3"
         case .v2: "Parakeet TDT 0.6B v2"
         case .unified: "Parakeet Unified 0.6B"
+        case .omiMedV1: "Omi Med STT v1"
         }
     }
 
@@ -386,21 +396,24 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
             "English-only option for stable meetings and exports. Includes word timestamps."
         case .unified:
             "Readable English with live preview. No word timestamps for exports."
+        case .omiMedV1:
+            "English medical fine-tune of Parakeet v2 for clinical dialogue. Includes word timestamps."
         }
     }
 
     /// Approximate on-disk download footprint. The TDT builds land near ~465 MB
     /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB); Unified's int8 offline
-    /// bundle is ~565 MB. Kept deliberately rounded so the copy doesn't read as
-    /// falsely precise.
+    /// bundle is ~565 MB; Omi Med's FP16 encoder bundle is ~1.1 GB measured.
+    /// Kept deliberately rounded so the copy doesn't read as falsely precise.
     public var approximateDownloadSize: String {
         switch self {
         case .v3, .v2: "~465 MB"
         case .unified: "~565 MB"
+        case .omiMedV1: "~1.1 GB"
         }
     }
 
-    public var isEnglishOnly: Bool { self == .v2 || self == .unified }
+    public var isEnglishOnly: Bool { self == .v2 || self == .unified || self == .omiMedV1 }
 
     /// Whether this variant is served by ``ParakeetUnifiedEngine`` (its own
     /// FluidAudio runtime) rather than the shared TDT `AsrManager`. The STT
@@ -408,11 +421,18 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     /// path; it is the single predicate every TDT-only site guards on.
     public var usesUnifiedEngine: Bool { self == .unified }
 
+    /// Whether this variant's CoreML bundle is installed locally rather than
+    /// downloaded from a FluidAudio HuggingFace repo. Download and auto-fetch
+    /// paths must skip these variants — falling back to a stock download would
+    /// silently swap in the wrong weights.
+    public var usesLocalInstallOnly: Bool { self == .omiMedV1 }
+
     public var alternative: ParakeetModelVariant {
         switch self {
         case .v3: .v2
         case .v2: .v3
         case .unified: .v2
+        case .omiMedV1: .v2
         }
     }
 }

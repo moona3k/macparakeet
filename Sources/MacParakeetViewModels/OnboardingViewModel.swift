@@ -820,7 +820,7 @@ public final class OnboardingViewModel {
         switch sttError {
         case .engineBusy:
             return .engineBusy
-        case .modelDownloadFailed, .modelNotLoaded:
+        case .modelDownloadFailed, .modelNotLoaded, .modelNotInstalled:
             return .modelNotDownloaded
         case .engineNotRunning,
              .engineStartFailed,

@@ -91,6 +91,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- New Parakeet build `omi-med-v1` (Omi Med STT v1, an English medical
+  fine-tune of Parakeet TDT 0.6B v2): accepted by `config set parakeet-model`,
+  `transcribe --parakeet-model`, `retranscribe --parakeet-model`, and the
+  `models` commands as `parakeet-omi-med-v1` (aliases `parakeet-omi-med`,
+  `parakeet-medical`). The build is local-install-only — `models download`
+  and `models select` fail with install guidance when the converted CoreML
+  bundle is not present (see `Sources/MacParakeetCore/STT/README.md`).
 - Added `retranscribe <record> --update` to rerun STT against retained source
   audio for an existing saved dictation, transcription, or meeting in place.
   Records resolve by UUID/prefix, with exact transcription/meeting title

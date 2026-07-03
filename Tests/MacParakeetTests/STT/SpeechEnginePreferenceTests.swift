@@ -206,6 +206,41 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
     }
 
+    // MARK: - Omi Med variant (local-install-only Parakeet v2 fine-tune)
+
+    func testOmiMedVariantRoundTrips() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveParakeetModelVariant(.omiMedV1, defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .omiMedV1)
+        XCTAssertEqual(ParakeetModelVariant(rawValue: "omi-med-v1"), .omiMedV1)
+    }
+
+    func testOmiMedRunsAsV2OnTheSharedTdtRuntime() {
+        // Omi Med is a v2 fine-tune with the identical component contract, so
+        // it must key the shared TDT `AsrManager` as `.v2`, not the Unified
+        // engine.
+        XCTAssertEqual(ParakeetModelVariant.omiMedV1.asrModelVersion, .v2)
+        XCTAssertFalse(ParakeetModelVariant.omiMedV1.usesUnifiedEngine)
+    }
+
+    func testOmiMedIsLocalInstallOnly() {
+        // Download/auto-fetch paths must skip Omi Med: falling back to a stock
+        // v2 download would silently swap in the wrong weights.
+        XCTAssertTrue(ParakeetModelVariant.omiMedV1.usesLocalInstallOnly)
+        XCTAssertFalse(ParakeetModelVariant.v2.usesLocalInstallOnly)
+        XCTAssertFalse(ParakeetModelVariant.v3.usesLocalInstallOnly)
+        XCTAssertFalse(ParakeetModelVariant.unified.usesLocalInstallOnly)
+    }
+
+    func testOmiMedIsEnglishOnlyAndListed() {
+        XCTAssertTrue(ParakeetModelVariant.omiMedV1.isEnglishOnly)
+        XCTAssertTrue(ParakeetModelVariant.allCases.contains(.omiMedV1))
+        XCTAssertEqual(ParakeetModelVariant.omiMedV1.modelName, "Omi Med STT v1")
+        XCTAssertEqual(ParakeetModelVariant.omiMedV1.alternative, .v2)
+    }
+
     func testSpeechModelVariantSummariesStayUserFacing() {
         XCTAssertEqual(
             ParakeetModelVariant.v3.coverageSummary,
@@ -218,6 +253,10 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(
             ParakeetModelVariant.unified.coverageSummary,
             "Readable English with live preview. No word timestamps for exports."
+        )
+        XCTAssertEqual(
+            ParakeetModelVariant.omiMedV1.coverageSummary,
+            "English medical fine-tune of Parakeet v2 for clinical dialogue. Includes word timestamps."
         )
         XCTAssertEqual(
             NemotronModelVariant.multilingual1120.coverageSummary,

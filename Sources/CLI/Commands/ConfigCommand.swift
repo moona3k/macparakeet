@@ -31,9 +31,10 @@ struct ConfigCommand: ParsableCommand {
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
           speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
-          parakeet-model            v3|v2|unified                   default: v3
+          parakeet-model            v3|v2|unified|omi-med-v1        default: v3
                                     (v3=supported languages, v2=English
-                                    timestamps, unified=English no timestamps)
+                                    timestamps, unified=English no timestamps,
+                                    omi-med-v1=English medical, local install)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
                                     english-1120ms (Beta streaming)
           nemotron-language         auto|<Nemotron language code>   default: auto
@@ -548,8 +549,10 @@ struct ConfigCommand: ParsableCommand {
             return .v2
         case "unified", "english-unified", "unified-offline":
             return .unified
+        case "omi-med-v1", "omi-med", "medical", "med":
+            return .omiMedV1
         default:
-            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), or unified (English-only with punctuation/capitalization).")
+            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization), or omi-med-v1 (English medical, requires local install).")
         }
     }
 

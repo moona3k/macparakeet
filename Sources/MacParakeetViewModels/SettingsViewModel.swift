@@ -611,11 +611,7 @@ public final class SettingsViewModel {
         youtubeDownloadsDirPath: @escaping @Sendable () -> String = { AppPaths.youtubeDownloadsDir },
         meetingRecordingsDirPath: @escaping @Sendable () -> String = { AppPaths.meetingRecordingsDir },
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
-            // Unified is a separate FluidAudio runtime with no `AsrModelVersion`;
-            // dispatch it to its own engine's cache check.
-            if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
-            guard let version = $0.asrModelVersion else { return false }
-            return STTRuntime.isModelCached(version: version)
+            STTRuntime.isParakeetModelCached(variant: $0)
         },
         nemotronModelVariantCached: @escaping @Sendable (NemotronModelVariant, String?) -> Bool = {
             STTRuntime.isNemotronModelCached(modelVariant: $0, language: $1)
@@ -624,6 +620,7 @@ public final class SettingsViewModel {
             CohereTranscribeEngine.isModelCached()
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0.usesLocalInstallOnly { return STTRuntime.deleteOmiMedParakeetModel() }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.deleteParakeetModel(version: version)

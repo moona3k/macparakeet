@@ -312,6 +312,11 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet-unified", defaults: defaults), .unified)
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet:unified", defaults: defaults), .unified)
         XCTAssertEqual(parakeetModelID(for: .unified), "parakeet-unified")
+        // Omi Med (local-install-only) resolves from its id and aliases.
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet-omi-med-v1", defaults: defaults), .omiMedV1)
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet:omi-med", defaults: defaults), .omiMedV1)
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet-medical", defaults: defaults), .omiMedV1)
+        XCTAssertEqual(parakeetModelID(for: .omiMedV1), "parakeet-omi-med-v1")
         // Bare "parakeet" resolves to the persisted build.
         SpeechEnginePreference.saveParakeetModelVariant(.v2, defaults: defaults)
         XCTAssertEqual(parakeetDownloadVariant(from: "parakeet", defaults: defaults), .v2)

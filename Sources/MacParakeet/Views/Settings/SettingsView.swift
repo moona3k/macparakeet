@@ -537,6 +537,9 @@ struct SettingsView: View {
     private func modelDeletionMessage(for deletion: PendingModelDeletion) -> String {
         switch deletion {
         case .parakeet(let variant):
+            if variant.usesLocalInstallOnly {
+                return "This frees \(variant.approximateDownloadSize). \(variant.modelName) has no in-app download — reinstalling requires converting the model again."
+            }
             return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
         case .nemotron(let variant):
             return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
@@ -2344,6 +2347,17 @@ struct SettingsView: View {
                     parakeetModelOptionRow(.v2)
                     Divider()
                     parakeetModelOptionRow(.unified)
+                    // Omi Med has no in-app download (its CoreML bundle is
+                    // converted offline and installed locally), so the row —
+                    // whose empty state promises "downloads on first use" —
+                    // only appears once the bundle is actually installed. It
+                    // stays visible while selected so the active build is
+                    // never hidden, even if its files were removed externally.
+                    if viewModel.engine.downloadedParakeetVariants.contains(.omiMedV1)
+                        || viewModel.engine.parakeetModelVariant == .omiMedV1 {
+                        Divider()
+                        parakeetModelOptionRow(.omiMedV1)
+                    }
                 }
             }
             .transition(.opacity)

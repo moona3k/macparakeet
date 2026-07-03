@@ -662,6 +662,7 @@ final class TelemetryServiceTests: XCTestCase {
             (ParakeetModelVariant.v2.rawValue, "v2"),
             (ParakeetModelVariant.v3.rawValue, "v3"),
             (ParakeetModelVariant.unified.rawValue, "unified"),
+            (ParakeetModelVariant.omiMedV1.rawValue, "omi-med-v1"),
             (NemotronModelVariant.multilingual1120.rawValue, "multilingual-1120ms"),
             (NemotronModelVariant.english1120.rawValue, "english-1120ms"),
             (CohereTranscribeEngine.ComputePolicy.ane.rawValue, "ane"),

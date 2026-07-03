@@ -133,7 +133,7 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, parakeet-omi-med-v1, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
         var variant: String
 
         func run() async throws {
@@ -282,7 +282,7 @@ extension ModelsCommand {
                 """
         )
 
-        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
+        @Argument(help: "Model identifier from `models list`, e.g. parakeet-v2, parakeet-v3, parakeet-unified, parakeet-omi-med-v1, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-large-v3-v20240930-turbo-632MB.")
         var id: String
 
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
@@ -380,6 +380,9 @@ func parakeetDownloadVariant(
 /// build to ``ParakeetUnifiedEngine`` (it has no `AsrModelVersion`); the TDT
 /// builds use the shared `AsrManager` cache.
 func isParakeetVariantCached(_ variant: ParakeetModelVariant) -> Bool {
+    if variant.usesLocalInstallOnly {
+        return OmiMedParakeetModel.isInstalled()
+    }
     if variant.usesUnifiedEngine {
         return ParakeetUnifiedEngine.isModelCached()
     }
@@ -387,9 +390,13 @@ func isParakeetVariantCached(_ variant: ParakeetModelVariant) -> Bool {
     return STTClient.isModelCached(version: version)
 }
 
-/// Deletes the on-disk model for `variant`, dispatching Unified to its own engine.
+/// Deletes the on-disk model for `variant`, dispatching Unified and the
+/// local-install-only Omi Med build to their own stores.
 @discardableResult
 func deleteParakeetVariant(_ variant: ParakeetModelVariant) -> Bool {
+    if variant.usesLocalInstallOnly {
+        return STTRuntime.deleteOmiMedParakeetModel()
+    }
     if variant.usesUnifiedEngine {
         return ParakeetUnifiedEngine.deleteModel()
     }
@@ -397,11 +404,24 @@ func deleteParakeetVariant(_ variant: ParakeetModelVariant) -> Bool {
     return STTRuntime.deleteParakeetModel(version: version)
 }
 
-/// Downloads the on-disk model for `variant`, dispatching Unified to its own engine.
+/// Downloads the on-disk model for `variant`, dispatching Unified to its own
+/// engine. Local-install-only builds (Omi Med) have no download repo — fail
+/// with install guidance instead of silently fetching the wrong weights.
 func downloadParakeetVariant(
     _ variant: ParakeetModelVariant,
     onProgress: @escaping @Sendable (String) -> Void
 ) async throws {
+    if variant.usesLocalInstallOnly {
+        if OmiMedParakeetModel.isInstalled() {
+            onProgress("\(variant.modelName) is already installed.")
+            return
+        }
+        throw ValidationError(
+            "\(variant.modelName) has no in-app download. Convert the model offline and install "
+                + "the CoreML bundle at \(OmiMedParakeetModel.modelDirectory().path) "
+                + "(see Sources/MacParakeetCore/STT/README.md)."
+        )
+    }
     if variant.usesUnifiedEngine {
         _ = try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
         return
@@ -437,7 +457,7 @@ func resolveWhisperDownloadModel(_ variant: String) throws -> String {
         throw ValidationError("Model variant cannot be empty.")
     }
     guard normalizedInput.hasPrefix("whisper-") else {
-        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-* id from `models list`.")
+        throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, parakeet-unified, parakeet-omi-med-v1, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-* id from `models list`.")
     }
     return WhisperEngine.normalizeModelVariant(normalizedInput)
 }
@@ -786,6 +806,20 @@ func validateSelectableSpeechModelDownload(
     isWhisperModelDownloaded: ((String) -> Bool)? = nil,
     isCohereModelDownloaded: (() -> Bool)? = nil
 ) throws {
+    // Stock Parakeet builds download on first use, so selection is never
+    // gated on presence. Local-install-only builds (Omi Med) cannot be
+    // fetched later — selecting one without its bundle would strand the STT
+    // stack, so require the install up front.
+    if let parakeetVariant = selection.parakeetVariant,
+        parakeetVariant.usesLocalInstallOnly,
+        !isParakeetVariantCached(parakeetVariant) {
+        throw ValidationError(
+            "\(parakeetVariant.modelName) is not installed. Install the converted CoreML bundle at "
+                + "\(OmiMedParakeetModel.modelDirectory().path) first "
+                + "(see Sources/MacParakeetCore/STT/README.md)."
+        )
+    }
+
     if let nemotronVariant = selection.nemotronVariant {
         let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         let downloaded = (isNemotronModelDownloaded ?? { variant, language in
@@ -923,6 +957,8 @@ private func parseParakeetSelectionVariant(_ lowered: String) -> ParakeetModelVa
         return .v2
     case "unified", "english-unified", "unified-offline":
         return .unified
+    case "omi-med-v1", "omi-med", "medical", "med":
+        return .omiMedV1
     default:
         return nil
     }

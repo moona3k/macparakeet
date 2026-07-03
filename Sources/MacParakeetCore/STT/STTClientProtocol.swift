@@ -152,6 +152,9 @@ public enum STTError: Error, LocalizedError {
     case timeout
     case modelNotLoaded
     case modelDownloadFailed
+    /// A local-install-only model (no in-app download) is selected but its
+    /// files are missing. The payload says where the bundle must be installed.
+    case modelNotInstalled(String)
     case outOfMemory
     case invalidResponse
     case engineBusy
@@ -164,6 +167,7 @@ public enum STTError: Error, LocalizedError {
         case .timeout: return "STT request timed out"
         case .modelNotLoaded: return "STT model not loaded"
         case .modelDownloadFailed: return "Speech model isn't downloaded yet — check your internet connection and try again."
+        case .modelNotInstalled(let reason): return reason
         case .outOfMemory: return "Out of memory during transcription"
         case .invalidResponse: return "Invalid response from speech engine"
         case .engineBusy: return "Speech engine is busy. Try again after the current transcription finishes."

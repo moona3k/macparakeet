@@ -509,7 +509,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                         words: STTWordTimingBuilder.words(from: result.tokenTimings),
                         language: "en",
                         engine: .parakeet,
-                        engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                        engineVariant: currentParakeetVariant.rawValue
                     )
                 } catch {
                     throw try Self.mapTranscriptionError(error)
@@ -566,7 +566,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 words: words,
                 language: "en",
                 engine: .parakeet,
-                engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                engineVariant: currentParakeetVariant.rawValue
             )
         } catch {
             throw try Self.mapTranscriptionError(error)
@@ -692,7 +692,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 // Mirrors batch Parakeet attribution: the build variant carries v2/v3.
                 language: "en",
                 engine: .parakeet,
-                engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                engineVariant: currentParakeetVariant.rawValue
             )
         } catch {
             throw try Self.mapTranscriptionError(error)
@@ -1104,7 +1104,16 @@ public actor STTRuntime: STTRuntimeProtocol {
             onProgress?("Preparing \(variant.modelName)...")
             // Download the target build first so the current model keeps serving
             // until the fetch completes. Unified and TDT live in different repos.
-            if variant.usesUnifiedEngine {
+            // Local-install-only builds (Omi Med) have nothing to download —
+            // fail fast with install guidance so the current model keeps serving.
+            if variant.usesLocalInstallOnly {
+                guard OmiMedParakeetModel.isInstalled() else {
+                    throw STTError.modelNotInstalled(
+                        "\(variant.modelName) is not installed. Install the converted CoreML bundle at "
+                            + "\(OmiMedParakeetModel.modelDirectory().path)."
+                    )
+                }
+            } else if variant.usesUnifiedEngine {
                 try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
             } else if let targetVersion = variant.asrModelVersion {
                 try await downloadParakeetModels(version: targetVersion, onProgress: onProgress)
@@ -1276,6 +1285,46 @@ public actor STTRuntime: STTRuntimeProtocol {
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
         let cacheDir = AsrModels.defaultCacheDirectory(for: version)
         return AsrModels.modelsExist(at: cacheDir, version: version)
+    }
+
+    /// Variant-keyed on-disk presence check. Dispatches the Unified build to
+    /// ``ParakeetUnifiedEngine`` and the local-install-only Omi Med build to
+    /// ``OmiMedParakeetModel``; the stock TDT builds use the version-keyed
+    /// FluidAudio cache. Prefer this over `isModelCached(version:)` whenever a
+    /// `ParakeetModelVariant` is in hand — the version-keyed check cannot
+    /// distinguish Omi Med from stock v2.
+    public nonisolated static func isParakeetModelCached(variant: ParakeetModelVariant) -> Bool {
+        if variant.usesLocalInstallOnly {
+            return OmiMedParakeetModel.isInstalled()
+        }
+        if variant.usesUnifiedEngine {
+            return ParakeetUnifiedEngine.isModelCached()
+        }
+        guard let version = variant.asrModelVersion else { return false }
+        return isModelCached(version: version)
+    }
+
+    /// Deletes the local-install-only Omi Med bundle, mirroring
+    /// ``deleteParakeetModel(version:)``'s telemetry so model deletions report
+    /// through the same `model_operation` channel. Pure file work — callers
+    /// must not delete the build currently loaded by the active engine.
+    @discardableResult
+    public nonisolated static func deleteOmiMedParakeetModel() -> Bool {
+        let operationContext = Observability.childOperationContext()
+        let removed = OmiMedParakeetModel.deleteModel()
+        Telemetry.send(.modelOperation(
+            operationID: operationContext.operationID,
+            operationContext: operationContext,
+            action: .deleteModel,
+            outcome: removed ? .success : .failure,
+            stage: .delete,
+            modelKind: .parakeetSTT,
+            speechEngine: .parakeet,
+            engineVariant: ParakeetModelVariant.omiMedV1.rawValue,
+            durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+            errorType: nil
+        ))
+        return removed
     }
 
     public nonisolated static func isNemotronModelCached(
@@ -1664,16 +1713,26 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         let generation = nextInitializationGeneration()
         let version = modelVersion
+        let variant = currentParakeetVariant
         let warmUpProgressHandler = self.warmUpProgressHandler
         let task = Task {
             var interactiveManager: AsrManager?
             var backgroundManager: AsrManager?
             let progressHandler = Self.makeDownloadProgressHandler(warmUpProgressHandler)
 
-            let downloadedModels = try await AsrModels.downloadAndLoad(
-                version: version,
-                progressHandler: progressHandler
-            )
+            let downloadedModels: AsrModels
+            if variant.usesLocalInstallOnly {
+                // Local-install-only builds (Omi Med) never touch FluidAudio's
+                // download-or-load path: its corrupt-cache recovery re-downloads
+                // the *stock* weights, which would silently drop the fine-tune.
+                warmUpProgressHandler?("Loading \(variant.modelName) with Core ML...")
+                downloadedModels = try await OmiMedParakeetModel.load()
+            } else {
+                downloadedModels = try await AsrModels.downloadAndLoad(
+                    version: version,
+                    progressHandler: progressHandler
+                )
+            }
             do {
                 // FluidAudio progress is manager-scoped, so each slot keeps its
                 // own manager while the read-only model bundle stays shared.

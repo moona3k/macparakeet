@@ -49,6 +49,11 @@ final class TranscribeCommandTests: XCTestCase {
             TranscribeCommand.resolveParakeetModelVariant(.unified, storedVariant: .v3),
             .unified
         )
+        // Omi Med is selectable per-call via --parakeet-model omi-med-v1.
+        XCTAssertEqual(
+            TranscribeCommand.resolveParakeetModelVariant(.omiMedV1, storedVariant: .v3),
+            .omiMedV1
+        )
     }
 
     func testResolveNemotronModelVariantFollowsStoredForAppDefault() {

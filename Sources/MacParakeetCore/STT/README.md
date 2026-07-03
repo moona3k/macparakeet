@@ -2,8 +2,9 @@
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
 > CoreML) is default, with v3 multilingual as the default build, v2
-> English-only and Parakeet Unified (English-only, punctuated offline output
-> plus native live dictation partials)
+> English-only, Parakeet Unified (English-only, punctuated offline output
+> plus native live dictation partials), and Omi Med STT v1 (English medical
+> v2 fine-tune, local-install-only)
 > as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
@@ -73,6 +74,31 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.
+- `OmiMedParakeetModel.swift` — loader for the Omi Med STT v1 bundle
+  (`omi-health/omi-med-stt-v1`), an English medical fine-tune of Parakeet TDT
+  0.6B v2 selected via `ParakeetModelVariant.omiMedV1`. Identical architecture,
+  tokenizer, and CoreML component contract to stock v2, so it drives the shared
+  TDT `AsrManager` as `AsrModelVersion.v2` — only the weights differ. It is
+  **local-install-only**: there is no FluidAudio HuggingFace repo, so nothing
+  in the app or CLI downloads it, and the loader never touches FluidAudio's
+  download-or-load path (whose corrupt-cache recovery would silently replace
+  the fine-tune with stock v2 weights). Installing the bundle:
+  1. Download `omimedstt-v1.nemo` from `huggingface.co/omi-health/omi-med-stt-v1`.
+  2. Run the FluidInference `mobius` parakeet-tdt-v2 CoreML export against it
+     (`models/stt/parakeet-tdt-v2-0.6b/coreml/convert-parakeet.py --nemo-path …`),
+     which emits FP16 MLProgram `.mlpackage`s with the v2 I/O contract.
+  3. Compile with `xcrun coremlcompiler compile` and rename:
+     `parakeet_preprocessor→Preprocessor.mlmodelc`,
+     `parakeet_encoder→Encoder.mlmodelc`, `parakeet_decoder→Decoder.mlmodelc`,
+     `parakeet_joint_decision_single_step→JointDecision.mlmodelc` (FluidAudio's
+     v2 joint is the fused *single-step* decision head).
+  4. Export the tokenizer as dict-format `parakeet_vocab.json`
+     (`{"<token_id>": "<piece>"}`, 1024 tokens, blank id 1024).
+  5. Place all five artifacts (~1.1 GB) in
+     `~/Library/Application Support/FluidAudio/Models/omi-med-stt-v1-coreml/`.
+  Settings shows the build only while installed (or selected); the CLI accepts
+  `parakeet-omi-med-v1` and fails selection/download with this guidance when
+  the bundle is missing.
 
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined
@@ -204,9 +230,9 @@ directly **must** wrap it the same way — calling the manager bare reopens the
 crash for whichever lane runs unguarded.
 
 **Engine routing is per-job.** Parakeet stays default. The selected Parakeet
-build is `v3` unless the user opts into `v2` through Settings or the CLI
-(`config set parakeet-model`, `models select parakeet-v2`, or
-`transcribe --parakeet-model v2`). A subscriber can request Nemotron or
+build is `v3` unless the user opts into `v2`, `unified`, or `omi-med-v1`
+through Settings or the CLI (`config set parakeet-model`,
+`models select parakeet-v2`, or `transcribe --parakeet-model v2`). A subscriber can request Nemotron or
 WhisperKit or Cohere globally (Settings / `models select`) or per call (CLI
 `--engine nemotron --language ko`, `--engine cohere --language ja`,
 `--engine whisper --language ko`). When set globally, dictation also routes

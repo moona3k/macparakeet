@@ -1699,6 +1699,7 @@ extension TelemetryEventSpec {
             ParakeetModelVariant.v2.rawValue,
             ParakeetModelVariant.v3.rawValue,
             ParakeetModelVariant.unified.rawValue,
+            ParakeetModelVariant.omiMedV1.rawValue,
             NemotronModelVariant.multilingual1120.rawValue,
             NemotronModelVariant.english1120.rawValue,
             CohereTranscribeEngine.ComputePolicy.ane.rawValue,

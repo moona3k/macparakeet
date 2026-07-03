@@ -3566,6 +3566,7 @@ private struct EngineOptionCard: View {
             case .v3: "Fast local default • word timestamps"
             case .v2: "English stability • word timestamps"
             case .unified: "Readable English • no word timestamps"
+            case .omiMedV1: "English medical • word timestamps"
             }
         case .nemotron:
             nemotronVariant.isEnglishOnly
