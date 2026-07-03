@@ -1,0 +1,19 @@
+docs/commit-guidelines.md
+  s_e275b1808b51d6::t_a09a94fce8df2e 58-68,75-83,197-210,282-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "7b59e7427af711d8401637b060e70ced1c80ac0e",
+  "prompts": {},
+  "sessions": {
+    "s_e275b1808b51d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfafb08d-006e-442e-805c-6f243ea9e764",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
