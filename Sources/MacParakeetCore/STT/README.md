@@ -82,7 +82,16 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   **local-install-only**: there is no FluidAudio HuggingFace repo, so nothing
   in the app or CLI downloads it, and the loader never touches FluidAudio's
   download-or-load path (whose corrupt-cache recovery would silently replace
-  the fine-tune with stock v2 weights). Installing the bundle:
+  the fine-tune with stock v2 weights). Installing the bundle — the easy path
+  is the pre-converted CoreML release at
+  [`cmsha/omi-med-stt-v1-coreml`](https://huggingface.co/cmsha/omi-med-stt-v1-coreml):
+
+  ```bash
+  hf download cmsha/omi-med-stt-v1-coreml \
+    --local-dir ~/Library/Application\ Support/FluidAudio/Models/omi-med-stt-v1-coreml
+  ```
+
+  To reproduce the conversion from the source checkpoint instead:
   1. Download `omimedstt-v1.nemo` from `huggingface.co/omi-health/omi-med-stt-v1`.
   2. Run the FluidInference `mobius` parakeet-tdt-v2 CoreML export against it
      (`models/stt/parakeet-tdt-v2-0.6b/coreml/convert-parakeet.py --nemo-path …`),
