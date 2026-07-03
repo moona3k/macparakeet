@@ -281,6 +281,7 @@ private struct MeetingArtifactFiles: Codable {
     let folderPath: String
     let mixedAudioPath: String?
     let microphoneAudioPath: String?
+    let cleanedMicrophoneAudioPath: String?
     let systemAudioPath: String?
     let metadataPath: String?
     let manifestPath: String
@@ -294,10 +295,18 @@ private struct MeetingArtifactFiles: Codable {
         mixedAudioPath = transcription.filePath
         let folderURL = URL(fileURLWithPath: snapshot.folderPath, isDirectory: true)
         let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
+        let cleanedMicrophoneURL = folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         let systemURL = folderURL.appendingPathComponent("system.m4a")
         let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: folderURL)
         let fileManager = FileManager.default
         microphoneAudioPath = fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil
+        cleanedMicrophoneAudioPath = MeetingRecordingOutput.isViableCleanedMicrophoneFile(
+            at: cleanedMicrophoneURL,
+            fileManager: fileManager
+        )
+            ? cleanedMicrophoneURL.path
+            : nil
         systemAudioPath = fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil
         metadataPath = fileManager.fileExists(atPath: metadataURL.path) ? metadataURL.path : nil
         manifestPath = snapshot.manifestPath

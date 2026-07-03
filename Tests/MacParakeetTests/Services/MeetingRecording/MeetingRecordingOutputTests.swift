@@ -56,6 +56,65 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), rawURL)
     }
 
+    func testReadinessTimeoutDoesNotPublishLateCleanedArtifact() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let systemURL = dir.appendingPathComponent("system.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        let candidateURL = dir.appendingPathComponent(".microphone-cleaned-test.tmp.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data([0x00]).write(to: systemURL)
+        let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+            try? await Task.sleep(for: .milliseconds(150))
+            try? Data("candidate payload".utf8).write(to: candidateURL)
+            return .rendered(candidateURL)
+        }
+        let readiness = MeetingCleanedMicrophoneReadiness.scheduled(
+            outputURL: cleanedURL,
+            task: renderTask,
+            candidateOutputURL: candidateURL
+        )
+        let output = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Timeout",
+            folderURL: dir,
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            microphoneAudioURL: rawURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophoneAudioURL: cleanedURL,
+            cleanedMicrophoneReadiness: readiness,
+            durationSeconds: 1,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 16_000,
+                    sampleRate: 16_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 16_000,
+                    sampleRate: 16_000
+                )
+            )
+        )
+
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 0.05, durationMultiplier: 0, capSeconds: 0.05)
+        )
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(decision.reason, .rawTimeout)
+        XCTAssertEqual(decision.url, rawURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidateURL.path))
+    }
+
     func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsEmpty() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -176,23 +235,38 @@ final class MeetingRecordingOutputTests: XCTestCase {
             channels: 1,
             interleaved: false
         )!
-        let file = try AVAudioFile(
-            forWriting: url,
-            settings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: sampleRate,
-                AVNumberOfChannelsKey: 1,
-            ],
-            commonFormat: .pcmFormatFloat32,
-            interleaved: false
-        )
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
         buffer.frameLength = AVAudioFrameCount(frameCount)
         let samples = buffer.floatChannelData![0]
         for index in 0..<frameCount {
             samples[index] = 0.1
         }
-        try file.write(from: buffer)
+
+        do {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        } catch {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatAppleLossless,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        }
     }
 
     private func makeOutput(

@@ -23,6 +23,24 @@ private actor MockYouTubeDownloader: YouTubeDownloading {
     }
 }
 
+private actor TestAsyncSignal {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var didSignal = false
+
+    func signal() {
+        didSignal = true
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func wait() async {
+        if didSignal { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+}
+
 private final class TelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -1377,6 +1395,159 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(convertURLs, [cleanedURL, systemURL])
     }
 
+    func testTranscribeMeetingWaitsForCleanedMicRenderAndUsesCleanedSource() async throws {
+        let fixture = try makeDualSourceMeetingRecording(displayName: "Cleaned Mic Ready")
+        defer { try? FileManager.default.removeItem(at: fixture.folderURL) }
+
+        let cleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+                try await MeetingCleanedMicRenderer.encodeMonoFloat(
+                    [Float](repeating: 0.05, count: 1_600),
+                    sampleRate: 16_000,
+                    to: cleanedURL,
+                    fileManager: .default)
+                return .rendered(cleanedURL)
+            } catch {
+                return .fallback(.rawRenderFailed)
+            }
+        }
+
+        let recording = try makeDualSourceMeetingRecording(
+            displayName: "Cleaned Mic Ready",
+            folderURL: fixture.folderURL,
+            cleanedURL: cleanedURL,
+            readiness: .scheduled(outputURL: cleanedURL, task: renderTask)
+        )
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let service = makeTranscriptionService(cleanedMicTimeoutSeconds: 2)
+
+        _ = try await service.transcribeMeeting(recording: recording)
+
+        let convertURLs = await mockAudio.convertURLs
+        XCTAssertEqual(convertURLs, [cleanedURL, recording.systemAudioURL])
+        XCTAssertDiagnosticLogContains(
+            sessionID: recording.sessionID,
+            reason: .cleanedUsed
+        )
+    }
+
+    func testTranscribeMeetingFallsBackToRawMicWhenCleanedMicDeadlineExpires() async throws {
+        let recording = try makeDualSourceMeetingRecording(
+            displayName: "Cleaned Mic Timeout",
+            readinessFactory: { folderURL in
+                let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+                let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                    try? await Task.sleep(for: .seconds(2))
+                    return .rendered(cleanedURL)
+                }
+                return (cleanedURL, .scheduled(outputURL: cleanedURL, task: renderTask))
+            }
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let service = makeTranscriptionService(cleanedMicTimeoutSeconds: 0.05)
+
+        _ = try await service.transcribeMeeting(recording: recording)
+
+        let convertURLs = await mockAudio.convertURLs
+        XCTAssertEqual(convertURLs, [recording.microphoneAudioURL, recording.systemAudioURL])
+        XCTAssertDiagnosticLogContains(
+            sessionID: recording.sessionID,
+            reason: .rawTimeout
+        )
+    }
+
+    func testTranscribeMeetingCancellationWhileWaitingForCleanedMicReturnsPromptly() async throws {
+        let renderStarted = TestAsyncSignal()
+        let renderRelease = TestAsyncSignal()
+        let recording = try makeDualSourceMeetingRecording(
+            displayName: "Cleaned Mic Cancelled",
+            readinessFactory: { folderURL in
+                let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+                let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                    await renderStarted.signal()
+                    await renderRelease.wait()
+                    return .fallback(.rawRenderFailed)
+                }
+                return (cleanedURL, .scheduled(outputURL: cleanedURL, task: renderTask))
+            }
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        defer { Task { await renderRelease.signal() } }
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let service = makeTranscriptionService(cleanedMicTimeoutSeconds: 60)
+
+        let task = Task {
+            try await service.transcribeMeeting(recording: recording)
+        }
+        await renderStarted.wait()
+
+        let cancelledAt = Date()
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("Expected meeting transcription cancellation to throw.")
+        } catch is CancellationError {
+            XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 1)
+        }
+
+        let convertCallCount = await mockAudio.convertCallCount
+        XCTAssertEqual(convertCallCount, 0)
+    }
+
+    func testTranscribeMeetingFallsBackToRawMicWhenCleanedArtifactIsInvalid() async throws {
+        let recording = try makeDualSourceMeetingRecording(
+            displayName: "Cleaned Mic Invalid",
+            readinessFactory: { folderURL in
+                let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+                let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                    try? Data().write(to: cleanedURL)
+                    return .rendered(cleanedURL)
+                }
+                return (cleanedURL, .scheduled(outputURL: cleanedURL, task: renderTask))
+            }
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let service = makeTranscriptionService(cleanedMicTimeoutSeconds: 1)
+
+        _ = try await service.transcribeMeeting(recording: recording)
+
+        let convertURLs = await mockAudio.convertURLs
+        XCTAssertEqual(convertURLs, [recording.microphoneAudioURL, recording.systemAudioURL])
+        XCTAssertDiagnosticLogContains(
+            sessionID: recording.sessionID,
+            reason: .rawInvalidArtifact
+        )
+    }
+
+    func testTranscribeMeetingFallsBackToRawMicWhenCleanedRenderFails() async throws {
+        let recording = try makeDualSourceMeetingRecording(
+            displayName: "Cleaned Mic Failed",
+            readinessFactory: { folderURL in
+                let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+                let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                    .fallback(.rawRenderFailed)
+                }
+                return (cleanedURL, .scheduled(outputURL: cleanedURL, task: renderTask))
+            }
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let service = makeTranscriptionService(cleanedMicTimeoutSeconds: 1)
+
+        _ = try await service.transcribeMeeting(recording: recording)
+
+        let convertURLs = await mockAudio.convertURLs
+        XCTAssertEqual(convertURLs, [recording.microphoneAudioURL, recording.systemAudioURL])
+        XCTAssertDiagnosticLogContains(
+            sessionID: recording.sessionID,
+            reason: .rawRenderFailed
+        )
+    }
+
     func testPrepareMeetingTranscriptionCreatesProcessingStubBeforeSTT() async throws {
         let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
         defer { try? FileManager.default.removeItem(at: recording.folderURL) }
@@ -2505,6 +2676,122 @@ final class TranscriptionServiceTests: XCTestCase {
                 ),
                 system: nil
             )
+        )
+    }
+
+    private func makeDualSourceMeetingRecording(
+        displayName: String,
+        readinessFactory: ((URL) -> (URL, MeetingCleanedMicrophoneReadiness))? = nil
+    ) throws -> MeetingRecordingOutput {
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        let readiness = readinessFactory?(recordingFolder)
+        return try makeDualSourceMeetingRecording(
+            displayName: displayName,
+            folderURL: recordingFolder,
+            cleanedURL: readiness?.0,
+            readiness: readiness?.1
+        )
+    }
+
+    private func makeDualSourceMeetingRecording(
+        displayName: String,
+        folderURL: URL,
+        cleanedURL: URL? = nil,
+        readiness: MeetingCleanedMicrophoneReadiness? = nil
+    ) throws -> MeetingRecordingOutput {
+        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
+        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        if !FileManager.default.fileExists(atPath: mixedURL.path) {
+            XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        }
+        if !FileManager.default.fileExists(atPath: microphoneURL.path) {
+            XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+        }
+        if !FileManager.default.fileExists(atPath: systemURL.path) {
+            XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
+        }
+
+        return MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: displayName,
+            folderURL: folderURL,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophoneAudioURL: cleanedURL,
+            cleanedMicrophoneReadiness: readiness,
+            durationSeconds: 2.0,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(
+                    firstHostTime: nil,
+                    lastHostTime: nil,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 32_000,
+                    sampleRate: 16_000
+                ),
+                system: .init(
+                    firstHostTime: nil,
+                    lastHostTime: nil,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 32_000,
+                    sampleRate: 16_000
+                )
+            )
+        )
+    }
+
+    private func meetingSourceSTTResults() -> [STTResult] {
+        [
+            STTResult(text: "local words", words: [
+                TimestampedWord(word: "local", startMs: 0, endMs: 200, confidence: 0.9),
+            ]),
+            STTResult(text: "remote words", words: [
+                TimestampedWord(word: "remote", startMs: 0, endMs: 200, confidence: 0.9),
+            ]),
+        ]
+    }
+
+    private func makeTranscriptionService(cleanedMicTimeoutSeconds: TimeInterval) -> TranscriptionService {
+        TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil,
+            meetingCleanedMicrophoneReadinessPolicy: .init(
+                floorSeconds: cleanedMicTimeoutSeconds,
+                durationMultiplier: 0,
+                capSeconds: cleanedMicTimeoutSeconds
+            )
+        )
+    }
+
+    private func XCTAssertDiagnosticLogContains(
+        sessionID: UUID,
+        reason: MeetingCleanedMicrophoneRoutingReason,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let log = (try? String(
+            contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(),
+            encoding: .utf8
+        )) ?? ""
+        let expectedSession = "session=\(sessionID.uuidString)"
+        let expectedReason = "reason=\(reason.rawValue)"
+        let found = log.split(separator: "\n").contains { line in
+            line.contains("meeting_cleaned_mic_source")
+                && line.contains(expectedSession)
+                && line.contains(expectedReason)
+        }
+        XCTAssertTrue(
+            found,
+            "Expected diagnostic log to contain session \(sessionID) and reason \(reason.rawValue); log was:\n\(log)",
+            file: file,
+            line: line
         )
     }
 

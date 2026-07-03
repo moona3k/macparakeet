@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import XCTest
 @testable import MacParakeetCore
@@ -83,6 +84,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(files["mixedAudioPath"] as? String, transcription.filePath)
         XCTAssertEqual(files["microphoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone.m4a").path)
         XCTAssertEqual(files["systemAudioPath"] as? String, folderURL.appendingPathComponent("system.m4a").path)
+        XCTAssertNil(files["cleanedMicrophoneAudioPath"] as? String)
         XCTAssertEqual(files["metadataPath"] as? String, MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)
         XCTAssertEqual(files["manifestPath"] as? String, snapshot.manifestPath)
         XCTAssertEqual(files["transcriptPath"] as? String, snapshot.transcriptPath)
@@ -103,6 +105,36 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
+    }
+
+    func testMaterializeIncludesCleanedMicrophoneAudioPathWhenArtifactExists() async throws {
+        let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try writeM4A(to: cleanedURL)
+        let transcription = makeMeeting(notes: nil)
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let files = try XCTUnwrap(manifest["files"] as? [String: Any])
+        XCTAssertEqual(files["cleanedMicrophoneAudioPath"] as? String, cleanedURL.path)
+    }
+
+    func testMaterializeOmitsInvalidCleanedMicrophoneAudioPath() async throws {
+        let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try Data("partial m4a fragment".utf8).write(to: cleanedURL)
+        let transcription = makeMeeting(notes: nil)
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let files = try XCTUnwrap(manifest["files"] as? [String: Any])
+        XCTAssertNil(files["cleanedMicrophoneAudioPath"] as? String)
     }
 
     func testMaterializeRemovesStaleNotesAndPromptResultFiles() async throws {
@@ -208,6 +240,48 @@ final class MeetingArtifactStoreTests: XCTestCase {
             engine: "parakeet",
             engineVariant: "v3"
         )
+    }
+
+    private func writeM4A(to url: URL, sampleRate: Double = 16_000) throws {
+        let frameCount = Int(sampleRate / 10)
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false
+        )!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let samples = buffer.floatChannelData![0]
+        for index in 0..<frameCount {
+            samples[index] = 0.1
+        }
+
+        do {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        } catch {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatAppleLossless,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        }
     }
 
     private func jsonObject(at url: URL) throws -> [String: Any] {

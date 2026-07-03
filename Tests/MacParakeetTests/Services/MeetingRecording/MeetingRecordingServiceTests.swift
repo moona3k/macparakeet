@@ -215,7 +215,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
         await captureService.yield(.microphoneBuffer(
             microphoneBuffer,
             AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
@@ -234,19 +234,31 @@ final class MeetingRecordingServiceTests: XCTestCase {
     func testStopRecordingFailsIfAwaitingTranscriptionLockWriteFails() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
+        let conditionerProbe = MeetingMicConditionerFactoryProbe()
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: MockMeetingAudioFileConverter(),
             sttTranscriber: CountingMeetingSTTClient(),
-            lockFileStore: lockStore
+            lockFileStore: lockStore,
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            },
+            cleanedMicConditionerFactory: {
+                conditionerProbe.make()
+            }
         )
 
         try await service.startRecording()
         let originalFolder = try XCTUnwrap(lockStore.writes.first?.folderURL)
         defer { try? FileManager.default.removeItem(at: originalFolder) }
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
         await captureService.yield(.microphoneBuffer(
             microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.15))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
             AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
         ))
 
@@ -262,6 +274,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertEqual(lockStore.writeAttempts.last?.file.state, .awaitingTranscription)
         XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
+        XCTAssertEqual(conditionerProbe.buildCount, 0)
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: originalFolder.appendingPathComponent("microphone-cleaned.m4a").path))
         let isRecordingAfterFailure = await service.isRecording
         XCTAssertFalse(isRecordingAfterFailure)
 
@@ -490,9 +505,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        for offset in 0..<5 {
-            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
-            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+        for offset in 0..<1 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
             let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
             await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
             await captureService.yield(.systemBuffer(systemBuffer, time))
@@ -1353,9 +1368,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        for offset in 0..<5 {
-            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
-            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+        for offset in 0..<1 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
             let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
             await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
             await captureService.yield(.systemBuffer(systemBuffer, time))
@@ -1368,16 +1383,92 @@ final class MeetingRecordingServiceTests: XCTestCase {
             output.cleanedMicrophoneAudioURL,
             "a loaded suppressor on a dual-source meeting derives a cleaned mic")
         XCTAssertEqual(cleanedURL.lastPathComponent, "microphone-cleaned.m4a")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
         // The cleaned mic is derived; the raw sources stay the source of truth.
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.microphoneAudioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.systemAudioURL.path))
-        // The U4 routing policy prefers the cleaned artifact for the "Me" STT track.
-        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), cleanedURL)
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 2, durationMultiplier: 0, capSeconds: 2)
+        )
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        XCTAssertEqual(decision.url, cleanedURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
+    }
+
+    func testStopRecordingReturnsBeforeSlowCleanedMicRendererCompletes() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let renderRelease = MeetingTestAsyncSignal()
+        defer { renderRelease.signal() }
+        let outputCapture = StopOutputCapture()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                ZeroingMicConditioner()
+            },
+            cleanedMicrophoneReadinessScheduler: { outputURL, microphoneURL, _, _, _, _, fileManager, _ in
+                let fileManagerBox = UncheckedSendableBox(fileManager)
+                let task = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                    await renderRelease.wait()
+                    if let microphoneURL {
+                        try? fileManagerBox.value.removeItem(at: outputURL)
+                        try? fileManagerBox.value.copyItem(at: microphoneURL, to: outputURL)
+                    }
+                    return .rendered(outputURL)
+                }
+                return .scheduled(outputURL: outputURL, task: task)
+            }
+        )
+
+        try await service.startRecording()
+        for offset in 0..<1 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
+            await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+            await captureService.yield(.systemBuffer(systemBuffer, time))
+        }
+
+        Task {
+            do {
+                let output = try await service.stopRecording()
+                await outputCapture.set(.output(output))
+            } catch {
+                await outputCapture.set(.failure("\(error)"))
+            }
+        }
+
+        guard let result = await outputCapture.resultWithin(seconds: 1) else {
+            XCTFail("stopRecording() waited for the cleaned-mic renderer to finish")
+            return
+        }
+        let output: MeetingRecordingOutput
+        switch result {
+        case .output(let stoppedOutput):
+            output = stoppedOutput
+        case .failure(let message):
+            XCTFail("stopRecording() failed: \(message)")
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let cleanedURL = try XCTUnwrap(output.cleanedMicrophoneAudioURL)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: cleanedURL.path),
+            "Stop returned while the deliberately blocked renderer had not produced an artifact yet"
+        )
+
+        renderRelease.signal()
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 2, durationMultiplier: 0, capSeconds: 2)
+        )
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        XCTAssertEqual(decision.url, cleanedURL)
     }
 
     func testStopRecordingSkipsCleanedMicForSingleSource() async throws {
         let captureService = MockMeetingAudioCaptureService()
+        let conditionerProbe = MeetingMicConditionerFactoryProbe()
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: MockMeetingAudioFileConverter(),
@@ -1385,11 +1476,14 @@ final class MeetingRecordingServiceTests: XCTestCase {
             micConditionerFactory: {
                 StreamingMeetingEchoSuppressor(
                     processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
+            },
+            cleanedMicConditionerFactory: {
+                conditionerProbe.make()
             }
         )
 
         try await service.startRecording()
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
         await captureService.yield(.microphoneBuffer(
             microphoneBuffer,
             AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
@@ -1403,8 +1497,15 @@ final class MeetingRecordingServiceTests: XCTestCase {
             "a mic-only meeting has no system reference to cancel against")
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: output.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
-        // STT routing falls back to the raw mic when no cleaned artifact exists.
-        XCTAssertEqual(output.validatedMicrophoneTranscriptionURL(), output.microphoneAudioURL)
+        XCTAssertEqual(
+            conditionerProbe.buildCount,
+            0,
+            "single-source meetings must not schedule or build the cleaned-mic renderer")
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 0.05, durationMultiplier: 0, capSeconds: 0.05)
+        )
+        XCTAssertEqual(decision.reason, .rawMissingSystemReference)
+        XCTAssertEqual(decision.url, output.microphoneAudioURL)
     }
 
     func testStopRecordingSkipsCleanedMicWhenSuppressorIsPassthrough() async throws {
@@ -1418,9 +1519,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        for offset in 0..<3 {
-            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
-            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+        for offset in 0..<1 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
             let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
             await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
             await captureService.yield(.systemBuffer(systemBuffer, time))
@@ -1429,7 +1530,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
-        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+        let cleanedURL = try XCTUnwrap(
+            output.cleanedMicrophoneAudioURL,
+            "dual-source meetings schedule the render; missing AEC assets are reported by the readiness result")
+        XCTAssertEqual(cleanedURL.lastPathComponent, "microphone-cleaned.m4a")
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 2, durationMultiplier: 0, capSeconds: 2)
+        )
+        XCTAssertEqual(decision.reason, .rawNoAECAssets)
+        XCTAssertEqual(decision.url, output.microphoneAudioURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
     }
 
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
@@ -2712,6 +2822,75 @@ private final class ZeroingMicConditioner: MicConditioning, @unchecked Sendable 
             delayEstimateCount: 2,
             rejectedDelayEstimates: 1
         )
+    }
+}
+
+private final class MeetingMicConditionerFactoryProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var buildCount: Int {
+        lock.withLock { count }
+    }
+
+    func make() -> any MicConditioning {
+        lock.withLock {
+            count += 1
+        }
+        return ZeroingMicConditioner()
+    }
+}
+
+private final class MeetingTestAsyncSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var didSignal = false
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let immediateContinuation: CheckedContinuation<Void, Never>? = lock.withLock {
+                if didSignal {
+                    return continuation
+                }
+                self.continuation = continuation
+                return nil
+            }
+            immediateContinuation?.resume()
+        }
+    }
+
+    func signal() {
+        let continuation = lock.withLock {
+            didSignal = true
+            let continuation = self.continuation
+            self.continuation = nil
+            return continuation
+        }
+        continuation?.resume()
+    }
+}
+
+private enum StopRecordingTestResult: Sendable {
+    case output(MeetingRecordingOutput)
+    case failure(String)
+}
+
+private actor StopOutputCapture {
+    private var result: StopRecordingTestResult?
+
+    func set(_ result: StopRecordingTestResult) {
+        self.result = result
+    }
+
+    func resultWithin(seconds: TimeInterval) async -> StopRecordingTestResult? {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            if let result {
+                return result
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return result
     }
 }
 
