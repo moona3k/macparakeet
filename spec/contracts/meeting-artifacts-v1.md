@@ -99,8 +99,15 @@ The v1 folder can contain these stable filenames:
 
 `transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
-fields, `userNotes`, language/engine attribution, `sourceType`,
-`recoveredFromCrash`, and `isTranscriptEdited`.
+fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
+`sourceType`, `recoveredFromCrash`, and `isTranscriptEdited`.
+
+`transcriptSegments` is an additive v1 field populated from the DB row when a
+meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
+`speakerId`, `speakerLabel`, `text`, and a half-open `wordRange`
+(`startIndex`, `endIndexExclusive`) into the same transcript's
+`wordTimestamps` array. Segment IDs are stable for that transcript version;
+meeting retranscription may replace the array with newly minted segment IDs.
 
 ## Non-Stable Fields
 
@@ -140,9 +147,9 @@ already deleted.
 
 Focused coverage pins stable filenames, schema/schemaVersion, manifest path
 references, transcript essentials, `notes.md` deletion, refreshed
-`prompt-results/` contents, non-meeting rejection, CLI artifact envelope fields,
-retained-out audio, full deletion after audio detach, and artifact-folder path
-preservation.
+`prompt-results/` contents, durable transcript segments in `transcript.json`,
+non-meeting rejection, CLI artifact envelope fields, retained-out audio, full
+deletion after audio detach, and artifact-folder path preservation.
 
 ## When this changes
 

@@ -2010,6 +2010,63 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(capturedPromptResults.first?.content, "Ship the artifact refresh.")
     }
 
+    func testRetranscribeMeetingMintsNewTranscriptSegmentIDs() async throws {
+        let recording = try makeOneSourceMeetingRecording(displayName: "Segment Rerun")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let oldSegmentID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let original = Transcription(
+            fileName: "Segment Rerun",
+            filePath: recording.mixedAudioURL.path,
+            rawTranscript: "Old segment.",
+            wordTimestamps: [
+                WordTimestamp(word: "Old", startMs: 0, endMs: 200, confidence: 0.9, speakerId: "microphone"),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: oldSegmentID,
+                    startMs: 0,
+                    endMs: 200,
+                    speakerId: "microphone",
+                    speakerLabel: "Me",
+                    text: "Old",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(original)
+        await mockSTT.configure(result: STTResult(
+            text: "Fresh segment",
+            words: [
+                TimestampedWord(word: "Fresh", startMs: 0, endMs: 300, confidence: 0.9),
+                TimestampedWord(word: "segment", startMs: 320, endMs: 620, confidence: 0.9),
+            ]
+        ))
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+
+        let result = try await service.retranscribeMeeting(existing: original, recording: recording)
+
+        XCTAssertEqual(result.id, original.id)
+        let segment = try XCTUnwrap(result.transcriptSegments?.first)
+        XCTAssertNotEqual(segment.id, oldSegmentID)
+        XCTAssertEqual(segment.text, "Fresh segment")
+        XCTAssertEqual(segment.speakerId, "microphone")
+        XCTAssertEqual(segment.speakerLabel, "Me")
+        XCTAssertEqual(segment.wordRange, TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 2))
+
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: original.id))
+        XCTAssertEqual(fetched.transcriptSegments?.first?.id, segment.id)
+        XCTAssertNotEqual(fetched.transcriptSegments?.first?.id, oldSegmentID)
+    }
+
     func testTranscribeMeetingFailsWhenCapturedSpeechEngineCannotBeRouted() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -2340,6 +2397,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(result.rawTranscript, "Hello, there.")
         XCTAssertEqual(result.wordTimestamps, [])
+        XCTAssertNil(result.transcriptSegments)
     }
 
     func testTranscribeMeetingPreservesContiguousDualSourceModelText() async throws {

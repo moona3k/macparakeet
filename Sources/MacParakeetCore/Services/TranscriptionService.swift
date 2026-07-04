@@ -1144,6 +1144,11 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             transcription.speakers = finalized.speakers
             transcription.speakerCount = finalized.speakers.isEmpty ? nil : finalized.speakers.count
             transcription.diarizationSegments = finalized.diarizationSegments.isEmpty ? nil : finalized.diarizationSegments
+            let transcriptSegments = TranscriptSegmenter.materializeSegments(
+                words: corrected.words,
+                speakers: finalized.speakers
+            )
+            transcription.transcriptSegments = transcriptSegments.isEmpty ? nil : transcriptSegments
 
             lifecycleStage = .postProcessing
             let completed = try await completeTranscription(
@@ -1612,6 +1617,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.speakerCount = nil
         transcription.speakers = nil
         transcription.diarizationSegments = nil
+        transcription.transcriptSegments = nil
         transcription.status = .processing
         transcription.errorMessage = nil
         transcription.exportPath = nil

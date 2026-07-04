@@ -44,6 +44,15 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testTranscriptSegmentsMigrationAddsTranscriptionColumn() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(columns.contains("transcriptSegments"))
+        }
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")

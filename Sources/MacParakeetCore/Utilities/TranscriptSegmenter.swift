@@ -44,54 +44,32 @@ public struct SpeakerStatistics: Sendable {
 public enum TranscriptSegmenter {
     /// Group word timestamps into segments based on punctuation, gaps, and speaker changes.
     public static func groupIntoSegments(words: [WordTimestamp]) -> [TranscriptSegment] {
-        guard !words.isEmpty else { return [] }
-
-        var segments: [TranscriptSegment] = []
-        var currentWords: [String] = []
-        var segmentStart = words[0].startMs
-        var segmentSpeaker = words[0].speakerId
-
-        for (i, word) in words.enumerated() {
-            let isLast = i == words.count - 1
-            let speakerChanged = word.speakerId != nil && word.speakerId != segmentSpeaker
-
-            // Flush current segment on speaker change before adding this word
-            if speakerChanged && !currentWords.isEmpty {
-                segments.append(TranscriptSegment(
-                    startMs: segmentStart,
-                    text: currentWords.joined(separator: " "),
-                    speakerId: segmentSpeaker
-                ))
-                currentWords = []
-                segmentStart = word.startMs
-                segmentSpeaker = word.speakerId
-            }
-
-            currentWords.append(word.word)
-            // Track speaker (nil words inherit current speaker)
-            if word.speakerId != nil {
-                segmentSpeaker = word.speakerId
-            }
-
-            let endsWithPunctuation = word.word.last.map { ".!?".contains($0) } ?? false
-            let hasLongGap = i + 1 < words.count && (words[i + 1].startMs - word.endMs) > 1500
-            let tooLong = currentWords.count >= 40
-
-            if isLast || (endsWithPunctuation && currentWords.count >= 3) || hasLongGap || tooLong {
-                segments.append(TranscriptSegment(
-                    startMs: segmentStart,
-                    text: currentWords.joined(separator: " "),
-                    speakerId: segmentSpeaker
-                ))
-                currentWords = []
-                if !isLast {
-                    segmentStart = words[i + 1].startMs
-                    segmentSpeaker = words[i + 1].speakerId ?? segmentSpeaker
-                }
-            }
+        segmentBoundaries(words: words).map {
+            TranscriptSegment(startMs: $0.startMs, text: $0.text, speakerId: $0.speakerId)
         }
+    }
 
-        return segments
+    /// Materialize durable segments with IDs and word-index ranges into `words`.
+    public static func materializeSegments(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]? = nil,
+        idGenerator: () -> UUID = { UUID() }
+    ) -> [TranscriptSegmentRecord] {
+        var speakersByID: [String: String] = [:]
+        for speaker in speakers ?? [] where speakersByID[speaker.id] == nil {
+            speakersByID[speaker.id] = speaker.label
+        }
+        return segmentBoundaries(words: words).map { boundary in
+            TranscriptSegmentRecord(
+                id: idGenerator(),
+                startMs: boundary.startMs,
+                endMs: boundary.endMs,
+                speakerId: boundary.speakerId,
+                speakerLabel: speakerLabel(for: boundary.speakerId, speakersByID: speakersByID),
+                text: boundary.text,
+                wordRange: boundary.wordRange
+            )
+        }
     }
 
     /// Group segments into consecutive speaker turns.
@@ -165,4 +143,88 @@ public enum TranscriptSegmenter {
         let normalized = parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         return normalized.isEmpty ? "transcript" : normalized
     }
+
+    private static func segmentBoundaries(words: [WordTimestamp]) -> [SegmentBoundary] {
+        guard !words.isEmpty else { return [] }
+
+        var boundaries: [SegmentBoundary] = []
+        var currentWords: [String] = []
+        var segmentStartIndex = 0
+        var segmentStart = words[0].startMs
+        var segmentSpeaker = words[0].speakerId
+
+        func appendBoundary(endIndexExclusive: Int, speakerId: String?) {
+            guard !currentWords.isEmpty else { return }
+            let lastWord = words[endIndexExclusive - 1]
+            boundaries.append(SegmentBoundary(
+                startMs: segmentStart,
+                endMs: lastWord.endMs,
+                text: currentWords.joined(separator: " "),
+                speakerId: speakerId,
+                wordRange: TranscriptSegmentWordRange(
+                    startIndex: segmentStartIndex,
+                    endIndexExclusive: endIndexExclusive
+                )
+            ))
+        }
+
+        for (i, word) in words.enumerated() {
+            let isLast = i == words.count - 1
+            let speakerChanged = word.speakerId != nil && word.speakerId != segmentSpeaker
+
+            // Flush current segment on speaker change before adding this word.
+            if speakerChanged && !currentWords.isEmpty {
+                appendBoundary(endIndexExclusive: i, speakerId: segmentSpeaker)
+                currentWords = []
+                segmentStartIndex = i
+                segmentStart = word.startMs
+                segmentSpeaker = word.speakerId
+            }
+
+            currentWords.append(word.word)
+            // Track speaker (nil words inherit current speaker).
+            if word.speakerId != nil {
+                segmentSpeaker = word.speakerId
+            }
+
+            let endsWithPunctuation = word.word.last.map { ".!?".contains($0) } ?? false
+            let hasLongGap = i + 1 < words.count && (words[i + 1].startMs - word.endMs) > 1500
+            let tooLong = currentWords.count >= 40
+
+            if isLast || (endsWithPunctuation && currentWords.count >= 3) || hasLongGap || tooLong {
+                appendBoundary(endIndexExclusive: i + 1, speakerId: segmentSpeaker)
+                currentWords = []
+                if !isLast {
+                    segmentStartIndex = i + 1
+                    segmentStart = words[i + 1].startMs
+                    segmentSpeaker = words[i + 1].speakerId ?? segmentSpeaker
+                }
+            }
+        }
+
+        return boundaries
+    }
+
+    private static func speakerLabel(
+        for speakerId: String?,
+        speakersByID: [String: String]
+    ) -> String {
+        guard let speakerId else { return "Unknown Speaker" }
+        if let label = speakersByID[speakerId]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !label.isEmpty {
+            return label
+        }
+        if let source = AudioSource(rawValue: speakerId) {
+            return source.displayLabel
+        }
+        return speakerId
+    }
+}
+
+private struct SegmentBoundary {
+    let startMs: Int
+    let endMs: Int
+    let text: String
+    let speakerId: String?
+    let wordRange: TranscriptSegmentWordRange
 }

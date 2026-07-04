@@ -75,6 +75,17 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(transcript["transcript"] as? String, "Clean transcript.")
         XCTAssertEqual(transcript["sourceType"] as? String, "meeting")
         XCTAssertEqual(transcript["userNotes"] as? String, "Decision: ship\nOwner: Dana")
+        let transcriptSegments = try XCTUnwrap(transcript["transcriptSegments"] as? [[String: Any]])
+        XCTAssertEqual(transcriptSegments.count, 1)
+        XCTAssertEqual(
+            transcriptSegments.first?["id"] as? String,
+            UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!.uuidString
+        )
+        XCTAssertEqual(transcriptSegments.first?["speakerLabel"] as? String, "Speaker 1")
+        XCTAssertEqual(transcriptSegments.first?["text"] as? String, "Clean")
+        let wordRange = try XCTUnwrap(transcriptSegments.first?["wordRange"] as? [String: Any])
+        XCTAssertEqual(wordRange["startIndex"] as? Int, 0)
+        XCTAssertEqual(wordRange["endIndexExclusive"] as? Int, 1)
 
         let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
         XCTAssertEqual(manifest["schema"] as? String, MeetingArtifactStore.schema)
@@ -233,6 +244,17 @@ final class MeetingArtifactStoreTests: XCTestCase {
             ],
             diarizationSegments: [
                 DiarizationSegmentRecord(speakerId: "S1", startMs: 0, endMs: 1000),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+                    startMs: 0,
+                    endMs: 400,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Clean",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
             ],
             status: .completed,
             sourceType: .meeting,

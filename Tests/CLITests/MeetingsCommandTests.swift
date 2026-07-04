@@ -235,6 +235,64 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertTrue(markdownExportOutput.contains("- Prompt results: 1"))
     }
 
+    func testMeetingJSONSurfacesExposeTranscriptSegments() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let segmentID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        let meeting = Transcription(
+            fileName: "Segment Review",
+            rawTranscript: "Ship the durable segment contract.",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 200, confidence: 0.98, speakerId: "microphone"),
+                WordTimestamp(word: "it.", startMs: 220, endMs: 360, confidence: 0.98, speakerId: "microphone"),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: segmentID,
+                    startMs: 0,
+                    endMs: 360,
+                    speakerId: "microphone",
+                    speakerLabel: "Me",
+                    text: "Ship it.",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 2)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(meeting)
+
+        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let showOutput = try await captureStandardOutput {
+            try await showCommand.run()
+        }
+        let showPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+        )
+        let showSegments = try XCTUnwrap(showPayload["transcriptSegments"] as? [[String: Any]])
+        assertSegmentPayload(showSegments.first, id: segmentID)
+
+        let transcriptCommand = try MeetingsCommand.TranscriptSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "json",
+            "--database", dbURL.path,
+        ])
+        let transcriptOutput = try await captureStandardOutput {
+            try await transcriptCommand.run()
+        }
+        let transcriptPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(transcriptOutput.utf8)) as? [String: Any]
+        )
+        let transcriptSegments = try XCTUnwrap(transcriptPayload["transcriptSegments"] as? [[String: Any]])
+        assertSegmentPayload(transcriptSegments.first, id: segmentID)
+    }
+
     func testArtifactSubcommandMaterializesMeetingFolder() async throws {
         let dbURL = temporaryDatabaseURL()
         let folderURL = FileManager.default.temporaryDirectory
@@ -448,5 +506,27 @@ final class MeetingsCommandTests: XCTestCase {
                 line: line
             )
         }
+    }
+
+    private func assertSegmentPayload(
+        _ payload: [String: Any]?,
+        id: UUID,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let payload else {
+            return XCTFail("Expected segment payload", file: file, line: line)
+        }
+        XCTAssertEqual(payload["id"] as? String, id.uuidString, file: file, line: line)
+        XCTAssertEqual(payload["startMs"] as? Int, 0, file: file, line: line)
+        XCTAssertEqual(payload["endMs"] as? Int, 360, file: file, line: line)
+        XCTAssertEqual(payload["speakerId"] as? String, "microphone", file: file, line: line)
+        XCTAssertEqual(payload["speakerLabel"] as? String, "Me", file: file, line: line)
+        XCTAssertEqual(payload["text"] as? String, "Ship it.", file: file, line: line)
+        guard let wordRange = payload["wordRange"] as? [String: Any] else {
+            return XCTFail("Expected wordRange", file: file, line: line)
+        }
+        XCTAssertEqual(wordRange["startIndex"] as? Int, 0, file: file, line: line)
+        XCTAssertEqual(wordRange["endIndexExclusive"] as? Int, 2, file: file, line: line)
     }
 }

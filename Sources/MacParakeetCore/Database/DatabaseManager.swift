@@ -1031,6 +1031,15 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.23 — Durable meeting transcript segments. Raw SQL is intentional:
+        // historical migrations must not depend on the evolving Codable model.
+        migrator.registerMigration("v0.23-transcript-segments") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("transcriptSegments") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN transcriptSegments TEXT")
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

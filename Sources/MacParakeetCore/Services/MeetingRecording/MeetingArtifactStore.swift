@@ -331,6 +331,7 @@ private struct MeetingArtifactTranscript: Codable {
     let speakerCount: Int?
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
+    let transcriptSegments: [TranscriptSegmentRecord]?
     let userNotes: String?
     let language: String?
     let engine: String?
@@ -354,6 +355,7 @@ private struct MeetingArtifactTranscript: Codable {
         speakerCount = transcription.speakerCount
         speakers = transcription.speakers
         diarizationSegments = transcription.diarizationSegments
+        transcriptSegments = transcription.transcriptSegments
         userNotes = transcription.userNotes
         language = transcription.language
         engine = transcription.engine

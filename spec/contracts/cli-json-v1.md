@@ -45,6 +45,12 @@ with human progress/status kept off stdout.
   (`is_built_in`, `created_at`), which predates this convention; its keys are
   frozen for v1 and would only change at a major boundary. New commands use
   camelCase.
+- `meetings show --json` and `meetings transcript --format json` expose
+  `transcriptSegments` when the meeting row has durable segments. Each segment
+  contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and
+  `wordRange.startIndex` / `wordRange.endIndexExclusive` into the same payload's
+  `wordTimestamps` array. Callers that need stable citations should prefer
+  these persisted segments over re-segmenting words.
 
 ## Failure Envelope
 
@@ -101,8 +107,9 @@ breaking contract change and requires explicit version/changelog treatment.
 
 Focused coverage pins spec conventions, failure-envelope fields, exit code
 entries, JSON wrapper failure envelopes, JSON validation exit-code
-normalization, agent-facing meeting commands, command-level JSON failure
-envelopes, and `--json`/`--envelope` mutual exclusion.
+normalization, agent-facing meeting commands including durable transcript
+segments, command-level JSON failure envelopes, and `--json`/`--envelope`
+mutual exclusion.
 
 ## When this changes
 

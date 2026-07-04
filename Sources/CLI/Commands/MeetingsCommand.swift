@@ -663,6 +663,7 @@ private struct MeetingRecord: Encodable {
     let speakerCount: Int?
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
+    let transcriptSegments: [TranscriptSegmentRecord]?
     let artifactFolderPath: String?
     let artifactManifestPath: String?
     let hasArtifactManifest: Bool
@@ -689,6 +690,7 @@ private struct MeetingRecord: Encodable {
         speakerCount = transcription.speakerCount
         speakers = transcription.speakers
         diarizationSegments = transcription.diarizationSegments
+        transcriptSegments = transcription.transcriptSegments
         let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
         artifactFolderPath = artifactFolder?.path
         let manifestPath = artifactFolder?
@@ -709,6 +711,7 @@ private struct MeetingTranscriptRecord: Encodable {
     let transcript: String
     let wordTimestamps: [WordTimestamp]?
     let speakers: [SpeakerInfo]?
+    let transcriptSegments: [TranscriptSegmentRecord]?
 
     init(_ transcription: Transcription) {
         id = transcription.id
@@ -718,6 +721,7 @@ private struct MeetingTranscriptRecord: Encodable {
         transcript = preferredTranscriptText(transcription)
         wordTimestamps = transcription.wordTimestamps
         speakers = transcription.speakers
+        transcriptSegments = transcription.transcriptSegments
     }
 }
 

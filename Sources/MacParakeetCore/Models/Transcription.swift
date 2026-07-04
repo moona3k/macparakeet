@@ -29,6 +29,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var speakerCount: Int?
     public var speakers: [SpeakerInfo]?
     public var diarizationSegments: [DiarizationSegmentRecord]?
+    public var transcriptSegments: [TranscriptSegmentRecord]?
     public var chatMessages: [ChatMessage]?
     public var status: TranscriptionStatus
     public var errorMessage: String?
@@ -85,6 +86,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         speakerCount: Int? = nil,
         speakers: [SpeakerInfo]? = nil,
         diarizationSegments: [DiarizationSegmentRecord]? = nil,
+        transcriptSegments: [TranscriptSegmentRecord]? = nil,
         chatMessages: [ChatMessage]? = nil,
         status: TranscriptionStatus = .processing,
         errorMessage: String? = nil,
@@ -118,6 +120,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.speakerCount = speakerCount
         self.speakers = speakers
         self.diarizationSegments = diarizationSegments
+        self.transcriptSegments = transcriptSegments
         self.chatMessages = chatMessages
         self.status = status
         self.errorMessage = errorMessage
@@ -199,13 +202,51 @@ public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {
     }
 }
 
+public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable {
+    public var startIndex: Int
+    public var endIndexExclusive: Int
+
+    public init(startIndex: Int, endIndexExclusive: Int) {
+        self.startIndex = startIndex
+        self.endIndexExclusive = endIndexExclusive
+    }
+}
+
+public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiable {
+    public var id: UUID
+    public var startMs: Int
+    public var endMs: Int
+    public var speakerId: String?
+    public var speakerLabel: String
+    public var text: String
+    public var wordRange: TranscriptSegmentWordRange
+
+    public init(
+        id: UUID = UUID(),
+        startMs: Int,
+        endMs: Int,
+        speakerId: String?,
+        speakerLabel: String,
+        text: String,
+        wordRange: TranscriptSegmentWordRange
+    ) {
+        self.id = id
+        self.startMs = startMs
+        self.endMs = endMs
+        self.speakerId = speakerId
+        self.speakerLabel = speakerLabel
+        self.text = text
+        self.wordRange = wordRange
+    }
+}
+
 extension Transcription: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "transcriptions"
 
     public enum Columns: String, ColumnExpression {
         case id, createdAt, fileName, filePath, meetingArtifactFolderPath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
-        case speakerCount, speakers, diarizationSegments, chatMessages
+        case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
         case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
     }
@@ -250,6 +291,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         }
 
         diarizationSegments = try container.decodeIfPresent([DiarizationSegmentRecord].self, forKey: .diarizationSegments)
+        transcriptSegments = try container.decodeIfPresent([TranscriptSegmentRecord].self, forKey: .transcriptSegments)
         chatMessages = try container.decodeIfPresent([ChatMessage].self, forKey: .chatMessages)
         status = try container.decode(TranscriptionStatus.self, forKey: .status)
         errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)

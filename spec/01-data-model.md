@@ -121,6 +121,7 @@ CREATE TABLE transcriptions (
     speakerCount INTEGER,                              -- Number of detected speakers (v0.4 diarization)
     speakers TEXT,                                      -- JSON: [{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}] (v0.4 diarization)
     diarizationSegments TEXT,                           -- JSON: [{"speakerId":"S1","startMs":0,"endMs":5000},...] (v0.4 diarization)
+    transcriptSegments TEXT,                            -- v0.23: JSON durable meeting transcript segments with UUIDs and word ranges
     chatMessages TEXT,                                  -- v0.4: JSON array of LLM chat messages
     status TEXT NOT NULL DEFAULT 'processing',          -- 'processing', 'completed', 'error', 'cancelled'
     errorMessage TEXT,                                  -- Error details if status='error'
@@ -149,6 +150,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 
 **Notes:**
 - `wordTimestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
+- `transcriptSegments` is a JSON text column populated for finalized meeting recordings. Each segment has a UUID, start/end times, speaker/source label, text, and a half-open `wordRange` (`startIndex`, `endIndexExclusive`) into the persisted `wordTimestamps` array. Segment IDs are stable for that transcript version; retranscribing a meeting replaces the transcript version and may mint new segment IDs. Non-meeting transcriptions leave this `NULL`.
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
@@ -172,6 +174,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
 - `diarizationSegments`: JSON array of raw diarization segments (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). Used for accurate speaking time analytics. Nil if diarization not run or failed.
 - Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.
+- `transcriptSegments`: JSON array of durable meeting transcript segments derived from the persisted word array with `TranscriptSegmenter`. Readers should use this array for citations instead of re-segmenting words. Nil for legacy rows and non-meeting transcriptions.
 - All diarization fields are nullable. If diarization fails, ASR result is still persisted with these fields as nil.
 
 ---
@@ -595,6 +598,7 @@ struct Transcription: Codable, Identifiable {
     var speakerCount: Int?
     var speakers: [SpeakerInfo]?
     var diarizationSegments: [DiarizationSegmentRecord]?
+    var transcriptSegments: [TranscriptSegmentRecord]? // v0.23 — Durable meeting citation segments
     var chatMessages: [ChatMessage]?        // v0.4 — Legacy (migrated to chat_conversations in v0.5)
     var status: TranscriptionStatus
     var errorMessage: String?
@@ -631,6 +635,21 @@ struct Transcription: Codable, Identifiable {
         var speakerId: String     // "S1", "S2"
         var startMs: Int
         var endMs: Int
+    }
+
+    struct TranscriptSegmentRecord: Codable, Sendable {
+        var id: UUID
+        var startMs: Int
+        var endMs: Int
+        var speakerId: String?
+        var speakerLabel: String
+        var text: String
+        var wordRange: TranscriptSegmentWordRange
+    }
+
+    struct TranscriptSegmentWordRange: Codable, Sendable {
+        var startIndex: Int
+        var endIndexExclusive: Int
     }
 
     enum TranscriptionStatus: String, Codable {
@@ -1130,6 +1149,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | ~~`dictations_fts`~~ | ~~v0.1~~ | ~~Full-text search for dictations~~ (dropped in v0.5 — never queried) |
 | `transcriptions` | v0.1 | File transcription records |
 | `transcriptions.meetingArtifactFolderPath` | v0.22 | Durable meeting artifact folder path retained after meeting audio deletion |
+| `transcriptions.transcriptSegments` | v0.23 | Durable meeting transcript segments (JSON) for stable per-transcript-version citations |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

@@ -889,7 +889,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
-            output: "MeetingRecord object with transcript, notes, and prompt-result count."
+            output: "MeetingRecord object with transcript, transcriptSegments, notes, and prompt-result count."
         ),
         CLISpecCommand(
             ["meetings", "transcript"],
@@ -900,7 +900,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--format", valueName: "text|json|srt|vtt", summary: "Transcript output format."),
                 databaseOption,
             ],
-            output: "MeetingTranscriptRecord object for --format json."
+            output: "MeetingTranscriptRecord object with transcriptSegments for --format json."
         ),
         CLISpecCommand(
             ["meetings", "notes", "get"],

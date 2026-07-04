@@ -47,6 +47,41 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
+    func testTranscriptSegmentsRoundTrip() throws {
+        let segmentID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+        let transcription = Transcription(
+            fileName: "Design Review",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 200, confidence: 0.98, speakerId: "microphone"),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: segmentID,
+                    startMs: 0,
+                    endMs: 200,
+                    speakerId: "microphone",
+                    speakerLabel: "Me",
+                    text: "Ship",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.transcriptSegments?.count, 1)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.id, segmentID)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.startMs, 0)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.endMs, 200)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.speakerLabel, "Me")
+        XCTAssertEqual(
+            fetched.transcriptSegments?.first?.wordRange,
+            TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+        )
+    }
+
     func testLegacyTranscriptionDecodesWithNilEngineFields() throws {
         let transcription = Transcription(fileName: "legacy.mp3")
         try repo.save(transcription)

@@ -99,6 +99,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   processing-mode, and transcription/meeting speaker-detection overrides as
   `transcribe` where applicable, and emits either `--json` or `--envelope`
   machine-readable output.
+- `meetings show --json` and `meetings transcript --format json` now include
+  additive `transcriptSegments` for meetings finalized with durable segments.
+  Each segment carries a UUID, start/end time, speaker/source label, text, and
+  a word-index range into `wordTimestamps`, so agents can cite stable meeting
+  transcript segments without deriving boundaries themselves.
 
 ### Changed
 
