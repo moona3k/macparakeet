@@ -1,0 +1,68 @@
+Sources/CLI/Commands/StandardOutputRedirection.swift
+  s_e658bd8f2c85c4::t_069715e3248a59 1-46
+Tests/CLITests/CLIHelpersTests.swift
+  s_4144ceefbb8753::t_5a79b8458173da 22
+  s_e658bd8f2c85c4::t_0f3f9599d0bbfa 1,8-21
+Tests/CLITests/MeetingsCommandTests.swift
+  s_e658bd8f2c85c4::t_0bf7544c0c0346 280,282
+  s_e658bd8f2c85c4::t_0d8167ccb55176 239-247,262-279,281,283-285
+  s_e658bd8f2c85c4::t_b7c4e8635c673a 248-261
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_e658bd8f2c85c4::t_1f7a5608a4144e 624-626
+  s_e658bd8f2c85c4::t_ba05a3bc3e5bae 580,593,611,613
+  s_e658bd8f2c85c4::t_069715e3248a59 64-68,449,455,457,623,627,632-633,643-660
+  s_e658bd8f2c85c4::t_0c1220c1644e74 628-631,634-642
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_2e5bbf5846c75f::t_52d2d3dbb1d20a 1362-1363
+  s_e658bd8f2c85c4::t_89b6c390068922 215,223,229,1266,1340-1357,1360-1361
+  s_e658bd8f2c85c4::t_8200846435a8a6 1271
+  s_e658bd8f2c85c4::t_51bdf0090f6cae 1253,1257,1275-1281,1283-1284,1286-1288,1301,1304,1316,1319,1326,1332-1334
+  s_e658bd8f2c85c4::t_ff3b7953f540ef 1293
+  s_e658bd8f2c85c4::t_4496cfd696e5a7 1358-1359
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_e658bd8f2c85c4::t_c1a3e363c2aaed 3031
+  s_e658bd8f2c85c4::t_c1201957f38f73 1675-1676
+  s_e658bd8f2c85c4::t_9fe7c7ea103ffd 1413-1414,1420,1430
+  s_e658bd8f2c85c4::t_831876594da14f 1636-1649
+  s_e658bd8f2c85c4::t_cf91e4191c39ab 1476,1482
+  s_e658bd8f2c85c4::t_07b4193a7a2f79 64-81,1674,3005,3009-3013
+  s_e658bd8f2c85c4::t_6a22e10cb8802b 1619-1635,1650-1673,1677-1681,2999-3004,3006-3008,3014-3030,3032-3040
+  s_e658bd8f2c85c4::t_b32c7de07c7cf3 1456-1457
+  s_e658bd8f2c85c4::t_41eba2cc53c0c2 1441
+Sources/CLI/CHANGELOG.md
+  s_e658bd8f2c85c4::t_39ea08633b981b 140-146
+Tests/CLITests/TranscribeCommandTests.swift
+  s_e658bd8f2c85c4::t_9fb58cd2a1991a 7-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6cb763fb44bb6127f95263d84d08677f9e7b33f7",
+  "prompts": {},
+  "sessions": {
+    "s_2e5bbf5846c75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-5d74-7653-b10d-bb77e4f85980",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_4144ceefbb8753": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e3a-0f0b-7400-881f-3d5f97f513a9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e658bd8f2c85c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c37-6220-7101-9929-0ef13c588c2f",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
