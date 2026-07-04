@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_f93963c9ce92fa::t_7d528831304663 257,399
+  s_f93963c9ce92fa::t_a32fd82a22833a 510,821,868,965,1039-1041,1621
+  s_f93963c9ce92fa::t_9585e88a436229 400
+  s_f93963c9ce92fa::t_d94101e1a1a86a 1507-1514
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_f93963c9ce92fa::t_9585e88a436229 811-866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "97fd93ff1ec284a36339c1e4087e7015e5d9be58",
+  "prompts": {},
+  "sessions": {
+    "s_f93963c9ce92fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-b1d6-7e13-92f3-355e2f1d9cc5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
