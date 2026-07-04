@@ -136,8 +136,11 @@ accumulation). That's Phase 3, a separate opt-in, decided later.
   `{source: channel|diarization|userCorrection|profileSuggestion|profileConfirmed,
   profileId?, confidence?}`. `profileId`/`confidence` are sensitive identity
   metadata: default exports, diagnostics, and support bundles carry display
-  labels only and omit/redact assignment metadata. Matching `spec/contracts/`
-  doc updated in the same PR.
+  labels only and omit/redact assignment metadata. **This supersedes the
+  2026-06-14 plan's Phase 1 step 4 ("Export `profileId`, `assignmentSource`,
+  and confirmation state in JSON surfaces")** — identity metadata appears in
+  JSON exports only behind an explicit user-requested identity-metadata option,
+  never by default. Matching `spec/contracts/` doc updated in the same PR.
 - **Wiring**: the two insertion points above.
 - **Settings**: "Remember speakers" toggle (default off, requires speaker detection
   on) + profile list with per-profile delete + "Delete all voice profiles".
