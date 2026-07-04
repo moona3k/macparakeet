@@ -701,15 +701,28 @@ extension MeetingRecordingOutput {
         renderSummary: MeetingCleanedMicrophoneRenderSummary?,
         fileManager: FileManager
     ) -> MeetingEchoSuppressionMetadata {
-        if reason == .cleanedUsed,
-            renderSummary == nil,
+        if renderSummary == nil,
             let existing = try? MeetingRecordingMetadataStore.load(
                 from: folderURL,
                 fileManager: fileManager
             ).echoSuppression,
             existing.reasonCode == .cleanedUsed
         {
-            return existing
+            switch reason {
+            case .cleanedUsed:
+                return existing
+            case .rawInvalidArtifact:
+                return MeetingEchoSuppressionMetadata(
+                    reasonCode: reason,
+                    modelVersion: existing.modelVersion,
+                    renderDurationMs: existing.renderDurationMs,
+                    delayEstimateMs: existing.delayEstimateMs,
+                    probeBestCorrelation: existing.probeBestCorrelation
+                )
+            case .rawTimeout, .rawRenderFailed, .rawMissingSystemReference, .rawNoAECAssets,
+                    .skippedNoEchoPath:
+                break
+            }
         }
 
         return MeetingEchoSuppressionMetadata(

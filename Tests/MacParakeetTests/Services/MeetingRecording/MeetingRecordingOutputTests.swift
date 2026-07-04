@@ -205,6 +205,43 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(echo.probeBestCorrelation), 0.52, accuracy: 0.0001)
     }
 
+    func testResolvedSourcePreservesArchivedCleanedMetricsWhenArtifactTurnsInvalid() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data("partial m4a fragment".utf8).write(to: cleanedURL)
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                echoSuppression: MeetingEchoSuppressionMetadata(
+                    reasonCode: .cleanedUsed,
+                    modelVersion: "localvqe-v1.4-aec-200K-f32.gguf",
+                    renderDurationMs: 234,
+                    delayEstimateMs: 18,
+                    probeBestCorrelation: 0.52
+                )
+            ),
+            folderURL: dir
+        )
+        let output = makeOutput(
+            folderURL: dir,
+            microphoneAudioURL: rawURL,
+            cleanedMicrophoneAudioURL: cleanedURL
+        )
+
+        let decision = try await output.resolvedMicrophoneTranscriptionSource()
+
+        XCTAssertEqual(decision.reason, .rawInvalidArtifact)
+        let echo = try XCTUnwrap(MeetingRecordingMetadataStore.load(from: dir).echoSuppression)
+        XCTAssertEqual(echo.reasonCode, .rawInvalidArtifact)
+        XCTAssertEqual(echo.modelVersion, "localvqe-v1.4-aec-200K-f32.gguf")
+        XCTAssertEqual(echo.renderDurationMs, 234)
+        XCTAssertEqual(echo.delayEstimateMs, 18)
+        XCTAssertEqual(try XCTUnwrap(echo.probeBestCorrelation), 0.52, accuracy: 0.0001)
+    }
+
     func testResolvedSourcePersistsEchoSuppressionMetadataForNoEchoSkip() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
