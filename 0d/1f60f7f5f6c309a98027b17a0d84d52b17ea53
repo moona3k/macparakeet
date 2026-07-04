@@ -1,0 +1,27 @@
+docs/research/2026-07-03-asr-landscape-verified.md
+  s_4272d79a3d4bc7::t_67bfadda5d6f70 1-73
+spec/adr/026-asr-engine-strategy.md
+  s_4272d79a3d4bc7::t_8e75efa17b8429 1-153
+spec/README.md
+  s_4272d79a3d4bc7::t_0c44094f3dbd5b 114
+plans/README.md
+  s_4272d79a3d4bc7::t_e800a1304636d4 33
+plans/active/2026-07-03-stt-capability-registry.md
+  s_4272d79a3d4bc7::t_658c105bbc9ba1 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d1f60f7f5f6c309a98027b17a0d84d52b17ea53",
+  "prompts": {},
+  "sessions": {
+    "s_4272d79a3d4bc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a226cfe-1186-470e-9296-f0248af07152",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
