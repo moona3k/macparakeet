@@ -225,6 +225,13 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
         for url in requiredURLs where !FileManager.default.fileExists(atPath: url.path) {
             throw BenchmarkError.missingRequiredPath(url.path)
         }
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: source)
+        guard metadata.sourceAlignment.microphone != nil, metadata.sourceAlignment.system != nil else {
+            throw BenchmarkError.invalidFixture(
+                "Source metadata must include both microphone and system source alignment tracks before copying: \(source.path)"
+            )
+        }
     }
 
     private func loadRecording(from folderURL: URL) async throws -> MeetingRecordingOutput {
