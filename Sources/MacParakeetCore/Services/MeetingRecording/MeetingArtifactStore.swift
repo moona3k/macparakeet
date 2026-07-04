@@ -84,9 +84,25 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
     public static let promptResultsDirectoryName = "prompt-results"
 
     private let fileManager: FileManager
+    private let markdownWriter: @Sendable (String, String) throws -> Void
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
+        markdownWriter = { content, path in
+            try content.write(
+                toFile: path,
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        markdownWriter: @escaping @Sendable (String, String) throws -> Void
+    ) {
+        self.fileManager = fileManager
+        self.markdownWriter = markdownWriter
     }
 
     @discardableResult
@@ -151,6 +167,14 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             promptResultCount: promptResults.count,
             calendarEventSnapshot: transcription.calendarEventSnapshot
         )
+        if let markdownPath = artifactPaths.markdownPath {
+            let markdown = MeetingMarkdownRenderer().render(
+                transcription: transcription,
+                promptResults: promptResults,
+                artifactPaths: artifactPaths
+            )
+            try markdownWriter(markdown, markdownPath)
+        }
         try writeJSON(
             MeetingArtifactManifest(
                 snapshot: snapshot,
@@ -160,17 +184,6 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             ),
             to: manifestURL
         )
-        if let markdownPath = artifactPaths.markdownPath {
-            try MeetingMarkdownRenderer().render(
-                transcription: transcription,
-                promptResults: promptResults,
-                artifactPaths: artifactPaths
-            ).write(
-                toFile: markdownPath,
-                atomically: true,
-                encoding: .utf8
-            )
-        }
 
         return snapshot
     }

@@ -6,6 +6,10 @@ import XCTest
 final class MeetingArtifactStoreTests: XCTestCase {
     private var folderURL: URL!
 
+    private enum MarkdownWriteFailure: Error, Equatable {
+        case simulated
+    }
+
     override func setUpWithError() throws {
         folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MeetingArtifactStoreTests-\(UUID().uuidString)")
@@ -92,6 +96,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(markdown.contains("mixedAudioPath: \"\(transcription.filePath!)\""))
         XCTAssertTrue(markdown.contains("microphoneAudioPath: \"\(folderURL.appendingPathComponent("microphone.m4a").path)\""))
         XCTAssertTrue(markdown.contains("systemAudioPath: \"\(folderURL.appendingPathComponent("system.m4a").path)\""))
+        XCTAssertTrue(markdown.contains("metadataPath: \"\(MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)\""))
         XCTAssertTrue(markdown.contains("speakerLabelsIncluded: true"))
         XCTAssertTrue(markdown.contains("promptResultCount: 1"))
         XCTAssertTrue(markdown.contains("# Design Review"))
@@ -100,6 +105,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(markdown.contains("## Prompt Results"))
         XCTAssertTrue(markdown.contains("Executive Summary"))
         XCTAssertTrue(markdown.contains("## Artifacts"))
+        XCTAssertTrue(markdown.contains("- Metadata: \(MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)"))
 
         let notes = try String(contentsOf: MeetingNotesFile.fileURL(for: folderURL), encoding: .utf8)
         XCTAssertEqual(notes, "# Design Review\n\nDecision: ship\nOwner: Dana\n")
@@ -155,6 +161,39 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
+    }
+
+    func testMaterializeDoesNotPublishManifestWhenMarkdownWriteFails() async throws {
+        let transcription = makeMeeting(notes: "Draft note")
+        let store = MeetingArtifactStore(markdownWriter: { _, _ in
+            throw MarkdownWriteFailure.simulated
+        })
+
+        do {
+            _ = try await store.materialize(
+                transcription: transcription,
+                promptResults: []
+            )
+            XCTFail("Expected markdown write failure.")
+        } catch let error as MarkdownWriteFailure {
+            XCTAssertEqual(error, .simulated)
+        }
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path
+            )
+        )
     }
 
     func testMaterializeIncludesCleanedMicrophoneAudioPathWhenArtifactExists() async throws {

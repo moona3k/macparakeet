@@ -191,6 +191,7 @@ public struct MeetingMarkdownRenderer: Sendable {
         appendOptional("microphoneAudioPath", artifactPaths.microphoneAudioPath, to: &lines)
         appendOptional("systemAudioPath", artifactPaths.systemAudioPath, to: &lines)
         appendOptional("cleanedMicrophoneAudioPath", artifactPaths.cleanedMicrophoneAudioPath, to: &lines)
+        appendOptional("metadataPath", artifactPaths.metadataPath, to: &lines)
         lines.append("speakerLabelsIncluded: \(speakerLabelsIncluded ? "true" : "false")")
         lines.append("promptResultCount: \(promptResultCount)")
         lines.append("---")
@@ -280,6 +281,7 @@ public struct MeetingMarkdownRenderer: Sendable {
             ("Microphone audio", artifactPaths.microphoneAudioPath),
             ("System audio", artifactPaths.systemAudioPath),
             ("Cleaned microphone audio", artifactPaths.cleanedMicrophoneAudioPath),
+            ("Metadata", artifactPaths.metadataPath),
             ("Prompt results JSON", artifactPaths.promptResultsPath),
             ("Prompt results directory", artifactPaths.promptResultsDirectoryPath),
         ]

@@ -568,7 +568,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                 )
 
                 if stdout {
-                    try FileHandle.standardOutput.write(contentsOf: Data(content.utf8))
+                    FileHandle.standardOutput.write(Data(content.utf8))
                     return
                 }
 
