@@ -1,0 +1,23 @@
+docs/research/2026-07-04-voiceprints-phase0b-clean-corpus.md
+  s_35765baab2f0ed::t_a991ebea0e64fa 1-235
+docs/research/2026-07-04-voiceprints-phase0b/analyze_voiceprints.py
+  s_35765baab2f0ed::t_b399672e596a32 1-237
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_35765baab2f0ed::t_98b2d4cb605a55 4-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "25644e7e809ec9443706631dfadcbdc513ea4b36",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
