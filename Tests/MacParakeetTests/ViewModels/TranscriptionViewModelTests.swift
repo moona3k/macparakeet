@@ -61,6 +61,24 @@ final class TranscriptionViewModelTests: XCTestCase {
         }
     }
 
+    private func waitUntilAsync(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () async -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !(await condition()) {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
     override func setUp() {
         mockService = MockTranscriptionService()
         mockRepo = MockTranscriptionRepository()
@@ -1392,12 +1410,14 @@ final class TranscriptionViewModelTests: XCTestCase {
             SpeakerInfo(id: "S2", label: "Speaker 2")
         ]
         let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        var listRow = t
+        listRow.fileName = "library-row-title.wav"
         let other = Transcription(
             fileName: "other.wav",
             speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
             status: .completed
         )
-        mockRepo.transcriptions = [t, other]
+        mockRepo.transcriptions = [listRow, other]
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.currentTranscription = t
@@ -1407,6 +1427,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let updated = viewModel.transcriptions.first { $0.id == t.id }
         XCTAssertEqual(updated?.speakers?[0].label, "Sarah")
         XCTAssertEqual(updated?.speakers?[1].label, "Speaker 2")
+        XCTAssertEqual(updated?.fileName, "library-row-title.wav")
 
         let unchanged = viewModel.transcriptions.first { $0.id == other.id }
         XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
@@ -1417,7 +1438,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             SpeakerInfo(id: "S1", label: "Speaker 1"),
             SpeakerInfo(id: "S2", label: "Speaker 2")
         ]
-        let t = Transcription(
+        var t = Transcription(
             fileName: "meeting.wav",
             speakers: speakers,
             transcriptSegments: [
@@ -1432,6 +1453,8 @@ final class TranscriptionViewModelTests: XCTestCase {
             ],
             status: .completed
         )
+        let originalUpdatedAt = Date(timeIntervalSince1970: 1_234)
+        t.updatedAt = originalUpdatedAt
         let other = Transcription(
             fileName: "other.wav",
             speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
@@ -1450,11 +1473,13 @@ final class TranscriptionViewModelTests: XCTestCase {
         }
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
         XCTAssertEqual(viewModel.currentTranscription?.transcriptSegments?[0].speakerLabel, "Speaker 1")
+        XCTAssertEqual(viewModel.currentTranscription?.updatedAt, originalUpdatedAt)
 
         let reverted = viewModel.transcriptions.first { $0.id == t.id }
         XCTAssertEqual(reverted?.speakers?[0].label, "Speaker 1")
         XCTAssertEqual(reverted?.speakers?[1].label, "Speaker 2")
         XCTAssertEqual(reverted?.transcriptSegments?[0].speakerLabel, "Speaker 1")
+        XCTAssertEqual(reverted?.updatedAt, originalUpdatedAt)
 
         let unchanged = viewModel.transcriptions.first { $0.id == other.id }
         XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
@@ -1589,6 +1614,69 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.renameSpeaker(id: "S1", to: "  Alice  ")
 
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Alice")
+    }
+
+    func testRenameSpeakerRefreshesMeetingArtifactWithUpdatedLabels() async throws {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("speaker-rename-artifact-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0]))
+
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let meeting = Transcription(
+            fileName: "Design Review",
+            filePath: audioURL.path,
+            rawTranscript: "Hello there.",
+            wordTimestamps: [
+                WordTimestamp(
+                    word: "Hello",
+                    startMs: 0,
+                    endMs: 300,
+                    confidence: 0.99,
+                    speakerId: "S1"
+                ),
+                WordTimestamp(
+                    word: "there.",
+                    startMs: 320,
+                    endMs: 600,
+                    confidence: 0.98,
+                    speakerId: "S1"
+                ),
+            ],
+            speakers: speakers,
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        mockPromptResultRepo.promptResults = [
+            PromptResult(
+                transcriptionId: meeting.id,
+                promptName: "Summary",
+                promptContent: "Summarize.",
+                content: "Ship it."
+            )
+        ]
+
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        let calls = await artifactStore.materializeCalls
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.transcription.speakers?.first?.label, "Alice")
+        XCTAssertEqual(call.promptResults.count, 1)
+        XCTAssertEqual(viewModel.transcriptions.first?.speakers?.first?.label, "Alice")
     }
 
     func testRenameCurrentTranscriptionUpdatesStateAndRepo() {
@@ -2906,5 +2994,47 @@ final class TranscriptionViewModelTests: XCTestCase {
         }
 
         return (folderURL: folderURL, mixedURL: mixedURL)
+    }
+}
+
+private struct MaterializeCall: Sendable {
+    let transcription: Transcription
+    let promptResults: [PromptResult]
+}
+
+private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
+    private var calls: [MaterializeCall] = []
+
+    var materializeCalls: [MaterializeCall] {
+        calls
+    }
+
+    var materializeCallCount: Int {
+        calls.count
+    }
+
+    func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult]
+    ) async throws -> MeetingArtifactSnapshot {
+        calls.append(MaterializeCall(transcription: transcription, promptResults: promptResults))
+
+        let folderPath = MeetingArtifactStore.sessionFolderURL(for: transcription)?
+            .standardizedFileURL.path
+            ?? FileManager.default.temporaryDirectory.path
+        return MeetingArtifactSnapshot(
+            generatedAt: Date(),
+            meetingID: transcription.id,
+            title: transcription.fileName,
+            folderPath: folderPath,
+            manifestPath: "\(folderPath)/\(MeetingArtifactStore.manifestFileName)",
+            markdownPath: "\(folderPath)/\(MeetingArtifactStore.markdownFileName)",
+            transcriptPath: "\(folderPath)/\(MeetingArtifactStore.transcriptFileName)",
+            notesPath: nil,
+            promptResultsPath: "\(folderPath)/\(MeetingArtifactStore.promptResultsFileName)",
+            promptResultsDirectoryPath: "\(folderPath)/\(MeetingArtifactStore.promptResultsDirectoryName)",
+            promptResultCount: promptResults.count,
+            calendarEventSnapshot: transcription.calendarEventSnapshot
+        )
     }
 }

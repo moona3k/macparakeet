@@ -137,6 +137,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - Plain-text `retranscribe` validation/misuse failures now use exit code `2`,
   matching the JSON envelope path and the public exit-code contract.
 
+### Fixed
+
+- `transcribe --format json` now shields native STT diagnostics emitted
+  directly to stdout during inference and teardown, then restores stdout before
+  printing the payload. This keeps CoreML/E5RT runtime warnings from corrupting
+  JSON pipelines.
+
 ## [2.11.0] -- 2026-06-28
 
 ### Added

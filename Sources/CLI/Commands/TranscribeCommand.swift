@@ -61,6 +61,11 @@ struct ResolvedSpeakerDetection: Equatable, Sendable {
     let constraint: SpeakerDiarizationConstraint?
 }
 
+private enum TranscribeStdoutEmission {
+    case none
+    case transcription(Transcription, TranscribeOutputFormat)
+}
+
 struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
@@ -441,13 +446,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         )
         let writeToFiles = podcastQuery == nil && (resolvedInputs.count > 1 || outputDir != nil)
 
+        var stdoutRedirection: StandardOutputRedirection?
         var sttClient: STTClient?
         var nemotronEngine: NemotronEngine?
         var nemotronEnglishEngine: NemotronEnglishEngine?
         var whisperEngine: WhisperEngine?
         var cohereEngine: CohereTranscribeEngine?
-        let runResult: Result<Void, Error>
+        let runResult: Result<TranscribeStdoutEmission, Error>
         do {
+            stdoutRedirection = try StandardOutputRedirection()
             guard podcastQuery != nil || !resolvedInputs.isEmpty else {
                 throw ValidationError("No transcribable inputs found — pass a file/URL, or use --podcast \"<search query>\".")
             }
@@ -570,6 +577,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 diarizationService: diarizationService
             )
 
+            var stdoutEmission: TranscribeStdoutEmission = .none
             if let podcastQuery {
                 let result = try await withStandardOutputRedirectedToStandardError {
                     try await transcribePodcastQuery(
@@ -582,14 +590,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     let url = try await Self.writeOutput(result, to: dir, format: format)
                     printErr("  \u{2192} \(url.path)")
                 } else {
-                    switch format {
-                    case .json: try printJSON(result)
-                    case .transcript: printTranscript(result)
-                    case .text: printText(result)
-                    case .srt, .vtt:
-                        print(await Self.subtitleString(for: result, format: format), terminator: "")
-                    }
-                    printSaveHintIfSaved(result, format: format)
+                    stdoutEmission = .transcription(result, format)
                 }
             } else if writeToFiles {
                 try await withStandardOutputRedirectedToStandardError {
@@ -607,19 +608,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                         speechEngine: speechEngine
                     )
                 }
-                switch format {
-                case .json:
-                    try printJSON(result)
-                case .transcript:
-                    printTranscript(result)
-                case .text:
-                    printText(result)
-                case .srt, .vtt:
-                    print(await Self.subtitleString(for: result, format: format), terminator: "")
-                }
-                printSaveHintIfSaved(result, format: format)
+                stdoutEmission = .transcription(result, format)
             }
-            runResult = .success(())
+            runResult = .success(stdoutEmission)
         } catch {
             runResult = .failure(error)
         }
@@ -629,8 +620,44 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         await nemotronEnglishEngine?.unload()
         await whisperEngine?.unload()
         await cohereEngine?.unload()
-        try emitJSONOrRethrow(json: format == .json) {
-            try runResult.get()
+
+        let restoreResult: Result<Void, Error> = Result {
+            try stdoutRedirection?.restore()
+        }
+        try await emitJSONOrRethrow(json: format == .json) {
+            let emission = try Self.outputEmissionAfterNativeTeardown(
+                runResult: runResult,
+                restoreResult: restoreResult
+            )
+            try await emitStdout(emission)
+        }
+    }
+
+    static func outputEmissionAfterNativeTeardown<Emission>(
+        runResult: Result<Emission, Error>,
+        restoreResult: Result<Void, Error>
+    ) throws -> Emission {
+        let emission = try runResult.get()
+        try restoreResult.get()
+        return emission
+    }
+
+    private func emitStdout(_ emission: TranscribeStdoutEmission) async throws {
+        switch emission {
+        case .none:
+            return
+        case .transcription(let result, let outputFormat):
+            switch outputFormat {
+            case .json:
+                try printJSON(result)
+            case .transcript:
+                printTranscript(result)
+            case .text:
+                printText(result)
+            case .srt, .vtt:
+                print(await Self.subtitleString(for: result, format: outputFormat), terminator: "")
+            }
+            printSaveHintIfSaved(result, format: outputFormat)
         }
     }
 

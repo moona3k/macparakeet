@@ -4,6 +4,33 @@ import XCTest
 @testable import MacParakeetCore
 
 final class TranscribeCommandTests: XCTestCase {
+    private enum OutputTeardownError: Error, Equatable {
+        case run
+        case restore
+    }
+
+    func testOutputEmissionAfterNativeTeardownSurfacesRunErrorBeforeRestoreError() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.outputEmissionAfterNativeTeardown(
+                runResult: Result<String, Error>.failure(OutputTeardownError.run),
+                restoreResult: .failure(OutputTeardownError.restore)
+            )
+        ) { error in
+            XCTAssertEqual(error as? OutputTeardownError, .run)
+        }
+    }
+
+    func testOutputEmissionAfterNativeTeardownSurfacesRestoreErrorWhenRunSucceeds() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.outputEmissionAfterNativeTeardown(
+                runResult: Result<String, Error>.success("payload"),
+                restoreResult: .failure(OutputTeardownError.restore)
+            )
+        ) { error in
+            XCTAssertEqual(error as? OutputTeardownError, .restore)
+        }
+    }
+
     func testResolveProcessingModeUsesRawForAppDefaultWhenUnset() {
         let mode = TranscribeCommand.resolveProcessingMode(.appDefault, storedMode: nil)
         XCTAssertEqual(mode, .raw)

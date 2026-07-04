@@ -212,6 +212,7 @@ public final class TranscriptionViewModel {
     private static let configurationError = "Transcription services are unavailable. Please try again."
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
     private let defaults: UserDefaults
+    private let meetingArtifactStore: MeetingArtifactStoring
     private let isWhisperModelDownloaded: () -> Bool
     private let isNemotronModelDownloaded: () -> Bool
     private let isCohereModelDownloaded: () -> Bool
@@ -219,11 +220,13 @@ public final class TranscriptionViewModel {
 
     public init(
         defaults: UserDefaults = .standard,
+        meetingArtifactStore: MeetingArtifactStoring = MeetingArtifactStore(),
         isWhisperModelDownloaded: (() -> Bool)? = nil,
         isNemotronModelDownloaded: (() -> Bool)? = nil,
         isCohereModelDownloaded: (() -> Bool)? = nil
     ) {
         self.defaults = defaults
+        self.meetingArtifactStore = meetingArtifactStore
         self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
             WhisperEngine.isModelDownloaded(
                 model: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
@@ -1247,9 +1250,11 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
         let previousCurrentSpeakers = speakers
         let previousCurrentSegments = transcription.transcriptSegments
+        let previousCurrentUpdatedAt = transcription.updatedAt
         let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id })
         let previousListSpeakers = transcriptionIndex.flatMap { transcriptions[$0].speakers }
         let previousListSegments = transcriptionIndex.flatMap { transcriptions[$0].transcriptSegments }
+        let previousListUpdatedAt = transcriptionIndex.map { transcriptions[$0].updatedAt }
         let renameGeneration = (speakerRenameGenerations[transcription.id] ?? 0) + 1
         speakerRenameGenerations[transcription.id] = renameGeneration
         speakers[index].label = trimmed
@@ -1258,10 +1263,12 @@ public final class TranscriptionViewModel {
             in: transcription.transcriptSegments,
             using: speakers
         )
+        transcription.updatedAt = Date()
         currentTranscription = transcription
         if let transcriptionIndex {
             transcriptions[transcriptionIndex].speakers = speakers
             transcriptions[transcriptionIndex].transcriptSegments = transcription.transcriptSegments
+            transcriptions[transcriptionIndex].updatedAt = transcription.updatedAt
         }
         guard let transcriptionRepo else { return }
         let transcriptionID = transcription.id
@@ -1269,17 +1276,21 @@ public final class TranscriptionViewModel {
             weak self,
             transcriptionRepo,
             transcriptionID,
+            transcription,
             speakers,
             previousCurrentSpeakers,
             previousCurrentSegments,
+            previousCurrentUpdatedAt,
             previousListSpeakers,
             previousListSegments,
+            previousListUpdatedAt,
             renameGeneration
         ] in
             do {
                 try await Task.detached(priority: .utility) {
                     try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
                 }.value
+                self?.refreshMeetingArtifactBestEffort(for: transcription)
             } catch {
                 let errorType = TelemetryErrorClassifier.classify(error)
                 self?.handleSpeakerRenamePersistenceFailure(
@@ -1287,8 +1298,10 @@ public final class TranscriptionViewModel {
                     generation: renameGeneration,
                     previousCurrentSpeakers: previousCurrentSpeakers,
                     previousCurrentSegments: previousCurrentSegments,
+                    previousCurrentUpdatedAt: previousCurrentUpdatedAt,
                     previousListSpeakers: previousListSpeakers,
                     previousListSegments: previousListSegments,
+                    previousListUpdatedAt: previousListUpdatedAt,
                     errorType: errorType
                 )
             }
@@ -1300,22 +1313,52 @@ public final class TranscriptionViewModel {
         generation: Int,
         previousCurrentSpeakers: [SpeakerInfo],
         previousCurrentSegments: [TranscriptSegmentRecord]?,
+        previousCurrentUpdatedAt: Date,
         previousListSpeakers: [SpeakerInfo]?,
         previousListSegments: [TranscriptSegmentRecord]?,
+        previousListUpdatedAt: Date?,
         errorType: String
     ) {
         guard speakerRenameGenerations[transcriptionID] == generation else { return }
         if var currentTranscription, currentTranscription.id == transcriptionID {
             currentTranscription.speakers = previousCurrentSpeakers
             currentTranscription.transcriptSegments = previousCurrentSegments
+            currentTranscription.updatedAt = previousCurrentUpdatedAt
             self.currentTranscription = currentTranscription
         }
         if let index = transcriptions.firstIndex(where: { $0.id == transcriptionID }) {
             transcriptions[index].speakers = previousListSpeakers
             transcriptions[index].transcriptSegments = previousListSegments
+            if let previousListUpdatedAt {
+                transcriptions[index].updatedAt = previousListUpdatedAt
+            }
         }
         setError(message: "Failed to save speaker rename. The previous label was restored.")
         logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")
+    }
+
+    private func refreshMeetingArtifactBestEffort(for transcription: Transcription) {
+        guard transcription.sourceType == .meeting,
+              MeetingArtifactStore.sessionFolderURL(for: transcription) != nil
+        else {
+            return
+        }
+
+        let artifactStore = meetingArtifactStore
+        let promptResultRepo = promptResultRepo
+        let logger = logger
+        Task.detached(priority: .utility) {
+            do {
+                let promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcription.id) ?? []
+                _ = try await artifactStore.materialize(
+                    transcription: transcription,
+                    promptResults: promptResults
+                )
+            } catch {
+                let errorType = TelemetryErrorClassifier.classify(error)
+                logger.error("speaker_rename_artifact_refresh_failed error_type=\(errorType, privacy: .public)")
+            }
+        }
     }
 
     public func renameCurrentTranscription(to newFileName: String) {

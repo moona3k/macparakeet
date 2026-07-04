@@ -236,6 +236,53 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertTrue(markdownExportOutput.contains("promptResultCount: 1"))
     }
 
+    func testMarkdownExportUsesCurrentSpeakerLabels() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Speaker Review",
+            rawTranscript: "Stored plain transcript.",
+            wordTimestamps: [
+                WordTimestamp(
+                    word: "Hello",
+                    startMs: 0,
+                    endMs: 300,
+                    confidence: 0.99,
+                    speakerId: "S1"
+                ),
+                WordTimestamp(
+                    word: "there.",
+                    startMs: 320,
+                    endMs: 600,
+                    confidence: 0.98,
+                    speakerId: "S1"
+                ),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Alice")],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(meeting)
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "md",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        let output = try await captureStandardOutput {
+            try await exportCommand.run()
+        }
+
+        XCTAssertTrue(output.contains("## Transcript"))
+        XCTAssertTrue(output.contains("speakerLabelsIncluded: true"))
+        XCTAssertTrue(output.contains("**Alice**"))
+        XCTAssertTrue(output.contains("Hello there."))
+        XCTAssertFalse(output.contains("Stored plain transcript."))
+    }
+
     func testMeetingJSONSurfacesExposeTranscriptSegments() async throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
