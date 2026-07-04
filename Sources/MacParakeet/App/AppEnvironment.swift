@@ -354,8 +354,7 @@ final class AppEnvironment {
         meetingRecordingRecoveryService = MeetingRecordingRecoveryService(
             lockFileStore: meetingRecordingLockFileStore,
             transcriptionService: transcriptionService,
-            transcriptionRepo: transcriptionRepo,
-            settlement: meetingRecordingSettlement
+            transcriptionRepo: transcriptionRepo
         )
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)

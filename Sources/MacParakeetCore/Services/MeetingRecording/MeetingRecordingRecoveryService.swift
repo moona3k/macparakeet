@@ -58,7 +58,6 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        settlement: MeetingRecordingSettlement? = nil,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
@@ -68,10 +67,6 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             lockFileStore: lockFileStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
-            settlement: settlement ?? MeetingRecordingSettlement(
-                lockFileStore: lockFileStore,
-                transcriptionRepo: transcriptionRepo
-            ),
             audioConverter: audioConverter,
             fileManager: fileManager,
             micConditionerFactory: {
