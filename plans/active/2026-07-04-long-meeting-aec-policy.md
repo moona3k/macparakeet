@@ -64,7 +64,7 @@ inside the readiness cap.
 
 ### Design (settled — do not re-litigate)
 
-- Add to `MeetingCleanedMicrophoneRenderPolicy`
+- Add to `MeetingCleanedMicrophoneReadinessPolicy`
   (`Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicrophoneReadiness.swift:13-46`):
   - a constant `bestMeasuredRealtimeFactor: Double = 12.0` with a comment
     citing `docs/audits/2026-07-04-localvqe-aec-runtime-findings.md` (measured
@@ -190,7 +190,7 @@ runs on separate branches off `origin/main`.
 > specified in `plans/active/2026-07-04-long-meeting-aec-policy.md` Phase 1a.
 > Read `docs/audits/2026-07-04-long-meeting-aec-diarization-queue-followup.md`
 > for context. Settled decisions: guard lives on
-> `MeetingCleanedMicrophoneRenderPolicy`; optimistic factor 12.0 derived-not-
+> `MeetingCleanedMicrophoneReadinessPolicy`; optimistic factor 12.0 derived-not-
 > hardcoded threshold; new routing reason, log-only telemetry; guard applied in
 > `MeetingRecordingService.scheduleCleanedMicrophoneRender` AND the recovery
 > service; unknown duration attempts render. Fences: do not touch the
