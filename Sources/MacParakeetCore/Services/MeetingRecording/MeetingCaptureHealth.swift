@@ -185,6 +185,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         microphoneStarted: Bool,
         interruptedSources: Set<AudioSource>,
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
+        systemStartedWithoutBufferTimedOut: Bool,
         captureFailed: Bool
     ) -> MeetingCaptureHealthSummary {
         let microphone = sourceHealth(
@@ -196,6 +197,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             microphoneStarted: microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
         let system = sourceHealth(
@@ -207,6 +209,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             microphoneStarted: microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
         return MeetingCaptureHealthSummary(
@@ -225,6 +228,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         microphoneStarted: Bool,
         interruptedSources: Set<AudioSource>,
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
+        systemStartedWithoutBufferTimedOut: Bool,
         captureFailed: Bool
     ) -> MeetingSourceHealth {
         let selected = source == .microphone
@@ -291,6 +295,16 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
                     recoveryAction: .openMicrophoneSettings
                 )
             }
+        }
+
+        if source == .system, systemStartedWithoutBufferTimedOut {
+            return MeetingSourceHealth(
+                source: .system,
+                status: .stalled,
+                level: 0,
+                lastBufferAt: lastBufferAt,
+                recoveryAction: .restartRecording
+            )
         }
 
         guard let lastBufferAt else {

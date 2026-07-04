@@ -123,6 +123,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         var sourceMode: MeetingAudioSourceMode?
         var requestedMicMode: MeetingMicProcessingMode?
         var effectiveMicMode: MeetingMicProcessingEffectiveMode?
+        var captureStartedAt: Date?
         var microphoneStarted = false
         var microphoneFirstBufferSeen = false
         var systemFirstBufferSeen = false
@@ -269,6 +270,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let systemDominanceRatio: Float = 10.0
     private static let systemActiveFloor: Float = 0.02
     private static let systemSignalFreshnessWindow: Duration = .milliseconds(750)
+    private static let systemFirstBufferStallGraceSeconds: TimeInterval = 12
     private static let rmsEpsilon: Float = 0.0001
     private static let chunkSignalFloor: Float = 0.00025
     private static let syncLagEmaAlpha: Double = 0.2
@@ -403,8 +405,26 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneStarted: captureHealthMetrics.microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
+    }
+
+    private var systemStartedWithoutBufferTimedOut: Bool {
+        guard !paused,
+              !captureFailed,
+              captureHealthMetrics.sourceMode?.capturesSystemAudio == true,
+              sourceHealthLastBufferAt[.system] == nil,
+              !interruptedSources.contains(.system),
+              let captureStartedAt = captureHealthMetrics.captureStartedAt
+        else {
+            return false
+        }
+
+        return activeRecordingSeconds(
+            startedAt: captureStartedAt,
+            asOf: wallClockNow()
+        ) >= Self.systemFirstBufferStallGraceSeconds
     }
 
     /// Wallclock-since-start minus all pause time (completed + ongoing).
@@ -532,6 +552,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             captureHealthMetrics.sourceMode = captureStartReport.sourceMode
             captureHealthMetrics.requestedMicMode = captureStartReport.microphone.requestedMode
             captureHealthMetrics.effectiveMicMode = captureStartReport.microphone.effectiveMode
+            captureHealthMetrics.captureStartedAt = wallClockNow()
             captureHealthMetrics.microphoneStarted = captureStartReport.microphoneStarted
             configureMicConditioner(from: captureStartReport)
             processingTask = Task { [weak self] in

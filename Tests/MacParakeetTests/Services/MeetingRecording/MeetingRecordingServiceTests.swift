@@ -774,6 +774,54 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
+    func testCaptureHealthMarksStartedSystemWithoutBuffersStalledAfterGraceAndRecoversOnFirstBuffer() async throws {
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            },
+            wallClockNow: {
+                wallClock.now
+            }
+        )
+
+        try await service.startRecording()
+        wallClock.advance(by: 11)
+        await service.pauseRecording()
+        wallClock.advance(by: 5)
+
+        let pausedHealth = await service.captureHealth
+        XCTAssertEqual(pausedHealth.system.status, .starting)
+
+        await service.resumeRecording()
+        wallClock.advance(by: 1.1)
+
+        let stalledHealth = await service.captureHealth
+        XCTAssertEqual(stalledHealth.system.status, .stalled)
+        XCTAssertEqual(stalledHealth.system.label, "System may be stalled")
+        XCTAssertEqual(stalledHealth.system.recoveryAction, .restartRecording)
+        XCTAssertNil(stalledHealth.system.lastBufferAt)
+        XCTAssertEqual(stalledHealth.primaryMessage, "System may be stalled")
+
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let recoveredHealth = try await waitForCaptureHealth(service) {
+            $0.system.status == .live
+        }
+        XCTAssertEqual(recoveredHealth.system.label, "System live")
+        XCTAssertNil(recoveredHealth.primaryMessage)
+
+        await service.cancelRecording()
+    }
+
     func testCaptureHealthMarksMicStallAndRecovery() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let service = MeetingRecordingService(
