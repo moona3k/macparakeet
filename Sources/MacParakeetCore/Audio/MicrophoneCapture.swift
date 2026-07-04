@@ -169,7 +169,7 @@ public func meetingInputDeviceAttempts(
                 policyReason = "explicit_selection_resolved"
             }
             policyOutcome = shouldAvoidDefaultOutput
-                ? (hasResolvedSelection ? "skipped" : "fired")
+                ? "fired"
                 : "skipped"
         }
 
@@ -218,7 +218,7 @@ public func meetingInputDeviceAttempts(
             }
         }
     }
-    AudioCaptureDiagnostics.append(
+    AudioCaptureDiagnostics.appendAsync(
         "mic_attempts_bluetooth_output_policy preference=\(preferBuiltInWhenOutputIsBluetooth ? "on" : "off") explicit_selection_resolved=\(hasResolvedSelection) default_output_transport=\(defaultOutputTransport) outcome=\(policyOutcome) reason=\(policyReason)"
     )
 
@@ -561,16 +561,22 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 let error = MeetingAudioError.captureRuntimeFailure(
                     "microphone capture started but delivered no buffers within 2 seconds"
                 )
-                let elapsedSeconds = String(format: "%.3f", Self.firstBufferTimeoutSeconds)
+                let observer = self.handlerLock.withLock { self.stallObserver }
+                observer?(error)
+
+                let elapsedSeconds = String(
+                    format: "%.3f",
+                    locale: Locale(identifier: "en_US_POSIX"),
+                    Self.firstBufferTimeoutSeconds
+                )
                 let isRunning = self.sharedStream.diagnostics.engineRunning
                 let defaultInput = AudioCaptureDiagnostics.defaultInputDeviceSummary()
                 self.logger.warning(
                     "microphone_capture_no_buffers_within_timeout elapsed_s=\(elapsedSeconds, privacy: .public) isRunning=\(isRunning, privacy: .public) \(defaultInput, privacy: .public)"
                 )
-                AudioCaptureDiagnostics.append(
+                AudioCaptureDiagnostics.appendAsync(
                     "meeting_mic_capture_no_buffers_within_timeout elapsed_s=\(elapsedSeconds) isRunning=\(isRunning) \(defaultInput)"
                 )
-                self.handlerLock.withLock { self.stallObserver }?(error)
             }
             watchdogWorkItem = item
             return item
