@@ -8,6 +8,8 @@ Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryService
   s_ba73a609112b65::t_df5fef1c4f517e 331
 spec/contracts/meeting-artifacts-v1.md
   s_ba73a609112b65::t_762d0510a1796d 57-60
+  s_ba73a609112b65::t_4c5232e1d95597 50
+  s_ba73a609112b65::t_dc69bf3d714b7c 51-55
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicrophoneReadiness.swift
   s_ba73a609112b65::t_5292fcefe89479 590-599,608-609,616-623,626-627,629-631,633-635,637-638,643-645,647-652,655-673,675-686,699-708
   s_ba73a609112b65::t_3fd95de4eb77db 407,480,482,497,499-532,535-536,548-549
