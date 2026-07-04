@@ -1,10 +1,12 @@
 spec/contracts/meeting-artifacts-v1.md
   s_c991c073876a88::t_860272808b3394 60-62,93,114-117,120-121
   s_c991c073876a88::t_61959df96fc0d3 118-119
+  s_43784a8bbb773b::t_5c1282d038ef05 105-106
 Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
   s_c991c073876a88::t_6e87134b8b422f 1552-1563,1578,1583,2720-2723,2752-2753
 Sources/MacParakeetCore/Database/DatabaseManager.swift
   s_c991c073876a88::t_c0e1c9b990bf17 1044,1050-1051
+  s_43784a8bbb773b::t_5c1282d038ef05 1043,1045-1049
 Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
   s_c991c073876a88::t_6e87134b8b422f 232-242
 spec/contracts/cli-json-v1.md
@@ -34,6 +36,7 @@ Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
   s_c991c073876a88::t_6e87134b8b422f 94-117
 spec/01-data-model.md
   s_c991c073876a88::t_860272808b3394 115,158,593,1134-1135
+  s_43784a8bbb773b::t_5c1282d038ef05 1157
 Sources/MacParakeetCore/AppRuntimePreferences.swift
   s_c991c073876a88::t_779530fcc8e09f 360
 Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
@@ -64,6 +67,14 @@ Sources/MacParakeetCore/Models/Transcription.swift
   "base_commit_sha": "46336e949f1750f8d2d26d745f77d0b9c96655d7",
   "prompts": {},
   "sessions": {
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
     "s_c991c073876a88": {
       "agent_id": {
         "tool": "codex",
