@@ -43,10 +43,6 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
         calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
-    func completeTranscription(for recording: MeetingRecordingOutput) async
-    /// Mark the final transcription attempt as ended without deleting the
-    /// recovery lock, leaving it available for retry.
-    func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async
     func cancelRecording() async
     /// Pause an active recording. No-op when no session is active or when
     /// already paused. The OS-level capture stays running (mic + ScreenCaptureKit
@@ -64,7 +60,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// Persist the user's in-flight notepad text to the recording's lock file
     /// without changing the recording state. Called by the notes view model on
     /// every idle-debounce fire (ADR-020 §8). All `recording.lock` writes are
-    /// serialized through this actor — no other component touches the file —
+    /// serialized through this actor — no other component writes the file
+    /// (completion-path deletion is owned by `MeetingRecordingSettlement`) —
     /// so notes-saves cannot race with state-transition writes.
     func updateNotes(_ notes: String) async
     var isRecording: Bool { get async }
@@ -740,20 +737,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
         cleanupState()
         return output
-    }
-
-    public func completeTranscription(for recording: MeetingRecordingOutput) async {
-        do {
-            try lockFileStore.delete(folderURL: recording.folderURL)
-        } catch {
-            logger.error("meeting_recording_lock_cleanup_failed session=\(recording.sessionID.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-        }
-        await finishTranscriptionAttempt(for: recording)
-    }
-
-    public func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {
-        // The speech-engine lease is released at the durable stop boundary.
-        // Queue completion may happen while another meeting is recording.
     }
 
     public func updateNotes(_ notes: String) async {

@@ -12,9 +12,11 @@ actions, and protect folders from automatic destructive sweeps.
 ## Producers
 
 - `MeetingRecordingService`: writes and rewrites `recording.lock` during
-  capture, stop, notes updates, and background finalization.
+  capture, stop, and notes updates.
+- `MeetingRecordingSettlement`: the only completion-path owner allowed to
+  delete `recording.lock` after final transcription.
 - `MeetingRecordingRecoveryService`: reads orphaned locks, recovers audio, and
-  deletes locks only after successful completion or explicit cleanup.
+  routes completed-session lock cleanup through settlement.
 - `MeetingAudioRetentionSweeper`: detaches completed meeting audio after the
   configured retention window.
 - `history clear-meeting-audio`: refuses clear-all when any readable lock
@@ -88,6 +90,34 @@ A malformed lock is a recovery or diagnostic problem, not permission to delete
 audio. Deletion is allowed only through explicit user discard/cleanup flows or
 after recovery/finalization removes the lock.
 
+## Lock Deletion Authority
+
+Completion-path lock deletion is centralized in
+`MeetingRecordingSettlement`. Callers must pass the session folder,
+transcription id, and session id; settlement re-fetches the `Transcription`
+row and refuses to delete `recording.lock` unless the row exists, is a meeting
+transcription for that artifact folder, and has `status == .completed`.
+Lock-delete I/O failures are logged and rethrown so callers can surface the
+failed cleanup (for example, discard must not report success while
+`recording.lock` is still on disk); the lock remains protective and recovery
+can re-settle the completed row on a later scan. On the transcription-queue
+path a settlement error after a successful finalize is caught by the queue:
+the completed transcript is already durably saved, so the queue still reports
+success and leaves the lock for recovery to re-settle.
+
+The non-settlement deletion paths are intentionally limited to flows that are
+not final-transcription completion:
+
+- `MeetingRecordingService.cancelRecording()`: user cancel deletes the lock
+  and session folder because the user explicitly discarded the active capture.
+- Failed-start / failed-capture cleanup in `MeetingRecordingService`: startup
+  or no-audio failures delete the lock while also removing the unusable session
+  folder before any stopped recording is offered for transcription.
+- `MeetingRecordingRecoveryService.discard(_:)`: user discard of an incomplete
+  recovery removes the session folder. If a completed transcription already
+  exists, discard preserves the folder/audio and uses settlement to delete only
+  the lock.
+
 ## Non-Stable Fields
 
 - PID liveness is process-local and time-sensitive.
@@ -105,14 +135,21 @@ must preserve the file-presence retention barrier.
 ## Tests that enforce this
 
 - `MeetingRecordingLockFileStoreTests`
+- `MeetingRecordingSettlementTests`
 - `MeetingRecordingRecoveryServiceTests`
+- `MeetingTranscriptionQueueTests`
 - `MeetingAudioRetentionPolicyTests`
 - `MeetingAudioRetentionSweeperTests`
+- `MeetingRecordingServiceTests`
 
 Focused coverage pins dead-PID `awaitingTranscription` reads, the distinction
 between active-session discovery and retention safety, completed recovery lock
 cleanup, and retention sweeps skipping valid, zero-byte, corrupt, and
-future-schema lock files.
+future-schema lock files. Settlement coverage pins refusal for missing or
+non-completed rows, rethrown delete I/O failure (including discard surfacing a
+retained lock and staying retryable), queue success/failure lock behavior, and
+crash-point convergence for awaiting locks with no row, processing rows, and
+completed rows whose lock is still present.
 
 ## When this changes
 

@@ -116,6 +116,7 @@ final class MeetingRecordingFlowCoordinator {
         },
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
+        meetingRecordingSettlement: MeetingRecordingSettlement,
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
@@ -143,7 +144,7 @@ final class MeetingRecordingFlowCoordinator {
             meetingTranscriptionQueue
             ?? MeetingTranscriptionQueue(
                 transcriptionService: transcriptionService,
-                meetingRecordingService: meetingRecordingService
+                meetingRecordingSettlement: meetingRecordingSettlement
             )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
@@ -702,9 +703,8 @@ final class MeetingRecordingFlowCoordinator {
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
-                    if let stoppedOutput {
-                        await meetingRecordingService.finishTranscriptionAttempt(for: stoppedOutput)
-                    }
+                    // If stop already succeeded, the lock is already
+                    // awaitingTranscription. Leave it for recovery to retry.
                     if error is CancellationError {
                         self.sendMeetingOperation(
                             outcome: .cancelled,

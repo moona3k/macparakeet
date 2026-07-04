@@ -29,7 +29,7 @@ final class MeetingTranscriptionQueue {
 
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingTranscriptionQueue")
     private let transcriptionService: TranscriptionServiceProtocol
-    private let meetingRecordingService: MeetingRecordingServiceProtocol
+    private let meetingRecordingSettlement: MeetingRecordingSettlement
 
     private var pendingItems: [Item] = []
     private var activeItem: Item?
@@ -41,10 +41,10 @@ final class MeetingTranscriptionQueue {
 
     init(
         transcriptionService: TranscriptionServiceProtocol,
-        meetingRecordingService: MeetingRecordingServiceProtocol
+        meetingRecordingSettlement: MeetingRecordingSettlement
     ) {
         self.transcriptionService = transcriptionService
-        self.meetingRecordingService = meetingRecordingService
+        self.meetingRecordingSettlement = meetingRecordingSettlement
     }
 
     var snapshot: Snapshot {
@@ -77,23 +77,35 @@ final class MeetingTranscriptionQueue {
     }
 
     private func process(_ item: Item) async {
+        let transcription: Transcription
         do {
-            let transcription = try await Observability.withOperationContext(item.operationContext) {
+            transcription = try await Observability.withOperationContext(item.operationContext) {
                 try await transcriptionService.finalizeMeetingTranscription(
                     recording: item.recording,
                     updating: item.transcriptionID,
                     onProgress: nil
                 )
             }
-            await meetingRecordingService.completeTranscription(for: item.recording)
-            finishActiveItem(.success(item: item, transcription: transcription))
         } catch {
             logger.error(
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            await meetingRecordingService.finishTranscriptionAttempt(for: item.recording)
             finishActiveItem(.failure(item: item, error: error))
+            return
         }
+
+        do {
+            try await meetingRecordingSettlement.settleCompletedTranscription(
+                folderURL: item.recording.folderURL,
+                transcriptionID: transcription.id,
+                sessionID: item.recording.sessionID
+            )
+        } catch {
+            logger.error(
+                "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+        finishActiveItem(.success(item: item, transcription: transcription))
     }
 
     private func finishActiveItem(_ completion: Completion) {

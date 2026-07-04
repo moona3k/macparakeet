@@ -167,6 +167,12 @@ post-stop pipeline:
    true` flag (new column or boolean in metadata).
 5. Delete `recording.lock` after successful save.
 
+The marker deletion step is owned by `MeetingRecordingSettlement`, which
+re-fetches the saved row and removes the lock only after verifying a completed
+meeting `Transcription` for that artifact folder. See the lock deletion
+authority rule in
+[`spec/contracts/meeting-recovery-retention.md`](../contracts/meeting-recovery-retention.md#lock-deletion-authority).
+
 Declining the prompt **keeps** the lock file and audio — the user
 can retry recovery later from a Settings affordance ("Pending
 recovery: 1 partial recording").
