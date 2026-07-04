@@ -489,6 +489,32 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertNotNil(defaults.string(forKey: OnboardingViewModel.onboardingCompletedKey))
     }
 
+    func testStartNewCurrentRunClearsCurrentProgressButKeepsPersistedCompletion() {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            now: { clock.now() }
+        )
+        _ = vm.markOnboardingCompleted()
+        vm.jump(to: .done)
+
+        clock.set(Date(timeIntervalSince1970: 200))
+        vm.startNewCurrentRun()
+
+        XCTAssertEqual(vm.step, .welcome)
+        XCTAssertTrue(vm.hasCompletedOnboarding)
+        XCTAssertFalse(vm.hasCompletedCurrentRun)
+        XCTAssertNotNil(defaults.string(forKey: OnboardingViewModel.onboardingCompletedKey))
+    }
+
     func testNoMeetingRecordingOrCalendarStepsInFlow() {
         let steps = OnboardingViewModel.visibleSteps
         let allCases = OnboardingViewModel.Step.allCases

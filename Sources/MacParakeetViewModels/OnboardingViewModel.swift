@@ -207,10 +207,18 @@ public final class OnboardingViewModel {
         sendStepTelemetry(step: step, action: .dismissed)
     }
 
+    public func startNewCurrentRun() {
+        resetCurrentRunState()
+    }
+
     public func resetOnboarding() {
         defaults.removeObject(forKey: Self.onboardingCompletedKey)
-        step = .welcome
+        resetCurrentRunState()
         engineState = .idle
+    }
+
+    private func resetCurrentRunState() {
+        step = .welcome
         startedAt = now()
         didEmitInitialStep = false
         completionForCurrentRun = nil
