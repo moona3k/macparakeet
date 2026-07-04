@@ -2,6 +2,40 @@ import XCTest
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
+private final class SlowFirstSpeakerUpdateFailure: @unchecked Sendable {
+    private let lock = NSLock()
+    private var startedFirstUpdate = false
+    private var updateCount = 0
+
+    var firstUpdateStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return startedFirstUpdate
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return updateCount
+    }
+
+    func handleUpdate(id _: UUID, speakers _: [SpeakerInfo]?) throws {
+        let callNumber: Int
+        lock.lock()
+        updateCount += 1
+        callNumber = updateCount
+        if callNumber == 1 {
+            startedFirstUpdate = true
+        }
+        lock.unlock()
+
+        if callNumber == 1 {
+            Thread.sleep(forTimeInterval: 0.2)
+            throw NSError(domain: "test", code: 1)
+        }
+    }
+}
+
 @MainActor
 final class TranscriptionViewModelTests: XCTestCase {
     var viewModel: TranscriptionViewModel!
@@ -1299,7 +1333,104 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
     }
 
-    func testRenameSpeakerPersistsToRepo() {
+    func testRenameSpeakerUpdatesMatchingTranscriptionsRow() {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        let other = Transcription(
+            fileName: "other.wav",
+            speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
+            status: .completed
+        )
+        mockRepo.transcriptions = [t, other]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Sarah")
+
+        let updated = viewModel.transcriptions.first { $0.id == t.id }
+        XCTAssertEqual(updated?.speakers?[0].label, "Sarah")
+        XCTAssertEqual(updated?.speakers?[1].label, "Speaker 2")
+
+        let unchanged = viewModel.transcriptions.first { $0.id == other.id }
+        XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
+    }
+
+    func testRenameSpeakerPersistenceFailureRevertsInMemoryState() async throws {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        let other = Transcription(
+            fileName: "other.wav",
+            speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
+            status: .completed
+        )
+        mockRepo.transcriptions = [t, other]
+        mockRepo.updateSpeakersError = NSError(domain: "test", code: 1)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Sarah")
+
+        try await waitUntil {
+            self.viewModel.currentTranscription?.speakers?[0].label == "Speaker 1"
+        }
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
+
+        let reverted = viewModel.transcriptions.first { $0.id == t.id }
+        XCTAssertEqual(reverted?.speakers?[0].label, "Speaker 1")
+        XCTAssertEqual(reverted?.speakers?[1].label, "Speaker 2")
+
+        let unchanged = viewModel.transcriptions.first { $0.id == other.id }
+        XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
+        XCTAssertEqual(mockRepo.updateSpeakersCalls.count, 1)
+        XCTAssertEqual(viewModel.errorMessage, "Failed to save speaker rename. The previous label was restored.")
+    }
+
+    func testRenameSpeakerStaleFailureDoesNotClobberLaterSuccessfulRename() async throws {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        let probe = SlowFirstSpeakerUpdateFailure()
+        mockRepo.transcriptions = [t]
+        mockRepo.updateSpeakersHandler = { id, speakers in
+            try probe.handleUpdate(id: id, speakers: speakers)
+        }
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+        try await waitUntil {
+            probe.firstUpdateStarted
+        }
+
+        viewModel.renameSpeaker(id: "S1", to: "Bob")
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Bob")
+
+        try await waitUntil {
+            probe.count == 2
+        }
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Bob")
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
+
+        let updated = viewModel.transcriptions.first { $0.id == t.id }
+        XCTAssertEqual(updated?.speakers?[0].label, "Bob")
+        XCTAssertEqual(updated?.speakers?[1].label, "Speaker 2")
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testRenameSpeakerPersistsToRepo() async throws {
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
         let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
         mockRepo.transcriptions = [t]
@@ -1309,6 +1440,9 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         viewModel.renameSpeaker(id: "S1", to: "Alice")
 
+        try await waitUntil {
+            self.mockRepo.updateSpeakersCalls.count == 1
+        }
         XCTAssertEqual(mockRepo.updateSpeakersCalls.count, 1)
         XCTAssertEqual(mockRepo.updateSpeakersCalls[0].speakers?[0].label, "Alice")
     }

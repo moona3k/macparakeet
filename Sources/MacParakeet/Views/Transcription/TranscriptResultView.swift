@@ -2935,7 +2935,7 @@ struct TranscriptResultView: View {
                         .fill(DesignSystem.Colors.surfaceElevated.opacity(0.45))
                 )
             }
-            Text("Speaker labels are approximate. Click a name to rename.")
+            Text("Speaker labels are approximate.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
             } // end if speakerOverviewExpanded
@@ -2961,34 +2961,62 @@ struct TranscriptResultView: View {
                     commitSpeakerRename()
                 }
                 .onExitCommand {
-                    editingSpeakerId = nil
+                    cancelSpeakerRename()
                 }
                 .onChange(of: speakerRenameFocused) {
                     if !speakerRenameFocused {
                         commitSpeakerRename()
                     }
                 }
+                .accessibilityLabel("Speaker name")
+                .accessibilityHint("Press Return or move focus away to save. Press Escape to cancel.")
         } else {
-            Text(speaker.label)
-                .font(DesignSystem.Typography.caption.weight(.semibold))
-                .foregroundStyle(color)
-                .onTapGesture {
-                    // Commit any in-flight rename before switching
-                    if editingSpeakerId != nil {
-                        commitSpeakerRename()
+            HStack(spacing: 6) {
+                Text(speaker.label)
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(color)
+                    .onTapGesture {
+                        beginSpeakerRename(speaker)
                     }
-                    editingSpeakerId = speaker.id
-                    editingSpeakerLabel = speaker.label
+
+                Button {
+                    beginSpeakerRename(speaker)
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 20, height: 20)
                 }
-                .help("Click to rename")
+                .parakeetAction(.subtle)
+                .controlSize(.small)
+                .help("Rename \(speaker.label)")
+                .accessibilityLabel("Rename \(speaker.label)")
+                .accessibilityHint("Edits this speaker label for this meeting only.")
+            }
         }
+    }
+
+    private func beginSpeakerRename(_ speaker: SpeakerInfo) {
+        if editingSpeakerId != nil, editingSpeakerId != speaker.id {
+            commitSpeakerRename()
+        }
+        editingSpeakerId = speaker.id
+        editingSpeakerLabel = speaker.label
     }
 
     private func commitSpeakerRename() {
         guard let speakerId = editingSpeakerId else { return }
-        viewModel.renameSpeaker(id: speakerId, to: editingSpeakerLabel)
-        rebuildSegmentCache()
+        let trimmed = editingSpeakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            viewModel.renameSpeaker(id: speakerId, to: trimmed)
+            rebuildSegmentCache()
+        }
+        cancelSpeakerRename()
+    }
+
+    private func cancelSpeakerRename() {
         editingSpeakerId = nil
+        editingSpeakerLabel = ""
+        speakerRenameFocused = false
     }
 
 

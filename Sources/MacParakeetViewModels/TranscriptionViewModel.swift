@@ -206,6 +206,7 @@ public final class TranscriptionViewModel {
     private var activeProgressWhisperVariant: String?
     private var activeProgressNemotronVariant: NemotronModelVariant?
     private var activeDropRequestID: UUID?
+    private var speakerRenameGenerations: [UUID: Int] = [:]
     private var dropPendingCount = 0
     private var dropCollectedURLs: [URL] = []
     private static let configurationError = "Transcription services are unavailable. Please try again."
@@ -1244,14 +1245,54 @@ public final class TranscriptionViewModel {
         guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else { return }
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
+        let previousCurrentSpeakers = speakers
+        let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id })
+        let previousListSpeakers = transcriptionIndex.flatMap { transcriptions[$0].speakers }
+        let renameGeneration = (speakerRenameGenerations[transcription.id] ?? 0) + 1
+        speakerRenameGenerations[transcription.id] = renameGeneration
         speakers[index].label = trimmed
         transcription.speakers = speakers
         currentTranscription = transcription
-        do {
-            try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
-        } catch {
-            logger.error("Failed to persist speaker rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
+        if let transcriptionIndex {
+            transcriptions[transcriptionIndex].speakers = speakers
         }
+        guard let transcriptionRepo else { return }
+        let transcriptionID = transcription.id
+        Task { [weak self, transcriptionRepo, transcriptionID, speakers, previousCurrentSpeakers, previousListSpeakers, renameGeneration] in
+            do {
+                try await Task.detached(priority: .utility) {
+                    try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
+                }.value
+            } catch {
+                let errorType = TelemetryErrorClassifier.classify(error)
+                self?.handleSpeakerRenamePersistenceFailure(
+                    transcriptionID: transcriptionID,
+                    generation: renameGeneration,
+                    previousCurrentSpeakers: previousCurrentSpeakers,
+                    previousListSpeakers: previousListSpeakers,
+                    errorType: errorType
+                )
+            }
+        }
+    }
+
+    private func handleSpeakerRenamePersistenceFailure(
+        transcriptionID: UUID,
+        generation: Int,
+        previousCurrentSpeakers: [SpeakerInfo],
+        previousListSpeakers: [SpeakerInfo]?,
+        errorType: String
+    ) {
+        guard speakerRenameGenerations[transcriptionID] == generation else { return }
+        if var currentTranscription, currentTranscription.id == transcriptionID {
+            currentTranscription.speakers = previousCurrentSpeakers
+            self.currentTranscription = currentTranscription
+        }
+        if let index = transcriptions.firstIndex(where: { $0.id == transcriptionID }) {
+            transcriptions[index].speakers = previousListSpeakers
+        }
+        setError(message: "Failed to save speaker rename. The previous label was restored.")
+        logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")
     }
 
     public func renameCurrentTranscription(to newFileName: String) {
