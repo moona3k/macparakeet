@@ -262,33 +262,35 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             )
         }
 
-        if source == .microphone, isMicrophoneMuted {
-            return MeetingSourceHealth(
-                source: .microphone,
-                status: .muted,
-                level: 0,
-                lastBufferAt: lastBufferAt,
-                recoveryAction: .unmuteMicrophone
-            )
-        }
+        if source == .microphone {
+            if isMicrophoneMuted {
+                return MeetingSourceHealth(
+                    source: .microphone,
+                    status: .muted,
+                    level: 0,
+                    lastBufferAt: lastBufferAt,
+                    recoveryAction: .unmuteMicrophone
+                )
+            }
 
-        if source == .microphone, activeMicrophoneStall != nil {
-            return MeetingSourceHealth(
-                source: .microphone,
-                status: .stalled,
-                level: level,
-                lastBufferAt: lastBufferAt,
-                recoveryAction: .checkMicrophoneInput
-            )
-        }
+            if activeMicrophoneStall != nil {
+                return MeetingSourceHealth(
+                    source: .microphone,
+                    status: .stalled,
+                    level: level,
+                    lastBufferAt: lastBufferAt,
+                    recoveryAction: .checkMicrophoneInput
+                )
+            }
 
-        if source == .microphone, !microphoneStarted, lastBufferAt == nil {
-            return MeetingSourceHealth(
-                source: .microphone,
-                status: .unavailable,
-                level: 0,
-                recoveryAction: .openMicrophoneSettings
-            )
+            if !microphoneStarted, lastBufferAt == nil {
+                return MeetingSourceHealth(
+                    source: .microphone,
+                    status: .unavailable,
+                    level: 0,
+                    recoveryAction: .openMicrophoneSettings
+                )
+            }
         }
 
         guard let lastBufferAt else {
