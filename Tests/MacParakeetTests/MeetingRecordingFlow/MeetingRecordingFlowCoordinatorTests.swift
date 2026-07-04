@@ -32,6 +32,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             sourceType: .meeting
         )
         await transcriptionService.configure(result: completedTranscription)
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
 
         var readyTranscriptions: [Transcription] = []
         var readySelections: [Bool] = []
@@ -39,12 +40,13 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
             permissionService: MockPermissionService(),
-            transcriptionRepo: MockTranscriptionRepository(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
             conversationRepo: MockChatConversationRepository(),
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { transcription in
                 readyTranscriptions.append(transcription)
@@ -64,7 +66,6 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.testHook_state, .idle)
         XCTAssertFalse(coordinator.isMeetingRecordingActive)
         XCTAssertEqual(recordingSnapshot.stopCallCount, 1)
-        XCTAssertTrue(recordingSnapshot.completedTranscriptionSessionIDs.isEmpty)
         XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
         XCTAssertEqual(transcriptionSnapshot.finalizeMeetingCallCount, 1)
         XCTAssertEqual(transcriptionSnapshot.transcribeCallCount, 0)
@@ -75,12 +76,11 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await transcriptionService.releaseMeetingFinalization()
         await coordinator.testHook_waitForMeetingTranscriptionQueue()
 
-        let completedSnapshot = await recordingService.snapshot()
         let completedTranscriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
-        XCTAssertEqual(completedSnapshot.completedTranscriptionSessionIDs, [output.sessionID])
         XCTAssertEqual(readyTranscriptions.map(\.id), completedTranscriptionSnapshot.finalizedMeetingTranscriptionIDs)
         XCTAssertEqual(readyTranscriptions.map(\.filePath), [completedTranscription.filePath])
         XCTAssertEqual(readySelections, [true])
+        XCTAssertEqual(settlementHarness.lockStore.deletes, [output.folderURL])
 
         let operation = try XCTUnwrap(telemetry.snapshot().compactMap(\.meetingOperationPayload).last)
         XCTAssertEqual(operation.outcome, .success)
@@ -95,18 +95,20 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let recordingService = MeetingRecordingServiceSpy(output: output)
         let transcriptionService = MockTranscriptionService()
         await transcriptionService.holdMeetingFinalization()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
 
         var queuedSelections: [Bool] = []
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
             permissionService: MockPermissionService(),
-            transcriptionRepo: MockTranscriptionRepository(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
             conversationRepo: MockChatConversationRepository(),
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in },
             onQueuedTranscriptionReady: { _, selectTranscription in
@@ -130,6 +132,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await transcriptionService.releaseMeetingFinalization()
         await coordinator.testHook_waitForMeetingTranscriptionQueue()
         XCTAssertEqual(queuedSelections, [false])
+        XCTAssertEqual(settlementHarness.lockStore.deletes, [output.folderURL])
     }
 
     func testManualStartPassesProbableCalendarSnapshotWithoutChangingTitle() async throws {
@@ -157,6 +160,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             probableCalendarSnapshotProvider: { expectedSnapshot },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -194,6 +198,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             probableCalendarSnapshotProvider: { holder.snapshot },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -228,6 +233,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             probableCalendarSnapshotProvider: { nil },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -253,6 +259,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             sourceType: .meeting
         )
         await transcriptionService.configure(result: completedTranscription)
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
         let conversationRepo = MockChatConversationRepository()
         let llmService = MockLLMService()
         llmService.streamTokens = ["Answer saved"]
@@ -261,12 +268,13 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
             permissionService: MockPermissionService(),
-            transcriptionRepo: MockTranscriptionRepository(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
             conversationRepo: conversationRepo,
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             llmService: llmService,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -302,6 +310,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
         XCTAssertEqual(transcriptionSnapshot.finalizedMeetingTranscriptionIDs, [savedConversation.transcriptionId])
+        XCTAssertEqual(settlementHarness.lockStore.deletes, [output.folderURL])
     }
 
     func testStartRecordingWhileActivelyRecordingIsRefused() {
@@ -381,6 +390,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -451,6 +461,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             configStore: NoOpLLMConfigStore(),
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -473,8 +484,36 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             frontmostApplicationProvider: StaticFrontmostApplicationProvider(frontmostApplication),
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
+        )
+    }
+
+    private func makeSettlement() -> MeetingRecordingSettlement {
+        MeetingRecordingSettlement(
+            lockFileStore: FlowRecordingLockFileStore(),
+            transcriptionRepo: MockTranscriptionRepository()
+        )
+    }
+
+    private func makeSettlementHarness(
+        transcriptionService: MockTranscriptionService
+    ) async -> (
+        transcriptionRepo: MockTranscriptionRepository,
+        lockStore: FlowRecordingLockFileStore,
+        settlement: MeetingRecordingSettlement
+    ) {
+        let transcriptionRepo = MockTranscriptionRepository()
+        await transcriptionService.persistFinalizedMeetings(to: transcriptionRepo)
+        let lockStore = FlowRecordingLockFileStore()
+        return (
+            transcriptionRepo,
+            lockStore,
+            MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
         )
     }
 
@@ -545,7 +584,6 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     var startCallCount = 0
     var startCalls: [StartCall] = []
     var stopCallCount = 0
-    var completedTranscriptionSessionIDs: [UUID] = []
     var startTitles: [String?] = []
     var calendarEventSnapshots: [MeetingCalendarSnapshot?] = []
 
@@ -574,12 +612,6 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         stopCallCount += 1
         return output
     }
-
-    func completeTranscription(for recording: MeetingRecordingOutput) async {
-        completedTranscriptionSessionIDs.append(recording.sessionID)
-    }
-
-    func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {}
 
     func cancelRecording() async {}
 
@@ -623,7 +655,6 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         startCallCount: Int,
         startCalls: [StartCall],
         stopCallCount: Int,
-        completedTranscriptionSessionIDs: [UUID],
         startTitles: [String?],
         calendarEventSnapshots: [MeetingCalendarSnapshot?]
     ) {
@@ -631,7 +662,6 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
             startCallCount: startCallCount,
             startCalls: startCalls,
             stopCallCount: stopCallCount,
-            completedTranscriptionSessionIDs: completedTranscriptionSessionIDs,
             startTitles: startTitles,
             calendarEventSnapshots: calendarEventSnapshots
         )
@@ -640,6 +670,23 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 
 private final class ProbableCalendarSnapshotHolder: @unchecked Sendable {
     var snapshot: MeetingCalendarSnapshot?
+}
+
+private final class FlowRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var deletes: [URL] = []
+
+    func write(_ file: MeetingRecordingLockFile, folderURL: URL) throws {}
+
+    func read(folderURL: URL) throws -> MeetingRecordingLockFile? { nil }
+
+    func delete(folderURL: URL) throws {
+        lock.withLock {
+            deletes.append(folderURL)
+        }
+    }
+
+    func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] { [] }
 }
 
 private extension MockTranscriptionService {

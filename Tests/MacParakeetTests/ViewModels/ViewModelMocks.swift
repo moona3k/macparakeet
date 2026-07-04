@@ -375,6 +375,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var preparedMeetingRecordings: [MeetingRecordingOutput] = []
     var finalizedMeetingRecordings: [MeetingRecordingOutput] = []
     var finalizedMeetingTranscriptionIDs: [UUID] = []
+    private var finalizedMeetingSaveHook: (@Sendable (Transcription) -> Void)?
     private var meetingFinalizationHeld = false
     private var meetingFinalizationContinuations: [CheckedContinuation<Void, Never>] = []
     /// Per-file overrides for batch tests, keyed by `fileURL.lastPathComponent`.
@@ -417,6 +418,12 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
 
     func holdMeetingFinalization() {
         meetingFinalizationHeld = true
+    }
+
+    func persistFinalizedMeetings(to repository: MockTranscriptionRepository) {
+        finalizedMeetingSaveHook = { transcription in
+            try? repository.save(transcription)
+        }
     }
 
     func releaseMeetingFinalization() {
@@ -561,7 +568,9 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         )
         result.id = transcriptionID
         result.filePath = result.filePath ?? recording.mixedAudioURL.path
+        result.meetingArtifactFolderPath = result.meetingArtifactFolderPath ?? recording.folderURL.path
         result.sourceType = .meeting
+        finalizedMeetingSaveHook?(result)
         return result
     }
 

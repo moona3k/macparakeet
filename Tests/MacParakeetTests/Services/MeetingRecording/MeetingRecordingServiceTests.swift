@@ -204,7 +204,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(lockStore.deletes.count, 1)
     }
 
-    func testStopRecordingKeepsLockUntilTranscriptionCompletes() async throws {
+    func testStopRecordingKeepsAwaitingTranscriptionLockAfterStop() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
         let service = MeetingRecordingService(
@@ -226,9 +226,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertTrue(lockStore.deletes.isEmpty)
         XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
-
-        await service.completeTranscription(for: output)
-        XCTAssertEqual(lockStore.deletes, [output.folderURL])
     }
 
     func testStopRecordingFailsIfAwaitingTranscriptionLockWriteFails() async throws {
@@ -317,13 +314,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(lockStore.writes.last?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
         let activeLeaseCountAfterStop = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterStop, 0)
-
-        await service.completeTranscription(for: output)
-        let activeLeaseCountAfterCompletion = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterCompletion, 0)
     }
 
-    func testFailedTranscriptionAttemptDoesNotDeleteAwaitingTranscriptionLock() async throws {
+    func testStoppedRecordingKeepsAwaitingTranscriptionLockWithoutSettlement() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
         let speechEngine = SpeechEngineSelection(engine: .whisper, language: "KO")
@@ -348,9 +341,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let activeLeaseCountAfterStop = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterStop, 0)
 
-        await service.finishTranscriptionAttempt(for: output)
-        let activeLeaseCountAfterFailure = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterFailure, 0)
         XCTAssertTrue(lockStore.deletes.isEmpty)
     }
 
@@ -379,14 +369,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let activeLeaseCountAfterSecondStart = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterSecondStart, 1)
 
-        await service.finishTranscriptionAttempt(for: firstOutput)
-        let activeLeaseCountAfterFailedFinalize = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterFailedFinalize, 1)
-
-        await service.completeTranscription(for: firstOutput)
-        let activeLeaseCountAfterSuccessfulFinalize = await sttClient.activeLeaseCount
-        XCTAssertEqual(activeLeaseCountAfterSuccessfulFinalize, 1)
-        XCTAssertEqual(lockStore.deletes, [firstOutput.folderURL])
+        XCTAssertTrue(lockStore.deletes.isEmpty)
 
         await service.cancelRecording()
         let activeLeaseCountAfterSecondCancel = await sttClient.activeLeaseCount
@@ -1712,8 +1695,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
         XCTAssertTrue(notesContent.contains("notes from the meeting"))
-
-        await service.completeTranscription(for: output)
     }
 
     func testStopRecordingDoesNotWriteNotesFileWhenNoNotesTaken() async throws {
@@ -1742,8 +1723,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
             FileManager.default.fileExists(atPath: notesURL.path),
             "Empty-notes meeting should not produce a notes.md file"
         )
-
-        await service.completeTranscription(for: output)
     }
 
     // MARK: - Pause / Resume (issue #235)
@@ -1856,8 +1835,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let counts = await sttClient.callCounts
         XCTAssertEqual(counts.microphone, 0)
         XCTAssertGreaterThanOrEqual(counts.system, 1)
-
-        await service.completeTranscription(for: output)
     }
 
     func testMicrophoneMutePreservesQueuedPreMuteAudioByHostTime() async throws {
@@ -1888,8 +1865,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.sourceAlignment.microphone?.firstHostTime, preMuteHostTime)
         let counts = await sttClient.callCounts
         XCTAssertGreaterThanOrEqual(counts.microphone, 1)
-
-        await service.completeTranscription(for: output)
     }
 
     func testMicrophoneMuteUnmuteAllowsLaterMicAudio() async throws {
@@ -1926,8 +1901,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let counts = await sttClient.callCounts
         XCTAssertGreaterThanOrEqual(counts.microphone, 1)
-
-        await service.completeTranscription(for: output)
     }
 
     func testMicrophoneMuteIsUnavailableForSystemOnlyRecordings() async throws {
@@ -2076,8 +2049,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
             output.durationSeconds,
             totalWallclock - 0.6
         )
-
-        await service.completeTranscription(for: output)
     }
 
     func testImmediatePauseKeepsAlreadyCapturedAudio() async throws {
@@ -2106,8 +2077,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertNotNil(output.sourceAlignment.microphone)
         XCTAssertEqual(output.sourceAlignment.microphone?.firstHostTime, prePauseHostTime)
-
-        await service.completeTranscription(for: output)
     }
 
     func testStopRecordingDrainsQueuedTailBuffers() async throws {
@@ -2135,8 +2104,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
         XCTAssertEqual(output.sourceAlignment.microphone?.lastHostTime, lastHostTime)
-
-        await service.completeTranscription(for: output)
     }
 
     func testStopRecordingWhilePausedSettlesOngoingPauseIntoDuration() async throws {
@@ -2175,8 +2142,6 @@ final class MeetingRecordingServiceTests: XCTestCase {
             totalWallclock - 0.6,
             "Stopping while paused must still subtract the in-flight pause interval"
         )
-
-        await service.completeTranscription(for: output)
     }
 
     func testBuffersDuringPauseAreDiscardedAndDoNotProduceTranscriptUpdates() async throws {

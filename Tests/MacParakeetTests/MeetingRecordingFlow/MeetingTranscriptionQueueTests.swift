@@ -5,11 +5,15 @@ import XCTest
 @MainActor
 final class MeetingTranscriptionQueueTests: XCTestCase {
     func testQueueFinalizesMeetingsFIFO() async throws {
-        let transcriptionService = QueueTranscriptionServiceSpy()
-        let recordingService = QueueRecordingServiceSpy()
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
-            meetingRecordingService: recordingService
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
@@ -19,20 +23,23 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
-        let recordingSnapshot = await recordingService.snapshot()
         XCTAssertEqual(transcriptionSnapshot, [first.transcriptionID, second.transcriptionID])
-        XCTAssertEqual(recordingSnapshot.completedSessionIDs, [
-            first.recording.sessionID,
-            second.recording.sessionID,
+        XCTAssertEqual(lockStore.deletes, [
+            first.recording.folderURL,
+            second.recording.folderURL,
         ])
     }
 
     func testQueueContinuesAfterFailedFinalize() async throws {
-        let transcriptionService = QueueTranscriptionServiceSpy()
-        let recordingService = QueueRecordingServiceSpy()
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
-            meetingRecordingService: recordingService
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
@@ -53,20 +60,22 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
-        let recordingSnapshot = await recordingService.snapshot()
         XCTAssertEqual(completions, ["failure:A", "success:B"])
         XCTAssertEqual(transcriptionSnapshot, [first.transcriptionID, second.transcriptionID])
-        XCTAssertEqual(recordingSnapshot.finishedAttemptSessionIDs, [first.recording.sessionID])
-        XCTAssertEqual(recordingSnapshot.completedSessionIDs, [second.recording.sessionID])
+        XCTAssertEqual(lockStore.deletes, [second.recording.folderURL])
     }
 
     func testSnapshotCountsActiveAndPendingItems() async throws {
-        let transcriptionService = QueueTranscriptionServiceSpy()
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         await transcriptionService.setHoldFinalization(true)
-        let recordingService = QueueRecordingServiceSpy()
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
-            meetingRecordingService: recordingService
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
@@ -139,10 +148,15 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
 }
 
 private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
+    private let transcriptionRepo: MockTranscriptionRepository
     private(set) var finalizedIDs: [UUID] = []
     private var failingIDs: Set<UUID> = []
     var holdFinalization = false
     private var finalizationWaiters: [CheckedContinuation<Void, Never>] = []
+
+    init(transcriptionRepo: MockTranscriptionRepository) {
+        self.transcriptionRepo = transcriptionRepo
+    }
 
     func snapshot() -> [UUID] {
         finalizedIDs
@@ -216,14 +230,17 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
         if failingIDs.contains(transcriptionID) {
             throw QueueTestError.failed
         }
-        return Transcription(
+        let transcription = Transcription(
             id: transcriptionID,
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: recording.folderURL.path,
             rawTranscript: "done",
             status: .completed,
             sourceType: .meeting
         )
+        try transcriptionRepo.save(transcription)
+        return transcription
     }
 
     func retranscribe(
@@ -258,63 +275,21 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     }
 }
 
-private actor QueueRecordingServiceSpy: MeetingRecordingServiceProtocol {
-    private(set) var completedSessionIDs: [UUID] = []
-    private(set) var finishedAttemptSessionIDs: [UUID] = []
+private final class QueueRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var deletes: [URL] = []
 
-    func snapshot() -> (
-        completedSessionIDs: [UUID],
-        finishedAttemptSessionIDs: [UUID]
-    ) {
-        (
-            completedSessionIDs: completedSessionIDs,
-            finishedAttemptSessionIDs: finishedAttemptSessionIDs
-        )
-    }
+    func write(_ file: MeetingRecordingLockFile, folderURL: URL) throws {}
 
-    func startRecording(
-        title: String?,
-        sourceMode: MeetingAudioSourceMode?,
-        startContext: MeetingStartContext?,
-        calendarEventSnapshot: MeetingCalendarSnapshot?
-    ) async throws {}
+    func read(folderURL: URL) throws -> MeetingRecordingLockFile? { nil }
 
-    func stopRecording() async throws -> MeetingRecordingOutput {
-        throw MeetingAudioError.notRunning
-    }
-
-    func completeTranscription(for recording: MeetingRecordingOutput) async {
-        completedSessionIDs.append(recording.sessionID)
-    }
-
-    func finishTranscriptionAttempt(for recording: MeetingRecordingOutput) async {
-        finishedAttemptSessionIDs.append(recording.sessionID)
-    }
-
-    func cancelRecording() async {}
-    func pauseRecording() async {}
-    func resumeRecording() async {}
-    func setMicrophoneMuted(_ muted: Bool) async -> MeetingMicrophoneMuteState {
-        MeetingMicrophoneMuteState(isMuted: muted, canMute: true)
-    }
-    func updateNotes(_ notes: String) async {}
-
-    var isRecording: Bool { false }
-    var isPaused: Bool { false }
-    var micLevel: Float { 0 }
-    var systemLevel: Float { 0 }
-    var elapsedSeconds: Int { 0 }
-    var captureMode: CaptureMode { .stopped }
-    var isMicrophoneMuted: Bool { false }
-    var canMuteMicrophone: Bool { false }
-    var microphoneMuteState: MeetingMicrophoneMuteState {
-        MeetingMicrophoneMuteState(isMuted: false, canMute: false)
-    }
-    var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> {
-        AsyncStream { continuation in
-            continuation.finish()
+    func delete(folderURL: URL) throws {
+        lock.withLock {
+            deletes.append(folderURL)
         }
     }
+
+    func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] { [] }
 }
 
 private enum QueueTestError: Error {
