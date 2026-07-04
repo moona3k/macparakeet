@@ -6,10 +6,12 @@ final class MeetingDeletionCopyTests: XCTestCase {
     func testAudioOnlyCopyKeepsMeetingAndNamesOptionalArtifacts() {
         let message = MeetingDeletionCopy.singleAudioOnlyMessage(surface: .library)
 
-        XCTAssertTrue(message.contains("removes the saved audio"))
+        XCTAssertTrue(message.contains("permanently deletes the saved audio"))
         XCTAssertTrue(message.contains("meeting stays in Library"))
         XCTAssertTrue(message.contains("Notes, AI results, and chats stay too if they exist"))
-        XCTAssertTrue(message.contains("Playback and retranscription will no longer be available"))
+        XCTAssertTrue(message.contains("Playback and re-transcription will no longer be available"))
+        XCTAssertTrue(message.contains("detect or backfill speakers for this recording"))
+        XCTAssertEqual(message.components(separatedBy: "permanently").count - 1, 1)
     }
 
     func testFullDeleteCopyDeletesOptionalArtifactsOnlyIfTheyExist() {
@@ -36,8 +38,9 @@ final class MeetingDeletionCopyTests: XCTestCase {
         )
 
         XCTAssertTrue(message.contains("3 selected meetings"))
-        XCTAssertTrue(message.contains("removes saved audio from 1 meeting"))
+        XCTAssertTrue(message.contains("permanently deletes saved audio from 1 meeting"))
         XCTAssertTrue(message.contains("meeting stays in Meetings"))
+        XCTAssertTrue(message.contains("detect or backfill speakers for this recording"))
         XCTAssertTrue(message.contains("2 selected meetings already have no saved audio"))
     }
 
@@ -49,7 +52,8 @@ final class MeetingDeletionCopyTests: XCTestCase {
         )
 
         XCTAssertFalse(message.contains("3 selected meetings"))
-        XCTAssertTrue(message.contains("removes saved audio from 3 meetings"))
+        XCTAssertTrue(message.contains("permanently deletes saved audio from 3 meetings"))
+        XCTAssertTrue(message.contains("detect or backfill speakers for these recordings"))
     }
 
     func testBulkAudioOnlyCopyUsesSingularSkippedGrammar() {
@@ -76,7 +80,7 @@ final class MeetingDeletionCopyTests: XCTestCase {
         )
 
         XCTAssertTrue(message.contains("7 selected meetings"))
-        XCTAssertTrue(message.contains("removes saved audio from 2 meetings"))
+        XCTAssertTrue(message.contains("permanently deletes saved audio from 2 meetings"))
         XCTAssertTrue(message.contains("meetings stay in Library"))
         XCTAssertTrue(message.contains("5 selected meetings already have no saved audio"))
     }

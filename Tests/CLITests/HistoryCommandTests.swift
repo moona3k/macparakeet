@@ -198,6 +198,7 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: systemAudioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         XCTAssertTrue(output.contains("Detached managed meeting audio"))
+        XCTAssertTrue(output.contains("re-transcription and speaker detection/backfill are no longer possible"))
     }
 
     func testClearMeetingAudioCommandRemovesAudioAndPreservesArtifactFolders() throws {

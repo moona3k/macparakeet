@@ -194,6 +194,9 @@ final class SpecCommandTests: XCTestCase {
         let promptSetOptions = try XCTUnwrap(promptsSet["options"] as? [[String: Any]])
         XCTAssertTrue(promptSetOptions.contains { ($0["name"] as? String) == "--source" })
 
+        let deleteMeetingAudio = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["history", "delete-meeting-audio"] })
+        XCTAssertTrue((deleteMeetingAudio["summary"] as? String)?.contains("re-transcription or speaker detection/backfill") == true)
+
         for path in [
             ["prompts", "run"],
             ["llm", "summarize"],

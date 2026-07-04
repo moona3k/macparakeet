@@ -1967,7 +1967,7 @@ struct SettingsView: View {
                 }
             }
 
-            Text("Transcripts stay. Removing audio disables playback and retranscription unless you saved a copy.")
+            Text("Transcripts stay. Auto-removed audio is deleted permanently; playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -2016,9 +2016,9 @@ struct SettingsView: View {
         case .keepForever:
             return ""
         case .deleteAfterDays(let days):
-            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and retranscription will no longer be available for meetings whose audio has been removed."
+            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
         case .deleteImmediately:
-            return "MacParakeet will remove saved audio after each final transcript is saved. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and retranscription will no longer be available unless you saved a copy of the audio."
+            return "MacParakeet will remove saved audio after each final transcript is saved. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
         }
     }
 

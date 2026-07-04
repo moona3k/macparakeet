@@ -25,7 +25,7 @@ enum MeetingDeletionCopy {
     static let fullDeleteMenuTitle = "Delete Meeting"
 
     static func singleAudioOnlyMessage(surface: Surface) -> String {
-        "This removes the saved audio for this meeting. The meeting stays in \(surface.name) with its transcript. Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved a copy of the audio."
+        "This permanently deletes the saved audio for this meeting. The meeting stays in \(surface.name) with its transcript. Notes, AI results, and chats stay too if they exist. Playback and re-transcription will no longer be available, and MacParakeet will not be able to detect or backfill speakers for this recording."
     }
 
     static func bulkAudioOnlyMessage(
@@ -38,10 +38,10 @@ enum MeetingDeletionCopy {
         let meetingWord = count == 1 ? "meeting" : "meetings"
         let meetingSubject = count == 1 ? "The meeting stays" : "The meetings stay"
         let transcriptObject = count == 1 ? "its transcript" : "their transcripts"
-        let savedCopy = count == 1 ? "a copy" : "copies"
+        let recordingObject = count == 1 ? "this recording" : "these recordings"
         let prefix = skippedCount > 0 ? "\(selectedCount) selected \(selectedWord). " : ""
         var message =
-            "\(prefix)This removes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and retranscription will no longer be available unless you saved \(savedCopy) of the audio."
+            "\(prefix)This permanently deletes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and re-transcription will no longer be available, and MacParakeet will not be able to detect or backfill speakers for \(recordingObject)."
         if skippedCount > 0 {
             if skippedCount == 1 {
                 message += " 1 selected meeting already has no saved audio, so it will be skipped."

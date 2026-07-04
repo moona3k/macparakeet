@@ -328,7 +328,8 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
 struct DeleteMeetingAudioSubcommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "delete-meeting-audio",
-        abstract: "Delete stored audio for a meeting transcript while keeping the transcript."
+        abstract: "Delete stored audio for a meeting transcript while keeping the transcript.",
+        discussion: "This permanently removes audio needed for re-transcription and speaker detection/backfill."
     )
 
     @Argument(help: "The UUID, UUID prefix, or file name of the meeting transcription.")
@@ -356,7 +357,9 @@ struct DeleteMeetingAudioSubcommand: ParsableCommand {
         }
 
         if result.removedOwnedAudio {
-            print("Detached managed meeting audio for: \"\(transcription.fileName)\"")
+            print(
+                "Detached managed meeting audio for: \"\(transcription.fileName)\". Audio was permanently removed; re-transcription and speaker detection/backfill are no longer possible for this recording."
+            )
         } else {
             print("No meeting audio attached for: \"\(transcription.fileName)\"")
         }

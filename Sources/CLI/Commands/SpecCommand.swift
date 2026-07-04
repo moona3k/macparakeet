@@ -372,7 +372,7 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["history", "delete-meeting-audio"],
-            summary: "Detach and delete stored audio for one meeting transcript while keeping the transcript row.",
+            summary: "Detach and delete stored audio for one meeting transcript while keeping the transcript row; removed audio cannot be used for re-transcription or speaker detection/backfill.",
             readOnly: false,
             jsonMode: "none",
             arguments: [.argument("id", summary: "Meeting transcription UUID, UUID prefix, or file name.")],
