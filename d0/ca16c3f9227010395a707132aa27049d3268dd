@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Services/TranscriptExportOptionsTests.swift
+  s_03194fc411710d::t_8b05fecb728061 135-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d0ca16c3f9227010395a707132aa27049d3268dd",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
