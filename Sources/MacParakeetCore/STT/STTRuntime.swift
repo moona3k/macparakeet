@@ -519,6 +519,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                     let result = try await inferenceGate.withExclusiveAccess {
                         try await manager.transcribe(paddedSamples, decoderState: &decoderState)
                     }
+                    try Task.checkCancellation()
                     let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
                         to: result,
                         audioSamples: paddedSamples
@@ -573,9 +574,12 @@ public actor STTRuntime: STTRuntimeProtocol {
             let result = try await inferenceGate.withExclusiveAccess {
                 try await manager.transcribe(audioURL, decoderState: &decoderState)
             }
+            try Task.checkCancellation()
+            let sidecarSamples = Self.customVocabularySidecarSamples(audioPath: audioPath)
+            try Task.checkCancellation()
             let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
                 to: result,
-                audioSamples: Self.customVocabularySidecarSamples(audioPath: audioPath)
+                audioSamples: sidecarSamples
             )
             let words = STTWordTimingBuilder.words(from: boostedResult.tokenTimings)
             onProgress?(100, 100)
@@ -714,7 +718,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         inferenceGate: ANEInferenceGate,
         logger: Logger? = nil
     ) async -> ASRResult {
-        guard capabilities.supportsCustomVocabulary,
+        guard !Task.isCancelled,
+              capabilities.supportsCustomVocabulary,
               !vocabulary.isEmpty,
               !audioSamples.isEmpty,
               let tokenTimings = result.tokenTimings,
@@ -724,6 +729,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
 
         do {
+            try Task.checkCancellation()
+            try await rescorer.prepare(vocabulary: vocabulary)
+            try Task.checkCancellation()
             let rescored = try await inferenceGate.withExclusiveAccess {
                 try await rescorer.rescore(
                     CustomVocabularyRescoringRequest(
@@ -734,16 +742,105 @@ public actor STTRuntime: STTRuntimeProtocol {
                     )
                 )
             }
-            return result.withRescoring(
-                text: rescored.text,
-                detected: rescored.detectedTerms,
-                applied: rescored.appliedTerms
+            try Task.checkCancellation()
+            return Self.resultByApplyingCustomVocabularyRescoring(
+                rescored,
+                to: result,
+                originalTokenTimings: tokenTimings,
+                logger: logger
             )
+        } catch is CancellationError {
+            return result
         } catch {
             logger?.warning(
                 "custom_vocabulary_boost_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
             )
             return result
+        }
+    }
+
+    private static func resultByApplyingCustomVocabularyRescoring(
+        _ rescored: CustomVocabularyRescoringResult,
+        to result: ASRResult,
+        originalTokenTimings: [TokenTiming],
+        logger: Logger?
+    ) -> ASRResult {
+        guard rescored.text != result.text else {
+            return result.withRescoring(
+                text: rescored.text,
+                detected: rescored.detectedTerms,
+                applied: rescored.appliedTerms
+            )
+        }
+
+        guard
+            let tokenTimings = synthesizedTokenTimings(
+                for: rescored.text,
+                replacing: originalTokenTimings
+            )
+        else {
+            logger?.warning(
+                "custom_vocabulary_boost_skipped reason=timing_synthesis_failed"
+            )
+            return result
+        }
+
+        return ASRResult(
+            text: rescored.text,
+            confidence: result.confidence,
+            duration: result.duration,
+            processingTime: result.processingTime,
+            tokenTimings: tokenTimings,
+            performanceMetrics: result.performanceMetrics,
+            ctcDetectedTerms: rescored.detectedTerms,
+            ctcAppliedTerms: rescored.appliedTerms
+        )
+    }
+
+    private static func synthesizedTokenTimings(
+        for rescoredText: String,
+        replacing originalTokenTimings: [TokenTiming]
+    ) -> [TokenTiming]? {
+        let rescoredWords = rescoredText.split(whereSeparator: \.isWhitespace).map(String.init)
+        let originalWords = STTWordTimingBuilder.words(from: originalTokenTimings)
+        guard !rescoredWords.isEmpty,
+              let firstWord = originalWords.first,
+              let lastWord = originalWords.last
+        else {
+            return nil
+        }
+
+        if rescoredWords.count == originalWords.count {
+            return zip(rescoredWords, originalWords).enumerated().map { index, pair in
+                let (word, timing) = pair
+                return TokenTiming(
+                    token: "▁\(word)",
+                    tokenId: -1 - index,
+                    startTime: Double(timing.startMs) / 1_000,
+                    endTime: Double(timing.endMs) / 1_000,
+                    confidence: Float(timing.confidence)
+                )
+            }
+        }
+
+        let startTime = Double(firstWord.startMs) / 1_000
+        let endTime = Double(lastWord.endMs) / 1_000
+        guard endTime >= startTime else { return nil }
+
+        let durationPerWord = (endTime - startTime) / Double(rescoredWords.count)
+        return rescoredWords.enumerated().map { index, word in
+            let wordStart = startTime + (durationPerWord * Double(index))
+            let wordEnd =
+                index == rescoredWords.count - 1
+                ? endTime
+                : startTime + (durationPerWord * Double(index + 1))
+            return TokenTiming(
+                token: "▁\(word)",
+                tokenId: -1 - index,
+                startTime: wordStart,
+                endTime: wordEnd,
+                confidence: 0
+            )
         }
     }
 

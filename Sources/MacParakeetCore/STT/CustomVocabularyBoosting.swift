@@ -116,20 +116,25 @@ public struct CustomVocabularyBoostingVocabulary: Equatable, Sendable {
             let text: String
         }
 
-        var byKey: [String: String] = [:]
-        for rawTerm in terms {
-            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !term.isEmpty else { continue }
-            let key = term.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            if byKey[key] == nil {
-                byKey[key] = term
-            }
-        }
+        var seenKeys: Set<String> = []
         return
-            byKey
-            .map { Entry(key: $0.key, text: $0.value) }
-            .sorted { $0.key < $1.key }
-            .map(\.text)
+            terms
+            .compactMap { rawTerm -> Entry? in
+                let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !term.isEmpty else { return nil }
+                let key = term.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                return Entry(key: key, text: term)
+            }
+            .sorted {
+                if $0.key != $1.key {
+                    return $0.key < $1.key
+                }
+                return $0.text < $1.text
+            }
+            .compactMap { entry in
+                guard seenKeys.insert(entry.key).inserted else { return nil }
+                return entry.text
+            }
     }
 
     private static func contentHash(for terms: [String]) -> String {
@@ -189,7 +194,16 @@ public struct CustomVocabularyRescoringResult: Sendable {
 }
 
 public protocol CustomVocabularyRescoring: Sendable {
+    func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws
     func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult
+}
+
+public extension CustomVocabularyRescoring {
+    func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {}
+}
+
+public enum CustomVocabularyBoostingError: Error, Sendable {
+    case emptyTokenizedVocabulary
 }
 
 public struct RepositoryCustomVocabularyBoostingTermProvider: CustomVocabularyBoostingTermProviding {
@@ -223,9 +237,14 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CustomVocabulary")
-    private var cachedVocabulary: CachedVocabulary?
+    private var cachedVocabularies: [String: CachedVocabulary] = [:]
 
     public init() {}
+
+    public func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {
+        guard !vocabulary.isEmpty else { return }
+        _ = try await components(for: vocabulary)
+    }
 
     public func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult {
         guard !request.vocabulary.isEmpty,
@@ -242,15 +261,6 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
         }
 
         let components = try await components(for: request.vocabulary)
-        guard !components.context.terms.isEmpty else {
-            return CustomVocabularyRescoringResult(
-                text: request.transcript,
-                detectedTerms: [],
-                appliedTerms: [],
-                replacementCount: 0
-            )
-        }
-
         let spotResult = try await components.spotter.spotKeywordsWithLogProbs(
             audioSamples: request.audioSamples,
             customVocabulary: components.context,
@@ -297,7 +307,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private func components(for vocabulary: CustomVocabularyBoostingVocabulary) async throws -> CachedVocabulary {
-        if let cachedVocabulary, cachedVocabulary.hash == vocabulary.contentHash {
+        if let cachedVocabulary = cachedVocabularies[vocabulary.contentHash] {
             return cachedVocabulary
         }
 
@@ -314,6 +324,9 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
                 tokenIds: nil,
                 ctcTokenIds: tokenIds
             )
+        }
+        guard !tokenizedTerms.isEmpty else {
+            throw CustomVocabularyBoostingError.emptyTokenizedVocabulary
         }
 
         let context = CustomVocabularyContext(
@@ -337,7 +350,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             cbw: sizeConfig.cbw,
             marginSeconds: ContextBiasingConstants.defaultMarginSeconds
         )
-        cachedVocabulary = cached
+        cachedVocabularies[vocabulary.contentHash] = cached
         logger.info("custom_vocabulary_boost_loaded terms=\(context.terms.count, privacy: .public)")
         return cached
     }

@@ -37,6 +37,18 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertNotEqual(first.contentHash, changed.contentHash)
     }
 
+    func testMapperCanonicalizesDuplicateCasingDeterministically() {
+        let first = CustomVocabularyBoostingVocabulary(
+            terms: ["MacParakeet", "macparakeet", "FluidAudio"]
+        )
+        let reversed = CustomVocabularyBoostingVocabulary(
+            terms: ["FluidAudio", "macparakeet", "MacParakeet"]
+        )
+
+        XCTAssertEqual(first.terms, reversed.terms)
+        XCTAssertEqual(first.contentHash, reversed.contentHash)
+    }
+
     func testUnsupportedEngineSkipsSidecarInvocation() async throws {
         let rescorer = FakeCustomVocabularyRescorer()
         let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
@@ -82,6 +94,9 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         )
 
         XCTAssertEqual(result.text, "MacParakeet")
+        XCTAssertEqual(STTWordTimingBuilder.words(from: result.tokenTimings).map(\.word), ["MacParakeet"])
+        XCTAssertEqual(STTWordTimingBuilder.words(from: result.tokenTimings).first?.startMs, 0)
+        XCTAssertEqual(STTWordTimingBuilder.words(from: result.tokenTimings).first?.endMs, 600)
         let requests = await rescorer.requests
         XCTAssertEqual(requests.count, 1)
         XCTAssertEqual(requests[0].audioSamples, samples)
