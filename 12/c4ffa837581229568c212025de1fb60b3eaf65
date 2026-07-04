@@ -1,0 +1,39 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingFinalizationBenchmarkObserver.swift
+  s_67f6459e50555b::t_a961dfc6c9b306 1-2,5-13,15-29
+  s_67f6459e50555b::t_9b9124275453ff 3-4,14
+Tests/MacParakeetTests/Benchmarks/LongMeetingPipelineBenchmarkTests.swift
+  s_67f6459e50555b::t_9b9124275453ff 400
+  s_67f6459e50555b::t_8e268188871b77 185-187,276-281,406-409
+  s_67f6459e50555b::t_32569f33e0c0a0 1-130,132-184,188-224,228-233,235-238,245-252,254-275,282-377,379-399,401-405,410-571,586-632
+  s_67f6459e50555b::t_840c66deb54c9d 225-227,234,239-244,253
+  s_67f6459e50555b::t_2526b91e5f75b4 131,378,572-585
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_67f6459e50555b::t_9b9124275453ff 273
+  s_67f6459e50555b::t_17635ed69e0986 1173,1325
+  s_67f6459e50555b::t_885b27e796cf4e 1167-1172,1328-1342,1345-1349
+  s_e658bd8f2c85c4::t_59bfb34390e684 244,274-332,361,1164-1166,1174-1178,1180,1185,1317-1324,1326-1327,1350,1352-1356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "12c4ffa837581229568c212025de1fb60b3eaf65",
+  "prompts": {},
+  "sessions": {
+    "s_67f6459e50555b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c29-ea95-7b80-ab3f-25bd0657c2dc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e658bd8f2c85c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c37-6220-7101-9929-0ef13c588c2f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
