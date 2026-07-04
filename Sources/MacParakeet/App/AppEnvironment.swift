@@ -23,6 +23,7 @@ final class AppEnvironment {
     let sharedMicStream: SharedMicrophoneStream
     let audioProcessor: AudioProcessor
     let meetingRecordingService: MeetingRecordingService
+    let meetingRecordingSettlement: MeetingRecordingSettlement
     let meetingRecordingRecoveryService: MeetingRecordingRecoveryService
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
@@ -143,6 +144,7 @@ final class AppEnvironment {
             // burst into a single warm-engine restart (issue #481).
             warmCaptureRefreshDebounce: 0.5
         )
+        let meetingRecordingLockFileStore = MeetingRecordingLockFileStore()
         meetingRecordingService = MeetingRecordingService(
             micProcessingMode: meetingMicProcessingMode,
             audioCaptureService: MeetingAudioCaptureService(
@@ -151,9 +153,14 @@ final class AppEnvironment {
                 sharedMicStream: sharedMicStream
             ),
             sttTranscriber: sttScheduler,
+            lockFileStore: meetingRecordingLockFileStore,
             // Wire the real feature flag here (the service defaults to fixed
             // chunking so tests stay deterministic regardless of the flag).
             isVadLiveChunkingEnabled: { AppFeatures.meetingVadLiveChunkingEnabled }
+        )
+        meetingRecordingSettlement = MeetingRecordingSettlement(
+            lockFileStore: meetingRecordingLockFileStore,
+            transcriptionRepo: transcriptionRepo
         )
         clipboardService = ClipboardService()
         systemMediaController = SystemMediaController()
@@ -345,8 +352,10 @@ final class AppEnvironment {
         )
 
         meetingRecordingRecoveryService = MeetingRecordingRecoveryService(
+            lockFileStore: meetingRecordingLockFileStore,
             transcriptionService: transcriptionService,
-            transcriptionRepo: transcriptionRepo
+            transcriptionRepo: transcriptionRepo,
+            settlement: meetingRecordingSettlement
         )
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)

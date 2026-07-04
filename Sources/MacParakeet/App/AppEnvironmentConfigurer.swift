@@ -313,6 +313,7 @@ final class AppEnvironmentConfigurer {
             },
             llmService: hasLLMConfig ? env.llmService : nil,
             pillViewModel: meetingPillViewModel,
+            meetingRecordingSettlement: env.meetingRecordingSettlement,
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onTranscriptionReady: { [weak self] transcription in
                 guard let self else { return }

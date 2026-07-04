@@ -43,6 +43,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private let lockFileStore: MeetingRecordingLockFileStoring
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
+    private let settlement: MeetingRecordingSettlement
     private let audioConverter: AudioFileConverting
     private let fileManager: FileManager
     /// Builds the echo suppressor used to re-derive `microphone-cleaned.m4a`
@@ -57,6 +58,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        settlement: MeetingRecordingSettlement? = nil,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
@@ -66,6 +68,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             lockFileStore: lockFileStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            settlement: settlement ?? MeetingRecordingSettlement(
+                lockFileStore: lockFileStore,
+                transcriptionRepo: transcriptionRepo
+            ),
             audioConverter: audioConverter,
             fileManager: fileManager,
             micConditionerFactory: {
@@ -80,6 +86,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        settlement: MeetingRecordingSettlement? = nil,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
@@ -91,6 +98,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         self.lockFileStore = lockFileStore
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
+        self.settlement = settlement ?? MeetingRecordingSettlement(
+            lockFileStore: lockFileStore,
+            transcriptionRepo: transcriptionRepo
+        )
         self.audioConverter = audioConverter
         self.fileManager = fileManager
         self.micConditionerFactory = micConditionerFactory
@@ -171,7 +182,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         if let existing = try existingCompletedTranscription(for: mixedURL) {
             await writeNotesSidecar(for: lock, folderURL: folderURL)
-            return try completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
+            return try await completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
         }
         let incompleteRows = try existingIncompleteTranscriptions(for: mixedURL)
         let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
@@ -265,7 +276,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             } else {
                 transcription = try await transcriptionService.transcribeMeeting(recording: recording, onProgress: nil)
             }
-            return try completeRecovery(transcription, folderURL: folderURL, lock: lock)
+            return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
         } catch {
             logger.error("meeting_recovery_transcription_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             throw error
@@ -276,8 +287,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         guard let folderURL = lock.folderURL else { return }
         if fileManager.fileExists(atPath: folderURL.path) {
             let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
-            if try existingCompletedTranscription(for: mixedURL) != nil {
-                try lockFileStore.delete(folderURL: folderURL)
+            if let completed = try existingCompletedTranscription(for: mixedURL) {
+                try await settlement.settleCompletedTranscription(
+                    folderURL: folderURL,
+                    transcriptionID: completed.id,
+                    sessionID: lock.sessionId
+                )
                 logger.info("meeting_recovery_discard_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
                 return
             }
@@ -432,20 +447,24 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         _ transcription: Transcription,
         folderURL: URL,
         lock: MeetingRecordingLockFile
-    ) throws -> Transcription {
+    ) async throws -> Transcription {
         if lock.state == .awaitingTranscription {
-            try lockFileStore.delete(folderURL: folderURL)
+            try await settlement.settleCompletedTranscription(
+                folderURL: folderURL,
+                transcriptionID: transcription.id,
+                sessionID: lock.sessionId
+            )
             logger.info("meeting_recovery_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
             return transcription
         }
-        return try completeRecovery(transcription, folderURL: folderURL, lock: lock)
+        return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
     }
 
     private func completeRecovery(
         _ transcription: Transcription,
         folderURL: URL,
         lock: MeetingRecordingLockFile
-    ) throws -> Transcription {
+    ) async throws -> Transcription {
         var recovered = transcription
         recovered.recoveredFromCrash = true
         // Carry forward any notes the user typed during the meeting (ADR-020 §9).
@@ -458,7 +477,11 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         }
         recovered.updatedAt = Date()
         try transcriptionRepo.save(recovered)
-        try lockFileStore.delete(folderURL: folderURL)
+        try await settlement.settleCompletedTranscription(
+            folderURL: folderURL,
+            transcriptionID: recovered.id,
+            sessionID: lock.sessionId
+        )
         logger.info("meeting_recovery_completed session=\(lock.sessionId.uuidString, privacy: .public)")
         return recovered
     }
