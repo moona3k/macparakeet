@@ -28,6 +28,7 @@ Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
   s_e658bd8f2c85c4::t_07b4193a7a2f79 64-81,1674,3005,3009-3013
   s_e658bd8f2c85c4::t_6a22e10cb8802b 1619-1635,1650-1673,1677-1681,2999-3004,3006-3008,3014-3030,3032-3040
   s_e658bd8f2c85c4::t_b32c7de07c7cf3 1456-1457
+  s_e658bd8f2c85c4::t_41eba2cc53c0c2 1441
 Sources/CLI/CHANGELOG.md
   s_e658bd8f2c85c4::t_39ea08633b981b 140-146
 Tests/CLITests/TranscribeCommandTests.swift
