@@ -1,0 +1,34 @@
+plans/active/2026-07-03-apple-speechtranscriber-spike.md
+  s_4272d79a3d4bc7::t_524827f1498b7f 24-28
+  s_4272d79a3d4bc7::t_f1d68796a9253c 51-55
+  s_4272d79a3d4bc7::t_32947abc0d1639 1-23,29-50,56-58
+plans/active/2026-07-03-cjk-local-engines.md
+  s_4272d79a3d4bc7::t_4617d55f07059c 50-59
+  s_4272d79a3d4bc7::t_d2bda8d8e48785 1-14,35-49,60-82
+  s_4272d79a3d4bc7::t_8123520d640975 15-34
+plans/active/2026-07-03-parakeet-custom-vocabulary.md
+  s_4272d79a3d4bc7::t_782eef4ee0aeea 21-26,28-36
+  s_4272d79a3d4bc7::t_c5cf56ac00a29a 47-55,59-61
+  s_4272d79a3d4bc7::t_36c7136fa0be93 76-77
+  s_4272d79a3d4bc7::t_c47f29fe3f362c 1-20,27,37-46,56-58,62-75,78-79
+plans/README.md
+  s_4272d79a3d4bc7::t_08bc1d083ad7fc 37
+plans/active/2026-07-03-stt-capability-registry.md
+  s_4272d79a3d4bc7::t_0d517ffae2b3c2 80-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee354225367b3ee4309d640f5d2d4308bcdc8d9c",
+  "prompts": {},
+  "sessions": {
+    "s_4272d79a3d4bc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a226cfe-1186-470e-9296-f0248af07152",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
