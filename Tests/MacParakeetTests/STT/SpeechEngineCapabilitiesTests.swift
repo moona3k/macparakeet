@@ -23,11 +23,11 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
             SpeechEngineCapabilityRegistry.capabilities(for: $0).supportsNativeLiveDictation
         })
 
-        XCTAssertEqual(liveKeys, [
+        XCTAssertEqual(liveKeys, Set([
             .parakeet(.unified),
             .nemotron(.multilingual1120),
             .nemotron(.english1120),
-        ])
+        ]))
     }
 
     func testCapabilityFactsPreserveCurrentEngineContracts() {
@@ -47,6 +47,8 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
         XCTAssertTrue(whisper.supportsTailPreview)
         XCTAssertTrue(whisper.providesWordTimestamps)
         XCTAssertEqual(whisper.supportedLanguages.mode, .selectable)
+        XCTAssertEqual(whisper.supportedLanguages.defaultLanguage, WhisperLanguageCatalog.autoCode)
+        XCTAssertEqual(whisper.supportedLanguages.supportedLanguageCodes?.first, WhisperLanguageCatalog.autoCode)
         XCTAssertEqual(whisper.modelLifecycle.variantID, WhisperModelVariant.largeV3Turbo632MB.rawValue)
 
         let cohere = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)

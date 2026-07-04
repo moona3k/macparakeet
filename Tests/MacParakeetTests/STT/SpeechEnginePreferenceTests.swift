@@ -19,6 +19,10 @@ final class SpeechEnginePreferenceTests: XCTestCase {
             SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-turbo-632MB"),
             SpeechEnginePreference.defaultWhisperModelVariant
         )
+        XCTAssertEqual(
+            SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-Turbo-632MB"),
+            SpeechEnginePreference.defaultWhisperModelVariant
+        )
         XCTAssertNil(SpeechEnginePreference.normalizeModelVariant("whisper-small"))
     }
 

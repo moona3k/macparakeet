@@ -210,7 +210,8 @@ public enum SpeechEngineCapabilityRegistry {
                 providesWordTimestamps: true,
                 supportedLanguages: .selectable(
                     defaultLanguage: WhisperLanguageCatalog.autoCode,
-                    supportedLanguageCodes: WhisperLanguageCatalog.all.map(\.code)
+                    supportedLanguageCodes: [WhisperLanguageCatalog.autoCode]
+                        + WhisperLanguageCatalog.all.map(\.code)
                 ),
                 supportsCustomVocabulary: false,
                 modelLifecycle: SpeechEngineModelLifecycle(

@@ -366,8 +366,8 @@ public enum WhisperModelVariant: String, CaseIterable, Codable, Sendable {
 
         let lowered = trimmed.lowercased()
         let withoutPrefix = lowered.hasPrefix("whisper-")
-            ? String(trimmed.dropFirst("whisper-".count))
-            : trimmed
+            ? String(lowered.dropFirst("whisper-".count))
+            : lowered
         let canonical = SpeechEnginePreference.canonicalizeTurboSuffix(withoutPrefix)
         return allCases.first {
             $0.rawValue.caseInsensitiveCompare(canonical) == .orderedSame
