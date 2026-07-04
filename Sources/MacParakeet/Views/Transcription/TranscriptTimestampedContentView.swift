@@ -94,7 +94,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
     let segments: [TranscriptSegment]
     let speakerColorMap: [String: Color]
     let speakerLabelForID: (String) -> String
-    let speakerLabelContent: (String, String, Color, String) -> SpeakerLabelContent
+    let speakerLabelContent: (String, String, Color, String, Bool) -> SpeakerLabelContent
     let isSegmentActive: (Int) -> Bool
     let timestampLabel: (Int) -> String
     let isTimestampSeekable: Bool
@@ -119,7 +119,10 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
                     duplicateOrdinal: identified.identity.duplicateOrdinal
                 )
                 TranscriptTurnCardView(
-                    speakerLabelContent: speakerLabelContent(turn.speakerId, speakerLabel, speakerColor, renameContextID),
+                    speakerID: turn.speakerId,
+                    speakerLabel: speakerLabel,
+                    renameContextID: renameContextID,
+                    speakerLabelContent: speakerLabelContent,
                     speakerColor: speakerColor,
                     segments: turn.segments,
                     timestampLabel: timestampLabel,
@@ -165,7 +168,10 @@ private func timestampScrollAnchor(startMs: Int) -> some View {
 }
 
 private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
-    let speakerLabelContent: SpeakerLabelContent
+    let speakerID: String
+    let speakerLabel: String
+    let renameContextID: String
+    let speakerLabelContent: (String, String, Color, String, Bool) -> SpeakerLabelContent
     let speakerColor: Color
     let segments: [TranscriptSegment]
     let timestampLabel: (Int) -> String
@@ -175,6 +181,8 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
     var currentHighlight: (id: Int, range: NSRange)?
     let onTimestampTap: (Int) -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: DesignSystem.Spacing.sm) {
@@ -182,7 +190,7 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
                     .fill(speakerColor)
                     .frame(width: 10, height: 10)
 
-                speakerLabelContent
+                speakerLabelContent(speakerID, speakerLabel, speakerColor, renameContextID, isHovering)
 
                 if let firstStart = segments.first?.startMs {
                     transcriptMetadataChip(icon: "clock", text: timestampLabel(firstStart))
@@ -208,6 +216,11 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(speakerColor.opacity(0.18), lineWidth: 0.75)
         )
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.hoverTransition) {
+                isHovering = hovering
+            }
+        }
     }
 
     @ViewBuilder

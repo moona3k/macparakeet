@@ -48,6 +48,17 @@ final class SpeakerRenameAccessibilityTests: XCTestCase {
         )
     }
 
+    func testRenameButtonHoverRevealUsesOpacityValues() {
+        XCTAssertEqual(
+            SpeakerRenameAccessibility.renameButtonOpacity(isVisuallyRevealed: false),
+            0
+        )
+        XCTAssertEqual(
+            SpeakerRenameAccessibility.renameButtonOpacity(isVisuallyRevealed: true),
+            1
+        )
+    }
+
     func testRenameContextIdentifiersSeparateOverviewAndRepeatedTimedTurns() {
         XCTAssertEqual(
             SpeakerRenameAccessibility.overviewRenameContextIdentifier(for: "speaker_1"),

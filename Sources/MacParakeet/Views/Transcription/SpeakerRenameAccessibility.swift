@@ -23,6 +23,10 @@ enum SpeakerRenameAccessibility {
         "transcript.speaker.name.\(speakerID)"
     }
 
+    static func renameButtonOpacity(isVisuallyRevealed: Bool) -> Double {
+        isVisuallyRevealed ? 1 : 0
+    }
+
     static func overviewRenameContextIdentifier(for speakerID: String) -> String {
         "overview:\(speakerID)"
     }

@@ -2850,12 +2850,15 @@ struct TranscriptResultView: View {
             segments: cachedSegments,
             speakerColorMap: cachedSpeakerColorMap,
             speakerLabelForID: { cachedSpeakerLabelMap[$0] ?? "Unknown" },
-            speakerLabelContent: { speakerID, speakerLabel, speakerColor, renameContextID in
+            speakerLabelContent: { speakerID, speakerLabel, speakerColor, renameContextID, isRenameButtonVisuallyRevealed in
                 speakerLabelView(
                     speaker: SpeakerInfo(id: speakerID, label: speakerLabel),
                     color: speakerColor,
                     contextID: renameContextID,
-                    font: DesignSystem.Typography.body.weight(.semibold)
+                    font: DesignSystem.Typography.body.weight(.semibold),
+                    renameButtonOpacity: SpeakerRenameAccessibility.renameButtonOpacity(
+                        isVisuallyRevealed: isRenameButtonVisuallyRevealed
+                    )
                 )
             },
             isSegmentActive: isSegmentActiveBinarySearch(segmentIndex:),
@@ -2970,7 +2973,8 @@ struct TranscriptResultView: View {
         speaker: SpeakerInfo,
         color: Color,
         contextID: String,
-        font: Font = DesignSystem.Typography.caption.weight(.semibold)
+        font: Font = DesignSystem.Typography.caption.weight(.semibold),
+        renameButtonOpacity: Double = SpeakerRenameAccessibility.renameButtonOpacity(isVisuallyRevealed: true)
     ) -> some View {
         if editingSpeakerId == speaker.id, editingSpeakerContextID == contextID {
             TextField("Name", text: $editingSpeakerLabel)
@@ -3018,6 +3022,7 @@ struct TranscriptResultView: View {
                 .accessibilityLabel(SpeakerRenameAccessibility.renameButtonLabel(for: speaker.label))
                 .accessibilityHint(SpeakerRenameAccessibility.renameButtonHint)
                 .accessibilityIdentifier(SpeakerRenameAccessibility.renameButtonIdentifier(for: speaker.id))
+                .opacity(renameButtonOpacity)
             }
             .accessibilityElement(children: .contain)
         }
