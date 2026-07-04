@@ -1,0 +1,19 @@
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_b57fde6fe2c5fb::t_03a1a0a477675c 72-74,481,484-487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c0d06d6259fde9589f4eb391eb8c1de85ac02867",
+  "prompts": {},
+  "sessions": {
+    "s_b57fde6fe2c5fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29ee-31a9-7682-844e-42525cdcfc89",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
