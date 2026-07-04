@@ -436,10 +436,13 @@ func resolveWhisperDownloadModel(_ variant: String) throws -> String {
     guard !normalizedInput.isEmpty else {
         throw ValidationError("Model variant cannot be empty.")
     }
-    guard normalizedInput.hasPrefix("whisper-") else {
+    guard normalizedInput.lowercased().hasPrefix("whisper-") else {
         throw ValidationError("Unsupported model identifier '\(variant)'. Use a parakeet-v2, parakeet-v3, parakeet-unified, nemotron-multilingual-1120ms, nemotron-english-1120ms, cohere-transcribe, or whisper-* id from `models list`.")
     }
-    return WhisperEngine.normalizeModelVariant(normalizedInput)
+    guard let whisperVariant = WhisperModelVariant.normalize(normalizedInput) else {
+        throw ValidationError("Unsupported Whisper model identifier '\(variant)'. Run `macparakeet-cli models list` for valid IDs.")
+    }
+    return whisperVariant.rawValue
 }
 
 struct SpeechStackPayload: Encodable {
@@ -648,7 +651,8 @@ func loadSelectableSpeechModels(
     }
     let checkWhisperModelDownloaded = isWhisperModelDownloaded ?? { WhisperEngine.isModelDownloaded(model: $0) }
     let checkCohereModelDownloaded = isCohereModelDownloaded ?? { CohereTranscribeEngine.isModelCached() }
-    let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+    let whisperVariant = WhisperModelVariant.normalize(SpeechEnginePreference.whisperModelVariant(defaults: defaults))
+        ?? .largeV3Turbo632MB
     let whisperLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
     let cohereLanguage = SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults) ?? "en"
 
@@ -679,6 +683,19 @@ func loadSelectableSpeechModels(
         )
     }
 
+    let whisperModels = WhisperModelVariant.allCases.map { variant in
+        SelectableSpeechModel(
+            id: variant.modelID,
+            name: variant.modelName,
+            engine: SpeechEnginePreference.whisper.rawValue,
+            variant: variant.rawValue,
+            size: variant.approximateDownloadSize,
+            installed: checkWhisperModelDownloaded(variant.rawValue),
+            selected: currentEngine == .whisper && whisperVariant == variant,
+            language: whisperLanguage ?? WhisperLanguageCatalog.autoCode
+        )
+    }
+
     return parakeetModels + nemotronModels + [
         SelectableSpeechModel(
             id: cohereModelID,
@@ -689,18 +706,8 @@ func loadSelectableSpeechModels(
             installed: checkCohereModelDownloaded(),
             selected: currentEngine == .cohere,
             language: cohereLanguage
-        ),
-        SelectableSpeechModel(
-            id: whisperModelID(for: whisperVariant),
-            name: "Whisper \(SpeechEnginePreference.friendlyVariantName(whisperVariant))",
-            engine: SpeechEnginePreference.whisper.rawValue,
-            variant: whisperVariant,
-            size: whisperModelSizeLabel(for: whisperVariant),
-            installed: checkWhisperModelDownloaded(whisperVariant),
-            selected: currentEngine == .whisper,
-            language: whisperLanguage ?? WhisperLanguageCatalog.autoCode
-        ),
-    ]
+        )
+    ] + whisperModels
 }
 
 func resolveSelectableSpeechModel(
@@ -773,9 +780,13 @@ func resolveSelectableSpeechModel(
         throw ValidationError("Unknown model ID: '\(id)'. Run `macparakeet-cli models list` for valid IDs.")
     }
 
+    guard let whisperVariant = WhisperModelVariant.normalize(variantInput) else {
+        throw ValidationError("Unknown model ID: '\(id)'. Run `macparakeet-cli models list` for valid IDs.")
+    }
+
     return SelectableSpeechModelSelection(
         engine: .whisper,
-        whisperVariant: WhisperEngine.normalizeModelVariant(variantInput)
+        whisperVariant: whisperVariant.rawValue
     )
 }
 
@@ -960,10 +971,16 @@ func nemotronModelID(for variant: NemotronModelVariant) -> String {
 }
 
 func whisperModelID(for variant: String) -> String {
-    "whisper-\(variant.replacingOccurrences(of: "_turbo_", with: "-turbo-").replacingOccurrences(of: "_", with: "-"))"
+    if let whisperVariant = WhisperModelVariant.normalize(variant) {
+        return whisperVariant.modelID
+    }
+    return "whisper-\(variant.replacingOccurrences(of: "_turbo_", with: "-turbo-").replacingOccurrences(of: "_", with: "-"))"
 }
 
 func whisperModelSizeLabel(for variant: String) -> String? {
+    if let whisperVariant = WhisperModelVariant.normalize(variant) {
+        return whisperVariant.approximateDownloadSize
+    }
     let tokens = variant.split(separator: "_")
     guard let last = tokens.last else { return nil }
     let raw = String(last)

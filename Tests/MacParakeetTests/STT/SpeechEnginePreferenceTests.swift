@@ -14,6 +14,14 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         )
     }
 
+    func testWhisperModelVariantNormalizationRejectsUnsupportedVariants() {
+        XCTAssertEqual(
+            SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-turbo-632MB"),
+            SpeechEnginePreference.defaultWhisperModelVariant
+        )
+        XCTAssertNil(SpeechEnginePreference.normalizeModelVariant("whisper-small"))
+    }
+
     func testEngineAlternativesPreserveStableParakeetToWhisperPath() {
         XCTAssertEqual(SpeechEnginePreference.parakeet.alternative, .whisper)
         XCTAssertEqual(SpeechEnginePreference.nemotron.alternative, .whisper)
@@ -90,13 +98,24 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: bare, defaults: defaults))
     }
 
-    func testWhisperOptimizedIsTrackedPerVariant() {
+    func testWhisperOptimizedIgnoresUnsupportedVariants() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
+        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
 
-        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
+        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
+        XCTAssertNil(defaults.stringArray(forKey: SpeechEnginePreference.whisperOptimizedVariantsKey))
+    }
+
+    func testWhisperOptimizedRequiresSupportedVariant() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: supported, defaults: defaults))
         XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
     }
 
@@ -112,17 +131,16 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: variant, defaults: defaults))
     }
 
-    func testClearWhisperOptimizedLeavesOtherVariantsIntact() {
+    func testClearWhisperOptimizedIgnoresUnsupportedVariants() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
-        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
 
-        SpeechEnginePreference.clearWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
+        SpeechEnginePreference.clearWhisperOptimized(variant: "small", defaults: defaults)
 
-        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
-        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
+        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: supported, defaults: defaults))
     }
 
     func testClearWhisperOptimizedIsIdempotentWhenAbsent() {
@@ -275,13 +293,14 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.saveWhisperModelVariant("small", defaults: defaults)
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.saveWhisperModelVariant(supported, defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .parakeet, defaults: defaults))
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .nemotron, defaults: defaults))
         XCTAssertTrue(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
     }

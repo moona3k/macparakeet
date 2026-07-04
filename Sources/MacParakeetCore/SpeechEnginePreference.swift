@@ -32,7 +32,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// ("Setup needed", minutes) from a warm one ("Downloaded", seconds).
     public static let whisperOptimizedVariantsKey = "whisperOptimizedVariants"
 
-    public static let defaultWhisperModelVariant = "large-v3-v20240930_turbo_632MB"
+    public static let defaultWhisperModelVariant = WhisperModelVariant.largeV3Turbo632MB.rawValue
     public static let defaultNemotronModelVariant: NemotronModelVariant = .multilingual1120
 
     public var displayName: String {
@@ -262,13 +262,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     }
 
     public static func normalizeModelVariant(_ variant: String?) -> String? {
-        guard let variant else { return nil }
-        let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let withoutPrefix = trimmed.hasPrefix("whisper-")
-            ? String(trimmed.dropFirst("whisper-".count))
-            : trimmed
-        return canonicalizeTurboSuffix(withoutPrefix)
+        WhisperModelVariant.normalize(variant)?.rawValue
     }
 
     /// Whisper "turbo" variants ship with both hyphen and underscore spellings
@@ -276,7 +270,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// one model resolves to a single id everywhere — on-disk folder lookup, the
     /// stored preference, and optimized-flag tracking — instead of the mark-side
     /// (engine) and query-side (UI) ids drifting apart.
-    private static func canonicalizeTurboSuffix(_ variant: String) -> String {
+    fileprivate static func canonicalizeTurboSuffix(_ variant: String) -> String {
         if variant.hasSuffix("-turbo") {
             return String(variant.dropLast("-turbo".count)) + "_turbo"
         }
@@ -330,6 +324,55 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         }
 
         return true
+    }
+}
+
+/// The closed set of WhisperKit models surfaced by MacParakeet.
+///
+/// Keep this list as the single source of truth for persisted Whisper variant
+/// validation, CLI model ids, Settings copy, and the STT capability registry.
+public enum WhisperModelVariant: String, CaseIterable, Codable, Sendable {
+    case largeV3Turbo632MB = "large-v3-v20240930_turbo_632MB"
+
+    public var displayName: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "Large v3 Turbo"
+        }
+    }
+
+    public var modelName: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "Whisper Large v3 Turbo"
+        }
+    }
+
+    public var approximateDownloadSize: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "632 MB"
+        }
+    }
+
+    public var modelID: String {
+        "whisper-\(rawValue.replacingOccurrences(of: "_turbo_", with: "-turbo-").replacingOccurrences(of: "_", with: "-"))"
+    }
+
+    public static func normalize(_ variant: String?) -> WhisperModelVariant? {
+        guard let variant else { return nil }
+        let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowered = trimmed.lowercased()
+        let withoutPrefix = lowered.hasPrefix("whisper-")
+            ? String(trimmed.dropFirst("whisper-".count))
+            : trimmed
+        let canonical = SpeechEnginePreference.canonicalizeTurboSuffix(withoutPrefix)
+        return allCases.first {
+            $0.rawValue.caseInsensitiveCompare(canonical) == .orderedSame
+                || $0.modelID.caseInsensitiveCompare(trimmed) == .orderedSame
+        }
     }
 }
 

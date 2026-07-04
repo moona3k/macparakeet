@@ -1705,19 +1705,14 @@ extension TelemetryEventSpec {
     }
 
     private static func safeEngineVariant(_ variant: String?) -> String? {
-        guard let normalized = SpeechEnginePreference.normalizeModelVariant(variant) else {
+        guard let variant,
+              !variant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
+        let normalized = SpeechEnginePreference.normalizeModelVariant(variant) ?? variant
 
-        let allowedVariants: Set<String> = [
-            "tiny",
-            "base",
-            "small",
-            "medium",
-            "large",
-            "large-v2",
-            "large-v3",
-            SpeechEnginePreference.defaultWhisperModelVariant,
+        let allowedVariants = Set(
+            WhisperModelVariant.allCases.map(\.rawValue) + [
             // First-party fixed build ids / policy ids (privacy-safe enum raw
             // values). Without them every Parakeet/Nemotron/Cohere event
             // collapses to "custom" and variant adoption can't be measured.
@@ -1728,7 +1723,8 @@ extension TelemetryEventSpec {
             NemotronModelVariant.english1120.rawValue,
             CohereTranscribeEngine.ComputePolicy.ane.rawValue,
             CohereTranscribeEngine.ComputePolicy.gpu.rawValue,
-        ]
+            ]
+        )
 
         return allowedVariants.contains(normalized) ? normalized : "custom"
     }

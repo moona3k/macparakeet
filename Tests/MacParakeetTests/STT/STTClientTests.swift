@@ -130,8 +130,9 @@ final class STTClientTests: XCTestCase {
     func testWhisperModelVariantNormalization() {
         XCTAssertEqual(
             WhisperEngine.normalizeModelVariant("whisper-large-v3-v20240930-turbo"),
-            "large-v3-v20240930_turbo"
+            SpeechEnginePreference.defaultWhisperModelVariant
         )
+        XCTAssertNil(SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-turbo"))
         XCTAssertEqual(
             WhisperEngine.normalizeModelVariant("whisper-large-v3-v20240930-turbo-632MB"),
             "large-v3-v20240930_turbo_632MB"
