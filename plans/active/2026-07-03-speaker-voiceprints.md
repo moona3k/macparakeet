@@ -1,11 +1,14 @@
 # Persistent Speaker Profiles (Voiceprints) — Research Synthesis + Implementation Plan
 
 - **Date:** 2026-07-03
-- **Status:** PROPOSED — decisions settled 2026-07-04; Phase 0 result: NO-GO on
-  the current meeting corpus (pre-AEC echo contamination + only 3 usable
-  sessions; embeddings not proven insufficient). Phase 1 blocked pending Phase
-  0b clean-corpus validation — see
-  `docs/research/2026-07-04-voiceprints-phase0-calibration.md`.
+- **Status:** PROPOSED — decisions settled 2026-07-04. Phase 0: NO-GO on the
+  current meeting corpus (pre-AEC echo contamination + only 3 usable sessions).
+  Phase 0b (clean public corpus): **GO — embedding path validated** (no overlap:
+  same-narrator 0.05–0.23 vs different 0.47–0.84; tau=0.30/margin 0.10 = 100%
+  TPR, 0% FPR). Phase 1 blocked only on a representative post-AEC meeting
+  corpus: ship #605 AEC (0.6.25) → dogfood recordings → re-run harness → set
+  product tau. See `docs/research/2026-07-04-voiceprints-phase0-calibration.md`
+  and `docs/research/2026-07-04-voiceprints-phase0b-clean-corpus.md`.
 - **Trigger:** issue #662 (yakov0922) + a Reddit voiceprint post aimed at MacWhisper;
   related demand in #430, #106
 - **Research:** 5 delegated reports in
