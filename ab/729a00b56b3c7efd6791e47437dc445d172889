@@ -1,0 +1,31 @@
+Tests/CLITests/SpecCommandTests.swift
+  s_5c907bed1b3b3a::t_f1361cc8d28fe8 197-199
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_5c907bed1b3b3a::t_4767b83e849f62 28,41,44
+Sources/CLI/Commands/HistoryCommand.swift
+  s_5c907bed1b3b3a::t_d3af6e85341077 331-332,360-362
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_5c907bed1b3b3a::t_fec52286a11765 1970,2019,2021
+Sources/CLI/Commands/SpecCommand.swift
+  s_5c907bed1b3b3a::t_05f5ce9b4cb665 375
+Tests/MacParakeetTests/Views/MeetingDeletionCopyTests.swift
+  s_5c907bed1b3b3a::t_6c835af547e9c7 9,12-14,41,43,55-56,83
+Tests/CLITests/HistoryCommandTests.swift
+  s_5c907bed1b3b3a::t_4f86ddcaf36998 201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ab729a00b56b3c7efd6791e47437dc445d172889",
+  "prompts": {},
+  "sessions": {
+    "s_5c907bed1b3b3a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bc8-8623-7a11-95e3-53136c973322",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
