@@ -480,7 +480,7 @@ extension PromptsCommand {
                         userNotesSnapshot: transcript.userNotes
                     )
                     try resultRepo.save(result)
-                    await refreshMeetingArtifactBestEffort(
+                    await refreshMeetingArtifacts(
                         transcription: transcript,
                         resultRepo: resultRepo
                     )
@@ -496,7 +496,8 @@ extension PromptsCommand {
     }
 }
 
-private func refreshMeetingArtifactBestEffort(
+/// Refreshes meeting artifacts; failures are logged and never surfaced or thrown, and refresh never blocks or fails the triggering user action.
+private func refreshMeetingArtifacts(
     transcription: Transcription,
     resultRepo: PromptResultRepositoryProtocol
 ) async {

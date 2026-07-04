@@ -308,7 +308,7 @@ public final class PromptResultsViewModel {
             onDeletedPromptResult?(promptResult.id)
             let transcriptionID = promptResult.transcriptionId
             Task { [weak self] in
-                await self?.refreshMeetingArtifactBestEffort(transcriptionId: transcriptionID)
+                await self?.refreshMeetingArtifacts(transcriptionId: transcriptionID)
             }
             errorMessage = nil
         } catch {
@@ -518,7 +518,7 @@ public final class PromptResultsViewModel {
             promptResults.insert(promptResult, at: 0)
         }
 
-        await refreshMeetingArtifactBestEffort(transcriptionId: generation.transcriptionId)
+        await refreshMeetingArtifacts(transcriptionId: generation.transcriptionId)
 
         onPromptResultsChanged?(generation.transcriptionId, true)
         onGenerationCompleted?(generation.id, promptResult.id)
@@ -615,7 +615,8 @@ public final class PromptResultsViewModel {
         }
     }
 
-    private func refreshMeetingArtifactBestEffort(transcriptionId: UUID) async {
+    /// Refreshes meeting artifacts; failures are logged and never surfaced or thrown, and refresh never blocks or fails the triggering user action.
+    private func refreshMeetingArtifacts(transcriptionId: UUID) async {
         guard let meetingArtifactStore,
               let transcriptionRepo,
               let promptResultRepo
