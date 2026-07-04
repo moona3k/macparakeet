@@ -277,9 +277,15 @@ final class MeetingAecMeasurementTests: XCTestCase {
         )
 
         let quietMic = [Float](repeating: Float(sqrt(0.5e-12)), count: 4)
-        let louderOutput = [Float](repeating: Float(sqrt(0.8e-12)), count: 4)
+        let subFloorOutput = [Float](repeating: Float(sqrt(0.8e-12)), count: 4)
+        XCTAssertEqual(
+            MeetingAecMetrics.erleDB(mic: quietMic, output: subFloorOutput, over: 0..<4),
+            0,
+            accuracy: 0.0001
+        )
+        let aboveFloorOutput = [Float](repeating: Float(sqrt(2.0e-12)), count: 4)
         XCTAssertLessThan(
-            MeetingAecMetrics.erleDB(mic: quietMic, output: louderOutput, over: 0..<4),
+            MeetingAecMetrics.erleDB(mic: quietMic, output: aboveFloorOutput, over: 0..<4),
             0
         )
         XCTAssertEqual(

@@ -355,11 +355,7 @@ enum MeetingAecMetrics {
         guard let window = boundedWindow(window, counts: mic.count, output.count) else { return 0 }
         let micPower = power(mic, over: window)
         let outPower = power(output, over: window)
-        if micPower < powerFloor, outPower < powerFloor {
-            guard outPower > micPower else { return 0 }
-            return 10 * log10(max(micPower, Double.leastNonzeroMagnitude) / outPower)
-        }
-        return 10 * log10(max(micPower, Double.leastNonzeroMagnitude) / max(outPower, powerFloor))
+        return 10 * log10(max(micPower, powerFloor) / max(outPower, powerFloor))
     }
 
     /// Near-end error (dB relative to near-end power): how far the output drifts
