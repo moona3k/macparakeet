@@ -255,6 +255,7 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         using speakers: [SpeakerInfo]?
     ) -> [TranscriptSegmentRecord]? {
         guard var segments,
+              !segments.isEmpty,
               let speakers,
               !speakers.isEmpty
         else {
