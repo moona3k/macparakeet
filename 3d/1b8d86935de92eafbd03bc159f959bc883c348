@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_5a3054f511f71d::t_7e5f141d7cd961 28-68,298,320,333-339,364-375,389-392
+Tests/MacParakeetTests/Services/System/MockClipboardService.swift
+  s_5a3054f511f71d::t_f9b68eb8bf3a87 7,15,27,45
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_5a3054f511f71d::t_bca871bfed240f 721-734
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d1b8d86935de92eafbd03bc159f959bc883c348",
+  "prompts": {},
+  "sessions": {
+    "s_5a3054f511f71d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b1b-8374-76d3-bfc6-d7f1e0d7c116",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
