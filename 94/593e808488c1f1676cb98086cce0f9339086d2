@@ -1,0 +1,99 @@
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_77a0b6a27746de::t_fb7f18b0ee7420 28,77-80,101,115,133,157,175
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  s_77a0b6a27746de::t_d310ca3a749560 19,36,54,70
+Sources/MacParakeetCore/AppNotifications.swift
+  s_77a0b6a27746de::t_e422d84d6a0b66 14
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_77a0b6a27746de::t_95dcefa2f771b4 723-741
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_77a0b6a27746de::t_1d84f19b1b70b1 136,732-739,742-744,746-747,754-755
+  s_77a0b6a27746de::t_5c7cbb38de0b93 454,456-459,465-468
+  s_77a0b6a27746de::t_189fcbb86749d4 18,70,94,125,132,745
+  s_77a0b6a27746de::t_b30f8a373e79ab 122-124,126-131,133-135
+  s_77a0b6a27746de::t_f626d9d102b90c 19,27-28,71,79-80,95,103-104
+  s_77a0b6a27746de::t_7404217d4280e8 42-43,51-59,455,460-464,469-471,757-760
+  s_0040308a4900a1::t_4e562c5334550c 137
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_77a0b6a27746de::t_390a2e8e42eeff 42-55
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_77a0b6a27746de::t_0e0f50f7c23fed 503
+  s_77a0b6a27746de::t_fb7f18b0ee7420 453-454,456-457,459-460,463,466-472,475,478-479,483-484,486-490,492-493,497-502,504-505,515,622
+  s_77a0b6a27746de::t_50b366b467761c 462,473,476,481
+  s_77a0b6a27746de::t_d296132ac24c2a 507
+  s_77a0b6a27746de::t_6bd6af5e922607 455,458,461,464-465,474,480,482,494-496,506,508,617
+  s_77a0b6a27746de::t_e98be95dd6a39a 477,485,491,616,618-621
+  s_77a0b6a27746de::t_2ae924a097c75b 623-624
+Tests/MacParakeetTests/App/MenuBarCoordinatorTests.swift
+  s_77a0b6a27746de::t_70c1f69ab9bb05 11,27,43,50-61
+  s_77a0b6a27746de::t_fb7f18b0ee7420 1-10,12-26,28-42,44-49,62-63
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_77a0b6a27746de::t_3c8384d3d7487b 23,665-666
+  s_77a0b6a27746de::t_e422d84d6a0b66 485,573-576,667
+  s_77a0b6a27746de::t_cd8d031035dfb5 668
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_77a0b6a27746de::t_0b7caeb56bbd38 312
+Sources/MacParakeet/AppDelegate.swift
+  s_77a0b6a27746de::t_8c3e8315f7183d 264-266,289-292,294,338-340,738-739
+  s_77a0b6a27746de::t_b77e0b33c2f13a 293
+  s_77a0b6a27746de::t_e5253276d3503d 261-263
+  s_0040308a4900a1::t_9f3e07fec7cf17 740-741
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_77a0b6a27746de::t_fb7f18b0ee7420 337-351,353-355,357-362
+  s_77a0b6a27746de::t_390a2e8e42eeff 234,273,300,352,356
+  s_77a0b6a27746de::t_e5376877515902 363-364
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_77a0b6a27746de::t_3c8384d3d7487b 187-196,707
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_77a0b6a27746de::t_3c8384d3d7487b 245-252
+  s_77a0b6a27746de::t_e422d84d6a0b66 86
+  s_77a0b6a27746de::t_ad34a370d49459 244
+  s_77a0b6a27746de::t_8ca8d48531496d 253-254
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_77a0b6a27746de::t_390a2e8e42eeff 100-108
+  s_77a0b6a27746de::t_fb7f18b0ee7420 217
+  s_77a0b6a27746de::t_ba818ca697cdf6 109-111
+  s_77a0b6a27746de::t_d324f42af7f4a8 112
+docs/telemetry.md
+  s_77a0b6a27746de::t_ddc40dcb88fecd 390
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_77a0b6a27746de::t_8b9452e0299544 335-338,344-349
+  s_77a0b6a27746de::t_3f1b94ee32d7d4 63,151
+  s_77a0b6a27746de::t_617a47fd74c6f7 600
+  s_77a0b6a27746de::t_db640cef4cce4e 1261-1264
+  s_77a0b6a27746de::t_607c727824c79c 124,339-343
+  s_77a0b6a27746de::t_3a05d93333cc0f 1408-1415
+  s_77a0b6a27746de::t_5f5bef5c36fc07 25-34
+spec/04-ui-patterns.md
+  s_77a0b6a27746de::t_ddc40dcb88fecd 12,120,488,505-506,511
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_77a0b6a27746de::t_e422d84d6a0b66 1252-1259
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift
+  s_77a0b6a27746de::t_e422d84d6a0b66 80
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_77a0b6a27746de::t_e422d84d6a0b66 517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "94593e808488c1f1676cb98086cce0f9339086d2",
+  "prompts": {},
+  "sessions": {
+    "s_0040308a4900a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f52-d6b9-7372-98d7-b6e1a8d18040",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_77a0b6a27746de": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f1b-a504-7613-969e-94371c4f3e7c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
