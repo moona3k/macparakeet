@@ -228,7 +228,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingAudioRetention, .keepForever)
         XCTAssertTrue(viewModel.saveMeetingAudio, "saveMeetingAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
-        XCTAssertFalse(viewModel.speakerDiarization, "speakerDiarization should default to false")
+        XCTAssertTrue(viewModel.speakerDiarization, "speakerDiarization should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
         XCTAssertFalse(viewModel.meetingAutoStopEnabled, "meeting auto-stop should default to false")
@@ -923,6 +923,15 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.speakerDiarization = true
 
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey))
+    }
+
+    func testSettingSpeakerDiarizationPersistsExplicitFalse() {
+        viewModel.speakerDiarization = false
+
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
+            false
+        )
     }
 
     func testMeetingHotkeyPersistsToDedicatedDefaultsKey() {

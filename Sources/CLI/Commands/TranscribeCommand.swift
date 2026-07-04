@@ -321,7 +321,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         switch option {
         case .appDefault:
             return ResolvedSpeakerDetection(
-                enabled: constraint != nil || (storedEnabled ?? false),
+                enabled: constraint != nil || (storedEnabled ?? UserDefaultsAppRuntimePreferences.defaultSpeakerDiarizationEnabled),
                 constraint: constraint
             )
         case .on:

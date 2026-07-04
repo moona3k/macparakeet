@@ -117,7 +117,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 2. Microphone permission
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
-5. Speech stack setup (Parakeet; speaker detection is an opt-in Settings toggle, off by default; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)
+5. Speech stack setup (Parakeet; speaker detection defaults on where supported and remains user-controllable in Settings; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)
 6. Ready
 
 Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-005 amendment, 2026-06-13).
@@ -1332,7 +1332,7 @@ new scheduling architecture.
 - Manual renaming: click speaker label to assign real name
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
-- Off by default for file transcription (opt-in Settings toggle); the CLI follows the saved preference — `--speaker-detection on` or a speaker-count constraint forces it on, `--no-diarize` forces it off
+- On by default where supported for file/URL transcription and meeting finalization with a system-audio track; the Settings toggle remains available, and the CLI follows the saved preference — `--speaker-detection off` / `--no-diarize` forces it off, while speaker-count constraints keep forcing it on for that run
 
 **Transcript with speakers:**
 
@@ -1393,8 +1393,8 @@ new scheduling architecture.
 - [x] Single-speaker files handled gracefully (one speaker label)
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
-- [x] Settings toggle for speaker detection (off by default, replaces planned Option-key alternate)
-- [x] CLI: `macparakeet-cli transcribe` follows the saved speaker-detection preference (off by default); `--speaker-detection on` / `--speaker-count` to force on, `--no-diarize` to force off
+- [x] Settings toggle for speaker detection (on by default where supported; explicit off is preserved)
+- [x] CLI: `macparakeet-cli transcribe` follows the saved speaker-detection preference (on by default when unset); `--speaker-detection off` / `--no-diarize` to force off, speaker-count constraints to force on
 
 ---
 

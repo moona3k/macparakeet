@@ -559,8 +559,9 @@ macparakeet-cli prompts run "<prompt-name>" \
   `--mode app-default`, `--downloaded-audio app-default`, and
   `--media-audio-quality app-default`) when you are intentionally checking
   GUI-default behavior. Pin explicit flags for reproducible agent tests.
-- `config get speaker-detection` reports the saved app-default value. Bare
-  `transcribe` and `--speaker-detection app-default` use that value; pass
+- `config get speaker-detection` reports the saved app-default value, which is
+  `on` for a fresh preference store. Bare `transcribe` and
+  `--speaker-detection app-default` use that value; pass
   `--speaker-detection on` or `off` to override it for one run. For known
   speaker counts, use per-run `--speaker-count`, `--speaker-min`, or
   `--speaker-max` instead of mutating the saved default.

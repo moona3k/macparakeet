@@ -181,7 +181,7 @@ It remains a separate service because:
 
 The STT control plane may coordinate with diarization for lifecycle/UI/reporting purposes, but diarization capacity policy remains separate.
 
-Keeping diarization out of the speech-slot scheduler does **not** mean product readiness may ignore it. When speaker detection is enabled (it is off by default — see ADR-010 amendment 2026-06-14), onboarding and ready-state UX must account for diarization-model readiness before claiming file transcription is fully prepared.
+Keeping diarization out of the speech-slot scheduler does **not** mean product readiness may ignore it. Speaker detection now defaults on where supported (see ADR-010 amendment 2026-07-03), so onboarding and ready-state UX must account for diarization-model readiness before claiming file transcription is fully prepared when a diarization service is available.
 
 ### 9. Progress must be job-scoped
 

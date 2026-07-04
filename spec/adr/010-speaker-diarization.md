@@ -113,7 +113,7 @@ If diarization fails (e.g. `noSpeechDetected`, model error, timeout), the ASR re
 - Per-speaker analytics (speaking time, word count)
 - All export formats include speaker labels when available
 - Progress: "Identifying speakers..." sublabel with time estimate during diarization phase
-- Settings toggle to enable/disable diarization (on by default in the original decision; **shipped default is off** — see the 2026-06-14 amendment)
+- Settings toggle to enable/disable diarization (on by default where supported; explicit off remains respected — see the 2026-07-03 amendment)
 
 ### Always-on vs opt-in
 
@@ -129,14 +129,15 @@ If diarization fails (e.g. `noSpeechDetected`, model error, timeout), the ASR re
 
 Skip diarization for: dictation (single speaker by design), or when the Settings toggle is off.
 
-**CLI:** `macparakeet-cli transcribe` ~~runs diarization by default (backward compatibility)~~ does **not** diarize by default (corrected — see the 2026-06-14 amendment). Use `--no-diarize` to skip, or `--speaker-detection on` / a speaker-count constraint to force it on. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
+**CLI:** `macparakeet-cli transcribe` follows the saved speaker-detection preference; when unset, the preference defaults to on where supported. Use `--no-diarize` / `--speaker-detection off` to skip, or a speaker-count constraint to force it on. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
 
-**Readiness contract:** Diarization remains a separate service from the STT scheduler, but when speaker detection is enabled (off by default — see the 2026-06-14 amendment) the onboarding/ready-state path must account for diarization-model readiness before claiming file transcription is fully ready.
+**Readiness contract:** Diarization remains a separate service from the STT scheduler, but when speaker detection is enabled (on by default where supported — see the 2026-07-03 amendment) the onboarding/ready-state path must account for diarization-model readiness before claiming file transcription is fully ready.
 
 > **Amendment (2026-06-14):** Two corrections to keep this ADR faithful to the
-> shipped code.
+> shipped code at that point. The default-off correction below was superseded
+> by the 2026-07-03 amendment.
 >
-> **1. The shipped default is OFF, not on.** The "Speaker detection" toggle
+> **1. The shipped default was OFF, not on.** The "Speaker detection" toggle
 > defaults to off across the app — Settings, runtime preferences
 > (`AppRuntimePreferences.speakerDiarization`), and the CLI all resolve to off
 > unless the user opts in. The default was deliberately flipped on→off in commit
@@ -149,6 +150,16 @@ Skip diarization for: dictation (single speaker by design), or when the Settings
 > forces it off. (b) The readiness contract above applies only when the user has
 > enabled speaker detection — default onboarding does not fetch the ~130 MB
 > diarization assets.
+>
+> **Amendment (2026-07-03):** Meeting-corpus capture restored the default to
+> **ON where supported**. The `speakerDiarization` preference remains
+> UserDefaults-backed and user-controllable; an absent key resolves to on, while
+> an explicit stored `false` continues to disable speaker detection. Meetings
+> still only run diarization when a system-audio track exists, because the
+> meeting pipeline diarizes the isolated system side after capture. This aligns
+> with ADR-027's private speech-memory direction: speaker structure is only
+> recoverable while raw meeting audio exists, so capture-time diarization is the
+> last chance to preserve speaker labels in the corpus.
 >
 > **2. The FluidAudio dependency surface has grown.** The core decision above
 > still stands — MacParakeet ships only the offline batch pipeline and uses
@@ -217,7 +228,7 @@ Users can correct misattributions by renaming speakers. Missed speech is visible
 
 ### Negative
 
-- ~130 MB additional model download when the user enables speaker detection (off by default, so default onboarding skips it — see the 2026-06-14 amendment)
+- ~130 MB additional model download for default-on speaker detection where supported (see the 2026-07-03 amendment)
 - ~2-4% DER loss vs PyTorch reference due to CoreML fp16 quantization
 - Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may get `speakerId = nil`
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)

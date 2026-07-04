@@ -39,6 +39,21 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testSpeakerDiarizationDefaultsToTrueWhenUnset() {
+        let preferences = makePreferences()
+        XCTAssertTrue(preferences.shouldDiarize)
+    }
+
+    func testSpeakerDiarizationRespectsExplicitFalse() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertFalse(preferences.shouldDiarize)
+    }
+
     func testVoiceReturnTriggersAreDisabledWhenToggleIsOff() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

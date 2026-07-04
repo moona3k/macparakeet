@@ -109,6 +109,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - `spec --json` now documents `meetings export` JSON stdout mode as
   `--stdout --format json`, matching the command's file-output default.
+- `transcribe` / `retranscribe` app-default speaker detection now resolves to
+  `on` for a fresh preference store. `config get speaker-detection` reports
+  `on` when unset; an explicit saved `off`, `--speaker-detection off`, or
+  `--no-diarize` still disables diarization.
 - Plain-text `retranscribe` validation/misuse failures now use exit code `2`,
   matching the JSON envelope path and the public exit-code contract.
 

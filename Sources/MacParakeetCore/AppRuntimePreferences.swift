@@ -499,6 +499,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let autoGenerateMeetingTitlesKey = "autoGenerateMeetingTitles"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
+    public static let defaultSpeakerDiarizationEnabled = true
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
@@ -563,6 +564,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         return [defaultVoiceReturnTrigger]
     }
 
+    public static func speakerDiarizationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: speakerDiarizationKey) as? Bool ?? defaultSpeakerDiarizationEnabled
+    }
+
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
@@ -610,7 +615,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     public var shouldDiarize: Bool {
-        defaults.object(forKey: Self.speakerDiarizationKey) as? Bool ?? false
+        Self.speakerDiarizationEnabled(defaults: defaults)
     }
 
     public var aiFormatterEnabled: Bool {
