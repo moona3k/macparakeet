@@ -13,10 +13,10 @@ public enum MeetingCleanedMicrophoneRoutingReason: String, Sendable, Codable, Ca
 
 public struct MeetingCleanedMicrophoneReadinessPolicy: Sendable, Equatable {
     /// `docs/audits/2026-07-04-localvqe-aec-runtime-findings.md` measured
-    /// 11.67-12.59x realtime on an M4 Pro. 12.0 is the optimistic bound, so
-    /// the duration guard only skips renders that would time out even at the
-    /// best measured rate.
-    public static let bestMeasuredRealtimeFactor: Double = 12.0
+    /// 11.67-12.59x realtime on an M4 Pro. The fastest observed factor keeps
+    /// the duration guard limited to renders that would exceed the cap even
+    /// at the best measured rate.
+    public static let bestMeasuredRealtimeFactor: Double = 12.59
 
     public static let production = MeetingCleanedMicrophoneReadinessPolicy(
         floorSeconds: 60,

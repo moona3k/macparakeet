@@ -3,6 +3,14 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingCleanedMicrophoneReadinessPolicyTests: XCTestCase {
+    func testBestMeasuredRealtimeFactorUsesFastestAuditedThroughput() {
+        XCTAssertEqual(
+            MeetingCleanedMicrophoneReadinessPolicy.bestMeasuredRealtimeFactor,
+            12.59,
+            accuracy: 0.001
+        )
+    }
+
     func testShouldAttemptRenderAtProductionBoundary() {
         let policy = MeetingCleanedMicrophoneReadinessPolicy.production
         let threshold =
@@ -52,5 +60,77 @@ final class MeetingCleanedMicrophoneReadinessPolicyTests: XCTestCase {
         XCTAssertTrue(policy.shouldAttemptRender(for: -1))
         XCTAssertTrue(policy.shouldAttemptRender(for: .infinity))
         XCTAssertTrue(policy.shouldAttemptRender(for: .nan))
+    }
+}
+
+final class MeetingSourceAlignmentDurationTests: XCTestCase {
+    func testCleanedMicRenderDurationUsesLongestCapturedSource() {
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000 * 120,
+                sampleRate: 48_000
+            ),
+            system: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000 * 90,
+                sampleRate: 48_000
+            )
+        )
+
+        XCTAssertEqual(alignment.cleanedMicrophoneRenderDurationSeconds, 120, accuracy: 0.001)
+    }
+
+    func testCleanedMicRenderDurationTreatsInvalidMetricsAsUnknown() {
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: -1,
+                sampleRate: 48_000
+            ),
+            system: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 0
+            )
+        )
+
+        XCTAssertEqual(alignment.cleanedMicrophoneRenderDurationSeconds, 0, accuracy: 0.001)
+    }
+
+    func testCapturedMediaDurationFeedsPredictedTimeoutPolicy() {
+        let policy = MeetingCleanedMicrophoneReadinessPolicy.production
+        let threshold =
+            policy.capSeconds
+            * MeetingCleanedMicrophoneReadinessPolicy
+            .bestMeasuredRealtimeFactor
+        let sampleRate = 48_000.0
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: Int64(((threshold + 1) * sampleRate).rounded()),
+                sampleRate: sampleRate
+            ),
+            system: nil
+        )
+
+        XCTAssertFalse(
+            policy.shouldAttemptRender(
+                for: alignment.cleanedMicrophoneRenderDurationSeconds
+            )
+        )
     }
 }

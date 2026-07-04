@@ -1542,7 +1542,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
     }
 
-    func testStopRecordingSkipsCleanedMicWhenDurationPredictsRenderTimeout() async throws {
+    func testStopRecordingUsesMediaDurationForCleanedMicTimeoutGuard() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let wallClock = MeetingTestWallClock(
             now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -1581,21 +1581,15 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
         XCTAssertEqual(
             schedulerProbe.callCount,
-            0,
-            "above-threshold meetings must not construct the cleaned-mic render task"
+            1,
+            "above-threshold wall-clock duration must not skip a short captured media render"
         )
 
         let decision = try await output.resolvedMicrophoneTranscriptionSource()
-        XCTAssertEqual(decision.reason, .predictedRenderTimeout)
+        XCTAssertEqual(decision.reason, .rawRenderFailed)
         XCTAssertEqual(decision.url, output.microphoneAudioURL)
         let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
-        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .predictedRenderTimeout)
-        let log = try String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)
-        XCTAssertTrue(
-            log.contains(
-                "meeting_cleaned_mic session=\(output.sessionID.uuidString) outcome=skipped reason=predictedRenderTimeout"
-            )
-        )
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .rawRenderFailed)
     }
 
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {

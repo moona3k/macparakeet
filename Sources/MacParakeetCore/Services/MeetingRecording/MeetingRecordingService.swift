@@ -669,11 +669,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         paused = false
         let durationSeconds = max(0, activeRecordingSeconds(startedAt: session.startedAt, asOf: now))
+        // The render guard models audio work, so use captured media duration
+        // rather than user-facing wall-clock meeting duration.
+        let renderDurationSeconds = sourceAlignment.cleanedMicrophoneRenderDurationSeconds
         let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
             session: session,
             availableSources: availableSources,
             sourceAlignment: sourceAlignment,
-            recordingDuration: durationSeconds
+            renderDuration: renderDurationSeconds
         )
         let output = MeetingRecordingOutput(
             sessionID: session.id,
@@ -1285,12 +1288,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         session: Session,
         availableSources: Set<AudioSource>,
         sourceAlignment: MeetingSourceAlignment,
-        recordingDuration: TimeInterval
+        renderDuration: TimeInterval
     ) -> MeetingCleanedMicrophoneReadiness {
         let outputURL = session.folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         guard MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
-            for: recordingDuration
+            for: renderDuration
         ) else {
             return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
                 outputURL: outputURL,
