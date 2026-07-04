@@ -109,7 +109,7 @@ public func meetingInputDeviceAttempts(
         preferBuiltInWhenOutputIsBluetooth: preferBuiltInWhenOutputIsBluetooth,
         defaultInputIsBluetooth: defaultInputIsBluetooth,
         outputIsBluetooth: outputIsBluetooth,
-        diagnosticsSink: { AudioCaptureDiagnostics.appendAsync($0) }
+        diagnosticsSink: AudioCaptureDiagnostics.appendAsync
     )
 }
 
@@ -121,7 +121,7 @@ func meetingInputDeviceAttempts(
     preferBuiltInWhenOutputIsBluetooth: Bool = false,
     defaultInputIsBluetooth: (AudioDeviceID) -> Bool = { _ in true },
     outputIsBluetooth: () -> Bool? = { false },
-    diagnosticsSink: @Sendable (String) -> Void
+    diagnosticsSink: (String) -> Void
 ) -> [MeetingInputDeviceAttempt] {
     var attempts: [MeetingInputDeviceAttempt] = []
     var seenDeviceIDs = Set<AudioDeviceID>()

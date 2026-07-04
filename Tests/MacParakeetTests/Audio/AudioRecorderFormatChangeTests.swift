@@ -1103,18 +1103,6 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
 
     private func pollUntil(
         timeout: Duration,
-        condition: @Sendable () -> Bool
-    ) async -> Bool {
-        let deadline = ContinuousClock.now.advanced(by: timeout)
-        while ContinuousClock.now < deadline {
-            if condition() { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return condition()
-    }
-
-    private func pollUntil(
-        timeout: Duration,
         condition: @Sendable () async -> Bool
     ) async -> Bool {
         let deadline = ContinuousClock.now.advanced(by: timeout)
