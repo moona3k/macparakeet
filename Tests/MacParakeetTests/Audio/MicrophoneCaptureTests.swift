@@ -96,6 +96,38 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
+    func testNoBufferWatchdogAppendsDiagnosticsLine() async throws {
+        let platform = SharedMicTestPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let capture = MicrophoneCapture(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let stallBox = MicrophoneCaptureTestStallBox()
+        let beforeDiagnostics = currentDiagnosticsLogContents()
+
+        _ = try await capture.start(
+            processingMode: .raw,
+            handler: { _, _ in },
+            onStall: { error in stallBox.record(error) }
+        )
+        defer { capture.stop() }
+
+        let line = try await waitForDiagnosticsLine(
+            containing: "meeting_mic_capture_no_buffers_within_timeout",
+            after: beforeDiagnostics
+        )
+        let stallObserved = await waitUntil(timeoutSeconds: 1) { stallBox.recordedError != nil }
+        XCTAssertTrue(
+            stallObserved,
+            "The watchdog must still notify the stall observer."
+        )
+        XCTAssertTrue(line.contains("elapsed_s=2.000"))
+        XCTAssertTrue(line.contains("isRunning=true"))
+        XCTAssertTrue(line.contains("default_input="))
+        XCTAssertTrue(line.contains("default_input_transport="))
+    }
+
     func testSharedModeVPIOForwardsChannelZeroOnly() async throws {
         let platform = SharedMicTestPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
@@ -437,10 +469,11 @@ final class MicrophoneCaptureTests: XCTestCase {
 
     // MARK: - Bluetooth-output avoidance (issues #481/#541/#409)
 
-    func testBluetoothOutputPrefersBuiltInWhenOnSystemDefault() {
+    func testBluetoothOutputPrefersBuiltInWhenOnSystemDefault() throws {
         // System default input is the Bluetooth headset (id 20); built-in is
         // id 30. With output on Bluetooth and no explicit selection, built-in
         // is promoted to the front so capture doesn't force HFP/SCO.
+        let beforeDiagnostics = currentDiagnosticsLogContents()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
             selectedInputDeviceID: { _ in nil },
@@ -458,6 +491,15 @@ final class MicrophoneCaptureTests: XCTestCase {
             ],
             "Built-in must lead, with the Bluetooth system default kept as fallback"
         )
+        let line = try diagnosticsLine(
+            containing: "mic_attempts_bluetooth_output_policy",
+            after: beforeDiagnostics
+        )
+        XCTAssertTrue(line.contains("preference=on"))
+        XCTAssertTrue(line.contains("explicit_selection_resolved=false"))
+        XCTAssertTrue(line.contains("default_output_transport=bluetooth"))
+        XCTAssertTrue(line.contains("outcome=fired"))
+        XCTAssertTrue(line.contains("reason=built_in_promoted"))
     }
 
     func testBluetoothOutputPrefersBuiltInWhenOutputLookupIsUnavailable() {
@@ -534,10 +576,11 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testBluetoothOutputKeepsExplicitSelectionFirstAndPinsBuiltInBeforeDefaultFallback() {
+    func testBluetoothOutputKeepsExplicitSelectionFirstAndPinsBuiltInBeforeDefaultFallback() throws {
         // An explicit selection remains first, but if it fails during Bluetooth
         // route churn we still avoid floating to the unpinned headset default
         // before trying the pinned built-in mic.
+        let beforeDiagnostics = currentDiagnosticsLogContents()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: "usb-mic",
             selectedInputDeviceID: { uid in uid == "usb-mic" ? AudioDeviceID(10) : nil },
@@ -556,6 +599,15 @@ final class MicrophoneCaptureTests: XCTestCase {
             ],
             "Explicit selection must stay first, with built-in pinned before the Bluetooth default fallback"
         )
+        let line = try diagnosticsLine(
+            containing: "mic_attempts_bluetooth_output_policy",
+            after: beforeDiagnostics
+        )
+        XCTAssertTrue(line.contains("preference=on"))
+        XCTAssertTrue(line.contains("explicit_selection_resolved=true"))
+        XCTAssertTrue(line.contains("default_output_transport=bluetooth"))
+        XCTAssertTrue(line.contains("outcome=skipped"))
+        XCTAssertTrue(line.contains("reason=explicit_selection_resolved"))
     }
 
     func testBluetoothOutputLeavesExplicitSelectionFallbackUntouchedForNonBluetoothDefaultInput() {
@@ -658,8 +710,9 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testBluetoothOutputRuleDisabledLeavesChainUntouched() {
+    func testBluetoothOutputRuleDisabledLeavesChainUntouched() throws {
         var queriedOutput = false
+        let beforeDiagnostics = currentDiagnosticsLogContents()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
             selectedInputDeviceID: { _ in nil },
@@ -680,6 +733,15 @@ final class MicrophoneCaptureTests: XCTestCase {
             ]
         )
         XCTAssertFalse(queriedOutput, "Disabled rule must not query the output transport")
+        let line = try diagnosticsLine(
+            containing: "mic_attempts_bluetooth_output_policy",
+            after: beforeDiagnostics
+        )
+        XCTAssertTrue(line.contains("preference=off"))
+        XCTAssertTrue(line.contains("explicit_selection_resolved=false"))
+        XCTAssertTrue(line.contains("default_output_transport=not_queried"))
+        XCTAssertTrue(line.contains("outcome=skipped"))
+        XCTAssertTrue(line.contains("reason=preference_off"))
     }
 
     func testBluetoothOutputPromotesBuiltInWhenSavedSelectionUnresolvable() {
@@ -771,6 +833,68 @@ final class MicrophoneCaptureTests: XCTestCase {
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 256)!
         buffer.frameLength = 256
         return buffer
+    }
+
+    private func currentDiagnosticsLogContents() -> String {
+        (try? String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)) ?? ""
+    }
+
+    private func diagnosticsLine(
+        containing marker: String,
+        after previousContents: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> String {
+        return try XCTUnwrap(
+            diagnosticsLineIfPresent(containing: marker, after: previousContents),
+            "Expected diagnostics line containing \(marker)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func diagnosticsLineIfPresent(
+        containing marker: String,
+        after previousContents: String
+    ) -> String? {
+        guard let contents = try? String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8) else {
+            return nil
+        }
+        let newContents =
+            contents.hasPrefix(previousContents)
+            ? String(contents.dropFirst(previousContents.count))
+            : contents
+        return newContents.split(separator: "\n").map(String.init).last { $0.contains(marker) }
+    }
+
+    private func waitForDiagnosticsLine(
+        containing marker: String,
+        after previousContents: String,
+        timeoutSeconds: TimeInterval = 3,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws -> String {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        repeat {
+            if let line = diagnosticsLineIfPresent(containing: marker, after: previousContents) {
+                return line
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        } while Date() < deadline
+        return try diagnosticsLine(containing: marker, after: previousContents, file: file, line: line)
+    }
+
+    private func waitUntil(
+        timeoutSeconds: TimeInterval,
+        pollInterval: Duration = .milliseconds(25),
+        condition: () -> Bool
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        repeat {
+            if condition() { return true }
+            try? await Task.sleep(for: pollInterval)
+        } while Date() < deadline
+        return condition()
     }
 
     private func makeSharedMultiChannelFloatBuffer(

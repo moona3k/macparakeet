@@ -134,16 +134,46 @@ public func meetingInputDeviceAttempts(
         if case .selected = attempt.source { return true }
         return false
     }
+    var defaultOutputTransport = "not_queried"
+    var policyOutcome = "skipped"
+    var policyReason = preferBuiltInWhenOutputIsBluetooth ? "no_built_in_microphone" : "preference_off"
+
+    func outputTransportLabel(_ outputIsBluetooth: Bool?) -> String {
+        switch outputIsBluetooth {
+        case true:
+            return "bluetooth"
+        case false:
+            return "other"
+        case nil:
+            return "unresolved-nil"
+        }
+    }
+
     if preferBuiltInWhenOutputIsBluetooth,
         let builtInDeviceID
     {
+        policyReason = "default_input_not_bluetooth"
         let shouldAvoidDefaultInput: Bool = {
             guard let defaultDeviceID else { return true }
             if defaultDeviceID == builtInDeviceID { return true }
             return defaultInputIsBluetooth(defaultDeviceID)
         }()
 
-        if shouldAvoidDefaultInput, outputIsBluetooth() != false {
+        var shouldAvoidDefaultOutput = false
+        if shouldAvoidDefaultInput {
+            let defaultOutputIsBluetooth = outputIsBluetooth()
+            shouldAvoidDefaultOutput = defaultOutputIsBluetooth != false
+            defaultOutputTransport = outputTransportLabel(defaultOutputIsBluetooth)
+            policyReason = defaultOutputIsBluetooth == false ? "default_output_not_bluetooth" : "built_in_promoted"
+            if hasResolvedSelection, defaultOutputIsBluetooth != false {
+                policyReason = "explicit_selection_resolved"
+            }
+            policyOutcome = shouldAvoidDefaultOutput
+                ? (hasResolvedSelection ? "skipped" : "fired")
+                : "skipped"
+        }
+
+        if shouldAvoidDefaultInput, shouldAvoidDefaultOutput {
             let selectedDeviceID = attempts.first { attempt in
                 if case .selected = attempt.source { return true }
                 return false
@@ -188,6 +218,9 @@ public func meetingInputDeviceAttempts(
             }
         }
     }
+    AudioCaptureDiagnostics.append(
+        "mic_attempts_bluetooth_output_policy preference=\(preferBuiltInWhenOutputIsBluetooth ? "on" : "off") explicit_selection_resolved=\(hasResolvedSelection) default_output_transport=\(defaultOutputTransport) outcome=\(policyOutcome) reason=\(policyReason)"
+    )
 
     return attempts
 }
@@ -201,6 +234,7 @@ public func meetingInputDeviceAttempts(
 public final class MicrophoneCapture: @unchecked Sendable {
     public typealias AudioBufferHandler = @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     public typealias StallObserver = @Sendable (MeetingAudioError) -> Void
+    private static let firstBufferTimeoutSeconds = 2.0
     private enum LifecycleState {
         case idle
         case starting
@@ -527,14 +561,22 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 let error = MeetingAudioError.captureRuntimeFailure(
                     "microphone capture started but delivered no buffers within 2 seconds"
                 )
-                self.logger.warning("microphone_capture_no_buffers_within_timeout")
+                let elapsedSeconds = String(format: "%.3f", Self.firstBufferTimeoutSeconds)
+                let isRunning = self.sharedStream.diagnostics.engineRunning
+                let defaultInput = AudioCaptureDiagnostics.defaultInputDeviceSummary()
+                self.logger.warning(
+                    "microphone_capture_no_buffers_within_timeout elapsed_s=\(elapsedSeconds, privacy: .public) isRunning=\(isRunning, privacy: .public) \(defaultInput, privacy: .public)"
+                )
+                AudioCaptureDiagnostics.append(
+                    "meeting_mic_capture_no_buffers_within_timeout elapsed_s=\(elapsedSeconds) isRunning=\(isRunning) \(defaultInput)"
+                )
                 self.handlerLock.withLock { self.stallObserver }?(error)
             }
             watchdogWorkItem = item
             return item
         }
         if let workItem {
-            watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+            watchdogQueue.asyncAfter(deadline: .now() + Self.firstBufferTimeoutSeconds, execute: workItem)
         }
     }
 
