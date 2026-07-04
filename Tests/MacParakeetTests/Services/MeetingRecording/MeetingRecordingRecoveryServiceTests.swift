@@ -306,6 +306,48 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
     }
 
+    func testRecoverSkipsCleanedMicWhenDurationPredictsRenderTimeout() async throws {
+        let fixture = try makeRecoverableSession()
+        let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try writeM4A(to: staleCleanedURL)
+        let conditionerProbe = RecoveryMicConditionerFactoryProbe()
+        let threshold = MeetingCleanedMicrophoneReadinessPolicy.production.capSeconds
+            * MeetingCleanedMicrophoneReadinessPolicy.bestMeasuredRealtimeFactor
+        transcriptionService.sourceResolutionPolicy = .production
+        recoveryService = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            micConditionerFactory: { @Sendable in conditionerProbe.make() },
+            recordingDurationProvider: { _, _ in threshold + 1 }
+        )
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
+        XCTAssertEqual(recording.durationSeconds, threshold + 1, accuracy: 0.001)
+        XCTAssertNil(recording.cleanedMicrophoneAudioURL)
+        XCTAssertEqual(
+            conditionerProbe.buildCount,
+            0,
+            "above-threshold recovery must not construct the cleaned-mic render task"
+        )
+        XCTAssertEqual(decision.reason, .predictedRenderTimeout)
+        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleCleanedURL.path))
+        let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .predictedRenderTimeout)
+        let log = try String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)
+        XCTAssertTrue(
+            log.contains(
+                "meeting_recovery_cleaned_mic session=\(fixture.lock.sessionId.uuidString) outcome=skipped reason=predictedRenderTimeout"
+            )
+        )
+    }
+
     func testRecoverDeletesStaleCleanedMicWhenSourceMissing() async throws {
         let fixture = try makeRecoverableSession(systemAudio: .corrupt)
         let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")

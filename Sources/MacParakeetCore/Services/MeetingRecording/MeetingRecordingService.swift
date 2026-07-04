@@ -167,6 +167,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingService")
     private let clock = ContinuousClock()
+    private let wallClockNow: @Sendable () -> Date
     private let audioCaptureService: any MeetingAudioCapturing
     private let audioConverter: any AudioFileConverting
     private let fileManager: FileManager
@@ -294,6 +295,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
         cleanedMicConditionerFactory: (@Sendable () -> any MicConditioning)? = nil,
+        wallClockNow: @escaping @Sendable () -> Date = { Date() },
         cleanedMicrophoneReadinessScheduler: @escaping MeetingCleanedMicrophoneReadinessScheduling = { outputURL, microphoneURL, systemURL, sourceAlignment, sessionID, conditionerFactory, fileManager, eventName in
             MeetingCleanedMicrophoneRenderScheduler.schedule(
                 outputURL: outputURL,
@@ -315,6 +317,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.isVadLiveChunkingEnabled = isVadLiveChunkingEnabled
         self.micConditionerFactory = micConditionerFactory
         self.cleanedMicConditionerFactory = cleanedMicConditionerFactory ?? micConditionerFactory
+        self.wallClockNow = wallClockNow
         self.cleanedMicrophoneReadinessScheduler = cleanedMicrophoneReadinessScheduler
         self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
         self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
@@ -338,7 +341,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     public var elapsedSeconds: Int {
         guard let startedAt = currentSession?.startedAt else { return 0 }
-        return max(0, Int(activeRecordingSeconds(startedAt: startedAt, asOf: Date())))
+        return max(0, Int(activeRecordingSeconds(startedAt: startedAt, asOf: wallClockNow())))
     }
 
     public var captureMode: CaptureMode {
@@ -408,10 +411,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
         try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
         // Single timestamp shared between displayName fallback and
-        // startedAt — back-to-back `Date()` calls would only diverge if
+        // startedAt — back-to-back wall clock reads would only diverge if
         // the clock ticked over a minute boundary between them, which is
         // vanishingly rare but trivially avoidable.
-        let now = Date()
+        let now = wallClockNow()
         let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
         currentSpeechEngineLease = speechEngineLease
         let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
@@ -575,7 +578,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             AudioCaptureDiagnostics.append(
                 captureHealthSummaryLine(
                     session: session,
-                    durationSeconds: activeRecordingSeconds(startedAt: session.startedAt, asOf: Date()),
+                    durationSeconds: activeRecordingSeconds(startedAt: session.startedAt, asOf: wallClockNow()),
                     writerMetrics: writerMetrics,
                     captureFailed: captureFailed
                 )
@@ -656,22 +659,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         currentLockFile = awaitingLock
 
-        let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
-            session: session,
-            availableSources: availableSources,
-            sourceAlignment: sourceAlignment
-        )
-
         // Stop while paused: settle the in-flight pause interval into the
         // accumulated total so the persisted duration only reflects time
         // actually recording.
-        let now = Date()
+        let now = wallClockNow()
         if let pausedAtSnapshot = pausedAt {
             accumulatedPausedDuration += now.timeIntervalSince(pausedAtSnapshot)
             pausedAt = nil
         }
         paused = false
         let durationSeconds = max(0, activeRecordingSeconds(startedAt: session.startedAt, asOf: now))
+        let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
+            session: session,
+            availableSources: availableSources,
+            sourceAlignment: sourceAlignment,
+            recordingDuration: durationSeconds
+        )
         let output = MeetingRecordingOutput(
             sessionID: session.id,
             displayName: session.displayName,
@@ -762,7 +765,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     public func pauseRecording() async {
         guard currentSession != nil, !paused, !captureFailed else { return }
         paused = true
-        pausedAt = Date()
+        pausedAt = wallClockNow()
         pausedHostTime = Self.currentAudioHostTime()
         // Zero levels so live UI reads "no signal" the moment the user
         // pauses, instead of decaying from the EMA over the next few
@@ -793,7 +796,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     public func resumeRecording() async {
         guard currentSession != nil, paused, !captureFailed else { return }
         if let pausedAt {
-            accumulatedPausedDuration += Date().timeIntervalSince(pausedAt)
+            accumulatedPausedDuration += wallClockNow().timeIntervalSince(pausedAt)
         }
         if let pausedHostTime {
             appendCompletedPauseHostTimeRange(start: pausedHostTime, end: Self.currentAudioHostTime())
@@ -1281,10 +1284,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func scheduleCleanedMicrophoneRender(
         session: Session,
         availableSources: Set<AudioSource>,
-        sourceAlignment: MeetingSourceAlignment
+        sourceAlignment: MeetingSourceAlignment,
+        recordingDuration: TimeInterval
     ) -> MeetingCleanedMicrophoneReadiness {
         let outputURL = session.folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        guard MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+            for: recordingDuration
+        ) else {
+            return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                outputURL: outputURL,
+                sessionID: session.id,
+                fileManager: fileManager,
+                eventName: "meeting_cleaned_mic"
+            )
+        }
         return cleanedMicrophoneReadinessScheduler(
             outputURL,
             availableSources.contains(.microphone) ? session.microphoneAudioURL : nil,
