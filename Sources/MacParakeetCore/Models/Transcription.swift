@@ -57,6 +57,10 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// Engine-specific model variant id (e.g. the Whisper model id).
     /// `nil` for engines without variants and for legacy rows.
     public var engineVariant: String?
+    /// Local calendar context captured when a meeting recording was started
+    /// from, or probably overlaps, an EventKit event. Contains attendee data
+    /// and remains local-only.
+    public var calendarEventSnapshot: MeetingCalendarSnapshot?
     /// Display-ready title derived from the transcript content at completion
     /// (substantive first sentence, filler-stripped). `nil` when the transcript
     /// is empty or when the row predates v0.9 backfill.
@@ -106,6 +110,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         meetingStartContext: MeetingStartContext? = nil,
         engine: String? = nil,
         engineVariant: String? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
         derivedTitle: String? = nil,
         derivedSnippet: String? = nil,
         updatedAt: Date = Date()
@@ -141,6 +146,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.meetingStartContext = meetingStartContext
         self.engine = engine
         self.engineVariant = engineVariant
+        self.calendarEventSnapshot = calendarEventSnapshot
         self.derivedTitle = derivedTitle
         self.derivedSnippet = derivedSnippet
         self.updatedAt = updatedAt
@@ -254,6 +260,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
         case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
+        case calendarEventSnapshot
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -319,6 +326,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         meetingStartContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)) ?? nil
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
+        calendarEventSnapshot = (try? container.decodeIfPresent(MeetingCalendarSnapshot.self, forKey: .calendarEventSnapshot)) ?? nil
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)

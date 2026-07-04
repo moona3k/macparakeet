@@ -240,6 +240,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testCalendarEventSnapshotColumnExistsOnTranscriptions() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(
+                columns.contains("calendarEventSnapshot"),
+                "transcriptions should preserve local calendar context captured at meeting start"
+            )
+        }
+    }
+
     func testMeetingStartContextMigrationToleratesExistingColumnWhenMigrationMarkerIsMissing() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("meeting_start_context_rerun_\(UUID().uuidString).db")
@@ -263,6 +274,34 @@ final class DatabaseManagerTests: XCTestCase {
                 db,
                 sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
                 arguments: ["v0.24-meeting-start-context"]
+            ) ?? false
+            XCTAssertTrue(migrationRecorded)
+        }
+    }
+
+    func testCalendarEventSnapshotMigrationToleratesExistingColumnWhenMigrationMarkerIsMissing() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("calendar_event_snapshot_rerun_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let manager1 = try DatabaseManager(path: dbPath)
+        try manager1.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.25-meeting-calendar-event-snapshot"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        try manager2.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(columns.contains("calendarEventSnapshot"))
+
+            let migrationRecorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.25-meeting-calendar-event-snapshot"]
             ) ?? false
             XCTAssertTrue(migrationRecorded)
         }

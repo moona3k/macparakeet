@@ -275,7 +275,8 @@ private actor QueueRecordingServiceSpy: MeetingRecordingServiceProtocol {
     func startRecording(
         title: String?,
         sourceMode: MeetingAudioSourceMode?,
-        startContext: MeetingStartContext?
+        startContext: MeetingStartContext?,
+        calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws {}
 
     func stopRecording() async throws -> MeetingRecordingOutput {

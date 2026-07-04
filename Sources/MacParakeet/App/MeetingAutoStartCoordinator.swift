@@ -39,12 +39,13 @@ final class MeetingAutoStartCoordinator {
     /// on `MeetingRecordingFlowCoordinator` (and so tests can stub them).
     private let isRecordingActive: @MainActor () -> Bool
     /// Called when the user (or countdown completion) commits to starting
-    /// an auto-start recording. The event title is forwarded so the
+    /// an auto-start recording. The event snapshot is forwarded so the
     /// recording flow can pre-name the saved transcription with the
-    /// calendar event name instead of the date-based default. Returns the
-    /// recording generation on success, or `nil` if the start was rejected
-    /// (state busy) — the coordinator only needs the non-nil/nil distinction.
-    private let onAutoStartConfirmed: @MainActor (_ title: String) -> Int?
+    /// calendar event name and persist the rest of the EventKit context.
+    /// Returns the recording generation on success, or `nil` if the start was
+    /// rejected (state busy) — the coordinator only needs the non-nil/nil
+    /// distinction.
+    private let onAutoStartConfirmed: @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int?
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -65,6 +66,7 @@ final class MeetingAutoStartCoordinator {
     private var dismissedEventIds: Set<String> = []
     private var remindedEventIds: Set<String> = []
     private var countdownShownEventIds: Set<String> = []
+    private var latestPolledEvents: [CalendarEvent] = []
 
     // `nonisolated(unsafe)` so the nonisolated `deinit` can read these to
     // unregister observers. They're write-only after start() / stop() and
@@ -82,7 +84,7 @@ final class MeetingAutoStartCoordinator {
         calendarService: any CalendarServicing = CalendarService.shared,
         settingsViewModel: SettingsViewModel,
         isRecordingActive: @escaping @MainActor () -> Bool = { false },
-        onAutoStartConfirmed: @escaping @MainActor (_ title: String) -> Int? = { _ in nil },
+        onAutoStartConfirmed: @escaping @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int? = { _ in nil },
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
@@ -136,6 +138,7 @@ final class MeetingAutoStartCoordinator {
         pollingTimer?.invalidate()
         pollingTimer = nil
         pollingInterval = 0
+        latestPolledEvents = []
         cleanupTask?.cancel()
         cleanupTask = nil
         toastController.close()
@@ -237,10 +240,12 @@ final class MeetingAutoStartCoordinator {
         // Fast-path guards before the (awaited) fetch.
         guard settingsViewModel.calendarAutoStartMode != .off else {
             toastController.close()
+            latestPolledEvents = []
             return
         }
         guard calendarService.permissionStatus == .granted else {
             toastController.close()
+            latestPolledEvents = []
             return
         }
 
@@ -252,6 +257,7 @@ final class MeetingAutoStartCoordinator {
             let raw = try await calendarService.fetchUpcomingEvents(days: 7)
             events = filterByIncludedCalendars(raw)
         } catch {
+            latestPolledEvents = []
             logger.error("Failed to fetch events: \(error.localizedDescription, privacy: .public)")
             return
         }
@@ -263,12 +269,15 @@ final class MeetingAutoStartCoordinator {
         let mode = settingsViewModel.calendarAutoStartMode
         guard mode != .off else {
             toastController.close()
+            latestPolledEvents = []
             return
         }
         guard calendarService.permissionStatus == .granted else {
             toastController.close()
+            latestPolledEvents = []
             return
         }
+        latestPolledEvents = events
 
         let config = currentConfig(mode: mode)
         let monitorEvents = MeetingMonitor.evaluate(
@@ -421,7 +430,8 @@ final class MeetingAutoStartCoordinator {
                 logger.info("Auto-start completion ignored — calendar auto-start is no longer enabled")
                 return
             }
-            guard onAutoStartConfirmed(event.title) != nil else {
+            let snapshot = MeetingCalendarSnapshot(event: event, confidence: .confirmed)
+            guard onAutoStartConfirmed(snapshot) != nil else {
                 // Start was rejected (state_busy — a prior recording is still
                 // wrapping up). Drop this occurrence's countdown-shown mark so
                 // it can retry on a later poll once the blocking recording
@@ -443,6 +453,28 @@ final class MeetingAutoStartCoordinator {
             return
         }
     }
+
+    func probableSnapshotForManualStart(now: Date = Date()) -> MeetingCalendarSnapshot? {
+        let overlapping = latestPolledEvents
+            .filter { event in
+                event.startTime <= now
+                    && event.endTime >= now
+                    && !event.isAllDay
+                    && !event.userDeclined
+            }
+            .sorted { lhs, rhs in
+                if lhs.isMeeting != rhs.isMeeting {
+                    return lhs.isMeeting && !rhs.isMeeting
+                }
+                return lhs.startTime > rhs.startTime
+            }
+        guard let event = overlapping.first else { return nil }
+        return MeetingCalendarSnapshot(
+            event: event,
+            confidence: .probable,
+            capturedAt: now
+        )
+    }
 }
 
 /// Hooks for unit tests. The `testHook_` prefix marks them as test-only
@@ -463,6 +495,10 @@ extension MeetingAutoStartCoordinator {
     }
 
     var testHook_pollAgainRequested: Bool { pollAgainRequested }
+
+    func testHook_probableSnapshotForManualStart(now: Date = Date()) -> MeetingCalendarSnapshot? {
+        probableSnapshotForManualStart(now: now)
+    }
 
     func testHook_simulateAutoStartConfirmed(eventId: String) {
         let event = CalendarEvent(

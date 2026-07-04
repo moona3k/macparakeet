@@ -8,8 +8,8 @@ public enum MeetingRecordingLockState: String, Codable, Sendable, Equatable {
 
 public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     /// Schema version is intentionally left at 1 because `notes`,
-    /// `speechEngine`, and `startContext` are backward-compatible additive
-    /// fields (`decodeIfPresent`).
+    /// `speechEngine`, `startContext`, and `calendarEventSnapshot` are
+    /// backward-compatible additive fields.
     /// See ADR-020 §9. The version guard in `MeetingRecordingLockFileStore.read()`
     /// uses `<=` so a lock file written by an OLDER app version is still
     /// readable; a future bump only needs to keep this property + bump the
@@ -27,6 +27,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     public let state: MeetingRecordingLockState
     public let speechEngine: SpeechEngineSelection
     public let startContext: MeetingStartContext?
+    public let calendarEventSnapshot: MeetingCalendarSnapshot?
     /// Free-form notes the user typed during the meeting. Persisted on
     /// every notepad debounce so a crash recovers what the user had written
     /// up to the last debounce fire. Decoded independently of the rest of
@@ -44,6 +45,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         case state
         case speechEngine
         case startContext
+        case calendarEventSnapshot
         case notes
     }
 
@@ -56,6 +58,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         state: MeetingRecordingLockState = .recording,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         startContext: MeetingStartContext? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
         notes: String? = nil,
         folderURL: URL? = nil
     ) {
@@ -67,6 +70,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         self.state = state
         self.speechEngine = speechEngine
         self.startContext = startContext
+        self.calendarEventSnapshot = calendarEventSnapshot
         self.notes = notes
         self.folderURL = folderURL
     }
@@ -82,6 +86,10 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         speechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
             ?? SpeechEngineSelection(engine: .parakeet)
         startContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)) ?? nil
+        calendarEventSnapshot = (try? container.decodeIfPresent(
+            MeetingCalendarSnapshot.self,
+            forKey: .calendarEventSnapshot
+        )) ?? nil
         // Notes are decoded independently — see ADR-020 §9. If a future encoder
         // bug or hand-edited file produces a malformed `notes` value, recovery
         // of the audio metadata still succeeds; only the typed notes are lost.
@@ -99,6 +107,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         try container.encode(state, forKey: .state)
         try container.encode(speechEngine, forKey: .speechEngine)
         try container.encodeIfPresent(startContext, forKey: .startContext)
+        try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
         try container.encodeIfPresent(notes, forKey: .notes)
     }
 
@@ -112,6 +121,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             state: state,
             speechEngine: speechEngine,
             startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             folderURL: folderURL
         )
@@ -127,6 +137,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             state: state,
             speechEngine: speechEngine,
             startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             folderURL: folderURL
         )
@@ -142,6 +153,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             state: state,
             speechEngine: speechEngine,
             startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             folderURL: folderURL
         )

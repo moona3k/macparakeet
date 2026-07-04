@@ -202,20 +202,9 @@ public actor CalendarService {
         let participants = (ekEvent.attendees ?? []).compactMap { attendee -> EventParticipant? in
             if attendee.isCurrentUser { return nil }
 
-            let email: String? = {
-                let urlString = attendee.url.absoluteString
-                if urlString.hasPrefix("mailto:") {
-                    return urlString.replacingOccurrences(of: "mailto:", with: "")
-                }
-                return nil
-            }()
-
-            return EventParticipant(
-                email: email,
-                name: attendee.name,
-                status: mapStatus(attendee.participantStatus)
-            )
+            return convertParticipant(attendee)
         }
+        let organizer = ekEvent.organizer.map(convertParticipant)
 
         let meetUrl = linkParser.extractMeetingUrl(
             location: ekEvent.location,
@@ -231,12 +220,29 @@ public actor CalendarService {
             location: ekEvent.location,
             meetUrl: meetUrl,
             participants: participants,
+            organizer: organizer,
             isAllDay: ekEvent.isAllDay,
             calendarName: ekEvent.calendar?.title,
             calendarIdentifier: ekEvent.calendar?.calendarIdentifier,
             userStatus: userStatus,
             externalId: ekEvent.calendarItemExternalIdentifier,
             syncedAt: Date()
+        )
+    }
+
+    private func convertParticipant(_ participant: EKParticipant) -> EventParticipant {
+        let email: String? = {
+            let urlString = participant.url.absoluteString
+            if urlString.hasPrefix("mailto:") {
+                return urlString.replacingOccurrences(of: "mailto:", with: "")
+            }
+            return nil
+        }()
+
+        return EventParticipant(
+            email: email,
+            name: participant.name,
+            status: mapStatus(participant.participantStatus)
         )
     }
 

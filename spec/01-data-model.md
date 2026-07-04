@@ -138,6 +138,7 @@ CREATE TABLE transcriptions (
     userNotes TEXT,                                      -- v0.8: meeting notes used to steer prompt results
     engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `nemotron` / `whisper`)
     engineVariant TEXT,                                  -- v0.8: Engine-specific model variant
+    calendarEventSnapshot TEXT,                          -- v0.25: JSON local calendar context captured at meeting start
     derivedTitle TEXT,                                   -- v0.9: Display title derived from transcript content
     derivedSnippet TEXT,                                 -- v0.9: Display preview snippet derived from transcript content
     updatedAt TEXT NOT NULL                              -- ISO 8601 timestamp
@@ -155,7 +156,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
-- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone.m4a` and/or `system.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. `meetingStartContext` stores the one-shot local-only start snapshot for meeting rows: trigger kind, configured source mode, and the frontmost app bundle id/name read at recording start. The folder is the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
+- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone.m4a` and/or `system.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. `meetingStartContext` stores the one-shot local-only start snapshot for meeting rows: trigger kind, configured source mode, and the frontmost app bundle id/name read at recording start. `calendarEventSnapshot` stores local EventKit context captured at start time for confirmed or probable calendar meetings. The folder is the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
 - The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.meetingArtifactFolderPath`, falling back to the parent of `transcriptions.filePath` for legacy rows.
 - Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
@@ -166,6 +167,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `isTranscriptEdited` marks transcript text changed by the user after automatic processing. Added in v0.7.7.
 - `userNotes` stores free-form meeting notes typed during recording; prompt generation snapshots this value on `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
+- `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `derivedTitle` / `derivedSnippet` cache display copy derived from the completed transcript. Added in v0.9 so Library cards do not need to recompute preview text on every render.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
@@ -616,6 +618,7 @@ struct Transcription: Codable, Identifiable {
     var userNotes: String?              // v0.8 — Free-form meeting notes
     var engine: String?                 // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?          // v0.8 — Engine-specific model variant
+    var calendarEventSnapshot: MeetingCalendarSnapshot? // v0.25 — Local calendar context snapshot
     var derivedTitle: String?           // v0.9 — Display title derived from transcript text
     var derivedSnippet: String?         // v0.9 — Display preview snippet derived from transcript text
     var updatedAt: Date
@@ -1131,9 +1134,11 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.18 — llm_runs metadata ledger
 // v0.19 — dictations.language
 // v0.20 — prompts.appliesToSources (auto-run source scoping; NULL = all sources)
+// v0.21 — AI Formatter profile metadata
 // v0.22 — transcriptions.meetingArtifactFolderPath
 // v0.23 — transcriptions.transcriptSegments
 // v0.24 — transcriptions.meetingStartContext
+// v0.25 — transcriptions.calendarEventSnapshot (raw SQL additive column)
 ```
 
 ### Migration Rules
@@ -1156,6 +1161,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.meetingArtifactFolderPath` | v0.22 | Durable meeting artifact folder path retained after meeting audio deletion |
 | `transcriptions.transcriptSegments` | v0.23 | Durable meeting transcript segments (JSON) for stable per-transcript-version citations |
 | `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
+| `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

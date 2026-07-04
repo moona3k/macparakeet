@@ -59,7 +59,8 @@ The v1 folder can contain these stable filenames:
   `delayEstimateMs`, and `probeBestCorrelation` fields so shared artifact
   folders can explain cleaned-vs-raw microphone routing without app logs. It
   may also include additive `startContext` with the one-shot local start
-  snapshot.
+  snapshot. `calendarEventSnapshot`, when present, is local EventKit context
+  and can include attendee/organizer names and emails.
 - `manifest.json`: folder manifest.
 - `transcript.json`: transcript view.
 - `notes.md`: optional user notes view. Removed when notes are empty or nil.
@@ -84,6 +85,7 @@ The v1 folder can contain these stable filenames:
 - `promptResultsPath`
 - `promptResultsDirectoryPath`
 - `promptResultCount`
+- `calendarEventSnapshot`
 
 `manifest.json` keeps:
 
@@ -94,6 +96,11 @@ The v1 folder can contain these stable filenames:
 - `files`
 - `promptResults`
 
+`manifest.meeting.calendarEventSnapshot`, when present, keeps the same local
+EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
+event identifiers, scheduled time range, title, attendee/organizer names and
+emails, meeting URL/service, and capture timestamp.
+
 `manifest.files` keeps path fields for `folderPath`, `mixedAudioPath`,
 `microphoneAudioPath`, `cleanedMicrophoneAudioPath`, `systemAudioPath`,
 `metadataPath`, `manifestPath`, `transcriptPath`, `notesPath`,
@@ -103,7 +110,7 @@ The v1 folder can contain these stable filenames:
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
 fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
 `sourceType`, `recoveredFromCrash`, `isTranscriptEdited`, and optional
-`startContext`.
+`startContext` and `calendarEventSnapshot`.
 
 `transcriptSegments` is an additive v1 field populated from the DB row when a
 meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
@@ -119,6 +126,11 @@ meeting retranscription may replace the array with newly minted segment IDs.
   `microphone_and_system`, or `system_only`)
 - `frontmostApplication`: optional object with `bundleIdentifier` and
   `localizedName`
+
+`calendarEventSnapshot`, when present, keeps local calendar context captured at
+recording start. It can include EventKit identifiers, title, scheduled
+start/end, attendee/organizer names and emails, meeting URL/service, confidence,
+and capture timestamp.
 
 ## Non-Stable Fields
 

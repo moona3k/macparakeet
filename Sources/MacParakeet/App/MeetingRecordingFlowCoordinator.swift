@@ -51,6 +51,7 @@ final class MeetingRecordingFlowCoordinator {
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
     private let frontmostApplicationProvider: any FrontmostApplicationProviding
+    private let probableCalendarSnapshotProvider: @MainActor @Sendable () -> MeetingCalendarSnapshot?
     private var llmService: LLMServiceProtocol?
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
@@ -110,6 +111,9 @@ final class MeetingRecordingFlowCoordinator {
             .microphoneAndSystem
         },
         frontmostApplicationProvider: any FrontmostApplicationProviding = NSWorkspaceFrontmostApplicationProvider(),
+        probableCalendarSnapshotProvider: @escaping @MainActor @Sendable () -> MeetingCalendarSnapshot? = {
+            nil
+        },
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
@@ -132,6 +136,7 @@ final class MeetingRecordingFlowCoordinator {
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
         self.frontmostApplicationProvider = frontmostApplicationProvider
+        self.probableCalendarSnapshotProvider = probableCalendarSnapshotProvider
         self.llmService = llmService
         self.pillViewModel = pillViewModel
         self.meetingTranscriptionQueue =
@@ -170,13 +175,13 @@ final class MeetingRecordingFlowCoordinator {
     /// which sets this and re-enters `toggleRecording`.
     private var pendingTrigger: TelemetryMeetingRecordingTrigger?
 
-    /// Pre-set title for the *next* `.startRecording` effect. Paired with
-    /// `pendingTrigger`: `startFromCalendar(title:)` sets both, the
-    /// `.startRecording` handler snapshots and clears both before the async
-    /// hop. Manual / hotkey starts set only the trigger, so the service falls
-    /// back to its date-based default title.
+    /// Pre-set title for the *next* `.startRecording` effect. Calendar-driven
+    /// starts also set `pendingCalendarEventSnapshot`. Manual / hotkey starts
+    /// set only the trigger and, when the latest calendar poll overlaps now,
+    /// a probable snapshot; they still fall back to the date-based title.
     private var pendingTitle: String?
     private var pendingStartContext: MeetingStartContext?
+    private var pendingCalendarEventSnapshot: MeetingCalendarSnapshot?
 
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
@@ -232,6 +237,9 @@ final class MeetingRecordingFlowCoordinator {
         pendingTitle = title
         pendingAudioSourceMode = sourceMode
         pendingStartContext = makeStartContext(trigger: resolvedTrigger, sourceMode: sourceMode)
+        pendingCalendarEventSnapshot = (resolvedTrigger == .manual && title == nil)
+            ? probableCalendarSnapshotProvider()
+            : nil
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -320,6 +328,23 @@ final class MeetingRecordingFlowCoordinator {
     /// often back-to-back meetings actually collide in the wild. Returns the
     /// recording generation on success (or `nil` when the state was busy).
     @discardableResult
+    func startFromCalendar(calendarEventSnapshot: MeetingCalendarSnapshot) -> Int? {
+        guard stateMachine.state == .idle else {
+            Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
+            return nil
+        }
+        pendingTrigger = .calendarAutoStart
+        pendingTitle = calendarEventSnapshot.title
+        pendingCalendarEventSnapshot = calendarEventSnapshot
+        let sourceMode = meetingAudioSourceModeProvider()
+        pendingAudioSourceMode = sourceMode
+        pendingStartContext = makeStartContext(trigger: .calendarAutoStart, sourceMode: sourceMode)
+        currentMeetingOperationContext = ObservabilityOperationContext()
+        sendEvent(.startRequested)
+        return stateMachine.generation
+    }
+
+    @discardableResult
     func startFromCalendar(title: String? = nil) -> Int? {
         guard stateMachine.state == .idle else {
             Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
@@ -330,6 +355,7 @@ final class MeetingRecordingFlowCoordinator {
         let sourceMode = meetingAudioSourceModeProvider()
         pendingAudioSourceMode = sourceMode
         pendingStartContext = makeStartContext(trigger: .calendarAutoStart, sourceMode: sourceMode)
+        pendingCalendarEventSnapshot = nil
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -352,6 +378,7 @@ final class MeetingRecordingFlowCoordinator {
         )
         pendingTrigger = nil
         pendingTitle = nil
+        pendingCalendarEventSnapshot = nil
         pendingAudioSourceMode = nil
         pendingStartContext = nil
         currentMeetingOperationContext = nil
@@ -549,11 +576,13 @@ final class MeetingRecordingFlowCoordinator {
             // can't smuggle a stale trigger / title into this start.
             let trigger = pendingTrigger
             let title = pendingTitle
+            let calendarEventSnapshot = pendingCalendarEventSnapshot
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
             let startContext = pendingStartContext
                 ?? makeStartContext(trigger: trigger ?? .manual, sourceMode: sourceMode)
             pendingTrigger = nil
             pendingTitle = nil
+            pendingCalendarEventSnapshot = nil
             pendingAudioSourceMode = nil
             pendingStartContext = nil
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
@@ -564,7 +593,8 @@ final class MeetingRecordingFlowCoordinator {
                     try await meetingRecordingService.startRecording(
                         title: title,
                         sourceMode: sourceMode,
-                        startContext: startContext
+                        startContext: startContext,
+                        calendarEventSnapshot: calendarEventSnapshot
                     )
                     let isSpeechModelReady = await self.sttManager?.isReady() ?? true
                     switch self.panelViewModel?.liveTranscriptStatus {
@@ -712,6 +742,7 @@ final class MeetingRecordingFlowCoordinator {
             let cancelledTrigger = currentMeetingTrigger ?? pendingTrigger.map(TelemetryMeetingOperationTrigger.init)
             pendingTrigger = nil
             pendingTitle = nil
+            pendingCalendarEventSnapshot = nil
             pendingAudioSourceMode = nil
             pendingStartContext = nil
             actionTask?.cancel()
@@ -1301,6 +1332,7 @@ extension MeetingRecordingFlowCoordinator {
         currentMeetingTrigger = nil
         pendingTrigger = nil
         pendingTitle = nil
+        pendingCalendarEventSnapshot = nil
         pendingAudioSourceMode = nil
         pendingStartContext = nil
         _ = stateMachine.handle(.startRequested)

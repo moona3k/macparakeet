@@ -147,6 +147,42 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(files["cleanedMicrophoneAudioPath"] as? String, cleanedURL.path)
     }
 
+    func testMaterializeWritesCalendarSnapshotIntoArtifactMetadata() async throws {
+        let calendarSnapshot = makeCalendarSnapshot(confidence: .confirmed)
+        let transcription = makeMeeting(
+            notes: "Calendar context should travel with the artifact.",
+            calendarEventSnapshot: calendarSnapshot
+        )
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        XCTAssertEqual(snapshot.calendarEventSnapshot, calendarSnapshot)
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let meeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        let manifestCalendar = try XCTUnwrap(meeting["calendarEventSnapshot"] as? [String: Any])
+        XCTAssertEqual(manifestCalendar["confidence"] as? String, "confirmed")
+        XCTAssertEqual(manifestCalendar["eventIdentifier"] as? String, "evt-artifact")
+        XCTAssertEqual(manifestCalendar["externalId"] as? String, "external-artifact")
+        XCTAssertEqual(manifestCalendar["title"] as? String, "Artifact Review")
+        XCTAssertEqual(manifestCalendar["meetingURL"] as? String, "https://teams.microsoft.com/l/meetup-join/abc")
+        XCTAssertEqual(manifestCalendar["meetingService"] as? String, "Microsoft Teams")
+        let attendees = try XCTUnwrap(manifestCalendar["attendees"] as? [[String: Any]])
+        XCTAssertEqual(attendees.first?["name"] as? String, "Alice Example")
+        XCTAssertEqual(attendees.first?["email"] as? String, "alice@example.com")
+        let organizer = try XCTUnwrap(manifestCalendar["organizer"] as? [String: Any])
+        XCTAssertEqual(organizer["name"] as? String, "Omar Organizer")
+        XCTAssertEqual(organizer["email"] as? String, "omar@example.com")
+
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        let transcriptCalendar = try XCTUnwrap(transcript["calendarEventSnapshot"] as? [String: Any])
+        XCTAssertEqual(transcriptCalendar["eventIdentifier"] as? String, "evt-artifact")
+        XCTAssertEqual(transcriptCalendar["confidence"] as? String, "confirmed")
+    }
+
     func testMaterializeOmitsInvalidCleanedMicrophoneAudioPath() async throws {
         let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
@@ -242,7 +278,8 @@ final class MeetingArtifactStoreTests: XCTestCase {
 
     private func makeMeeting(
         notes: String?,
-        startContext: MeetingStartContext? = nil
+        startContext: MeetingStartContext? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) -> Transcription {
         Transcription(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
@@ -278,7 +315,28 @@ final class MeetingArtifactStoreTests: XCTestCase {
             userNotes: notes,
             meetingStartContext: startContext,
             engine: "parakeet",
-            engineVariant: "v3"
+            engineVariant: "v3",
+            calendarEventSnapshot: calendarEventSnapshot
+        )
+    }
+
+    private func makeCalendarSnapshot(
+        confidence: MeetingCalendarSnapshot.Confidence
+    ) -> MeetingCalendarSnapshot {
+        MeetingCalendarSnapshot(
+            confidence: confidence,
+            eventIdentifier: "evt-artifact",
+            externalId: "external-artifact",
+            title: "Artifact Review",
+            scheduledStartAt: Date(timeIntervalSince1970: 1_720_000_000),
+            scheduledEndAt: Date(timeIntervalSince1970: 1_720_003_600),
+            attendees: [
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+            ],
+            organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
+            meetingURL: "https://teams.microsoft.com/l/meetup-join/abc",
+            meetingService: "Microsoft Teams",
+            capturedAt: Date(timeIntervalSince1970: 1_720_000_010)
         )
     }
 

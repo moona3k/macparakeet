@@ -35,6 +35,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let promptResultsPath: String
     public let promptResultsDirectoryPath: String
     public let promptResultCount: Int
+    public let calendarEventSnapshot: MeetingCalendarSnapshot?
 
     public init(
         schema: String = MeetingArtifactStore.schema,
@@ -48,7 +49,8 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         notesPath: String?,
         promptResultsPath: String,
         promptResultsDirectoryPath: String,
-        promptResultCount: Int
+        promptResultCount: Int,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) {
         self.schema = schema
         self.schemaVersion = schemaVersion
@@ -62,6 +64,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.promptResultsPath = promptResultsPath
         self.promptResultsDirectoryPath = promptResultsDirectoryPath
         self.promptResultCount = promptResultCount
+        self.calendarEventSnapshot = calendarEventSnapshot
     }
 }
 
@@ -131,7 +134,8 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             notesPath: notesPath,
             promptResultsPath: promptResultsURL.path,
             promptResultsDirectoryPath: promptResultsDirectoryURL.path,
-            promptResultCount: promptResults.count
+            promptResultCount: promptResults.count,
+            calendarEventSnapshot: transcription.calendarEventSnapshot
         )
         try writeJSON(
             MeetingArtifactManifest(
@@ -259,6 +263,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
     let language: String?
     let engine: String?
     let engineVariant: String?
+    let calendarEventSnapshot: MeetingCalendarSnapshot?
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
     let startContext: MeetingStartContext?
@@ -273,6 +278,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
         language = transcription.language
         engine = transcription.engine
         engineVariant = transcription.engineVariant
+        calendarEventSnapshot = transcription.calendarEventSnapshot
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
         startContext = transcription.meetingStartContext
@@ -338,6 +344,7 @@ private struct MeetingArtifactTranscript: Codable {
     let language: String?
     let engine: String?
     let engineVariant: String?
+    let calendarEventSnapshot: MeetingCalendarSnapshot?
     let sourceURL: String?
     let sourceType: Transcription.SourceType
     let recoveredFromCrash: Bool
@@ -363,6 +370,7 @@ private struct MeetingArtifactTranscript: Codable {
         language = transcription.language
         engine = transcription.engine
         engineVariant = transcription.engineVariant
+        calendarEventSnapshot = transcription.calendarEventSnapshot
         sourceURL = transcription.sourceURL
         sourceType = transcription.sourceType
         recoveredFromCrash = transcription.recoveredFromCrash

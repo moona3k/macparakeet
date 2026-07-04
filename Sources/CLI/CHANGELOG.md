@@ -91,6 +91,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `meetings show --json` and `meetings export --stdout --format json` now
+  include an optional local-only `calendarEventSnapshot` for meeting recordings
+  started from a calendar event or probably overlapping the current calendar
+  poll cache. The snapshot can include attendee/organizer names and emails;
+  these fields remain local user data and are not telemetry.
 - Added `retranscribe <record> --update` to rerun STT against retained source
   audio for an existing saved dictation, transcription, or meeting in place.
   Records resolve by UUID/prefix, with exact transcription/meeting title

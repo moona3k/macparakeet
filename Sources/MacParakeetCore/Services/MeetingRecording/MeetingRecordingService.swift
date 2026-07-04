@@ -39,7 +39,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     func startRecording(
         title: String?,
         sourceMode: MeetingAudioSourceMode?,
-        startContext: MeetingStartContext?
+        startContext: MeetingStartContext?,
+        calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
     func completeTranscription(for recording: MeetingRecordingOutput) async
@@ -82,15 +83,20 @@ public extension MeetingRecordingServiceProtocol {
     /// Existing manual / hotkey callers use the no-arg form — the calendar
     /// path is the only caller that has a meaningful title to pass.
     func startRecording(title: String?) async throws {
-        try await startRecording(title: title, sourceMode: nil, startContext: nil)
+        try await startRecording(title: title, sourceMode: nil, startContext: nil, calendarEventSnapshot: nil)
     }
 
     func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {
-        try await startRecording(title: title, sourceMode: sourceMode, startContext: nil)
+        try await startRecording(
+            title: title,
+            sourceMode: sourceMode,
+            startContext: nil,
+            calendarEventSnapshot: nil
+        )
     }
 
     func startRecording() async throws {
-        try await startRecording(title: nil, sourceMode: nil, startContext: nil)
+        try await startRecording(title: nil, sourceMode: nil, startContext: nil, calendarEventSnapshot: nil)
     }
 }
 
@@ -138,6 +144,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let mixedAudioURL: URL
         let speechEngine: SpeechEngineSelection
         let startContext: MeetingStartContext?
+        let calendarEventSnapshot: MeetingCalendarSnapshot?
 
         var supportsLiveChunkTranscription: Bool {
             speechEngine.engine != .cohere
@@ -398,7 +405,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     public func startRecording(
         title: String? = nil,
         sourceMode: MeetingAudioSourceMode? = nil,
-        startContext: MeetingStartContext? = nil
+        startContext: MeetingStartContext? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) async throws {
         guard currentSession == nil, startingSessionID == nil else {
             throw MeetingAudioError.alreadyRunning
@@ -435,7 +443,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             systemAudioURL: writer.systemAudioURL,
             mixedAudioURL: writer.mixedAudioURL,
             speechEngine: speechEngine,
-            startContext: startContext
+            startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot
         )
         self.writer = writer
         self.currentSession = session
@@ -448,6 +457,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 displayName: session.displayName,
                 speechEngine: session.speechEngine,
                 startContext: session.startContext,
+                calendarEventSnapshot: session.calendarEventSnapshot,
                 folderURL: session.folderURL
             )
             try lockFileStore.write(initialLock, folderURL: session.folderURL)
@@ -610,7 +620,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 MeetingRecordingMetadata(
                     sourceAlignment: sourceAlignment,
                     speechEngine: session.speechEngine,
-                    startContext: session.startContext
+                    startContext: session.startContext,
+                    calendarEventSnapshot: session.calendarEventSnapshot
                 ),
                 folderURL: session.folderURL
             )
@@ -656,6 +667,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             displayName: session.displayName,
             speechEngine: session.speechEngine,
             startContext: session.startContext,
+            calendarEventSnapshot: session.calendarEventSnapshot,
             folderURL: session.folderURL
         ))
             .withNotes(finalNotes)
@@ -699,7 +711,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             sourceAlignment: sourceAlignment,
             speechEngine: session.speechEngine,
             startContext: session.startContext,
-            userNotes: finalNotes
+            userNotes: finalNotes,
+            calendarEventSnapshot: session.calendarEventSnapshot
         )
 
         await liveChunkTranscriber.finishSession()
@@ -762,6 +775,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             displayName: session.displayName,
             speechEngine: session.speechEngine,
             startContext: session.startContext,
+            calendarEventSnapshot: session.calendarEventSnapshot,
             folderURL: session.folderURL
         )
         let updated = base.withNotes(normalized)

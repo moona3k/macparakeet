@@ -664,6 +664,7 @@ private struct MeetingRecord: Encodable {
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
     let transcriptSegments: [TranscriptSegmentRecord]?
+    let calendarEventSnapshot: MeetingCalendarSnapshot?
     let artifactFolderPath: String?
     let artifactManifestPath: String?
     let hasArtifactManifest: Bool
@@ -692,6 +693,7 @@ private struct MeetingRecord: Encodable {
         speakers = transcription.speakers
         diarizationSegments = transcription.diarizationSegments
         transcriptSegments = transcription.transcriptSegments
+        calendarEventSnapshot = transcription.calendarEventSnapshot
         let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
         artifactFolderPath = artifactFolder?.path
         let manifestPath = artifactFolder?

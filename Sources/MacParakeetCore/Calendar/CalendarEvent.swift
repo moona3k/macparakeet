@@ -2,10 +2,9 @@ import Foundation
 
 /// A calendar event fetched from EventKit at poll time.
 ///
-/// MacParakeet does **not** persist these — the coordinator fetches and
-/// discards on each poll tick. See ADR-017 §6 for the rationale. If we ever
-/// need to query event history (e.g., for retro-linking recordings to events),
-/// add a `CalendarEvent` table then.
+/// MacParakeet does not persist the polling cache, but a meeting recording may
+/// snapshot the triggering event onto its local transcript row and artifacts.
+/// See ADR-017 §6 for the current persistence boundary.
 public struct CalendarEvent: Codable, Sendable, Identifiable {
     /// EventKit's `EKEvent.eventIdentifier`. Stable across syncs but can
     /// change for recurring events when the user edits a single occurrence.
@@ -23,6 +22,9 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
     /// Other attendees — current user is filtered out at conversion time
     /// (their participation status is captured separately in `userStatus`).
     public var participants: [EventParticipant]
+
+    /// EventKit's organizer, when supplied by the backing calendar.
+    public var organizer: EventParticipant?
 
     public var isAllDay: Bool
 
@@ -55,6 +57,7 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         location: String? = nil,
         meetUrl: String? = nil,
         participants: [EventParticipant] = [],
+        organizer: EventParticipant? = nil,
         isAllDay: Bool = false,
         calendarName: String? = nil,
         calendarIdentifier: String? = nil,
@@ -69,6 +72,7 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         self.location = location
         self.meetUrl = meetUrl
         self.participants = participants
+        self.organizer = organizer
         self.isAllDay = isAllDay
         self.calendarName = calendarName
         self.calendarIdentifier = calendarIdentifier

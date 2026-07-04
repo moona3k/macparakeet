@@ -25,6 +25,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// post-meeting summary generation can steer on what the user emphasized
     /// (ADR-020). `nil` when the user took no notes.
     public let userNotes: String?
+    /// Local calendar context captured when the recording started.
+    public let calendarEventSnapshot: MeetingCalendarSnapshot?
 
     public init(
         sessionID: UUID,
@@ -39,7 +41,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         startContext: MeetingStartContext? = nil,
-        userNotes: String? = nil
+        userNotes: String? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) {
         self.init(
             sessionID: sessionID,
@@ -55,7 +58,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             startContext: startContext,
-            userNotes: userNotes
+            userNotes: userNotes,
+            calendarEventSnapshot: calendarEventSnapshot
         )
     }
 
@@ -73,7 +77,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         startContext: MeetingStartContext? = nil,
-        userNotes: String? = nil
+        userNotes: String? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) {
         self.sessionID = sessionID
         self.displayName = displayName
@@ -89,6 +94,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.startContext = startContext
         self.userNotes = userNotes
+        self.calendarEventSnapshot = calendarEventSnapshot
     }
 
     /// The microphone audio to transcribe for the local ("Me") track: the
@@ -170,7 +176,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             sourceAlignment: metadata.sourceAlignment,
             speechEngine: metadata.speechEngine,
             speechEngineWasCaptured: metadata.speechEngineWasCaptured,
-            startContext: metadata.startContext
+            startContext: metadata.startContext,
+            calendarEventSnapshot: metadata.calendarEventSnapshot
         )
     }
 
@@ -206,5 +213,6 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.speechEngineWasCaptured == rhs.speechEngineWasCaptured
             && lhs.startContext == rhs.startContext
             && lhs.userNotes == rhs.userNotes
+            && lhs.calendarEventSnapshot == rhs.calendarEventSnapshot
     }
 }

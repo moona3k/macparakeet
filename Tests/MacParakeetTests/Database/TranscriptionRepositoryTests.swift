@@ -82,6 +82,35 @@ final class TranscriptionRepositoryTests: XCTestCase {
         )
     }
 
+    func testMeetingCalendarEventSnapshotRoundTrips() throws {
+        let snapshot = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "event-123",
+            externalId: "external-456",
+            title: "Design Review",
+            scheduledStartAt: Date(timeIntervalSince1970: 1_720_000_000),
+            scheduledEndAt: Date(timeIntervalSince1970: 1_720_003_600),
+            attendees: [
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+                MeetingCalendarPerson(name: "Bob Example", email: "bob@example.com"),
+            ],
+            organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
+            meetingURL: "https://zoom.us/j/123456789",
+            meetingService: "Zoom",
+            capturedAt: Date(timeIntervalSince1970: 1_720_000_010)
+        )
+        let transcription = Transcription(
+            fileName: "Design Review",
+            sourceType: .meeting,
+            calendarEventSnapshot: snapshot
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+
+        XCTAssertEqual(fetched.calendarEventSnapshot, snapshot)
+    }
+
     func testLegacyTranscriptionDecodesWithNilEngineFields() throws {
         let transcription = Transcription(fileName: "legacy.mp3")
         try repo.save(transcription)

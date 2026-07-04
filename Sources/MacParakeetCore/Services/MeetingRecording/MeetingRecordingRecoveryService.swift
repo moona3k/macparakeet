@@ -199,7 +199,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             MeetingRecordingMetadata(
                 sourceAlignment: sourceAlignment,
                 speechEngine: lock.speechEngine,
-                startContext: lock.startContext
+                startContext: lock.startContext,
+                calendarEventSnapshot: lock.calendarEventSnapshot
             ),
             folderURL: folderURL
         )
@@ -247,7 +248,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             sourceAlignment: sourceAlignment,
             speechEngine: lock.speechEngine,
             startContext: lock.startContext,
-            userNotes: lock.notes
+            userNotes: lock.notes,
+            calendarEventSnapshot: lock.calendarEventSnapshot
         )
 
         do {

@@ -56,18 +56,21 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public let speechEngineWasCaptured: Bool
     public let startContext: MeetingStartContext?
     public let echoSuppression: MeetingEchoSuppressionMetadata?
+    public let calendarEventSnapshot: MeetingCalendarSnapshot?
 
     public init(
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         startContext: MeetingStartContext? = nil,
-        echoSuppression: MeetingEchoSuppressionMetadata? = nil
+        echoSuppression: MeetingEchoSuppressionMetadata? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = true
         self.startContext = startContext
         self.echoSuppression = echoSuppression
+        self.calendarEventSnapshot = calendarEventSnapshot
     }
 
     private init(
@@ -75,13 +78,15 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         speechEngine: SpeechEngineSelection,
         speechEngineWasCaptured: Bool,
         startContext: MeetingStartContext?,
-        echoSuppression: MeetingEchoSuppressionMetadata?
+        echoSuppression: MeetingEchoSuppressionMetadata?,
+        calendarEventSnapshot: MeetingCalendarSnapshot?
     ) {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.startContext = startContext
         self.echoSuppression = echoSuppression
+        self.calendarEventSnapshot = calendarEventSnapshot
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -89,6 +94,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         case speechEngine
         case startContext
         case echoSuppression
+        case calendarEventSnapshot
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +108,10 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             MeetingEchoSuppressionMetadata.self,
             forKey: .echoSuppression
         )
+        calendarEventSnapshot = (try? container.decodeIfPresent(
+            MeetingCalendarSnapshot.self,
+            forKey: .calendarEventSnapshot
+        )) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -112,6 +122,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         }
         try container.encodeIfPresent(startContext, forKey: .startContext)
         try container.encodeIfPresent(echoSuppression, forKey: .echoSuppression)
+        try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
     }
 
     public func withEchoSuppression(
@@ -122,7 +133,8 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             startContext: startContext,
-            echoSuppression: echoSuppression
+            echoSuppression: echoSuppression,
+            calendarEventSnapshot: calendarEventSnapshot
         )
     }
 }

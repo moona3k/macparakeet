@@ -132,6 +132,77 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(queuedSelections, [false])
     }
 
+    func testManualStartPassesProbableCalendarSnapshotWithoutChangingTitle() async throws {
+        let expectedSnapshot = MeetingCalendarSnapshot(
+            confidence: .probable,
+            eventIdentifier: "evt-manual",
+            externalId: "external-manual",
+            title: "Manual Calendar Overlap",
+            scheduledStartAt: Date().addingTimeInterval(-120),
+            scheduledEndAt: Date().addingTimeInterval(1200),
+            attendees: [MeetingCalendarPerson(name: "Alice", email: "alice@example.com")],
+            organizer: MeetingCalendarPerson(name: "Omar", email: "omar@example.com"),
+            meetingURL: "https://zoom.us/j/123456789",
+            meetingService: "Zoom"
+        )
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            probableCalendarSnapshotProvider: { expectedSnapshot },
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        let snapshot = await recordingService.snapshot()
+        XCTAssertEqual(snapshot.startCallCount, 1)
+        XCTAssertEqual(snapshot.startTitles.count, 1)
+        XCTAssertNil(snapshot.startTitles[0])
+        XCTAssertEqual(snapshot.calendarEventSnapshots.first ?? nil, expectedSnapshot)
+    }
+
+    func testCalendarStartPassesConfirmedSnapshotAsTitleAndContext() async throws {
+        let expectedSnapshot = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "evt-confirmed",
+            title: "Confirmed Calendar Start",
+            scheduledStartAt: Date(),
+            scheduledEndAt: Date().addingTimeInterval(1800)
+        )
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            probableCalendarSnapshotProvider: { nil },
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startFromCalendar(calendarEventSnapshot: expectedSnapshot))
+        await coordinator.testHook_waitForActionTask()
+
+        let snapshot = await recordingService.snapshot()
+        XCTAssertEqual(snapshot.startTitles, ["Confirmed Calendar Start"])
+        XCTAssertEqual(snapshot.calendarEventSnapshots.first ?? nil, expectedSnapshot)
+    }
+
     func testLiveAskChatPersistsBeforeQueuedFinalizeTearsDownPanel() async throws {
         let output = makeRecordingOutput()
         let recordingService = MeetingRecordingServiceSpy(output: output)
@@ -430,6 +501,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         let title: String?
         let sourceMode: MeetingAudioSourceMode?
         let startContext: MeetingStartContext?
+        let calendarEventSnapshot: MeetingCalendarSnapshot?
     }
 
     private let output: MeetingRecordingOutput
@@ -437,6 +509,8 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     var startCalls: [StartCall] = []
     var stopCallCount = 0
     var completedTranscriptionSessionIDs: [UUID] = []
+    var startTitles: [String?] = []
+    var calendarEventSnapshots: [MeetingCalendarSnapshot?] = []
 
     init(output: MeetingRecordingOutput) {
         self.output = output
@@ -445,14 +519,18 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     func startRecording(
         title: String?,
         sourceMode: MeetingAudioSourceMode?,
-        startContext: MeetingStartContext?
+        startContext: MeetingStartContext?,
+        calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws {
         startCallCount += 1
         startCalls.append(StartCall(
             title: title,
             sourceMode: sourceMode,
-            startContext: startContext
+            startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot
         ))
+        startTitles.append(title)
+        calendarEventSnapshots.append(calendarEventSnapshot)
     }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
@@ -508,13 +586,17 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         startCallCount: Int,
         startCalls: [StartCall],
         stopCallCount: Int,
-        completedTranscriptionSessionIDs: [UUID]
+        completedTranscriptionSessionIDs: [UUID],
+        startTitles: [String?],
+        calendarEventSnapshots: [MeetingCalendarSnapshot?]
     ) {
         (
             startCallCount: startCallCount,
             startCalls: startCalls,
             stopCallCount: stopCallCount,
-            completedTranscriptionSessionIDs: completedTranscriptionSessionIDs
+            completedTranscriptionSessionIDs: completedTranscriptionSessionIDs,
+            startTitles: startTitles,
+            calendarEventSnapshots: calendarEventSnapshots
         )
     }
 }

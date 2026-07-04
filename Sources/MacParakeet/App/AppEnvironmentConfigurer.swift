@@ -289,6 +289,7 @@ final class AppEnvironmentConfigurer {
         coordinatorRefs.dictation = dictationCoordinator
 
         var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+        var calendarCoordinator: MeetingAutoStartCoordinator?
         var isMeetingAutoStopObservingRecording = false
         let endMeetingAutoStopObservation = {
             guard isMeetingAutoStopObservingRecording else { return }
@@ -307,6 +308,9 @@ final class AppEnvironmentConfigurer {
             sttManager: env.sttScheduler,
             speechEngineSelectionProvider: { await env.sttScheduler.currentSpeechEngineSelection() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
+            probableCalendarSnapshotProvider: {
+                calendarCoordinator?.probableSnapshotForManualStart()
+            },
             llmService: hasLLMConfig ? env.llmService : nil,
             pillViewModel: meetingPillViewModel,
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
@@ -397,7 +401,6 @@ final class AppEnvironmentConfigurer {
         // unconditionally; we still gate creation on the meeting-recording
         // feature flag because calendar integration only makes sense when
         // the user can actually record meetings.
-        let calendarCoordinator: MeetingAutoStartCoordinator?
         if AppFeatures.meetingRecordingEnabled {
             let coordinator = MeetingAutoStartCoordinator(
                 calendarService: CalendarService.shared,
@@ -405,8 +408,8 @@ final class AppEnvironmentConfigurer {
                 isRecordingActive: { [weak meetingCoordinator] in
                     meetingCoordinator?.isMeetingRecordingActive ?? false
                 },
-                onAutoStartConfirmed: { [weak meetingCoordinator] title in
-                    meetingCoordinator?.startFromCalendar(title: title)
+                onAutoStartConfirmed: { [weak meetingCoordinator] snapshot in
+                    meetingCoordinator?.startFromCalendar(calendarEventSnapshot: snapshot)
                 }
             )
             coordinator.start()

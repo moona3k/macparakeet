@@ -520,6 +520,68 @@ final class MeetingsCommandTests: XCTestCase {
         ))
     }
 
+    func testShowJSONIncludesCalendarEventSnapshot() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+
+        let scheduledStart = Date(timeIntervalSince1970: 1_720_000_000)
+        let scheduledEnd = Date(timeIntervalSince1970: 1_720_003_600)
+        let calendarSnapshot = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "evt-cli",
+            externalId: "external-cli",
+            title: "CLI Contract Review",
+            scheduledStartAt: scheduledStart,
+            scheduledEndAt: scheduledEnd,
+            attendees: [
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+            ],
+            organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
+            meetingURL: "https://meet.google.com/abc-defg-hij",
+            meetingService: "Google Meet",
+            capturedAt: Date(timeIntervalSince1970: 1_720_000_010)
+        )
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "CLI Contract Review",
+            rawTranscript: "Calendar context is local-only.",
+            status: .completed,
+            sourceType: .meeting,
+            calendarEventSnapshot: calendarSnapshot
+        )
+        try transcriptionRepo.save(meeting)
+
+        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let showOutput = try await captureStandardOutput {
+            try await showCommand.run()
+        }
+        let showPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+        )
+        let snapshot = try XCTUnwrap(showPayload["calendarEventSnapshot"] as? [String: Any])
+
+        XCTAssertEqual(snapshot["confidence"] as? String, "confirmed")
+        XCTAssertEqual(snapshot["eventIdentifier"] as? String, "evt-cli")
+        XCTAssertEqual(snapshot["externalId"] as? String, "external-cli")
+        XCTAssertEqual(snapshot["title"] as? String, "CLI Contract Review")
+        let dateFormatter = ISO8601DateFormatter()
+        XCTAssertEqual(snapshot["scheduledStartAt"] as? String, dateFormatter.string(from: scheduledStart))
+        XCTAssertEqual(snapshot["scheduledEndAt"] as? String, dateFormatter.string(from: scheduledEnd))
+        XCTAssertEqual(snapshot["meetingURL"] as? String, "https://meet.google.com/abc-defg-hij")
+        XCTAssertEqual(snapshot["meetingService"] as? String, "Google Meet")
+        let attendees = try XCTUnwrap(snapshot["attendees"] as? [[String: Any]])
+        XCTAssertEqual(attendees.first?["name"] as? String, "Alice Example")
+        XCTAssertEqual(attendees.first?["email"] as? String, "alice@example.com")
+        let organizer = try XCTUnwrap(snapshot["organizer"] as? [String: Any])
+        XCTAssertEqual(organizer["name"] as? String, "Omar Organizer")
+        XCTAssertEqual(organizer["email"] as? String, "omar@example.com")
+    }
+
     func testFormatRawValues() {
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "text"), .text)
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "json"), .json)

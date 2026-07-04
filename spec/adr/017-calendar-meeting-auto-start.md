@@ -75,6 +75,8 @@ Oatmeal persists events to GRDB for its RAG/entity-extraction features. MacParak
 
 **Why:** Simpler, less to maintain, less data footprint, less surface to reason about for privacy. Recomputing on a 60-second poll is cheap (EventKit reads are near-instant).
 
+> **Amendment (2026-07-03): persist one meeting-start snapshot, not an event cache.** ADR-027's meeting-corpus direction (PR #680) changes the retention boundary for context available at recording start: context not captured then is lost forever. MacParakeet still does **not** persist a queryable calendar-event cache or EventKit repository. It now stores one local `calendarEventSnapshot` on each meeting transcription when a recording starts from a calendar event (`confirmed`) or, for manual starts, when the coordinator's current poll cache overlaps "now" (`probable`). The same snapshot is mirrored into meeting artifact metadata so exported/shared local folders are self-describing. Attendee and organizer names/emails are user data and remain local-only; they must never be sent in telemetry, including as counts.
+
 ### 7. Polling cadence: 60s baseline, 5s near events
 
 A single `Timer` in the coordinator fires every 60 seconds during idle periods. When the next matching event is within 2 minutes, the timer reschedules itself at 5-second intervals so countdown accuracy doesn't drift. After the event passes, it falls back to 60s.

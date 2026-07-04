@@ -15,7 +15,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     /// Tracks calls to the recording-flow callbacks the coordinator makes.
     private var recordingActiveStub = false
     private var autoStartConfirmedCount = 0
-    private var autoStartConfirmedTitles: [String] = []
+    private var autoStartConfirmedSnapshots: [MeetingCalendarSnapshot] = []
     /// When true, the `onAutoStartConfirmed` stub mimics the real flow
     /// coordinator's `state_busy` rejection by returning nil — exercising the
     /// back-to-back retry path (#8).
@@ -34,7 +34,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         calendarService = MockCalendarService()
         recordingActiveStub = false
         autoStartConfirmedCount = 0
-        autoStartConfirmedTitles = []
+        autoStartConfirmedSnapshots = []
         simulateAutoStartBusy = false
     }
 
@@ -67,10 +67,10 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             calendarService: calendarService,
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
-            onAutoStartConfirmed: { [weak self] title in
+            onAutoStartConfirmed: { [weak self] snapshot in
                 guard let self else { return nil }
                 self.autoStartConfirmedCount += 1
-                self.autoStartConfirmedTitles.append(title)
+                self.autoStartConfirmedSnapshots.append(snapshot)
                 if self.simulateAutoStartBusy {
                     // Mimic MeetingRecordingFlowCoordinator.startFromCalendar's
                     // synchronous state_busy path: reject with nil.
@@ -212,10 +212,46 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
                        "Recording start callback must fire on .completed outcome")
         // Title forwarding: the calendar event name is what the saved
         // recording will be titled, not the date-based default.
-        XCTAssertEqual(autoStartConfirmedTitles, [uniqueTitle],
+        XCTAssertEqual(autoStartConfirmedSnapshots.map(\.title), [uniqueTitle],
                        "Auto-start must forward the event title so the saved recording is named after the meeting")
+        XCTAssertEqual(autoStartConfirmedSnapshots.first?.confidence, .confirmed)
+        XCTAssertEqual(autoStartConfirmedSnapshots.first?.eventIdentifier, "evt-1")
 
         coordinator.stop()
+    }
+
+    func testProbableManualStartSnapshotUsesLatestPollWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        let currentEvent = event(
+            id: "evt-current",
+            title: "Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        calendarService.stubEvents = [currentEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        let snapshot = try XCTUnwrap(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(snapshot.confidence, .probable)
+        XCTAssertEqual(snapshot.eventIdentifier, "evt-current")
+        XCTAssertEqual(snapshot.title, "Customer Review")
+        XCTAssertEqual(snapshot.meetingService, "Google Meet")
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotIsNilWithoutPollData() {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
     }
 
     func testAutoStartCompletionIgnoredAfterModeTurnsOff() {
