@@ -5,6 +5,7 @@ import OSLog
 public enum MeetingAudioCaptureEvent: Sendable {
     case microphoneBuffer(AVAudioPCMBuffer, AVAudioTime)
     case systemBuffer(AVAudioPCMBuffer, AVAudioTime)
+    case microphoneHealth(MeetingMicHealthMonitor.HealthEvent)
     case sourceInterrupted(source: AudioSource, error: MeetingAudioError)
     case error(MeetingAudioError)
 }
@@ -190,7 +191,10 @@ public actor MeetingAudioCaptureService {
                             )
                             return
                         }
-                        self?.micHealthObserver.observeMicrophoneBuffer(copy)
+                        let healthEvents = self?.micHealthObserver.observeMicrophoneBuffer(copy) ?? []
+                        for healthEvent in healthEvents {
+                            self?.eventSink.emit(.microphoneHealth(healthEvent))
+                        }
                         self?.eventSink.emit(.microphoneBuffer(copy, time))
                     },
                     onStall: { [weak self] error in
@@ -214,7 +218,10 @@ public actor MeetingAudioCaptureService {
                             )
                             return
                         }
-                        self?.micHealthObserver.observeSystemBuffer(copy)
+                        let healthEvents = self?.micHealthObserver.observeSystemBuffer(copy) ?? []
+                        for healthEvent in healthEvents {
+                            self?.eventSink.emit(.microphoneHealth(healthEvent))
+                        }
                         self?.eventSink.emit(.systemBuffer(copy, time))
                     },
                     onStall: { [weak self] error in
@@ -402,17 +409,17 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
         }
     }
 
-    func observeMicrophoneBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard shouldObserve else { return }
-        observe(
+    func observeMicrophoneBuffer(_ buffer: AVAudioPCMBuffer) -> [MeetingMicHealthMonitor.HealthEvent] {
+        guard shouldObserve else { return [] }
+        return observe(
             micSignal: .init(isNonSilent: buffer.rmsLevel >= config.nonSilentLevelThreshold),
             systemSignal: nil
         )
     }
 
-    func observeSystemBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard shouldObserve else { return }
-        observe(
+    func observeSystemBuffer(_ buffer: AVAudioPCMBuffer) -> [MeetingMicHealthMonitor.HealthEvent] {
+        guard shouldObserve else { return [] }
+        return observe(
             micSignal: nil,
             systemSignal: .init(isNonSilent: buffer.rmsLevel >= config.nonSilentLevelThreshold)
         )
@@ -425,13 +432,15 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
     private func observe(
         micSignal: MeetingMicHealthMonitor.AudioSignal?,
         systemSignal: MeetingMicHealthMonitor.AudioSignal?
-    ) {
+    ) -> [MeetingMicHealthMonitor.HealthEvent] {
         let now = nowProvider()
         // Resolve which signatures are newly reported *inside* the lock (the monitor
         // state and the dedup set are both mutated from the audio callback thread),
         // then emit telemetry outside it so `Telemetry.send` never runs under the lock.
-        let freshStalls: [(MeetingMicHealthMonitor.StallSignature, Int)] = lock.withLock {
-            guard isObserving else { return [] }
+        let observed = lock.withLock {
+            guard isObserving else {
+                return (events: [MeetingMicHealthMonitor.HealthEvent](), freshStalls: [(MeetingMicHealthMonitor.StallSignature, Int)]())
+            }
             let events = monitor.ingest(micSignal: micSignal, systemSignal: systemSignal, now: now)
             var fresh: [(MeetingMicHealthMonitor.StallSignature, Int)] = []
             for event in events {
@@ -443,12 +452,13 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
                     fresh.append((signature, elapsedMs))
                 }
             }
-            return fresh
+            return (events, fresh)
         }
 
-        for (signature, elapsedMs) in freshStalls {
+        for (signature, elapsedMs) in observed.freshStalls {
             Telemetry.send(.micStallDetected(signature: .init(signature), elapsedMs: elapsedMs))
         }
+        return observed.events
     }
 }
 

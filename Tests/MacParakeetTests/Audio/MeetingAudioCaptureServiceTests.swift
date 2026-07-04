@@ -754,6 +754,8 @@ private actor CapturedMeetingCaptureEvents {
             microphoneBufferCount += 1
         case .systemBuffer:
             systemBufferCount += 1
+        case .microphoneHealth:
+            break
         case .sourceInterrupted:
             break
         case .error:

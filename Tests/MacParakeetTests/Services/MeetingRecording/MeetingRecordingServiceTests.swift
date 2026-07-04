@@ -645,6 +645,169 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.sourceAlignment.system?.lastHostTime, firstSystemHostTime)
     }
 
+    func testCaptureHealthReportsMicrophoneAndSystemLiveAfterBuffers() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+        ))
+
+        let health = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .live && $0.system.status == .live
+        }
+        XCTAssertEqual(health.sourceMode, .microphoneAndSystem)
+        XCTAssertFalse(health.isDegraded)
+        XCTAssertNil(health.primaryMessage)
+        XCTAssertGreaterThan(health.microphone.level, 0)
+        XCTAssertGreaterThan(health.system.level, 0)
+        XCTAssertNotNil(health.microphone.lastBufferAt)
+        XCTAssertNotNil(health.system.lastBufferAt)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksSystemNotSelectedForMicrophoneOnly() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(
+                sourceMode: .microphoneOnly,
+                microphone: MeetingMicrophoneCaptureStartReport(requestedMode: .raw, effectiveMode: .raw)
+            )
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording(sourceMode: .microphoneOnly)
+
+        let health = await service.captureHealth
+        XCTAssertEqual(health.sourceMode, .microphoneOnly)
+        XCTAssertEqual(health.system.status, .notSelected)
+        XCTAssertEqual(health.system.label, "System not recorded")
+        XCTAssertEqual(health.system.recoveryAction, .changeSourceMode)
+        XCTAssertFalse(health.system.status.isDegraded)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksMicrophoneNotSelectedForSystemOnly() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording(sourceMode: .systemOnly)
+
+        let health = await service.captureHealth
+        XCTAssertEqual(health.sourceMode, .systemOnly)
+        XCTAssertEqual(health.microphone.status, .notSelected)
+        XCTAssertEqual(health.microphone.label, "Mic not recorded")
+        XCTAssertEqual(health.microphone.recoveryAction, .changeSourceMode)
+        XCTAssertFalse(health.microphone.status.isDegraded)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksUserMutedMicrophone() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        let muteState = await service.setMicrophoneMuted(true)
+
+        let health = await service.captureHealth
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: true, canMute: true))
+        XCTAssertEqual(health.microphone.status, .muted)
+        XCTAssertEqual(health.microphone.label, "Mic muted")
+        XCTAssertEqual(health.microphone.recoveryAction, .unmuteMicrophone)
+        XCTAssertTrue(health.isDegraded)
+        XCTAssertEqual(health.primaryMessage, "Mic muted")
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksSystemInterruption() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        await captureService.yield(.sourceInterrupted(
+            source: .system,
+            error: .captureRuntimeFailure("simulated system stream interruption")
+        ))
+
+        let health = try await waitForCaptureHealth(service) {
+            $0.system.status == .interrupted
+        }
+        XCTAssertEqual(health.system.label, "System audio interrupted")
+        XCTAssertEqual(health.system.recoveryAction, .restartRecording)
+        XCTAssertEqual(health.primaryMessage, "System audio interrupted")
+        let captureMode = await service.captureMode
+        XCTAssertEqual(captureMode, .full)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksMicStallAndRecovery() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        await captureService.yield(.microphoneHealth(.stallSuspected(signature: .micSilent, elapsedMs: 3_000)))
+
+        let stalledHealth = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .stalled
+        }
+        XCTAssertEqual(stalledHealth.microphone.label, "Mic may be stalled")
+        XCTAssertEqual(stalledHealth.microphone.recoveryAction, .checkMicrophoneInput)
+        XCTAssertEqual(stalledHealth.primaryMessage, "Mic may be stalled")
+
+        await captureService.yield(.microphoneHealth(.recovered))
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+        ))
+
+        let recoveredHealth = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .live
+        }
+        XCTAssertEqual(recoveredHealth.microphone.label, "Mic live")
+        XCTAssertNil(recoveredHealth.primaryMessage)
+
+        await service.cancelRecording()
+    }
+
     func testStopRecordingPreservesCrossStreamHostTimeOffsetsInSourceAlignment() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -1328,6 +1491,25 @@ final class MeetingRecordingServiceTests: XCTestCase {
             if startedAt.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for system level predicate")
                 return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForCaptureHealth(
+        _ service: MeetingRecordingService,
+        timeout: Duration = .seconds(1),
+        _ predicate: @escaping (MeetingCaptureHealthSummary) -> Bool
+    ) async throws -> MeetingCaptureHealthSummary {
+        let startedAt = ContinuousClock.now
+        while true {
+            let health = await service.captureHealth
+            if predicate(health) {
+                return health
+            }
+            if startedAt.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for capture health predicate; latest health: \(health)")
+                return health
             }
             try await Task.sleep(for: .milliseconds(20))
         }

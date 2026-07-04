@@ -73,6 +73,7 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var isMicrophoneMuted: Bool { get async }
     var canMuteMicrophone: Bool { get async }
     var microphoneMuteState: MeetingMicrophoneMuteState { get async }
+    var captureHealth: MeetingCaptureHealthSummary { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
 }
 
@@ -94,6 +95,10 @@ public extension MeetingRecordingServiceProtocol {
 
     func startRecording() async throws {
         try await startRecording(title: nil, sourceMode: nil, startContext: nil, calendarEventSnapshot: nil)
+    }
+
+    var captureHealth: MeetingCaptureHealthSummary {
+        get async { .notRecording }
     }
 }
 
@@ -247,6 +252,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var captureHealthMetrics = CaptureHealthMetrics()
     private var latestLevels = MeetingAudioLevels()
+    private var sourceHealthLastBufferAt: [AudioSource: Date] = [:]
+    private var activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?
     private var recentSystemRms: Float = 0
     private var recentProcessedMicRms: Float = 0
     private var latestSystemSignalAt: ContinuousClock.Instant?
@@ -379,6 +386,24 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return MeetingMicrophoneMuteState(isMuted: canMute && microphoneMuted, canMute: canMute)
     }
 
+    public var captureHealth: MeetingCaptureHealthSummary {
+        guard currentSession != nil else {
+            return .notRecording
+        }
+        let sourceMode = captureHealthMetrics.sourceMode ?? .microphoneAndSystem
+        return MeetingCaptureHealthSummary.reduce(
+            sourceMode: sourceMode,
+            microphoneLevel: latestLevels.microphone,
+            systemLevel: latestLevels.system,
+            lastBufferAt: sourceHealthLastBufferAt,
+            isMicrophoneMuted: microphoneMuteState.isMuted,
+            microphoneStarted: captureHealthMetrics.microphoneStarted,
+            interruptedSources: interruptedSources,
+            activeMicrophoneStall: activeMicrophoneStall,
+            captureFailed: captureFailed
+        )
+    }
+
     /// Wallclock-since-start minus all pause time (completed + ongoing).
     /// Used for both the live elapsed timer and the persisted
     /// `MeetingRecordingOutput.durationSeconds`.
@@ -477,6 +502,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             interruptedSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
+            sourceHealthLastBufferAt = [:]
+            activeMicrophoneStall = nil
             recentSystemRms = 0
             recentProcessedMicRms = 0
             latestSystemSignalAt = nil
@@ -964,9 +991,20 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         case .sourceInterrupted(let source, let error):
             guard !captureFailed else { return }
             await handleSourceInterruption(source: source, error: error)
+        case .microphoneHealth(let event):
+            handleMicrophoneHealthEvent(event)
         case .error(let error):
             guard !captureFailed else { return }
             await failCapture(error)
+        }
+    }
+
+    private func handleMicrophoneHealthEvent(_ event: MeetingMicHealthMonitor.HealthEvent) {
+        switch event {
+        case .stallSuspected(let signature, _):
+            activeMicrophoneStall = signature
+        case .recovered:
+            activeMicrophoneStall = nil
         }
     }
 
@@ -992,6 +1030,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         captureFailed = true
         latestLevels = MeetingAudioLevels()
         microphoneMuted = false
+        activeMicrophoneStall = nil
         microphoneMutedHostTime = nil
         completedMicrophoneMuteHostTimeRanges = []
         logger.error("meeting_capture_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
@@ -1170,6 +1209,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func recordCaptureMetrics(for source: AudioSource, time: AVAudioTime) {
+        sourceHealthLastBufferAt[source] = wallClockNow()
         guard time.isHostTimeValid else { return }
         var metrics = sourceCaptureMetrics[source] ?? SourceCaptureMetrics()
         if metrics.firstHostTime == nil {
@@ -1557,6 +1597,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
         captureHealthMetrics = CaptureHealthMetrics()
+        sourceHealthLastBufferAt = [:]
+        activeMicrophoneStall = nil
         interruptedSources = []
         recentSystemRms = 0
         recentProcessedMicRms = 0
