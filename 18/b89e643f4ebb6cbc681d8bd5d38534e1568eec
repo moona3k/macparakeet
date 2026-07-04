@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_03194fc411710d::t_66b56ead833e91 1933,1938-1939,1968,1970-1995,1999,2001-2002,2004-2007,2009-2015,2017,2019-2020
+  s_03194fc411710d::t_1e262cf2e0b0ab 1996-1998,2000,2003,2016,2018
+  s_03194fc411710d::t_fd6e539ad9a906 2021-2022
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_03194fc411710d::t_f4d0d2fd7193eb 203
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_03194fc411710d::t_450b5939e6a68d 1443-1444,1446,1448,1477
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "18b89e643f4ebb6cbc681d8bd5d38534e1568eec",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
