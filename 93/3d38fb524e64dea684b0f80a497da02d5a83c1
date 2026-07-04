@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_c4cc9a8ad9913b::t_4f1732142d02ac 1404-1406
+  s_c4cc9a8ad9913b::t_c4517df82abf37 5-38
+  s_c4cc9a8ad9913b::t_aa6c9bb4aa0247 1396-1403,1407-1432
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_c4cc9a8ad9913b::t_b81df09de867f6 143,217-219
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c4cc9a8ad9913b::t_1645aba3437e83 209,1251-1252,1261,1270,1281,1286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "933d38fb524e64dea684b0f80a497da02d5a83c1",
+  "prompts": {},
+  "sessions": {
+    "s_c4cc9a8ad9913b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e43-8014-74f2-ba44-91eba4c8bb2d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
