@@ -241,6 +241,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let meetingArtifactStore: MeetingArtifactStoring?
     private let meetingAutomationHookRunner: MeetingAutomationHookRunning?
     private let meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy
+    private let meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -270,6 +271,66 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
         meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production
     ) {
+        self.init(
+            audioProcessor: audioProcessor,
+            sttTranscriber: sttTranscriber,
+            transcriptionRepo: transcriptionRepo,
+            promptResultRepo: promptResultRepo,
+            entitlements: entitlements,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            processingMode: processingMode,
+            llmService: llmService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: shouldUseAIFormatter,
+            aiFormatterPromptTemplate: aiFormatterPromptTemplate,
+            shouldAutoGenerateMeetingTitles: shouldAutoGenerateMeetingTitles,
+            shouldKeepDownloadedAudio: shouldKeepDownloadedAudio,
+            shouldDiarize: shouldDiarize,
+            youtubeDownloader: youtubeDownloader,
+            podcastResolver: podcastResolver,
+            podcastSearchResolver: podcastSearchResolver,
+            podcastAudioFetcher: podcastAudioFetcher,
+            diarizationService: diarizationService,
+            mediaMetadataExtractor: mediaMetadataExtractor,
+            thumbnailCache: thumbnailCache,
+            playbackConverter: playbackConverter,
+            meetingArtifactStore: meetingArtifactStore,
+            meetingAutomationHookRunner: meetingAutomationHookRunner,
+            meetingCleanedMicrophoneReadinessPolicy: meetingCleanedMicrophoneReadinessPolicy,
+            meetingFinalizationBenchmarkObserver: nil
+        )
+    }
+
+    init(
+        audioProcessor: AudioProcessorProtocol,
+        sttTranscriber: STTTranscribing,
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        promptResultRepo: PromptResultRepositoryProtocol? = nil,
+        entitlements: EntitlementsChecking? = nil,
+        customWordRepo: CustomWordRepositoryProtocol? = nil,
+        snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        llmService: LLMServiceProtocol? = nil,
+        llmRunRepo: LLMRunRepositoryProtocol? = nil,
+        shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
+        shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
+        shouldDiarize: (@Sendable () -> Bool)? = nil,
+        youtubeDownloader: YouTubeDownloading? = nil,
+        podcastResolver: PodcastResolving? = nil,
+        podcastSearchResolver: PodcastSearchResolving? = nil,
+        podcastAudioFetcher: PodcastAudioFetching? = nil,
+        diarizationService: DiarizationServiceProtocol? = nil,
+        mediaMetadataExtractor: MediaMetadataExtracting = AVMediaMetadataExtractor(),
+        thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
+        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
+        meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
+        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
+        meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
+        meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?
+    ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
         self.transcriptionRepo = transcriptionRepo
@@ -297,6 +358,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.meetingArtifactStore = meetingArtifactStore
         self.meetingAutomationHookRunner = meetingAutomationHookRunner
         self.meetingCleanedMicrophoneReadinessPolicy = meetingCleanedMicrophoneReadinessPolicy
+        self.meetingFinalizationBenchmarkObserver = meetingFinalizationBenchmarkObserver
     }
 
     public func transcribe(
@@ -1099,18 +1161,28 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 onProgress: onProgress
             )
 
-            let systemDiarization = try await diarizeMeetingSystemIfNeeded(
-                recording: recording,
-                sourceWavURLs: sourceWavURLs,
-                requested: diarizationRequested,
-                lifecycleStage: &lifecycleStage,
-                onProgress: onProgress
-            )
+            meetingFinalizationBenchmarkObserver?.stageDidStart(.diarization)
+            let systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?
+            do {
+                systemDiarization = try await diarizeMeetingSystemIfNeeded(
+                    recording: recording,
+                    sourceWavURLs: sourceWavURLs,
+                    requested: diarizationRequested,
+                    lifecycleStage: &lifecycleStage,
+                    onProgress: onProgress
+                )
+                meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+            } catch {
+                meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+                throw error
+            }
 
+            meetingFinalizationBenchmarkObserver?.stageDidStart(.finalizeMerge)
             let finalized = MeetingTranscriptFinalizer.finalize(
                 sourceTranscripts: sourceResults,
                 systemDiarization: systemDiarization
             )
+            meetingFinalizationBenchmarkObserver?.stageDidEnd(.finalizeMerge)
 
             // Apply the user's Vocabulary corrections to the meeting transcript.
             // Meetings otherwise never run custom words — the deterministic
@@ -1242,37 +1314,46 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             : nil
 
         for (index, source) in activeSources.enumerated() {
-            let fileURL = meetingAudioURL(
-                for: source,
-                recording: recording,
-                microphoneDecision: microphoneDecision
-            )
-            lifecycleStage = .audioConversion
-            onProgress?(.converting)
-            let wavURL = try await audioProcessor.convert(fileURL: fileURL)
-            temporaryWavURLs.append(wavURL)
-            sourceWavURLs[source] = wavURL
-
-            lifecycleStage = .stt
-            onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
-            let result = try await transcribeSpeech(
-                audioPath: wavURL.path,
-                job: .meetingFinalize,
-                speechEngine: speechEngine,
-                onProgress: meetingSourceProgressMapper(
-                    sourceIndex: index,
-                    sourceCount: activeSources.count,
-                    onProgress: onProgress
+            let benchmarkStage: MeetingFinalizationBenchmarkObserver.Stage =
+                source == .microphone ? .microphoneSTT : .systemSTT
+            meetingFinalizationBenchmarkObserver?.stageDidStart(benchmarkStage)
+            do {
+                let fileURL = meetingAudioURL(
+                    for: source,
+                    recording: recording,
+                    microphoneDecision: microphoneDecision
                 )
-            )
+                lifecycleStage = .audioConversion
+                onProgress?(.converting)
+                let wavURL = try await audioProcessor.convert(fileURL: fileURL)
+                temporaryWavURLs.append(wavURL)
+                sourceWavURLs[source] = wavURL
 
-            outputs.append(
-                .init(
-                    source: source,
-                    result: result,
-                    startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
+                lifecycleStage = .stt
+                onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
+                let result = try await transcribeSpeech(
+                    audioPath: wavURL.path,
+                    job: .meetingFinalize,
+                    speechEngine: speechEngine,
+                    onProgress: meetingSourceProgressMapper(
+                        sourceIndex: index,
+                        sourceCount: activeSources.count,
+                        onProgress: onProgress
+                    )
                 )
-            )
+
+                outputs.append(
+                    .init(
+                        source: source,
+                        result: result,
+                        startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
+                    )
+                )
+                meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+            } catch {
+                meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+                throw error
+            }
         }
 
         return outputs
