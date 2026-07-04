@@ -434,6 +434,10 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
             transcription.speakers = speakers
+            transcription.transcriptSegments = TranscriptSegmentRecord.updatingSpeakerLabels(
+                in: transcription.transcriptSegments,
+                using: speakers
+            )
             transcription.updatedAt = Date()
             try transcription.update(db)
         }

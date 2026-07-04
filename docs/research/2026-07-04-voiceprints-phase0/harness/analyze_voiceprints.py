@@ -400,6 +400,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--include-population-pairs",
+        action="store_true",
+        help="Include linkable per-session/per-speaker pair records. Keep this local.",
+    )
     args = parser.parse_args()
 
     full = load_full(args.data_dir)
@@ -418,15 +423,18 @@ def main() -> None:
         "overlap": overlap(populations),
         "pairwiseTauSweep": pairwise_sweep(populations),
         "marginProxyTauSweep": margin_proxy_sweep(full),
-        "populationPairs": {
-            name: records for name, records in populations.items()
-        },
         "notes": [
             "Microphone clusters are treated as same-speaker because the microphone channel is the app-user ground truth, despite diarizer over-clustering.",
             "System split-half same-speaker pairs use greedy nearest-neighbor matching across halves because no participant labels are available.",
             "Margin proxy sweep is a user-profile proxy, not a fully labeled multi-profile speaker-identification evaluation.",
+            "Detailed populationPairs records are omitted by default because they are linkable "
+            "biometric meeting metadata; pass --include-population-pairs only for local analysis.",
         ],
     }
+    if args.include_population_pairs:
+        output["populationPairs"] = {
+            name: records for name, records in populations.items()
+        }
 
     args.output.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n")
     print(json.dumps({k: output[k] for k in ["generatedAt", "populationStats", "overlap"]}, indent=2))

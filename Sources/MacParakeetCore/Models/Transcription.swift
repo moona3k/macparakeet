@@ -249,6 +249,31 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         self.text = text
         self.wordRange = wordRange
     }
+
+    public static func updatingSpeakerLabels(
+        in segments: [TranscriptSegmentRecord]?,
+        using speakers: [SpeakerInfo]?
+    ) -> [TranscriptSegmentRecord]? {
+        guard var segments,
+              let speakers,
+              !speakers.isEmpty
+        else {
+            return segments
+        }
+
+        var labelsBySpeakerID: [String: String] = [:]
+        for speaker in speakers {
+            labelsBySpeakerID[speaker.id] = speaker.label
+        }
+
+        for index in segments.indices {
+            guard let speakerId = segments[index].speakerId,
+                  let label = labelsBySpeakerID[speakerId]
+            else { continue }
+            segments[index].speakerLabel = label
+        }
+        return segments
+    }
 }
 
 extension Transcription: FetchableRecord, PersistableRecord {

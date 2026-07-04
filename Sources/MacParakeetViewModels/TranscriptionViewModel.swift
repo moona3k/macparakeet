@@ -1246,19 +1246,36 @@ public final class TranscriptionViewModel {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
         let previousCurrentSpeakers = speakers
+        let previousCurrentSegments = transcription.transcriptSegments
         let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id })
         let previousListSpeakers = transcriptionIndex.flatMap { transcriptions[$0].speakers }
+        let previousListSegments = transcriptionIndex.flatMap { transcriptions[$0].transcriptSegments }
         let renameGeneration = (speakerRenameGenerations[transcription.id] ?? 0) + 1
         speakerRenameGenerations[transcription.id] = renameGeneration
         speakers[index].label = trimmed
         transcription.speakers = speakers
+        transcription.transcriptSegments = TranscriptSegmentRecord.updatingSpeakerLabels(
+            in: transcription.transcriptSegments,
+            using: speakers
+        )
         currentTranscription = transcription
         if let transcriptionIndex {
             transcriptions[transcriptionIndex].speakers = speakers
+            transcriptions[transcriptionIndex].transcriptSegments = transcription.transcriptSegments
         }
         guard let transcriptionRepo else { return }
         let transcriptionID = transcription.id
-        Task { [weak self, transcriptionRepo, transcriptionID, speakers, previousCurrentSpeakers, previousListSpeakers, renameGeneration] in
+        Task { [
+            weak self,
+            transcriptionRepo,
+            transcriptionID,
+            speakers,
+            previousCurrentSpeakers,
+            previousCurrentSegments,
+            previousListSpeakers,
+            previousListSegments,
+            renameGeneration
+        ] in
             do {
                 try await Task.detached(priority: .utility) {
                     try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
@@ -1269,7 +1286,9 @@ public final class TranscriptionViewModel {
                     transcriptionID: transcriptionID,
                     generation: renameGeneration,
                     previousCurrentSpeakers: previousCurrentSpeakers,
+                    previousCurrentSegments: previousCurrentSegments,
                     previousListSpeakers: previousListSpeakers,
+                    previousListSegments: previousListSegments,
                     errorType: errorType
                 )
             }
@@ -1280,16 +1299,20 @@ public final class TranscriptionViewModel {
         transcriptionID: UUID,
         generation: Int,
         previousCurrentSpeakers: [SpeakerInfo],
+        previousCurrentSegments: [TranscriptSegmentRecord]?,
         previousListSpeakers: [SpeakerInfo]?,
+        previousListSegments: [TranscriptSegmentRecord]?,
         errorType: String
     ) {
         guard speakerRenameGenerations[transcriptionID] == generation else { return }
         if var currentTranscription, currentTranscription.id == transcriptionID {
             currentTranscription.speakers = previousCurrentSpeakers
+            currentTranscription.transcriptSegments = previousCurrentSegments
             self.currentTranscription = currentTranscription
         }
         if let index = transcriptions.firstIndex(where: { $0.id == transcriptionID }) {
             transcriptions[index].speakers = previousListSpeakers
+            transcriptions[index].transcriptSegments = previousListSegments
         }
         setError(message: "Failed to save speaker rename. The previous label was restored.")
         logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")

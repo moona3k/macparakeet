@@ -452,21 +452,18 @@ enum VoiceprintHarness {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
 
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
 
         try process.run()
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-        let out = String(data: outData, encoding: .utf8) ?? ""
-        let err = String(data: errData, encoding: .utf8) ?? ""
+        let output = String(data: outputData, encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
-            throw HarnessError(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed: \(err)")
+            throw HarnessError(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed: \(output)")
         }
-        return out
+        return output
     }
 }

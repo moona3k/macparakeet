@@ -1333,6 +1333,59 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
     }
 
+    func testRenameSpeakerUpdatesTranscriptSegmentLabels() {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(
+            fileName: "meeting.wav",
+            speakers: speakers,
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 500,
+                    endMs: 900,
+                    speakerId: "S2",
+                    speakerLabel: "Speaker 2",
+                    text: "there",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 1, endIndexExclusive: 2)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 900,
+                    endMs: 1100,
+                    speakerId: nil,
+                    speakerLabel: "Narrator",
+                    text: "aside",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 2, endIndexExclusive: 3)
+                ),
+            ],
+            status: .completed
+        )
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Sarah")
+
+        XCTAssertEqual(viewModel.currentTranscription?.transcriptSegments?[0].speakerLabel, "Sarah")
+        XCTAssertEqual(viewModel.currentTranscription?.transcriptSegments?[1].speakerLabel, "Speaker 2")
+        XCTAssertEqual(viewModel.currentTranscription?.transcriptSegments?[2].speakerLabel, "Narrator")
+
+        let updated = viewModel.transcriptions.first { $0.id == t.id }
+        XCTAssertEqual(updated?.transcriptSegments?[0].speakerLabel, "Sarah")
+        XCTAssertEqual(updated?.transcriptSegments?[1].speakerLabel, "Speaker 2")
+        XCTAssertEqual(updated?.transcriptSegments?[2].speakerLabel, "Narrator")
+    }
+
     func testRenameSpeakerUpdatesMatchingTranscriptionsRow() {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
@@ -1364,7 +1417,21 @@ final class TranscriptionViewModelTests: XCTestCase {
             SpeakerInfo(id: "S1", label: "Speaker 1"),
             SpeakerInfo(id: "S2", label: "Speaker 2")
         ]
-        let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        let t = Transcription(
+            fileName: "meeting.wav",
+            speakers: speakers,
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+            ],
+            status: .completed
+        )
         let other = Transcription(
             fileName: "other.wav",
             speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
@@ -1382,10 +1449,12 @@ final class TranscriptionViewModelTests: XCTestCase {
             self.viewModel.currentTranscription?.speakers?[0].label == "Speaker 1"
         }
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
+        XCTAssertEqual(viewModel.currentTranscription?.transcriptSegments?[0].speakerLabel, "Speaker 1")
 
         let reverted = viewModel.transcriptions.first { $0.id == t.id }
         XCTAssertEqual(reverted?.speakers?[0].label, "Speaker 1")
         XCTAssertEqual(reverted?.speakers?[1].label, "Speaker 2")
+        XCTAssertEqual(reverted?.transcriptSegments?[0].speakerLabel, "Speaker 1")
 
         let unchanged = viewModel.transcriptions.first { $0.id == other.id }
         XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
