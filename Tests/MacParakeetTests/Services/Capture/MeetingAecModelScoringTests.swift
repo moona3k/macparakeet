@@ -169,11 +169,12 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 continue
             }
             for (echoLabel, echoPath) in echoPaths {
+                let conditioner = makeCandidateConditioner()
                 scores.append(scoreModel(
                     label: modelURL.lastPathComponent,
                     modelKey: modelURL.path,
                     echoLabel: echoLabel,
-                    makeConditioner: makeCandidateConditioner,
+                    conditioner: conditioner,
                     echoPath: echoPath))
             }
         }
@@ -223,24 +224,24 @@ final class MeetingAecModelScoringTests: XCTestCase {
         label: String,
         modelKey: String,
         echoLabel: String,
-        makeConditioner: () -> any MicConditioning,
+        conditioner: any MicConditioning,
         echoPath: MeetingAecEchoPath
     ) -> ModelScore {
         // Far-end-only → ERLE (any mic energy is echo by construction).
         let farScenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: false, farEndActive: true, echoPath: echoPath)
-        let farConditioner = makeConditioner()
-        let farOut = MeetingAecRunner.run(farConditioner, scenario: farScenario)
-        let farDiagnostics = farConditioner.diagnostics
+        let farRun = MeetingAecRunner.runWithDiagnostics(conditioner, scenario: farScenario)
+        let farOut = farRun.output
+        let farDiagnostics = farRun.diagnostics
         let farERLE = MeetingAecMetrics.erleDB(
             mic: farScenario.mic, output: farOut, over: farScenario.steadyStateWindow)
 
         // Near-end-only → must preserve the local voice's energy and not go silent.
         let nearScenario = MeetingAecScenarioFactory.make(
             name: "near-end-only", nearEndActive: true, farEndActive: false, echoPath: echoPath)
-        let nearConditioner = makeConditioner()
-        let nearOut = MeetingAecRunner.run(nearConditioner, scenario: nearScenario)
-        let nearDiagnostics = nearConditioner.diagnostics
+        let nearRun = MeetingAecRunner.runWithDiagnostics(conditioner, scenario: nearScenario)
+        let nearOut = nearRun.output
+        let nearDiagnostics = nearRun.diagnostics
         let nearWindow = nearScenario.steadyStateWindow
         let nearErr = MeetingAecMetrics.nearEndErrorDB(
             output: nearOut, nearEnd: nearScenario.nearEnd, over: nearWindow)
@@ -253,16 +254,16 @@ final class MeetingAecModelScoringTests: XCTestCase {
         // Double-talk → near-end error vs passthrough (reported, not gated).
         let dtScenario = MeetingAecScenarioFactory.make(
             name: "double-talk", nearEndActive: true, farEndActive: true, echoPath: echoPath)
-        let dtConditioner = makeConditioner()
-        let dtOut = MeetingAecRunner.run(dtConditioner, scenario: dtScenario)
-        let dtDiagnostics = dtConditioner.diagnostics
+        let dtRun = MeetingAecRunner.runWithDiagnostics(conditioner, scenario: dtScenario)
+        let dtOut = dtRun.output
+        let dtDiagnostics = dtRun.diagnostics
         let dtWindow = dtScenario.steadyStateWindow
         let dtErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtOut, nearEnd: dtScenario.nearEnd, over: dtWindow)
         let dtPass = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: dtScenario)
         let dtPassErr = MeetingAecMetrics.nearEndErrorDB(
             output: dtPass, nearEnd: dtScenario.nearEnd, over: dtWindow)
-        let overlapSweep = scoreDoubleTalkSegments(makeConditioner: makeConditioner, echoPath: echoPath)
+        let overlapSweep = scoreDoubleTalkSegments(conditioner: conditioner, echoPath: echoPath)
         let diagnostics = [farDiagnostics, nearDiagnostics, dtDiagnostics] + overlapSweep.diagnostics
 
         return ModelScore(
@@ -278,7 +279,7 @@ final class MeetingAecModelScoringTests: XCTestCase {
     }
 
     private func scoreDoubleTalkSegments(
-        makeConditioner: () -> any MicConditioning,
+        conditioner: any MicConditioning,
         echoPath: MeetingAecEchoPath
     ) -> OverlapSweepResult {
         var rows: [DoubleTalkSegmentScore] = []
@@ -290,9 +291,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 signalToInterferenceDB: sir
             )
             let window = doubleTalk.steadyStateWindow
-            let doubleTalkConditioner = makeConditioner()
-            let cleaned = MeetingAecRunner.run(doubleTalkConditioner, scenario: doubleTalk)
-            diagnostics.append(doubleTalkConditioner.diagnostics)
+            let doubleTalkRun = MeetingAecRunner.runWithDiagnostics(conditioner, scenario: doubleTalk)
+            let cleaned = doubleTalkRun.output
+            diagnostics.append(doubleTalkRun.diagnostics)
             let raw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: doubleTalk)
             let cleanError = MeetingAecMetrics.nearEndErrorDB(
                 output: cleaned,
@@ -321,9 +322,9 @@ final class MeetingAecModelScoringTests: XCTestCase {
                 signalToInterferenceDB: sir
             )
             let echoWindow = echoOnly.steadyStateWindow
-            let echoOnlyConditioner = makeConditioner()
-            let echoCleaned = MeetingAecRunner.run(echoOnlyConditioner, scenario: echoOnly)
-            diagnostics.append(echoOnlyConditioner.diagnostics)
+            let echoOnlyRun = MeetingAecRunner.runWithDiagnostics(conditioner, scenario: echoOnly)
+            let echoCleaned = echoOnlyRun.output
+            diagnostics.append(echoOnlyRun.diagnostics)
             let echoRaw = MeetingAecRunner.run(PassthroughMicConditioner(), scenario: echoOnly)
             let echoCleanResidual = MeetingAecMetrics.relativePowerDB(
                 signal: echoCleaned,

@@ -395,7 +395,7 @@ enum MeetingAecMetrics {
         guard let window = boundedWindow(window, counts: output.count, reference.count) else { return 0 }
         let outputPower = power(output, over: window)
         let referencePower = power(reference, over: window)
-        guard referencePower > 0 else { return 0 }
+        precondition(referencePower > 0, "AEC RMS ratio reference power is zero")
         return Float((outputPower / referencePower).squareRoot())
     }
 
@@ -422,6 +422,25 @@ enum MeetingAecRunner {
         chunkSizes: [Int] = [320, 256, 160, 512, 128]
     ) -> [Float] {
         conditioner.reset()
+        return stream(conditioner, scenario: scenario, chunkSizes: chunkSizes)
+    }
+
+    static func runWithDiagnostics(
+        _ conditioner: any MicConditioning,
+        scenario: MeetingAecScenario,
+        chunkSizes: [Int] = [320, 256, 160, 512, 128]
+    ) -> (output: [Float], diagnostics: MeetingEchoSuppressionDiagnostics) {
+        conditioner.reset()
+        let baseline = conditioner.diagnostics
+        let output = stream(conditioner, scenario: scenario, chunkSizes: chunkSizes)
+        return (output, conditioner.diagnostics.subtracting(baseline))
+    }
+
+    private static func stream(
+        _ conditioner: any MicConditioning,
+        scenario: MeetingAecScenario,
+        chunkSizes: [Int]
+    ) -> [Float] {
         var output: [Float] = []
         output.reserveCapacity(scenario.sampleCount)
         var cursor = 0
@@ -438,6 +457,26 @@ enum MeetingAecRunner {
         }
         output += conditioner.flush()
         return output
+    }
+}
+
+private extension MeetingEchoSuppressionDiagnostics {
+    func subtracting(_ baseline: MeetingEchoSuppressionDiagnostics) -> MeetingEchoSuppressionDiagnostics {
+        MeetingEchoSuppressionDiagnostics(
+            processorName: processorName,
+            loaded: loaded,
+            micFrames: max(0, micFrames - baseline.micFrames),
+            processedFrames: max(0, processedFrames - baseline.processedFrames),
+            rawFallbackFrames: max(0, rawFallbackFrames - baseline.rawFallbackFrames),
+            fullReferenceFrames: max(0, fullReferenceFrames - baseline.fullReferenceFrames),
+            partialReferenceFrames: max(0, partialReferenceFrames - baseline.partialReferenceFrames),
+            missingReferenceFrames: max(0, missingReferenceFrames - baseline.missingReferenceFrames),
+            processingFailures: max(0, processingFailures - baseline.processingFailures),
+            currentDelaySamples: currentDelaySamples,
+            delayConfidence: delayConfidence,
+            delayEstimateCount: max(0, delayEstimateCount - baseline.delayEstimateCount),
+            rejectedDelayEstimates: max(0, rejectedDelayEstimates - baseline.rejectedDelayEstimates)
+        )
     }
 }
 
