@@ -1,0 +1,25 @@
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_0040308a4900a1::t_f41f653c114865 210-213,216,218-221
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_0040308a4900a1::t_f41f653c114865 20,28-31
+Sources/MacParakeet/App/OnboardingCoordinator.swift
+  s_0040308a4900a1::t_6b6a67c7171f76 47-48,59-60,73-74,88
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_0040308a4900a1::t_f41f653c114865 492-517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "54d0cae29cb319a19d232deeee60d04715f50b16",
+  "prompts": {},
+  "sessions": {
+    "s_0040308a4900a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f52-d6b9-7372-98d7-b6e1a8d18040",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
