@@ -1,0 +1,339 @@
+{
+  "librispeech-full_tdt-v3_vocab_min065": {
+    "applied_terms": 48,
+    "false_applied_terms": 48,
+    "false_examples": [
+      {
+        "hyp": "It was strange, too, that he found an arid pleasure in following up to the end the rigid Linear of the doctrines of the church, and penetrating into obscure silences only to hear and feel the more deeply his own condemnation.",
+        "id": "1089-134686-0018",
+        "original": "lines",
+        "ref": "IT WAS STRANGE TOO THAT HE FOUND AN ARID PLEASURE IN FOLLOWING UP TO THE END THE RIGID LINES OF THE DOCTRINES OF THE CHURCH AND PENETRATING INTO OBSCURE SILENCES ONLY TO HEAR AND FEEL THE MORE DEEPLY HIS OWN CONDEMNATION",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "Why was the sacrament of the Eucharist instituted under the two species of bread and wine, if Jesus Christ be present body and blood, soul and divinity, in the bread alone, and in the Pinecone",
+        "id": "1089-134686-0023",
+        "original": "wine alone?",
+        "ref": "WHY WAS THE SACRAMENT OF THE EUCHARIST INSTITUTED UNDER THE TWO SPECIES OF BREAD AND WINE IF JESUS CHRIST BE PRESENT BODY AND BLOOD SOUL AND DIVINITY IN THE BREAD ALONE AND IN THE WINE ALONE",
+        "replacement": "Pinecone"
+      },
+      {
+        "hyp": "If the wine change into Linear and the host crumble into corruption, after they have been consecrated, is Jesus Christ still present under their species as God and as man?",
+        "id": "1089-134686-0024",
+        "original": "vinegar,",
+        "ref": "IF THE WINE CHANGE INTO VINEGAR AND THE HOST CRUMBLE INTO CORRUPTION AFTER THEY HAVE BEEN CONSECRATED IS JESUS CHRIST STILL PRESENT UNDER THEIR SPECIES AS GOD AND AS MAN",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "The brown ground beneath is left for the most part. One touch of black is put for the hollow, two delicate Linear of dark grey define the outer curve, and one little quivering touch of white draws the inner edge of the mandible.",
+        "id": "1188-133604-0007",
+        "original": "lines",
+        "ref": "THE BROWN GROUND BENEATH IS LEFT FOR THE MOST PART ONE TOUCH OF BLACK IS PUT FOR THE HOLLOW TWO DELICATE LINES OF DARK GRAY DEFINE THE OUTER CURVE AND ONE LITTLE QUIVERING TOUCH OF WHITE DRAWS THE INNER EDGE OF THE MANDIBLE",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "The mother herself, as if the red ignominy were so deeply scorched into her brain that all her conceptions assumed its form, had carefully wrought out the Amplitude lavishing many hours of morbid ingenuity to create",
+        "id": "1221-135767-0006",
+        "original": "similitude,",
+        "ref": "THE MOTHER HERSELF AS IF THE RED IGNOMINY WERE SO DEEPLY SCORCHED INTO HER BRAIN THAT ALL HER CONCEPTIONS ASSUMED ITS FORM HAD CAREFULLY WROUGHT OUT THE SIMILITUDE LAVISHING MANY HOURS OF MORBID INGENUITY TO CREATE AN ANALOGY BETWEEN THE OBJECT OF HER AFFECTION AND THE EMBLEM OF HER GUILT AND TORTURE",
+        "replacement": "Amplitude"
+      },
+      {
+        "hyp": "Uncas occupied a distant corner in a reclining Amplitude being rigidly bound both hands and feet by strong and painful widths.",
+        "id": "1320-122617-0019",
+        "original": "attitude,",
+        "ref": "UNCAS OCCUPIED A DISTANT CORNER IN A RECLINING ATTITUDE BEING RIGIDLY BOUND BOTH HANDS AND FEET BY STRONG AND PAINFUL WITHES",
+        "replacement": "Amplitude"
+      },
+      {
+        "hyp": "As Holmes drew the curtain I was aware, from some little rigidity and an alertness of his Amplitude that he was prepared for an emergency",
+        "id": "1580-141083-0034",
+        "original": "attitude,",
+        "ref": "AS HOLMES DREW THE CURTAIN I WAS AWARE FROM SOME LITTLE RIGIDITY AND ALERTNESS OF HIS ATTITUDE THAT HE WAS PREPARED FOR AN EMERGENCY",
+        "replacement": "Amplitude"
+      },
+      {
+        "hyp": "he was pacing SwiftUI up and down his room.",
+        "id": "1580-141084-0001",
+        "original": "swiftly",
+        "ref": "HE WAS PACING SWIFTLY UP AND DOWN HIS ROOM",
+        "replacement": "SwiftUI"
+      }
+    ],
+    "modified_records": 47,
+    "records": 2620,
+    "records_with_ctc_detections": 2620,
+    "true_applied_terms": 0,
+    "true_examples": []
+  },
+  "librispeech_tdt-v3_vocab_default": {
+    "applied_terms": 52,
+    "false_applied_terms": 52,
+    "false_examples": [
+      {
+        "hyp": "After early nightfall the yellow lamps would light up here and there the squalid quarter of the Prometheus",
+        "id": "1089-134686-0002",
+        "original": "brothels.",
+        "ref": "AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS",
+        "replacement": "Prometheus"
+      },
+      {
+        "hyp": "A cold, lucid ANEInferenceGate reigned in his soul.",
+        "id": "1089-134686-0007",
+        "original": "indifference",
+        "ref": "A COLD LUCID INDIFFERENCE REIGNED IN HIS SOUL",
+        "replacement": "ANEInferenceGate"
+      },
+      {
+        "hyp": "It was strange, too, that he found an arid pleasure in following up to the end the rigid Linear of the doctrines of the church, and penetrating into obscure silences only to hear and feel the more deeply his own condemnation.",
+        "id": "1089-134686-0018",
+        "original": "lines",
+        "ref": "IT WAS STRANGE TOO THAT HE FOUND AN ARID PLEASURE IN FOLLOWING UP TO THE END THE RIGID LINES OF THE DOCTRINES OF THE CHURCH AND PENETRATING INTO OBSCURE SILENCES ONLY TO HEAR AND FEEL THE MORE DEEPLY HIS OWN CONDEMNATION",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "How comes it that while the first Amplitude Prometheus the kingdom of heaven to the poor of heart, the second Amplitude Prometheus also to the meek that they shall possess the land?",
+        "id": "1089-134686-0022",
+        "original": "promises",
+        "ref": "HOW COMES IT THAT WHILE THE FIRST BEATITUDE PROMISES THE KINGDOM OF HEAVEN TO THE POOR OF HEART THE SECOND BEATITUDE PROMISES ALSO TO THE MEEK THAT THEY SHALL POSSESS THE LAND",
+        "replacement": "Prometheus"
+      },
+      {
+        "hyp": "How comes it that while the first Amplitude Prometheus the kingdom of heaven to the poor of heart, the second Amplitude Prometheus also to the meek that they shall possess the land?",
+        "id": "1089-134686-0022",
+        "original": "promises",
+        "ref": "HOW COMES IT THAT WHILE THE FIRST BEATITUDE PROMISES THE KINGDOM OF HEAVEN TO THE POOR OF HEART THE SECOND BEATITUDE PROMISES ALSO TO THE MEEK THAT THEY SHALL POSSESS THE LAND",
+        "replacement": "Prometheus"
+      },
+      {
+        "hyp": "How comes it that while the first Amplitude Prometheus the kingdom of heaven to the poor of heart, the second Amplitude Prometheus also to the meek that they shall possess the land?",
+        "id": "1089-134686-0022",
+        "original": "beatitude",
+        "ref": "HOW COMES IT THAT WHILE THE FIRST BEATITUDE PROMISES THE KINGDOM OF HEAVEN TO THE POOR OF HEART THE SECOND BEATITUDE PROMISES ALSO TO THE MEEK THAT THEY SHALL POSSESS THE LAND",
+        "replacement": "Amplitude"
+      },
+      {
+        "hyp": "How comes it that while the first Amplitude Prometheus the kingdom of heaven to the poor of heart, the second Amplitude Prometheus also to the meek that they shall possess the land?",
+        "id": "1089-134686-0022",
+        "original": "beatitude",
+        "ref": "HOW COMES IT THAT WHILE THE FIRST BEATITUDE PROMISES THE KINGDOM OF HEAVEN TO THE POOR OF HEART THE SECOND BEATITUDE PROMISES ALSO TO THE MEEK THAT THEY SHALL POSSESS THE LAND",
+        "replacement": "Amplitude"
+      },
+      {
+        "hyp": "Why was the sacrament of the Eucharist instituted under the two species of bread and wine, if Jesus Christ be present body and blood, soul and divinity, in the bread alone, and in the Pinecone",
+        "id": "1089-134686-0023",
+        "original": "wine alone?",
+        "ref": "WHY WAS THE SACRAMENT OF THE EUCHARIST INSTITUTED UNDER THE TWO SPECIES OF BREAD AND WINE IF JESUS CHRIST BE PRESENT BODY AND BLOOD SOUL AND DIVINITY IN THE BREAD ALONE AND IN THE WINE ALONE",
+        "replacement": "Pinecone"
+      }
+    ],
+    "modified_records": 41,
+    "records": 200,
+    "records_with_ctc_detections": 200,
+    "true_applied_terms": 0,
+    "true_examples": []
+  },
+  "librispeech_tdt-v3_vocab_min065": {
+    "applied_terms": 5,
+    "false_applied_terms": 5,
+    "false_examples": [
+      {
+        "hyp": "It was strange, too, that he found an arid pleasure in following up to the end the rigid Linear of the doctrines of the church, and penetrating into obscure silences only to hear and feel the more deeply his own condemnation.",
+        "id": "1089-134686-0018",
+        "original": "lines",
+        "ref": "IT WAS STRANGE TOO THAT HE FOUND AN ARID PLEASURE IN FOLLOWING UP TO THE END THE RIGID LINES OF THE DOCTRINES OF THE CHURCH AND PENETRATING INTO OBSCURE SILENCES ONLY TO HEAR AND FEEL THE MORE DEEPLY HIS OWN CONDEMNATION",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "Why was the sacrament of the Eucharist instituted under the two species of bread and wine, if Jesus Christ be present body and blood, soul and divinity, in the bread alone, and in the Pinecone",
+        "id": "1089-134686-0023",
+        "original": "wine alone?",
+        "ref": "WHY WAS THE SACRAMENT OF THE EUCHARIST INSTITUTED UNDER THE TWO SPECIES OF BREAD AND WINE IF JESUS CHRIST BE PRESENT BODY AND BLOOD SOUL AND DIVINITY IN THE BREAD ALONE AND IN THE WINE ALONE",
+        "replacement": "Pinecone"
+      },
+      {
+        "hyp": "If the wine change into Linear and the host crumble into corruption, after they have been consecrated, is Jesus Christ still present under their species as God and as man?",
+        "id": "1089-134686-0024",
+        "original": "vinegar,",
+        "ref": "IF THE WINE CHANGE INTO VINEGAR AND THE HOST CRUMBLE INTO CORRUPTION AFTER THEY HAVE BEEN CONSECRATED IS JESUS CHRIST STILL PRESENT UNDER THEIR SPECIES AS GOD AND AS MAN",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "The brown ground beneath is left for the most part. One touch of black is put for the hollow, two delicate Linear of dark grey define the outer curve, and one little quivering touch of white draws the inner edge of the mandible.",
+        "id": "1188-133604-0007",
+        "original": "lines",
+        "ref": "THE BROWN GROUND BENEATH IS LEFT FOR THE MOST PART ONE TOUCH OF BLACK IS PUT FOR THE HOLLOW TWO DELICATE LINES OF DARK GRAY DEFINE THE OUTER CURVE AND ONE LITTLE QUIVERING TOUCH OF WHITE DRAWS THE INNER EDGE OF THE MANDIBLE",
+        "replacement": "Linear"
+      },
+      {
+        "hyp": "The mother herself, as if the red ignominy were so deeply scorched into her brain that all her conceptions assumed its form, had carefully wrought out the Amplitude lavishing many hours of morbid ingenuity to create",
+        "id": "1221-135767-0006",
+        "original": "similitude,",
+        "ref": "THE MOTHER HERSELF AS IF THE RED IGNOMINY WERE SO DEEPLY SCORCHED INTO HER BRAIN THAT ALL HER CONCEPTIONS ASSUMED ITS FORM HAD CAREFULLY WROUGHT OUT THE SIMILITUDE LAVISHING MANY HOURS OF MORBID INGENUITY TO CREATE AN ANALOGY BETWEEN THE OBJECT OF HER AFFECTION AND THE EMBLEM OF HER GUILT AND TORTURE",
+        "replacement": "Amplitude"
+      }
+    ],
+    "modified_records": 5,
+    "records": 200,
+    "records_with_ctc_detections": 200,
+    "true_applied_terms": 0,
+    "true_examples": []
+  },
+  "oov_tdt-v3_vocab_default": {
+    "applied_terms": 41,
+    "false_applied_terms": 9,
+    "false_examples": [
+      {
+        "hyp": "MacParakeet should keep the transcript LocalVQE",
+        "id": "oov-001",
+        "original": "local.",
+        "ref": "MacParakeet should keep the transcript local.",
+        "replacement": "LocalVQE"
+      },
+      {
+        "hyp": "HuggingFace Postgres the model card and waits.",
+        "id": "oov-007",
+        "original": "stores",
+        "ref": "HuggingFace stores the model card and weights.",
+        "replacement": "Postgres"
+      },
+      {
+        "hyp": "Weaviate as the vector Supabase in this example.",
+        "id": "oov-008",
+        "original": "database",
+        "ref": "Weaviate is the vector database in this example.",
+        "replacement": "Supabase"
+      },
+      {
+        "hyp": "Supabase Postgres the project metadata.",
+        "id": "oov-012",
+        "original": "stores",
+        "ref": "Supabase stores the project metadata.",
+        "replacement": "Postgres"
+      },
+      {
+        "hyp": "Duck can scan the parquet export LocalVQE",
+        "id": "oov-014",
+        "original": "locally.",
+        "ref": "DuckDB can scan the parquet export locally.",
+        "replacement": "LocalVQE"
+      },
+      {
+        "hyp": "BentoML packaged the ANEInferenceGate endpoint.",
+        "id": "oov-027",
+        "original": "inference",
+        "ref": "BentoML packaged the inference endpoint.",
+        "replacement": "ANEInferenceGate"
+      },
+      {
+        "hyp": "MLX ran the small adapter LocalVQE",
+        "id": "oov-029",
+        "original": "locally.",
+        "ref": "MLX ran the small adapter locally.",
+        "replacement": "LocalVQE"
+      },
+      {
+        "hyp": "Alamopol to LocalVQE model bundle.",
+        "id": "oov-030",
+        "original": "local",
+        "ref": "Ollama pulled the local model bundle.",
+        "replacement": "LocalVQE"
+      }
+    ],
+    "modified_records": 34,
+    "records": 50,
+    "records_with_ctc_detections": 50,
+    "true_applied_terms": 32,
+    "true_examples": [
+      {
+        "hyp": "MacParakeet should keep the transcript LocalVQE",
+        "id": "oov-001",
+        "original": "MAC Parakeet",
+        "ref": "MacParakeet should keep the transcript local.",
+        "replacement": "MacParakeet"
+      },
+      {
+        "hyp": "FluidAudio loads the acoustic model before decoding.",
+        "id": "oov-002",
+        "original": "Fluid Audio",
+        "ref": "FluidAudio loads the acoustic model before decoding.",
+        "replacement": "FluidAudio"
+      },
+      {
+        "hyp": "Nemotron is slower but useful for comparison.",
+        "id": "oov-004",
+        "original": "Nematron",
+        "ref": "Nemotron is slower but useful for comparison.",
+        "replacement": "Nemotron"
+      },
+      {
+        "hyp": "CoreML routes the encoder through the neural engine.",
+        "id": "oov-005",
+        "original": "Core ML",
+        "ref": "CoreML routes the encoder through the neural engine.",
+        "replacement": "CoreML"
+      },
+      {
+        "hyp": "SwiftUI renders the settings panel.",
+        "id": "oov-006",
+        "original": "Swiftly",
+        "ref": "SwiftUI renders the settings panel.",
+        "replacement": "SwiftUI"
+      }
+    ]
+  },
+  "oov_tdt-v3_vocab_min065": {
+    "applied_terms": 28,
+    "false_applied_terms": 1,
+    "false_examples": [
+      {
+        "hyp": "Szymon reviewed the OpenTelemetry numbers.",
+        "id": "oov-050",
+        "original": "telemetry",
+        "ref": "Szymon reviewed the telemetry numbers.",
+        "replacement": "OpenTelemetry"
+      }
+    ],
+    "modified_records": 26,
+    "records": 50,
+    "records_with_ctc_detections": 50,
+    "true_applied_terms": 27,
+    "true_examples": [
+      {
+        "hyp": "MacParakeet should keep the transcript local.",
+        "id": "oov-001",
+        "original": "MAC Parakeet",
+        "ref": "MacParakeet should keep the transcript local.",
+        "replacement": "MacParakeet"
+      },
+      {
+        "hyp": "FluidAudio loads the acoustic model before decoding.",
+        "id": "oov-002",
+        "original": "Fluid Audio",
+        "ref": "FluidAudio loads the acoustic model before decoding.",
+        "replacement": "FluidAudio"
+      },
+      {
+        "hyp": "Nemotron is slower but useful for comparison.",
+        "id": "oov-004",
+        "original": "Nematron",
+        "ref": "Nemotron is slower but useful for comparison.",
+        "replacement": "Nemotron"
+      },
+      {
+        "hyp": "CoreML routes the encoder through the neural engine.",
+        "id": "oov-005",
+        "original": "Core ML",
+        "ref": "CoreML routes the encoder through the neural engine.",
+        "replacement": "CoreML"
+      },
+      {
+        "hyp": "SwiftUI renders the settings panel.",
+        "id": "oov-006",
+        "original": "Swiftly",
+        "ref": "SwiftUI renders the settings panel.",
+        "replacement": "SwiftUI"
+      }
+    ]
+  }
+}

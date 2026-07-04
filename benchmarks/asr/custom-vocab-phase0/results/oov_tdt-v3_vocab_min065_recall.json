@@ -1,0 +1,414 @@
+{
+  "missing": [
+    {
+      "hyp": "alleviate as the vector database in this example.",
+      "id": "oov-008",
+      "ref": "Weaviate is the vector database in this example.",
+      "term": "Weaviate"
+    },
+    {
+      "hyp": "Print returned the nearest neighbors.",
+      "id": "oov-009",
+      "ref": "Qdrant returned the nearest neighbors.",
+      "term": "Qdrant"
+    },
+    {
+      "hyp": "Duck can scan the parquet export locally.",
+      "id": "oov-014",
+      "ref": "DuckDB can scan the parquet export locally.",
+      "term": "DuckDB"
+    },
+    {
+      "hyp": "Microphone shows the latency dashboard.",
+      "id": "oov-016",
+      "ref": "Grafana shows the latency dashboard.",
+      "term": "Grafana"
+    },
+    {
+      "hyp": "Cubanets restarted the unhealthy pod.",
+      "id": "oov-019",
+      "ref": "Kubernetes restarted the unhealthy pod.",
+      "term": "Kubernetes"
+    },
+    {
+      "hyp": "Off zero rejected the token exchange.",
+      "id": "oov-022",
+      "ref": "Auth0 rejected the token exchange.",
+      "term": "Auth0"
+    },
+    {
+      "hyp": "Gryptal found one risky branch condition.",
+      "id": "oov-023",
+      "ref": "Greptile found one risky branch condition.",
+      "term": "Greptile"
+    },
+    {
+      "hyp": "If it captured the reviewer feedback.",
+      "id": "oov-024",
+      "ref": "Riffrec captured the reviewer feedback.",
+      "term": "Riffrec"
+    },
+    {
+      "hyp": "Alamopol to local model bundle.",
+      "id": "oov-030",
+      "ref": "Ollama pulled the local model bundle.",
+      "term": "Ollama"
+    },
+    {
+      "hyp": "HostGuz stored the durable Q state.",
+      "id": "oov-037",
+      "ref": "Postgres stored the durable queue state.",
+      "term": "Postgres"
+    },
+    {
+      "hyp": "Sours prepare to launch checklist.",
+      "id": "oov-046",
+      "ref": "Saoirse prepared the launch checklist.",
+      "term": "Saoirse"
+    },
+    {
+      "hyp": "Zamina asked for the design walkthrough.",
+      "id": "oov-047",
+      "ref": "Ximena asked for the design walkthrough.",
+      "term": "Ximena"
+    },
+    {
+      "hyp": "Chikkuamika joined the customer interview.",
+      "id": "oov-048",
+      "ref": "Chukwuemeka joined the customer interview.",
+      "term": "Chukwuemeka"
+    }
+  ],
+  "per_record": [
+    {
+      "id": "oov-001",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-002",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-003",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-004",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-005",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-006",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-007",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-008",
+      "missing_terms": [
+        "Weaviate"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-009",
+      "missing_terms": [
+        "Qdrant"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-010",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-011",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-012",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-013",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-014",
+      "missing_terms": [
+        "DuckDB"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-015",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-016",
+      "missing_terms": [
+        "Grafana"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-017",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-018",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-019",
+      "missing_terms": [
+        "Kubernetes"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-020",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-021",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-022",
+      "missing_terms": [
+        "Auth0"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-023",
+      "missing_terms": [
+        "Greptile"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-024",
+      "missing_terms": [
+        "Riffrec"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-025",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-026",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-027",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-028",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-029",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-030",
+      "missing_terms": [
+        "Ollama"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-031",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-032",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-033",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-034",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-035",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-036",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-037",
+      "missing_terms": [
+        "Postgres"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-038",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-039",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-040",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-041",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-042",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-043",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-044",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-045",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-046",
+      "missing_terms": [
+        "Saoirse"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-047",
+      "missing_terms": [
+        "Ximena"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-048",
+      "missing_terms": [
+        "Chukwuemeka"
+      ],
+      "recalled_terms": 0,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-049",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    },
+    {
+      "id": "oov-050",
+      "missing_terms": [],
+      "recalled_terms": 1,
+      "total_terms": 1
+    }
+  ],
+  "recall": 0.74,
+  "recalled_terms": 37,
+  "records": 50,
+  "total_terms": 50
+}

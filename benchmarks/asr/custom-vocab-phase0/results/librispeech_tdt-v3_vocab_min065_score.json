@@ -1,0 +1,24 @@
+{
+  "normalizer": "canonical",
+  "rows": [
+    {
+      "engine": "tdt-v3",
+      "dataset": "librispeech-test-clean-first200",
+      "files": 200,
+      "ref_words": 4675,
+      "wer": 3.46524064171123,
+      "I": 26,
+      "D": 69,
+      "S": 67,
+      "mean": 4.152148048586519,
+      "median": 0.0,
+      "p90": 10.421455938697314,
+      "fail_rate": 3.5000000000000004,
+      "rtfx": 34.84455955987162,
+      "median_rtfx": 32.52700755808948
+    }
+  ],
+  "macro": {
+    "tdt-v3": 3.46524064171123
+  }
+}

@@ -1,0 +1,50 @@
+{"id":"oov-001","ref":"MacParakeet should keep the transcript local.","terms":["MacParakeet"],"voice":"Samantha","rate":170}
+{"id":"oov-002","ref":"FluidAudio loads the acoustic model before decoding.","terms":["FluidAudio"],"voice":"Daniel","rate":175}
+{"id":"oov-003","ref":"WhisperKit remains available as a fallback engine.","terms":["WhisperKit"],"voice":"Karen","rate":180}
+{"id":"oov-004","ref":"Nemotron is slower but useful for comparison.","terms":["Nemotron"],"voice":"Moira","rate":165}
+{"id":"oov-005","ref":"CoreML routes the encoder through the neural engine.","terms":["CoreML"],"voice":"Tessa","rate":185}
+{"id":"oov-006","ref":"SwiftUI renders the settings panel.","terms":["SwiftUI"],"voice":"Eddy (English (US))","rate":175}
+{"id":"oov-007","ref":"HuggingFace stores the model card and weights.","terms":["HuggingFace"],"voice":"Reed (English (US))","rate":170}
+{"id":"oov-008","ref":"Weaviate is the vector database in this example.","terms":["Weaviate"],"voice":"Sandy (English (US))","rate":180}
+{"id":"oov-009","ref":"Qdrant returned the nearest neighbors.","terms":["Qdrant"],"voice":"Samantha","rate":195}
+{"id":"oov-010","ref":"LangGraph coordinates the agent workflow.","terms":["LangGraph"],"voice":"Daniel","rate":185}
+{"id":"oov-011","ref":"LangSmith captured the trace for review.","terms":["LangSmith"],"voice":"Karen","rate":175}
+{"id":"oov-012","ref":"Supabase stores the project metadata.","terms":["Supabase"],"voice":"Moira","rate":170}
+{"id":"oov-013","ref":"ClickHouse handled the analytics query.","terms":["ClickHouse"],"voice":"Tessa","rate":185}
+{"id":"oov-014","ref":"DuckDB can scan the parquet export locally.","terms":["DuckDB"],"voice":"Eddy (English (US))","rate":175}
+{"id":"oov-015","ref":"Parquet files are compact for columnar data.","terms":["Parquet"],"voice":"Reed (English (US))","rate":165}
+{"id":"oov-016","ref":"Grafana shows the latency dashboard.","terms":["Grafana"],"voice":"Sandy (English (US))","rate":190}
+{"id":"oov-017","ref":"Prometheus scraped the service metrics.","terms":["Prometheus"],"voice":"Samantha","rate":175}
+{"id":"oov-018","ref":"OpenTelemetry joined the request spans.","terms":["OpenTelemetry"],"voice":"Daniel","rate":165}
+{"id":"oov-019","ref":"Kubernetes restarted the unhealthy pod.","terms":["Kubernetes"],"voice":"Karen","rate":180}
+{"id":"oov-020","ref":"Cloudflare served the release notes quickly.","terms":["Cloudflare"],"voice":"Moira","rate":175}
+{"id":"oov-021","ref":"Tailscale kept the private host reachable.","terms":["Tailscale"],"voice":"Tessa","rate":180}
+{"id":"oov-022","ref":"Auth0 rejected the token exchange.","terms":["Auth0"],"voice":"Eddy (English (US))","rate":170}
+{"id":"oov-023","ref":"Greptile found one risky branch condition.","terms":["Greptile"],"voice":"Reed (English (US))","rate":185}
+{"id":"oov-024","ref":"Riffrec captured the reviewer feedback.","terms":["Riffrec"],"voice":"Sandy (English (US))","rate":175}
+{"id":"oov-025","ref":"TrueFoundry deployed the gateway service.","terms":["TrueFoundry"],"voice":"Samantha","rate":170}
+{"id":"oov-026","ref":"KubePlatform owns the environment rollout.","terms":["KubePlatform"],"voice":"Daniel","rate":185}
+{"id":"oov-027","ref":"BentoML packaged the inference endpoint.","terms":["BentoML"],"voice":"Karen","rate":180}
+{"id":"oov-028","ref":"vLLM batched the completion requests.","terms":["vLLM"],"voice":"Moira","rate":165}
+{"id":"oov-029","ref":"MLX ran the small adapter locally.","terms":["MLX"],"voice":"Tessa","rate":175}
+{"id":"oov-030","ref":"Ollama pulled the local model bundle.","terms":["Ollama"],"voice":"Eddy (English (US))","rate":190}
+{"id":"oov-031","ref":"XcodeBuild produced the simulator archive.","terms":["XcodeBuild"],"voice":"Reed (English (US))","rate":175}
+{"id":"oov-032","ref":"TestFlight distributed the beta build.","terms":["TestFlight"],"voice":"Sandy (English (US))","rate":170}
+{"id":"oov-033","ref":"Raycast triggered the clipboard transform.","terms":["Raycast"],"voice":"Samantha","rate":180}
+{"id":"oov-034","ref":"Linear linked the issue to the pull request.","terms":["Linear"],"voice":"Daniel","rate":175}
+{"id":"oov-035","ref":"Amplitude grouped the activation events.","terms":["Amplitude"],"voice":"Karen","rate":185}
+{"id":"oov-036","ref":"Pinecone returned a stale embedding match.","terms":["Pinecone"],"voice":"Moira","rate":165}
+{"id":"oov-037","ref":"Postgres stored the durable queue state.","terms":["Postgres"],"voice":"Tessa","rate":180}
+{"id":"oov-038","ref":"Snowflake exported the warehouse sample.","terms":["Snowflake"],"voice":"Eddy (English (US))","rate":175}
+{"id":"oov-039","ref":"SignalMCP should not log the access token.","terms":["SignalMCP"],"voice":"Reed (English (US))","rate":170}
+{"id":"oov-040","ref":"ParakeetUnified is the new default family candidate.","terms":["ParakeetUnified"],"voice":"Sandy (English (US))","rate":185}
+{"id":"oov-041","ref":"ANEInferenceGate serializes CoreML work on older macOS.","terms":["ANEInferenceGate"],"voice":"Samantha","rate":175}
+{"id":"oov-042","ref":"DictationFlowCoordinator owns finalization.","terms":["DictationFlowCoordinator"],"voice":"Daniel","rate":165}
+{"id":"oov-043","ref":"LocalVQE improved the meeting microphone track.","terms":["LocalVQE"],"voice":"Karen","rate":180}
+{"id":"oov-044","ref":"AECReferenceMixer writes the far end channel.","terms":["AECReferenceMixer"],"voice":"Moira","rate":170}
+{"id":"oov-045","ref":"Livmarli was mentioned during the benefits review.","terms":["Livmarli"],"voice":"Tessa","rate":185}
+{"id":"oov-046","ref":"Saoirse prepared the launch checklist.","terms":["Saoirse"],"voice":"Eddy (English (US))","rate":175}
+{"id":"oov-047","ref":"Ximena asked for the design walkthrough.","terms":["Ximena"],"voice":"Reed (English (US))","rate":170}
+{"id":"oov-048","ref":"Chukwuemeka joined the customer interview.","terms":["Chukwuemeka"],"voice":"Sandy (English (US))","rate":165}
+{"id":"oov-049","ref":"Nikhil updated the migration guide.","terms":["Nikhil"],"voice":"Samantha","rate":180}
+{"id":"oov-050","ref":"Szymon reviewed the telemetry numbers.","terms":["Szymon"],"voice":"Daniel","rate":175}
