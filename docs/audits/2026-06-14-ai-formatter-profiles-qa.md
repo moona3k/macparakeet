@@ -1,19 +1,22 @@
 # AI Formatter Profiles — QA Review — 2026-06-14
 
-> **Status:** ACTIVE. Focused QA pass on the **app-aware AI Formatter
+> **Status:** HISTORICAL QA + CURRENT ALIGNMENT NOTE. Focused QA pass on the **app-aware AI Formatter
 > profiles** feature (REQ-LLM-004), gated by
-> `AppFeatures.aiFormatterProfilesEnabled` (enabled 2026-06-10, `main`-only —
-> not yet in a tagged release). Covers the data model, persistence, dictation
-> routing, History provenance, Settings UI, feature flag, and settings search.
-> Combines automated tests, a live database-migration check, real-data
-> inspection, a driven-GUI screenshot walkthrough, and a manual code review.
-> One real (low-severity) bug was found and fixed in this same change; one
-> harmless pre-release dev artifact was identified and explained.
+> `AppFeatures.aiFormatterProfilesEnabled`. This 2026-06-14 run tested the
+> feature with the flag enabled on `main`; the current release flag is false
+> after the 2026-06-14 hold-out, so the feature remains code-complete and
+> hidden until the flag is flipped. Covers the data model, persistence,
+> dictation routing, History provenance, Settings UI, feature flag, and
+> settings search. Combines automated tests, a live database-migration check,
+> real-data inspection, a driven-GUI screenshot walkthrough, and a manual code
+> review. One real (low-severity) bug was found and fixed in this same change;
+> one harmless pre-release dev artifact was identified and explained.
 
 | | Result |
 |---|---|
-| Feature flag | `AppFeatures.aiFormatterProfilesEnabled = true` |
-| Requirement | REQ-LLM-004 (`spec/kernel/requirements.yaml`) |
+| QA feature flag (2026-06-14 run) | `AppFeatures.aiFormatterProfilesEnabled = true` |
+| Current release flag (2026-07-04 alignment check) | `AppFeatures.aiFormatterProfilesEnabled = false` |
+| Requirement | Legacy REQ-LLM-004 (`docs/historical/requirements-legacy.yaml`); current behavior is authoritative in `spec/11-llm-integration.md` and `spec/02-features.md` |
 | QA base commit | `origin/main` `98b4aeef1` |
 | Focused formatter test suites | **212 tests, 0 failures** |
 | Full `swift test` (with the fix in this change) | **green (exit 0)** |
@@ -89,6 +92,13 @@ independent **Use for transcripts** (default on) and **Use for dictation**
 The smart-default prompt rendered in the live UI matches the shipped source
 (`AIFormatterSmartDefaults.swift`) **verbatim**, including the `{{TRANSCRIPT}}`
 placeholder — see the Email screenshot in §6.
+
+**2026-07-04 alignment note:** the Settings UI now keeps smart-default prompt
+previews readable even when the master "Smart defaults" switch is off. The grid
+dims, per-category switches are disabled while the master switch is off, and
+runtime resolution still skips the smart-default tier entirely. This matches
+`spec/11-llm-integration.md` and `spec/02-features.md`: prompts are inspectable
+before they can run, and turning the tier off restores fallback-prompt routing.
 
 ### Live database evidence
 
@@ -230,3 +240,8 @@ formatter-failure path — was found by code review, **fixed**, and **pinned wit
 a regression test** in this same change. The full suite is green with the fix.
 No other defects were found; the one suspicious DB row was traced to a harmless
 pre-release dev artifact.
+
+As of the 2026-07-04 alignment check, the implementation remains hidden by
+`AppFeatures.aiFormatterProfilesEnabled = false`. Flipping the flag back to
+`true` should be a release/configuration decision, not a schema or migration
+change.
