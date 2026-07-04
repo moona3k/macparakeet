@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Transcription/SpeakerRenameAccessibility.swift
+  s_c4cc9a8ad9913b::t_959af2f67514aa 18-19,22-23
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c4cc9a8ad9913b::t_5700c52b8e8c28 3000,3024
+Tests/MacParakeetTests/Views/SpeakerRenameAccessibilityTests.swift
+  s_c4cc9a8ad9913b::t_a27414a53bcc09 24,30-31,46-47,63-67,69-72,74-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f726c9dd24a0cd3b52fc2e5886095421efc0cbc7",
+  "prompts": {},
+  "sessions": {
+    "s_c4cc9a8ad9913b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e43-8014-74f2-ba44-91eba4c8bb2d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
