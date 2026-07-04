@@ -77,10 +77,15 @@ Keep the implementation boring and obvious:
   source levels. That gives activity, but not a readable "Mic OK / System OK /
   Missing / Muted / Interrupted" contract.
 - `meeting-artifacts-v1.md` already lists `microphone-cleaned.m4a` as a stable
-  optional file. `MeetingRecordingOutput` also carries
-  `cleanedMicrophoneAudioURL`. `MeetingArtifactStore` currently writes
-  `mixedAudioPath`, `microphoneAudioPath`, `systemAudioPath`, and `metadataPath`
-  into `manifest.files`, but not `cleanedMicrophoneAudioPath`.
+  optional file. As of PR #671 (merged 2026-07-03), `MeetingArtifactStore`
+  already resolves the cleaned mic file via
+  `MeetingCleanedMicRenderer.cleanedMicrophoneFileName`, gates it on
+  `MeetingRecordingOutput.isViableCleanedMicrophoneFile` (exists and
+  non-empty), and writes `manifest.files.cleanedMicrophoneAudioPath`.
+  `MeetingArtifactStoreTests` pins present/absent/empty-file behavior, the
+  contract doc lists the field, and `TranscriptionAssetCleanup` already treats
+  cleaned mic as managed audio. The remaining artifact gap is the Markdown
+  surface, not cleaned-mic plumbing.
 - `MeetingArtifactStore` materializes `manifest.json`, `transcript.json`,
   `notes.md`, `prompt-results.json`, and per-result Markdown. It does not
   materialize a top-level deterministic `meeting.md` view.
@@ -106,7 +111,8 @@ Keep the implementation boring and obvious:
   signal in the floating pill/tile where space allows.
 - Clear "not selected" states for microphone-only and system-only source modes.
 - Gentle warnings for source interruption and confirmed mic stall/silence.
-- Artifact manifest support for `microphone-cleaned.m4a` when present.
+- Verification that the existing cleaned-mic manifest/retention behavior
+  (landed in PR #671) still matches the contract; no re-implementation.
 - A stable top-level Markdown export for meetings with frontmatter.
 - CLI command/spec polish for agent workflows over saved meetings.
 - Speaker rename UX polish for completed transcripts with existing speaker
@@ -173,6 +179,12 @@ Keep the implementation boring and obvious:
   transcript text, app names, or private meeting data in telemetry.
 
 ### Artifact Promotion
+
+> R9–R11 are ALREADY IMPLEMENTED on main (PR #671, merged 2026-07-03) and
+> pinned by `MeetingArtifactStoreTests`,
+> `TranscriptionAssetCleanupCleanedMicTests`, and
+> `MeetingAudioRetentionSweeperTests`. Treat them as invariants to keep
+> passing, not work to do.
 
 - R9. `manifest.files.cleanedMicrophoneAudioPath` is included when
   `microphone-cleaned.m4a` exists and is non-empty. It is `null` or omitted when
@@ -242,7 +254,9 @@ Keep the implementation boring and obvious:
 ### Source Health
 
 Add a small core type rather than spreading UI string logic across the panel,
-pill, and tests:
+pill, and tests. Note the dictation stack already ships an analogous type,
+`AudioCaptureHealth` (consumed by `DictationService`); mirror its naming and
+semantics where they fit rather than inventing divergent vocabulary:
 
 ```swift
 public struct MeetingSourceHealth: Sendable, Equatable {
@@ -291,7 +305,8 @@ Additive fields:
 - `MeetingArtifactStore.markdownFileName = "meeting.md"`
 - `MeetingArtifactSnapshot.markdownPath: String?`
 - `manifest.files.markdownPath`
-- `manifest.files.cleanedMicrophoneAudioPath`
+- `manifest.files.cleanedMicrophoneAudioPath` — already exists on main (PR
+  #671); listed here only so the frontmatter example below is complete.
 
 Markdown frontmatter example:
 
@@ -437,9 +452,12 @@ the UI infer health from levels.
 - Add view-level tests only if existing patterns support them; otherwise rely on
   view model tests plus manual QA.
 
-### U3. Cleaned Mic In Manifest And Top-Level Markdown Artifact
+### U3. Top-Level Markdown Artifact (`meeting.md`)
 
-**Goal:** Make the artifact folder the user/agent product surface.
+**Goal:** Make the artifact folder the user/agent product surface. The
+cleaned-mic manifest and retention work originally scoped here landed in PR
+#671; this unit is now Markdown-only plus verification of the existing
+cleaned-mic pins.
 
 **Likely files:**
 
@@ -454,10 +472,8 @@ the UI infer health from levels.
 
 **Approach:**
 
-- Add cleaned mic path resolution in `MeetingArtifactStore` using
-  `MeetingCleanedMicRenderer.cleanedMicrophoneFileName`.
-- Require file existence and non-empty size before setting
-  `cleanedMicrophoneAudioPath`.
+- Do NOT touch cleaned-mic path resolution, viability gating, or
+  retention/cleanup handling — all already on main and pinned by tests.
 - Add shared Markdown rendering inside Core, not the CLI command file, so
   `MeetingArtifactStore` and `MeetingsCommand.ExportSubcommand` use the same
   output.
@@ -472,9 +488,8 @@ the UI infer health from levels.
   - `meeting.md` exists
   - snapshot `markdownPath`
   - manifest `files.markdownPath`
-  - manifest `files.cleanedMicrophoneAudioPath` when present
-  - cleaned path absent when file is missing or empty
   - Markdown frontmatter and sections
+  - existing cleaned-mic present/absent/empty pins keep passing unchanged
 - Contract docs updated in the same PR.
 
 ### U4. CLI Meeting Command And Spec Promotion
@@ -683,8 +698,8 @@ Full `swift test` should run at most once as a final gate for the branch.
 - [ ] Live meeting UI shows separate readable mic/system health for selected
   sources.
 - [ ] Source health warnings are non-modal and do not stop recording.
-- [ ] `manifest.files.cleanedMicrophoneAudioPath` is present when cleaned mic is
-  present and non-empty.
+- [ ] `manifest.files.cleanedMicrophoneAudioPath` behavior (already on main via
+  PR #671) is verified unchanged by this work.
 - [ ] `meeting.md` is materialized as a stable top-level artifact.
 - [ ] CLI Markdown export and artifact Markdown share the same renderer.
 - [ ] CLI spec/docs describe the saved-meeting workflow accurately.
