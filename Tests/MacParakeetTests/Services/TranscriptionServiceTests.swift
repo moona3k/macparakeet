@@ -1549,7 +1549,18 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testPrepareMeetingTranscriptionCreatesProcessingStubBeforeSTT() async throws {
-        let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
+        let startContext = MeetingStartContext(
+            triggerKind: .manual,
+            frontmostApplication: .init(
+                bundleIdentifier: "com.apple.finder",
+                localizedName: "Finder"
+            ),
+            sourceMode: .microphoneOnly
+        )
+        let recording = try makeOneSourceMeetingRecording(
+            displayName: "Queued Meeting",
+            startContext: startContext
+        )
         defer { try? FileManager.default.removeItem(at: recording.folderURL) }
 
         let stub = try await service.prepareMeetingTranscription(recording: recording)
@@ -1564,10 +1575,12 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(stub.status, .processing)
         XCTAssertEqual(stub.sourceType, .meeting)
         XCTAssertEqual(stub.engine, SpeechEnginePreference.parakeet.rawValue)
+        XCTAssertEqual(stub.meetingStartContext, startContext)
 
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
         XCTAssertEqual(fetched.status, .processing)
         XCTAssertEqual(fetched.filePath, recording.mixedAudioURL.path)
+        XCTAssertEqual(fetched.meetingStartContext, startContext)
         XCTAssertEqual(try transcriptionRepo.count(), 1)
     }
 
@@ -2704,7 +2717,10 @@ final class TranscriptionServiceTests: XCTestCase {
         }
     }
 
-    private func makeOneSourceMeetingRecording(displayName: String) throws -> MeetingRecordingOutput {
+    private func makeOneSourceMeetingRecording(
+        displayName: String,
+        startContext: MeetingStartContext? = nil
+    ) throws -> MeetingRecordingOutput {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
@@ -2733,7 +2749,8 @@ final class TranscriptionServiceTests: XCTestCase {
                     sampleRate: 48_000
                 ),
                 system: nil
-            )
+            ),
+            startContext: startContext
         )
     }
 

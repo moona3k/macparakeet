@@ -91,6 +91,30 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertNil(fetched?.engineVariant)
     }
 
+    func testMeetingStartContextRoundTrips() throws {
+        let startContext = MeetingStartContext(
+            triggerKind: .hotkey,
+            frontmostApplication: .init(
+                bundleIdentifier: "COM.Example.Zoom",
+                localizedName: "Zoom"
+            ),
+            sourceMode: .microphoneAndSystem
+        )
+        let transcription = Transcription(
+            fileName: "meeting.m4a",
+            sourceType: .meeting,
+            meetingStartContext: startContext
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.meetingStartContext, startContext)
+        XCTAssertEqual(
+            fetched.meetingStartContext?.frontmostApplication?.bundleIdentifier,
+            "com.example.zoom"
+        )
+    }
+
     func testFetchAll() throws {
         let t1 = Transcription(
             createdAt: Date(timeIntervalSinceNow: -100),

@@ -57,7 +57,9 @@ The v1 folder can contain these stable filenames:
   sidecar. It may also include additive `echoSuppression` provenance with
   `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
   `delayEstimateMs`, and `probeBestCorrelation` fields so shared artifact
-  folders can explain cleaned-vs-raw microphone routing without app logs.
+  folders can explain cleaned-vs-raw microphone routing without app logs. It
+  may also include additive `startContext` with the one-shot local start
+  snapshot.
 - `manifest.json`: folder manifest.
 - `transcript.json`: transcript view.
 - `notes.md`: optional user notes view. Removed when notes are empty or nil.
@@ -88,7 +90,7 @@ The v1 folder can contain these stable filenames:
 - `schema`
 - `schemaVersion`
 - `generatedAt`
-- `meeting`
+- `meeting` (including optional `startContext`)
 - `files`
 - `promptResults`
 
@@ -100,7 +102,8 @@ The v1 folder can contain these stable filenames:
 `transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
 fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
-`sourceType`, `recoveredFromCrash`, and `isTranscriptEdited`.
+`sourceType`, `recoveredFromCrash`, `isTranscriptEdited`, and optional
+`startContext`.
 
 `transcriptSegments` is an additive v1 field populated from the DB row when a
 meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
@@ -108,6 +111,14 @@ meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
 (`startIndex`, `endIndexExclusive`) into the same transcript's
 `wordTimestamps` array. Segment IDs are stable for that transcript version;
 meeting retranscription may replace the array with newly minted segment IDs.
+
+`startContext`, when present, keeps the recording-start snapshot:
+
+- `triggerKind`: `manual`, `hotkey`, or `calendar_auto_start`
+- `sourceMode`: configured meeting source mode at start (`microphone_only`,
+  `microphone_and_system`, or `system_only`)
+- `frontmostApplication`: optional object with `bundleIdentifier` and
+  `localizedName`
 
 ## Non-Stable Fields
 

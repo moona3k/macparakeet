@@ -19,6 +19,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
+    public let startContext: MeetingStartContext?
     /// Free-form notes the user typed during the meeting, captured at finalize
     /// time. Threaded through to `Transcription.userNotes` by the caller so
     /// post-meeting summary generation can steer on what the user emphasized
@@ -37,6 +38,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
+        startContext: MeetingStartContext? = nil,
         userNotes: String? = nil
     ) {
         self.init(
@@ -52,6 +54,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             sourceAlignment: sourceAlignment,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
+            startContext: startContext,
             userNotes: userNotes
         )
     }
@@ -69,6 +72,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
+        startContext: MeetingStartContext? = nil,
         userNotes: String? = nil
     ) {
         self.sessionID = sessionID
@@ -83,6 +87,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
+        self.startContext = startContext
         self.userNotes = userNotes
     }
 
@@ -164,7 +169,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             durationSeconds: durationSeconds,
             sourceAlignment: metadata.sourceAlignment,
             speechEngine: metadata.speechEngine,
-            speechEngineWasCaptured: metadata.speechEngineWasCaptured
+            speechEngineWasCaptured: metadata.speechEngineWasCaptured,
+            startContext: metadata.startContext
         )
     }
 
@@ -198,6 +204,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.sourceAlignment == rhs.sourceAlignment
             && lhs.speechEngine == rhs.speechEngine
             && lhs.speechEngineWasCaptured == rhs.speechEngineWasCaptured
+            && lhs.startContext == rhs.startContext
             && lhs.userNotes == rhs.userNotes
     }
 }

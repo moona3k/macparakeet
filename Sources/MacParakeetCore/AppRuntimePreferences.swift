@@ -357,7 +357,7 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
     }
 }
 
-public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Equatable {
+public enum MeetingAudioSourceMode: String, Codable, CaseIterable, Hashable, Sendable, Equatable {
     case microphoneAndSystem = "microphone_and_system"
     case microphoneOnly = "microphone_only"
     case systemOnly = "system_only"

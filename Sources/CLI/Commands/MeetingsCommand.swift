@@ -667,6 +667,7 @@ private struct MeetingRecord: Encodable {
     let artifactFolderPath: String?
     let artifactManifestPath: String?
     let hasArtifactManifest: Bool
+    let startContext: MeetingStartContext?
 
     init(_ transcription: Transcription, promptResultCount: Int = 0) {
         id = transcription.id
@@ -700,6 +701,7 @@ private struct MeetingRecord: Encodable {
         hasArtifactManifest = manifestPath.map {
             FileManager.default.fileExists(atPath: $0)
         } ?? false
+        startContext = transcription.meetingStartContext
     }
 }
 

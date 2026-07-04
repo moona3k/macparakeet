@@ -272,7 +272,11 @@ private actor QueueRecordingServiceSpy: MeetingRecordingServiceProtocol {
         )
     }
 
-    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {}
+    func startRecording(
+        title: String?,
+        sourceMode: MeetingAudioSourceMode?,
+        startContext: MeetingStartContext?
+    ) async throws {}
 
     func stopRecording() async throws -> MeetingRecordingOutput {
         throw MeetingAudioError.notRunning

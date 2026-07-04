@@ -406,6 +406,40 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
     }
 
+    func testMeetingRecordingMetadataRoundTripsStartContext() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let startContext = MeetingStartContext(
+            triggerKind: .calendarAutoStart,
+            frontmostApplication: .init(
+                bundleIdentifier: "us.zoom.xos",
+                localizedName: "zoom.us"
+            ),
+            sourceMode: .microphoneAndSystem
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: MeetingSourceAlignment(
+                    meetingOriginHostTime: nil,
+                    microphone: nil,
+                    system: nil
+                ),
+                startContext: startContext
+            ),
+            folderURL: dir
+        )
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(metadata.startContext, startContext)
+
+        let archived = try MeetingRecordingOutput.loadArchived(
+            displayName: "Recovered Meeting",
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            durationSeconds: 12
+        )
+        XCTAssertEqual(archived.startContext, startContext)
+    }
+
     func testUpdateEchoSuppressionSavesThroughInjectedFileManager() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

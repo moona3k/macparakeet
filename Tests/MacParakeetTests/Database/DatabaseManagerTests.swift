@@ -229,6 +229,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testMeetingStartContextColumnExistsOnTranscriptions() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(
+                columns.contains("meetingStartContext"),
+                "transcriptions should store one-shot meeting start context JSON"
+            )
+        }
+    }
+
     func testUserNotesSnapshotColumnExistsOnSummaries() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in
