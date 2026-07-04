@@ -157,7 +157,7 @@ struct MeetingRecordingPillView: View {
 
     private var sacredRecordingPill: some View {
         let isPaused = viewModel.isPaused
-        let healthWarning = viewModel.mirroredSourceHealthWarning
+        let healthWarning = visibleSourceHealthWarning
         return VStack(spacing: 0) {
             ZStack {
                 MerkabaPillIcon(
@@ -270,6 +270,10 @@ struct MeetingRecordingPillView: View {
         .accessibilityAction(named: Text("End and transcribe")) {
             viewModel.onStop?()
         }
+    }
+
+    var visibleSourceHealthWarning: MeetingSourceHealthChip? {
+        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.mirroredSourceHealthWarning : nil
     }
 
     private var pillBackground: some View {
