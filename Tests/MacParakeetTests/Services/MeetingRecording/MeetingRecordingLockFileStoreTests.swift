@@ -290,7 +290,7 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
     }
 
     func testReadFromLockFileWithMalformedStartContextStillRecoversMetadata() throws {
-        let folderURL = tempRoot.appendingPathComponent("session")
+        let folderURL = tempRoot.appendingPathComponent("session-start-context")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let json = """
         {
@@ -312,6 +312,30 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertNil(readLockFile.startContext, "malformed startContext must not block recovery")
         XCTAssertEqual(readLockFile.displayName, "Recoverable Session")
         XCTAssertEqual(readLockFile.sessionId, UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
+    }
+
+    func testReadFromLockFileWithMalformedCalendarSnapshotStillRecoversMetadata() throws {
+        let folderURL = tempRoot.appendingPathComponent("session-calendar-snapshot")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let json = """
+        {
+            "schemaVersion": 1,
+            "sessionId": "11111111-2222-3333-4444-555555555555",
+            "startedAt": "2026-04-25T12:00:00Z",
+            "pid": 123,
+            "displayName": "Recoverable Session",
+            "state": "recording",
+            "calendarEventSnapshot": 42
+        }
+        """
+        try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
+
+        let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
+        XCTAssertNil(
+            readLockFile.calendarEventSnapshot,
+            "malformed calendar snapshot must fall through to nil, not block recovery"
+        )
+        XCTAssertEqual(readLockFile.displayName, "Recoverable Session")
     }
 
     func testWithNotesPreservesEverythingElse() throws {

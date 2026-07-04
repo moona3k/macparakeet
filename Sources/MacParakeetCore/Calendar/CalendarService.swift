@@ -232,7 +232,9 @@ public actor CalendarService {
 
     private func convertParticipant(_ participant: EKParticipant) -> EventParticipant {
         let email: String? = {
-            let urlString = participant.url.absoluteString
+            guard let urlString = (participant.value(forKey: "URL") as? URL)?.absoluteString else {
+                return nil
+            }
             if urlString.hasPrefix("mailto:") {
                 return urlString.replacingOccurrences(of: "mailto:", with: "")
             }

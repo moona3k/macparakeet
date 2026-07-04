@@ -326,7 +326,10 @@ extension Transcription: FetchableRecord, PersistableRecord {
         meetingStartContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)) ?? nil
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
-        calendarEventSnapshot = (try? container.decodeIfPresent(MeetingCalendarSnapshot.self, forKey: .calendarEventSnapshot)) ?? nil
+        calendarEventSnapshot = (try? container.decodeIfPresent(
+            MeetingCalendarSnapshot.self,
+            forKey: .calendarEventSnapshot
+        )) ?? nil
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)

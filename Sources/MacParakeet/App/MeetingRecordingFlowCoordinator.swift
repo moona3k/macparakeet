@@ -237,7 +237,7 @@ final class MeetingRecordingFlowCoordinator {
         pendingTitle = title
         pendingAudioSourceMode = sourceMode
         pendingStartContext = makeStartContext(trigger: resolvedTrigger, sourceMode: sourceMode)
-        pendingCalendarEventSnapshot = (resolvedTrigger == .manual && title == nil)
+        pendingCalendarEventSnapshot = (resolvedTrigger != .calendarAutoStart && title == nil)
             ? probableCalendarSnapshotProvider()
             : nil
         currentMeetingOperationContext = ObservabilityOperationContext()

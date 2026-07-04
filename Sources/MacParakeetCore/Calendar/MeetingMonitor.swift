@@ -70,7 +70,7 @@ public enum MeetingMonitor {
             guard !event.isAllDay else { return false }
             guard event.userStatus != .declined else { return false }
             guard !dismissedEventIds.contains(event.dedupeKey) else { return false }
-            return passesFilter(event, filter: config.triggerFilter)
+            return passesTriggerFilter(event, filter: config.triggerFilter)
         }
 
         var result: [MonitorEvent] = []
@@ -124,7 +124,7 @@ public enum MeetingMonitor {
         }
     }
 
-    private static func passesFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {
+    public static func passesTriggerFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {
         switch filter {
         case .allEvents:
             return true

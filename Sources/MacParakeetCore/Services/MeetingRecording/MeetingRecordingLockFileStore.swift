@@ -86,6 +86,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         speechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
             ?? SpeechEngineSelection(engine: .parakeet)
         startContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)) ?? nil
+        // Calendar snapshots are best-effort context. A malformed optional
+        // snapshot must not block lock-file recovery of the audio metadata.
         calendarEventSnapshot = (try? container.decodeIfPresent(
             MeetingCalendarSnapshot.self,
             forKey: .calendarEventSnapshot

@@ -178,6 +178,7 @@ final class MeetingAutoStartCoordinator {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.latestPolledEvents = []
                 self?.logger.debug("EKEventStoreChanged — re-evaluating immediately")
                 await self?.pollAsync()
             }
@@ -455,12 +456,21 @@ final class MeetingAutoStartCoordinator {
     }
 
     func probableSnapshotForManualStart(now: Date = Date()) -> MeetingCalendarSnapshot? {
-        let overlapping = latestPolledEvents
+        guard settingsViewModel.calendarAutoStartMode != .off,
+              calendarService.permissionStatus == .granted
+        else {
+            return nil
+        }
+
+        let triggerFilter = settingsViewModel.meetingTriggerFilter
+        let overlapping = filterByIncludedCalendars(latestPolledEvents)
             .filter { event in
                 event.startTime <= now
                     && event.endTime >= now
                     && !event.isAllDay
                     && !event.userDeclined
+                    && event.userStatus != .pending
+                    && MeetingMonitor.passesTriggerFilter(event, filter: triggerFilter)
             }
             .sorted { lhs, rhs in
                 if lhs.isMeeting != rhs.isMeeting {

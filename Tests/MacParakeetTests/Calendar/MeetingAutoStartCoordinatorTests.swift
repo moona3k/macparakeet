@@ -114,6 +114,17 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         }
     }
 
+    private func waitForFetchCount(atLeast expected: Int) async -> Bool {
+        for _ in 0..<20 {
+            if calendarService.fetchUpcomingEventsCallCount >= expected {
+                return true
+            }
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return calendarService.fetchUpcomingEventsCallCount >= expected
+    }
+
     // MARK: - Lifecycle
 
     func testStopIsIdempotentAndDoesNotCrashIfNotStarted() {
@@ -243,6 +254,145 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.title, "Customer Review")
         XCTAssertEqual(snapshot.meetingService, "Google Meet")
         XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotHonorsCurrentExcludedCalendarsWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "Excluded Customer Review",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: "https://meet.google.com/abc-defg-hij"
+            ),
+        ]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        settingsViewModel.calendarExcludedIdentifiers = ["cal-1"]
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotHonorsCurrentTriggerFilterWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "No Link Calendar Block",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: nil
+            ),
+        ]
+        seedSettings(mode: .notify, triggerFilter: .allEvents)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.meetingTriggerFilter = .withLink
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotSkipsPendingInviteWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        var pendingEvent = event(
+            id: "evt-current",
+            title: "Pending Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        pendingEvent.userStatus = .pending
+        calendarService.stubEvents = [pendingEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testCalendarChangeClearsProbableManualStartSnapshotUntilRefreshCompletes() async throws {
+        calendarService.stubPermissionStatus = .granted
+        let currentEvent = event(
+            id: "evt-current",
+            title: "Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        calendarService.stubEvents = [currentEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        let fetchCountAfterInitialPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        var declinedEvent = currentEvent
+        declinedEvent.userStatus = .declined
+        calendarService.stubEvents = [declinedEvent]
+        calendarService.holdNextFetch = true
+
+        NotificationCenter.default.post(name: .EKEventStoreChanged, object: nil)
+
+        let refreshStarted = await waitForFetchCount(atLeast: fetchCountAfterInitialPoll + 1)
+        XCTAssertTrue(refreshStarted, "Calendar-change notification should trigger an immediate refresh")
+        XCTAssertNil(
+            coordinator.testHook_probableSnapshotForManualStart(),
+            "Manual starts must not persist stale calendar details while the refresh is still in flight"
+        )
+
+        calendarService.releaseHeldFetch()
+        await waitForPoll()
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        coordinator.stop()
+    }
+
+    func testProbableManualStartSnapshotRequiresCurrentCalendarModeAndPermission() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "Customer Review",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: "https://meet.google.com/abc-defg-hij"
+            ),
+        ]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.calendarAutoStartMode = .off
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.calendarAutoStartMode = .notify
+        calendarService.stubPermissionStatus = .denied
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
     }
 
     func testProbableManualStartSnapshotIsNilWithoutPollData() {

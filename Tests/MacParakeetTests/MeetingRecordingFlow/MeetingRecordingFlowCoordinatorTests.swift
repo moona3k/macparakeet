@@ -171,6 +171,43 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.calendarEventSnapshots.first ?? nil, expectedSnapshot)
     }
 
+    func testHotkeyStartUsesLateAssignedProbableCalendarSnapshotProvider() async throws {
+        let expectedSnapshot = MeetingCalendarSnapshot(
+            confidence: .probable,
+            eventIdentifier: "evt-hotkey",
+            title: "Hotkey Calendar Overlap",
+            scheduledStartAt: Date().addingTimeInterval(-120),
+            scheduledEndAt: Date().addingTimeInterval(1200),
+            meetingURL: "https://meet.google.com/abc-defg-hij",
+            meetingService: "Google Meet"
+        )
+        let holder = ProbableCalendarSnapshotHolder()
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            probableCalendarSnapshotProvider: { holder.snapshot },
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+        holder.snapshot = expectedSnapshot
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .hotkey))
+        await coordinator.testHook_waitForActionTask()
+
+        let snapshot = await recordingService.snapshot()
+        XCTAssertEqual(snapshot.startCallCount, 1)
+        XCTAssertEqual(snapshot.startTitles, [nil])
+        XCTAssertEqual(snapshot.calendarEventSnapshots.first ?? nil, expectedSnapshot)
+    }
+
     func testCalendarStartPassesConfirmedSnapshotAsTitleAndContext() async throws {
         let expectedSnapshot = MeetingCalendarSnapshot(
             confidence: .confirmed,
@@ -599,6 +636,10 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
             calendarEventSnapshots: calendarEventSnapshots
         )
     }
+}
+
+private final class ProbableCalendarSnapshotHolder: @unchecked Sendable {
+    var snapshot: MeetingCalendarSnapshot?
 }
 
 private extension MockTranscriptionService {

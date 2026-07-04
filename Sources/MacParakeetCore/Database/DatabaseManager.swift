@@ -1050,8 +1050,8 @@ public final class DatabaseManager: Sendable {
         }
 
         // v0.25 — Local EventKit context snapshot for meeting recordings.
-        // Keep this raw SQL so historical migrations never instantiate the
-        // evolving Transcription Codable shape while the column is absent.
+        // Keep the ALTER raw SQL so historical migrations never instantiate
+        // the evolving Transcription Codable shape while the column is absent.
         migrator.registerMigration("v0.25-meeting-calendar-event-snapshot") { db in
             let columns = try db.columns(in: "transcriptions").map(\.name)
             if !columns.contains("calendarEventSnapshot") {

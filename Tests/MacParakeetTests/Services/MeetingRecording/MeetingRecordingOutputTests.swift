@@ -414,6 +414,29 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.calendarEventSnapshot, calendarSnapshot)
     }
 
+    func testMetadataLoadIgnoresMalformedCalendarSnapshot() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let json = """
+        {
+            "sourceAlignment": {
+                "meetingOriginHostTime": null,
+                "microphone": null,
+                "system": null
+            },
+            "speechEngine": {
+                "engine": "parakeet"
+            },
+            "calendarEventSnapshot": 42
+        }
+        """
+        try Data(json.utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: dir))
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertNil(metadata.calendarEventSnapshot)
+        XCTAssertEqual(metadata.speechEngine.engine, .parakeet)
+    }
+
     func testMetadataLoadReportsFailedContentsProbeAsUnreadableNotMissing() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
