@@ -20,6 +20,10 @@
 > live enum to 100 events. The cross-repo
 > allowlist guard for that enum is tracked in
 > [`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`](../plans/active/2026-06-12-telemetry-allowlist-ci-guard.md).
+> Onboarding telemetry review: Codex (2026-07-04). Live D1 review found Speech
+> Model as the largest measured setup blocker, Accessibility second, and missing
+> completion durations on existing rows. See
+> [`docs/audits/2026-07-04-onboarding-telemetry-review.md`](audits/2026-07-04-onboarding-telemetry-review.md).
 
 ## Philosophy
 
@@ -190,7 +194,7 @@ when the question is "what happened to this operation?"
 | `app_launched` | — | How many active users? DAU/WAU/MAU? |
 | `app_quit` | `session_duration_seconds` | How long are sessions? |
 | `onboarding_completed` | `duration_seconds` | How long does setup take? |
-| `onboarding_step` | `step` (permissions, model_download, etc.) | Where do people get stuck in onboarding? |
+| `onboarding_step` | `step`, `action`, optional `elapsed_seconds`, `step_index`, `total_steps`, `engine_state` | Where do people get stuck in onboarding? Distinguishes viewed, forward/back/jump navigation, dismissed setup, engine ready/failed, and completion without adding a new allowlisted event name. |
 
 #### Activation analytics caveats (agents: read this)
 

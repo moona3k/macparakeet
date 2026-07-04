@@ -70,6 +70,7 @@ struct OnboardingFlowView: View {
         .frame(width: windowWidth, height: windowHeight)
         .background(DesignSystem.Colors.background)
         .onAppear {
+            viewModel.markOnboardingShown()
             viewModel.startPermissionPolling()
             // Part B: kick the ~465 MB speech-model download off at onboarding
             // open so it overlaps the permission + hotkey steps. The Parakeet-vs-
@@ -134,6 +135,9 @@ struct OnboardingFlowView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Label("Local-first. No audio uploads.", systemImage: "lock.shield")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Label("Setup metrics are non-identifying.", systemImage: "chart.bar.xaxis")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
                 Label("Paste needs Accessibility.", systemImage: "keyboard")
@@ -409,13 +413,13 @@ struct OnboardingFlowView: View {
                 )
                 featureRow(
                     icon: "bolt.fill",
-                    title: "Blazing fast",
-                    detail: "60 minutes of audio transcribed in ~23 seconds on Apple Silicon."
+                    title: "Ready before you need it",
+                    detail: "The local speech model downloads during setup so your first dictation is not a surprise wait."
                 )
                 featureRow(
                     icon: "lock.shield.fill",
-                    title: "100% local",
-                    detail: "Audio never leaves your Mac. No cloud STT. No accounts. Non-identifying diagnostics only."
+                    title: "Private by default",
+                    detail: "Audio and transcripts stay on your Mac. Setup telemetry is limited to non-identifying step and timing signals."
                 )
             }
         }
@@ -938,7 +942,7 @@ struct OnboardingFlowView: View {
     private func subtitleForStep(_ step: OnboardingViewModel.Step) -> String {
         switch step {
         case .welcome:
-            return "A fast, private voice app for Mac. Completely free."
+            return "Set up the permissions and local speech model that make dictation reliable."
         case .microphone:
             return "MacParakeet needs microphone permission to record your voice."
         case .accessibility:
@@ -951,7 +955,7 @@ struct OnboardingFlowView: View {
             }
             return "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
         case .done:
-            return "You're all set. Start dictating or transcribe your first file."
+            return "Start with dictation. Meeting recording, files, and settings are ready when you need them."
         }
     }
 

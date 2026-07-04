@@ -58,6 +58,27 @@ private actor WhisperDownloadSpy {
     }
 }
 
+private final class OnboardingTestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+
+    init(_ date: Date) {
+        self.date = date
+    }
+
+    func now() -> Date {
+        lock.lock()
+        defer { lock.unlock() }
+        return date
+    }
+
+    func set(_ date: Date) {
+        lock.lock()
+        self.date = date
+        lock.unlock()
+    }
+}
+
 private final class PollingPermissionService: PermissionServiceProtocol, @unchecked Sendable {
     private let microphoneCheckCount = OSAllocatedUnfairLock(initialState: 0)
 
@@ -868,6 +889,100 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(vm.hasCompletedOnboarding)
         _ = vm.markOnboardingCompleted()
         XCTAssertTrue(vm.hasCompletedOnboarding)
+    }
+
+    func testOnboardingCompletionTelemetryIncludesDuration() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            now: { clock.now() }
+        )
+        clock.set(Date(timeIntervalSince1970: 142.5))
+
+        _ = vm.markOnboardingCompleted()
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains {
+            guard case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, let engineState) = $0 else {
+                return false
+            }
+            return step == "ready"
+                && action == .completed
+                && elapsedSeconds == 42.5
+                && stepIndex == 6
+                && totalSteps == 6
+                && engineState == nil
+        })
+        XCTAssertTrue(events.contains {
+            guard case .onboardingCompleted(let durationSeconds) = $0 else { return false }
+            return durationSeconds == 42.5
+        })
+    }
+
+    func testOnboardingNavigationTelemetryCapturesActionsAndStepIndexes() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let clock = OnboardingTestClock(Date(timeIntervalSince1970: 10))
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            now: { clock.now() }
+        )
+
+        vm.markOnboardingShown()
+        clock.set(Date(timeIntervalSince1970: 12))
+        vm.goNext()
+        clock.set(Date(timeIntervalSince1970: 15))
+        vm.goBack()
+        clock.set(Date(timeIntervalSince1970: 18))
+        vm.markOnboardingDismissed()
+
+        let steps = telemetry.snapshot().compactMap { event -> (String, TelemetryOnboardingAction, Double?, Int?, Int?)? in
+            guard case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, _) = event else {
+                return nil
+            }
+            return (step, action, elapsedSeconds, stepIndex, totalSteps)
+        }
+
+        XCTAssertEqual(steps.count, 4)
+        XCTAssertEqual(steps[0].0, "welcome")
+        XCTAssertEqual(steps[0].1, .viewed)
+        XCTAssertEqual(steps[0].2, 0)
+        XCTAssertEqual(steps[0].3, 1)
+        XCTAssertEqual(steps[0].4, 6)
+        XCTAssertEqual(steps[1].0, "microphone")
+        XCTAssertEqual(steps[1].1, .forward)
+        XCTAssertEqual(steps[1].2, 2)
+        XCTAssertEqual(steps[1].3, 2)
+        XCTAssertEqual(steps[2].0, "welcome")
+        XCTAssertEqual(steps[2].1, .back)
+        XCTAssertEqual(steps[2].2, 5)
+        XCTAssertEqual(steps[2].3, 1)
+        XCTAssertEqual(steps[3].0, "welcome")
+        XCTAssertEqual(steps[3].1, .dismissed)
+        XCTAssertEqual(steps[3].2, 8)
+        XCTAssertEqual(steps[3].3, 1)
     }
 
     func testEngineWarmUpWithProgressPhases() async throws {

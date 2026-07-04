@@ -453,6 +453,17 @@ public enum TelemetryPermission: String, Sendable, Equatable {
     case calendar
 }
 
+public enum TelemetryOnboardingAction: String, Sendable, Equatable {
+    case viewed
+    case forward
+    case back
+    case jump
+    case completed
+    case dismissed
+    case engineReady = "engine_ready"
+    case engineFailed = "engine_failed"
+}
+
 /// Which capture surface a hotkey customization applies to. Lets us answer
 /// product questions like "do meeting hotkeys get customized as often as
 /// dictation?" and "which surface is most likely to land on a chord vs a
@@ -714,7 +725,14 @@ public enum TelemetryEventSpec: Sendable {
     case settingChanged(setting: TelemetrySettingName)
     case telemetryOptedOut
     case onboardingCompleted(durationSeconds: Double?)
-    case onboardingStep(step: String)
+    case onboardingStep(
+        step: String,
+        action: TelemetryOnboardingAction,
+        elapsedSeconds: Double?,
+        stepIndex: Int?,
+        totalSteps: Int?,
+        engineState: String?
+    )
     case licenseActivated
     case licenseActivationFailed(errorType: String, errorDetail: String? = nil)
     case trialStarted
@@ -1368,8 +1386,15 @@ extension TelemetryEventSpec {
             return Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format))
             )
-        case .onboardingStep(let step):
-            return ["step": step]
+        case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, let engineState):
+            return Self.compactProps(
+                ("step", step),
+                ("action", action.rawValue),
+                ("elapsed_seconds", elapsedSeconds.map(Self.format)),
+                ("step_index", stepIndex.map(String.init)),
+                ("total_steps", totalSteps.map(String.init)),
+                ("engine_state", engineState)
+            )
         case .licenseActivationFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
@@ -1776,7 +1801,7 @@ public enum TelemetryImplementedContract {
         .settingChanged: ["setting"],
         .telemetryOptedOut: [],
         .onboardingCompleted: [],
-        .onboardingStep: ["step"],
+        .onboardingStep: ["step", "action"],
         .licenseActivated: [],
         .licenseActivationFailed: ["error_type"],
         .trialStarted: [],

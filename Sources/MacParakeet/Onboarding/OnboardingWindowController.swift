@@ -79,6 +79,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
+                vm.markOnboardingDismissed()
                 onIncompleteDismiss()
                 allowCloseWithoutCompletion = true
                 close()

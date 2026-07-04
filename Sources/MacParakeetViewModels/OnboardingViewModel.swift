@@ -39,6 +39,17 @@ public final class OnboardingViewModel {
             case .done: return "Ready"
             }
         }
+
+        public var telemetryName: String {
+            switch self {
+            case .welcome: return "welcome"
+            case .microphone: return "microphone"
+            case .accessibility: return "accessibility"
+            case .hotkey: return "hotkey"
+            case .engine: return "speech_model"
+            case .done: return "ready"
+            }
+        }
     }
 
     public enum EngineState: Sendable, Equatable {
@@ -81,8 +92,10 @@ public final class OnboardingViewModel {
     private let downloadWhisperModel: WhisperModelDownloader
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
+    private let startedAt: Date
     private let permissionPollingInterval: Duration
     private let warmUpStallTimeout: Duration
+    private var didEmitInitialStep = false
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -140,6 +153,7 @@ public final class OnboardingViewModel {
         }
         self.defaults = defaults
         self.now = now
+        self.startedAt = now()
         self.permissionPollingInterval = permissionPollingInterval
         self.warmUpStallTimeout = warmUpStallTimeout
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
@@ -155,8 +169,20 @@ public final class OnboardingViewModel {
         let completedAt = now()
         let iso = ISO8601DateFormatter().string(from: completedAt)
         defaults.set(iso, forKey: Self.onboardingCompletedKey)
-        Telemetry.send(.onboardingCompleted(durationSeconds: nil))
+        let durationSeconds = completedAt.timeIntervalSince(startedAt)
+        sendStepTelemetry(step: .done, action: .completed, at: completedAt)
+        Telemetry.send(.onboardingCompleted(durationSeconds: durationSeconds))
         return Completion(completedAt: completedAt)
+    }
+
+    public func markOnboardingShown() {
+        guard !didEmitInitialStep else { return }
+        didEmitInitialStep = true
+        sendStepTelemetry(step: step, action: .viewed)
+    }
+
+    public func markOnboardingDismissed() {
+        sendStepTelemetry(step: step, action: .dismissed)
     }
 
     public func resetOnboarding() {
@@ -189,7 +215,7 @@ public final class OnboardingViewModel {
         let currentRaw = step.rawValue
         guard let next = visible.first(where: { $0.rawValue > currentRaw }) else { return }
         step = next
-        Telemetry.send(.onboardingStep(step: next.title.lowercased()))
+        sendStepTelemetry(step: next, action: .forward)
         refresh()
     }
 
@@ -198,11 +224,13 @@ public final class OnboardingViewModel {
         let currentRaw = step.rawValue
         guard let prev = visible.last(where: { $0.rawValue < currentRaw }) else { return }
         step = prev
+        sendStepTelemetry(step: prev, action: .back)
         refresh()
     }
 
     public func jump(to target: Step) {
         step = target
+        sendStepTelemetry(step: target, action: .jump)
         refresh()
     }
 
@@ -291,6 +319,9 @@ public final class OnboardingViewModel {
     private func applyEngineWarmUpFailure(_ message: String) {
         engineBusy = false
         engineState = (step == .engine) ? .failed(message: message) : .idle
+        if step == .engine {
+            sendStepTelemetry(step: .engine, action: .engineFailed, engineState: "failed")
+        }
     }
 
     public func startEngineWarmUp() {
@@ -404,6 +435,7 @@ public final class OnboardingViewModel {
                     guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break observationLoop }
                     self.engineState = .ready
                     self.engineBusy = false
+                    self.sendStepTelemetry(step: .engine, action: .engineReady, engineState: "ready")
                     break observationLoop
                 case .failed(let message):
                     Telemetry.send(.modelDownloadFailed(
@@ -461,6 +493,7 @@ public final class OnboardingViewModel {
 
                 self.engineState = .ready
                 self.engineBusy = false
+                self.sendStepTelemetry(step: .engine, action: .engineReady, engineState: "ready")
             } catch is CancellationError {
                 guard self.engineGeneration == generation else { return }
                 self.engineState = .idle
@@ -671,6 +704,35 @@ public final class OnboardingViewModel {
             Task { [sttClient] in await sttClient.removeWarmUpObserver(id: id) }
         }
         warmUpObserverId = nil
+    }
+
+    private func sendStepTelemetry(
+        step: Step,
+        action: TelemetryOnboardingAction,
+        at date: Date? = nil,
+        engineState explicitEngineState: String? = nil
+    ) {
+        let visible = Self.visibleSteps
+        let stepIndex = visible.firstIndex(of: step).map { $0 + 1 }
+        let engineState = explicitEngineState ?? {
+            guard step == .engine else { return nil }
+            switch self.engineState {
+            case .idle: return "idle"
+            case .working: return "working"
+            case .ready: return "ready"
+            case .failed: return "failed"
+            }
+        }()
+        let elapsedSeconds = (date ?? now()).timeIntervalSince(startedAt)
+
+        Telemetry.send(.onboardingStep(
+            step: step.telemetryName,
+            action: action,
+            elapsedSeconds: elapsedSeconds,
+            stepIndex: stepIndex,
+            totalSteps: visible.count,
+            engineState: engineState
+        ))
     }
 
     /// Schedule (or reschedule) the warm-up stall watchdog. Cancels any

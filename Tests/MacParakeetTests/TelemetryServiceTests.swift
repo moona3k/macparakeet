@@ -1553,7 +1553,14 @@ final class TelemetryServiceTests: XCTestCase {
                 systemInfoIncluded: true,
                 errorType: nil
             ),
-            .onboardingStep(step: "microphone"),
+            .onboardingStep(
+                step: "microphone",
+                action: .forward,
+                elapsedSeconds: 1.0,
+                stepIndex: 2,
+                totalSteps: 6,
+                engineState: nil
+            ),
             .licenseActivationFailed(errorType: "invalid_key"),
             .keystrokeSnippetFired(action: "return"),
             .meetingRecordingStarted(),
