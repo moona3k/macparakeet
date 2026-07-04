@@ -316,7 +316,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
-        meetingStartContext = try container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)
+        meetingStartContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)) ?? nil
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)

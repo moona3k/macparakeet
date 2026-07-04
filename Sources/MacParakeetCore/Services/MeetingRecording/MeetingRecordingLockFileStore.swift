@@ -81,7 +81,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         state = try container.decodeIfPresent(MeetingRecordingLockState.self, forKey: .state) ?? .recording
         speechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
             ?? SpeechEngineSelection(engine: .parakeet)
-        startContext = try container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)
+        startContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)) ?? nil
         // Notes are decoded independently — see ADR-020 §9. If a future encoder
         // bug or hand-edited file produces a malformed `notes` value, recovery
         // of the audio metadata still succeeds; only the typed notes are lost.

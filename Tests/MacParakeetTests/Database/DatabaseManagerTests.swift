@@ -240,6 +240,34 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testMeetingStartContextMigrationToleratesExistingColumnWhenMigrationMarkerIsMissing() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting_start_context_rerun_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let manager1 = try DatabaseManager(path: dbPath)
+        try manager1.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.24-meeting-start-context"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        try manager2.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(columns.contains("meetingStartContext"))
+
+            let migrationRecorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.24-meeting-start-context"]
+            ) ?? false
+            XCTAssertTrue(migrationRecorded)
+        }
+    }
+
     func testUserNotesSnapshotColumnExistsOnSummaries() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in

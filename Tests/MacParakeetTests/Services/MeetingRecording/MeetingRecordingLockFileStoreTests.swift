@@ -289,6 +289,31 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(readLockFile.displayName, "Recoverable Session")
     }
 
+    func testReadFromLockFileWithMalformedStartContextStillRecoversMetadata() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let json = """
+        {
+            "schemaVersion": 1,
+            "sessionId": "11111111-2222-3333-4444-555555555555",
+            "startedAt": "2026-04-25T12:00:00Z",
+            "pid": 123,
+            "displayName": "Recoverable Session",
+            "state": "recording",
+            "startContext": {
+                "triggerKind": "future_trigger",
+                "sourceMode": "microphone_only"
+            }
+        }
+        """
+        try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
+
+        let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
+        XCTAssertNil(readLockFile.startContext, "malformed startContext must not block recovery")
+        XCTAssertEqual(readLockFile.displayName, "Recoverable Session")
+        XCTAssertEqual(readLockFile.sessionId, UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
+    }
+
     func testWithNotesPreservesEverythingElse() throws {
         let lockFile = makeLockFile().withNotes("first note")
         let updated = lockFile.withNotes("second note")

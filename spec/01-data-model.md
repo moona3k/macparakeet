@@ -112,7 +112,7 @@ CREATE TABLE transcriptions (
     fileName TEXT NOT NULL,                            -- Original filename (e.g., "interview.mp3")
     filePath TEXT,                                     -- Original file path (nullable, may be moved/deleted)
     meetingArtifactFolderPath TEXT,                    -- v0.22: Durable meeting artifact folder path
-    meetingStartContext TEXT,                          -- v0.23: JSON one-shot meeting start context
+    meetingStartContext TEXT,                          -- v0.24: JSON one-shot meeting start context
     fileSizeBytes INTEGER,                             -- Original file size
     durationMs INTEGER,                                -- Audio/video duration in milliseconds
     rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
@@ -590,7 +590,7 @@ struct Transcription: Codable, Identifiable {
     var fileName: String
     var filePath: String?
     var meetingArtifactFolderPath: String? // v0.22 — Durable meeting artifact folder
-    var meetingStartContext: MeetingStartContext? // v0.23 — One-shot meeting start context
+    var meetingStartContext: MeetingStartContext? // v0.24 — One-shot meeting start context
     var fileSizeBytes: Int?
     var durationMs: Int?
     var rawTranscript: String?
@@ -1132,7 +1132,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.19 — dictations.language
 // v0.20 — prompts.appliesToSources (auto-run source scoping; NULL = all sources)
 // v0.22 — transcriptions.meetingArtifactFolderPath
-// v0.23 — transcriptions.meetingStartContext
+// v0.23 — transcriptions.transcriptSegments
+// v0.24 — transcriptions.meetingStartContext
 ```
 
 ### Migration Rules

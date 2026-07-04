@@ -15,9 +15,13 @@ public struct NSWorkspaceFrontmostApplicationProvider: FrontmostApplicationProvi
             return nil
         }
 
-        return MeetingStartContext.FrontmostApplication(
+        let frontmost = MeetingStartContext.FrontmostApplication(
             bundleIdentifier: app.bundleIdentifier,
             localizedName: app.localizedName
         )
+        guard frontmost.bundleIdentifier != nil || frontmost.localizedName != nil else {
+            return nil
+        }
+        return frontmost
     }
 }
