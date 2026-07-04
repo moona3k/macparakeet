@@ -82,7 +82,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let fixture = try makeRecoverableSession()
         lockStore.deleteErrorsRemaining = 1
 
-        _ = try await recoveryService.recover(fixture.lock)
+        do {
+            _ = try await recoveryService.recover(fixture.lock)
+            XCTFail("Expected recover to surface the failed lock delete")
+        } catch {
+            XCTAssertTrue(error is RecoveryTestError)
+        }
         XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(transcriptionRepo.saved.count, 1)
@@ -250,6 +255,34 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.folderURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertNotNil(try transcriptionRepo.fetch(id: existing.id))
+    }
+
+    func testDiscardSurfacesFailedLockDeleteAndStaysRetryable() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8))
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(existing)
+        lockStore.deleteErrorsRemaining = 1
+
+        do {
+            try await recoveryService.discard(fixture.lock)
+            XCTFail("Expected discard to surface the failed lock delete")
+        } catch {
+            XCTAssertTrue(error is RecoveryTestError)
+        }
+        XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+
+        try await recoveryService.discard(fixture.lock)
+
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertNotNil(try transcriptionRepo.fetch(id: existing.id))
     }
 

@@ -150,7 +150,7 @@ final class MeetingRecordingSettlementTests: XCTestCase {
         XCTAssertEqual(lockStore.deletes, [folderURL])
     }
 
-    func testLockDeleteErrorIsLogOnly() async throws {
+    func testLockDeleteErrorIsRethrownSoCallersCanSurfaceFailedCleanup() async throws {
         let repo = MockTranscriptionRepository()
         let lockStore = SettlementLockFileStore(errorToThrow: SettlementTestError.deleteFailed)
         let settlement = MeetingRecordingSettlement(lockFileStore: lockStore, transcriptionRepo: repo)
@@ -158,11 +158,16 @@ final class MeetingRecordingSettlementTests: XCTestCase {
         let transcription = makeTranscription(status: .completed, folderURL: folderURL)
         try repo.save(transcription)
 
-        try await settlement.settleCompletedTranscription(
-            folderURL: folderURL,
-            transcriptionID: transcription.id,
-            sessionID: UUID()
-        )
+        do {
+            try await settlement.settleCompletedTranscription(
+                folderURL: folderURL,
+                transcriptionID: transcription.id,
+                sessionID: UUID()
+            )
+            XCTFail("Expected settlement to rethrow the lock delete error")
+        } catch {
+            XCTAssertTrue(error is SettlementTestError)
+        }
 
         XCTAssertEqual(lockStore.deletes, [folderURL])
     }

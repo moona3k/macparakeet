@@ -23,7 +23,9 @@ public struct MeetingRecordingSettlement: Sendable {
 
     /// Re-fetches the row by id and refuses unless it exists, is a meeting
     /// transcription for this artifact folder, and `status == .completed`.
-    /// Delete I/O errors are logged only; recovery will re-settle next launch.
+    /// Delete I/O errors are logged and rethrown so callers can surface the
+    /// failed cleanup; the lock stays protective and recovery re-settles the
+    /// completed row on a later scan.
     public func settleCompletedTranscription(
         folderURL: URL,
         transcriptionID: UUID,
@@ -65,6 +67,7 @@ public struct MeetingRecordingSettlement: Sendable {
             Self.logger.error(
                 "meeting_recording_settlement_lock_delete_failed session=\(sessionID.uuidString, privacy: .public) transcription=\(transcriptionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
             )
+            throw error
         }
     }
 

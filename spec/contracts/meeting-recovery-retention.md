@@ -97,10 +97,12 @@ Completion-path lock deletion is centralized in
 transcription id, and session id; settlement re-fetches the `Transcription`
 row and refuses to delete `recording.lock` unless the row exists, is a meeting
 transcription for that artifact folder, and has `status == .completed`.
-Lock-delete I/O failures are log-only: the lock remains protective and recovery
-can re-settle the completed row on the next launch. On the transcription-queue
-path a settlement error after a successful finalize is likewise log-only: the
-completed transcript is already durably saved, so the queue still reports
+Lock-delete I/O failures are logged and rethrown so callers can surface the
+failed cleanup (for example, discard must not report success while
+`recording.lock` is still on disk); the lock remains protective and recovery
+can re-settle the completed row on a later scan. On the transcription-queue
+path a settlement error after a successful finalize is caught by the queue:
+the completed transcript is already durably saved, so the queue still reports
 success and leaves the lock for recovery to re-settle.
 
 The non-settlement deletion paths are intentionally limited to flows that are
@@ -144,9 +146,10 @@ Focused coverage pins dead-PID `awaitingTranscription` reads, the distinction
 between active-session discovery and retention safety, completed recovery lock
 cleanup, and retention sweeps skipping valid, zero-byte, corrupt, and
 future-schema lock files. Settlement coverage pins refusal for missing or
-non-completed rows, log-only delete I/O failure, queue success/failure lock
-behavior, and crash-point convergence for awaiting locks with no row,
-processing rows, and completed rows whose lock is still present.
+non-completed rows, rethrown delete I/O failure (including discard surfacing a
+retained lock and staying retryable), queue success/failure lock behavior, and
+crash-point convergence for awaiting locks with no row, processing rows, and
+completed rows whose lock is still present.
 
 ## When this changes
 
