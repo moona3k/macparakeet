@@ -4,8 +4,7 @@ import MacParakeetViewModels
 
 struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
-    var recognitionStatus: CustomVocabularyBoostingSupportPresentation =
-        CustomVocabularyBoostingPresentation.status(for: .parakeet(.v3))
+    var recognitionStatus: CustomVocabularyBoostingSupportPresentation
     @Environment(\.dismiss) private var dismiss
     @State private var hoveredWordID: UUID?
     @FocusState private var wordFieldFocused: Bool

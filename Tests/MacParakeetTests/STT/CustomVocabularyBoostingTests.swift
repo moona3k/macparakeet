@@ -103,6 +103,32 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(requests[0].vocabulary.terms, ["MacParakeet"])
     }
 
+    func testBoundaryChangingBoostSkipsLongTranscriptTimingSynthesis() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
+        let longTimings = (0..<(CustomVocabularyBoostingConfiguration.maxBoundaryChangingTimingWordCount + 1))
+            .map { index in
+                TokenTiming(
+                    token: "▁word\(index)",
+                    tokenId: index,
+                    startTime: Double(index),
+                    endTime: Double(index + 1),
+                    confidence: 0.9
+                )
+            }
+
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: longTimings.map(\.token).joined(separator: " ").replacingOccurrences(of: "▁", with: ""),
+            tokenTimings: longTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer
+        )
+
+        XCTAssertNotEqual(result.text, "MacParakeet")
+        XCTAssertEqual(STTWordTimingBuilder.words(from: result.tokenTimings).count, longTimings.count)
+    }
+
     func testSidecarFailureFallsBackToUnboostedTranscript() async throws {
         let rescorer = FakeCustomVocabularyRescorer(error: TestError.expected)
         let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(

@@ -522,7 +522,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                     try Task.checkCancellation()
                     let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
                         to: result,
-                        audioSamples: paddedSamples
+                        loadAudioSamples: { paddedSamples }
                     )
                     onProgress?(100, 100)
                     return STTResult(
@@ -575,12 +575,11 @@ public actor STTRuntime: STTRuntimeProtocol {
                 try await manager.transcribe(audioURL, decoderState: &decoderState)
             }
             try Task.checkCancellation()
-            let sidecarSamples = try Self.customVocabularySidecarSamples(audioPath: audioPath)
-            try Task.checkCancellation()
             let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
-                to: result,
-                audioSamples: sidecarSamples
-            )
+                to: result
+            ) {
+                try Self.customVocabularySidecarSamples(audioPath: audioPath)
+            }
             let words = STTWordTimingBuilder.words(from: boostedResult.tokenTimings)
             onProgress?(100, 100)
             // Telemetry `language` is attributed "en": MacParakeet positions
@@ -709,12 +708,16 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     private func applyCustomVocabularyBoostingIfAvailable(
         to result: ASRResult,
-        audioSamples: [Float]
+        loadAudioSamples: () throws -> [Float]
     ) async throws -> ASRResult {
         guard let customVocabularyProvider else { return result }
         try Task.checkCancellation()
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(currentParakeetVariant))
+        guard capabilities.supportsCustomVocabulary else { return result }
         let vocabulary = await customVocabularyProvider.currentVocabulary()
+        try Task.checkCancellation()
+        guard !vocabulary.isEmpty else { return result }
+        let audioSamples = try loadAudioSamples()
         try Task.checkCancellation()
         return try await Self.applyCustomVocabularyBoosting(
             to: result,
@@ -839,6 +842,10 @@ public actor STTRuntime: STTRuntimeProtocol {
                     confidence: Float(timing.confidence)
                 )
             }
+        }
+
+        guard originalWords.count <= CustomVocabularyBoostingConfiguration.maxBoundaryChangingTimingWordCount else {
+            return nil
         }
 
         let startTime = Double(firstWord.startMs) / 1_000

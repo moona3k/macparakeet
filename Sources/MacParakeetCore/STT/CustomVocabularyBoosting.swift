@@ -12,6 +12,8 @@ public enum CustomVocabularyBoostingConfiguration {
     /// sidecar. Longer jobs keep FluidAudio's URL-backed TDT path and skip
     /// boosting until chunked sidecar rescoring lands.
     public static let maxSidecarAudioSeconds: Double = 5 * 60
+    public static let termWeight: Float = 10.0
+    public static let maxBoundaryChangingTimingWordCount: Int = 8
 
     static var maxSidecarSampleCount: Int {
         Int(maxSidecarAudioSeconds * Double(ASRConstants.sampleRate))
@@ -204,6 +206,7 @@ public extension CustomVocabularyRescoring {
 
 public enum CustomVocabularyBoostingError: Error, Sendable {
     case emptyTokenizedVocabulary
+    case unpreparedVocabulary
 }
 
 public struct RepositoryCustomVocabularyBoostingTermProvider: CustomVocabularyBoostingTermProviding {
@@ -237,7 +240,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CustomVocabulary")
-    private var cachedVocabularies: [String: CachedVocabulary] = [:]
+    private var cachedVocabulary: CachedVocabulary?
 
     public init() {}
 
@@ -260,7 +263,12 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             )
         }
 
-        let components = try await components(for: request.vocabulary)
+        guard let components = cachedVocabulary,
+              components.hash == request.vocabulary.contentHash
+        else {
+            throw CustomVocabularyBoostingError.unpreparedVocabulary
+        }
+
         let spotResult = try await components.spotter.spotKeywordsWithLogProbs(
             audioSamples: request.audioSamples,
             customVocabulary: components.context,
@@ -307,7 +315,9 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private func components(for vocabulary: CustomVocabularyBoostingVocabulary) async throws -> CachedVocabulary {
-        if let cachedVocabulary = cachedVocabularies[vocabulary.contentHash] {
+        if let cachedVocabulary,
+           cachedVocabulary.hash == vocabulary.contentHash
+        {
             return cachedVocabulary
         }
 
@@ -319,7 +329,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             guard !tokenIds.isEmpty else { return nil }
             return CustomVocabularyTerm(
                 text: term,
-                weight: 10.0,
+                weight: CustomVocabularyBoostingConfiguration.termWeight,
                 aliases: nil,
                 tokenIds: nil,
                 ctcTokenIds: tokenIds
@@ -350,7 +360,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             cbw: sizeConfig.cbw,
             marginSeconds: ContextBiasingConstants.defaultMarginSeconds
         )
-        cachedVocabularies[vocabulary.contentHash] = cached
+        cachedVocabulary = cached
         logger.info("custom_vocabulary_boost_loaded terms=\(context.terms.count, privacy: .public)")
         return cached
     }
