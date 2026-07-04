@@ -71,7 +71,8 @@ public struct MeetingRecordingSettlement: Sendable {
     private static func transcription(_ transcription: Transcription, belongsTo folderURL: URL) -> Bool {
         let folderPaths = MeetingArtifactPathAliases.aliases(for: folderURL)
         if let folderPath = transcription.meetingArtifactFolderPath,
-           folderPaths.contains(folderPath) {
+            folderPaths.contains(folderPath)
+        {
             return true
         }
 
@@ -110,11 +111,14 @@ enum MeetingRecordingSettlementError: Error, LocalizedError, Equatable {
         case let .missingTranscription(transcriptionID, sessionID):
             return "Cannot settle meeting \(sessionID): transcription \(transcriptionID) does not exist."
         case let .notMeetingTranscription(transcriptionID, sourceType, sessionID):
-            return "Cannot settle meeting \(sessionID): transcription \(transcriptionID) has source type \(sourceType.rawValue)."
+            return
+                "Cannot settle meeting \(sessionID): transcription \(transcriptionID) has source type \(sourceType.rawValue)."
         case let .transcriptionNotCompleted(transcriptionID, status, sessionID):
-            return "Cannot settle meeting \(sessionID): transcription \(transcriptionID) is \(status.rawValue), not completed."
+            return
+                "Cannot settle meeting \(sessionID): transcription \(transcriptionID) is \(status.rawValue), not completed."
         case let .folderMismatch(transcriptionID, folderPath, storedFolderPath, storedFilePath, sessionID):
-            return "Cannot settle meeting \(sessionID): transcription \(transcriptionID) does not belong to \(folderPath) (stored folder: \(storedFolderPath ?? "nil"), stored file: \(storedFilePath ?? "nil"))."
+            return
+                "Cannot settle meeting \(sessionID): transcription \(transcriptionID) does not belong to \(folderPath) (stored folder: \(storedFolderPath ?? "nil"), stored file: \(storedFilePath ?? "nil"))."
         }
     }
 }

@@ -93,10 +93,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         self.lockFileStore = lockFileStore
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
-        self.settlement = settlement ?? MeetingRecordingSettlement(
-            lockFileStore: lockFileStore,
-            transcriptionRepo: transcriptionRepo
-        )
+        self.settlement =
+            settlement
+            ?? MeetingRecordingSettlement(
+                lockFileStore: lockFileStore,
+                transcriptionRepo: transcriptionRepo
+            )
         self.audioConverter = audioConverter
         self.fileManager = fileManager
         self.micConditionerFactory = micConditionerFactory

@@ -24,10 +24,12 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
         XCTAssertEqual(transcriptionSnapshot, [first.transcriptionID, second.transcriptionID])
-        XCTAssertEqual(lockStore.deletes, [
-            first.recording.folderURL,
-            second.recording.folderURL,
-        ])
+        XCTAssertEqual(
+            lockStore.deletes,
+            [
+                first.recording.folderURL,
+                second.recording.folderURL,
+            ])
     }
 
     func testQueueContinuesAfterFailedFinalize() async throws {
@@ -267,7 +269,8 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
             throw QueueTestError.failed
         }
         let mismatched = settlementMismatchIDs.contains(transcriptionID)
-        let folderPath = mismatched
+        let folderPath =
+            mismatched
             ? "/nonexistent/other-folder"
             : recording.folderURL.path
         let transcription = Transcription(

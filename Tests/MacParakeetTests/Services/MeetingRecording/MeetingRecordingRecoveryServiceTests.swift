@@ -111,21 +111,23 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             case .awaitingLockNoRow:
                 break
             case .awaitingLockProcessingRow:
-                try transcriptionRepo.save(Transcription(
-                    fileName: fixture.lock.displayName,
-                    filePath: mixedURL.path,
-                    meetingArtifactFolderPath: fixture.folderURL.path,
-                    status: .processing,
-                    sourceType: .meeting
-                ))
+                try transcriptionRepo.save(
+                    Transcription(
+                        fileName: fixture.lock.displayName,
+                        filePath: mixedURL.path,
+                        meetingArtifactFolderPath: fixture.folderURL.path,
+                        status: .processing,
+                        sourceType: .meeting
+                    ))
             case .completedRowWithLock:
-                try transcriptionRepo.save(Transcription(
-                    fileName: fixture.lock.displayName,
-                    filePath: mixedURL.path,
-                    meetingArtifactFolderPath: fixture.folderURL.path,
-                    status: .completed,
-                    sourceType: .meeting
-                ))
+                try transcriptionRepo.save(
+                    Transcription(
+                        fileName: fixture.lock.displayName,
+                        filePath: mixedURL.path,
+                        meetingArtifactFolderPath: fixture.folderURL.path,
+                        status: .completed,
+                        sourceType: .meeting
+                    ))
             }
 
             let pending = try await recoveryService.discoverPendingRecoveries()
@@ -430,19 +432,22 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     private func meetingRows(in folderURL: URL) throws -> [Transcription] {
         let folderPaths = MeetingArtifactPathAliases.aliases(for: folderURL)
-        let mixedPaths = Set(folderPaths.map {
-            URL(fileURLWithPath: $0, isDirectory: true)
-                .appendingPathComponent("meeting.m4a")
-                .path
-        })
+        let mixedPaths = Set(
+            folderPaths.map {
+                URL(fileURLWithPath: $0, isDirectory: true)
+                    .appendingPathComponent("meeting.m4a")
+                    .path
+            })
         return try transcriptionRepo.fetchAll(limit: nil).filter { transcription in
             guard transcription.sourceType == .meeting else { return false }
             if let folderPath = transcription.meetingArtifactFolderPath,
-               folderPaths.contains(folderPath) {
+                folderPaths.contains(folderPath)
+            {
                 return true
             }
             if let filePath = transcription.filePath,
-               mixedPaths.contains(filePath) {
+                mixedPaths.contains(filePath)
+            {
                 return true
             }
             return false
