@@ -47,15 +47,17 @@ The v1 folder can contain these stable filenames:
 - `system.m4a`: optional source system audio.
 - `microphone-cleaned.m4a`: optional derived echo-cancelled mic (16 kHz mono),
   produced after stop from `microphone.m4a` + `system.m4a` when a meeting echo
-  suppressor is loaded and trusted source-alignment metadata exists (plan #605
-  U3). Internal STT input for the local ("Me") track only after final-STT
-  readiness/decodability gates pass, not a user-facing export; the raw
-  `microphone.m4a` remains the source of truth. Absent for single-source
-  meetings, missing/unloaded AEC assets, render failures, and recovered meetings
-  with only synthetic alignment. Removed with the other managed audio by
-  retention/detach.
+  suppressor is loaded (plan #605 U3). Internal STT input for the local ("Me")
+  track only after final-STT readiness/decodability gates pass, not a
+  user-facing export; the raw `microphone.m4a` remains the source of truth.
+  Absent for single-source meetings, missing/unloaded AEC assets, render
+  failures, and when the echo-path probe finds no system-audio bleed to cancel.
+  Removed with the other managed audio by retention/detach.
 - `meeting-recording-metadata.json`: optional source-alignment and engine
-  sidecar.
+  sidecar. It may also include additive `echoSuppression` provenance with
+  `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
+  `delayEstimateMs`, and `probeBestCorrelation` fields so shared artifact
+  folders can explain cleaned-vs-raw microphone routing without app logs.
 - `manifest.json`: folder manifest.
 - `transcript.json`: transcript view.
 - `notes.md`: optional user notes view. Removed when notes are empty or nil.

@@ -56,9 +56,18 @@ public struct MeetingCleanedMicrophoneSourceDecision: Sendable, Equatable {
     }
 }
 
+struct MeetingCleanedMicrophoneRenderSummary: Sendable, Equatable {
+    let modelVersion: String?
+    let renderDurationMs: Int?
+    let realtimeFactor: Double?
+    let delayEstimateMs: Int?
+    let probeWindowsEvaluated: Int?
+    let probeBestCorrelation: Float?
+}
+
 enum MeetingCleanedMicrophoneRenderCompletion: Sendable, Equatable {
-    case rendered(URL)
-    case fallback(MeetingCleanedMicrophoneRoutingReason)
+    case rendered(URL, summary: MeetingCleanedMicrophoneRenderSummary? = nil)
+    case fallback(MeetingCleanedMicrophoneRoutingReason, summary: MeetingCleanedMicrophoneRenderSummary? = nil)
 }
 
 struct MeetingCleanedMicrophoneReadiness: Sendable {
@@ -156,9 +165,10 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
     private func resolveCompletedRender(
         _ completion: MeetingCleanedMicrophoneRenderCompletion
     ) -> MeetingCleanedMicrophoneRenderCompletion {
-        guard case .rendered(let renderedURL) = completion,
-              let outputURL,
-              let candidateOutputURL else {
+        guard case .rendered(let renderedURL, let summary) = completion,
+            let outputURL,
+            let candidateOutputURL
+        else {
             return completion
         }
 
@@ -169,7 +179,7 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
             if renderedURL != candidateOutputURL {
                 try? fileManager.removeItem(at: candidateOutputURL)
             }
-            return .rendered(outputURL)
+            return .rendered(outputURL, summary: summary)
         } catch {
             discardCandidateOutputs()
             return .fallback(.rawRenderFailed)
@@ -241,17 +251,18 @@ private final class MeetingCleanedMicrophoneReadinessRace: @unchecked Sendable {
         _ value: @autoclosure () -> MeetingCleanedMicrophoneRenderCompletion,
         onLose: () -> Void
     ) {
-        let resumeState: (
-            continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
-            timeoutWaiter: Task<Void, Never>?,
-            lost: Bool
-        ) = lock.withLock {
-            guard !didResume else { return (nil, nil, true) }
-            didResume = true
-            let continuation = self.continuation
-            self.continuation = nil
-            return (continuation, timeoutWaiter, false)
-        }
+        let resumeState:
+            (
+                continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
+                timeoutWaiter: Task<Void, Never>?,
+                lost: Bool
+            ) = lock.withLock {
+                guard !didResume else { return (nil, nil, true) }
+                didResume = true
+                let continuation = self.continuation
+                self.continuation = nil
+                return (continuation, timeoutWaiter, false)
+            }
 
         if resumeState.lost {
             onLose()
@@ -270,20 +281,21 @@ private final class MeetingCleanedMicrophoneReadinessRace: @unchecked Sendable {
         cancelTimeout: Bool,
         beforeResume: (() -> Void)? = nil
     ) -> Bool {
-        let resumeState: (
-            continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
-            tasksToCancel: [Task<Void, Never>]
-        ) = lock.withLock {
-            guard !didResume else { return (nil, []) }
-            didResume = true
-            let continuation = self.continuation
-            self.continuation = nil
-            let tasks = [
-                cancelRenderWaiter ? renderWaiter : nil,
-                cancelTimeout ? timeoutWaiter : nil,
-            ].compactMap { $0 }
-            return (continuation, tasks)
-        }
+        let resumeState:
+            (
+                continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
+                tasksToCancel: [Task<Void, Never>]
+            ) = lock.withLock {
+                guard !didResume else { return (nil, []) }
+                didResume = true
+                let continuation = self.continuation
+                self.continuation = nil
+                let tasks = [
+                    cancelRenderWaiter ? renderWaiter : nil,
+                    cancelTimeout ? timeoutWaiter : nil,
+                ].compactMap { $0 }
+                return (continuation, tasks)
+            }
         guard let continuation = resumeState.continuation else {
             return false
         }
@@ -296,21 +308,22 @@ private final class MeetingCleanedMicrophoneReadinessRace: @unchecked Sendable {
     }
 
     func cancel(beforeResume: () -> Void) -> Bool {
-        let resumeState: (
-            continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
-            tasksToCancel: [Task<Void, Never>],
-            shouldCancelRender: Bool
-        ) = lock.withLock {
-            guard !didResume else { return (nil, [], false) }
-            let tasks = [renderWaiter, timeoutWaiter].compactMap { $0 }
-            guard let continuation else {
-                pendingCancellation = true
-                return (nil, tasks, true)
+        let resumeState:
+            (
+                continuation: CheckedContinuation<MeetingCleanedMicrophoneRenderCompletion?, Error>?,
+                tasksToCancel: [Task<Void, Never>],
+                shouldCancelRender: Bool
+            ) = lock.withLock {
+                guard !didResume else { return (nil, [], false) }
+                let tasks = [renderWaiter, timeoutWaiter].compactMap { $0 }
+                guard let continuation else {
+                    pendingCancellation = true
+                    return (nil, tasks, true)
+                }
+                didResume = true
+                self.continuation = nil
+                return (continuation, tasks, true)
             }
-            didResume = true
-            self.continuation = nil
-            return (continuation, tasks, true)
-        }
         guard resumeState.shouldCancelRender else {
             return false
         }
@@ -368,30 +381,6 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         }
         let rendererFileManager = UncheckedSendableBox(fileManager)
         let candidateOutputURL = candidateOutputURL(for: outputURL, sessionID: sessionID)
-        guard hasTrustedEchoPathAlignment(sourceAlignment) else {
-            discardArtifact(
-                at: outputURL,
-                sessionID: sessionID,
-                reason: "untrusted_alignment",
-                fileManager: fileManager,
-                eventName: eventName
-            )
-            discardArtifact(
-                at: candidateOutputURL,
-                sessionID: sessionID,
-                reason: "untrusted_alignment",
-                fileManager: fileManager,
-                eventName: eventName
-            )
-            appendDiagnostic(
-                eventName: eventName,
-                sessionID: sessionID,
-                outcome: "not_scheduled",
-                reason: .skippedNoEchoPath,
-                detail: "alignment=untrusted"
-            )
-            return .notScheduled(reason: .skippedNoEchoPath)
-        }
         discardArtifact(
             at: outputURL,
             sessionID: sessionID,
@@ -415,7 +404,7 @@ enum MeetingCleanedMicrophoneRenderScheduler {
                     systemURL: systemURL,
                     sourceAlignment: sourceAlignment,
                     outputURL: candidateOutputURL,
-                    conditioner: conditionerFactory()
+                    conditionerFactory: conditionerFactory
                 )
                 return handleOutcome(
                     outcome,
@@ -471,22 +460,11 @@ enum MeetingCleanedMicrophoneRenderScheduler {
     private static func candidateOutputURL(for outputURL: URL, sessionID: UUID) -> URL {
         let basename = outputURL.deletingPathExtension().lastPathComponent
         let pathExtension = outputURL.pathExtension.isEmpty ? "tmp" : outputURL.pathExtension
-        return outputURL
+        return
+            outputURL
             .deletingLastPathComponent()
             .appendingPathComponent(".\(basename)-\(sessionID.uuidString).tmp")
             .appendingPathExtension(pathExtension)
-    }
-
-    private static func hasTrustedEchoPathAlignment(_ alignment: MeetingSourceAlignment) -> Bool {
-        guard let microphone = alignment.microphone,
-              let system = alignment.system else {
-            return false
-        }
-        return alignment.meetingOriginHostTime != nil
-            && microphone.firstHostTime != nil
-            && microphone.lastHostTime != nil
-            && system.firstHostTime != nil
-            && system.lastHostTime != nil
     }
 
     private static func handleOutcome(
@@ -499,9 +477,9 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         switch outcome {
         case .rendered(let result):
             AudioCaptureDiagnostics.append(
-                "\(eventName) session=\(sessionID.uuidString) outcome=rendered duration_s=\(String(format: "%.3f", result.durationSeconds)) processed_frames=\(result.processedFrames) raw_fallback_frames=\(result.rawFallbackFrames) failures=\(result.processingFailures) rms_ratio=\(String(format: "%.2f", result.outputToRawRmsRatio))"
+                "\(eventName) session=\(sessionID.uuidString) outcome=rendered duration_s=\(String(format: "%.3f", result.durationSeconds)) render_duration_ms=\(result.renderDurationMs) realtime_factor=\(formatOptional(result.renderRealtimeFactor)) processed_frames=\(result.processedFrames) raw_fallback_frames=\(result.rawFallbackFrames) failures=\(result.processingFailures) rms_ratio=\(String(format: "%.2f", result.outputToRawRmsRatio)) probe_windows=\(result.echoProbe.windowsEvaluated) probe_best_correlation=\(formatOptional(result.echoProbe.bestCorrelation))"
             )
-            return .rendered(result.outputURL)
+            return .rendered(result.outputURL, summary: summary(for: result))
         case .skipped(let reason):
             let routingReason = routingReason(for: reason)
             discardArtifact(
@@ -516,9 +494,46 @@ enum MeetingCleanedMicrophoneRenderScheduler {
                 sessionID: sessionID,
                 outcome: "skipped",
                 reason: routingReason,
-                detail: "renderer_reason=\(String(describing: reason))"
+                detail: skipDetail(for: reason)
             )
-            return .fallback(routingReason)
+            return .fallback(routingReason, summary: summary(for: reason))
+        }
+    }
+
+    private static func summary(
+        for result: MeetingCleanedMicRenderer.Result
+    ) -> MeetingCleanedMicrophoneRenderSummary {
+        MeetingCleanedMicrophoneRenderSummary(
+            modelVersion: result.modelVersion,
+            renderDurationMs: result.renderDurationMs,
+            realtimeFactor: result.renderRealtimeFactor,
+            delayEstimateMs: result.delayEstimateMs,
+            probeWindowsEvaluated: result.echoProbe.windowsEvaluated,
+            probeBestCorrelation: result.echoProbe.bestCorrelation
+        )
+    }
+
+    private static func summary(
+        for skipReason: MeetingCleanedMicRenderer.SkipReason
+    ) -> MeetingCleanedMicrophoneRenderSummary? {
+        guard case .noEchoPath(let probe) = skipReason else { return nil }
+        return MeetingCleanedMicrophoneRenderSummary(
+            modelVersion: nil,
+            renderDurationMs: nil,
+            realtimeFactor: nil,
+            delayEstimateMs: nil,
+            probeWindowsEvaluated: probe.windowsEvaluated,
+            probeBestCorrelation: probe.bestCorrelation
+        )
+    }
+
+    private static func skipDetail(for reason: MeetingCleanedMicRenderer.SkipReason) -> String {
+        switch reason {
+        case .noEchoPath(let probe):
+            return
+                "renderer_reason=no_echo_path probe_detail=\(probe.detail) probe_windows=\(probe.windowsEvaluated) probe_best_correlation=\(formatOptional(probe.bestCorrelation))"
+        default:
+            return "renderer_reason=\(String(describing: reason))"
         }
     }
 
@@ -530,6 +545,8 @@ enum MeetingCleanedMicrophoneRenderScheduler {
             return .rawNoAECAssets
         case .missingSystemReference:
             return .rawMissingSystemReference
+        case .noEchoPath:
+            return .skippedNoEchoPath
         case .missingMicrophoneSource, .emptyMicrophone, .inputTooLong, .decodeFailed, .renderFailed:
             return .rawRenderFailed
         }
@@ -549,10 +566,12 @@ enum MeetingCleanedMicrophoneRenderScheduler {
             let removeError = error
             if fileManager.createFile(atPath: outputURL.path, contents: Data(), attributes: nil) {
                 AudioCaptureDiagnostics.append(
-                    "\(eventName)_cleanup session=\(sessionID.uuidString) outcome=truncated reason=\(reason) remove_error=\(removeError.localizedDescription)")
+                    "\(eventName)_cleanup session=\(sessionID.uuidString) outcome=truncated reason=\(reason) remove_error=\(removeError.localizedDescription)"
+                )
             } else {
                 AudioCaptureDiagnostics.append(
-                    "\(eventName)_cleanup session=\(sessionID.uuidString) outcome=failed reason=\(reason) remove_error=\(removeError.localizedDescription) truncate_error=createFile returned false")
+                    "\(eventName)_cleanup session=\(sessionID.uuidString) outcome=failed reason=\(reason) remove_error=\(removeError.localizedDescription) truncate_error=createFile returned false"
+                )
             }
         }
     }
@@ -568,6 +587,16 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         AudioCaptureDiagnostics.append(
             "\(eventName) session=\(sessionID.uuidString) outcome=\(outcome) reason=\(reason.rawValue)\(suffix)")
     }
+
+    private static func formatOptional(_ value: Double?) -> String {
+        guard let value else { return "none" }
+        return String(format: "%.2f", value)
+    }
+
+    private static func formatOptional(_ value: Float?) -> String {
+        guard let value else { return "none" }
+        return String(format: "%.3f", value)
+    }
 }
 
 extension MeetingRecordingOutput {
@@ -576,36 +605,106 @@ extension MeetingRecordingOutput {
         fileManager: FileManager = .default
     ) async throws -> MeetingCleanedMicrophoneSourceDecision {
         let timeoutSeconds = policy.timeoutSeconds(for: durationSeconds)
+        let decision: MeetingCleanedMicrophoneSourceDecision
+        let renderSummary: MeetingCleanedMicrophoneRenderSummary?
         if let cleanedMicrophoneReadiness {
-            guard let completion = try await cleanedMicrophoneReadiness.awaitCompletion(
-                timeoutSeconds: timeoutSeconds
-            ) else {
-                return .init(url: microphoneAudioURL, reason: .rawTimeout)
+            guard
+                let completion = try await cleanedMicrophoneReadiness.awaitCompletion(
+                    timeoutSeconds: timeoutSeconds
+                )
+            else {
+                decision = .init(url: microphoneAudioURL, reason: .rawTimeout)
+                renderSummary = nil
+                recordEchoSuppressionResolution(
+                    reason: decision.reason,
+                    renderSummary: renderSummary,
+                    fileManager: fileManager
+                )
+                return decision
             }
             switch completion {
-            case .rendered(let url):
+            case .rendered(let url, let summary):
+                renderSummary = summary
                 if Self.isViableCleanedMicrophoneFile(at: url, fileManager: fileManager) {
-                    return .init(url: url, reason: .cleanedUsed)
+                    decision = .init(url: url, reason: .cleanedUsed)
+                } else {
+                    decision = .init(url: microphoneAudioURL, reason: .rawInvalidArtifact)
                 }
-                return .init(url: microphoneAudioURL, reason: .rawInvalidArtifact)
-            case .fallback(let reason):
-                return .init(url: microphoneAudioURL, reason: reason)
+            case .fallback(let reason, let summary):
+                renderSummary = summary
+                decision = .init(url: microphoneAudioURL, reason: reason)
             }
-        }
-
-        if let cleanedMicrophoneAudioURL {
+        } else if let cleanedMicrophoneAudioURL {
+            renderSummary = nil
             if Self.isViableCleanedMicrophoneFile(
                 at: cleanedMicrophoneAudioURL,
                 fileManager: fileManager
             ) {
-                return .init(url: cleanedMicrophoneAudioURL, reason: .cleanedUsed)
+                decision = .init(url: cleanedMicrophoneAudioURL, reason: .cleanedUsed)
+            } else {
+                decision = .init(url: microphoneAudioURL, reason: .rawInvalidArtifact)
             }
-            return .init(url: microphoneAudioURL, reason: .rawInvalidArtifact)
+        } else {
+            renderSummary = nil
+            decision = .init(
+                url: microphoneAudioURL,
+                reason: sourceAlignment.system == nil ? .rawMissingSystemReference : .rawNoAECAssets
+            )
         }
 
-        return .init(
-            url: microphoneAudioURL,
-            reason: sourceAlignment.system == nil ? .rawMissingSystemReference : .rawNoAECAssets
+        recordEchoSuppressionResolution(
+            reason: decision.reason,
+            renderSummary: renderSummary,
+            fileManager: fileManager
         )
+        return decision
+    }
+
+    private func recordEchoSuppressionResolution(
+        reason: MeetingCleanedMicrophoneRoutingReason,
+        renderSummary: MeetingCleanedMicrophoneRenderSummary?,
+        fileManager: FileManager
+    ) {
+        let metadata = MeetingEchoSuppressionMetadata(
+            reasonCode: reason,
+            modelVersion: renderSummary?.modelVersion,
+            renderDurationMs: renderSummary?.renderDurationMs,
+            delayEstimateMs: renderSummary?.delayEstimateMs,
+            probeBestCorrelation: renderSummary?.probeBestCorrelation
+        )
+        do {
+            try MeetingRecordingMetadataStore.updateEchoSuppression(
+                metadata,
+                folderURL: folderURL,
+                fileManager: fileManager
+            )
+        } catch {
+            AudioCaptureDiagnostics.append(
+                "meeting_echo_suppression_metadata_update_failed session=\(sessionID.uuidString) error_type=\(AudioCaptureDiagnostics.errorType(error))"
+            )
+        }
+
+        AudioCaptureDiagnostics.append(
+            [
+                "meeting_echo_suppression_resolution",
+                "session=\(sessionID.uuidString)",
+                "reason_code=\(reason.rawValue)",
+                "model_version=\(renderSummary?.modelVersion ?? "none")",
+                "render_duration_ms=\(renderSummary?.renderDurationMs.map(String.init) ?? "none")",
+                "realtime_factor=\(formatOptional(renderSummary?.realtimeFactor))",
+                "delay_estimate_ms=\(renderSummary?.delayEstimateMs.map(String.init) ?? "none")",
+                "probe_windows=\(renderSummary?.probeWindowsEvaluated.map(String.init) ?? "none")",
+                "probe_best_correlation=\(formatOptional(renderSummary?.probeBestCorrelation))",
+            ].joined(separator: " "))
+    }
+
+    private func formatOptional(_ value: Double?) -> String {
+        guard let value else { return "none" }
+        return String(format: "%.2f", value)
+    }
+
+    private func formatOptional(_ value: Float?) -> String {
+        guard let value else { return "none" }
+        return String(format: "%.3f", value)
     }
 }

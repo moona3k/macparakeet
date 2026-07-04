@@ -115,6 +115,116 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: candidateURL.path))
     }
 
+    func testResolvedSourcePersistsEchoSuppressionMetadataForCleanedRender() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let systemURL = dir.appendingPathComponent("system.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data([0x00]).write(to: systemURL)
+        let renderSummary = MeetingCleanedMicrophoneRenderSummary(
+            modelVersion: "localvqe-v1.4-aec-200K-f32.gguf",
+            renderDurationMs: 123,
+            realtimeFactor: 8.5,
+            delayEstimateMs: 42,
+            probeWindowsEvaluated: 3,
+            probeBestCorrelation: 0.41
+        )
+        let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+            try? await MeetingCleanedMicRenderer.encodeMonoFloat(
+                [Float](repeating: 0.05, count: 1_600),
+                sampleRate: 16_000,
+                to: cleanedURL,
+                fileManager: .default
+            )
+            return .rendered(cleanedURL, summary: renderSummary)
+        }
+        let output = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Cleaned",
+            folderURL: dir,
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            microphoneAudioURL: rawURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophoneAudioURL: cleanedURL,
+            cleanedMicrophoneReadiness: .scheduled(outputURL: cleanedURL, task: renderTask),
+            durationSeconds: 1,
+            sourceAlignment: dualSourceAlignment()
+        )
+
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 1, durationMultiplier: 0, capSeconds: 1)
+        )
+
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        let echo = try XCTUnwrap(metadata.echoSuppression)
+        XCTAssertEqual(echo.reasonCode, .cleanedUsed)
+        XCTAssertEqual(echo.modelVersion, "localvqe-v1.4-aec-200K-f32.gguf")
+        XCTAssertEqual(echo.renderDurationMs, 123)
+        XCTAssertEqual(echo.delayEstimateMs, 42)
+        XCTAssertEqual(try XCTUnwrap(echo.probeBestCorrelation), 0.41, accuracy: 0.0001)
+    }
+
+    func testResolvedSourcePersistsEchoSuppressionMetadataForNoEchoSkip() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let systemURL = dir.appendingPathComponent("system.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try Data([0x00]).write(to: systemURL)
+        let renderSummary = MeetingCleanedMicrophoneRenderSummary(
+            modelVersion: nil,
+            renderDurationMs: nil,
+            realtimeFactor: nil,
+            delayEstimateMs: nil,
+            probeWindowsEvaluated: 5,
+            probeBestCorrelation: 0.03
+        )
+        let renderTask = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+            .fallback(.skippedNoEchoPath, summary: renderSummary)
+        }
+        let output = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "No Echo",
+            folderURL: dir,
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            microphoneAudioURL: rawURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophoneAudioURL: cleanedURL,
+            cleanedMicrophoneReadiness: .scheduled(outputURL: cleanedURL, task: renderTask),
+            durationSeconds: 1,
+            sourceAlignment: dualSourceAlignment()
+        )
+
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 1, durationMultiplier: 0, capSeconds: 1)
+        )
+
+        XCTAssertEqual(decision.reason, .skippedNoEchoPath)
+        XCTAssertEqual(decision.url, rawURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        let echo = try XCTUnwrap(metadata.echoSuppression)
+        XCTAssertEqual(echo.reasonCode, .skippedNoEchoPath)
+        XCTAssertNil(echo.modelVersion)
+        XCTAssertNil(echo.renderDurationMs)
+        XCTAssertNil(echo.delayEstimateMs)
+        XCTAssertEqual(try XCTUnwrap(echo.probeBestCorrelation), 0.03, accuracy: 0.0001)
+        let json =
+            try JSONSerialization.jsonObject(
+                with: Data(contentsOf: MeetingRecordingMetadataStore.metadataURL(for: dir))
+            ) as? [String: Any]
+        let echoJSON = try XCTUnwrap(json?["echoSuppression"] as? [String: Any])
+        XCTAssertFalse(echoJSON.keys.contains("modelVersion"))
+        XCTAssertFalse(echoJSON.keys.contains("renderDurationMs"))
+        XCTAssertFalse(echoJSON.keys.contains("delayEstimateMs"))
+    }
+
     func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsEmpty() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -224,6 +334,26 @@ final class MeetingRecordingOutputTests: XCTestCase {
                 speechEngine: SpeechEngineSelection(engine: .parakeet)
             ),
             folderURL: dir
+        )
+    }
+
+    private func dualSourceAlignment() -> MeetingSourceAlignment {
+        MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: .init(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 16_000,
+                sampleRate: 16_000
+            ),
+            system: .init(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 16_000,
+                sampleRate: 16_000
+            )
         )
     }
 

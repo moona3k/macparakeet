@@ -21,7 +21,8 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
                 microphoneStartOffsetMs: micOff, systemStartOffsetMs: sysOff,
                 sampleRate: 16_000,
                 conditioner: PassthroughMicConditioner())
-            XCTAssertEqual(result.output.count, mic.count,
+            XCTAssertEqual(
+                result.output.count, mic.count,
                 "cleaned output must align 1:1 with the raw mic (offsets \(micOff)/\(sysOff))")
         }
     }
@@ -45,7 +46,8 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         // The frame-carrying suppressor (unlike passthrough) can hold a partial
         // final frame; the renderer clamps the flushed tail so the cleaned output
         // still aligns 1:1 with the raw mic.
-        XCTAssertEqual(result.output.count, scenario.mic.count,
+        XCTAssertEqual(
+            result.output.count, scenario.mic.count,
             "cleaned output stays aligned 1:1 with the raw mic after flush")
     }
 
@@ -75,9 +77,10 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
 
         let aligned = try erle(systemOffsetMs: leadMs)
         let misaligned = try erle(systemOffsetMs: 0)
-        XCTAssertGreaterThan(aligned, misaligned + 6,
+        XCTAssertGreaterThan(
+            aligned, misaligned + 6,
             "the recorded start offset realigns the reference and restores cancellation "
-            + "(aligned \(aligned) dB vs ignoring-offset \(misaligned) dB)")
+                + "(aligned \(aligned) dB vs ignoring-offset \(misaligned) dB)")
     }
 
     // MARK: I/O round-trip
@@ -115,6 +118,155 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         let expected = Double(scenario.mic.count) / 16_000.0
         let actual = Double(decoded.count) / 16_000.0
         XCTAssertEqual(actual, expected, accuracy: 0.3, "cleaned duration ~ raw mic duration")
+    }
+
+    func testRenderSkipsNoEchoPathBeforeLoadingConditioner() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "headphones-no-echo",
+            nearEndActive: true,
+            farEndActive: true,
+            echoPath: MeetingAecEchoPath(taps: []),
+            noiseLevel: 0.0001
+        )
+        let (micURL, sysURL) = try await writeSourcePair(in: dir, scenario: scenario)
+        let factoryProbe = RendererConditionerFactoryProbe {
+            StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(),
+                referenceDelaySamples: 120
+            )
+        }
+        let outURL = dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+
+        let outcome = try await MeetingCleanedMicRenderer().render(
+            microphoneURL: micURL,
+            systemURL: sysURL,
+            sourceAlignment: equalAlignment(),
+            outputURL: outURL,
+            conditionerFactory: { factoryProbe.make() }
+        )
+
+        guard case .skipped(.noEchoPath(let probe)) = outcome else {
+            return XCTFail("expected no-echo skip, got \(outcome)")
+        }
+        XCTAssertEqual(factoryProbe.buildCount, 0, "no-echo meetings must not load the model")
+        XCTAssertGreaterThan(probe.windowsEvaluated, 0)
+        XCTAssertLessThan(
+            probe.bestCorrelation ?? 0,
+            MeetingCleanedMicRenderer.echoProbeCorrelationThreshold
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outURL.path))
+    }
+
+    func testRenderSkipsRemoteSilentReferenceBeforeLoadingConditioner() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "remote-silent",
+            nearEndActive: true,
+            farEndActive: false,
+            echoPath: echoPath
+        )
+        let (micURL, sysURL) = try await writeSourcePair(in: dir, scenario: scenario)
+        let factoryProbe = RendererConditionerFactoryProbe {
+            StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(),
+                referenceDelaySamples: 120
+            )
+        }
+
+        let outcome = try await MeetingCleanedMicRenderer().render(
+            microphoneURL: micURL,
+            systemURL: sysURL,
+            sourceAlignment: equalAlignment(),
+            outputURL: dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName),
+            conditionerFactory: { factoryProbe.make() }
+        )
+
+        guard case .skipped(.noEchoPath(let probe)) = outcome else {
+            return XCTFail("expected remote-silent skip, got \(outcome)")
+        }
+        XCTAssertEqual(factoryProbe.buildCount, 0)
+        XCTAssertEqual(probe.windowsEvaluated, 0)
+        XCTAssertEqual(probe.detail, "no_reference_energy")
+        XCTAssertNil(probe.bestCorrelation)
+    }
+
+    func testRenderProceedsForQuietBleed() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let quietEchoPath = MeetingAecEchoPath(taps: [(delay: 120, gain: 0.08)])
+        let scenario = MeetingAecScenarioFactory.make(
+            name: "quiet-bleed",
+            nearEndActive: false,
+            farEndActive: true,
+            echoPath: quietEchoPath,
+            noiseLevel: 0.0001,
+            farAmplitude: 0.12
+        )
+        let (micURL, sysURL) = try await writeSourcePair(in: dir, scenario: scenario)
+        let outURL = dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+
+        let outcome = try await MeetingCleanedMicRenderer().render(
+            microphoneURL: micURL,
+            systemURL: sysURL,
+            sourceAlignment: equalAlignment(),
+            outputURL: outURL,
+            conditionerFactory: {
+                StreamingMeetingEchoSuppressor(
+                    processor: MeetingAecNLMSProcessor(),
+                    referenceDelaySamples: 120
+                )
+            }
+        )
+
+        guard case .rendered(let result) = outcome else {
+            return XCTFail("expected quiet bleed to render, got \(outcome)")
+        }
+        XCTAssertGreaterThan(
+            result.echoProbe.bestCorrelation ?? 0,
+            MeetingCleanedMicRenderer.echoProbeCorrelationThreshold
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outURL.path))
+    }
+
+    func testEchoProbeCatchesLateEchoWindow() {
+        let sampleRate = 16_000
+        let sampleCount = sampleRate * 40
+        let tailStart = sampleRate * 30
+        let tailLength = sampleRate * 10
+        let farTail = MeetingAecSignal.voiceLike(
+            sampleCount: tailLength,
+            sampleRate: Float(sampleRate),
+            formants: MeetingAecScenarioFactory.farFormants,
+            seed: MeetingAecScenarioFactory.farSeed,
+            amplitude: 0.25
+        )
+        var system = [Float](repeating: 0, count: sampleCount)
+        for index in 0..<tailLength {
+            system[tailStart + index] = farTail[index]
+        }
+        let mic = echoPath.apply(to: system)
+
+        let probe = MeetingCleanedMicRenderer.probeEchoPath(
+            microphone: mic,
+            system: system,
+            microphoneStartOffsetMs: 0,
+            systemStartOffsetMs: 0,
+            sampleRate: sampleRate
+        )
+
+        XCTAssertTrue(probe.shouldRender)
+        XCTAssertEqual(probe.detail, "echo_detected")
+        XCTAssertGreaterThan(probe.windowsEvaluated, 0)
+        XCTAssertGreaterThan(
+            probe.bestCorrelation ?? 0,
+            MeetingCleanedMicRenderer.echoProbeCorrelationThreshold
+        )
     }
 
     func testRenderSkipsWhenConditionerIsPassthrough() async throws {
@@ -164,6 +316,15 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
     private func writeSourcePair(in dir: URL, includeSystem: Bool = true) async throws -> (URL, URL) {
         let scenario = MeetingAecScenarioFactory.make(
             name: "far-end-only", nearEndActive: true, farEndActive: true, echoPath: echoPath)
+        return try await writeSourcePair(in: dir, scenario: scenario, includeSystem: includeSystem)
+    }
+
+    @discardableResult
+    private func writeSourcePair(
+        in dir: URL,
+        scenario: MeetingAecScenario,
+        includeSystem: Bool = true
+    ) async throws -> (URL, URL) {
         let micURL = dir.appendingPathComponent("microphone.m4a")
         let sysURL = dir.appendingPathComponent("system.m4a")
         try await MeetingCleanedMicRenderer.encodeMonoFloat(
@@ -173,5 +334,26 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
                 scenario.farEnd, sampleRate: 16_000, to: sysURL, fileManager: .default)
         }
         return (micURL, sysURL)
+    }
+}
+
+private final class RendererConditionerFactoryProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private let factory: @Sendable () -> any MicConditioning
+    private var count = 0
+
+    var buildCount: Int {
+        lock.withLock { count }
+    }
+
+    init(factory: @escaping @Sendable () -> any MicConditioning) {
+        self.factory = factory
+    }
+
+    func make() -> any MicConditioning {
+        lock.withLock {
+            count += 1
+        }
+        return factory()
     }
 }

@@ -3,6 +3,7 @@ import OSLog
 
 struct MeetingEchoSuppressionDiagnostics: Sendable, Equatable {
     var processorName: String
+    var modelVersion: String? = nil
     var loaded: Bool
     var micFrames: Int
     var processedFrames: Int
@@ -49,6 +50,10 @@ protocol MeetingEchoSuppressing: AnyObject, Sendable {
     var frameSize: Int { get }
     func reset()
     func processFrame(microphone: [Float], reference: [Float], output: inout [Float]) throws
+}
+
+protocol MeetingEchoModelVersionProviding: AnyObject {
+    var modelVersion: String { get }
 }
 
 protocol MicConditioning: AnyObject, Sendable {
@@ -130,6 +135,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
     private static let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingEchoSuppressor")
 
     private let processor: any MeetingEchoSuppressing
+    private let modelVersion: String?
     private let seedDelaySamples: Int
     private let estimator: MeetingEchoDelayEstimator?
     private let reestimateIntervalSamples: Int
@@ -186,6 +192,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         reestimateIntervalSamples: Int = 8_000
     ) {
         self.processor = processor
+        self.modelVersion = (processor as? MeetingEchoModelVersionProviding)?.modelVersion
         self.seedDelaySamples = max(0, referenceDelaySamples)
         self.estimator = estimator
         self.reestimateIntervalSamples = max(1, reestimateIntervalSamples)
@@ -211,6 +218,7 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
 
         self.diagnosticsStorage = Self.freshDiagnostics(
             processorName: processor.name,
+            modelVersion: self.modelVersion,
             currentDelaySamples: self.currentDelaySamples
         )
     }
@@ -276,16 +284,19 @@ final class StreamingMeetingEchoSuppressor: MicConditioning, @unchecked Sendable
         latestEstimationAttemptID += 1
         diagnosticsStorage = Self.freshDiagnostics(
             processorName: processor.name,
+            modelVersion: modelVersion,
             currentDelaySamples: currentDelaySamples
         )
     }
 
     private static func freshDiagnostics(
         processorName: String,
+        modelVersion: String?,
         currentDelaySamples: Int
     ) -> MeetingEchoSuppressionDiagnostics {
         MeetingEchoSuppressionDiagnostics(
             processorName: processorName,
+            modelVersion: modelVersion,
             loaded: true,
             micFrames: 0,
             processedFrames: 0,

@@ -244,15 +244,45 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertTrue(rows.first?.recoveredFromCrash == true)
     }
 
-    func testRecoverSkipsCleanedMicWhenRecoveredAlignmentIsSynthetic() async throws {
+    func testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic() async throws {
         let fixture = try makeRecoverableSession()
+        let cleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        try writeM4A(to: cleanedURL)
+        let conditionerProbe = RecoveryMicConditionerFactoryProbe()
+        transcriptionService.sourceResolutionPolicy = .init(
+            floorSeconds: 10,
+            durationMultiplier: 0,
+            capSeconds: 10
+        )
+        recoveryService = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            micConditionerFactory: { @Sendable in conditionerProbe.make() }
+        )
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
+        XCTAssertEqual(conditionerProbe.buildCount, 1)
+        XCTAssertEqual(recording.cleanedMicrophoneAudioURL, cleanedURL)
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        XCTAssertEqual(decision.url, cleanedURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
+    }
+
+    func testRecoverSkipsCleanedMicWhenRecoveredSystemReferenceIsSilent() async throws {
+        let fixture = try makeRecoverableSession(systemAudio: .silent)
         let staleCleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
         try writeM4A(to: staleCleanedURL)
         let conditionerProbe = RecoveryMicConditionerFactoryProbe()
         transcriptionService.sourceResolutionPolicy = .init(
-            floorSeconds: 0.05,
+            floorSeconds: 2,
             durationMultiplier: 0,
-            capSeconds: 0.05
+            capSeconds: 2
         )
         recoveryService = MeetingRecordingRecoveryService(
             meetingsRoot: tempRoot,
@@ -268,12 +298,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let recording = try XCTUnwrap(transcriptionService.recordings.first)
         let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
         XCTAssertEqual(conditionerProbe.buildCount, 0)
-        XCTAssertNil(recording.cleanedMicrophoneAudioURL)
+        XCTAssertEqual(recording.cleanedMicrophoneAudioURL, staleCleanedURL)
         XCTAssertEqual(decision.reason, .skippedNoEchoPath)
         XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: staleCleanedURL.path),
-            "synthetic recovered alignment must remove stale cleaned artifacts")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleCleanedURL.path))
+        let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
     }
 
     func testRecoverDeletesStaleCleanedMicWhenSourceMissing() async throws {
@@ -298,6 +328,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     private enum SourceFixture {
         case valid
+        case silent
         case corrupt
     }
 
@@ -502,6 +533,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
                 to: folderURL.appendingPathComponent("system.m4a"),
                 sampleRate: systemSampleRate
             )
+        case .silent:
+            try writeM4A(
+                to: folderURL.appendingPathComponent("system.m4a"),
+                sampleRate: systemSampleRate,
+                sampleValue: 0
+            )
         case .corrupt:
             try Data("not audio".utf8).write(to: folderURL.appendingPathComponent("system.m4a"))
         }
@@ -519,7 +556,11 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         return (folderURL, lock)
     }
 
-    private func writeM4A(to url: URL, sampleRate: Double = 48_000) throws {
+    private func writeM4A(
+        to url: URL,
+        sampleRate: Double = 48_000,
+        sampleValue: Float = 0.1
+    ) throws {
         let frameCount = Int(sampleRate.rounded())
         let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -531,7 +572,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         buffer.frameLength = AVAudioFrameCount(frameCount)
         let samples = buffer.floatChannelData![0]
         for index in 0..<frameCount {
-            samples[index] = 0.1
+            samples[index] = sampleValue
         }
 
         do {

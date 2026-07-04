@@ -412,7 +412,7 @@ private enum DynamicLibraryMeetingEchoProcessorError: Error, CustomStringConvert
     }
 }
 
-final class DynamicLibraryMeetingEchoProcessor: MeetingEchoSuppressing, @unchecked Sendable {
+final class DynamicLibraryMeetingEchoProcessor: MeetingEchoSuppressing, MeetingEchoModelVersionProviding, @unchecked Sendable {
     private typealias ContextHandle = UInt
     private typealias NewFunction = @convention(c) (UnsafePointer<CChar>) -> ContextHandle
     private typealias ProcessFunction = @convention(c) (
@@ -428,6 +428,7 @@ final class DynamicLibraryMeetingEchoProcessor: MeetingEchoSuppressing, @uncheck
     private typealias LastErrorFunction = @convention(c) (ContextHandle) -> UnsafePointer<CChar>?
 
     let name = MeetingEchoSuppressionFactory.processorName
+    let modelVersion: String
     let sampleRate: Int
     let frameSize: Int
 
@@ -481,6 +482,7 @@ final class DynamicLibraryMeetingEchoProcessor: MeetingEchoSuppressing, @uncheck
             self.resetFunction = reset
             self.freeFunction = free
             self.lastErrorFunction = lastError
+            self.modelVersion = modelURL.lastPathComponent
             self.sampleRate = Self.validPositiveInt(sampleRateGetter?(context)) ?? sampleRate
             self.frameSize = Self.validPositiveInt(hopLengthGetter?(context)) ?? frameSize
         } catch {
