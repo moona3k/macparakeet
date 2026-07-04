@@ -388,9 +388,19 @@ final class SpecCommandTests: XCTestCase {
         let export = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "export"] })
         XCTAssertEqual(export["readOnly"] as? Bool, false)
         XCTAssertEqual(export["jsonMode"] as? String, "--stdout --format json")
+        XCTAssertTrue((export["output"] as? String)?.contains("meeting.md") == true)
+        XCTAssertTrue((export["output"] as? String)?.contains("artifact paths") == true)
         let exportOptions = try XCTUnwrap(export["options"] as? [[String: Any]])
         XCTAssertTrue(exportOptions.contains { ($0["name"] as? String) == "--output" })
         XCTAssertTrue(exportOptions.contains { ($0["name"] as? String) == "--stdout" })
+
+        let show = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "show"] })
+        XCTAssertTrue((show["output"] as? String)?.contains("artifactMarkdownPath") == true)
+        XCTAssertTrue((show["output"] as? String)?.contains("cleanedMicrophoneAudioPath") == true)
+
+        let artifact = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "artifact"] })
+        XCTAssertTrue((artifact["output"] as? String)?.contains("markdownPath") == true)
+        XCTAssertTrue((artifact["output"] as? String)?.contains("cleanedMicrophoneAudioPath") == true)
     }
 
     private func specPayload() throws -> [String: Any] {

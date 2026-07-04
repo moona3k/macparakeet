@@ -30,6 +30,8 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let title: String
     public let folderPath: String
     public let manifestPath: String
+    public let markdownPath: String?
+    public let cleanedMicrophoneAudioPath: String?
     public let transcriptPath: String
     public let notesPath: String?
     public let promptResultsPath: String
@@ -45,6 +47,8 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         title: String,
         folderPath: String,
         manifestPath: String,
+        markdownPath: String?,
+        cleanedMicrophoneAudioPath: String? = nil,
         transcriptPath: String,
         notesPath: String?,
         promptResultsPath: String,
@@ -59,6 +63,8 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.title = title
         self.folderPath = folderPath
         self.manifestPath = manifestPath
+        self.markdownPath = markdownPath
+        self.cleanedMicrophoneAudioPath = cleanedMicrophoneAudioPath
         self.transcriptPath = transcriptPath
         self.notesPath = notesPath
         self.promptResultsPath = promptResultsPath
@@ -72,14 +78,31 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
     public static let schema = "com.macparakeet.meeting-session"
     public static let schemaVersion = 1
     public static let manifestFileName = "manifest.json"
+    public static let markdownFileName = "meeting.md"
     public static let transcriptFileName = "transcript.json"
     public static let promptResultsFileName = "prompt-results.json"
     public static let promptResultsDirectoryName = "prompt-results"
 
     private let fileManager: FileManager
+    private let markdownWriter: @Sendable (String, String) throws -> Void
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
+        markdownWriter = { content, path in
+            try content.write(
+                toFile: path,
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        markdownWriter: @escaping @Sendable (String, String) throws -> Void
+    ) {
+        self.fileManager = fileManager
+        self.markdownWriter = markdownWriter
     }
 
     @discardableResult
@@ -124,12 +147,19 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         )
 
         let manifestURL = folderURL.appendingPathComponent(Self.manifestFileName)
+        let artifactPaths = MeetingMarkdownArtifactPaths.resolve(
+            transcription: transcription,
+            promptResults: promptResults,
+            fileManager: fileManager
+        )
         let snapshot = MeetingArtifactSnapshot(
             generatedAt: generatedAt,
             meetingID: transcription.id,
             title: transcription.fileName,
             folderPath: folderURL.path,
             manifestPath: manifestURL.path,
+            markdownPath: artifactPaths.markdownPath,
+            cleanedMicrophoneAudioPath: artifactPaths.cleanedMicrophoneAudioPath,
             transcriptPath: transcriptURL.path,
             notesPath: notesPath,
             promptResultsPath: promptResultsURL.path,
@@ -137,10 +167,19 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             promptResultCount: promptResults.count,
             calendarEventSnapshot: transcription.calendarEventSnapshot
         )
+        if let markdownPath = artifactPaths.markdownPath {
+            let markdown = MeetingMarkdownRenderer().render(
+                transcription: transcription,
+                promptResults: promptResults,
+                artifactPaths: artifactPaths
+            )
+            try markdownWriter(markdown, markdownPath)
+        }
         try writeJSON(
             MeetingArtifactManifest(
                 snapshot: snapshot,
                 transcription: transcription,
+                artifactPaths: artifactPaths,
                 promptResultFiles: resultFiles
             ),
             to: manifestURL
@@ -191,7 +230,7 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         var files: [MeetingArtifactPromptResultFile] = []
         for record in records {
             let fileURL = directoryURL.appendingPathComponent(
-                "\(String(format: "%02d", record.index))-\(Self.sanitizedFileName(record.name)).md"
+                Self.promptResultMarkdownFileName(index: record.index, name: record.name)
             )
             try record.markdown(meetingTitle: meeting.fileName).write(
                 to: fileURL,
@@ -223,6 +262,10 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         return cleaned.isEmpty ? "result" : String(cleaned.prefix(80))
     }
 
+    public static func promptResultMarkdownFileName(index: Int, name: String) -> String {
+        "\(String(format: "%02d", index))-\(sanitizedFileName(name)).md"
+    }
+
     private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -242,13 +285,14 @@ private struct MeetingArtifactManifest: Codable {
     init(
         snapshot: MeetingArtifactSnapshot,
         transcription: Transcription,
+        artifactPaths: MeetingMarkdownArtifactPaths,
         promptResultFiles: [MeetingArtifactPromptResultFile]
     ) {
         schema = snapshot.schema
         schemaVersion = snapshot.schemaVersion
         generatedAt = snapshot.generatedAt
         meeting = MeetingArtifactMeetingSummary(transcription)
-        files = MeetingArtifactFiles(snapshot: snapshot, transcription: transcription)
+        files = MeetingArtifactFiles(paths: artifactPaths)
         promptResults = promptResultFiles
     }
 }
@@ -293,35 +337,25 @@ private struct MeetingArtifactFiles: Codable {
     let systemAudioPath: String?
     let metadataPath: String?
     let manifestPath: String
+    let markdownPath: String?
     let transcriptPath: String
     let notesPath: String?
     let promptResultsPath: String
     let promptResultsDirectoryPath: String
 
-    init(snapshot: MeetingArtifactSnapshot, transcription: Transcription) {
-        folderPath = snapshot.folderPath
-        mixedAudioPath = transcription.filePath
-        let folderURL = URL(fileURLWithPath: snapshot.folderPath, isDirectory: true)
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let cleanedMicrophoneURL = folderURL.appendingPathComponent(
-            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
-        let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: folderURL)
-        let fileManager = FileManager.default
-        microphoneAudioPath = fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil
-        cleanedMicrophoneAudioPath = MeetingRecordingOutput.isViableCleanedMicrophoneFile(
-            at: cleanedMicrophoneURL,
-            fileManager: fileManager
-        )
-            ? cleanedMicrophoneURL.path
-            : nil
-        systemAudioPath = fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil
-        metadataPath = fileManager.fileExists(atPath: metadataURL.path) ? metadataURL.path : nil
-        manifestPath = snapshot.manifestPath
-        transcriptPath = snapshot.transcriptPath
-        notesPath = snapshot.notesPath
-        promptResultsPath = snapshot.promptResultsPath
-        promptResultsDirectoryPath = snapshot.promptResultsDirectoryPath
+    init(paths: MeetingMarkdownArtifactPaths) {
+        folderPath = paths.artifactFolderPath ?? ""
+        mixedAudioPath = paths.mixedAudioPath
+        microphoneAudioPath = paths.microphoneAudioPath
+        cleanedMicrophoneAudioPath = paths.cleanedMicrophoneAudioPath
+        systemAudioPath = paths.systemAudioPath
+        metadataPath = paths.metadataPath
+        manifestPath = paths.manifestPath ?? ""
+        markdownPath = paths.markdownPath
+        transcriptPath = paths.transcriptPath ?? ""
+        notesPath = paths.notesPath
+        promptResultsPath = paths.promptResultsPath ?? ""
+        promptResultsDirectoryPath = paths.promptResultsDirectoryPath ?? ""
     }
 }
 

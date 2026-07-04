@@ -213,6 +213,7 @@ private actor CapturingMeetingArtifactStore: MeetingArtifactStoring {
             title: transcription.fileName,
             folderPath: folderURL.path,
             manifestPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path,
+            markdownPath: folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path,
             transcriptPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path,
             notesPath: nil,
             promptResultsPath: folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path,

@@ -59,6 +59,16 @@ with human progress/status kept off stdout.
   probably overlapping, a calendar event. The field is additive and local-only;
   attendee and organizer names/emails are user data and must not be mirrored
   into telemetry.
+- `meetings show --json` and `meetings export --stdout --format json` include
+  additive artifact path fields for meeting rows when the session folder can be
+  resolved: `artifactMarkdownPath` points to `meeting.md`, and optional
+  `cleanedMicrophoneAudioPath` points to a viable `microphone-cleaned.m4a`.
+- `meetings artifact --json` and `--envelope` return additive
+  `MeetingArtifactSnapshot` fields `markdownPath` and optional
+  `cleanedMicrophoneAudioPath`. The same refresh also writes `meeting.md`.
+- `meetings export --format md --stdout` emits the same Markdown shape as the
+  materialized `meeting.md`; use `--stdout --format json` when the caller needs
+  parseable JSON on stdout.
 
 ## Failure Envelope
 
@@ -116,8 +126,8 @@ breaking contract change and requires explicit version/changelog treatment.
 Focused coverage pins spec conventions, failure-envelope fields, exit code
 entries, JSON wrapper failure envelopes, JSON validation exit-code
 normalization, agent-facing meeting commands including durable transcript
-segments, command-level JSON failure envelopes, and `--json`/`--envelope`
-mutual exclusion.
+segments and additive artifact paths, command-level JSON failure envelopes, and
+`--json`/`--envelope` mutual exclusion.
 
 ## When this changes
 

@@ -132,4 +132,90 @@ final class TranscriptExportOptionsTests: XCTestCase {
         )
         XCTAssertFalse(withoutTimestamps.contains("**["), "Expected no timestamp markers once resolved off")
     }
+
+    // MARK: - Meeting Markdown speaker labels
+
+    func testMeetingMarkdownIncludesSpeakerLabelsWhenAlignmentIsValid() {
+        let t = Transcription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Design Review",
+            durationMs: 1_000,
+            rawTranscript: "Hello world.",
+            cleanTranscript: "Hello world.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "world.", startMs: 450, endMs: 800, confidence: 0.9, speakerId: "S1"),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+
+        let markdown = MeetingMarkdownRenderer().render(
+            transcription: t,
+            promptResults: [],
+            artifactPaths: .init()
+        )
+
+        XCTAssertTrue(markdown.contains("speakerLabelsIncluded: true"))
+        XCTAssertTrue(markdown.contains("## Transcript\n\n**Speaker 1**\n\nHello world."))
+    }
+
+    func testMeetingMarkdownUsesRenamedSpeakerLabels() {
+        let t = Transcription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Design Review",
+            rawTranscript: "Ship it.",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "it.", startMs: 450, endMs: 800, confidence: 0.9, speakerId: "S1"),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Dana")],
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+
+        let markdown = MeetingMarkdownRenderer().render(
+            transcription: t,
+            promptResults: [],
+            artifactPaths: .init()
+        )
+
+        XCTAssertTrue(markdown.contains("**Dana**"))
+        XCTAssertFalse(markdown.contains("**Speaker 1**"))
+    }
+
+    func testMeetingMarkdownFallsBackToPlainEditedTranscript() {
+        let t = Transcription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Design Review",
+            rawTranscript: "Old words.",
+            cleanTranscript: "Edited transcript.",
+            wordTimestamps: [
+                WordTimestamp(word: "Old", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "words.", startMs: 450, endMs: 800, confidence: 0.9, speakerId: "S1"),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed,
+            sourceType: .meeting,
+            isTranscriptEdited: true,
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+
+        let markdown = MeetingMarkdownRenderer().render(
+            transcription: t,
+            promptResults: [],
+            artifactPaths: .init()
+        )
+
+        XCTAssertTrue(markdown.contains("speakerLabelsIncluded: false"))
+        XCTAssertTrue(markdown.contains("## Transcript\n\nEdited transcript."))
+        XCTAssertFalse(markdown.contains("**Speaker 1**"))
+        XCTAssertFalse(markdown.contains("Old words."))
+    }
 }

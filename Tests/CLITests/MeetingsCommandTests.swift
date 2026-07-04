@@ -1,4 +1,5 @@
 import ArgumentParser
+import AVFoundation
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -232,7 +233,7 @@ final class MeetingsCommandTests: XCTestCase {
         let markdownExportOutput = try await captureStandardOutput {
             try await markdownExportCommand.run()
         }
-        XCTAssertTrue(markdownExportOutput.contains("- Prompt results: 1"))
+        XCTAssertTrue(markdownExportOutput.contains("promptResultCount: 1"))
     }
 
     func testMeetingJSONSurfacesExposeTranscriptSegments() async throws {
@@ -340,10 +341,11 @@ final class MeetingsCommandTests: XCTestCase {
             .appendingPathComponent("macparakeet-cli-meeting-artifact-\(UUID().uuidString)")
         defer {
             try? FileManager.default.removeItem(at: dbURL)
-            try? FileManager.default.removeItem(at: folderURL)
+        try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try writeM4A(to: folderURL.appendingPathComponent("microphone-cleaned.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
@@ -382,6 +384,8 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(snapshot["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
         XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(snapshot["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(snapshot["markdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(snapshot["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
         XCTAssertEqual(snapshot["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
         XCTAssertEqual(snapshot["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
         XCTAssertEqual(snapshot["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
@@ -394,8 +398,148 @@ final class MeetingsCommandTests: XCTestCase {
             atPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path
         ))
         XCTAssertTrue(FileManager.default.fileExists(
+            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(
             atPath: MeetingNotesFile.fileURL(for: folderURL).path
         ))
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "json",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        let exportOutput = try await captureStandardOutput {
+            try await exportCommand.run()
+        }
+        let exportPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(exportPayload["artifactMarkdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(exportPayload["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
+    }
+
+    func testMarkdownExportMatchesMaterializedMeetingMarkdown() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-markdown-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone.m4a"))
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Design Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            durationMs: 2_000,
+            rawTranscript: "Ship it.",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 400, confidence: 0.98, speakerId: "S1"),
+                WordTimestamp(word: "it.", startMs: 450, endMs: 800, confidence: 0.98, speakerId: "S1"),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Decision: ship",
+            engine: "parakeet",
+            engineVariant: "v3",
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+        try transcriptionRepo.save(meeting)
+        try resultRepo.save(PromptResult(
+            transcriptionId: meeting.id,
+            promptName: "Agent Summary",
+            promptContent: "Summarize.",
+            content: "Ship the Markdown artifact."
+        ))
+
+        let artifactCommand = try MeetingsCommand.ArtifactSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let artifactOutput = try await captureStandardOutput {
+            try await artifactCommand.run()
+        }
+        let artifact = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any]
+        )
+        let markdownPath = try XCTUnwrap(artifact["markdownPath"] as? String)
+        let materializedMarkdown = try String(contentsOfFile: markdownPath, encoding: .utf8)
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "md",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        let exportedMarkdown = try await captureStandardOutput {
+            try await exportCommand.run()
+        }
+
+        XCTAssertEqual(exportedMarkdown, materializedMarkdown)
+        XCTAssertTrue(exportedMarkdown.contains("speakerLabelsIncluded: true"))
+        XCTAssertTrue(exportedMarkdown.contains("**Speaker 1**"))
+    }
+
+    func testMarkdownExportReflectsSpeakerRenameAndEditedTranscriptFallback() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-speakers-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Speaker Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            rawTranscript: "Ship it.",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 400, confidence: 0.98, speakerId: "S1"),
+                WordTimestamp(word: "it.", startMs: 450, endMs: 800, confidence: 0.98, speakerId: "S1"),
+            ],
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+        try transcriptionRepo.save(meeting)
+
+        let initialMarkdown = try await markdownExport(for: meeting.id, database: dbURL)
+        XCTAssertTrue(initialMarkdown.contains("speakerLabelsIncluded: true"))
+        XCTAssertTrue(initialMarkdown.contains("**Speaker 1**"))
+
+        try transcriptionRepo.updateSpeakers(id: meeting.id, speakers: [SpeakerInfo(id: "S1", label: "Dana")])
+        let renamedMarkdown = try await markdownExport(for: meeting.id, database: dbURL)
+        XCTAssertTrue(renamedMarkdown.contains("**Dana**"))
+        XCTAssertFalse(renamedMarkdown.contains("**Speaker 1**"))
+
+        var edited = try XCTUnwrap(try transcriptionRepo.fetch(id: meeting.id))
+        edited.cleanTranscript = "Edited transcript."
+        edited.isTranscriptEdited = true
+        try transcriptionRepo.save(edited)
+
+        let editedMarkdown = try await markdownExport(for: meeting.id, database: dbURL)
+        XCTAssertTrue(editedMarkdown.contains("speakerLabelsIncluded: false"))
+        XCTAssertTrue(editedMarkdown.contains("## Transcript\n\nEdited transcript."))
+        XCTAssertFalse(editedMarkdown.contains("**Dana**"))
+        XCTAssertFalse(editedMarkdown.contains("Ship it."))
     }
 
     func testArtifactSubcommandSupportsSuccessEnvelope() async throws {
@@ -594,6 +738,60 @@ final class MeetingsCommandTests: XCTestCase {
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString).db")
+    }
+
+    private func markdownExport(for meetingID: UUID, database dbURL: URL) async throws -> String {
+        let command = try MeetingsCommand.ExportSubcommand.parse([
+            meetingID.uuidString,
+            "--format", "md",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        return try await captureStandardOutput {
+            try await command.run()
+        }
+    }
+
+    private func writeM4A(to url: URL, sampleRate: Double = 16_000) throws {
+        let frameCount = Int(sampleRate / 10)
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false
+        )!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let samples = buffer.floatChannelData![0]
+        for index in 0..<frameCount {
+            samples[index] = 0.1
+        }
+
+        do {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        } catch {
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: [
+                    AVFormatIDKey: kAudioFormatAppleLossless,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            try file.write(from: buffer)
+        }
     }
 
     private func assertRejectsJSONEnvelope(

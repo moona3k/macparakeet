@@ -19,8 +19,9 @@ playback/export path and may be cleared by user deletion or retention.
 - `MeetingRecordingService`: creates session folders and source audio.
 - `MeetingTranscriptFinalizer` / meeting finalization: completes the DB row and
   final transcript.
-- `MeetingArtifactStore`: materializes `manifest.json`, `transcript.json`,
-  `notes.md`, `prompt-results.json`, and `prompt-results/*.md`.
+- `MeetingArtifactStore`: materializes `manifest.json`, `meeting.md`,
+  `transcript.json`, `notes.md`, `prompt-results.json`, and
+  `prompt-results/*.md`.
 - `macparakeet-cli meetings artifact`: refreshes and returns the artifact
   snapshot.
 - Meeting notes and prompt-result write paths: refresh artifact views after
@@ -62,6 +63,12 @@ The v1 folder can contain these stable filenames:
   snapshot. `calendarEventSnapshot`, when present, is local EventKit context
   and can include attendee/organizer names and emails.
 - `manifest.json`: folder manifest.
+- `meeting.md`: deterministic Markdown view for users and local agents. It
+  keeps YAML frontmatter with local metadata and stable sections for title,
+  notes when present, transcript, prompt results when present, and artifact
+  paths. Speaker labels are included only when word-level speaker alignment is
+  still valid; otherwise `speakerLabelsIncluded` is `false` and the transcript
+  section uses plain transcript text.
 - `transcript.json`: transcript view.
 - `notes.md`: optional user notes view. Removed when notes are empty or nil.
 - `prompt-results.json`: JSON array of prompt-result records.
@@ -80,6 +87,8 @@ The v1 folder can contain these stable filenames:
 - `title`
 - `folderPath`
 - `manifestPath`
+- `markdownPath`
+- `cleanedMicrophoneAudioPath`
 - `transcriptPath`
 - `notesPath`
 - `promptResultsPath`
@@ -103,8 +112,15 @@ emails, meeting URL/service, and capture timestamp.
 
 `manifest.files` keeps path fields for `folderPath`, `mixedAudioPath`,
 `microphoneAudioPath`, `cleanedMicrophoneAudioPath`, `systemAudioPath`,
-`metadataPath`, `manifestPath`, `transcriptPath`, `notesPath`,
+`metadataPath`, `manifestPath`, `markdownPath`, `transcriptPath`, `notesPath`,
 `promptResultsPath`, and `promptResultsDirectoryPath`.
+
+`meeting.md` frontmatter keeps the local Markdown schema
+`com.macparakeet.meeting-markdown` with `schemaVersion: 1`, meeting identity,
+timestamps, duration/status/source/engine metadata, artifact/audio paths when
+available, `speakerLabelsIncluded`, and `promptResultCount`. The body section
+order is: title, optional notes, transcript, optional prompt results, and
+artifact paths.
 
 `transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
@@ -169,10 +185,11 @@ already deleted.
 - `TranscriptionRepositoryTests`
 
 Focused coverage pins stable filenames, schema/schemaVersion, manifest path
-references, transcript essentials, `notes.md` deletion, refreshed
-`prompt-results/` contents, durable transcript segments in `transcript.json`,
-non-meeting rejection, CLI artifact envelope fields, retained-out audio, full
-deletion after audio detach, and artifact-folder path preservation.
+references, `meeting.md` frontmatter/sections, transcript essentials,
+`notes.md` deletion, refreshed `prompt-results/` contents, durable transcript
+segments in `transcript.json`, speaker-label Markdown fallback, non-meeting
+rejection, CLI artifact envelope fields, retained-out audio, full deletion
+after audio detach, and artifact-folder path preservation.
 
 ## When this changes
 
