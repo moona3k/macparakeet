@@ -88,6 +88,10 @@ When editing a load-bearing Core subsystem, read its local README before code:
   outside explicit product recovery/discard flows.
 - Keep the product focused. Prefer reliable capture, recovery, durable local
   artifacts, polished daily workflows, and simple UX over feature sprawl.
+- North star ([ADR-027](./spec/adr/027-product-north-star.md)): MacParakeet is
+  the private speech memory of your Mac. Features must capture speech better,
+  make the local library more useful, or expose it safely to the user and
+  their agents.
 - ADRs in `spec/adr/` record accepted decisions. If reality has changed, update
   the relevant ADR/spec deliberately instead of silently coding around it.
 
