@@ -4,6 +4,10 @@ import os
 
 public enum AudioCaptureDiagnostics {
     private static let lock = OSAllocatedUnfairLock(initialState: ())
+    private static let appendQueue = DispatchQueue(
+        label: "com.macparakeet.audio-capture-diagnostics.append",
+        qos: .utility
+    )
     private static let logPathOverrideEnvironmentKey = "MACPARAKEET_AUDIO_DIAGNOSTICS_LOG_PATH"
     /// On-disk cap for `dictation-audio.log`. Crossing it deletes the file
     /// (not append-rotate). Sized so a heavy user dictating 30–60 min/day
@@ -111,6 +115,12 @@ public enum AudioCaptureDiagnostics {
             } catch {
                 // Diagnostics must never affect audio capture.
             }
+        }
+    }
+
+    static func appendAsync(_ message: String) {
+        appendQueue.async {
+            append(message)
         }
     }
 
