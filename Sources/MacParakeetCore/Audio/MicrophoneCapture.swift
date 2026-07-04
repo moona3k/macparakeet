@@ -140,11 +140,11 @@ public func meetingInputDeviceAttempts(
 
     func outputTransportLabel(_ outputIsBluetooth: Bool?) -> String {
         switch outputIsBluetooth {
-        case true:
+        case .some(true):
             return "bluetooth"
-        case false:
+        case .some(false):
             return "other"
-        case nil:
+        case .none:
             return "unresolved-nil"
         }
     }
