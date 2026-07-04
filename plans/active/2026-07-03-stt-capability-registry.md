@@ -53,13 +53,27 @@ wave is the cheap ordering.
 
 ### Phase A — capability registry, read-only adoption (the bulk of the win)
 
-1. Define `EngineCapabilities` (small, deliberate field set — start from:
-   `supportsNativeLiveDictation`, `supportsTailPreview`,
-   `providesWordTimestamps`, `supportedLanguages`/language policy,
-   `schedulingClass` (concurrent / cohereSingleFlight),
-   `minimumMemoryBytes: UInt64?`,
-   `modelLifecycle` (download size, deletable, variants), telemetry
-   identity (`telemetryModelKind`, `telemetryEngineVariant`)).
+1. Define `EngineCapabilities` — field set DECIDED 2026-07-04 (design
+   grilling). Admission test: a field earns a row only if it is a stable
+   fact about the engine/variant consulted by existing call sites — not a
+   policy, not a mechanism, not speculation. Two-part structure:
+   - **Behavioral capabilities** (each kills existing switch sites):
+     `supportsNativeLiveDictation` (backed by the NativeLiveDictating
+     conformance invariant), `supportsTailPreview`,
+     `providesWordTimestamps`, `supportedLanguages`/language policy,
+     `supportsCustomVocabulary` (consumed by the custom-vocabulary plan
+     for honest UI gating).
+   - **Declarative metadata**: `modelLifecycle` (download size, deletable,
+     variants, `minimumMemoryBytes: UInt64?` — the Cohere 16 GB gate reads
+     this; it is asset metadata, not a behavioral capability) and telemetry
+     identity (`telemetryModelKind`, `telemetryEngineVariant` — makes
+     wrong-label emission for a new variant structurally impossible).
+   - **Cut: `schedulingClass`.** Exactly one engine is exclusive-admission
+     (Cohere) and a "generic" class named after it is a costume, not an
+     abstraction. `STTScheduler` keeps its explicit Cohere single-flight
+     special case. Reintroduce only when a second exclusive-admission
+     engine actually lands — registry rows are cheap to add later;
+     speculative fields widen what every variant must declare, forever.
 2. Build the exhaustively-keyed registry over `(SpeechEnginePreference,
    variant)`; totality + invariant tests (e.g. "an engine claiming native
    live must conform to `NativeLiveDictating`" — compile-time where
