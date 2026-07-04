@@ -40,7 +40,7 @@ struct ConfigCommand: ParsableCommand {
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
           cohere-language           <Cohere language code>          default: en (no auto)
-          speaker-detection         on|off                          default: off
+          speaker-detection         on|off                          default: on
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
@@ -326,7 +326,7 @@ struct ConfigCommand: ParsableCommand {
         case "cohere-language":
             return SpeechEnginePreference.cohereDefaultLanguage(defaults: store) ?? "en"
         case "speaker-detection":
-            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
+            let on = UserDefaultsAppRuntimePreferences.speakerDiarizationEnabled(defaults: store)
             return on ? "on" : "off"
         case "auto-meeting-titles":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true

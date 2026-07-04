@@ -281,7 +281,8 @@ final class TranscribeCommandTests: XCTestCase {
 
     func testResolveSpeakerDetectionUsesStoredDefaultWhenRequested() {
         XCTAssertTrue(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: true, noDiarize: false))
-        XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: nil, noDiarize: false))
+        XCTAssertTrue(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: nil, noDiarize: false))
+        XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: false, noDiarize: false))
     }
 
     func testResolveSpeakerDetectionRespectsExplicitAndLegacyDisableFlag() {

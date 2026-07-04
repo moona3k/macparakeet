@@ -39,7 +39,7 @@ While onboarding is visible, permission state is polled so changes made in Syste
 - Users get a guided, premium setup that reduces first-run friction.
 - Hotkey manager is restarted after onboarding to reliably start listening once Accessibility is granted.
 - The Parakeet STT model is downloaded/warmed during onboarding to reduce first-use latency for dictation.
-- If the user has enabled speaker detection (the toggle defaults off — ADR-010 amendment 2026-06-14), its diarization assets are also prepared before onboarding reports file transcription ready.
+- Speaker detection defaults on where supported (ADR-010 amendment 2026-07-03), so its diarization assets are prepared before onboarding reports file transcription ready when a diarization service is available.
 - Meeting Recording and Calendar steps are explicitly skippable. If skipped, the feature surfaces can still request the relevant permission later from first use or Settings.
 - Preflight checks fail fast with actionable guidance, reducing avoidable warm-up failures.
 - Onboarding completion is stored in `UserDefaults` as an ISO8601 timestamp.

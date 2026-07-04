@@ -68,6 +68,11 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "telemetry", defaults: defaults), "on")
     }
 
+    func testReadSpeakerDetectionReflectsExplicitFalse() throws {
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+        XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
+    }
+
     func testReadAgentDefaultsReflectGUIFallbacks() throws {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
@@ -76,7 +81,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "nemotron-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "cohere-language", defaults: defaults), "en")
-        XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
+        XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-enabled", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-triggers", defaults: defaults), "press return")

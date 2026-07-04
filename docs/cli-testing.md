@@ -275,8 +275,8 @@ transcriptions and meetings; dictations reject those flags.
 ### Speaker Diarization
 
 Speaker detection follows the saved app/CLI preference by default. A fresh
-preference store resolves to `off`, matching the GUI default. Pin a run with
-the explicit option, or use the legacy alias to force it off:
+preference store resolves to `on`, matching the GUI default where supported.
+Pin a run with the explicit option, or use the legacy alias to force it off:
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection on
