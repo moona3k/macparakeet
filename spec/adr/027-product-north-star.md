@@ -3,9 +3,9 @@
 > Status: ACCEPTED (direction; individual capabilities land through their own
 > plans/ADRs)
 > Date: 2026-07-03
-> Related: ADR-002 (local-only), ADR-026 (ASR engine strategy, PR #677),
-> ADR-014 (meeting recording), spec/00-vision.md (product vision, updated in
-> the same PR)
+> Related: [ADR-002](002-local-only.md) (local-only),
+> [ADR-014](014-meeting-recording.md) (meeting recording),
+> [spec/00-vision.md](../00-vision.md) (product vision, updated in the same PR)
 
 ## Context
 
@@ -16,9 +16,9 @@ private voice app for Mac." Three forces make it worth stating where those
 modes converge:
 
 1. **Raw ASR is commoditizing.** Apple now ships a zero-download engine in
-   the OS; open local models keep improving (ADR-026). "We transcribe
-   accurately and fast" erodes as a durable identity, even though it remains
-   table stakes.
+   the OS; open local models keep improving
+   ([STT engine spec](../06-stt-engine.md)). "We transcribe accurately and
+   fast" erodes as a durable identity, even though it remains table stakes.
 2. **Value migrates up-stack.** Once capture is reliable, the valuable thing
    is the *accumulated* text: searching it, asking questions of it, and
    building on it. The local-LLM plan
@@ -44,7 +44,7 @@ Short form: **MacParakeet is the private speech memory of your Mac.**
 
 The three capture modes are intake valves for one compounding local corpus:
 dictation captures what you say, meetings capture what you discuss,
-file/media capture what you consume. The existing product promise (fastest,
+files/media capture what you consume. The existing product promise (fastest,
 most private, simplest) is unchanged as the day-one experience; this ADR
 states the destination those modes converge toward.
 
@@ -66,11 +66,12 @@ integrations remain demand-driven, not speculative.
 
 ### 4. Ambient capture is parked, not rejected
 
-Unlike cloud ASR — which ADR-002/ADR-026 rule out permanently — always-on or
-ambient capture (session-less listening, screen context) is a deliberate
-*someday, maybe*. The product stays session-based: every capture is
-explicitly started by the user. Revisiting ambient capture requires its own
-ADR with a privacy design, not incremental drift.
+Unlike cloud STT — which [ADR-002](002-local-only.md) and the
+[STT engine spec](../06-stt-engine.md) rule out for core speech —
+always-on or ambient capture (session-less listening, screen context) is a
+deliberate *someday, maybe*. The product stays session-based: every capture
+is explicitly started by the user. Revisiting ambient capture requires its
+own ADR with a privacy design, not incremental drift.
 
 ### 5. The decision filter
 
@@ -85,10 +86,11 @@ terms of the north star.
 
 ## Consequences
 
-- Near-term roadmap is already aligned: capture reliability (ADR-025 /
-  meeting AEC), accuracy and language coverage (ADR-026 plans), and the
-  on-device LLM plan are the first three stairs. The Library/search/QA
-  investment is the new fourth stair and should be planned as such.
+- Near-term roadmap is already aligned: capture reliability
+  ([ADR-025](025-meeting-capture-reliability.md) / meeting AEC), accuracy and
+  language coverage ([STT engine spec](../06-stt-engine.md)), and the
+  on-device LLM plan are the first three steps. The Library/search/QA
+  investment is the new fourth step and should be planned as such.
 - Persistence and durability of transcripts get north-star weight: the
   corpus is the product's long-term asset, so artifact durability, recovery,
   and export remain non-negotiable (existing product rule, reinforced).
@@ -98,7 +100,8 @@ terms of the north star.
 ## Open question
 
 The boundary with Oatmeal (the separate "meeting memory" product concept in
-spec/00-vision.md) narrows under this north star: cross-mode search and
-corpus QA land in MacParakeet. Deeper intelligence (entity extraction,
-knowledge graphs, team features) remains out of MacParakeet's scope. Whether
-Oatmeal continues as a distinct product is deliberately left open here.
+[spec/00-vision.md](../00-vision.md)) narrows under this north star:
+cross-mode search and corpus QA land in MacParakeet. Deeper intelligence
+(entity extraction, knowledge graphs, team features) remains out of
+MacParakeet's scope. Whether Oatmeal continues as a distinct product is
+deliberately left open here.

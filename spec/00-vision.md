@@ -57,8 +57,9 @@ compounds in value the longer you use the app.
   corpus, your local agents can do through `macparakeet-cli` and its
   versioned contract.
 - **Session-based, by design** — every capture is explicitly started by you.
-  Ambient/always-on capture is deliberately parked (ADR-027 §4); cloud STT
-  remains permanently out (ADR-002).
+  Ambient/always-on capture is deliberately parked
+  ([ADR-027](adr/027-product-north-star.md) §4); cloud STT remains
+  permanently out ([ADR-002](adr/002-local-only.md)).
 
 Every feature must capture speech better, make the corpus more useful, or
 hand it safely to you and your agents — otherwise it does not ship.
@@ -145,7 +146,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ## What MacParakeet Is Not
 
-- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start is implemented and enabled (opt-in). Cross-mode search and QA over your own library are in scope (ADR-027); entity extraction, CRM-style enrichment, and team intelligence are not.
+- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start is implemented and enabled (opt-in). Cross-mode search and QA over your own library are in scope ([ADR-027](adr/027-product-north-star.md)); entity extraction, CRM-style enrichment, and team intelligence are not.
 - **Not a note-taking app** -- It puts text where your cursor is. Your note app is your note app.
 - **Not a cloud service** -- No hosted transcription backend, no accounts, no sync product. Core speech stays local.
 - **Not an enterprise product** -- Single-user, single-Mac. No admin console, no team management (initially).
@@ -407,7 +408,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 | **Purpose** | Voice input, transcription, meeting recording | Meeting memory and knowledge |
 | **Scope** | Text in, text out, meetings transcribed | Meetings, entities, relationships, patterns |
 | **Complexity** | Three capture modes + Transforms | Full knowledge system |
-| **User relationship** | Tool whose local library compounds over time (ADR-027) | System (compounds over time) |
+| **User relationship** | Tool whose local library compounds over time ([ADR-027](adr/027-product-north-star.md)) | System (compounds over time) |
 | **Codebase** | Independent | Independent |
 | **Revenue** | Current public build free/GPL; official paid distribution/support possible | TBD |
 
@@ -417,7 +418,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 - **Funnel potential**: MacParakeet records and transcribes meetings. Users who want intelligence on top (calendar sync, entity extraction, cross-meeting memory) are natural Oatmeal prospects.
 - **Adoption timing**: MacParakeet builds community and mindshare while Oatmeal matures. Simpler product = faster to market.
 - **Technology proving ground**: Parakeet integration and clean pipeline are battle-tested in MacParakeet before being used in Oatmeal.
-- **Boundary note (2026-07)**: ADR-027 moves cross-mode search and corpus QA into MacParakeet; whether Oatmeal continues as a distinct product is an open question recorded there.
+- **Boundary note (2026-07)**: [ADR-027](adr/027-product-north-star.md) moves cross-mode search and corpus QA into MacParakeet; whether Oatmeal continues as a distinct product is an open question recorded there.
 
 ---
 
@@ -510,8 +511,9 @@ Ship-quality polish. Direct distribution via notarized DMG.
 ### v0.7: Post-v0.6 polish
 
 - Follow-up scope TBD after the v0.6 release hardens in user hands
-- Direction per ADR-027: Library convergence (unified search, corpus QA),
-  on-device local LLM, agent read access to the library via the CLI
+- Direction per [ADR-027](adr/027-product-north-star.md): Library convergence
+  (unified search, corpus QA), on-device local LLM, agent read access to the
+  library via the CLI
 
 ---
 
