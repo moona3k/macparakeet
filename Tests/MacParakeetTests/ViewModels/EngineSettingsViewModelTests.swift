@@ -283,6 +283,17 @@ final class EngineSettingsViewModelTests: XCTestCase {
 
     // MARK: - Cohere memory gate
 
+    func testCohereMemoryThresholdMatchesCapabilityRegistry() throws {
+        let registryMinimumMemoryBytes = try XCTUnwrap(
+            SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+                .modelLifecycle.minimumMemoryBytes
+        )
+        XCTAssertEqual(
+            EngineSettingsViewModel.cohereMinimumMemoryBytes,
+            registryMinimumMemoryBytes
+        )
+    }
+
     func testCohereMeetsMemoryRequirementReflectsInstalledMemory() {
         let gib: UInt64 = 1024 * 1024 * 1024
         XCTAssertFalse(makeViewModel(physicalMemoryBytes: { 8 * gib }).cohereMeetsMemoryRequirement)

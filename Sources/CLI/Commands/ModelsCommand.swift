@@ -139,7 +139,8 @@ extension ModelsCommand {
         func run() async throws {
             let lowered = variant.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if let parakeetVariant = parakeetDownloadVariant(from: lowered) {
-                print("Parakeet: downloading \(parakeetVariant.modelName)...")
+                let modelName = speechModelLifecycle(for: .parakeet(parakeetVariant)).modelName
+                print("Parakeet: downloading \(modelName)...")
                 let lastMessage = OSAllocatedUnfairLock(initialState: "")
                 try await downloadParakeetVariant(parakeetVariant) { message in
                     let shouldPrint = lastMessage.withLock { last in
@@ -149,13 +150,14 @@ extension ModelsCommand {
                     }
                     if shouldPrint { print("Parakeet: \(message)") }
                 }
-                print("Parakeet: ready (\(parakeetVariant.modelName))")
+                print("Parakeet: ready (\(modelName))")
                 return
             }
 
             if let nemotronVariant = nemotronDownloadVariant(from: lowered) {
                 let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: macParakeetAppDefaults())
-                print("Nemotron: downloading \(nemotronVariant.modelName)...")
+                let modelName = speechModelLifecycle(for: .nemotron(nemotronVariant)).modelName
+                print("Nemotron: downloading \(modelName)...")
                 let lastMessage = OSAllocatedUnfairLock(initialState: "")
                 try await STTRuntime.downloadNemotronModel(modelVariant: nemotronVariant, language: language) { message in
                     let shouldPrint = lastMessage.withLock { last in
@@ -165,12 +167,12 @@ extension ModelsCommand {
                     }
                     if shouldPrint { print("Nemotron: \(message)") }
                 }
-                print("Nemotron: ready (\(nemotronVariant.modelName))")
+                print("Nemotron: ready (\(modelName))")
                 return
             }
 
             if isCohereModelID(lowered) {
-                print("Cohere: downloading Cohere Transcribe...")
+                print("Cohere: downloading \(cohereModelName)...")
                 let lastMessage = OSAllocatedUnfairLock(initialState: "")
                 _ = try await CohereTranscribeEngine.downloadModel { message in
                     let shouldPrint = lastMessage.withLock { last in
@@ -180,7 +182,7 @@ extension ModelsCommand {
                     }
                     if shouldPrint { print("Cohere: \(message)") }
                 }
-                print("Cohere: ready (Cohere Transcribe)")
+                print("Cohere: ready (\(cohereModelName))")
                 return
             }
 
@@ -306,22 +308,26 @@ extension ModelsCommand {
 
             switch target.kind {
             case .parakeet(let variant):
+                let lifecycle = speechModelLifecycle(for: .parakeet(variant))
                 guard isParakeetVariantCached(variant) else {
-                    print("\(variant.modelName) is not downloaded — nothing to delete.")
+                    print("\(lifecycle.modelName) is not downloaded — nothing to delete.")
                     return
                 }
                 let removed = deleteParakeetVariant(variant)
                 guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete \(variant.modelName). It may be missing or in use by another process.")
+                    throw ModelDeletionError.deleteFailed("Could not delete \(lifecycle.modelName). It may be missing or in use by another process.")
                 }
-                print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
+                let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
+                print("Deleted \(target.displayName) · freed \(size).")
             case .nemotron(let variant):
+                let lifecycle = speechModelLifecycle(for: .nemotron(variant))
                 let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: nil)
                 guard removed else {
-                    print("\(variant.modelName) is not downloaded — nothing to delete.")
+                    print("\(lifecycle.modelName) is not downloaded — nothing to delete.")
                     return
                 }
-                print("Deleted \(target.displayName) · freed \(variant.approximateDownloadSize).")
+                let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
+                print("Deleted \(target.displayName) · freed \(size).")
             case .whisper(let variant):
                 guard WhisperEngine.isModelDownloaded(model: variant) else {
                     print("Whisper \(SpeechEnginePreference.friendlyVariantName(variant)) is not downloaded — nothing to delete.")
@@ -335,12 +341,12 @@ extension ModelsCommand {
                 print("Deleted \(target.displayName)\(freed).")
             case .cohere:
                 guard CohereTranscribeEngine.hasModelCacheDirectory() else {
-                    print("Cohere Transcribe is not downloaded — nothing to delete.")
+                    print("\(cohereModelName) is not downloaded — nothing to delete.")
                     return
                 }
                 let removed = CohereTranscribeEngine.deleteModel()
                 guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete Cohere Transcribe. It may be missing or in use by another process.")
+                    throw ModelDeletionError.deleteFailed("Could not delete \(cohereModelName). It may be missing or in use by another process.")
                 }
                 print("Deleted \(target.displayName) · freed \(cohereModelSize).")
             }
@@ -421,8 +427,30 @@ func nemotronDownloadVariant(
 }
 
 private let cohereModelID = "cohere-transcribe"
-private let cohereModelName = "Cohere Transcribe"
-private let cohereModelSize = "~2.1 GB"
+
+private func speechModelLifecycle(for key: SpeechEngineVariantKey) -> SpeechEngineModelLifecycle {
+    SpeechEngineCapabilityRegistry.capabilities(for: key).modelLifecycle
+}
+
+private let cohereModelLifecycle = speechModelLifecycle(for: .cohere)
+
+private let cohereModelName = cohereModelLifecycle.modelName
+
+private let cohereModelSize = cohereModelLifecycle.approximateDownloadSize ?? "~2.1 GB"
+
+private func selectableModelLanguage(
+    for policy: SpeechEngineLanguagePolicy,
+    selectedLanguage: String?
+) -> String? {
+    switch policy.mode {
+    case .automatic:
+        selectedLanguage
+    case .fixed:
+        policy.defaultLanguage
+    case .selectable:
+        selectedLanguage ?? policy.defaultLanguage
+    }
+}
 
 func isCohereModelID(_ lowered: String) -> Bool {
     lowered == SpeechEnginePreference.cohere.rawValue
@@ -657,55 +685,75 @@ func loadSelectableSpeechModels(
     let cohereLanguage = SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults) ?? "en"
 
     let parakeetModels = ParakeetModelVariant.allCases.map { variant in
-        SelectableSpeechModel(
+        let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(variant))
+        let lifecycle = capabilities.modelLifecycle
+        return SelectableSpeechModel(
             id: parakeetModelID(for: variant),
-            name: "\(variant.modelName) (\(variant.displayName))",
+            name: "\(lifecycle.modelName) (\(variant.displayName))",
             engine: SpeechEnginePreference.parakeet.rawValue,
-            variant: variant.rawValue,
-            size: variant.approximateDownloadSize,
+            variant: lifecycle.variantID ?? variant.rawValue,
+            size: lifecycle.approximateDownloadSize,
             installed: checkParakeetModelCached(variant),
             selected: currentEngine == .parakeet && currentParakeetVariant == variant,
-            language: variant.isEnglishOnly ? "en" : nil
+            language: selectableModelLanguage(
+                for: capabilities.supportedLanguages,
+                selectedLanguage: nil
+            )
         )
     }
 
     let currentNemotronVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
     let nemotronModels = NemotronModelVariant.allCases.map { variant in
-        SelectableSpeechModel(
+        let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+        let lifecycle = capabilities.modelLifecycle
+        return SelectableSpeechModel(
             id: nemotronModelID(for: variant),
-            name: "\(variant.modelName) (\(variant.displayName))",
+            name: "\(lifecycle.modelName) (\(variant.displayName))",
             engine: SpeechEnginePreference.nemotron.rawValue,
-            variant: variant.rawValue,
-            size: variant.approximateDownloadSize,
+            variant: lifecycle.variantID ?? variant.rawValue,
+            size: lifecycle.approximateDownloadSize,
             installed: checkNemotronModelDownloaded(variant),
             selected: currentEngine == .nemotron && currentNemotronVariant == variant,
-            language: variant.isEnglishOnly ? "en" : (nemotronLanguage ?? "auto")
+            language: selectableModelLanguage(
+                for: capabilities.supportedLanguages,
+                selectedLanguage: nemotronLanguage ?? "auto"
+            )
         )
     }
 
     let whisperModels = WhisperModelVariant.allCases.map { variant in
-        SelectableSpeechModel(
+        let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .whisper(variant))
+        let lifecycle = capabilities.modelLifecycle
+        return SelectableSpeechModel(
             id: variant.modelID,
-            name: variant.modelName,
+            name: lifecycle.modelName,
             engine: SpeechEnginePreference.whisper.rawValue,
-            variant: variant.rawValue,
-            size: variant.approximateDownloadSize,
+            variant: lifecycle.variantID ?? variant.rawValue,
+            size: lifecycle.approximateDownloadSize,
             installed: checkWhisperModelDownloaded(variant.rawValue),
             selected: currentEngine == .whisper && whisperVariant == variant,
-            language: whisperLanguage ?? WhisperLanguageCatalog.autoCode
+            language: selectableModelLanguage(
+                for: capabilities.supportedLanguages,
+                selectedLanguage: whisperLanguage ?? WhisperLanguageCatalog.autoCode
+            )
         )
     }
 
+    let cohereCapabilities = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+    let cohereLifecycle = cohereCapabilities.modelLifecycle
     return parakeetModels + nemotronModels + [
         SelectableSpeechModel(
             id: cohereModelID,
-            name: cohereModelName,
+            name: cohereLifecycle.modelName,
             engine: SpeechEnginePreference.cohere.rawValue,
-            variant: nil,
+            variant: cohereLifecycle.variantID,
             size: cohereModelSize,
             installed: checkCohereModelDownloaded(),
             selected: currentEngine == .cohere,
-            language: cohereLanguage
+            language: selectableModelLanguage(
+                for: cohereCapabilities.supportedLanguages,
+                selectedLanguage: cohereLanguage
+            )
         )
     ] + whisperModels
 }
@@ -822,7 +870,7 @@ func validateSelectableSpeechModelDownload(
         let downloaded = (isCohereModelDownloaded ?? { CohereTranscribeEngine.isModelCached() })()
         guard downloaded else {
             throw ValidationError(
-                "Cohere Transcribe is not downloaded. Run `macparakeet-cli models download \(cohereModelID)` first."
+                "\(cohereModelName) is not downloaded. Run `macparakeet-cli models download \(cohereModelID)` first."
             )
         }
     }
@@ -864,15 +912,17 @@ func resolveModelDeletionTarget(
 ) throws -> ModelDeletionTarget {
     let selection = try resolveSelectableSpeechModel(id, defaults: defaults)
     if let parakeetVariant = selection.parakeetVariant {
+        let lifecycle = speechModelLifecycle(for: .parakeet(parakeetVariant))
         return ModelDeletionTarget(
             kind: .parakeet(parakeetVariant),
-            displayName: "\(parakeetVariant.modelName) (\(parakeetVariant.displayName))"
+            displayName: "\(lifecycle.modelName) (\(parakeetVariant.displayName))"
         )
     }
     if let nemotronVariant = selection.nemotronVariant {
+        let lifecycle = speechModelLifecycle(for: .nemotron(nemotronVariant))
         return ModelDeletionTarget(
             kind: .nemotron(nemotronVariant),
-            displayName: "\(nemotronVariant.modelName) (\(nemotronVariant.displayName))"
+            displayName: "\(lifecycle.modelName) (\(nemotronVariant.displayName))"
         )
     }
     if let whisperVariant = selection.whisperVariant {
@@ -979,7 +1029,7 @@ func whisperModelID(for variant: String) -> String {
 
 func whisperModelSizeLabel(for variant: String) -> String? {
     if let whisperVariant = WhisperModelVariant.normalize(variant) {
-        return whisperVariant.approximateDownloadSize
+        return speechModelLifecycle(for: .whisper(whisperVariant)).approximateDownloadSize
     }
     let tokens = variant.split(separator: "_")
     guard let last = tokens.last else { return nil }

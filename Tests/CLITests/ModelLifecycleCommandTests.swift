@@ -130,6 +130,46 @@ final class ModelLifecycleCommandTests: XCTestCase {
         ))
     }
 
+    func testLoadSelectableSpeechModelsReadsDisplayMetadataFromCapabilityRegistry() throws {
+        let suiteName = "com.macparakeet.tests.cli.models-registry.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let models = loadSelectableSpeechModels(defaults: defaults)
+        let modelsByID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        for variant in ParakeetModelVariant.allCases {
+            let lifecycle = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(variant)).modelLifecycle
+            let model = try XCTUnwrap(modelsByID[parakeetModelID(for: variant)])
+            XCTAssertEqual(model.name, "\(lifecycle.modelName) (\(variant.displayName))")
+            XCTAssertEqual(model.variant, lifecycle.variantID)
+            XCTAssertEqual(model.size, lifecycle.approximateDownloadSize)
+        }
+
+        for variant in NemotronModelVariant.allCases {
+            let lifecycle = SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant)).modelLifecycle
+            let model = try XCTUnwrap(modelsByID[nemotronModelID(for: variant)])
+            XCTAssertEqual(model.name, "\(lifecycle.modelName) (\(variant.displayName))")
+            XCTAssertEqual(model.variant, lifecycle.variantID)
+            XCTAssertEqual(model.size, lifecycle.approximateDownloadSize)
+        }
+
+        for variant in WhisperModelVariant.allCases {
+            let lifecycle = SpeechEngineCapabilityRegistry.capabilities(for: .whisper(variant)).modelLifecycle
+            let model = try XCTUnwrap(modelsByID[variant.modelID])
+            XCTAssertEqual(model.name, lifecycle.modelName)
+            XCTAssertEqual(model.variant, lifecycle.variantID)
+            XCTAssertEqual(model.size, lifecycle.approximateDownloadSize)
+        }
+
+        let cohereLifecycle = SpeechEngineCapabilityRegistry.capabilities(for: .cohere).modelLifecycle
+        let cohere = try XCTUnwrap(modelsByID["cohere-transcribe"])
+        XCTAssertEqual(cohere.name, cohereLifecycle.modelName)
+        XCTAssertEqual(cohere.variant, cohereLifecycle.variantID)
+        XCTAssertEqual(cohere.size, cohereLifecycle.approximateDownloadSize)
+    }
+
     func testLoadSelectableSpeechModelsMarksSelectedParakeetVariant() throws {
         let suiteName = "com.macparakeet.tests.cli.model-list-parakeet.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

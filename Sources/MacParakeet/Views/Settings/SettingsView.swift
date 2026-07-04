@@ -522,14 +522,68 @@ struct SettingsView: View {
         var id: String { retention.configurationValue }
     }
 
+    private func modelLifecycle(for key: SpeechEngineVariantKey) -> SpeechEngineModelLifecycle {
+        SpeechEngineCapabilityRegistry.capabilities(for: key).modelLifecycle
+    }
+
+    private func parakeetModelLifecycle(for variant: ParakeetModelVariant) -> SpeechEngineModelLifecycle {
+        modelLifecycle(for: .parakeet(variant))
+    }
+
+    private func nemotronModelLifecycle(for variant: NemotronModelVariant) -> SpeechEngineModelLifecycle {
+        modelLifecycle(for: .nemotron(variant))
+    }
+
+    private func nemotronUsesFixedLanguage(_ variant: NemotronModelVariant) -> Bool {
+        SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+            .supportedLanguages.mode == .fixed
+    }
+
+    private var whisperModelLifecycle: SpeechEngineModelLifecycle {
+        modelLifecycle(for: .whisper(viewModel.engine.whisperModelVariant))
+    }
+
+    private var cohereModelLifecycle: SpeechEngineModelLifecycle {
+        modelLifecycle(for: .cohere)
+    }
+
+    private func approximateDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        lifecycle.approximateDownloadSize ?? fallback
+    }
+
+    private func sentenceDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        guard let size = lifecycle.approximateDownloadSize else {
+            return fallback
+        }
+        if size.hasPrefix("~") {
+            return "about \(size.dropFirst())"
+        }
+        return size
+    }
+
+    private func sentenceStartDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        let size = sentenceDownloadSize(for: lifecycle, fallback: fallback)
+        guard let first = size.first else { return size }
+        return first.uppercased() + String(size.dropFirst())
+    }
+
     /// Names the model in the alert title; falls back to a generic title once
     /// the alert is dismissed and `pendingModelDeletion` is nil.
     private var modelDeletionAlertTitle: String {
         switch pendingModelDeletion {
-        case .parakeet(let variant): "Delete \(variant.modelName)?"
-        case .nemotron(let variant): "Delete \(variant.modelName)?"
+        case .parakeet(let variant): "Delete \(parakeetModelLifecycle(for: variant).modelName)?"
+        case .nemotron(let variant): "Delete \(nemotronModelLifecycle(for: variant).modelName)?"
         case .whisper: "Delete the Whisper model?"
-        case .cohere: "Delete Cohere Transcribe?"
+        case .cohere: "Delete \(cohereModelLifecycle.modelName)?"
         case nil: "Delete this model?"
         }
     }
@@ -537,13 +591,19 @@ struct SettingsView: View {
     private func modelDeletionMessage(for deletion: PendingModelDeletion) -> String {
         switch deletion {
         case .parakeet(let variant):
-            return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
+            let lifecycle = parakeetModelLifecycle(for: variant)
+            let size = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         case .nemotron(let variant):
-            return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
+            let lifecycle = nemotronModelLifecycle(for: variant)
+            let size = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         case .whisper:
             return "This removes the configured Whisper model download from this Mac. You can download it again at any time."
         case .cohere:
-            return "This frees about 2.1 GB. You can download Cohere Transcribe again at any time."
+            let lifecycle = cohereModelLifecycle
+            let size = sentenceDownloadSize(for: lifecycle, fallback: "about 2.1 GB")
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         }
     }
 
@@ -2285,7 +2345,7 @@ struct SettingsView: View {
 
                 if let banner = nemotronDownloadBannerState {
                     EngineDownloadBanner(
-                        title: viewModel.engine.nemotronModelVariant.isEnglishOnly
+                        title: nemotronUsesFixedLanguage(viewModel.engine.nemotronModelVariant)
                             ? "Nemotron Speech EN Beta"
                             : "Nemotron 3.5 Beta",
                         subtitle: banner.subtitle,
@@ -2305,7 +2365,7 @@ struct SettingsView: View {
 
                 if let banner = cohereDownloadBannerState {
                     EngineDownloadBanner(
-                        title: "Cohere Transcribe",
+                        title: cohereModelLifecycle.modelName,
                         subtitle: banner.subtitle,
                         mode: banner.mode,
                         action: { viewModel.engine.downloadCohereModel() }
@@ -2353,9 +2413,12 @@ struct SettingsView: View {
     private func parakeetModelOptionRow(_ variant: ParakeetModelVariant) -> some View {
         let isSelected = viewModel.engine.parakeetModelVariant == variant
         let isDownloaded = viewModel.engine.downloadedParakeetVariants.contains(variant)
+        let lifecycle = parakeetModelLifecycle(for: variant)
+        let modelName = lifecycle.modelName
+        let downloadSize = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
-            : "\(variant.approximateDownloadSize), downloads on first use."
+            : "\(downloadSize), downloads on first use."
         // The selected build is the one Parakeet loads, so it's protected; only
         // the other, already-downloaded build can be removed from here.
         let canDelete = isDownloaded && !isSelected
@@ -2373,10 +2436,10 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: DesignSystem.Spacing.sm) {
-                            Text(variant.modelName)
+                            Text(modelName)
                                 .font(DesignSystem.Typography.body.weight(.medium))
                                 .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: downloadSize)
                         }
                         Text(variant.coverageSummary)
                             .font(DesignSystem.Typography.caption)
@@ -2391,15 +2454,15 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
+            .accessibilityLabel("\(modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
             // alongside the selected state for VoiceOver.
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
 
             if canDelete {
                 ModelDeleteIconButton(
-                    helpText: "Remove this Parakeet build to free \(variant.approximateDownloadSize).",
-                    accessibilityLabel: "Delete \(variant.modelName) download"
+                    helpText: "Remove this Parakeet build to free \(downloadSize).",
+                    accessibilityLabel: "Delete \(modelName) download"
                 ) {
                     pendingModelDeletion = .parakeet(variant)
                 }
@@ -2473,9 +2536,12 @@ struct SettingsView: View {
     private func nemotronModelOptionRow(_ variant: NemotronModelVariant) -> some View {
         let isSelected = viewModel.engine.nemotronModelVariant == variant
         let isDownloaded = viewModel.engine.downloadedNemotronVariants.contains(variant)
+        let lifecycle = nemotronModelLifecycle(for: variant)
+        let modelName = lifecycle.modelName
+        let downloadSize = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
-            : "\(variant.approximateDownloadSize), downloads on first use."
+            : "\(downloadSize), downloads on first use."
         // The selected build is the one Nemotron loads, so it's protected; only
         // the other, already-downloaded build can be removed from here.
         let canDelete = isDownloaded && !isSelected
@@ -2493,10 +2559,10 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: DesignSystem.Spacing.sm) {
-                            Text(variant.modelName)
+                            Text(modelName)
                                 .font(DesignSystem.Typography.body.weight(.medium))
                                 .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: downloadSize)
                         }
                         Text(variant.coverageSummary)
                             .font(DesignSystem.Typography.caption)
@@ -2511,15 +2577,15 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
+            .accessibilityLabel("\(modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
             // alongside the selected state for VoiceOver.
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
 
             if canDelete {
                 ModelDeleteIconButton(
-                    helpText: "Remove this Nemotron build to free \(variant.approximateDownloadSize).",
-                    accessibilityLabel: "Delete \(variant.modelName) download"
+                    helpText: "Remove this Nemotron build to free \(downloadSize).",
+                    accessibilityLabel: "Delete \(modelName) download"
                 ) {
                     pendingModelDeletion = .nemotron(variant)
                 }
@@ -2925,7 +2991,8 @@ struct SettingsView: View {
         }
         switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
-            return (.download, "632 MB · broad-language file and retranscription fallback")
+            let size = approximateDownloadSize(for: whisperModelLifecycle, fallback: "632 MB")
+            return (.download, "\(size) · broad-language file and retranscription fallback")
         case .repairing:
             return (.downloading, viewModel.engine.whisperModelStatusDetail)
         case .failed:
@@ -2942,10 +3009,15 @@ struct SettingsView: View {
         }
         switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
-            let qualityNote = viewModel.engine.nemotronModelVariant.isEnglishOnly
+            let lifecycle = nemotronModelLifecycle(for: viewModel.engine.nemotronModelVariant)
+            let size = approximateDownloadSize(
+                for: lifecycle,
+                fallback: viewModel.engine.nemotronModelVariant.approximateDownloadSize
+            )
+            let qualityNote = nemotronUsesFixedLanguage(viewModel.engine.nemotronModelVariant)
                 ? "quality still being validated"
                 : "quality varies by language"
-            return (.download, "\(viewModel.engine.nemotronModelVariant.approximateDownloadSize) · Beta streaming model, \(qualityNote)")
+            return (.download, "\(size) · Beta streaming model, \(qualityNote)")
         case .repairing:
             return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         case .failed:
@@ -2964,7 +3036,8 @@ struct SettingsView: View {
         }
         switch viewModel.engine.cohereModelStatus {
         case .notDownloaded:
-            return (.download, "About 2.1 GB · local batch transcripts, no preview or timestamps")
+            let size = sentenceStartDownloadSize(for: cohereModelLifecycle, fallback: "About 2.1 GB")
+            return (.download, "\(size) · local batch transcripts, no preview or timestamps")
         case .repairing:
             return (.downloading, viewModel.engine.cohereModelStatusDetail)
         case .failed:

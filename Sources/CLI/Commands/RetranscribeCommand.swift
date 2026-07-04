@@ -229,7 +229,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                 nemotronModel,
                 storedVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
             )
-            if speechEngine.engine == .nemotron, nemotronVariant.isEnglishOnly, language != nil {
+            if speechEngine.engine == .nemotron,
+               TranscribeCommand.nemotronIgnoresLanguageOverride(nemotronVariant),
+               language != nil {
                 printErr("Note: --language is ignored by the English-only Nemotron build.")
             }
 

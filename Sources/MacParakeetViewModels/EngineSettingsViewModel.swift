@@ -111,11 +111,19 @@ public final class EngineSettingsViewModel {
     /// it risks an OS jetsam kill mid-transcription that no `catch` can recover.
     /// Selecting Cohere or downloading its model is gated to machines with at
     /// least ``cohereMinimumMemoryBytes`` of RAM.
-    public static let cohereMinimumMemoryBytes: UInt64 = 16 * 1024 * 1024 * 1024
+    public static let cohereMinimumMemoryBytes: UInt64 = {
+        SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+            .modelLifecycle.minimumMemoryBytes
+            ?? SpeechEngineCapabilityRegistry.cohereMinimumMemoryBytes
+    }()
     public static let cohereInsufficientMemoryMessage =
         "Cohere Transcribe needs 16 GB of memory or more — this Mac has less."
     public var cohereMeetsMemoryRequirement: Bool {
         physicalMemoryBytes() >= Self.cohereMinimumMemoryBytes
+    }
+    public var whisperModelVariant: WhisperModelVariant {
+        WhisperModelVariant.normalize(SpeechEnginePreference.whisperModelVariant(defaults: defaults))
+            ?? .largeV3Turbo632MB
     }
     private var shouldBlockCohereSwitchForModelStatus: Bool {
         if cohereDeleting { return true }
@@ -1340,7 +1348,7 @@ public final class EngineSettingsViewModel {
         case .parakeet:
             "Loading Parakeet with Core ML..."
         case .nemotron:
-            nemotronVariant.isEnglishOnly
+            nemotronUsesFixedLanguage(nemotronVariant)
                 ? "Loading Nemotron Speech EN Beta with Core ML..."
                 : "Loading Nemotron 3.5 Beta with Core ML..."
         case .whisper:
@@ -1348,6 +1356,11 @@ public final class EngineSettingsViewModel {
         case .cohere:
             "Loading Cohere with Core ML..."
         }
+    }
+
+    private static func nemotronUsesFixedLanguage(_ variant: NemotronModelVariant) -> Bool {
+        SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+            .supportedLanguages.mode == .fixed
     }
 
     private func runWithRetry(

@@ -248,13 +248,21 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         speechEngine: SpeechEngineSelection
     ) throws {
         guard speechEngine.engine == .cohere, let explicitLanguage else { return }
-        guard SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage) != nil else {
-            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+        let languagePolicy = SpeechEngineCapabilityRegistry.capabilities(for: .cohere).supportedLanguages
+        let supportedLanguageCodes = languagePolicy.supportedLanguageCodes ?? []
+        guard let normalizedLanguage = SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage),
+              supportedLanguageCodes.contains(normalizedLanguage) else {
+            let supported = supportedLanguageCodes.joined(separator: ", ")
             throw ValidationError(
                 "Invalid value for --language with Cohere: '\(explicitLanguage)'. "
                     + "Cohere has no auto-detect; use one of: \(supported)."
             )
         }
+    }
+
+    static func nemotronIgnoresLanguageOverride(_ variant: NemotronModelVariant) -> Bool {
+        SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+            .supportedLanguages.mode == .fixed
     }
 
     static func resolveParakeetModelVariant(
@@ -502,7 +510,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     self.nemotronModel,
                     storedVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
                 )
-                if nemotronVariant.isEnglishOnly {
+                if Self.nemotronIgnoresLanguageOverride(nemotronVariant) {
                     if language != nil {
                         printErr("Note: --language is ignored by the English-only Nemotron build.")
                     }

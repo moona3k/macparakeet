@@ -238,7 +238,12 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
             let message = String(describing: error)
+            let supportedCodes = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+                .supportedLanguages.supportedLanguageCodes ?? []
+            let supported = supportedCodes.joined(separator: ", ")
             XCTAssertTrue(message.contains("Cohere has no auto-detect"), message)
+            XCTAssertFalse(supportedCodes.isEmpty)
+            XCTAssertTrue(message.contains(supported), message)
         }
     }
 
@@ -253,6 +258,11 @@ final class TranscribeCommandTests: XCTestCase {
 
         try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
         XCTAssertEqual(selection.language, "zh")
+    }
+
+    func testNemotronLanguageOverridePolicyReadsCapabilityRegistry() {
+        XCTAssertTrue(TranscribeCommand.nemotronIgnoresLanguageOverride(.english1120))
+        XCTAssertFalse(TranscribeCommand.nemotronIgnoresLanguageOverride(.multilingual1120))
     }
 
     func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
