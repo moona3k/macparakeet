@@ -1,0 +1,26 @@
+docs/research/2026-07-04-voiceprints-phase0/data/sample-sessions.json
+  s_35765baab2f0ed::t_c6c4217e604b0d 2-31
+docs/research/2026-07-04-voiceprints-phase0-calibration.md
+  s_35765baab2f0ed::t_c6c4217e604b0d 5,56-58,146-148,247
+docs/research/2026-07-04-voiceprints-phase0/data/.gitignore
+  s_35765baab2f0ed::t_c6c4217e604b0d 4
+docs/research/2026-07-04-voiceprints-phase0/data/inventory.json
+  s_35765baab2f0ed::t_c6c4217e604b0d 2-34,36-44,46-94,96-112,115-118,122-125,129-132,134-148
+  s_35765baab2f0ed::t_3dbcaa5861b000 114,121,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89f5fba66f35048cb673cdcf73885b408b3d4d82",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
