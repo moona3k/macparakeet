@@ -77,8 +77,12 @@ wave is the cheap ordering.
    (`EngineSettingsViewModel` already has a test seam).
 
 Exit criteria: capability questions answered from one file; a new-variant
-dry run (add a fake variant in a test) touches registry + adapter only;
-no behavior change (characterization suites green).
+dry run (add a fake variant in a test) touches registry + adapter only
+**at capability read sites** — persisted variant IDs, defaults bridging
+(`SpeechEnginePreference` enums, `ParakeetModelVariant+ASR`), and model
+lifecycle helpers stay enum-backed for now and still enumerate cases;
+collapsing those is a later variant-model abstraction, not Phase A. No
+behavior change (characterization suites green).
 
 ### Phase B — wrap the optional engines as full adapters
 
