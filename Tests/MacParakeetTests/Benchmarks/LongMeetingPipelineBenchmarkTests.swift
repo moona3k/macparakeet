@@ -203,7 +203,14 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             )
         }
 
-        let metadata = try MeetingRecordingMetadataStore.load(from: recording.folderURL)
+        let metadata: MeetingRecordingMetadata
+        do {
+            metadata = try MeetingRecordingMetadataStore.load(from: recording.folderURL)
+        } catch {
+            throw benchmarkFailure(
+                "Failed to load meeting recording metadata for \(recording.folderURL.path): \(error.localizedDescription)"
+            )
+        }
         let reason = metadata.echoSuppression?.reasonCode
         guard reason == .cleanedUsed else {
             throw benchmarkFailure(
@@ -213,8 +220,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     }
 
     private func benchmarkFailure(_ message: String) -> BenchmarkError {
-        XCTFail(message)
-        return .invalidFixture(message)
+        .invalidFixture(message)
     }
 
     private func makeFixture(env: [String: String], runID: String) async throws -> BenchmarkFixture {
