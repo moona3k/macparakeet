@@ -571,19 +571,17 @@ struct LLMSettingsView: View {
                     smartDefaultCard(categoryDefault)
                 }
             }
-            .disabled(!viewModel.aiFormatterSmartDefaultsEnabled)
             .opacity(viewModel.aiFormatterSmartDefaultsEnabled ? 1 : 0.55)
 
-            // The preview stays readable for individually-disabled categories
-            // (so a prompt can be read before deciding to enable it) — the
-            // footer copy switches to reflect the off state instead of giving
-            // stale "turn this type off" advice.
-            if viewModel.aiFormatterSmartDefaultsEnabled,
-               let selected = selectedSmartDefaultCategory,
+            // The preview stays readable even when smart defaults or an
+            // individual category are off, so a prompt can be inspected before
+            // deciding to let it run.
+            if let selected = selectedSmartDefaultCategory,
                let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: selected) {
                 smartDefaultPromptPreview(
                     categoryDefault,
-                    isCategoryEnabled: viewModel.isAIFormatterSmartDefaultEnabled(selected)
+                    isMasterEnabled: viewModel.aiFormatterSmartDefaultsEnabled,
+                    isCategoryEnabled: viewModel.isAIFormatterSmartDefaultCategoryEnabled(selected)
                 )
             }
         }
@@ -591,7 +589,14 @@ struct LLMSettingsView: View {
     }
 
     private func smartDefaultCard(_ categoryDefault: AIFormatterSmartDefaults.CategoryDefault) -> some View {
-        let isEnabled = viewModel.isAIFormatterSmartDefaultEnabled(categoryDefault.category)
+        let isMasterEnabled = viewModel.aiFormatterSmartDefaultsEnabled
+        let isCategoryEnabled = viewModel.isAIFormatterSmartDefaultCategoryEnabled(categoryDefault.category)
+        let isEffectivelyEnabled = isMasterEnabled && isCategoryEnabled
+        let accessibilityValue = isEffectivelyEnabled
+            ? "Enabled"
+            : isCategoryEnabled
+            ? "Enabled, inactive while Smart defaults are off"
+            : "Disabled"
         let isSelected = selectedSmartDefaultCategory == categoryDefault.category
 
         return HStack(spacing: 6) {
@@ -601,11 +606,11 @@ struct LLMSettingsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: smartDefaultIcon(for: categoryDefault.category))
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(isEnabled ? DesignSystem.Colors.accent : Color.secondary)
+                        .foregroundStyle(isCategoryEnabled ? DesignSystem.Colors.accent : Color.secondary)
                         .frame(width: 16, height: 16)
                     Text(categoryDefault.name)
                         .font(DesignSystem.Typography.caption.weight(.medium))
-                        .foregroundStyle(isEnabled ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                        .foregroundStyle(isCategoryEnabled ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
@@ -618,15 +623,16 @@ struct LLMSettingsView: View {
             Toggle(
                 "",
                 isOn: Binding(
-                    get: { viewModel.isAIFormatterSmartDefaultEnabled(categoryDefault.category) },
+                    get: { viewModel.isAIFormatterSmartDefaultCategoryEnabled(categoryDefault.category) },
                     set: { viewModel.setAIFormatterSmartDefault(categoryDefault.category, enabled: $0) }
                 )
             )
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.mini)
+            .disabled(!isMasterEnabled)
             .accessibilityLabel("Enable the \(categoryDefault.name) smart default")
-            .accessibilityValue(isEnabled ? "Enabled" : "Disabled")
+            .accessibilityValue(accessibilityValue)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
@@ -646,6 +652,7 @@ struct LLMSettingsView: View {
 
     private func smartDefaultPromptPreview(
         _ categoryDefault: AIFormatterSmartDefaults.CategoryDefault,
+        isMasterEnabled: Bool,
         isCategoryEnabled: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -688,7 +695,9 @@ struct LLMSettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
 
             Text(
-                isCategoryEnabled
+                !isMasterEnabled
+                    ? "Smart defaults are off — this prompt will not run unless you turn Smart defaults on."
+                    : isCategoryEnabled
                     ? "To format \(categoryDefault.name) apps differently, turn this type off or add a custom profile below — custom profiles always win."
                     : "This type is off — dictation into \(categoryDefault.name) apps uses your fallback prompt unless a custom profile matches."
             )

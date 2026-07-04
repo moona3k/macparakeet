@@ -736,6 +736,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(reloaded.aiFormatterSmartDefaultsEnabled)
         XCTAssertFalse(reloaded.isAIFormatterSmartDefaultEnabled(.browser))
         XCTAssertFalse(reloaded.isAIFormatterSmartDefaultEnabled(.email))
+        XCTAssertFalse(reloaded.isAIFormatterSmartDefaultCategoryEnabled(.browser))
+        XCTAssertTrue(reloaded.isAIFormatterSmartDefaultCategoryEnabled(.email))
         XCTAssertFalse(reloaded.aiFormatterSmartDefaultsPolicy.disabledCategories.contains(.email))
     }
 
