@@ -20,6 +20,7 @@ Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests
   s_0ec9102b2a2d38::t_6e61543e40f58e 672-686
   s_0ec9102b2a2d38::t_a5f0d043f7ed1a 461,484,490-515
   s_43784a8bbb773b::t_d45f8b809a19e0 516,688-689
+  s_360c1951ff7ffb::t_f3e079a0503251 687
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -32,6 +33,14 @@ Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests
         "tool": "codex",
         "id": "019f2c5a-9db8-7c60-ad81-e19693b3bd04",
         "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_360c1951ff7ffb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "645af37c-273c-49f3-bdd0-8a65ddc7a98f",
+        "model": "claude-fable-5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     },
