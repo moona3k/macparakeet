@@ -1,7 +1,6 @@
 # STT capability registry + optional-engine adapters
 
-> Status: **TODO** (Phase A executor-ready after a short design grilling;
-> Phases B/C gated as described)
+> Status: **DONE** (Phase A complete; Phases B/C gated as described)
 > Date: 2026-07-03
 > Governing decision: [ADR-026 §4](../../spec/adr/026-asr-engine-strategy.md)
 > Design source: [`docs/research/2026-06-28-architecture-deepening-opportunities.md`](../../docs/research/2026-06-28-architecture-deepening-opportunities.md)
@@ -53,10 +52,12 @@ wave is the cheap ordering.
 
 ### Phase A — capability registry, read-only adoption (the bulk of the win)
 
-1. Define `EngineCapabilities` — field set DECIDED 2026-07-04 (design
-   grilling). Admission test: a field earns a row only if it is a stable
-   fact about the engine/variant consulted by existing call sites — not a
-   policy, not a mechanism, not speculation. Two-part structure:
+1. Define `SpeechEngineCapabilities` — field set DECIDED 2026-07-04
+   (design grilling; renamed from the original `EngineCapabilities` draft
+   to align with the `SpeechEnginePreference` naming family). Admission
+   test: a field earns a row only if it is a stable fact about the
+   engine/variant consulted by existing call sites — not a policy, not a
+   mechanism, not speculation. Two-part structure:
    - **Behavioral capabilities** (each kills existing switch sites):
      `supportsNativeLiveDictation` (backed by the NativeLiveDictating
      conformance invariant), `supportsTailPreview`,
@@ -97,6 +98,30 @@ dry run (add a fake variant in a test) touches registry + adapter only
 lifecycle helpers stay enum-backed for now and still enumerate cases;
 collapsing those is a later variant-model abstraction, not Phase A. No
 behavior change (characterization suites green).
+
+Phase A completion evidence (2026-07-04):
+
+- Capability source: `Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift`
+  declares the registry, rows, language policy, model lifecycle, and telemetry
+  identity; `Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift`
+  covers totality and core invariants.
+- Read-only adoption: runtime live/preview/readiness/telemetry/default-language
+  gates, scheduler live admission and leases, DictationService preview gating,
+  MeetingRecordingService live-chunk gating, Settings model/copy surfaces, and
+  CLI model/transcribe checks now read `SpeechEngineCapabilityRegistry`.
+- New-variant dry run: `MeetingRecordingServiceTests.testMeetingLivePreviewDryRunUsesInjectedCapabilitiesForNextVariant`
+  injects a synthetic `dry-run-next-variant` capability payload into the
+  meeting live-chunk read site and routes that chunk through the lease
+  selection. This intentionally leaves persisted variant enums, defaults
+  bridging, and model-lifecycle enumeration unchanged; a real persisted
+  variant still updates those enum-backed surfaces outside this read-site dry
+  run.
+- Characterization coverage: `SpeechEngineCapabilitiesTests`,
+  `SpeechEnginePreferenceTests`, `STTSchedulerTests`, `DictationServiceTests`,
+  `MeetingRecordingServiceTests`, `AppEnvironmentTests`,
+  `EngineSettingsViewModelTests`, `SettingsStatusRulesTests`,
+  `ModelLifecycleCommandTests`, `TranscribeCommandTests`, and
+  `RetranscribeCommandTests`.
 
 ### Phase B — wrap the optional engines as full adapters
 

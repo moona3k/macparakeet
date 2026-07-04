@@ -1199,6 +1199,36 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .cohere, language: "ja"))
     }
 
+    func testMeetingLivePreviewDryRunUsesInjectedCapabilitiesForNextVariant() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = LeasingMeetingSTTClient(
+            selection: SpeechEngineSelection(engine: .cohere, language: "ja"),
+            capabilities: Self.dryRunNextVariantCapabilities(base: .cohere)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await waitForRoutedLiveChunkSelection(sttClient)
+
+        let routedSelections = await sttClient.routedSelections
+        XCTAssertEqual(routedSelections, [SpeechEngineSelection(engine: .cohere, language: "ja")])
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .cohere, language: "ja"))
+    }
+
     func testMeetingLivePreviewUsesLeaseCapabilities() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -1645,6 +1675,30 @@ final class MeetingRecordingServiceTests: XCTestCase {
             }
             try await Task.sleep(for: .milliseconds(20))
         }
+    }
+
+    private static func dryRunNextVariantCapabilities(base key: SpeechEngineVariantKey) -> SpeechEngineCapabilities {
+        let base = SpeechEngineCapabilityRegistry.capabilities(for: key)
+        return SpeechEngineCapabilities(
+            key: key,
+            supportsNativeLiveDictation: base.supportsNativeLiveDictation,
+            supportsTailPreview: base.supportsTailPreview,
+            providesWordTimestamps: true,
+            supportedLanguages: base.supportedLanguages,
+            supportsCustomVocabulary: base.supportsCustomVocabulary,
+            modelLifecycle: SpeechEngineModelLifecycle(
+                modelName: "Dry Run Next Variant",
+                variantID: "dry-run-next-variant",
+                selectableVariantIDs: base.modelLifecycle.selectableVariantIDs + ["dry-run-next-variant"],
+                approximateDownloadSize: base.modelLifecycle.approximateDownloadSize,
+                isUserDeletable: base.modelLifecycle.isUserDeletable,
+                minimumMemoryBytes: base.modelLifecycle.minimumMemoryBytes
+            ),
+            telemetryIdentity: SpeechEngineTelemetryIdentity(
+                modelKind: base.telemetryIdentity.modelKind,
+                engineVariant: .fixed("dry-run-next-variant")
+            )
+        )
     }
 
     private func waitForMeetingSTTCall(

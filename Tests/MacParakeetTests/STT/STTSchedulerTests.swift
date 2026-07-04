@@ -1297,6 +1297,7 @@ final class STTSchedulerTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(20))
         }
     }
+
 }
 
 private final class STTRuntimeUnhealthySpy: TelemetryServiceProtocol, @unchecked Sendable {
