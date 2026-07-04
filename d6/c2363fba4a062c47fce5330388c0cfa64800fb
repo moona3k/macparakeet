@@ -1,0 +1,87 @@
+benchmarks/asr/custom-vocab-phase0/README.md
+  s_72ed47b004d46e::t_25365720cba12b 11-12
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-10,13,33,48-49,51,57-58,61-62,64-69,74-78,84-87
+  s_72ed47b004d46e::t_d2bab7bfe27e20 14-32,34-47,50,52-56,59-60,63,70-73,79-83
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_no-vocab.jsonl
+  s_72ed47b004d46e::t_617a1109f73845 1-50
+benchmarks/asr/custom-vocab-phase0/results/oov_unified_vocab_requested_recall.json
+  s_72ed47b004d46e::t_1c507e97f43358 1-606
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_vocab_min065_score.json
+  s_72ed47b004d46e::t_97f38194108e16 1-24
+benchmarks/asr/custom-vocab-phase0/oov_utterances.jsonl
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-50
+benchmarks/asr/custom-vocab-phase0/results/oov_unified_no-vocab.jsonl
+  s_72ed47b004d46e::t_f7ea910ac0aa7d 1-50
+benchmarks/asr/custom-vocab-phase0/scripts/librispeech_manifest.py
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-47
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_vocab_default_recall.json
+  s_72ed47b004d46e::t_b337d72ea3b21c 1-374
+benchmarks/asr/custom-vocab-phase0/results/oov_unified_vocab_requested.jsonl
+  s_72ed47b004d46e::t_63ccee7002b2ae 1-50
+benchmarks/asr/custom-vocab-phase0/results/librispeech-full_tdt-v3_no-vocab_score.json
+  s_72ed47b004d46e::t_20a1085e917de0 1-24
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_vocab_default_score.json
+  s_72ed47b004d46e::t_97f38194108e16 1-24
+benchmarks/asr/custom-vocab-phase0/scripts/term_recall.py
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-107
+benchmarks/asr/custom-vocab-phase0/probe/Package.swift
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-23
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_vocab_default.jsonl
+  s_72ed47b004d46e::t_2e10193b61fda8 1-50
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_vocab_default.jsonl
+  s_72ed47b004d46e::t_912fd7d6411fc2 1-200
+benchmarks/asr/custom-vocab-phase0/.gitignore
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-3
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_vocab_min065.jsonl
+  s_72ed47b004d46e::t_b3a04860f14c32 1-200
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_no-vocab_score.json
+  s_72ed47b004d46e::t_97f38194108e16 1-24
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_no-vocab_recall.json
+  s_72ed47b004d46e::t_10c1558510cf09 1-622
+benchmarks/asr/custom-vocab-phase0/probe/Sources/CustomVocabPhase0Probe/main.swift
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-401
+benchmarks/asr/custom-vocab-phase0/results/replacement_summary.json
+  s_72ed47b004d46e::t_742b7ab80e9d29 1,5-6,8,12-13,15,19-20,22,26-27,33-34,73,79-80,86-87,93-94,100-101,107-108,114-115,121-122,128-131,135-140,142,146-147,149,153-154,156,160-161,163,167-168,170,174-177,181-183,185-186,188,192-193,199-200,206-207,213-214,220-221,227-228,234-235,241-244,262,295-298,338-339
+  s_72ed47b004d46e::t_b5127271ec1895 7,9-11,14,16-18,21,23-25,28,30-32,35,37-39,42,44-46,49,51-53,56,58-60,66-67,74,76-78,81,83-85,88,90-92,95,97-99,102,104-106,109,111-113,116,118-120,123,125-127,133-134,141,143-145,148,150-152,155,157-159,162,164-166,169,171-173,179-180,184,187,189-191,194-198,201-205,208-212,215-219,222-226,229-233,236-240,246-247,249,251-253,256,258-260,263,265-267,270,272-274,277,279-288,290-294,300-337
+  s_72ed47b004d46e::t_e81e6efea20f06 2-4,29,36,40-41,43,47-48,50,54-55,57,61-65,68-72,75,82,89,96,103,110,117,124,132,178,245,248,250,254-255,257,261,264,268-269,271,275-276,278,289,299
+benchmarks/asr/custom-vocab-phase0/results/librispeech-full_tdt-v3_no-vocab.jsonl
+  s_72ed47b004d46e::t_6c7aaf51c0b9e2 1-2620
+benchmarks/asr/custom-vocab-phase0/results/oov_unified_no-vocab_recall.json
+  s_72ed47b004d46e::t_57dbe50ec8214b 1-606
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_vocab_min065.jsonl
+  s_72ed47b004d46e::t_bd2cab8565a269 1-50
+benchmarks/asr/custom-vocab-phase0/results/oov_tdt-v3_vocab_min065_recall.json
+  s_72ed47b004d46e::t_a446f698ea3272 1-414
+benchmarks/asr/custom-vocab-phase0/results/librispeech_tdt-v3_no-vocab.jsonl
+  s_72ed47b004d46e::t_e78028f7e8f323 1-200
+benchmarks/asr/custom-vocab-phase0/results/librispeech-full_tdt-v3_vocab_min065.jsonl
+  s_72ed47b004d46e::t_508a86c9294280 2415
+  s_72ed47b004d46e::t_3a1bd6c2557837 2416
+  s_72ed47b004d46e::t_69c2d61d255b10 1-2414,2417-2620
+benchmarks/asr/custom-vocab-phase0/scripts/generate_oov_say.py
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-86
+benchmarks/asr/custom-vocab-phase0/results/librispeech-full_tdt-v3_vocab_min065_score.json
+  s_72ed47b004d46e::t_20a1085e917de0 1-24
+benchmarks/asr/custom-vocab-phase0/vocab_terms.txt
+  s_72ed47b004d46e::t_0fdd31276af1ea 1-50
+docs/research/2026-07-04-custom-vocab-phase0.md
+  s_72ed47b004d46e::t_25365720cba12b 136-137
+  s_72ed47b004d46e::t_2a39363dac2e9b 1-135,138-292,299-348,355-386
+  s_72ed47b004d46e::t_79622748d256ca 293-298,349-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d6c2363fba4a062c47fce5330388c0cfa64800fb",
+  "prompts": {},
+  "sessions": {
+    "s_72ed47b004d46e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c9c-bced-7bf3-81e7-79a65bfdb0d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
