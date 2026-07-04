@@ -93,6 +93,12 @@ struct LLMSettingsView: View {
                                 .frame(width: 220)
                         }
 
+                        if viewModel.selectedProviderID == .openaiCompatible {
+                            Divider()
+
+                            localNetworkHTTPSection
+                        }
+
                         Divider()
                     }
 
@@ -247,6 +253,42 @@ struct LLMSettingsView: View {
                     Text("Dictation, transcription, and meeting recording work without AI setup.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var localNetworkHTTPSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Local-network HTTP")
+                        .font(DesignSystem.Typography.body)
+                    Text("Allow http:// endpoints for self-hosted OpenAI-compatible servers on a trusted LAN or VPN.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Toggle("Allow HTTP", isOn: $viewModel.allowInsecureLocalNetworkHTTP)
+                    .toggleStyle(.switch)
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .fixedSize()
+            }
+
+            if viewModel.allowInsecureLocalNetworkHTTP {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .accessibilityHidden(true)
+                    Text("Prompt text, transcript context, and API keys may be visible on the network.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -1504,31 +1546,62 @@ struct LLMSettingsView: View {
         }
     }
 
-    @ViewBuilder
     private var privacyInfo: some View {
         let isLocal = viewModel.isLocalConfiguration
         let isCLI = viewModel.selectedProviderID == .localCLI
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: isLocal ? "lock.fill" : "arrow.up.right.circle")
-                .font(.system(size: 12))
-                .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+        let usesInsecureHTTP = viewModel.usesInsecureLocalNetworkHTTP
+        let usesTrustedLocal = isLocal && !usesInsecureHTTP
+        let tint: Color
+        let iconName: String
+        if usesTrustedLocal {
+            tint = DesignSystem.Colors.successGreen
+            iconName = "lock.fill"
+        } else if usesInsecureHTTP {
+            tint = DesignSystem.Colors.warningAmber
+            iconName = "exclamationmark.triangle.fill"
+        } else {
+            tint = DesignSystem.Colors.warningAmber
+            iconName = "arrow.up.right.circle"
+        }
 
-            Text(isLocal
-                 ? "Transcript text is sent only to your local AI endpoint."
-                 : isCLI
-                    ? "Runs a command on this Mac. The command may contact its own service."
-                    : "Transcription stays local. Transcript text is sent only when you run an AI action.")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(.secondary)
+        return HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: iconName)
+                .font(.system(size: 12))
+                .foregroundStyle(tint)
+
+            Text(
+                privacyInfoMessage(
+                    isLocal: isLocal,
+                    isCLI: isCLI,
+                    usesInsecureHTTP: usesInsecureHTTP
+                )
+            )
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(isLocal
-                      ? DesignSystem.Colors.successGreen.opacity(0.06)
-                      : DesignSystem.Colors.warningAmber.opacity(0.06))
+                .fill(tint.opacity(0.06))
         )
+    }
+
+    private func privacyInfoMessage(
+        isLocal: Bool,
+        isCLI: Bool,
+        usesInsecureHTTP: Bool
+    ) -> String {
+        if usesInsecureHTTP {
+            return "Transcript text is sent to your local AI endpoint over HTTP. Use a trusted network."
+        }
+        if isLocal {
+            return "Transcript text is sent only to your local AI endpoint."
+        }
+        if isCLI {
+            return "Runs a command on this Mac. The command may contact its own service."
+        }
+        return "Transcription stays local. Transcript text is sent only when you run an AI action."
     }
 
     private var configurationActionsRow: some View {

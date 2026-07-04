@@ -1694,6 +1694,47 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertNil(saved?.apiKey)
     }
 
+    func testOpenAICompatibleLANHTTPRequiresExplicitOptIn() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+        viewModel.customModelName = "local-model"
+        viewModel.baseURLOverride = "http://192.168.1.5:8000/v1"
+
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(viewModel.validationMessage, "Turn on local-network HTTP or use https.")
+        XCTAssertFalse(viewModel.isLocalConfiguration)
+        XCTAssertFalse(viewModel.usesInsecureLocalNetworkHTTP)
+
+        viewModel.allowInsecureLocalNetworkHTTP = true
+
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertTrue(viewModel.isLocalConfiguration)
+        XCTAssertTrue(viewModel.usesInsecureLocalNetworkHTTP)
+
+        viewModel.saveConfiguration()
+
+        let saved = mockConfigStore.config
+        XCTAssertEqual(saved?.id, .openaiCompatible)
+        XCTAssertEqual(saved?.baseURL.absoluteString, "http://192.168.1.5:8000/v1")
+        XCTAssertEqual(saved?.isLocal, true)
+    }
+
+    func testHasUnsavedChangesTracksOpenAICompatibleLANHTTPOptIn() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+        viewModel.customModelName = "local-model"
+        viewModel.baseURLOverride = "http://192.168.1.5:8000/v1"
+        viewModel.allowInsecureLocalNetworkHTTP = true
+        viewModel.saveConfiguration()
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+
+        viewModel.allowInsecureLocalNetworkHTTP = false
+
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+        XCTAssertFalse(viewModel.canSave)
+    }
+
     func testOpenAICompatibleLoopbackEndpointIsTreatedAsLocal() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openaiCompatible
