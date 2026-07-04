@@ -72,7 +72,7 @@ final class STTRuntimeDictationPadTests: XCTestCase {
 
         let padded = STTRuntime.paddedDictationSamples(audioPath: url.path)
         let rescorer = DictationPadCustomVocabularyRescorer(text: "MacParakeet")
-        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
             transcript: "MAC Parakeet",
             tokenTimings: [
                 TokenTiming(token: "▁MAC", tokenId: 1, startTime: 0.0, endTime: 0.2, confidence: 0.9),
@@ -113,6 +113,27 @@ final class STTRuntimeDictationPadTests: XCTestCase {
             maxSamples: ASRConstants.maxModelSamples - padSamples
         ))
         XCTAssertTrue(STTRuntime.paddedDictationSamples(audioPath: url.path).isEmpty)
+    }
+
+    func testShortSampleLoaderPropagatesCancellation() throws {
+        let url = try writeMonoFloatWav(
+            sampleCount: 1_000,
+            sampleRate: 16_000,
+            valueAt: { _ in 0.1 }
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(
+            try STTRuntime.loadShortDictationSamples16k(
+                path: url.path,
+                maxSamples: ASRConstants.maxModelSamples,
+                checkCancellation: {
+                    throw CancellationError()
+                }
+            )
+        ) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
     }
 
     func testPaddedDictationSamplesIsEmptyForMissingFile() {

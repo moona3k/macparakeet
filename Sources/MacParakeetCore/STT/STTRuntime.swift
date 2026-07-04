@@ -520,7 +520,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                         try await manager.transcribe(paddedSamples, decoderState: &decoderState)
                     }
                     try Task.checkCancellation()
-                    let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
+                    let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
                         to: result,
                         audioSamples: paddedSamples
                     )
@@ -575,9 +575,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 try await manager.transcribe(audioURL, decoderState: &decoderState)
             }
             try Task.checkCancellation()
-            let sidecarSamples = Self.customVocabularySidecarSamples(audioPath: audioPath)
+            let sidecarSamples = try Self.customVocabularySidecarSamples(audioPath: audioPath)
             try Task.checkCancellation()
-            let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
+            let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
                 to: result,
                 audioSamples: sidecarSamples
             )
@@ -660,7 +660,17 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// loaded into memory (the caller keeps FluidAudio's disk-backed URL path).
     /// Dictation clips are short, so a qualifying file is read in one buffer.
     static func loadShortDictationSamples16k(path: String, maxSamples: Int) -> [Float]? {
+        loadShortDictationSamples16k(path: path, maxSamples: maxSamples, checkCancellation: {})
+    }
+
+    static func loadShortDictationSamples16k(
+        path: String,
+        maxSamples: Int,
+        checkCancellation: () throws -> Void
+    ) rethrows -> [Float]? {
+        try checkCancellation()
         guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)) else { return nil }
+        try checkCancellation()
         let sourceRate = file.processingFormat.sampleRate
         guard
             sourceRate > 0,
@@ -669,36 +679,44 @@ public actor STTRuntime: STTRuntimeProtocol {
         else {
             return nil
         }
+        try checkCancellation()
         // Dictation WAVs are written at 16 kHz mono; estimate the 16 kHz length
         // so the guard holds even if that capture format ever changes.
         let estimated16kSamples = Int(
             (Double(file.length) * Double(ASRConstants.sampleRate) / sourceRate).rounded(.up)
         )
+        guard estimated16kSamples <= maxSamples else { return nil }
+        try checkCancellation()
         guard
-            estimated16kSamples <= maxSamples,
             let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount),
             (try? file.read(into: buffer)) != nil
         else {
             return nil
         }
+        try checkCancellation()
         return AudioChunker.extractAndResample(from: buffer)
     }
 
-    static func customVocabularySidecarSamples(audioPath: String) -> [Float] {
-        loadShortDictationSamples16k(
+    static func customVocabularySidecarSamples(audioPath: String) throws -> [Float] {
+        try loadShortDictationSamples16k(
             path: audioPath,
-            maxSamples: CustomVocabularyBoostingConfiguration.maxSidecarSampleCount
+            maxSamples: CustomVocabularyBoostingConfiguration.maxSidecarSampleCount,
+            checkCancellation: {
+                try Task.checkCancellation()
+            }
         ) ?? []
     }
 
     private func applyCustomVocabularyBoostingIfAvailable(
         to result: ASRResult,
         audioSamples: [Float]
-    ) async -> ASRResult {
+    ) async throws -> ASRResult {
         guard let customVocabularyProvider else { return result }
+        try Task.checkCancellation()
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(currentParakeetVariant))
         let vocabulary = await customVocabularyProvider.currentVocabulary()
-        return await Self.applyCustomVocabularyBoosting(
+        try Task.checkCancellation()
+        return try await Self.applyCustomVocabularyBoosting(
             to: result,
             audioSamples: audioSamples,
             capabilities: capabilities,
@@ -717,7 +735,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate,
         logger: Logger? = nil
-    ) async -> ASRResult {
+    ) async throws -> ASRResult {
         guard !Task.isCancelled,
               capabilities.supportsCustomVocabulary,
               !vocabulary.isEmpty,
@@ -750,7 +768,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 logger: logger
             )
         } catch is CancellationError {
-            return result
+            throw CancellationError()
         } catch {
             logger?.warning(
                 "custom_vocabulary_boost_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
@@ -853,7 +871,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false)
-    ) async -> ASRResult {
+    ) async throws -> ASRResult {
         let result = ASRResult(
             text: transcript,
             confidence: 1,
@@ -861,7 +879,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             processingTime: 0,
             tokenTimings: tokenTimings
         )
-        return await applyCustomVocabularyBoosting(
+        return try await applyCustomVocabularyBoosting(
             to: result,
             audioSamples: audioSamples,
             capabilities: capabilities,

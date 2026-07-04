@@ -51,7 +51,7 @@ final class CustomVocabularyBoostingTests: XCTestCase {
 
     func testUnsupportedEngineSkipsSidecarInvocation() async throws {
         let rescorer = FakeCustomVocabularyRescorer()
-        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
             transcript: "MAC Parakeet",
             tokenTimings: Self.tokenTimings,
             audioSamples: [0.1, 0.2, 0.3],
@@ -67,7 +67,7 @@ final class CustomVocabularyBoostingTests: XCTestCase {
 
     func testEmptyVocabularySkipsSidecarInvocation() async throws {
         let rescorer = FakeCustomVocabularyRescorer()
-        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
             transcript: "MAC Parakeet",
             tokenTimings: Self.tokenTimings,
             audioSamples: [0.1, 0.2, 0.3],
@@ -84,7 +84,7 @@ final class CustomVocabularyBoostingTests: XCTestCase {
     func testSupportedEngineInvokesSidecarWithOriginalSamples() async throws {
         let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
         let samples: [Float] = [0.1, 0.2, 0.3, 0.0, 0.0]
-        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
             transcript: "MAC Parakeet",
             tokenTimings: Self.tokenTimings,
             audioSamples: samples,
@@ -105,7 +105,7 @@ final class CustomVocabularyBoostingTests: XCTestCase {
 
     func testSidecarFailureFallsBackToUnboostedTranscript() async throws {
         let rescorer = FakeCustomVocabularyRescorer(error: TestError.expected)
-        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
             transcript: "MAC Parakeet",
             tokenTimings: Self.tokenTimings,
             audioSamples: [0.1, 0.2, 0.3],
@@ -117,6 +117,25 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(result.text, "MAC Parakeet")
         let requestCount = await rescorer.requestCount()
         XCTAssertEqual(requestCount, 1)
+    }
+
+    func testCancellationEscapesSidecarBoosting() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(error: CancellationError())
+
+        do {
+            _ = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+                transcript: "MAC Parakeet",
+                tokenTimings: Self.tokenTimings,
+                audioSamples: [0.1, 0.2, 0.3],
+                capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+                vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+                rescorer: rescorer
+            )
+            XCTFail("Expected cancellation to escape vocabulary boosting")
+        } catch is CancellationError {
+            let requestCount = await rescorer.requestCount()
+            XCTAssertEqual(requestCount, 1)
+        }
     }
 
     private static let tokenTimings = [
