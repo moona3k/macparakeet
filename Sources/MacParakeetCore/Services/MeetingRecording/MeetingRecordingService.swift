@@ -73,6 +73,7 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var isMicrophoneMuted: Bool { get async }
     var canMuteMicrophone: Bool { get async }
     var microphoneMuteState: MeetingMicrophoneMuteState { get async }
+    var captureHealth: MeetingCaptureHealthSummary { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
 }
 
@@ -94,6 +95,10 @@ public extension MeetingRecordingServiceProtocol {
 
     func startRecording() async throws {
         try await startRecording(title: nil, sourceMode: nil, startContext: nil, calendarEventSnapshot: nil)
+    }
+
+    var captureHealth: MeetingCaptureHealthSummary {
+        get async { .notRecording }
     }
 }
 
@@ -118,6 +123,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         var sourceMode: MeetingAudioSourceMode?
         var requestedMicMode: MeetingMicProcessingMode?
         var effectiveMicMode: MeetingMicProcessingEffectiveMode?
+        var captureStartedAt: Date?
         var microphoneStarted = false
         var microphoneFirstBufferSeen = false
         var systemFirstBufferSeen = false
@@ -247,6 +253,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var captureHealthMetrics = CaptureHealthMetrics()
     private var latestLevels = MeetingAudioLevels()
+    private var sourceHealthLastBufferAt: [AudioSource: Date] = [:]
+    private var activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?
+    private var recentMicrophoneRms: Float = 0
     private var recentSystemRms: Float = 0
     private var recentProcessedMicRms: Float = 0
     private var latestSystemSignalAt: ContinuousClock.Instant?
@@ -261,6 +270,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let systemDominanceRatio: Float = 10.0
     private static let systemActiveFloor: Float = 0.02
     private static let systemSignalFreshnessWindow: Duration = .milliseconds(750)
+    private static let sourceFirstBufferStallGraceSeconds: TimeInterval = 12
     private static let rmsEpsilon: Float = 0.0001
     private static let chunkSignalFloor: Float = 0.00025
     private static let syncLagEmaAlpha: Double = 0.2
@@ -379,6 +389,64 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return MeetingMicrophoneMuteState(isMuted: canMute && microphoneMuted, canMute: canMute)
     }
 
+    public var captureHealth: MeetingCaptureHealthSummary {
+        guard currentSession != nil else {
+            return .notRecording
+        }
+        guard let sourceMode = captureHealthMetrics.sourceMode else {
+            return .starting(sourceMode: .microphoneAndSystem)
+        }
+        return MeetingCaptureHealthSummary.reduce(
+            sourceMode: sourceMode,
+            microphoneLevel: microphoneCaptureHealthRms,
+            systemLevel: recentSystemRms,
+            lastBufferAt: sourceHealthLastBufferAt,
+            isMicrophoneMuted: microphoneMuteState.isMuted,
+            microphoneStarted: captureHealthMetrics.microphoneStarted,
+            interruptedSources: interruptedSources,
+            activeMicrophoneStall: activeMicrophoneStall,
+            microphoneStartedWithoutBufferTimedOut: microphoneStartedWithoutBufferTimedOut,
+            systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
+            captureFailed: captureFailed
+        )
+    }
+
+    private var microphoneStartedWithoutBufferTimedOut: Bool {
+        guard captureHealthMetrics.microphoneStarted else {
+            return false
+        }
+        return sourceStartedWithoutBufferTimedOut(.microphone)
+    }
+
+    private var systemStartedWithoutBufferTimedOut: Bool {
+        sourceStartedWithoutBufferTimedOut(.system)
+    }
+
+    private func sourceStartedWithoutBufferTimedOut(_ source: AudioSource) -> Bool {
+        let sourceSelected: Bool
+        switch source {
+        case .microphone:
+            sourceSelected = captureHealthMetrics.sourceMode?.capturesMicrophone == true
+        case .system:
+            sourceSelected = captureHealthMetrics.sourceMode?.capturesSystemAudio == true
+        }
+
+        guard !paused,
+              !captureFailed,
+              sourceSelected,
+              sourceHealthLastBufferAt[source] == nil,
+              !interruptedSources.contains(source),
+              let captureStartedAt = captureHealthMetrics.captureStartedAt
+        else {
+            return false
+        }
+
+        return activeRecordingSeconds(
+            startedAt: captureStartedAt,
+            asOf: wallClockNow()
+        ) >= Self.sourceFirstBufferStallGraceSeconds
+    }
+
     /// Wallclock-since-start minus all pause time (completed + ongoing).
     /// Used for both the live elapsed timer and the persisted
     /// `MeetingRecordingOutput.durationSeconds`.
@@ -477,6 +545,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             interruptedSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
+            sourceHealthLastBufferAt = [:]
+            activeMicrophoneStall = nil
+            recentMicrophoneRms = 0
             recentSystemRms = 0
             recentProcessedMicRms = 0
             latestSystemSignalAt = nil
@@ -501,6 +572,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             captureHealthMetrics.sourceMode = captureStartReport.sourceMode
             captureHealthMetrics.requestedMicMode = captureStartReport.microphone.requestedMode
             captureHealthMetrics.effectiveMicMode = captureStartReport.microphone.effectiveMode
+            captureHealthMetrics.captureStartedAt = wallClockNow()
             captureHealthMetrics.microphoneStarted = captureStartReport.microphoneStarted
             configureMicConditioner(from: captureStartReport)
             processingTask = Task { [weak self] in
@@ -787,6 +859,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // pauses, instead of decaying from the EMA over the next few
         // hundred ms. Same reasoning as the `failCapture` path.
         latestLevels = MeetingAudioLevels()
+        recentMicrophoneRms = 0
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
@@ -833,6 +906,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         if muted {
             microphoneMutedHostTime = Self.currentAudioHostTime()
             latestLevels.microphone = 0
+            recentMicrophoneRms = 0
             recentProcessedMicRms = 0
         } else {
             if let microphoneMutedHostTime {
@@ -929,6 +1003,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 try writer?.write(recordingBuffer, source: .microphone)
                 if handling == .recordAndProcess {
                     latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
+                    updateMicrophoneRms(with: latestLevels.microphone)
                     if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
                         await ingestResampledSamples(
                             samples,
@@ -964,9 +1039,20 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         case .sourceInterrupted(let source, let error):
             guard !captureFailed else { return }
             await handleSourceInterruption(source: source, error: error)
+        case .microphoneHealth(let event):
+            handleMicrophoneHealthEvent(event)
         case .error(let error):
             guard !captureFailed else { return }
             await failCapture(error)
+        }
+    }
+
+    private func handleMicrophoneHealthEvent(_ event: MeetingMicHealthMonitor.HealthEvent) {
+        switch event {
+        case .stallSuspected(let signature, _):
+            activeMicrophoneStall = signature
+        case .recovered:
+            activeMicrophoneStall = nil
         }
     }
 
@@ -991,7 +1077,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func failCapture(_ error: Error) async {
         captureFailed = true
         latestLevels = MeetingAudioLevels()
+        recentMicrophoneRms = 0
+        recentSystemRms = 0
+        recentProcessedMicRms = 0
         microphoneMuted = false
+        activeMicrophoneStall = nil
         microphoneMutedHostTime = nil
         completedMicrophoneMuteHostTimeRanges = []
         logger.error("meeting_capture_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
@@ -1170,6 +1260,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func recordCaptureMetrics(for source: AudioSource, time: AVAudioTime) {
+        sourceHealthLastBufferAt[source] = wallClockNow()
         guard time.isHostTimeValid else { return }
         var metrics = sourceCaptureMetrics[source] ?? SourceCaptureMetrics()
         if metrics.firstHostTime == nil {
@@ -1454,6 +1545,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return size.uint64Value
     }
 
+    private var microphoneCaptureHealthRms: Float {
+        recentProcessedMicRms > 0 ? recentProcessedMicRms : recentMicrophoneRms
+    }
+
+    private func updateMicrophoneRms(with bufferRms: Float) {
+        recentMicrophoneRms = exponentialMovingAverage(previous: recentMicrophoneRms, sample: bufferRms)
+    }
+
     private func updateSystemRms(with bufferRms: Float) {
         recentSystemRms = exponentialMovingAverage(previous: recentSystemRms, sample: bufferRms)
         if bufferRms > Self.systemActiveFloor {
@@ -1557,7 +1656,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
         captureHealthMetrics = CaptureHealthMetrics()
+        sourceHealthLastBufferAt = [:]
+        activeMicrophoneStall = nil
         interruptedSources = []
+        recentMicrophoneRms = 0
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil

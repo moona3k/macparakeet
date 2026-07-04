@@ -41,6 +41,7 @@ public final class MeetingRecordingPanelViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
+    public var captureHealth: MeetingCaptureHealthSummary = .notRecording
     /// Mirrors `MeetingRecordingService.isPaused`, set by the flow
     /// coordinator's polling task.
     public var isPaused: Bool = false
@@ -159,6 +160,7 @@ public final class MeetingRecordingPanelViewModel {
         elapsedSeconds = 0
         micLevel = 0
         systemLevel = 0
+        captureHealth = .notRecording
         isPaused = false
         isMicrophoneMuted = false
         canToggleMicrophoneMute = false
@@ -256,6 +258,17 @@ public final class MeetingRecordingPanelViewModel {
         // would render as a flat dot pretending to listen. Fall back to the
         // simple status indicator instead so the paused state reads honestly.
         state == .recording && !isPaused
+    }
+
+    public var sourceHealthChips: [MeetingSourceHealthChip] {
+        guard state == .recording, captureHealth != .notRecording else {
+            return []
+        }
+        return MeetingSourceHealthChip.chips(for: captureHealth, includeNotSelected: true)
+    }
+
+    public var showsSourceHealthChips: Bool {
+        !sourceHealthChips.isEmpty
     }
 
     public func updateLiveTranscriptStatus(_ status: LiveTranscriptStatus) {

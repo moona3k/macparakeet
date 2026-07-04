@@ -44,6 +44,52 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showsLaggingIndicator)
     }
 
+    func testSourceHealthChipsMirrorDualSourceHealth() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.7),
+            system: MeetingSourceHealth(source: .system, status: .interrupted)
+        )
+
+        let chips = viewModel.sourceHealthChips
+
+        XCTAssertTrue(viewModel.showsSourceHealthChips)
+        XCTAssertEqual(chips.map(\.label), ["Mic live", "System audio interrupted"])
+        XCTAssertEqual(chips.map(\.severity), [.good, .critical])
+        XCTAssertEqual(chips.map(\.symbolName), ["mic.fill", "exclamationmark.triangle.fill"])
+    }
+
+    func testSourceHealthChipsIncludeNotRecordedSingleSourceState() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            sourceMode: .microphoneOnly,
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.8),
+            system: MeetingSourceHealth(source: .system, status: .notSelected)
+        )
+
+        let chips = viewModel.sourceHealthChips
+
+        XCTAssertEqual(chips.map(\.label), ["Mic live", "System not recorded"])
+        XCTAssertEqual(chips.last?.severity, .neutral)
+        XCTAssertFalse(chips.last?.isDegraded ?? true)
+    }
+
+    func testSourceHealthChipsHideOutsideRecording() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+
+        XCTAssertTrue(viewModel.sourceHealthChips.isEmpty)
+        XCTAssertFalse(viewModel.showsSourceHealthChips)
+
+        viewModel.state = .recording
+        XCTAssertFalse(viewModel.sourceHealthChips.isEmpty)
+    }
+
     func testWordCountUpdatesWhenExistingSegmentGrows() {
         let viewModel = MeetingRecordingPanelViewModel()
         let initialLines = [
@@ -320,6 +366,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.elapsedSeconds, 0)
         XCTAssertEqual(viewModel.micLevel, 0)
         XCTAssertEqual(viewModel.systemLevel, 0)
+        XCTAssertEqual(viewModel.captureHealth, .notRecording)
         XCTAssertFalse(viewModel.isMicrophoneMuted)
         XCTAssertFalse(viewModel.canToggleMicrophoneMute)
         XCTAssertTrue(viewModel.previewLines.isEmpty)
@@ -351,6 +398,18 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         // Sanity: the composed notes VM is non-nil and starts empty.
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
         XCTAssertEqual(viewModel.notesViewModel.wordCount, 0)
+    }
+
+    private func makeCaptureHealth(
+        sourceMode: MeetingAudioSourceMode = .microphoneAndSystem,
+        microphone: MeetingSourceHealth,
+        system: MeetingSourceHealth
+    ) -> MeetingCaptureHealthSummary {
+        MeetingCaptureHealthSummary(
+            sourceMode: sourceMode,
+            microphone: microphone,
+            system: system
+        )
     }
 
     func testResetClearsComposedNotesViewModel() {

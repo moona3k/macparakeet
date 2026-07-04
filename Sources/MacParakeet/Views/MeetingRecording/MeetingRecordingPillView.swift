@@ -157,6 +157,7 @@ struct MeetingRecordingPillView: View {
 
     private var sacredRecordingPill: some View {
         let isPaused = viewModel.isPaused
+        let healthWarning = viewModel.mirroredSourceHealthWarning
         return VStack(spacing: 0) {
             ZStack {
                 MerkabaPillIcon(
@@ -248,11 +249,17 @@ struct MeetingRecordingPillView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if let healthWarning {
+                MeetingSourceHealthGlyph(chip: healthWarning)
+                    .offset(x: 4, y: 4)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             isPaused
-                ? "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
-                : "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+                ? "Meeting recording paused, \(viewModel.formattedElapsed) elapsed\(healthSuffix(healthWarning))"
+                : "Recording meeting, \(viewModel.formattedElapsed) elapsed\(healthSuffix(healthWarning))"
         )
         .accessibilityAction {
             onTap?()
@@ -273,5 +280,9 @@ struct MeetingRecordingPillView: View {
                     .strokeBorder(DesignSystem.Colors.pillBorder, lineWidth: 1)
             )
             .cardShadow(DesignSystem.Shadows.meetingPill)
+    }
+
+    private func healthSuffix(_ warning: MeetingSourceHealthChip?) -> String {
+        warning.map { ", \($0.label)" } ?? ""
     }
 }

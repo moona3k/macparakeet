@@ -1,3 +1,4 @@
+import MacParakeetCore
 import SwiftUI
 
 @MainActor @Observable
@@ -18,6 +19,7 @@ public final class MeetingRecordingPillViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
+    public var captureHealth: MeetingCaptureHealthSummary = .notRecording
     public var backgroundTranscriptionCount: Int = 0
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
@@ -43,5 +45,14 @@ public final class MeetingRecordingPillViewModel {
     public var isPaused: Bool {
         if case .paused = state { return true }
         return false
+    }
+
+    public var mirroredSourceHealthWarning: MeetingSourceHealthChip? {
+        switch state {
+        case .recording, .paused:
+            return MeetingSourceHealthChip.primaryDegraded(for: captureHealth)
+        case .idle, .completing, .transcribing, .completed, .error:
+            return nil
+        }
     }
 }
