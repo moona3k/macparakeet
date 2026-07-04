@@ -69,7 +69,7 @@ public struct MeetingRecordingSettlement: Sendable {
     }
 
     private static func transcription(_ transcription: Transcription, belongsTo folderURL: URL) -> Bool {
-        let folderPaths = pathAliases(for: folderURL)
+        let folderPaths = MeetingArtifactPathAliases.aliases(for: folderURL)
         if let folderPath = transcription.meetingArtifactFolderPath,
            folderPaths.contains(folderPath) {
             return true
@@ -82,22 +82,6 @@ public struct MeetingRecordingSettlement: Sendable {
                 .path
         }
         return meetingFilePaths.contains(filePath)
-    }
-
-    private static func pathAliases(for url: URL) -> Set<String> {
-        var paths = Set([
-            url.path,
-            url.standardizedFileURL.path,
-            url.resolvingSymlinksInPath().path,
-        ])
-        for path in Array(paths) {
-            if path.hasPrefix("/private/var/") {
-                paths.insert(String(path.dropFirst("/private".count)))
-            } else if path.hasPrefix("/var/") {
-                paths.insert("/private" + path)
-            }
-        }
-        return paths
     }
 }
 

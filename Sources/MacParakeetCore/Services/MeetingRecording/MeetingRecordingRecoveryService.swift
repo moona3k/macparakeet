@@ -374,29 +374,13 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private func existingTranscriptions(for mixedURL: URL) throws -> [Transcription] {
         var seenIDs = Set<UUID>()
         var transcriptions: [Transcription] = []
-        for path in filePathAliases(for: mixedURL) {
+        for path in MeetingArtifactPathAliases.aliases(for: mixedURL) {
             for transcription in try transcriptionRepo.fetchByFilePath(path, sourceType: .meeting) {
                 guard seenIDs.insert(transcription.id).inserted else { continue }
                 transcriptions.append(transcription)
             }
         }
         return transcriptions
-    }
-
-    private func filePathAliases(for url: URL) -> Set<String> {
-        var paths = Set([
-            url.path,
-            url.standardizedFileURL.path,
-            url.resolvingSymlinksInPath().path,
-        ])
-        for path in Array(paths) {
-            if path.hasPrefix("/private/var/") {
-                paths.insert(String(path.dropFirst("/private".count)))
-            } else if path.hasPrefix("/var/") {
-                paths.insert("/private" + path)
-            }
-        }
-        return paths
     }
 
     private func existingIncompleteTranscriptions(for mixedURL: URL) throws -> [Transcription] {

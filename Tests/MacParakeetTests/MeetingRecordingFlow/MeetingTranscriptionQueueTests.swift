@@ -65,6 +65,37 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(lockStore.deletes, [second.recording.folderURL])
     }
 
+    func testSettlementRefusalAfterFinalizeStillReportsSuccessAndRetainsLock() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "A")
+        await transcriptionService.mismatchSettlementPaths(transcriptionID: item.transcriptionID)
+
+        var completions: [String] = []
+        queue.onCompletion = { completion in
+            switch completion {
+            case .success(let item, _):
+                completions.append("success:\(item.recording.displayName)")
+            case .failure(let item, _):
+                completions.append("failure:\(item.recording.displayName)")
+            }
+        }
+
+        queue.enqueue(item)
+        await queue.waitUntilIdle()
+
+        XCTAssertEqual(completions, ["success:A"])
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+    }
+
     func testSnapshotCountsActiveAndPendingItems() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
@@ -151,6 +182,7 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     private let transcriptionRepo: MockTranscriptionRepository
     private(set) var finalizedIDs: [UUID] = []
     private var failingIDs: Set<UUID> = []
+    private var settlementMismatchIDs: Set<UUID> = []
     var holdFinalization = false
     private var finalizationWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -168,6 +200,10 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
 
     func fail(transcriptionID: UUID) {
         failingIDs.insert(transcriptionID)
+    }
+
+    func mismatchSettlementPaths(transcriptionID: UUID) {
+        settlementMismatchIDs.insert(transcriptionID)
     }
 
     func releaseFinalization() {
@@ -230,11 +266,15 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
         if failingIDs.contains(transcriptionID) {
             throw QueueTestError.failed
         }
+        let mismatched = settlementMismatchIDs.contains(transcriptionID)
+        let folderPath = mismatched
+            ? "/nonexistent/other-folder"
+            : recording.folderURL.path
         let transcription = Transcription(
             id: transcriptionID,
             fileName: recording.displayName,
-            filePath: recording.mixedAudioURL.path,
-            meetingArtifactFolderPath: recording.folderURL.path,
+            filePath: mismatched ? folderPath + "/meeting.m4a" : recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: folderPath,
             rawTranscript: "done",
             status: .completed,
             sourceType: .meeting

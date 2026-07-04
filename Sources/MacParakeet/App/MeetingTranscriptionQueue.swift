@@ -77,26 +77,35 @@ final class MeetingTranscriptionQueue {
     }
 
     private func process(_ item: Item) async {
+        let transcription: Transcription
         do {
-            let transcription = try await Observability.withOperationContext(item.operationContext) {
+            transcription = try await Observability.withOperationContext(item.operationContext) {
                 try await transcriptionService.finalizeMeetingTranscription(
                     recording: item.recording,
                     updating: item.transcriptionID,
                     onProgress: nil
                 )
             }
-            try await meetingRecordingSettlement.settleCompletedTranscription(
-                folderURL: item.recording.folderURL,
-                transcriptionID: transcription.id,
-                sessionID: item.recording.sessionID
-            )
-            finishActiveItem(.success(item: item, transcription: transcription))
         } catch {
             logger.error(
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             finishActiveItem(.failure(item: item, error: error))
+            return
         }
+
+        do {
+            try await meetingRecordingSettlement.settleCompletedTranscription(
+                folderURL: item.recording.folderURL,
+                transcriptionID: transcription.id,
+                sessionID: item.recording.sessionID
+            )
+        } catch {
+            logger.error(
+                "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+        finishActiveItem(.success(item: item, transcription: transcription))
     }
 
     private func finishActiveItem(_ completion: Completion) {

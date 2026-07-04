@@ -429,7 +429,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
     }
 
     private func meetingRows(in folderURL: URL) throws -> [Transcription] {
-        let folderPaths = pathAliases(for: folderURL)
+        let folderPaths = MeetingArtifactPathAliases.aliases(for: folderURL)
         let mixedPaths = Set(folderPaths.map {
             URL(fileURLWithPath: $0, isDirectory: true)
                 .appendingPathComponent("meeting.m4a")
@@ -447,22 +447,6 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             }
             return false
         }
-    }
-
-    private func pathAliases(for url: URL) -> Set<String> {
-        var paths = Set([
-            url.path,
-            url.standardizedFileURL.path,
-            url.resolvingSymlinksInPath().path,
-        ])
-        for path in Array(paths) {
-            if path.hasPrefix("/private/var/") {
-                paths.insert(String(path.dropFirst("/private".count)))
-            } else if path.hasPrefix("/var/") {
-                paths.insert("/private" + path)
-            }
-        }
-        return paths
     }
 
     // MARK: - ADR-020 §9 — recovered notes

@@ -98,7 +98,10 @@ transcription id, and session id; settlement re-fetches the `Transcription`
 row and refuses to delete `recording.lock` unless the row exists, is a meeting
 transcription for that artifact folder, and has `status == .completed`.
 Lock-delete I/O failures are log-only: the lock remains protective and recovery
-can re-settle the completed row on the next launch.
+can re-settle the completed row on the next launch. On the transcription-queue
+path a settlement error after a successful finalize is likewise log-only: the
+completed transcript is already durably saved, so the queue still reports
+success and leaves the lock for recovery to re-settle.
 
 The non-settlement deletion paths are intentionally limited to flows that are
 not final-transcription completion:

@@ -77,6 +77,79 @@ final class MeetingRecordingSettlementTests: XCTestCase {
         XCTAssertEqual(lockStore.deletes, [folderURL])
     }
 
+    func testRefusesWhenCompletedRowBelongsToDifferentFolder() async throws {
+        let repo = MockTranscriptionRepository()
+        let lockStore = SettlementLockFileStore()
+        let settlement = MeetingRecordingSettlement(lockFileStore: lockStore, transcriptionRepo: repo)
+        let transcription = makeTranscription(status: .completed, folderURL: makeFolderURL())
+        try repo.save(transcription)
+
+        do {
+            try await settlement.settleCompletedTranscription(
+                folderURL: makeFolderURL(),
+                transcriptionID: transcription.id,
+                sessionID: UUID()
+            )
+            XCTFail("Expected settlement to refuse a completed row from another folder")
+        } catch let error as MeetingRecordingSettlementError {
+            guard case .folderMismatch = error else {
+                XCTFail("Expected folderMismatch, got \(error)")
+                return
+            }
+            XCTAssertTrue(lockStore.deletes.isEmpty)
+        }
+    }
+
+    func testDeletesLockAcrossPrivateVarPathAliasBoundary() async throws {
+        let base = "/var/folders/settlement-tests/\(UUID().uuidString)"
+        let cases: [(stored: String, requested: String)] = [
+            (stored: base, requested: "/private" + base),
+            (stored: "/private" + base, requested: base),
+        ]
+        for (stored, requested) in cases {
+            let repo = MockTranscriptionRepository()
+            let lockStore = SettlementLockFileStore()
+            let settlement = MeetingRecordingSettlement(lockFileStore: lockStore, transcriptionRepo: repo)
+            let transcription = makeTranscription(
+                status: .completed,
+                folderURL: URL(fileURLWithPath: stored, isDirectory: true)
+            )
+            try repo.save(transcription)
+
+            let requestedURL = URL(fileURLWithPath: requested, isDirectory: true)
+            try await settlement.settleCompletedTranscription(
+                folderURL: requestedURL,
+                transcriptionID: transcription.id,
+                sessionID: UUID()
+            )
+
+            XCTAssertEqual(lockStore.deletes, [requestedURL])
+        }
+    }
+
+    func testDeletesLockWhenOnlyMeetingFilePathMatches() async throws {
+        let repo = MockTranscriptionRepository()
+        let lockStore = SettlementLockFileStore()
+        let settlement = MeetingRecordingSettlement(lockFileStore: lockStore, transcriptionRepo: repo)
+        let folderURL = makeFolderURL()
+        let transcription = Transcription(
+            fileName: "Recovered Team Sync",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            meetingArtifactFolderPath: nil,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        try await settlement.settleCompletedTranscription(
+            folderURL: folderURL,
+            transcriptionID: transcription.id,
+            sessionID: UUID()
+        )
+
+        XCTAssertEqual(lockStore.deletes, [folderURL])
+    }
+
     func testLockDeleteErrorIsLogOnly() async throws {
         let repo = MockTranscriptionRepository()
         let lockStore = SettlementLockFileStore(errorToThrow: SettlementTestError.deleteFailed)
