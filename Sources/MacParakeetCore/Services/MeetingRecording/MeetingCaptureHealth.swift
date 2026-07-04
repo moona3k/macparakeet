@@ -185,6 +185,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         microphoneStarted: Bool,
         interruptedSources: Set<AudioSource>,
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
+        microphoneStartedWithoutBufferTimedOut: Bool,
         systemStartedWithoutBufferTimedOut: Bool,
         captureFailed: Bool
     ) -> MeetingCaptureHealthSummary {
@@ -197,6 +198,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             microphoneStarted: microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            microphoneStartedWithoutBufferTimedOut: microphoneStartedWithoutBufferTimedOut,
             systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
@@ -209,6 +211,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             microphoneStarted: microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            microphoneStartedWithoutBufferTimedOut: microphoneStartedWithoutBufferTimedOut,
             systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
@@ -228,6 +231,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         microphoneStarted: Bool,
         interruptedSources: Set<AudioSource>,
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
+        microphoneStartedWithoutBufferTimedOut: Bool,
         systemStartedWithoutBufferTimedOut: Bool,
         captureFailed: Bool
     ) -> MeetingSourceHealth {
@@ -282,6 +286,16 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
                     source: .microphone,
                     status: .stalled,
                     level: level,
+                    lastBufferAt: lastBufferAt,
+                    recoveryAction: .checkMicrophoneInput
+                )
+            }
+
+            if microphoneStartedWithoutBufferTimedOut {
+                return MeetingSourceHealth(
+                    source: .microphone,
+                    status: .stalled,
+                    level: 0,
                     lastBufferAt: lastBufferAt,
                     recoveryAction: .checkMicrophoneInput
                 )

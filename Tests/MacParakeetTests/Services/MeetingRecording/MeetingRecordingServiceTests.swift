@@ -776,7 +776,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
     func testCaptureHealthMarksStartedSystemWithoutBuffersStalledAfterGraceAndRecoversOnFirstBuffer() async throws {
         let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
-        let captureService = MockMeetingAudioCaptureService()
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: MockMeetingAudioFileConverter(),
@@ -789,7 +791,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
             }
         )
 
-        try await service.startRecording()
+        try await service.startRecording(sourceMode: .systemOnly)
         wallClock.advance(by: 11)
         await service.pauseRecording()
         wallClock.advance(by: 5)
@@ -817,6 +819,51 @@ final class MeetingRecordingServiceTests: XCTestCase {
             $0.system.status == .live
         }
         XCTAssertEqual(recoveredHealth.system.label, "System live")
+        XCTAssertNil(recoveredHealth.primaryMessage)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksMicOnlyStartedWithoutBuffersStalledAfterGraceAndRecoversOnFirstBuffer() async throws {
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(
+                sourceMode: .microphoneOnly,
+                microphone: MeetingMicrophoneCaptureStartReport(requestedMode: .raw, effectiveMode: .raw)
+            )
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            },
+            wallClockNow: {
+                wallClock.now
+            }
+        )
+
+        try await service.startRecording(sourceMode: .microphoneOnly)
+        wallClock.advance(by: 12.1)
+
+        let stalledHealth = await service.captureHealth
+        XCTAssertEqual(stalledHealth.microphone.status, .stalled)
+        XCTAssertEqual(stalledHealth.microphone.label, "Mic may be stalled")
+        XCTAssertEqual(stalledHealth.microphone.recoveryAction, .checkMicrophoneInput)
+        XCTAssertNil(stalledHealth.microphone.lastBufferAt)
+        XCTAssertEqual(stalledHealth.primaryMessage, "Mic may be stalled")
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let recoveredHealth = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .live
+        }
+        XCTAssertEqual(recoveredHealth.microphone.label, "Mic live")
         XCTAssertNil(recoveredHealth.primaryMessage)
 
         await service.cancelRecording()

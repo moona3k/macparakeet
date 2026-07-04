@@ -270,7 +270,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let systemDominanceRatio: Float = 10.0
     private static let systemActiveFloor: Float = 0.02
     private static let systemSignalFreshnessWindow: Duration = .milliseconds(750)
-    private static let systemFirstBufferStallGraceSeconds: TimeInterval = 12
+    private static let sourceFirstBufferStallGraceSeconds: TimeInterval = 12
     private static let rmsEpsilon: Float = 0.0001
     private static let chunkSignalFloor: Float = 0.00025
     private static let syncLagEmaAlpha: Double = 0.2
@@ -405,17 +405,37 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneStarted: captureHealthMetrics.microphoneStarted,
             interruptedSources: interruptedSources,
             activeMicrophoneStall: activeMicrophoneStall,
+            microphoneStartedWithoutBufferTimedOut: microphoneStartedWithoutBufferTimedOut,
             systemStartedWithoutBufferTimedOut: systemStartedWithoutBufferTimedOut,
             captureFailed: captureFailed
         )
     }
 
+    private var microphoneStartedWithoutBufferTimedOut: Bool {
+        guard captureHealthMetrics.microphoneStarted else {
+            return false
+        }
+        return sourceStartedWithoutBufferTimedOut(.microphone)
+    }
+
     private var systemStartedWithoutBufferTimedOut: Bool {
+        sourceStartedWithoutBufferTimedOut(.system)
+    }
+
+    private func sourceStartedWithoutBufferTimedOut(_ source: AudioSource) -> Bool {
+        let sourceSelected: Bool
+        switch source {
+        case .microphone:
+            sourceSelected = captureHealthMetrics.sourceMode?.capturesMicrophone == true
+        case .system:
+            sourceSelected = captureHealthMetrics.sourceMode?.capturesSystemAudio == true
+        }
+
         guard !paused,
               !captureFailed,
-              captureHealthMetrics.sourceMode?.capturesSystemAudio == true,
-              sourceHealthLastBufferAt[.system] == nil,
-              !interruptedSources.contains(.system),
+              sourceSelected,
+              sourceHealthLastBufferAt[source] == nil,
+              !interruptedSources.contains(source),
               let captureStartedAt = captureHealthMetrics.captureStartedAt
         else {
             return false
@@ -424,7 +444,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return activeRecordingSeconds(
             startedAt: captureStartedAt,
             asOf: wallClockNow()
-        ) >= Self.systemFirstBufferStallGraceSeconds
+        ) >= Self.sourceFirstBufferStallGraceSeconds
     }
 
     /// Wallclock-since-start minus all pause time (completed + ongoing).
