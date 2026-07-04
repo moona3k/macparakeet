@@ -1,0 +1,40 @@
+Sources/MacParakeetViewModels/LLMSettingsDraft.swift
+  s_a367ae118b64cc::t_716523ef7da116 161,312-314
+  s_a367ae118b64cc::t_9bfac2d10d16d0 10,23-24,37,52,64,149-152,157-158,162-166,185-190,203-207,235,260,268-272,275,278,281,286-289,291-311
+  s_a367ae118b64cc::t_251111f7b2b9f7 127,130-136
+  s_a367ae118b64cc::t_3aef9a6d157b94 159-160
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_a367ae118b64cc::t_d04aaaf7d43a4d 1697-1737
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_a367ae118b64cc::t_32f1197359c927 294-295,1590-1592,1594,1596-1597,1599-1600,1602,1604
+  s_a367ae118b64cc::t_533073a61eedb4 296
+  s_a367ae118b64cc::t_d75abdb463257f 1605
+  s_a367ae118b64cc::t_8cd3bba58f8fbb 1553-1557,1561-1562,1564,1571-1577
+  s_a367ae118b64cc::t_af70c7ebcc7282 292
+  s_a367ae118b64cc::t_5a000f794cd535 1551-1552,1565,1567,1569,1585,1589,1593,1595,1598,1601,1603
+  s_a367ae118b64cc::t_7325bcbae19412 1566
+  s_a367ae118b64cc::t_b633ff31117d7c 1558-1560,1563,1578-1579
+  s_a367ae118b64cc::t_a9ef6ac189ca8d 96-101,262-291,293
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_a367ae118b64cc::t_41695790688803 190-198,329-332,555,1139,1199,1212,1224
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_a367ae118b64cc::t_143b7e8b994fe3 316-317,324
+Tests/MacParakeetTests/ViewModels/LLMSettingsDraftTests.swift
+  s_a367ae118b64cc::t_6ca79be66e68f8 54-56,64-83,210-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ac19440bbb6a1d99071c3c5c6f2cf5b02c9ea6e",
+  "prompts": {},
+  "sessions": {
+    "s_a367ae118b64cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ac0-f2e5-7161-9375-4e3e84625458",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
