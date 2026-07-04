@@ -14,6 +14,7 @@ public enum CustomVocabularyBoostingConfiguration {
     public static let maxSidecarAudioSeconds: Double = 5 * 60
     public static let termWeight: Float = 10.0
     public static let maxBoundaryChangingTimingWordCount: Int = 8
+    public static let maxCachedVocabularyEntries: Int = 3
 
     static var maxSidecarSampleCount: Int {
         Int(maxSidecarAudioSeconds * Double(ASRConstants.sampleRate))
@@ -240,7 +241,8 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CustomVocabulary")
-    private var cachedVocabulary: CachedVocabulary?
+    private var cachedVocabularies: [String: CachedVocabulary] = [:]
+    private var cachedVocabularyOrder: [String] = []
 
     public init() {}
 
@@ -263,9 +265,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             )
         }
 
-        guard let components = cachedVocabulary,
-              components.hash == request.vocabulary.contentHash
-        else {
+        guard let components = cachedVocabularies[request.vocabulary.contentHash] else {
             throw CustomVocabularyBoostingError.unpreparedVocabulary
         }
 
@@ -316,15 +316,17 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     }
 
     private func components(for vocabulary: CustomVocabularyBoostingVocabulary) async throws -> CachedVocabulary {
-        if let cachedVocabulary,
-           cachedVocabulary.hash == vocabulary.contentHash
-        {
+        if let cachedVocabulary = cachedVocabularies[vocabulary.contentHash] {
+            rememberCachedVocabularyHash(vocabulary.contentHash)
             return cachedVocabulary
         }
 
+        try Task.checkCancellation()
         let ctcModels = try await CtcModels.downloadAndLoad(variant: .ctc110m)
+        try Task.checkCancellation()
         let ctcModelDirectory = CtcModels.defaultCacheDirectory(for: ctcModels.variant)
         let tokenizer = try await CtcTokenizer.load(from: ctcModelDirectory)
+        try Task.checkCancellation()
         let tokenizedTerms = vocabulary.terms.compactMap { term -> CustomVocabularyTerm? in
             let tokenIds = tokenizer.encode(term)
             guard !tokenIds.isEmpty else { return nil }
@@ -352,6 +354,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             config: .default,
             ctcModelDirectory: ctcModelDirectory
         )
+        try Task.checkCancellation()
         let sizeConfig = ContextBiasingConstants.rescorerConfig(forVocabSize: context.terms.count)
         let cached = CachedVocabulary(
             hash: vocabulary.contentHash,
@@ -361,9 +364,23 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             cbw: sizeConfig.cbw,
             marginSeconds: ContextBiasingConstants.defaultMarginSeconds
         )
-        cachedVocabulary = cached
+        cachedVocabularies[vocabulary.contentHash] = cached
+        rememberCachedVocabularyHash(vocabulary.contentHash)
+        evictStaleCachedVocabularies()
         logger.info("custom_vocabulary_boost_loaded terms=\(context.terms.count, privacy: .public)")
         return cached
+    }
+
+    private func rememberCachedVocabularyHash(_ hash: String) {
+        cachedVocabularyOrder.removeAll { $0 == hash }
+        cachedVocabularyOrder.append(hash)
+    }
+
+    private func evictStaleCachedVocabularies() {
+        while cachedVocabularyOrder.count > CustomVocabularyBoostingConfiguration.maxCachedVocabularyEntries {
+            let removed = cachedVocabularyOrder.removeFirst()
+            cachedVocabularies.removeValue(forKey: removed)
+        }
     }
 
     private static func uniquePreservingOrder(_ values: [String]) -> [String] {
