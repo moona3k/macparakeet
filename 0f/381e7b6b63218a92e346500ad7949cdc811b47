@@ -1,0 +1,21 @@
+plans/README.md
+  s_4272d79a3d4bc7::t_a000be27d3aef7 33
+plans/active/2026-07-03-meeting-corpus-capture.md
+  s_4272d79a3d4bc7::t_af7da02ba3f3b1 1-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f381e7b6b63218a92e346500ad7949cdc811b47",
+  "prompts": {},
+  "sessions": {
+    "s_4272d79a3d4bc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a226cfe-1186-470e-9296-f0248af07152",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
