@@ -60,7 +60,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// Persist the user's in-flight notepad text to the recording's lock file
     /// without changing the recording state. Called by the notes view model on
     /// every idle-debounce fire (ADR-020 §8). All `recording.lock` writes are
-    /// serialized through this actor — no other component touches the file —
+    /// serialized through this actor — no other component writes the file
+    /// (completion-path deletion is owned by `MeetingRecordingSettlement`) —
     /// so notes-saves cannot race with state-transition writes.
     func updateNotes(_ notes: String) async
     var isRecording: Bool { get async }

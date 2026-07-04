@@ -272,6 +272,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
 | `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured speech engine for crash recovery |
+| `MeetingRecordingSettlement` | Sole completion-path owner of `recording.lock` deletion; re-fetches the saved row and deletes the lock only after verifying a completed meeting Transcription for that artifact folder (see [meeting-recovery-retention contract](contracts/meeting-recovery-retention.md#lock-deletion-authority)) |
 | `MeetingTranscriptionQueue` | Owns FIFO background finalization for stopped meetings after audio + lock + Library stub are durable |
 | `MeetingTranscriptFinalizer` | Merges fresh per-source STT results into the final meeting transcript |
 
@@ -300,7 +301,9 @@ User clicks "Start Meeting Recording"
     → Send each source WAV to the captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
     → Optionally refine the isolated system side with diarization
-    → Update the existing Transcription row and delete `recording.lock`
+    → Update the existing Transcription row, then settle: MeetingRecordingSettlement
+      verifies the completed row and deletes `recording.lock` (on failure the
+      lock stays for recovery to re-settle; the queue still reports success)
     → Navigate to transcription detail view only if no newer meeting recording is active
 ```
 
