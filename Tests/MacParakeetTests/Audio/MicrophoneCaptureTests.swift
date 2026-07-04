@@ -469,18 +469,19 @@ final class MicrophoneCaptureTests: XCTestCase {
 
     // MARK: - Bluetooth-output avoidance (issues #481/#541/#409)
 
-    func testBluetoothOutputPrefersBuiltInWhenOnSystemDefault() async throws {
+    func testBluetoothOutputPrefersBuiltInWhenOnSystemDefault() throws {
         // System default input is the Bluetooth headset (id 20); built-in is
         // id 30. With output on Bluetooth and no explicit selection, built-in
         // is promoted to the front so capture doesn't force HFP/SCO.
-        let beforeDiagnostics = currentDiagnosticsLogContents()
+        let diagnostics = MicrophoneCaptureDiagnosticsRecorder()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
             selectedInputDeviceID: { _ in nil },
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { AudioDeviceID(30) },
             preferBuiltInWhenOutputIsBluetooth: true,
-            outputIsBluetooth: { true }
+            outputIsBluetooth: { true },
+            diagnosticsSink: { diagnostics.record($0) }
         )
 
         XCTAssertEqual(
@@ -491,10 +492,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             ],
             "Built-in must lead, with the Bluetooth system default kept as fallback"
         )
-        let line = try await waitForDiagnosticsLine(
-            containing: "mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false",
-            after: beforeDiagnostics
-        )
+        let line = try XCTUnwrap(diagnostics.lastMessage)
         XCTAssertTrue(line.contains("preference=on"))
         XCTAssertTrue(line.contains("explicit_selection_resolved=false"))
         XCTAssertTrue(line.contains("default_output_transport=bluetooth"))
@@ -576,18 +574,19 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testBluetoothOutputKeepsExplicitSelectionFirstAndPinsBuiltInBeforeDefaultFallback() async throws {
+    func testBluetoothOutputKeepsExplicitSelectionFirstAndPinsBuiltInBeforeDefaultFallback() throws {
         // An explicit selection remains first, but if it fails during Bluetooth
         // route churn we still avoid floating to the unpinned headset default
         // before trying the pinned built-in mic.
-        let beforeDiagnostics = currentDiagnosticsLogContents()
+        let diagnostics = MicrophoneCaptureDiagnosticsRecorder()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: "usb-mic",
             selectedInputDeviceID: { uid in uid == "usb-mic" ? AudioDeviceID(10) : nil },
             defaultInputDevice: { AudioDeviceID(20) },
             builtInMicrophone: { AudioDeviceID(30) },
             preferBuiltInWhenOutputIsBluetooth: true,
-            outputIsBluetooth: { true }
+            outputIsBluetooth: { true },
+            diagnosticsSink: { diagnostics.record($0) }
         )
 
         XCTAssertEqual(
@@ -599,10 +598,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             ],
             "Explicit selection must stay first, with built-in pinned before the Bluetooth default fallback"
         )
-        let line = try await waitForDiagnosticsLine(
-            containing: "mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=true",
-            after: beforeDiagnostics
-        )
+        let line = try XCTUnwrap(diagnostics.lastMessage)
         XCTAssertTrue(line.contains("preference=on"))
         XCTAssertTrue(line.contains("explicit_selection_resolved=true"))
         XCTAssertTrue(line.contains("default_output_transport=bluetooth"))
@@ -710,9 +706,9 @@ final class MicrophoneCaptureTests: XCTestCase {
         )
     }
 
-    func testBluetoothOutputRuleDisabledLeavesChainUntouched() async throws {
+    func testBluetoothOutputRuleDisabledLeavesChainUntouched() throws {
         var queriedOutput = false
-        let beforeDiagnostics = currentDiagnosticsLogContents()
+        let diagnostics = MicrophoneCaptureDiagnosticsRecorder()
         let attempts = meetingInputDeviceAttempts(
             selectedUID: nil,
             selectedInputDeviceID: { _ in nil },
@@ -722,7 +718,8 @@ final class MicrophoneCaptureTests: XCTestCase {
             outputIsBluetooth: {
                 queriedOutput = true
                 return true
-            }
+            },
+            diagnosticsSink: { diagnostics.record($0) }
         )
 
         XCTAssertEqual(
@@ -733,10 +730,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             ]
         )
         XCTAssertFalse(queriedOutput, "Disabled rule must not query the output transport")
-        let line = try await waitForDiagnosticsLine(
-            containing: "mic_attempts_bluetooth_output_policy preference=off",
-            after: beforeDiagnostics
-        )
+        let line = try XCTUnwrap(diagnostics.lastMessage)
         XCTAssertTrue(line.contains("preference=off"))
         XCTAssertTrue(line.contains("explicit_selection_resolved=false"))
         XCTAssertTrue(line.contains("default_output_transport=not_queried"))
@@ -948,6 +942,21 @@ private final class MicrophoneCaptureTestCounter: @unchecked Sendable {
     private var _value = 0
     func increment() { lock.withLock { _value += 1 } }
     var value: Int { lock.withLock { _value } }
+}
+
+private final class MicrophoneCaptureDiagnosticsRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var messages: [String] = []
+
+    var lastMessage: String? {
+        lock.withLock { messages.last }
+    }
+
+    func record(_ message: String) {
+        lock.withLock {
+            messages.append(message)
+        }
+    }
 }
 
 private struct MicrophoneCaptureTestBufferSnapshot {

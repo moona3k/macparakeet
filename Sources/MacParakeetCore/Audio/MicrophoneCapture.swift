@@ -101,6 +101,28 @@ public func meetingInputDeviceAttempts(
     defaultInputIsBluetooth: (AudioDeviceID) -> Bool = { _ in true },
     outputIsBluetooth: () -> Bool? = { false }
 ) -> [MeetingInputDeviceAttempt] {
+    meetingInputDeviceAttempts(
+        selectedUID: selectedUID,
+        selectedInputDeviceID: selectedInputDeviceID,
+        defaultInputDevice: defaultInputDevice,
+        builtInMicrophone: builtInMicrophone,
+        preferBuiltInWhenOutputIsBluetooth: preferBuiltInWhenOutputIsBluetooth,
+        defaultInputIsBluetooth: defaultInputIsBluetooth,
+        outputIsBluetooth: outputIsBluetooth,
+        diagnosticsSink: { AudioCaptureDiagnostics.appendAsync($0) }
+    )
+}
+
+func meetingInputDeviceAttempts(
+    selectedUID: String?,
+    selectedInputDeviceID: (String) -> AudioDeviceID?,
+    defaultInputDevice: () -> AudioDeviceID?,
+    builtInMicrophone: () -> AudioDeviceID?,
+    preferBuiltInWhenOutputIsBluetooth: Bool = false,
+    defaultInputIsBluetooth: (AudioDeviceID) -> Bool = { _ in true },
+    outputIsBluetooth: () -> Bool? = { false },
+    diagnosticsSink: @Sendable (String) -> Void
+) -> [MeetingInputDeviceAttempt] {
     var attempts: [MeetingInputDeviceAttempt] = []
     var seenDeviceIDs = Set<AudioDeviceID>()
 
@@ -218,9 +240,9 @@ public func meetingInputDeviceAttempts(
             }
         }
     }
-    AudioCaptureDiagnostics.appendAsync(
+    let diagnosticsMessage =
         "mic_attempts_bluetooth_output_policy preference=\(preferBuiltInWhenOutputIsBluetooth ? "on" : "off") explicit_selection_resolved=\(hasResolvedSelection) default_output_transport=\(defaultOutputTransport) outcome=\(policyOutcome) reason=\(policyReason)"
-    )
+    diagnosticsSink(diagnosticsMessage)
 
     return attempts
 }
