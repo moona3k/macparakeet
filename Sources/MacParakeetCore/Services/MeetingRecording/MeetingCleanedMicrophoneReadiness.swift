@@ -665,12 +665,10 @@ extension MeetingRecordingOutput {
         renderSummary: MeetingCleanedMicrophoneRenderSummary?,
         fileManager: FileManager
     ) {
-        let metadata = MeetingEchoSuppressionMetadata(
-            reasonCode: reason,
-            modelVersion: renderSummary?.modelVersion,
-            renderDurationMs: renderSummary?.renderDurationMs,
-            delayEstimateMs: renderSummary?.delayEstimateMs,
-            probeBestCorrelation: renderSummary?.probeBestCorrelation
+        let metadata = echoSuppressionMetadata(
+            reason: reason,
+            renderSummary: renderSummary,
+            fileManager: fileManager
         )
         do {
             try MeetingRecordingMetadataStore.updateEchoSuppression(
@@ -696,6 +694,31 @@ extension MeetingRecordingOutput {
                 "probe_windows=\(renderSummary?.probeWindowsEvaluated.map(String.init) ?? "none")",
                 "probe_best_correlation=\(formatOptional(renderSummary?.probeBestCorrelation))",
             ].joined(separator: " "))
+    }
+
+    private func echoSuppressionMetadata(
+        reason: MeetingCleanedMicrophoneRoutingReason,
+        renderSummary: MeetingCleanedMicrophoneRenderSummary?,
+        fileManager: FileManager
+    ) -> MeetingEchoSuppressionMetadata {
+        if reason == .cleanedUsed,
+            renderSummary == nil,
+            let existing = try? MeetingRecordingMetadataStore.load(
+                from: folderURL,
+                fileManager: fileManager
+            ).echoSuppression,
+            existing.reasonCode == .cleanedUsed
+        {
+            return existing
+        }
+
+        return MeetingEchoSuppressionMetadata(
+            reasonCode: reason,
+            modelVersion: renderSummary?.modelVersion,
+            renderDurationMs: renderSummary?.renderDurationMs,
+            delayEstimateMs: renderSummary?.delayEstimateMs,
+            probeBestCorrelation: renderSummary?.probeBestCorrelation
+        )
     }
 
     private func formatOptional(_ value: Double?) -> String {
