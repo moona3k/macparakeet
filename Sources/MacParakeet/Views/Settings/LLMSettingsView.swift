@@ -284,6 +284,7 @@ struct LLMSettingsView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .accessibilityHidden(true)
                     Text("Prompt text, transcript context, and API keys may be visible on the network.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.warningAmber)

@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import Network
 
 public struct LLMSettingsDraft: Equatable, Sendable {
     public enum ValidationError: LocalizedError, Equatable {
@@ -161,7 +162,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         else {
             return false
         }
-        return Self.isNonLoopbackHTTP(url)
+        return Self.isAllowedInsecureLocalNetworkHTTP(url)
     }
 
     public func buildConfig(
@@ -289,6 +290,9 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             return nil
         }
         if providerID == .openaiCompatible {
+            guard Self.isAllowedInsecureLocalNetworkHTTP(url) else {
+                return .invalidBaseURL
+            }
             return allowInsecureLocalNetworkHTTP ? nil : .localNetworkHTTPRequiresOptIn
         }
         return .invalidBaseURL
@@ -299,18 +303,62 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         allowInsecureLocalNetworkHTTP: Bool
     ) -> Bool {
         LLMProviderConfig.isLoopbackEndpoint(url)
-            || (allowInsecureLocalNetworkHTTP && isNonLoopbackHTTP(url))
+            || (allowInsecureLocalNetworkHTTP && isAllowedInsecureLocalNetworkHTTP(url))
     }
 
-    private static func isNonLoopbackHTTP(_ url: URL) -> Bool {
-        url.scheme?.lowercased() == "http"
-            && !LLMProviderConfig.isLoopbackEndpoint(url)
-            && url.host != nil
+    private static func isAllowedInsecureLocalNetworkHTTP(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "http" else {
+            return false
+        }
+        guard !LLMProviderConfig.isLoopbackEndpoint(url) else {
+            return false
+        }
+        guard let host = normalizedHost(from: url) else {
+            return false
+        }
+        return isLocalNetworkHost(host)
+    }
+
+    private static func normalizedHost(from url: URL) -> String? {
+        guard let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines), !host.isEmpty else {
+            return nil
+        }
+        return host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    }
+
+    private static func isLocalNetworkHost(_ host: String) -> Bool {
+        if host.hasSuffix(".local") {
+            return true
+        }
+        if let address = IPv4Address(host) {
+            return isLocalNetworkIPv4(Array(address.rawValue))
+        }
+        if let address = IPv6Address(host) {
+            return isLocalNetworkIPv6(Array(address.rawValue))
+        }
+        return false
+    }
+
+    private static func isLocalNetworkIPv4(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 4 else { return false }
+        let first = bytes[0]
+        let second = bytes[1]
+        return first == 10
+            || (first == 172 && (16...31).contains(second))
+            || (first == 192 && second == 168)
+            || (first == 169 && second == 254)
+            || (first == 100 && (64...127).contains(second))
+    }
+
+    private static func isLocalNetworkIPv6(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 16 else { return false }
+        return (bytes[0] & 0xFE) == 0xFC
+            || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)
     }
 
     private static func shouldRestoreLocalNetworkHTTPOptIn(from config: LLMProviderConfig) -> Bool {
         config.id == .openaiCompatible
             && config.isLocal
-            && isNonLoopbackHTTP(config.baseURL)
+            && isAllowedInsecureLocalNetworkHTTP(config.baseURL)
     }
 }

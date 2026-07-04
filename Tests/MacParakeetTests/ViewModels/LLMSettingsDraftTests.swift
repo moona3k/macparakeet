@@ -83,6 +83,76 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertEqual(config?.isLocal, true)
     }
 
+    func testOpenAICompatibleRejectsPublicHTTPHostEvenWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://example.com/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertEqual(draft.validationError, .invalidBaseURL)
+        XCTAssertFalse(draft.isLocalConfiguration)
+        XCTAssertFalse(draft.usesInsecureLocalNetworkHTTP)
+    }
+
+    func testOpenAICompatibleRejectsPublicHTTPAddressEvenWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://8.8.8.8/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertEqual(draft.validationError, .invalidBaseURL)
+        XCTAssertFalse(draft.isLocalConfiguration)
+        XCTAssertFalse(draft.usesInsecureLocalNetworkHTTP)
+    }
+
+    func testOpenAICompatibleAllowsCGNATHTTPWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://100.64.0.42:8000/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isLocalConfiguration)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+    }
+
+    func testOpenAICompatibleAllowsPrivateIPv6HTTPWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://[fd12:3456::1]:8000/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isLocalConfiguration)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+    }
+
+    func testOpenAICompatibleAllowsMDNSHTTPWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://studio.local:8000/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isLocalConfiguration)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+    }
+
     // Regression: #118 — 0.0.0.0 bind addresses (common Ollama config) must be accepted.
     func testOllamaWildcardBindBaseURLIsAllowed() {
         let draft = LLMSettingsDraft(
@@ -227,5 +297,26 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertTrue(draft.allowInsecureLocalNetworkHTTP)
         XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
         XCTAssertNil(draft.validationError)
+    }
+
+    func testOpenAICompatibleStoredPublicHTTPConfigDoesNotRestoreOptIn() {
+        let config = LLMProviderConfig(
+            id: .openaiCompatible,
+            baseURL: URL(string: "http://example.com/v1")!,
+            apiKey: nil,
+            modelName: "remote-model",
+            isLocal: true
+        )
+
+        let draft = LLMSettingsDraft.fromStoredConfig(
+            config,
+            suggestedModels: [],
+            defaultModelName: "",
+            defaultBaseURL: ""
+        )
+
+        XCTAssertFalse(draft.allowInsecureLocalNetworkHTTP)
+        XCTAssertFalse(draft.usesInsecureLocalNetworkHTTP)
+        XCTAssertEqual(draft.validationError, .invalidBaseURL)
     }
 }
