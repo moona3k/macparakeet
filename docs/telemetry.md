@@ -465,6 +465,8 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 | `permission_granted` | `permission` | Grant rate |
 | `permission_denied` | `permission` | Denial rate — is something confusing? |
 
+Accessibility note: macOS does not provide a direct denial callback for Accessibility. During onboarding, `permission_denied` with `permission=accessibility` is emitted only after the user was prompted and then leaves or dismisses the Accessibility step while it is still ungranted; later System Settings grants are reported via the existing `permission_granted` event on refresh.
+
 ### 9. Errors — "What's breaking?"
 
 | Event | Props | Question It Answers |

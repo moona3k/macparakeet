@@ -97,6 +97,9 @@ public final class OnboardingViewModel {
     private let warmUpStallTimeout: Duration
     private var didEmitInitialStep = false
     private var completionForCurrentRun: Completion?
+    private var accessibilityPromptedInCurrentRun = false
+    private var accessibilityGrantedTelemetrySent = false
+    private var accessibilityDeniedTelemetrySent = false
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -166,6 +169,14 @@ public final class OnboardingViewModel {
         defaults.string(forKey: Self.onboardingCompletedKey) != nil
     }
 
+    /// Completion for the onboarding window currently on screen. This is
+    /// intentionally separate from the persisted completion key so Settings'
+    /// "Run setup again" can show fresh progress without treating an abandoned
+    /// re-run as a first-run user.
+    public var hasCompletedCurrentRun: Bool {
+        completionForCurrentRun != nil
+    }
+
     public func markOnboardingCompleted() -> Completion {
         if let completionForCurrentRun {
             return completionForCurrentRun
@@ -189,16 +200,31 @@ public final class OnboardingViewModel {
     }
 
     public func markOnboardingDismissed() {
+        if step == .accessibility {
+            refreshAccessibilityPermission()
+        }
+        emitAccessibilityDeniedIfNeeded()
         sendStepTelemetry(step: step, action: .dismissed)
+    }
+
+    public func startNewCurrentRun() {
+        resetCurrentRunState()
     }
 
     public func resetOnboarding() {
         defaults.removeObject(forKey: Self.onboardingCompletedKey)
-        step = .welcome
+        resetCurrentRunState()
         engineState = .idle
+    }
+
+    private func resetCurrentRunState() {
+        step = .welcome
         startedAt = now()
         didEmitInitialStep = false
         completionForCurrentRun = nil
+        accessibilityPromptedInCurrentRun = false
+        accessibilityGrantedTelemetrySent = false
+        accessibilityDeniedTelemetrySent = false
     }
 
     public func refresh() {
@@ -210,9 +236,16 @@ public final class OnboardingViewModel {
             // The class is @MainActor, so this Task already runs on the main
             // actor — assign directly rather than hopping through MainActor.run.
             self.micStatus = mic
-            self.accessibilityGranted = ax
+            self.applyAccessibilityPermission(ax)
             self.refreshTask = nil
         }
+    }
+
+    @discardableResult
+    public func refreshAccessibilityPermission() -> Bool {
+        let granted = permissionService.checkAccessibilityPermission()
+        applyAccessibilityPermission(granted)
+        return granted
     }
 
     /// Steps the user actually sees in the dictation-first onboarding flow.
@@ -224,6 +257,7 @@ public final class OnboardingViewModel {
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let next = visible.first(where: { $0.rawValue > currentRaw }) else { return }
+        emitAccessibilityDeniedIfLeavingAccessibility(for: next)
         step = next
         sendStepTelemetry(step: next, action: .forward)
         refresh()
@@ -233,12 +267,14 @@ public final class OnboardingViewModel {
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let prev = visible.last(where: { $0.rawValue < currentRaw }) else { return }
+        emitAccessibilityDeniedIfLeavingAccessibility(for: prev)
         step = prev
         sendStepTelemetry(step: prev, action: .back)
         refresh()
     }
 
     public func jump(to target: Step) {
+        emitAccessibilityDeniedIfLeavingAccessibility(for: target)
         step = target
         sendStepTelemetry(step: target, action: .jump)
         refresh()
@@ -289,15 +325,42 @@ public final class OnboardingViewModel {
     public func requestAccessibilityAccess(prompt: Bool = true) {
         isBusy = true
         Telemetry.send(.permissionPrompted(permission: .accessibility))
+        accessibilityPromptedInCurrentRun = true
         _ = permissionService.requestAccessibilityPermission(prompt: prompt)
-        accessibilityGranted = permissionService.checkAccessibilityPermission()
+        refreshAccessibilityPermission()
         isBusy = false
-        // Only emit granted — accessibility check is synchronous and returns false
-        // immediately after prompting (user hasn't clicked yet in System Settings).
-        // Emitting permissionDenied here would fire for nearly every new user.
-        if accessibilityGranted {
-            Telemetry.send(.permissionGranted(permission: .accessibility))
+    }
+
+    private func applyAccessibilityPermission(_ granted: Bool) {
+        accessibilityGranted = granted
+        if granted {
+            emitAccessibilityGrantedIfNeeded()
         }
+    }
+
+    private func emitAccessibilityGrantedIfNeeded() {
+        guard accessibilityPromptedInCurrentRun,
+              !accessibilityGrantedTelemetrySent
+        else { return }
+
+        Telemetry.send(.permissionGranted(permission: .accessibility))
+        accessibilityGrantedTelemetrySent = true
+    }
+
+    private func emitAccessibilityDeniedIfLeavingAccessibility(for nextStep: Step) {
+        guard step == .accessibility, nextStep != .accessibility else { return }
+        refreshAccessibilityPermission()
+        emitAccessibilityDeniedIfNeeded()
+    }
+
+    private func emitAccessibilityDeniedIfNeeded() {
+        guard accessibilityPromptedInCurrentRun,
+              !accessibilityGranted,
+              !accessibilityDeniedTelemetrySent
+        else { return }
+
+        Telemetry.send(.permissionDenied(permission: .accessibility))
+        accessibilityDeniedTelemetrySent = true
     }
 
     public func startPermissionPolling() {
@@ -318,17 +381,16 @@ public final class OnboardingViewModel {
         permissionPollingTask = nil
     }
 
-    /// Apply a warm-up failure to `engineState`, surfacing the terminal
-    /// `.failed` **only** once the user is on the Speech Model step. Part B kicks
-    /// the warm-up off at onboarding open, so a failure can land while the user
-    /// is still granting permissions — showing a failed card on those steps (or
-    /// flashing one the instant the engine step appears) would be wrong. Before
-    /// the engine step we reset to `.idle`; the engine step's `.onAppear` then
-    /// retries `startEngineWarmUp()` cleanly. Always clears `engineBusy`.
+    /// Apply a warm-up failure to `engineState`. Part B kicks the warm-up off at
+    /// onboarding open, so a failure can land while the user is still granting
+    /// permissions. The terminal `.failed` state is preserved, but only the
+    /// Speech Model step renders failure UI; earlier steps keep their normal
+    /// permission/hotkey surfaces and the engine step can show Retry immediately.
+    /// Always clears `engineBusy`.
     /// See plans/active/2026-05-dictation-first-onboarding.md §5.3.
     private func applyEngineWarmUpFailure(_ message: String) {
         engineBusy = false
-        engineState = (step == .engine) ? .failed(message: message) : .idle
+        engineState = .failed(message: message)
         if step == .engine {
             sendStepTelemetry(step: .engine, action: .engineFailed, engineState: "failed")
         }
