@@ -81,4 +81,15 @@ final class MeetingRecordingTileTests: XCTestCase {
         XCTAssertNil(MeetingRecordingPillView(viewModel: pillViewModel).visibleSourceHealthWarning)
         XCTAssertNil(MeetingRecordingTile(viewModel: pillViewModel, onTap: {}).visibleSourceHealthWarning)
     }
+
+    func testMicrophoneMuteButtonAccessibilityLabelReflectsAction() {
+        XCTAssertEqual(
+            MeetingMicrophoneMuteButton(isMuted: false, onToggle: {}).accessibilityLabelText,
+            "Mute microphone"
+        )
+        XCTAssertEqual(
+            MeetingMicrophoneMuteButton(isMuted: true, onToggle: {}).accessibilityLabelText,
+            "Unmute microphone"
+        )
+    }
 }

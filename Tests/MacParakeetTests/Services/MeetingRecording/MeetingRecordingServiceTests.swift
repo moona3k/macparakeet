@@ -679,6 +679,56 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
+    func testCaptureHealthRecoversSilentSourcesOnRealisticSpeechLevelBuffers() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            }
+        )
+
+        try await service.startRecording()
+        let quietMicrophoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.0005))
+        let quietSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.0005))
+        await captureService.yield(.microphoneBuffer(
+            quietMicrophoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        await captureService.yield(.systemBuffer(
+            quietSystemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+        ))
+
+        let silentHealth = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .silent && $0.system.status == .silent
+        }
+        XCTAssertLessThan(silentHealth.microphone.level, AudioCaptureHealth.silentInputMaximumLevel)
+        XCTAssertLessThan(silentHealth.system.level, AudioCaptureHealth.silentInputMaximumLevel)
+
+        let speechMicrophoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.005))
+        let speechSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.005))
+        await captureService.yield(.microphoneBuffer(
+            speechMicrophoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+        ))
+        await captureService.yield(.systemBuffer(
+            speechSystemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.1))
+        ))
+
+        let recoveredHealth = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .live && $0.system.status == .live
+        }
+        XCTAssertGreaterThanOrEqual(recoveredHealth.microphone.level, AudioCaptureHealth.silentInputMaximumLevel)
+        XCTAssertGreaterThanOrEqual(recoveredHealth.system.level, AudioCaptureHealth.silentInputMaximumLevel)
+        XCTAssertNil(recoveredHealth.primaryMessage)
+
+        await service.cancelRecording()
+    }
+
     func testCaptureHealthMarksSystemNotSelectedForMicrophoneOnly() async throws {
         let captureService = MockMeetingAudioCaptureService(
             startReport: MeetingAudioCaptureStartReport(

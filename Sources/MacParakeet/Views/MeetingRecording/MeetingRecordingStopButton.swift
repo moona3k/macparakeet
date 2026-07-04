@@ -122,6 +122,10 @@ struct MeetingMicrophoneMuteButton: View {
         isMuted ? DesignSystem.Colors.errorRed : DesignSystem.Colors.accent
     }
 
+    var accessibilityLabelText: String {
+        isMuted ? "Unmute microphone" : "Mute microphone"
+    }
+
     var body: some View {
         Button(action: onToggle) {
             Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
@@ -161,10 +165,13 @@ struct MeetingMicrophoneMuteButton: View {
         }
         .buttonStyle(.plain)
         .frame(height: Self.trackHeight)
-        .accessibilityLabel(isMuted ? "Unmute meeting microphone" : "Mute meeting microphone")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityIdentifier("meeting-microphone-mute-button")
+        .accessibilityAddTraits(.isButton)
         .help(
             isMuted
-                ? "Unmute meeting microphone"
+                ? "Unmute microphone"
                 : "Mute your microphone in this recording — system audio keeps recording"
         )
         .onHover { hovering in

@@ -268,6 +268,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var cachedTranscriptUpdates: AsyncStream<MeetingTranscriptUpdate>?
 
     private static let rmsEmaAlpha: Float = 0.3
+    private static let processedRmsHealthLevelScale: Float = 10
     private static let systemDominanceRatio: Float = 10.0
     private static let systemActiveFloor: Float = 0.02
     private static let systemSignalFreshnessWindow: Duration = .milliseconds(750)
@@ -399,8 +400,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         return MeetingCaptureHealthSummary.reduce(
             sourceMode: sourceMode,
-            microphoneLevel: microphoneCaptureHealthRms,
-            systemLevel: recentSystemRms,
+            microphoneLevel: microphoneCaptureHealthLevel,
+            systemLevel: systemCaptureHealthLevel,
             lastBufferAt: sourceHealthLastBufferAt,
             isMicrophoneMuted: microphoneMuteState.isMuted,
             microphoneStarted: captureHealthMetrics.microphoneStarted,
@@ -1555,8 +1556,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return size.uint64Value
     }
 
-    private var microphoneCaptureHealthRms: Float {
-        recentProcessedMicRms > 0 ? recentProcessedMicRms : recentMicrophoneRms
+    private var microphoneCaptureHealthLevel: Float {
+        max(latestLevels.microphone, recentMicrophoneRms, processedMicrophoneCaptureHealthLevel)
+    }
+
+    private var systemCaptureHealthLevel: Float {
+        max(latestLevels.system, recentSystemRms)
+    }
+
+    private var processedMicrophoneCaptureHealthLevel: Float {
+        guard recentProcessedMicRms > 0 else { return 0 }
+        return Self.captureHealthLevel(fromRawRms: recentProcessedMicRms)
+    }
+
+    private static func captureHealthLevel(fromRawRms rms: Float) -> Float {
+        min(1, max(0, rms * processedRmsHealthLevelScale))
     }
 
     private func updateMicrophoneRms(with bufferRms: Float) {
