@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_03194fc411710d::t_ca31283c2f4136 9-12
+  s_03194fc411710d::t_447dd64516269a 99,108
+  s_03194fc411710d::t_7470980a7cf60c 166-198
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_03194fc411710d::t_d2a7ae62c8cf26 571
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingMarkdownRenderer.swift
+  s_03194fc411710d::t_c3a13023a4840e 194,284
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_03194fc411710d::t_6e656421c766db 87,91-105,170-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d5547e39e51d26a62bb2225731cb79b1fc72e93",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
