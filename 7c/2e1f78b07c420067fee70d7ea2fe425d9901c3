@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_360c1951ff7ffb::t_2dc94148f351b3 163
+  s_360c1951ff7ffb::t_d7e2746cb3c7ab 236
+  s_360c1951ff7ffb::t_48c89090470084 201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7c2e1f78b07c420067fee70d7ea2fe425d9901c3",
+  "prompts": {},
+  "sessions": {
+    "s_360c1951ff7ffb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "645af37c-273c-49f3-bdd0-8a65ddc7a98f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

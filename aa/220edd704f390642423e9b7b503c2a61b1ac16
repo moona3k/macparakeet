@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_032afcb89ebb56::t_c9db5ea981d571 63-64
+spec/05-audio-pipeline.md
+  s_032afcb89ebb56::t_a000ee594680b6 275
+  s_032afcb89ebb56::t_4603bdbef00400 304-306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa220edd704f390642423e9b7b503c2a61b1ac16",
+  "prompts": {},
+  "sessions": {
+    "s_032afcb89ebb56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "faa9e32b-b9e9-418e-8645-376477b996de",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
