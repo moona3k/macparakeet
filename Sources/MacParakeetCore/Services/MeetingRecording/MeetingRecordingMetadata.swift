@@ -234,4 +234,19 @@ extension MeetingSourceAlignment {
         let originSeconds = AVAudioTime.seconds(forHostTime: originHostTime)
         return Int(((startSeconds - originSeconds) * 1000).rounded())
     }
+
+    var cleanedMicrophoneRenderDurationSeconds: TimeInterval {
+        [microphone?.durationSeconds, system?.durationSeconds]
+            .compactMap { $0 }
+            .max() ?? 0
+    }
+}
+
+extension MeetingSourceAlignment.Track {
+    var durationSeconds: TimeInterval {
+        guard writtenFrameCount > 0, sampleRate.isFinite, sampleRate > 0 else {
+            return 0
+        }
+        return Double(writtenFrameCount) / sampleRate
+    }
 }

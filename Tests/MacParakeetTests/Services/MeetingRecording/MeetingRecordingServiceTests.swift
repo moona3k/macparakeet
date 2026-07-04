@@ -1542,6 +1542,56 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
     }
 
+    func testStopRecordingUsesMediaDurationForCleanedMicTimeoutGuard() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let wallClock = MeetingTestWallClock(
+            now: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let schedulerProbe = MeetingCleanedMicSchedulerProbe()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                ZeroingMicConditioner()
+            },
+            wallClockNow: {
+                wallClock.now
+            },
+            cleanedMicrophoneReadinessScheduler: { _, _, _, _, _, _, _, _ in
+                schedulerProbe.recordCall()
+                return .notScheduled(reason: .rawRenderFailed)
+            }
+        )
+
+        try await service.startRecording()
+        let threshold = MeetingCleanedMicrophoneReadinessPolicy.production.capSeconds
+            * MeetingCleanedMicrophoneReadinessPolicy.bestMeasuredRealtimeFactor
+        wallClock.advance(by: threshold + 1)
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+        await captureService.yield(.systemBuffer(systemBuffer, time))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(output.durationSeconds, threshold + 1, accuracy: 0.001)
+        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+        XCTAssertEqual(
+            schedulerProbe.callCount,
+            1,
+            "above-threshold wall-clock duration must not skip a short captured media render"
+        )
+
+        let decision = try await output.resolvedMicrophoneTranscriptionSource()
+        XCTAssertEqual(decision.reason, .rawRenderFailed)
+        XCTAssertEqual(decision.url, output.microphoneAudioURL)
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .rawRenderFailed)
+    }
+
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -2838,6 +2888,40 @@ private final class MeetingMicConditionerFactoryProbe: @unchecked Sendable {
             count += 1
         }
         return ZeroingMicConditioner()
+    }
+}
+
+private final class MeetingCleanedMicSchedulerProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var callCount: Int {
+        lock.withLock { count }
+    }
+
+    func recordCall() {
+        lock.withLock {
+            count += 1
+        }
+    }
+}
+
+private final class MeetingTestWallClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: Date
+
+    init(now: Date) {
+        current = now
+    }
+
+    var now: Date {
+        lock.withLock { current }
+    }
+
+    func advance(by seconds: TimeInterval) {
+        lock.withLock {
+            current = current.addingTimeInterval(seconds)
+        }
     }
 }
 

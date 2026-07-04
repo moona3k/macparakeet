@@ -8,14 +8,16 @@ public enum MeetingCleanedMicrophoneRoutingReason: String, Sendable, Codable, Ca
     case rawMissingSystemReference
     case rawNoAECAssets
     case skippedNoEchoPath
+    case predictedRenderTimeout
 }
 
 public struct MeetingCleanedMicrophoneReadinessPolicy: Sendable, Equatable {
-    /// The v1.4 LocalVQE AEC model measured on this worktree at 16.33x realtime
-    /// for the conditioning core: 60.0 s synthetic meeting audio in 3.674 s on
-    /// an Apple M4 Pro via `MeetingAecRenderThroughputTests`. A 0.25x duration
-    /// budget assumes only 4x realtime, leaving roughly 3x margin for file
-    /// decode/encode and cold system load while still bounding final-STT delay.
+    /// `docs/audits/2026-07-04-localvqe-aec-runtime-findings.md` measured
+    /// 11.67-12.59x realtime on an M4 Pro. The fastest observed factor keeps
+    /// the duration guard limited to renders that would exceed the cap even
+    /// at the best measured rate.
+    public static let bestMeasuredRealtimeFactor: Double = 12.59
+
     public static let production = MeetingCleanedMicrophoneReadinessPolicy(
         floorSeconds: 60,
         durationMultiplier: 0.25,
@@ -44,6 +46,12 @@ public struct MeetingCleanedMicrophoneReadinessPolicy: Sendable, Equatable {
             scaled = capSeconds
         }
         return max(floorSeconds, min(scaled, capSeconds))
+    }
+
+    public func shouldAttemptRender(for recordingDuration: TimeInterval) -> Bool {
+        guard recordingDuration.isFinite, recordingDuration > 0 else { return true }
+        return recordingDuration / Self.bestMeasuredRealtimeFactor <= timeoutSeconds(
+            for: recordingDuration)
     }
 }
 
@@ -457,6 +465,28 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         )
     }
 
+    static func skipPredictedRenderTimeout(
+        outputURL: URL,
+        sessionID: UUID,
+        fileManager: FileManager,
+        eventName: String
+    ) -> MeetingCleanedMicrophoneReadiness {
+        discardArtifact(
+            at: outputURL,
+            sessionID: sessionID,
+            reason: "predicted_render_timeout",
+            fileManager: fileManager,
+            eventName: eventName
+        )
+        appendDiagnostic(
+            eventName: eventName,
+            sessionID: sessionID,
+            outcome: "skipped",
+            reason: .predictedRenderTimeout
+        )
+        return .notScheduled(reason: .predictedRenderTimeout)
+    }
+
     private static func candidateOutputURL(for outputURL: URL, sessionID: UUID) -> URL {
         let basename = outputURL.deletingPathExtension().lastPathComponent
         let pathExtension = outputURL.pathExtension.isEmpty ? "tmp" : outputURL.pathExtension
@@ -720,7 +750,7 @@ extension MeetingRecordingOutput {
                     probeBestCorrelation: existing.probeBestCorrelation
                 )
             case .rawTimeout, .rawRenderFailed, .rawMissingSystemReference, .rawNoAECAssets,
-                    .skippedNoEchoPath:
+                    .skippedNoEchoPath, .predictedRenderTimeout:
                 break
             }
         }

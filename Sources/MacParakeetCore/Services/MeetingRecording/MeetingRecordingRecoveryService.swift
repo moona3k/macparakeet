@@ -50,6 +50,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     /// the injected `echoSuppressionConfiguration`; resolves to passthrough
     /// (→ no cleaned file) without bundled AEC assets.
     private let micConditionerFactory: @Sendable () -> any MicConditioning
+    private let recordingDurationProvider: @Sendable ([TimeInterval], Date) -> TimeInterval
 
     public convenience init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
@@ -81,7 +82,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         transcriptionRepo: TranscriptionRepositoryProtocol,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
-        micConditionerFactory: @escaping @Sendable () -> any MicConditioning
+        micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
+        recordingDurationProvider: @escaping @Sendable ([TimeInterval], Date) -> TimeInterval = { sourceDurations, startedAt in
+            sourceDurations.max() ?? max(0, Date().timeIntervalSince(startedAt))
+        }
     ) {
         self.meetingsRoot = meetingsRoot
         self.lockFileStore = lockFileStore
@@ -90,6 +94,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         self.audioConverter = audioConverter
         self.fileManager = fileManager
         self.micConditionerFactory = micConditionerFactory
+        self.recordingDurationProvider = recordingDurationProvider
     }
 
     /// Minimum size (bytes) for either `microphone.m4a` or `system.m4a` to
@@ -218,22 +223,19 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         let recoveredBySource = Dictionary(
             recoveredSources.map { ($0.source, $0.url) }, uniquingKeysWith: { first, _ in first })
+        // Clamp the provider output to non-negative. If the user's clock
+        // skewed backwards between lock-file write and recovery, fallback
+        // wall-clock duration can otherwise corrupt the recovered output.
+        let duration = max(0, recordingDurationProvider(recoveredSources.map(\.duration), lock.startedAt))
         let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
             folderURL: folderURL,
             microphoneURL: recoveredBySource[.microphone],
             systemURL: recoveredBySource[.system],
             sourceAlignment: sourceAlignment,
-            sessionID: lock.sessionId
+            sessionID: lock.sessionId,
+            recordingDuration: duration
         )
 
-        // Clamp the wall-clock fallback to non-negative. If the user's clock
-        // skewed (NTP correction backwards, manual time change) between when
-        // the lock file was written and when recovery runs, `startedAt` can
-        // be in the future and `timeIntervalSince` returns a negative number —
-        // a malformed duration that would corrupt the recovered output.
-        let durationFromSources = recoveredSources.map(\.duration).max()
-        let durationFallback = max(0, Date().timeIntervalSince(lock.startedAt))
-        let duration = durationFromSources ?? durationFallback
         let recording = MeetingRecordingOutput(
             sessionID: lock.sessionId,
             displayName: lock.displayName,
@@ -289,10 +291,21 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         microphoneURL: URL?,
         systemURL: URL?,
         sourceAlignment: MeetingSourceAlignment,
-        sessionID: UUID
+        sessionID: UUID,
+        recordingDuration: TimeInterval
     ) -> MeetingCleanedMicrophoneReadiness {
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        guard MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+            for: recordingDuration
+        ) else {
+            return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                outputURL: outputURL,
+                sessionID: sessionID,
+                fileManager: fileManager,
+                eventName: "meeting_recovery_cleaned_mic"
+            )
+        }
         return MeetingCleanedMicrophoneRenderScheduler.schedule(
             outputURL: outputURL,
             microphoneURL: microphoneURL,
