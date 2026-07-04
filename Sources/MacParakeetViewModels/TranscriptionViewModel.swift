@@ -1290,7 +1290,12 @@ public final class TranscriptionViewModel {
                 try await Task.detached(priority: .utility) {
                     try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
                 }.value
-                self?.refreshMeetingArtifactBestEffort(for: transcription)
+                if self?.speakerRenameGenerations[transcriptionID] == renameGeneration {
+                    self?.refreshMeetingArtifactBestEffort(
+                        for: transcription,
+                        generation: renameGeneration
+                    )
+                }
             } catch {
                 let errorType = TelemetryErrorClassifier.classify(error)
                 self?.handleSpeakerRenamePersistenceFailure(
@@ -1337,8 +1342,9 @@ public final class TranscriptionViewModel {
         logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")
     }
 
-    private func refreshMeetingArtifactBestEffort(for transcription: Transcription) {
+    private func refreshMeetingArtifactBestEffort(for transcription: Transcription, generation: Int) {
         guard transcription.sourceType == .meeting,
+              speakerRenameGenerations[transcription.id] == generation,
               MeetingArtifactStore.sessionFolderURL(for: transcription) != nil
         else {
             return
@@ -1347,13 +1353,39 @@ public final class TranscriptionViewModel {
         let artifactStore = meetingArtifactStore
         let promptResultRepo = promptResultRepo
         let logger = logger
-        Task.detached(priority: .utility) {
+        Task.detached(priority: .utility) { [weak self] in
             do {
                 let promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcription.id) ?? []
+                let shouldMaterialize = await MainActor.run { [weak self] in
+                    guard let self else { return false }
+                    return self.speakerRenameGenerations[transcription.id] == generation
+                        && self.currentTranscription?.id == transcription.id
+                        && self.currentTranscription?.updatedAt == transcription.updatedAt
+                }
+                guard shouldMaterialize else { return }
                 _ = try await artifactStore.materialize(
                     transcription: transcription,
                     promptResults: promptResults
                 )
+                let latestRefresh = await MainActor.run { [weak self] () -> (Transcription, Int)? in
+                    guard let self,
+                          self.speakerRenameGenerations[transcription.id] != generation,
+                          let currentTranscription = self.currentTranscription,
+                          currentTranscription.id == transcription.id,
+                          let latestGeneration = self.speakerRenameGenerations[transcription.id]
+                    else {
+                        return nil
+                    }
+                    return (currentTranscription, latestGeneration)
+                }
+                if let latestRefresh {
+                    await MainActor.run { [weak self] in
+                        self?.refreshMeetingArtifactBestEffort(
+                            for: latestRefresh.0,
+                            generation: latestRefresh.1
+                        )
+                    }
+                }
             } catch {
                 let errorType = TelemetryErrorClassifier.classify(error)
                 logger.error("speaker_rename_artifact_refresh_failed error_type=\(errorType, privacy: .public)")

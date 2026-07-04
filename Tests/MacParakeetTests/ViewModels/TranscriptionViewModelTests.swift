@@ -36,6 +36,39 @@ private final class SlowFirstSpeakerUpdateFailure: @unchecked Sendable {
     }
 }
 
+private final class SlowFirstSpeakerUpdateSuccess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var startedFirstUpdate = false
+    private var updateCount = 0
+
+    var firstUpdateStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return startedFirstUpdate
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return updateCount
+    }
+
+    func handleUpdate(id _: UUID, speakers _: [SpeakerInfo]?) {
+        let callNumber: Int
+        lock.lock()
+        updateCount += 1
+        callNumber = updateCount
+        if callNumber == 1 {
+            startedFirstUpdate = true
+        }
+        lock.unlock()
+
+        if callNumber == 1 {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+    }
+}
+
 @MainActor
 final class TranscriptionViewModelTests: XCTestCase {
     var viewModel: TranscriptionViewModel!
@@ -1677,6 +1710,64 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(call.transcription.speakers?.first?.label, "Alice")
         XCTAssertEqual(call.promptResults.count, 1)
         XCTAssertEqual(viewModel.transcriptions.first?.speakers?.first?.label, "Alice")
+    }
+
+    func testRenameSpeakerSkipsStaleArtifactRefreshAfterNewerRename() async throws {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("speaker-rename-artifact-stale-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0]))
+
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let meeting = Transcription(
+            fileName: "Design Review",
+            filePath: audioURL.path,
+            rawTranscript: "Hello there.",
+            wordTimestamps: [
+                WordTimestamp(
+                    word: "Hello",
+                    startMs: 0,
+                    endMs: 300,
+                    confidence: 0.99,
+                    speakerId: "S1"
+                ),
+            ],
+            speakers: speakers,
+            status: .completed,
+            sourceType: .meeting
+        )
+        let probe = SlowFirstSpeakerUpdateSuccess()
+        mockRepo.transcriptions = [meeting]
+        mockRepo.updateSpeakersHandler = { id, speakers in
+            probe.handleUpdate(id: id, speakers: speakers)
+        }
+
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+        try await waitUntil {
+            probe.firstUpdateStarted
+        }
+
+        viewModel.renameSpeaker(id: "S1", to: "Bob")
+
+        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        try await Task.sleep(for: .milliseconds(300))
+
+        let calls = await artifactStore.materializeCalls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.transcription.speakers?.first?.label, "Bob")
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?.first?.label, "Bob")
     }
 
     func testRenameCurrentTranscriptionUpdatesStateAndRepo() {
