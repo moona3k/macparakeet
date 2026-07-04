@@ -1299,6 +1299,32 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
     }
 
+    func testRenameSpeakerUpdatesMatchingTranscriptionsRow() {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
+        let other = Transcription(
+            fileName: "other.wav",
+            speakers: [SpeakerInfo(id: "S1", label: "Other speaker")],
+            status: .completed
+        )
+        mockRepo.transcriptions = [t, other]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Sarah")
+
+        let updated = viewModel.transcriptions.first { $0.id == t.id }
+        XCTAssertEqual(updated?.speakers?[0].label, "Sarah")
+        XCTAssertEqual(updated?.speakers?[1].label, "Speaker 2")
+
+        let unchanged = viewModel.transcriptions.first { $0.id == other.id }
+        XCTAssertEqual(unchanged?.speakers?[0].label, "Other speaker")
+    }
+
     func testRenameSpeakerPersistsToRepo() {
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
         let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)

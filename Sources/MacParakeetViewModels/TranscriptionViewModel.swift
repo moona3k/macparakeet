@@ -1247,6 +1247,9 @@ public final class TranscriptionViewModel {
         speakers[index].label = trimmed
         transcription.speakers = speakers
         currentTranscription = transcription
+        if let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+            transcriptions[transcriptionIndex].speakers = speakers
+        }
         do {
             try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
         } catch {
