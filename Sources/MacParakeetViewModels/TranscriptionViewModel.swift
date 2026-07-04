@@ -1244,17 +1244,49 @@ public final class TranscriptionViewModel {
         guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else { return }
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
+        let previousCurrentSpeakers = speakers
+        let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id })
+        let previousListSpeakers = transcriptionIndex.flatMap { transcriptions[$0].speakers }
         speakers[index].label = trimmed
         transcription.speakers = speakers
         currentTranscription = transcription
-        if let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+        if let transcriptionIndex {
             transcriptions[transcriptionIndex].speakers = speakers
         }
-        do {
-            try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
-        } catch {
-            logger.error("Failed to persist speaker rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
+        guard let transcriptionRepo else { return }
+        let transcriptionID = transcription.id
+        Task { [weak self, transcriptionRepo, transcriptionID, speakers, previousCurrentSpeakers, previousListSpeakers] in
+            do {
+                try await Task.detached(priority: .utility) {
+                    try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
+                }.value
+            } catch {
+                let errorType = TelemetryErrorClassifier.classify(error)
+                self?.handleSpeakerRenamePersistenceFailure(
+                    transcriptionID: transcriptionID,
+                    previousCurrentSpeakers: previousCurrentSpeakers,
+                    previousListSpeakers: previousListSpeakers,
+                    errorType: errorType
+                )
+            }
         }
+    }
+
+    private func handleSpeakerRenamePersistenceFailure(
+        transcriptionID: UUID,
+        previousCurrentSpeakers: [SpeakerInfo],
+        previousListSpeakers: [SpeakerInfo]?,
+        errorType: String
+    ) {
+        if var currentTranscription, currentTranscription.id == transcriptionID {
+            currentTranscription.speakers = previousCurrentSpeakers
+            self.currentTranscription = currentTranscription
+        }
+        if let index = transcriptions.firstIndex(where: { $0.id == transcriptionID }) {
+            transcriptions[index].speakers = previousListSpeakers
+        }
+        setError(message: "Failed to save speaker rename. The previous label was restored.")
+        logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")
     }
 
     public func renameCurrentTranscription(to newFileName: String) {
