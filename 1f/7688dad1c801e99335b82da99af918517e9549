@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/STT/CustomVocabularyBoosting.swift
+  s_e323b204ea3fab::t_284b1cd7d01d29 17,244-245,268,319-320,324,326,329,357,367-369,374-384
+  s_e323b204ea3fab::t_b5e0028f701133 385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f7688dad1c801e99335b82da99af918517e9549",
+  "prompts": {},
+  "sessions": {
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
