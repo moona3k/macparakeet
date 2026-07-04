@@ -886,13 +886,13 @@ public actor STTRuntime: STTRuntimeProtocol {
                     : lastWord.endMs
             }
 
-            guard segmentEndMs >= segmentStartMs else { return }
-            let durationPerWord = Double(segmentEndMs - segmentStartMs) / Double(rescoredRange.count)
+            let boundedSegmentEndMs = max(segmentEndMs, segmentStartMs)
+            let durationPerWord = Double(boundedSegmentEndMs - segmentStartMs) / Double(rescoredRange.count)
             for (offset, wordIndex) in rescoredRange.enumerated() {
                 let wordStartMs = segmentStartMs + Int((durationPerWord * Double(offset)).rounded())
                 let wordEndMs =
                     offset == rescoredRange.count - 1
-                    ? segmentEndMs
+                    ? boundedSegmentEndMs
                     : segmentStartMs + Int((durationPerWord * Double(offset + 1)).rounded())
                 appendTiming(
                     word: rescoredWords[wordIndex],

@@ -138,6 +138,29 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(resultWords[3].endMs, 5000)
     }
 
+    func testBoundaryChangingBoostKeepsInsertedWordWhenOriginalTimingsOverlap() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "alpha inserted beta")
+        let overlappingTimings = [
+            TokenTiming(token: "▁alpha", tokenId: 1, startTime: 0.0, endTime: 1.0, confidence: 0.9),
+            TokenTiming(token: "▁beta", tokenId: 2, startTime: 0.9, endTime: 1.5, confidence: 0.9),
+        ]
+
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "alpha beta",
+            tokenTimings: overlappingTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["inserted"]),
+            rescorer: rescorer
+        )
+
+        let resultWords = STTWordTimingBuilder.words(from: result.tokenTimings)
+        XCTAssertEqual(result.text, "alpha inserted beta")
+        XCTAssertEqual(resultWords.map(\.word), ["alpha", "inserted", "beta"])
+        XCTAssertEqual(resultWords[1].startMs, 1000)
+        XCTAssertEqual(resultWords[1].endMs, 1000)
+    }
+
     func testSidecarFailureFallsBackToUnboostedTranscript() async throws {
         let rescorer = FakeCustomVocabularyRescorer(error: TestError.expected)
         let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(

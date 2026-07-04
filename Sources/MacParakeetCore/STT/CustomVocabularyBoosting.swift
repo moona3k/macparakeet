@@ -247,7 +247,9 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CustomVocabulary")
     private var cachedResources: CtcResources?
+    private var resourceLoadTask: Task<CtcResources, Error>?
     private var cachedVocabularies: [String: CachedVocabulary] = [:]
+    private var cachedVocabularyLoadTasks: [String: Task<CachedVocabulary, Error>] = [:]
     private var cachedVocabularyOrder: [String] = []
 
     public init() {}
@@ -327,8 +329,83 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             return cachedVocabulary
         }
 
+        let hash = vocabulary.contentHash
+        if let loadTask = cachedVocabularyLoadTasks[hash] {
+            let cachedVocabulary = try await loadTask.value
+            rememberCachedVocabularyHash(hash)
+            return cachedVocabulary
+        }
+
         try Task.checkCancellation()
-        let resources = try await ctcResources()
+        let loadTask = Task {
+            let resources = try await self.ctcResources()
+            return try await Self.makeCachedVocabulary(
+                vocabulary: vocabulary,
+                resources: resources
+            )
+        }
+        cachedVocabularyLoadTasks[hash] = loadTask
+
+        do {
+            let cachedVocabulary = try await loadTask.value
+            cachedVocabularyLoadTasks.removeValue(forKey: hash)
+            cachedVocabularies[hash] = cachedVocabulary
+            rememberCachedVocabularyHash(hash)
+            evictStaleCachedVocabularies()
+            logger.info(
+                "custom_vocabulary_boost_loaded terms=\(cachedVocabulary.context.terms.count, privacy: .public)"
+            )
+            return cachedVocabulary
+        } catch {
+            cachedVocabularyLoadTasks.removeValue(forKey: hash)
+            throw error
+        }
+    }
+
+    private func ctcResources() async throws -> CtcResources {
+        if let cachedResources {
+            return cachedResources
+        }
+
+        if let resourceLoadTask {
+            return try await resourceLoadTask.value
+        }
+
+        let loadTask = Task {
+            try await Self.loadCtcResources()
+        }
+        resourceLoadTask = loadTask
+
+        do {
+            let resources = try await loadTask.value
+            cachedResources = resources
+            resourceLoadTask = nil
+            return resources
+        } catch {
+            resourceLoadTask = nil
+            throw error
+        }
+    }
+
+    private static func loadCtcResources() async throws -> CtcResources {
+        try Task.checkCancellation()
+        let models = try await CtcModels.downloadAndLoad(variant: .ctc110m)
+        try Task.checkCancellation()
+        let modelDirectory = CtcModels.defaultCacheDirectory(for: models.variant)
+        let tokenizer = try await CtcTokenizer.load(from: modelDirectory)
+        try Task.checkCancellation()
+        let resources = CtcResources(
+            models: models,
+            modelDirectory: modelDirectory,
+            tokenizer: tokenizer
+        )
+        return resources
+    }
+
+    private static func makeCachedVocabulary(
+        vocabulary: CustomVocabularyBoostingVocabulary,
+        resources: CtcResources
+    ) async throws -> CachedVocabulary {
         try Task.checkCancellation()
         let tokenizedTerms = vocabulary.terms.compactMap { term -> CustomVocabularyTerm? in
             let tokenIds = resources.tokenizer.encode(term)
@@ -359,7 +436,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
         )
         try Task.checkCancellation()
         let sizeConfig = ContextBiasingConstants.rescorerConfig(forVocabSize: context.terms.count)
-        let cached = CachedVocabulary(
+        return CachedVocabulary(
             hash: vocabulary.contentHash,
             context: context,
             spotter: spotter,
@@ -367,31 +444,6 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             cbw: sizeConfig.cbw,
             marginSeconds: ContextBiasingConstants.defaultMarginSeconds
         )
-        cachedVocabularies[vocabulary.contentHash] = cached
-        rememberCachedVocabularyHash(vocabulary.contentHash)
-        evictStaleCachedVocabularies()
-        logger.info("custom_vocabulary_boost_loaded terms=\(context.terms.count, privacy: .public)")
-        return cached
-    }
-
-    private func ctcResources() async throws -> CtcResources {
-        if let cachedResources {
-            return cachedResources
-        }
-
-        try Task.checkCancellation()
-        let models = try await CtcModels.downloadAndLoad(variant: .ctc110m)
-        try Task.checkCancellation()
-        let modelDirectory = CtcModels.defaultCacheDirectory(for: models.variant)
-        let tokenizer = try await CtcTokenizer.load(from: modelDirectory)
-        try Task.checkCancellation()
-        let resources = CtcResources(
-            models: models,
-            modelDirectory: modelDirectory,
-            tokenizer: tokenizer
-        )
-        cachedResources = resources
-        return resources
     }
 
     private func rememberCachedVocabularyHash(_ hash: String) {
