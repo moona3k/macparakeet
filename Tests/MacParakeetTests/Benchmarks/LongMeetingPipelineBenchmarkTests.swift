@@ -202,13 +202,29 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     }
 
     private func copySessionFolder(from source: URL, to destination: URL) throws {
-        guard FileManager.default.fileExists(atPath: source.path) else {
-            throw BenchmarkError.missingRequiredPath(source.path)
-        }
+        try validateSourceSessionFolder(source)
         try FileManager.default.copyItem(at: source, to: destination)
         try FileManager.default.removeItemIfExists(
             at: destination.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         )
+    }
+
+    private func validateSourceSessionFolder(_ source: URL) throws {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else {
+            throw BenchmarkError.missingRequiredPath(source.path)
+        }
+
+        let requiredURLs = [
+            source.appendingPathComponent("microphone.m4a"),
+            source.appendingPathComponent("system.m4a"),
+            MeetingRecordingMetadataStore.metadataURL(for: source)
+        ]
+        for url in requiredURLs where !FileManager.default.fileExists(atPath: url.path) {
+            throw BenchmarkError.missingRequiredPath(url.path)
+        }
     }
 
     private func loadRecording(from folderURL: URL) async throws -> MeetingRecordingOutput {
@@ -488,6 +504,10 @@ private final class StageMetricsCollector: @unchecked Sendable {
             self.startedAt = startedAt
             self.baselineRSS = baselineRSS
             self.peakRSS = baselineRSS
+        }
+
+        deinit {
+            timer?.cancel()
         }
     }
 

@@ -1161,20 +1161,24 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 onProgress: onProgress
             )
 
-            meetingFinalizationBenchmarkObserver?.stageDidStart(.diarization)
             let systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?
-            do {
-                systemDiarization = try await diarizeMeetingSystemIfNeeded(
-                    recording: recording,
-                    sourceWavURLs: sourceWavURLs,
-                    requested: diarizationRequested,
-                    lifecycleStage: &lifecycleStage,
-                    onProgress: onProgress
-                )
-                meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
-            } catch {
-                meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
-                throw error
+            if diarizationRequested {
+                meetingFinalizationBenchmarkObserver?.stageDidStart(.diarization)
+                do {
+                    systemDiarization = try await diarizeMeetingSystemIfNeeded(
+                        recording: recording,
+                        sourceWavURLs: sourceWavURLs,
+                        requested: true,
+                        lifecycleStage: &lifecycleStage,
+                        onProgress: onProgress
+                    )
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+                } catch {
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+                    throw error
+                }
+            } else {
+                systemDiarization = nil
             }
 
             meetingFinalizationBenchmarkObserver?.stageDidStart(.finalizeMerge)
@@ -1316,7 +1320,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         for (index, source) in activeSources.enumerated() {
             let benchmarkStage: MeetingFinalizationBenchmarkObserver.Stage =
                 source == .microphone ? .microphoneSTT : .systemSTT
-            meetingFinalizationBenchmarkObserver?.stageDidStart(benchmarkStage)
             do {
                 let fileURL = meetingAudioURL(
                     for: source,
@@ -1331,16 +1334,24 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
                 lifecycleStage = .stt
                 onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
-                let result = try await transcribeSpeech(
-                    audioPath: wavURL.path,
-                    job: .meetingFinalize,
-                    speechEngine: speechEngine,
-                    onProgress: meetingSourceProgressMapper(
-                        sourceIndex: index,
-                        sourceCount: activeSources.count,
-                        onProgress: onProgress
+                let result: STTResult
+                meetingFinalizationBenchmarkObserver?.stageDidStart(benchmarkStage)
+                do {
+                    result = try await transcribeSpeech(
+                        audioPath: wavURL.path,
+                        job: .meetingFinalize,
+                        speechEngine: speechEngine,
+                        onProgress: meetingSourceProgressMapper(
+                            sourceIndex: index,
+                            sourceCount: activeSources.count,
+                            onProgress: onProgress
+                        )
                     )
-                )
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+                } catch {
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+                    throw error
+                }
 
                 outputs.append(
                     .init(
@@ -1349,10 +1360,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                         startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
                     )
                 )
-                meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
-            } catch {
-                meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
-                throw error
             }
         }
 
