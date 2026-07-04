@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_d22dfe75f28724::t_7a061e3ab67e62 595-599,609,613,635
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3180beb19e7e37e02a4be8d1f3142d85a0cfc09b",
+  "prompts": {},
+  "sessions": {
+    "s_d22dfe75f28724": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b44-3c15-7eb0-83be-f198a3d687e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
