@@ -627,7 +627,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         try await emitJSONOrRethrow(json: format == .json) {
             let emission = try Self.outputEmissionAfterNativeTeardown(
                 runResult: runResult,
-                restoreResult: restoreResult
+                restoreResult: restoreResult,
+                warnOnIgnoredRestoreFailure: { error in
+                    printErr("Warning: failed to restore stdout after transcribe failure: \(error.localizedDescription)")
+                }
             )
             try await emitStdout(emission)
         }
@@ -635,11 +638,20 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func outputEmissionAfterNativeTeardown<Emission>(
         runResult: Result<Emission, Error>,
-        restoreResult: Result<Void, Error>
+        restoreResult: Result<Void, Error>,
+        warnOnIgnoredRestoreFailure: ((Error) -> Void)? = nil
     ) throws -> Emission {
-        let emission = try runResult.get()
-        try restoreResult.get()
-        return emission
+        switch (runResult, restoreResult) {
+        case (.success(let emission), .success):
+            return emission
+        case (.success, .failure(let restoreError)):
+            throw restoreError
+        case (.failure(let runError), .success):
+            throw runError
+        case (.failure(let runError), .failure(let restoreError)):
+            warnOnIgnoredRestoreFailure?(restoreError)
+            throw runError
+        }
     }
 
     private func emitStdout(_ emission: TranscribeStdoutEmission) async throws {

@@ -10,11 +10,26 @@ import Foundation
 final class StandardOutputRedirection {
     private var savedStdout: Int32?
 
+    var savedStdoutFileDescriptorForTesting: Int32? {
+        savedStdout
+    }
+
     init(to targetFileDescriptor: Int32 = STDERR_FILENO) throws {
         fflush(stdout)
         let saved = dup(STDOUT_FILENO)
         guard saved >= 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        let savedFlags = fcntl(saved, F_GETFD)
+        guard savedFlags >= 0 else {
+            let errorNumber = errno
+            close(saved)
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errorNumber))
+        }
+        guard fcntl(saved, F_SETFD, savedFlags | FD_CLOEXEC) >= 0 else {
+            let errorNumber = errno
+            close(saved)
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errorNumber))
         }
         guard dup2(targetFileDescriptor, STDOUT_FILENO) >= 0 else {
             let errorNumber = errno
