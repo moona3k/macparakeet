@@ -333,10 +333,16 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         if let address = IPv4Address(host) {
             return isLocalNetworkIPv4(Array(address.rawValue))
         }
-        if let address = IPv6Address(host) {
+        if let address = IPv6Address(ipv6HostWithoutScope(host)) {
             return isLocalNetworkIPv6(Array(address.rawValue))
         }
         return false
+    }
+
+    private static func ipv6HostWithoutScope(_ host: String) -> String {
+        host.split(separator: "%", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map(String.init) ?? host
     }
 
     private static func isLocalNetworkIPv4(_ bytes: [UInt8]) -> Bool {

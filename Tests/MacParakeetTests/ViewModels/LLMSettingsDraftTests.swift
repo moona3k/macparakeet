@@ -139,6 +139,20 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
     }
 
+    func testOpenAICompatibleAllowsScopedLinkLocalIPv6HTTPWithExplicitOptIn() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://[fe80::1%25en0]:8000/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isLocalConfiguration)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+    }
+
     func testOpenAICompatibleAllowsMDNSHTTPWithExplicitOptIn() {
         let draft = LLMSettingsDraft(
             providerID: .openaiCompatible,
