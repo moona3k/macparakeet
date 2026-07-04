@@ -1668,6 +1668,7 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRenameSpeakerRefreshesMeetingArtifactWithUpdatedLabels() async throws {
         let artifactStore = RecordingMeetingArtifactStore()
         viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
 
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("speaker-rename-artifact-\(UUID().uuidString)", isDirectory: true)
@@ -1699,7 +1700,8 @@ final class TranscriptionViewModelTests: XCTestCase {
             ],
             speakers: speakers,
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            updatedAt: oldUpdatedAt
         )
         mockRepo.transcriptions = [meeting]
         mockPromptResultRepo.promptResults = [
@@ -1724,6 +1726,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let calls = await artifactStore.materializeCalls
         let call = try XCTUnwrap(calls.first)
         XCTAssertEqual(call.transcription.speakers?.first?.label, "Alice")
+        XCTAssertGreaterThan(call.transcription.updatedAt, oldUpdatedAt)
         XCTAssertEqual(call.promptResults.count, 1)
         XCTAssertEqual(viewModel.transcriptions.first?.speakers?.first?.label, "Alice")
     }
@@ -1922,6 +1925,99 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptions.first?.derivedTitle, "Design Review")
         XCTAssertEqual(mockRepo.updateFileNameCalls.count, 1)
         XCTAssertEqual(mockRepo.updateFileNameCalls[0].fileName, "Design Review")
+    }
+
+    func testRenameCurrentTranscriptionRefreshesMeetingArtifact() async throws {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
+        let t = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            sourceType: .meeting,
+            derivedTitle: "Auto Derived Title",
+            updatedAt: oldUpdatedAt
+        )
+        let promptResult = PromptResult(
+            transcriptionId: t.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "Ship it."
+        )
+        mockRepo.transcriptions = [t]
+        mockPromptResultRepo.promptResults = [promptResult]
+
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = t
+
+        viewModel.renameCurrentTranscription(to: "Design Review")
+
+        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        let calls = await artifactStore.materializeCalls
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.transcription.fileName, "Design Review")
+        XCTAssertEqual(call.transcription.derivedTitle, "Design Review")
+        XCTAssertGreaterThan(call.transcription.updatedAt, oldUpdatedAt)
+        XCTAssertEqual(call.promptResults.map(\.id), [promptResult.id])
+    }
+
+    func testRenameCurrentTranscriptionSkipsArtifactRefreshWithoutPromptResultRepo() async throws {
+        viewModel = TranscriptionViewModel(meetingArtifactStore: MeetingArtifactStore())
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TranscriptionViewModelTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+
+        let t = Transcription(
+            fileName: "Meeting Apr 5",
+            filePath: audioURL.path,
+            rawTranscript: "Keep the prompt results.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let promptResult = PromptResult(
+            transcriptionId: t.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "This result must stay materialized."
+        )
+        _ = try await MeetingArtifactStore().materialize(
+            transcription: t,
+            promptResults: [promptResult]
+        )
+
+        let markdownURL = folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName)
+        let resultMarkdownURL = folderURL
+            .appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName)
+            .appendingPathComponent("01-Summary.md")
+        let beforeMarkdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        let beforeResultMarkdown = try String(contentsOf: resultMarkdownURL, encoding: .utf8)
+        XCTAssertTrue(beforeMarkdown.contains("promptResultCount: 1"))
+        XCTAssertTrue(beforeMarkdown.contains("## Prompt Results"))
+        XCTAssertTrue(beforeResultMarkdown.contains("This result must stay materialized."))
+
+        mockRepo.transcriptions = [t]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo
+        )
+        viewModel.currentTranscription = t
+
+        viewModel.renameCurrentTranscription(to: "Design Review")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let afterMarkdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        let afterResultMarkdown = try String(contentsOf: resultMarkdownURL, encoding: .utf8)
+        XCTAssertEqual(afterMarkdown, beforeMarkdown)
+        XCTAssertEqual(afterResultMarkdown, beforeResultMarkdown)
+        XCTAssertTrue(afterMarkdown.contains("promptResultCount: 1"))
+        XCTAssertTrue(afterMarkdown.contains("## Prompt Results"))
     }
 
     func testRenameCurrentTranscriptionTrimsWhitespace() {

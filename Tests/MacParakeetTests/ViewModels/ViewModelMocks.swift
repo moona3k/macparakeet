@@ -200,6 +200,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         updateFileNameCalls.append((id: id, fileName: fileName))
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].fileName = fileName
+            transcriptions[idx].derivedTitle = fileName
             transcriptions[idx].updatedAt = Date()
         }
     }
