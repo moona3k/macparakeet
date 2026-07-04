@@ -12,6 +12,9 @@
   (audio pipeline rework)
 - **Category**: fix / meeting pipeline policy / performance
 - **Planned at**: 2026-07-04, branch `docs/long-meeting-aec-policy`
+- **Progress**: Phase 1a implemented as PR #695, Phase 1b as PR #696 (both
+  2026-07-04, fresh-eye reviewed). The Phase 1 sections below are updated to
+  match the final implemented shape.
 - **Baseline**: `origin/main` at `cfbcccb30e23` (post PR #688
   diarization-default-on)
 - **Relates**: issue #605; PRs #671, #676, #688; ADR-010, ADR-026, ADR-027;
@@ -66,16 +69,17 @@ inside the readiness cap.
 
 - Add to `MeetingCleanedMicrophoneReadinessPolicy`
   (`Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicrophoneReadiness.swift:13-46`):
-  - a constant `bestMeasuredRealtimeFactor: Double = 12.0` with a comment
+  - a constant `bestMeasuredRealtimeFactor: Double = 12.59` with a comment
     citing `docs/audits/2026-07-04-localvqe-aec-runtime-findings.md` (measured
-    11.67-12.59x on M4 Pro; 12.0 is the optimistic bound so the guard only
-    skips renders that would time out even at the best measured rate — it must
-    never deny a render that could plausibly succeed).
+    11.67-12.59x on M4 Pro; the FASTEST audited measurement is the bound so
+    the guard only skips renders that would time out even at the best
+    measured rate — it must never deny a render that could plausibly
+    succeed).
   - `func shouldAttemptRender(for recordingDuration: TimeInterval) -> Bool`
     returning `recordingDuration / bestMeasuredRealtimeFactor
     <= timeoutSeconds(for: recordingDuration)`. With today's constants this
-    gates meetings longer than 7,200 s (2 h). Do NOT hardcode 7200; derive it
-    so future cap/multiplier changes flow through.
+    gates meetings longer than ~7,554 s (~2.1 h). Do NOT hardcode the
+    threshold; derive it so future cap/multiplier changes flow through.
 - New routing reason case (e.g. `.predictedRenderTimeout`) on
   `MeetingCleanedMicrophoneRoutingReason`, surfaced exactly like existing
   fallback reasons in the `meeting_cleaned_mic` diagnostics/log line
@@ -88,10 +92,12 @@ inside the readiness cap.
     not-scheduled reason (the existing `notScheduledReason` path at
     `MeetingCleanedMicrophoneReadiness.swift:122` already models this).
   - the equivalent path in `MeetingRecordingRecoveryService`.
-- Recording duration source: the same duration already used to compute
-  `timeoutSeconds(for:)` at the readiness call site
-  (`MeetingCleanedMicrophoneReadiness.swift:607`). If the duration is unknown
-  at schedule time, attempt the render (guard only fires on a known-long
+- Recording duration source: CAPTURED MEDIA duration (what the render
+  actually processes), never wall-clock meeting duration — a paused/idle
+  meeting can have hours of wall-clock over minutes of audio, and wall-clock
+  would wrongly skip viable renders. Both stop and recovery paths compute the
+  media duration before scheduling the render. If the duration is unknown at
+  schedule time, attempt the render (guard only fires on a known-long
   duration; unknown must not regress current behavior).
 
 ### Acceptance criteria
@@ -127,14 +133,21 @@ real meeting, per stage.
   AEC render, mic STT, system STT, diarization, finalizer merge — each with
   elapsed seconds, realtime factor, and peak RSS delta.
 - Stages must run in the same order and through the same code paths as real
-  finalization (`transcribeMeetingSources`, `diarizeMeetingSystemIfNeeded`,
-  `MeetingTranscriptFinalizer.finalize`), not reimplementations.
+  finalization — `transcribeMeetingSources`, `diarizeMeetingSystemIfNeeded`,
+  `MeetingTranscriptFinalizer.finalize` — not reimplementations. Those
+  helpers are private to `TranscriptionService`, so the implemented mechanism
+  is a package-internal benchmark observer seam
+  (`MeetingFinalizationBenchmarkObserver`) attached via an internal
+  initializer overload; the observer is nil in production and the hooks are
+  wrap-only.
 - Output lands as an addendum table in a new
   `docs/audits/2026-07-XX-long-meeting-full-pipeline-findings.md`.
 - Runs on real 60-120 min retained meetings are executed by Daniel on the M4
   Pro (and ideally one older/16 GB machine); the dispatched work delivers the
-  runnable harness + instructions, with a smoke run on an existing short
-  fixture proving the plumbing.
+  runnable harness + instructions. No retained-meeting fixture ships in-repo:
+  the smoke run proves plumbing on an OPERATOR-SUPPLIED retained session
+  (env var pointing at a local session folder); on a machine with none, a
+  short synthesized dual-track fixture is acceptable for plumbing proof.
 
 ### Acceptance criteria
 
@@ -190,7 +203,7 @@ runs on separate branches off `origin/main`.
 > specified in `plans/active/2026-07-04-long-meeting-aec-policy.md` Phase 1a.
 > Read `docs/audits/2026-07-04-long-meeting-aec-diarization-queue-followup.md`
 > for context. Settled decisions: guard lives on
-> `MeetingCleanedMicrophoneReadinessPolicy`; optimistic factor 12.0 derived-not-
+> `MeetingCleanedMicrophoneReadinessPolicy`; fastest-measured factor 12.59 derived-not-
 > hardcoded threshold; new routing reason, log-only telemetry; guard applied in
 > `MeetingRecordingService.scheduleCleanedMicrophoneRender` AND the recovery
 > service; unknown duration attempts render. Fences: do not touch the
