@@ -1,15 +1,15 @@
 import Foundation
 
-public enum EngineVariantKey: Hashable, Sendable, CustomStringConvertible {
+public enum SpeechEngineVariantKey: Hashable, Sendable, CustomStringConvertible {
     case parakeet(ParakeetModelVariant)
     case nemotron(NemotronModelVariant)
     case whisper(WhisperModelVariant)
     case cohere
 
-    public static var allCases: [EngineVariantKey] {
-        ParakeetModelVariant.allCases.map(EngineVariantKey.parakeet)
-            + NemotronModelVariant.allCases.map(EngineVariantKey.nemotron)
-            + WhisperModelVariant.allCases.map(EngineVariantKey.whisper)
+    public static var allCases: [SpeechEngineVariantKey] {
+        ParakeetModelVariant.allCases.map(SpeechEngineVariantKey.parakeet)
+            + NemotronModelVariant.allCases.map(SpeechEngineVariantKey.nemotron)
+            + WhisperModelVariant.allCases.map(SpeechEngineVariantKey.whisper)
             + [.cohere]
     }
 
@@ -48,12 +48,11 @@ public enum EngineVariantKey: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-public struct EngineLanguagePolicy: Equatable, Sendable {
+public struct SpeechEngineLanguagePolicy: Equatable, Sendable {
     public enum Mode: Equatable, Sendable {
         case automatic
         case fixed
         case selectable
-        case unavailable
     }
 
     public let mode: Mode
@@ -63,16 +62,16 @@ public struct EngineLanguagePolicy: Equatable, Sendable {
     public static func automatic(
         defaultLanguage: String? = nil,
         supportedLanguageCodes: [String]? = nil
-    ) -> EngineLanguagePolicy {
-        EngineLanguagePolicy(
+    ) -> SpeechEngineLanguagePolicy {
+        SpeechEngineLanguagePolicy(
             mode: .automatic,
             defaultLanguage: defaultLanguage,
             supportedLanguageCodes: supportedLanguageCodes
         )
     }
 
-    public static func fixed(_ language: String) -> EngineLanguagePolicy {
-        EngineLanguagePolicy(
+    public static func fixed(_ language: String) -> SpeechEngineLanguagePolicy {
+        SpeechEngineLanguagePolicy(
             mode: .fixed,
             defaultLanguage: language,
             supportedLanguageCodes: [language]
@@ -82,22 +81,16 @@ public struct EngineLanguagePolicy: Equatable, Sendable {
     public static func selectable(
         defaultLanguage: String? = nil,
         supportedLanguageCodes: [String]? = nil
-    ) -> EngineLanguagePolicy {
-        EngineLanguagePolicy(
+    ) -> SpeechEngineLanguagePolicy {
+        SpeechEngineLanguagePolicy(
             mode: .selectable,
             defaultLanguage: defaultLanguage,
             supportedLanguageCodes: supportedLanguageCodes
         )
     }
-
-    public static let unavailable = EngineLanguagePolicy(
-        mode: .unavailable,
-        defaultLanguage: nil,
-        supportedLanguageCodes: nil
-    )
 }
 
-public enum EngineTelemetryVariant: Equatable, Sendable {
+public enum SpeechEngineTelemetryVariant: Equatable, Sendable {
     case none
     case fixed(String)
     case cohereComputePolicy
@@ -114,12 +107,12 @@ public enum EngineTelemetryVariant: Equatable, Sendable {
     }
 }
 
-public struct EngineTelemetryIdentity: Equatable, Sendable {
+public struct SpeechEngineTelemetryIdentity: Equatable, Sendable {
     public let modelKind: TelemetryModelKind
-    public let engineVariant: EngineTelemetryVariant
+    public let engineVariant: SpeechEngineTelemetryVariant
 }
 
-public struct EngineModelLifecycle: Equatable, Sendable {
+public struct SpeechEngineModelLifecycle: Equatable, Sendable {
     public let modelName: String
     public let variantID: String?
     public let selectableVariantIDs: [String]
@@ -128,46 +121,46 @@ public struct EngineModelLifecycle: Equatable, Sendable {
     public let minimumMemoryBytes: UInt64?
 }
 
-public struct EngineCapabilities: Equatable, Sendable {
-    public let key: EngineVariantKey
+public struct SpeechEngineCapabilities: Equatable, Sendable {
+    public let key: SpeechEngineVariantKey
     public let supportsNativeLiveDictation: Bool
     public let supportsTailPreview: Bool
     public let providesWordTimestamps: Bool
-    public let supportedLanguages: EngineLanguagePolicy
+    public let supportedLanguages: SpeechEngineLanguagePolicy
     public let supportsCustomVocabulary: Bool
-    public let modelLifecycle: EngineModelLifecycle
-    public let telemetryIdentity: EngineTelemetryIdentity
+    public let modelLifecycle: SpeechEngineModelLifecycle
+    public let telemetryIdentity: SpeechEngineTelemetryIdentity
 }
 
-public enum EngineCapabilityRegistry {
+public enum SpeechEngineCapabilityRegistry {
     public static let cohereMinimumMemoryBytes: UInt64 = 16 * 1024 * 1024 * 1024
 
-    public static let all: [EngineCapabilities] =
+    public static let all: [SpeechEngineCapabilities] =
         makeParakeetRows() + makeNemotronRows() + makeWhisperRows() + [cohereRow()]
 
     private static let table = Dictionary(uniqueKeysWithValues: all.map { ($0.key, $0) })
 
-    public static func capabilitiesIfPresent(for key: EngineVariantKey) -> EngineCapabilities? {
+    public static func capabilitiesIfPresent(for key: SpeechEngineVariantKey) -> SpeechEngineCapabilities? {
         table[key]
     }
 
-    public static func capabilities(for key: EngineVariantKey) -> EngineCapabilities {
+    public static func capabilities(for key: SpeechEngineVariantKey) -> SpeechEngineCapabilities {
         guard let capabilities = capabilitiesIfPresent(for: key) else {
-            preconditionFailure("Missing EngineCapabilities row for \(key)")
+            preconditionFailure("Missing SpeechEngineCapabilities row for \(key)")
         }
         return capabilities
     }
 
-    private static func makeParakeetRows() -> [EngineCapabilities] {
+    private static func makeParakeetRows() -> [SpeechEngineCapabilities] {
         ParakeetModelVariant.allCases.map { variant in
-            EngineCapabilities(
+            SpeechEngineCapabilities(
                 key: .parakeet(variant),
                 supportsNativeLiveDictation: variant.usesUnifiedEngine,
                 supportsTailPreview: !variant.usesUnifiedEngine,
                 providesWordTimestamps: !variant.usesUnifiedEngine,
                 supportedLanguages: variant.isEnglishOnly ? .fixed("en") : .automatic(),
                 supportsCustomVocabulary: false,
-                modelLifecycle: EngineModelLifecycle(
+                modelLifecycle: SpeechEngineModelLifecycle(
                     modelName: variant.modelName,
                     variantID: variant.rawValue,
                     selectableVariantIDs: ParakeetModelVariant.allCases.map(\.rawValue),
@@ -175,7 +168,7 @@ public enum EngineCapabilityRegistry {
                     isUserDeletable: true,
                     minimumMemoryBytes: nil
                 ),
-                telemetryIdentity: EngineTelemetryIdentity(
+                telemetryIdentity: SpeechEngineTelemetryIdentity(
                     modelKind: .parakeetSTT,
                     engineVariant: .fixed(variant.rawValue)
                 )
@@ -183,16 +176,16 @@ public enum EngineCapabilityRegistry {
         }
     }
 
-    private static func makeNemotronRows() -> [EngineCapabilities] {
+    private static func makeNemotronRows() -> [SpeechEngineCapabilities] {
         NemotronModelVariant.allCases.map { variant in
-            EngineCapabilities(
+            SpeechEngineCapabilities(
                 key: .nemotron(variant),
                 supportsNativeLiveDictation: true,
                 supportsTailPreview: false,
                 providesWordTimestamps: true,
                 supportedLanguages: variant.isEnglishOnly ? .fixed("en") : .selectable(),
                 supportsCustomVocabulary: false,
-                modelLifecycle: EngineModelLifecycle(
+                modelLifecycle: SpeechEngineModelLifecycle(
                     modelName: variant.modelName,
                     variantID: variant.rawValue,
                     selectableVariantIDs: NemotronModelVariant.allCases.map(\.rawValue),
@@ -200,7 +193,7 @@ public enum EngineCapabilityRegistry {
                     isUserDeletable: true,
                     minimumMemoryBytes: nil
                 ),
-                telemetryIdentity: EngineTelemetryIdentity(
+                telemetryIdentity: SpeechEngineTelemetryIdentity(
                     modelKind: .nemotronSTT,
                     engineVariant: .fixed(variant.rawValue)
                 )
@@ -208,9 +201,9 @@ public enum EngineCapabilityRegistry {
         }
     }
 
-    private static func makeWhisperRows() -> [EngineCapabilities] {
+    private static func makeWhisperRows() -> [SpeechEngineCapabilities] {
         WhisperModelVariant.allCases.map { variant in
-            EngineCapabilities(
+            SpeechEngineCapabilities(
                 key: .whisper(variant),
                 supportsNativeLiveDictation: false,
                 supportsTailPreview: true,
@@ -220,7 +213,7 @@ public enum EngineCapabilityRegistry {
                     supportedLanguageCodes: WhisperLanguageCatalog.all.map(\.code)
                 ),
                 supportsCustomVocabulary: false,
-                modelLifecycle: EngineModelLifecycle(
+                modelLifecycle: SpeechEngineModelLifecycle(
                     modelName: variant.modelName,
                     variantID: variant.rawValue,
                     selectableVariantIDs: WhisperModelVariant.allCases.map(\.rawValue),
@@ -228,7 +221,7 @@ public enum EngineCapabilityRegistry {
                     isUserDeletable: true,
                     minimumMemoryBytes: nil
                 ),
-                telemetryIdentity: EngineTelemetryIdentity(
+                telemetryIdentity: SpeechEngineTelemetryIdentity(
                     modelKind: .whisperSTT,
                     engineVariant: .fixed(variant.rawValue)
                 )
@@ -236,8 +229,8 @@ public enum EngineCapabilityRegistry {
         }
     }
 
-    private static func cohereRow() -> EngineCapabilities {
-        EngineCapabilities(
+    private static func cohereRow() -> SpeechEngineCapabilities {
+        SpeechEngineCapabilities(
             key: .cohere,
             supportsNativeLiveDictation: false,
             supportsTailPreview: false,
@@ -247,7 +240,7 @@ public enum EngineCapabilityRegistry {
                 supportedLanguageCodes: CohereTranscribeEngine.supportedLanguages.map(\.code)
             ),
             supportsCustomVocabulary: false,
-            modelLifecycle: EngineModelLifecycle(
+            modelLifecycle: SpeechEngineModelLifecycle(
                 modelName: "Cohere Transcribe",
                 variantID: nil,
                 selectableVariantIDs: [],
@@ -255,7 +248,7 @@ public enum EngineCapabilityRegistry {
                 isUserDeletable: true,
                 minimumMemoryBytes: cohereMinimumMemoryBytes
             ),
-            telemetryIdentity: EngineTelemetryIdentity(
+            telemetryIdentity: SpeechEngineTelemetryIdentity(
                 modelKind: .cohereSTT,
                 engineVariant: .cohereComputePolicy
             )

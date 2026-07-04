@@ -1,26 +1,26 @@
 import XCTest
 @testable import MacParakeetCore
 
-final class EngineCapabilitiesTests: XCTestCase {
+final class SpeechEngineCapabilitiesTests: XCTestCase {
     func testRegistryHasOneRowForEveryEngineVariant() {
         XCTAssertEqual(
-            Set(EngineCapabilityRegistry.all.map(\.key)),
-            Set(EngineVariantKey.allCases)
+            Set(SpeechEngineCapabilityRegistry.all.map(\.key)),
+            Set(SpeechEngineVariantKey.allCases)
         )
     }
 
     func testRegistryLookupIsTotalForEveryEngineVariant() {
-        for key in EngineVariantKey.allCases {
+        for key in SpeechEngineVariantKey.allCases {
             XCTAssertNotNil(
-                EngineCapabilityRegistry.capabilitiesIfPresent(for: key),
+                SpeechEngineCapabilityRegistry.capabilitiesIfPresent(for: key),
                 "Missing capabilities row for \(key)"
             )
         }
     }
 
     func testNativeLiveDictationClaimsMatchNativeStreamingVariants() {
-        let liveKeys = Set(EngineVariantKey.allCases.filter {
-            EngineCapabilityRegistry.capabilities(for: $0).supportsNativeLiveDictation
+        let liveKeys = Set(SpeechEngineVariantKey.allCases.filter {
+            SpeechEngineCapabilityRegistry.capabilities(for: $0).supportsNativeLiveDictation
         })
 
         XCTAssertEqual(liveKeys, [
@@ -31,25 +31,25 @@ final class EngineCapabilitiesTests: XCTestCase {
     }
 
     func testCapabilityFactsPreserveCurrentEngineContracts() {
-        let parakeetV3 = EngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+        let parakeetV3 = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
         XCTAssertTrue(parakeetV3.supportsTailPreview)
         XCTAssertTrue(parakeetV3.providesWordTimestamps)
         XCTAssertEqual(parakeetV3.supportedLanguages.mode, .automatic)
         XCTAssertEqual(parakeetV3.telemetryIdentity.modelKind, .parakeetSTT)
         XCTAssertEqual(parakeetV3.telemetryIdentity.engineVariant, .fixed("v3"))
 
-        let parakeetUnified = EngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        let parakeetUnified = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
         XCTAssertFalse(parakeetUnified.supportsTailPreview)
         XCTAssertFalse(parakeetUnified.providesWordTimestamps)
         XCTAssertEqual(parakeetUnified.supportedLanguages, .fixed("en"))
 
-        let whisper = EngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
+        let whisper = SpeechEngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
         XCTAssertTrue(whisper.supportsTailPreview)
         XCTAssertTrue(whisper.providesWordTimestamps)
         XCTAssertEqual(whisper.supportedLanguages.mode, .selectable)
         XCTAssertEqual(whisper.modelLifecycle.variantID, WhisperModelVariant.largeV3Turbo632MB.rawValue)
 
-        let cohere = EngineCapabilityRegistry.capabilities(for: .cohere)
+        let cohere = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
         XCTAssertFalse(cohere.supportsTailPreview)
         XCTAssertFalse(cohere.providesWordTimestamps)
         XCTAssertEqual(cohere.supportedLanguages.mode, .selectable)
