@@ -314,6 +314,50 @@ final class MeetingRecordingOutputTests: XCTestCase {
         }
     }
 
+    func testUpdateEchoSuppressionPreservesLegacyMissingSpeechEngine() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeLegacyMetadataWithoutSpeechEngine(in: dir)
+
+        try MeetingRecordingMetadataStore.updateEchoSuppression(
+            MeetingEchoSuppressionMetadata(reasonCode: .skippedNoEchoPath),
+            folderURL: dir
+        )
+
+        let data = try Data(contentsOf: MeetingRecordingMetadataStore.metadataURL(for: dir))
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertNil(json?["speechEngine"])
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertFalse(metadata.speechEngineWasCaptured)
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
+    }
+
+    func testUpdateEchoSuppressionSavesThroughInjectedFileManager() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let virtualFileManager = RecordingMetadataFileManager(
+            data: try legacyMetadataDataWithoutSpeechEngine()
+        )
+
+        try MeetingRecordingMetadataStore.updateEchoSuppression(
+            MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed, modelVersion: "test-model.gguf"),
+            folderURL: dir,
+            fileManager: virtualFileManager
+        )
+
+        XCTAssertEqual(
+            virtualFileManager.createdPaths,
+            [MeetingRecordingMetadataStore.metadataURL(for: dir).path]
+        )
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: MeetingRecordingMetadataStore.metadataURL(for: dir).path))
+        let data = try XCTUnwrap(virtualFileManager.data)
+        let metadata = try JSONDecoder().decode(MeetingRecordingMetadata.self, from: data)
+        XCTAssertFalse(metadata.speechEngineWasCaptured)
+        XCTAssertEqual(metadata.echoSuppression?.reasonCode, .cleanedUsed)
+        XCTAssertEqual(metadata.echoSuppression?.modelVersion, "test-model.gguf")
+    }
+
     // MARK: Helpers
 
     private func makeTempDir() throws -> URL {
@@ -335,6 +379,27 @@ final class MeetingRecordingOutputTests: XCTestCase {
             ),
             folderURL: dir
         )
+    }
+
+    private func legacyMetadataDataWithoutSpeechEngine() throws -> Data {
+        let scratch = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        try writeLegacyMetadataWithoutSpeechEngine(in: scratch)
+        return try Data(contentsOf: MeetingRecordingMetadataStore.metadataURL(for: scratch))
+    }
+
+    private func writeLegacyMetadataWithoutSpeechEngine(in dir: URL) throws {
+        try saveAlignmentMetadata(in: dir)
+        let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)
+        ) as? [String: Any])
+        json.removeValue(forKey: "speechEngine")
+        let data = try JSONSerialization.data(
+            withJSONObject: json,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: url, options: .atomic)
     }
 
     private func dualSourceAlignment() -> MeetingSourceAlignment {
@@ -426,5 +491,37 @@ private final class ContentsProbeFailingFileManager: FileManager {
 
     override func contents(atPath path: String) -> Data? {
         nil
+    }
+}
+
+private final class RecordingMetadataFileManager: FileManager {
+    private(set) var data: Data?
+    private(set) var createdPaths: [String] = []
+
+    init(data: Data) {
+        self.data = data
+        super.init()
+    }
+
+    override func fileExists(atPath path: String) -> Bool {
+        data != nil
+    }
+
+    override func contents(atPath path: String) -> Data? {
+        data
+    }
+
+    override func removeItem(at URL: URL) throws {
+        data = nil
+    }
+
+    override func createFile(
+        atPath path: String,
+        contents data: Data?,
+        attributes attr: [FileAttributeKey: Any]? = nil
+    ) -> Bool {
+        createdPaths.append(path)
+        self.data = data
+        return true
     }
 }

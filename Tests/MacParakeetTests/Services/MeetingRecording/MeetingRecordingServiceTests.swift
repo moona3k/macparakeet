@@ -1387,7 +1387,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.microphoneAudioURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.systemAudioURL.path))
         let decision = try await output.resolvedMicrophoneTranscriptionSource(
-            policy: .init(floorSeconds: 2, durationMultiplier: 0, capSeconds: 2)
+            policy: .init(floorSeconds: 10, durationMultiplier: 0, capSeconds: 10)
         )
         XCTAssertEqual(decision.reason, .cleanedUsed)
         XCTAssertEqual(decision.url, cleanedURL)

@@ -67,6 +67,18 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         self.echoSuppression = echoSuppression
     }
 
+    private init(
+        sourceAlignment: MeetingSourceAlignment,
+        speechEngine: SpeechEngineSelection,
+        speechEngineWasCaptured: Bool,
+        echoSuppression: MeetingEchoSuppressionMetadata?
+    ) {
+        self.sourceAlignment = sourceAlignment
+        self.speechEngine = speechEngine
+        self.speechEngineWasCaptured = speechEngineWasCaptured
+        self.echoSuppression = echoSuppression
+    }
+
     private enum CodingKeys: String, CodingKey {
         case sourceAlignment
         case speechEngine
@@ -85,12 +97,22 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         )
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sourceAlignment, forKey: .sourceAlignment)
+        if speechEngineWasCaptured {
+            try container.encode(speechEngine, forKey: .speechEngine)
+        }
+        try container.encodeIfPresent(echoSuppression, forKey: .echoSuppression)
+    }
+
     public func withEchoSuppression(
         _ echoSuppression: MeetingEchoSuppressionMetadata
     ) -> MeetingRecordingMetadata {
         MeetingRecordingMetadata(
             sourceAlignment: sourceAlignment,
             speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
             echoSuppression: echoSuppression
         )
     }
@@ -123,9 +145,24 @@ enum MeetingRecordingMetadataStore {
         folderURL.appendingPathComponent(MeetingRecordingMetadata.fileName)
     }
 
-    static func save(_ metadata: MeetingRecordingMetadata, folderURL: URL) throws {
+    static func save(
+        _ metadata: MeetingRecordingMetadata,
+        folderURL: URL,
+        fileManager: FileManager = .default
+    ) throws {
         let data = try JSONEncoder.meetingRecordingMetadata.encode(metadata)
-        try data.write(to: metadataURL(for: folderURL), options: .atomic)
+        let url = metadataURL(for: folderURL)
+        if fileManager === FileManager.default {
+            try data.write(to: url, options: .atomic)
+            return
+        }
+        if fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+        guard fileManager.createFile(atPath: url.path, contents: data) else {
+            throw MeetingAudioError.storageFailed(
+                "Unable to write archived meeting metadata: \(MeetingRecordingMetadata.fileName)")
+        }
     }
 
     static func load(
@@ -150,7 +187,11 @@ enum MeetingRecordingMetadataStore {
         fileManager: FileManager = .default
     ) throws {
         let metadata = try load(from: folderURL, fileManager: fileManager)
-        try save(metadata.withEchoSuppression(echoSuppression), folderURL: folderURL)
+        try save(
+            metadata.withEchoSuppression(echoSuppression),
+            folderURL: folderURL,
+            fileManager: fileManager
+        )
     }
 }
 
