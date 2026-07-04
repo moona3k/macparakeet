@@ -453,19 +453,29 @@ enum VoiceprintHarness {
         process.arguments = arguments
 
         let stdout = Pipe()
-        let stderr = Pipe()
+        let stderrURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "voiceprint-harness-\(UUID().uuidString).stderr"
+        )
+        _ = FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+        defer {
+            try? stderrHandle.close()
+            try? FileManager.default.removeItem(at: stderrURL)
+        }
         process.standardOutput = stdout
-        process.standardError = stderr
+        process.standardError = stderrHandle
 
         try process.run()
+        let outData = try stdout.fileHandleForReading.readToEnd() ?? Data()
         process.waitUntilExit()
+        try? stderrHandle.close()
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        let errData = (try? Data(contentsOf: stderrURL)) ?? Data()
         let out = String(data: outData, encoding: .utf8) ?? ""
         let err = String(data: errData, encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
-            throw HarnessError(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed: \(err)")
+            let detail = err.isEmpty ? out : err
+            throw HarnessError(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed: \(detail)")
         }
         return out
     }

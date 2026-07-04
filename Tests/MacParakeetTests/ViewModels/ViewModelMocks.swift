@@ -222,6 +222,10 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].speakers = speakers
+            transcriptions[idx].transcriptSegments = TranscriptSegmentRecord.updatingSpeakerLabels(
+                in: transcriptions[idx].transcriptSegments,
+                using: speakers
+            )
             transcriptions[idx].updatedAt = Date()
         }
     }

@@ -884,6 +884,60 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.speakers?[1].label, "Bob")
     }
 
+    func testUpdateSpeakersRefreshesMatchingTranscriptSegmentLabels() throws {
+        let transcription = Transcription(
+            fileName: "meeting.wav",
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Speaker 1"),
+                SpeakerInfo(id: "S2", label: "Speaker 2"),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 500,
+                    endMs: 900,
+                    speakerId: "S2",
+                    speakerLabel: "Speaker 2",
+                    text: "there",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 1, endIndexExclusive: 2)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 900,
+                    endMs: 1100,
+                    speakerId: "S3",
+                    speakerLabel: "Unmapped speaker",
+                    text: "aside",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 2, endIndexExclusive: 3)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        try repo.updateSpeakers(
+            id: transcription.id,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Sarah"),
+                SpeakerInfo(id: "S2", label: "Riley"),
+            ]
+        )
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.speakers?[0].label, "Sarah")
+        XCTAssertEqual(fetched.speakers?[1].label, "Riley")
+        XCTAssertEqual(fetched.transcriptSegments?[0].speakerLabel, "Sarah")
+        XCTAssertEqual(fetched.transcriptSegments?[1].speakerLabel, "Riley")
+        XCTAssertEqual(fetched.transcriptSegments?[2].speakerLabel, "Unmapped speaker")
+    }
+
     func testUpdateSpeakersToNil() throws {
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
         let transcription = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
