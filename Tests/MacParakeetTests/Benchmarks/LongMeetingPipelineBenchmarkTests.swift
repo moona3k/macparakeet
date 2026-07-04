@@ -37,6 +37,8 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     private static let localVQELibraryKey = "MACPARAKEET_TEST_LOCALVQE_LIBRARY"
     private static let localVQEModelKey = "MACPARAKEET_TEST_LOCALVQE_MODEL"
     private static let localVQEModelSHAKey = "MACPARAKEET_TEST_LOCALVQE_MODEL_SHA256"
+    private static let benchmarkRenderTimeoutFloorSeconds: TimeInterval = 60
+    private static let benchmarkRenderTimeoutMultiplier: Double = 6
 
     func testDefaultDualTrackMeetingPostStopPipelineBenchmark() async throws {
         let env = ProcessInfo.processInfo.environment
@@ -70,6 +72,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             updating: queued.id,
             onProgress: nil
         )
+        try assertCleanedMicrophonePipelineValidity(recording: cleanedRecording)
 
         let rows = collector.rows()
         XCTAssertFalse(rows.isEmpty)
@@ -126,9 +129,10 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
         env: [String: String],
         collector: StageMetricsCollector
     ) async throws -> MeetingRecordingOutput {
+        let stage = "decode+aec_render"
         let outputURL = recording.folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        let readiness = try await collector.measure(stage: "decode+aec_render") {
+        let renderedURL = try await collector.measure(stage: stage) { () async throws -> URL in
             let readiness = MeetingCleanedMicrophoneRenderScheduler.schedule(
                 outputURL: outputURL,
                 microphoneURL: recording.microphoneAudioURL,
@@ -139,10 +143,30 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
                 fileManager: .default,
                 eventName: "long_meeting_pipeline_bench_cleaned_mic"
             )
-            _ = try await readiness.awaitCompletion(
-                timeoutSeconds: max(60, recording.durationSeconds * 2)
+            // Benchmark-only safety valve: this must measure the render to completion,
+            // not production's user-facing fallback budget.
+            let timeoutSeconds = Self.benchmarkRenderTimeoutSeconds(
+                for: recording.durationSeconds
             )
-            return readiness
+            let completion = try await readiness.awaitCompletion(timeoutSeconds: timeoutSeconds)
+            switch completion {
+            case .rendered(let url, _):
+                collector.setOutcome("rendered", for: stage)
+                return url
+            case .fallback(let reason, _):
+                let outcome = "fallback:\(reason.rawValue)"
+                collector.setOutcome(outcome, for: stage)
+                throw benchmarkFailure(
+                    "Cleaned microphone render did not complete: \(outcome)"
+                )
+            case nil:
+                let reason = MeetingCleanedMicrophoneRoutingReason.rawTimeout
+                let outcome = "fallback:\(reason.rawValue)"
+                collector.setOutcome(outcome, for: stage)
+                throw benchmarkFailure(
+                    "Cleaned microphone render timed out after benchmark-only safety cap \(String(format: "%.1f", timeoutSeconds))s: \(outcome)"
+                )
+            }
         }
 
         return MeetingRecordingOutput(
@@ -152,7 +176,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             mixedAudioURL: recording.mixedAudioURL,
             microphoneAudioURL: recording.microphoneAudioURL,
             systemAudioURL: recording.systemAudioURL,
-            cleanedMicrophoneAudioURL: readiness.outputURL,
+            cleanedMicrophoneAudioURL: renderedURL,
             cleanedMicrophoneReadiness: nil,
             durationSeconds: recording.durationSeconds,
             sourceAlignment: recording.sourceAlignment,
@@ -160,6 +184,37 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             speechEngineWasCaptured: recording.speechEngineWasCaptured,
             userNotes: recording.userNotes
         )
+    }
+
+    private static func benchmarkRenderTimeoutSeconds(for recordingDuration: TimeInterval) -> TimeInterval {
+        max(benchmarkRenderTimeoutFloorSeconds, recordingDuration * benchmarkRenderTimeoutMultiplier)
+    }
+
+    private func assertCleanedMicrophonePipelineValidity(recording: MeetingRecordingOutput) throws {
+        let cleanedURL = recording.folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName
+        )
+        guard FileManager.default.fileExists(atPath: cleanedURL.path) else {
+            throw benchmarkFailure("Cleaned microphone artifact is missing: \(cleanedURL.path)")
+        }
+        guard recording.validatedMicrophoneTranscriptionURL() == cleanedURL else {
+            throw benchmarkFailure(
+                "Final STT routing did not select the cleaned microphone artifact: \(cleanedURL.path)"
+            )
+        }
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: recording.folderURL)
+        let reason = metadata.echoSuppression?.reasonCode
+        guard reason == .cleanedUsed else {
+            throw benchmarkFailure(
+                "Final STT routing metadata is not cleanedUsed: \(reason?.rawValue ?? "missing")"
+            )
+        }
+    }
+
+    private func benchmarkFailure(_ message: String) -> BenchmarkError {
+        XCTFail(message)
+        return .invalidFixture(message)
     }
 
     private func makeFixture(env: [String: String], runID: String) async throws -> BenchmarkFixture {
@@ -416,11 +471,11 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             "- Recording duration: \(String(format: "%.3f", recording.durationSeconds)) s",
             "- Synthetic fixture: \(fixture.synthetic ? "yes" : "no")",
             "",
-            "| Run | Fixture | Stage | Recording duration (s) | Elapsed (s) | Realtime factor | Peak RSS delta (MB) |",
-            "|---|---|---|---:|---:|---:|---:|",
+            "| Run | Fixture | Stage | Outcome | Recording duration (s) | Elapsed (s) | Realtime factor | Peak RSS delta (MB) |",
+            "|---|---|---|---|---:|---:|---:|---:|",
         ]
         lines += rows.map { row in
-            "| \(runID) | \(fixture.name) | \(row.stage) | \(String(format: "%.3f", recording.durationSeconds)) | \(String(format: "%.4f", row.elapsedSeconds)) | \(String(format: "%.2fx", row.realtimeFactor)) | \(String(format: "%.1f", row.peakRSSDeltaMB)) |"
+            "| \(runID) | \(fixture.name) | \(row.stage) | \(row.outcome ?? "-") | \(String(format: "%.3f", recording.durationSeconds)) | \(String(format: "%.4f", row.elapsedSeconds)) | \(String(format: "%.2fx", row.realtimeFactor)) | \(String(format: "%.1f", row.peakRSSDeltaMB)) |"
         }
         return lines.joined(separator: "\n")
     }
@@ -494,6 +549,7 @@ private enum BenchmarkError: Error, LocalizedError {
 private final class StageMetricsCollector: @unchecked Sendable {
     struct Row: Equatable {
         let stage: String
+        let outcome: String?
         let elapsedSeconds: Double
         let realtimeFactor: Double
         let peakRSSDeltaMB: Double
@@ -521,6 +577,7 @@ private final class StageMetricsCollector: @unchecked Sendable {
     private let recordingDurationSeconds: Double
     private let lock = NSLock()
     private var running: [String: RunningStage] = [:]
+    private var outcomes: [String: String] = [:]
     private var completedRows: [Row] = []
 
     init(recordingDurationSeconds: Double) {
@@ -551,23 +608,30 @@ private final class StageMetricsCollector: @unchecked Sendable {
     func end(_ stage: String) {
         let now = ProcessInfo.processInfo.systemUptime
         let rss = Self.currentResidentRSS()
-        let run = lock.withLock { () -> RunningStage? in
+        let result = lock.withLock { () -> (RunningStage, String?)? in
             guard let run = running.removeValue(forKey: stage) else { return nil }
             run.peakRSS = max(run.peakRSS, rss)
-            return run
+            return (run, outcomes.removeValue(forKey: stage))
         }
-        guard let run else { return }
+        guard let (run, outcome) = result else { return }
         run.timer?.cancel()
         let elapsed = max(0, now - run.startedAt)
         let peakDelta = run.peakRSS > run.baselineRSS ? run.peakRSS - run.baselineRSS : 0
         let row = Row(
             stage: run.stage,
+            outcome: outcome,
             elapsedSeconds: elapsed,
             realtimeFactor: elapsed > 0 ? recordingDurationSeconds / elapsed : 0,
             peakRSSDeltaMB: Double(peakDelta) / 1_048_576.0
         )
         lock.withLock {
             completedRows.append(row)
+        }
+    }
+
+    func setOutcome(_ outcome: String, for stage: String) {
+        lock.withLock {
+            outcomes[stage] = outcome
         }
     }
 
