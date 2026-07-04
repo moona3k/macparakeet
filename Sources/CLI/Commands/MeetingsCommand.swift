@@ -560,14 +560,15 @@ struct MeetingsCommand: AsyncParsableCommand {
             try emitJSONOrRethrow(json: stdout && format == .json) {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
                 let content = try exportContent(
                     for: transcription,
                     format: format,
-                    promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
+                    promptResults: promptResults
                 )
 
                 if stdout {
-                    print(content)
+                    try FileHandle.standardOutput.write(contentsOf: Data(content.utf8))
                     return
                 }
 
@@ -667,6 +668,8 @@ private struct MeetingRecord: Encodable {
     let calendarEventSnapshot: MeetingCalendarSnapshot?
     let artifactFolderPath: String?
     let artifactManifestPath: String?
+    let artifactMarkdownPath: String?
+    let cleanedMicrophoneAudioPath: String?
     let hasArtifactManifest: Bool
     let startContext: MeetingStartContext?
 
@@ -694,13 +697,15 @@ private struct MeetingRecord: Encodable {
         diarizationSegments = transcription.diarizationSegments
         transcriptSegments = transcription.transcriptSegments
         calendarEventSnapshot = transcription.calendarEventSnapshot
-        let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
-        artifactFolderPath = artifactFolder?.path
-        let manifestPath = artifactFolder?
-            .appendingPathComponent(MeetingArtifactStore.manifestFileName)
-            .path
-        artifactManifestPath = manifestPath
-        hasArtifactManifest = manifestPath.map {
+        let artifactPaths = MeetingMarkdownArtifactPaths.resolve(
+            transcription: transcription,
+            promptResults: []
+        )
+        artifactFolderPath = artifactPaths.artifactFolderPath
+        artifactManifestPath = artifactPaths.manifestPath
+        artifactMarkdownPath = artifactPaths.markdownPath
+        cleanedMicrophoneAudioPath = artifactPaths.cleanedMicrophoneAudioPath
+        hasArtifactManifest = artifactPaths.manifestPath.map {
             FileManager.default.fileExists(atPath: $0)
         } ?? false
         startContext = transcription.meetingStartContext
@@ -937,44 +942,29 @@ private func emitNotesUpdate(
 private func exportContent(
     for transcription: Transcription,
     format: MeetingExportFormat,
-    promptResultCount: Int
+    promptResults: [PromptResult]
 ) throws -> String {
     switch format {
     case .md:
-        return markdownExport(for: transcription, promptResultCount: promptResultCount)
+        let artifactPaths = MeetingMarkdownArtifactPaths.resolve(
+            transcription: transcription,
+            promptResults: promptResults
+        )
+        return MeetingMarkdownRenderer().render(
+            transcription: transcription,
+            promptResults: promptResults,
+            artifactPaths: artifactPaths
+        )
     case .json:
         let data = try cliJSONEncoder.encode(MeetingRecord(
             transcription,
-            promptResultCount: promptResultCount
+            promptResultCount: promptResults.count
         ))
         guard let string = String(data: data, encoding: .utf8) else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
         return string
     }
-}
-
-private func markdownExport(for transcription: Transcription, promptResultCount: Int) -> String {
-    var sections: [String] = []
-    sections.append("# \(transcription.fileName)")
-    sections.append("""
-    - ID: \(transcription.id.uuidString)
-    - Created: \(ISO8601DateFormatter().string(from: transcription.createdAt))
-    - Duration: \(transcription.durationMs.map(formatDuration) ?? "--")
-    - Status: \(transcription.status.rawValue)
-    - Prompt results: \(promptResultCount)
-    """)
-
-    if let notes = normalizedNotes(transcription.userNotes) {
-        sections.append("## Notes\n\n\(notes)")
-    }
-
-    let transcript = preferredTranscriptText(transcription)
-    if !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        sections.append("## Transcript\n\n\(transcript)")
-    }
-
-    return sections.joined(separator: "\n\n") + "\n"
 }
 
 private func printMeetingRecord(_ record: MeetingRecord) {
