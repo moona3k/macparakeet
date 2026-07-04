@@ -931,6 +931,85 @@ final class OnboardingViewModelTests: XCTestCase {
         })
     }
 
+    func testOnboardingCompletionTelemetryIsIdempotentForCurrentRun() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            now: { clock.now() }
+        )
+        clock.set(Date(timeIntervalSince1970: 120))
+        let first = vm.markOnboardingCompleted()
+        clock.set(Date(timeIntervalSince1970: 160))
+        let second = vm.markOnboardingCompleted()
+
+        XCTAssertEqual(first.completedAt, second.completedAt)
+        let completionEvents = telemetry.snapshot().filter {
+            if case .onboardingCompleted = $0 { return true }
+            return false
+        }
+        let completedSteps = telemetry.snapshot().filter {
+            guard case .onboardingStep(_, let action, _, _, _, _) = $0 else { return false }
+            return action == .completed
+        }
+        XCTAssertEqual(completionEvents.count, 1)
+        XCTAssertEqual(completedSteps.count, 1)
+    }
+
+    func testResetOnboardingRestartsTelemetryRunState() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            now: { clock.now() }
+        )
+        vm.markOnboardingShown()
+        clock.set(Date(timeIntervalSince1970: 120))
+        _ = vm.markOnboardingCompleted()
+
+        clock.set(Date(timeIntervalSince1970: 200))
+        vm.resetOnboarding()
+        vm.markOnboardingShown()
+        clock.set(Date(timeIntervalSince1970: 230))
+        _ = vm.markOnboardingCompleted()
+
+        let shownSteps = telemetry.snapshot().compactMap { event -> Double? in
+            guard case .onboardingStep(_, let action, let elapsedSeconds, _, _, _) = event,
+                  action == .viewed
+            else { return nil }
+            return elapsedSeconds
+        }
+        let completionDurations = telemetry.snapshot().compactMap { event -> Double? in
+            guard case .onboardingCompleted(let durationSeconds) = event else { return nil }
+            return durationSeconds
+        }
+
+        XCTAssertEqual(shownSteps, [0, 0])
+        XCTAssertEqual(completionDurations, [20, 30])
+    }
+
     func testOnboardingNavigationTelemetryCapturesActionsAndStepIndexes() {
         let telemetry = OnboardingTelemetrySpy()
         Telemetry.configure(telemetry)

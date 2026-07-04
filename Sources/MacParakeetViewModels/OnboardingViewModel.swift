@@ -92,10 +92,11 @@ public final class OnboardingViewModel {
     private let downloadWhisperModel: WhisperModelDownloader
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
-    private let startedAt: Date
+    private var startedAt: Date
     private let permissionPollingInterval: Duration
     private let warmUpStallTimeout: Duration
     private var didEmitInitialStep = false
+    private var completionForCurrentRun: Completion?
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -166,13 +167,19 @@ public final class OnboardingViewModel {
     }
 
     public func markOnboardingCompleted() -> Completion {
+        if let completionForCurrentRun {
+            return completionForCurrentRun
+        }
+
         let completedAt = now()
         let iso = ISO8601DateFormatter().string(from: completedAt)
         defaults.set(iso, forKey: Self.onboardingCompletedKey)
         let durationSeconds = completedAt.timeIntervalSince(startedAt)
         sendStepTelemetry(step: .done, action: .completed, at: completedAt)
         Telemetry.send(.onboardingCompleted(durationSeconds: durationSeconds))
-        return Completion(completedAt: completedAt)
+        let completion = Completion(completedAt: completedAt)
+        completionForCurrentRun = completion
+        return completion
     }
 
     public func markOnboardingShown() {
@@ -189,6 +196,9 @@ public final class OnboardingViewModel {
         defaults.removeObject(forKey: Self.onboardingCompletedKey)
         step = .welcome
         engineState = .idle
+        startedAt = now()
+        didEmitInitialStep = false
+        completionForCurrentRun = nil
     }
 
     public func refresh() {
