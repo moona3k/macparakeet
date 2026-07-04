@@ -90,18 +90,24 @@ synthesized identity (start + speaker) — an agent cannot stably cite
   in the same PR. UI may keep its own presentation grouping — this slice
   does not require UI changes.
 
-## Open product decisions (Daniel — no code until decided)
+## Product decisions (decided 2026-07-03)
 
-1. **Diarization default** — currently off
-   (`Sources/MacParakeetCore/AppRuntimePreferences.swift`), requires a
-   system track. Corpus value says on-by-default where supported; cost is
-   per-meeting compute. Decide separately.
-2. **Raw-audio retention posture** — Remove Audio/retention deletes all
-   raw tracks (`Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift`),
-   which permanently forecloses later diarization/re-transcription backfill.
-   Options: let raw sources outlive mixed audio, or keep behavior and add
-   honest warning copy. Decide separately; this plan does not change
-   deletion behavior.
+1. **Diarization default: ON where supported.** Flip the default
+   (`Sources/MacParakeetCore/AppRuntimePreferences.swift`) so meeting
+   diarization runs post-meeting whenever a system track exists; the
+   setting remains available to turn it off. Rationale: speaker structure
+   is only recoverable while raw audio exists, so capture-time diarization
+   is the last chance to get speaker labels into the corpus given
+   decision 2. Ships as **Slice 4** (small): default flip + focused test
+   that the preference default changed + release-notes line (user-visible
+   behavior change).
+2. **Raw-audio retention: keep deletion, add honest copy.** "Remove
+   Audio" and the retention sweeper keep deleting all raw tracks
+   (`Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift`) —
+   removal means removal; that is the privacy posture. Ships as
+   **Slice 5** (small): warning copy at the Remove Audio action and the
+   retention setting stating that deletion permanently prevents
+   re-transcription and speaker backfill. No behavior change.
 
 ## Deliberately deferred
 
