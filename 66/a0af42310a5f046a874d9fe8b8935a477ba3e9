@@ -10,6 +10,7 @@ Sources/MacParakeetCore/Calendar/MeetingLinkParser.swift
   s_2de810b0ab24b8::t_b4964cc9b9e172 81-87
 Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
   s_2de810b0ab24b8::t_5bbe9afbab99f8 317,319-340
+  s_43784a8bbb773b::t_17bddbc5c5f598 293,318
 Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
   s_2de810b0ab24b8::t_5bbe9afbab99f8 174-210,641-642
   s_bca6b7fcc5ebbc::t_97943ce09a2fe2 643-644
@@ -36,6 +37,14 @@ Sources/MacParakeetCore/Calendar/MeetingMonitor.swift
       "agent_id": {
         "tool": "codex",
         "id": "019f2bb5-2b85-78c2-b787-3612a54bd725",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
         "model": "gpt-5.5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
