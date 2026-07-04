@@ -718,6 +718,20 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertFalse(effects.contains(.startDisplayDismissTimer(seconds: 0.8)))
     }
 
+    func testPasteSuccessAcceptsImmediatePersistentRestart() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        _ = m.handle(.pasteSucceeded(generation: gen))
+
+        let effects = m.handle(.startRequested(mode: .persistent))
+
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
+        XCTAssertEqual(m.generation, gen + 1)
+        XCTAssertTrue(effects.contains(.checkEntitlements))
+        XCTAssertTrue(effects.contains(.hideIdlePill))
+    }
+
     func testFinishingPasteFailed() {
         var m = machineInProcessing()
         let gen = m.generation

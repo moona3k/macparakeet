@@ -4,6 +4,7 @@ import Foundation
 public actor MockClipboardService: ClipboardServiceProtocol {
     public struct Snapshot: Sendable {
         public let lastPastedText: String?
+        public let pastedTexts: [String]
         public let lastCopiedText: String?
         public let lastPostPasteAction: KeyAction?
         public let lastRestoresClipboard: Bool?
@@ -11,6 +12,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     }
 
     public var lastPastedText: String?
+    public var pastedTexts: [String] = []
     public var lastCopiedText: String?
     public var lastPostPasteAction: KeyAction?
     public var lastRestoresClipboard: Bool?
@@ -22,6 +24,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     public func snapshot() -> Snapshot {
         Snapshot(
             lastPastedText: lastPastedText,
+            pastedTexts: pastedTexts,
             lastCopiedText: lastCopiedText,
             lastPostPasteAction: lastPostPasteAction,
             lastRestoresClipboard: lastRestoresClipboard,
@@ -39,6 +42,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
             throw pasteError
         }
         lastPastedText = text
+        pastedTexts.append(text)
         lastRestoresClipboard = restoresClipboard
     }
 
