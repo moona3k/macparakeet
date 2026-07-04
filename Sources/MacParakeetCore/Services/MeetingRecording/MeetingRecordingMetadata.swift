@@ -156,9 +156,6 @@ enum MeetingRecordingMetadataStore {
             try data.write(to: url, options: .atomic)
             return
         }
-        if fileManager.fileExists(atPath: url.path) {
-            try fileManager.removeItem(at: url)
-        }
         guard fileManager.createFile(atPath: url.path, contents: data) else {
             throw MeetingAudioError.storageFailed(
                 "Unable to write archived meeting metadata: \(MeetingRecordingMetadata.fileName)")

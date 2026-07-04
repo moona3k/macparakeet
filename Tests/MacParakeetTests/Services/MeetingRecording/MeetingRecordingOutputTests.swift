@@ -395,6 +395,25 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(metadata.echoSuppression?.modelVersion, "test-model.gguf")
     }
 
+    func testUpdateEchoSuppressionPreservesInjectedFileManagerDataWhenCreateFails() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let originalData = try legacyMetadataDataWithoutSpeechEngine()
+        let virtualFileManager = RecordingMetadataFileManager(
+            data: originalData,
+            shouldCreateFileSucceed: false
+        )
+
+        XCTAssertThrowsError(try MeetingRecordingMetadataStore.updateEchoSuppression(
+            MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed),
+            folderURL: dir,
+            fileManager: virtualFileManager
+        ))
+
+        XCTAssertEqual(virtualFileManager.data, originalData)
+        XCTAssertTrue(virtualFileManager.removedPaths.isEmpty)
+    }
+
     // MARK: Helpers
 
     private func makeTempDir() throws -> URL {
@@ -534,9 +553,12 @@ private final class ContentsProbeFailingFileManager: FileManager {
 private final class RecordingMetadataFileManager: FileManager {
     private(set) var data: Data?
     private(set) var createdPaths: [String] = []
+    private(set) var removedPaths: [String] = []
+    private let shouldCreateFileSucceed: Bool
 
-    init(data: Data) {
+    init(data: Data, shouldCreateFileSucceed: Bool = true) {
         self.data = data
+        self.shouldCreateFileSucceed = shouldCreateFileSucceed
         super.init()
     }
 
@@ -549,6 +571,7 @@ private final class RecordingMetadataFileManager: FileManager {
     }
 
     override func removeItem(at URL: URL) throws {
+        removedPaths.append(URL.path)
         data = nil
     }
 
@@ -558,6 +581,7 @@ private final class RecordingMetadataFileManager: FileManager {
         attributes attr: [FileAttributeKey: Any]? = nil
     ) -> Bool {
         createdPaths.append(path)
+        guard shouldCreateFileSucceed else { return false }
         self.data = data
         return true
     }
