@@ -1,0 +1,19 @@
+plans/active/2026-07-03-stt-capability-registry.md
+  s_4272d79a3d4bc7::t_9cb1ad1909bbf1 56-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d0c11f3167df2e046e715368c87c51cd8d727e6",
+  "prompts": {},
+  "sessions": {
+    "s_4272d79a3d4bc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a226cfe-1186-470e-9296-f0248af07152",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
