@@ -7,8 +7,10 @@ Sources/MacParakeetCore/Calendar/CalendarEvent.swift
   s_2de810b0ab24b8::t_9b7d4b53f95cde 5-7,26-28,60,75
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
   s_2de810b0ab24b8::t_1b720637734002 30,48,61,73,90-91,110,124,140,156
+  s_43784a8bbb773b::t_012b07d81f8887 11-12,89,92
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingMetadata.swift
   s_2de810b0ab24b8::t_5c41f7327faf20 59,65-66,73,81-82,89,97,112-113,125,136-137
+  s_43784a8bbb773b::t_f0bf8ee1c227ad 111,114
 spec/adr/017-calendar-meeting-auto-start.md
   s_2de810b0ab24b8::t_7bde4cc2a2eb13 78-79
 Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
@@ -17,6 +19,8 @@ Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
   s_2de810b0ab24b8::t_d33bebc3dbc025 223,240
 spec/01-data-model.md
   s_2de810b0ab24b8::t_6105d3ca51adac 1137-1138
+  s_43784a8bbb773b::t_7c28f350367b1c 141,170,621
+  s_43784a8bbb773b::t_924b8202c14cb1 159,1141,1164
 Sources/CLI/CHANGELOG.md
   s_2de810b0ab24b8::t_d117d7179240d3 94-98
 Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
@@ -30,21 +34,29 @@ Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
 Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
   s_2de810b0ab24b8::t_d46a0f5f14a333 178-181,241-242
   s_2de810b0ab24b8::t_4cc4f7c5f3c8ae 54,114-116,139,184,330-338,342-346,358,381,579,585,593-595,597-598
+  s_43784a8bbb773b::t_5e65064e66d571 745,1335
+  s_43784a8bbb773b::t_24a8c8fa2e493a 240,339-341,596
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
   s_2de810b0ab24b8::t_22e026d36b6b1b 201,203,251-252
+  s_43784a8bbb773b::t_8c31a965b93816 202
 Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
   s_2de810b0ab24b8::t_eb9a5041804820 135-168,171-205,512-513,519-521,523-524,532-533,585-586,588-592,597-599
   s_2de810b0ab24b8::t_1b62be3f8bfb56 169-170
+  s_43784a8bbb773b::t_d1757f08a8c6ab 504,522,529-530
 spec/contracts/meeting-artifacts-v1.md
   s_2de810b0ab24b8::t_76249aa0e36427 88,99-103
+  s_43784a8bbb773b::t_924b8202c14cb1 62-63,113,130-133
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
   s_2de810b0ab24b8::t_afc5dc75911b8b 28-29,44-45,61-62,80-81,97,178,180,216
+  s_43784a8bbb773b::t_c8c3142a641cd1 179
 spec/contracts/cli-json-v1.md
   s_2de810b0ab24b8::t_937fe3ddbf3abb 57-61
 Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
   s_2de810b0ab24b8::t_16530ab18cbebb 243-253
+  s_43784a8bbb773b::t_181ca6344d6327 282-304,307-308
 Sources/MacParakeetCore/Models/Transcription.swift
   s_2de810b0ab24b8::t_39358affd3a310 60-63,113,149,263
+  s_43784a8bbb773b::t_9387020b0bc88f 329
 Sources/MacParakeetCore/Services/TranscriptionService.swift
   s_2de810b0ab24b8::t_b5f797c6683d88 431
   s_2de810b0ab24b8::t_f410b57abc80c1 523
@@ -52,6 +64,7 @@ Sources/MacParakeetCore/Services/TranscriptionService.swift
 Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
   s_2de810b0ab24b8::t_9cc85caf60c709 39-41,43-44,96-97,147,407,409,445,447,460,622,624,714-715
   s_2de810b0ab24b8::t_9930b0883192f9 670,778
+  s_43784a8bbb773b::t_a1752b2e3e1bcf 42,86,90-95,99,408,446,623
 Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
   s_2de810b0ab24b8::t_2d20b9fb625e09 311-313,411-412
   s_2de810b0ab24b8::t_2ac46a32bb36b9 292
@@ -60,12 +73,15 @@ Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swi
 Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
   s_2de810b0ab24b8::t_a9e1d35a37841c 150-185,279-280,282-283,320-339
   s_2de810b0ab24b8::t_c84a50bbeb4e61 318-319
+  s_43784a8bbb773b::t_e56ae59fff0981 281
 Sources/MacParakeetCore/Database/DatabaseManager.swift
   s_2de810b0ab24b8::t_c123b3a354678c 1053-1054,1057-1061
+  s_43784a8bbb773b::t_7c5a5aa80210fe 1052,1055-1056
 Sources/CLI/Commands/MeetingsCommand.swift
   s_2de810b0ab24b8::t_d5e9b0d7924b9b 667,696
 Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
   s_2de810b0ab24b8::t_dc80d10a56292e 275-277,279-280
+  s_43784a8bbb773b::t_2d57873d8b379e 278
 Sources/MacParakeetCore/Calendar/CalendarService.swift
   s_2de810b0ab24b8::t_38113273dc5178 205,207,223,233-245
   s_9c41282708a1b7::t_6d2dd0ab1d20c0 246-248
@@ -82,6 +98,14 @@ Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
       "agent_id": {
         "tool": "codex",
         "id": "019f2bb5-2b85-78c2-b787-3612a54bd725",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
         "model": "gpt-5.5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
