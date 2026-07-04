@@ -1,0 +1,41 @@
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_6f3503ee937926::t_c1de1ef5a1857b 100-102,172-179,206,217-219,231,236-242,252,262,269,320,322,376-381,385
+  s_6f3503ee937926::t_3c2906e3f8d15e 203-205
+  s_6f3503ee937926::t_7b6eb60e3cd368 324,326-329,333-357
+  s_e323b204ea3fab::t_a3a5caf8cc2490 325
+docs/telemetry.md
+  s_6f3503ee937926::t_3cea11c867d6ef 468-469
+spec/adr/005-onboarding-first-run.md
+  s_6f3503ee937926::t_1017221cf7bc8b 79
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_6f3503ee937926::t_6ab35d555fcc78 119-154,253-316,346-363,472-489
+  s_6f3503ee937926::t_91ec97675f9ed8 771-774,791-792,794,796-797,799-800,803-807
+  s_6f3503ee937926::t_81482026e11274 317-345,490
+  s_6f3503ee937926::t_ac32d65860ad22 491
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_6f3503ee937926::t_d4e1aea9ccded7 80,225,541
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "59a90b586a13847b4caca377aeeb2842e3bf8464",
+  "prompts": {},
+  "sessions": {
+    "s_6f3503ee937926": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f3d-8f2f-7b81-aafc-64ccbf273d2d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
