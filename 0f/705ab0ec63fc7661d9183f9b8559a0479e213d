@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Services/Capture/MeetingEchoDelayEstimatorTests.swift
+  s_ae06b4382526df::t_449c3b4b35d854 11-15,138-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f705ab0ec63fc7661d9183f9b8559a0479e213d",
+  "prompts": {},
+  "sessions": {
+    "s_ae06b4382526df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2d32-5012-76d3-b318-914d79350239",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
