@@ -1,0 +1,68 @@
+spec/01-data-model.md
+  s_ba73a609112b65::t_60a903c07183e8 155
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingMetadata.swift
+  s_ba73a609112b65::t_ab9d0eb0f1c646 57,61-62,67,73,82-117,146-154
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_ba73a609112b65::t_7935d1be4e770c 247,249-252,254,256-278,283,285,301,304-306,536-541,559-563,575
+  s_ba73a609112b65::t_d0bf3093e10d41 253,255
+  s_ba73a609112b65::t_df5fef1c4f517e 331
+spec/contracts/meeting-artifacts-v1.md
+  s_ba73a609112b65::t_762d0510a1796d 52-54,56-59
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicrophoneReadiness.swift
+  s_ba73a609112b65::t_5292fcefe89479 590-599,608-609,616-623,626-627,629-631,633-635,637-638,643-645,647-652,655-673,675-686,699-708
+  s_ba73a609112b65::t_3fd95de4eb77db 407,480,482,497,499-532,535-536,548-549
+  s_ba73a609112b65::t_df5fef1c4f517e 169-171,254-265,284-298,311-325,463-464,533-534,569-570,573-574,611-615,687-698
+  s_ba73a609112b65::t_38840d55dc4825 59-67,69-70,168,182
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_ba73a609112b65::t_6966e013de7188 431,485
+  s_ba73a609112b65::t_1d70fe4cb4bebc 415
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_ba73a609112b65::t_9e3990d400d2e8 136-141
+  s_ba73a609112b65::t_eabda6c37e4072 222-225
+  s_ba73a609112b65::t_cba5226a866d2e 168,217
+  s_ba73a609112b65::t_df5fef1c4f517e 218-221
+  s_ba73a609112b65::t_1f0d9ef4cea8cc 118-135,142-167,169-216,226-227,340-358
+  s_5169dad58c8f2a::t_15398851872d46 359
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCleanedMicRendererTests.swift
+  s_ba73a609112b65::t_df5fef1c4f517e 24-25,49-50,80-81,83
+  s_ba73a609112b65::t_0c6ec01228f68e 123-271,319-327,339-358
+  s_ba73a609112b65::t_21952b6c164097 359
+plans/active/2026-07-aec-artifact-provenance.md
+  s_ba73a609112b65::t_48662ed411da4a 1-10
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicRenderer.swift
+  s_ba73a609112b65::t_f3bcc4272c4ede 35,301,305,311,313,315-323,385-407,414
+  s_ba73a609112b65::t_2b0800bb94c8e3 28-32
+  s_ba73a609112b65::t_e1b697921cd73a 84-91,247-300,302-304,306-310,312,314,324-326,333-384,415-445
+  s_ba73a609112b65::t_886f8754835ac2 27,33-34,36-37,52-56,75,109-128,165-180,183-185,216-230
+  s_ba73a609112b65::t_df5fef1c4f517e 158-161,181-182,232-246,327-332,408-413,496-497,556-563,583-587,595-599,627-629,641-646,660-664,680-687,729-730
+Sources/MacParakeetCore/Services/Capture/MicConditioner.swift
+  s_ba73a609112b65::t_417d2782732a54 6
+  s_ba73a609112b65::t_89ba87f0641c9f 138,195,221,287,294,299
+  s_ba73a609112b65::t_12373ba0baabc4 55-58
+plans/deferred/2026-07-meeting-audio-tiered-retention.md
+  s_ba73a609112b65::t_48662ed411da4a 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7c98dbad2c8e5e7234acadf9ce320f78b809e62b",
+  "prompts": {},
+  "sessions": {
+    "s_5169dad58c8f2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ac1-0b10-7a33-8773-3c85516f0470",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ba73a609112b65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2aa1-b191-7e70-ad46-6340e4097630",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
