@@ -218,7 +218,7 @@ The script will `exit 1` if Sparkle is missing or required echo assets fail veri
 scripts/dist/sign_notarize.sh
 ```
 
-The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Both app and DMG are signed, notarized, and stapled. The script submits and polls for completion — **never use `notarytool submit --wait`** (it crashes with a bus error; see gotcha #1 below).
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. It first refuses dev/sentinel bundle versions such as `0.0.0`, `dev`, or `*pdx*`; rebuild with `VERSION=X.Y.Z` before signing. For explicit local diagnostic signing only, set `MACPARAKEET_ALLOW_DEV_VERSION_SIGNING=1`. Both app and DMG are signed, notarized, and stapled. The script submits and polls for completion — **never use `notarytool submit --wait`** (it crashes with a bus error; see gotcha #1 below).
 
 Verify:
 ```bash
@@ -227,6 +227,11 @@ spctl --assess --type execute --verbose=4 dist/MacParakeet.app
 
 dist/MacParakeet.app/Contents/Resources/yt-dlp --version
 # Expected: prints a yt-dlp version, not a [PYI:ERROR] Python shared library failure
+
+scripts/dev/release_demo_smoke.sh \
+  --cli dist/MacParakeet.app/Contents/MacOS/macparakeet-cli \
+  --output-dir ".codex/release-demo-smoke/release-X.Y.Z"
+# Expected: local health, transcription, and export smoke passes with evidence
 ```
 
 ### Step 3: Upload DMG to R2
