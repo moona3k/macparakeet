@@ -194,7 +194,7 @@ when the question is "what happened to this operation?"
 | `app_launched` | — | How many active users? DAU/WAU/MAU? |
 | `app_quit` | `session_duration_seconds` | How long are sessions? |
 | `onboarding_completed` | `duration_seconds` | How long does setup take? |
-| `onboarding_step` | `step`, `action`, optional `elapsed_seconds`, `step_index`, `total_steps`, `engine_state` | Where do people get stuck in onboarding? Distinguishes viewed, forward/back/jump navigation, dismissed setup, engine ready/failed, and completion without adding a new allowlisted event name. |
+| `onboarding_step` | `step`, `action`, optional `elapsed_seconds`, `step_index`, `total_steps`, `engine_state` | Where do people get stuck in onboarding? `elapsed_seconds` is cumulative time since this onboarding window/run started, not per-step dwell time. `engine_state` is present only for Speech Model step events. Distinguishes viewed, forward/back/jump navigation, dismissed setup, engine ready/failed, and completion without adding a new allowlisted event name. |
 
 #### Activation analytics caveats (agents: read this)
 
