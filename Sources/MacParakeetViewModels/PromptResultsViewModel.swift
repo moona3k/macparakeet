@@ -92,6 +92,7 @@ public final class PromptResultsViewModel {
     /// (ADR-020 §4, §6). The legacy `updateSummary` write-back path that
     /// also lived through this property was removed in v0.7.6.
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var meetingArtifactStore: MeetingArtifactStoring?
     private var configStore: LLMConfigStoreProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
     private var llmClient: LLMClientProtocol?
@@ -162,6 +163,7 @@ public final class PromptResultsViewModel {
         promptRepo: PromptRepositoryProtocol?,
         promptResultRepo: PromptResultRepositoryProtocol?,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
+        meetingArtifactStore: MeetingArtifactStoring? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
         llmClient: LLMClientProtocol? = nil,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
@@ -170,6 +172,7 @@ public final class PromptResultsViewModel {
         self.promptRepo = promptRepo
         self.promptResultRepo = promptResultRepo
         self.transcriptionRepo = transcriptionRepo
+        self.meetingArtifactStore = meetingArtifactStore
         self.configStore = configStore
         self.llmClient = llmClient
         self.cliConfigStore = cliConfigStore
@@ -303,6 +306,10 @@ public final class PromptResultsViewModel {
                 onPromptResultsChanged?(transcriptionID, !promptResults.isEmpty)
             }
             onDeletedPromptResult?(promptResult.id)
+            let transcriptionID = promptResult.transcriptionId
+            Task { [weak self] in
+                await self?.refreshMeetingArtifactBestEffort(transcriptionId: transcriptionID)
+            }
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -455,7 +462,7 @@ public final class PromptResultsViewModel {
                     finishCancelledGeneration(id: generationID)
                     return
                 }
-                try finishGeneration(id: generationID)
+                try await finishGeneration(id: generationID)
             } catch is CancellationError {
                 finishCancelledGeneration(id: generationID)
             } catch {
@@ -469,7 +476,7 @@ public final class PromptResultsViewModel {
         pendingGenerations[index].content += token
     }
 
-    private func finishGeneration(id generationID: UUID) throws {
+    private func finishGeneration(id generationID: UUID) async throws {
         guard let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) else {
             streamingTask = nil
             processNextQueuedGeneration()
@@ -510,6 +517,8 @@ public final class PromptResultsViewModel {
             }
             promptResults.insert(promptResult, at: 0)
         }
+
+        await refreshMeetingArtifactBestEffort(transcriptionId: generation.transcriptionId)
 
         onPromptResultsChanged?(generation.transcriptionId, true)
         onGenerationCompleted?(generation.id, promptResult.id)
@@ -603,6 +612,28 @@ public final class PromptResultsViewModel {
         } catch {
             logger.warning("Failed to fetch userNotes for transcription \(transcriptionId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return nil
+        }
+    }
+
+    private func refreshMeetingArtifactBestEffort(transcriptionId: UUID) async {
+        guard let meetingArtifactStore,
+              let transcriptionRepo,
+              let promptResultRepo
+        else { return }
+
+        do {
+            guard let transcription = try transcriptionRepo.fetch(id: transcriptionId),
+                  transcription.sourceType == .meeting
+            else { return }
+            let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcriptionId)
+            _ = try await Task.detached(priority: .utility) {
+                try await meetingArtifactStore.materialize(
+                    transcription: transcription,
+                    promptResults: promptResults
+                )
+            }.value
+        } catch {
+            logger.warning("Failed to refresh meeting artifact for prompt results \(transcriptionId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -1349,7 +1349,8 @@ public final class TranscriptionViewModel {
 
     private func enqueueMeetingArtifactRefresh(transcriptionID: UUID, generation: Int) {
         guard speakerRenameGenerations[transcriptionID] == generation,
-              let transcriptionRepo
+              let transcriptionRepo,
+              let promptResultRepo
         else {
             return
         }
@@ -1389,7 +1390,7 @@ public final class TranscriptionViewModel {
                     else {
                         break
                     }
-                    let promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcriptionID) ?? []
+                    let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcriptionID)
                     _ = try await artifactStore.materialize(
                         transcription: persisted,
                         promptResults: promptResults
@@ -1439,9 +1440,13 @@ public final class TranscriptionViewModel {
         currentTranscription = transcription
         do {
             try transcriptionRepo?.updateFileName(id: transcription.id, fileName: trimmed)
+            let persistedTranscription = (try transcriptionRepo?.fetch(id: transcription.id)) ?? transcription
+            currentTranscription = persistedTranscription
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index].fileName = trimmed
-                transcriptions[index].derivedTitle = trimmed
+                transcriptions[index] = persistedTranscription
+            }
+            Task { [weak self, persistedTranscription] in
+                await self?.refreshMeetingArtifacts(transcription: persistedTranscription)
             }
         } catch {
             logger.error("Failed to persist transcription rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
@@ -1459,6 +1464,25 @@ public final class TranscriptionViewModel {
         } catch {
             logger.error("Failed to query prompt results error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
             hasPromptResultTabs = false
+        }
+    }
+
+    /// Refreshes meeting artifacts; failures are logged and never surfaced or thrown, and refresh never blocks or fails the triggering user action.
+    private func refreshMeetingArtifacts(transcription: Transcription) async {
+        guard let promptResultRepo,
+              transcription.sourceType == .meeting
+        else { return }
+
+        do {
+            let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
+            _ = try await Task.detached(priority: .utility) {
+                try await meetingArtifactStore.materialize(
+                    transcription: transcription,
+                    promptResults: promptResults
+                )
+            }.value
+        } catch {
+            logger.warning("Failed to refresh meeting artifact for transcription \(transcription.id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 }

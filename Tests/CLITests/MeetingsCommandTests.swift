@@ -538,6 +538,60 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertTrue(exportedMarkdown.contains("**Speaker 1**"))
     }
 
+    func testPromptResultAddRefreshesMaterializedMarkdownAndExportParity() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meeting-result-refresh-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            createdAt: Date(timeIntervalSince1970: 1_720_000_000),
+            fileName: "Result Refresh Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            rawTranscript: "Refresh the artifact.",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Decision: refresh artifacts",
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
+        )
+        try transcriptionRepo.save(meeting)
+
+        _ = try await MeetingArtifactStore().materialize(
+            transcription: meeting,
+            promptResults: []
+        )
+        let markdownURL = folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName)
+        let staleMarkdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        XCTAssertTrue(staleMarkdown.contains("promptResultCount: 0"))
+        XCTAssertFalse(staleMarkdown.contains("## Prompt Results"))
+
+        let addCommand = try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
+            meeting.id.uuidString,
+            "--name", "QA Summary",
+            "--content", "The prompt result is saved.",
+            "--prompt-content", "Summarize the QA result.",
+            "--database", dbURL.path,
+        ])
+        _ = try await captureStandardOutput {
+            try await addCommand.run()
+        }
+
+        let materializedMarkdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        let exportedMarkdown = try await markdownExport(for: meeting.id, database: dbURL)
+
+        XCTAssertEqual(exportedMarkdown, materializedMarkdown)
+        XCTAssertTrue(materializedMarkdown.contains("promptResultCount: 1"))
+        XCTAssertTrue(materializedMarkdown.contains("## Prompt Results"))
+        XCTAssertTrue(materializedMarkdown.contains("- 1. QA Summary"))
+    }
+
     func testMarkdownExportReflectsSpeakerRenameAndEditedTranscriptFallback() async throws {
         let dbURL = temporaryDatabaseURL()
         let folderURL = FileManager.default.temporaryDirectory

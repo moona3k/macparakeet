@@ -19,6 +19,24 @@ final class PromptResultsViewModelTests: XCTestCase {
         promptRepo.prompts = Prompt.builtInPrompts()
     }
 
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
     func testGenerationCapabilityIsFalseBeforeAIConfigured() {
         XCTAssertFalse(viewModel.hasPromptResultGenerationCapability)
         XCTAssertFalse(viewModel.canGeneratePromptResult)
@@ -100,6 +118,82 @@ final class PromptResultsViewModelTests: XCTestCase {
             "Extract action items only.\n\nReturn terse bullet points."
         )
         XCTAssertEqual(viewModel.promptResults.first?.content, "Task one")
+    }
+
+    func testGeneratePromptResultRefreshesMaterializedMeetingMarkdown() async throws {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PromptResultsViewModelTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+
+        let transcriptionID = UUID()
+        let transcription = Transcription(
+            id: transcriptionID,
+            fileName: "Design Review",
+            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            rawTranscript: "Alice will send the draft tomorrow.",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Decision: ship"
+        )
+        try transcriptionRepo.save(transcription)
+
+        let prompt = Prompt(
+            name: "Action Items",
+            content: "Extract action items only.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 99
+        )
+        promptRepo.prompts = [prompt]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore()
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = ["Task ", "one"]
+
+        viewModel.generatePromptResult(
+            transcript: "Alice will send the draft tomorrow.",
+            transcriptionId: transcriptionID
+        )
+
+        let markdownURL = folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName)
+        try await waitUntil {
+            (try? String(contentsOf: markdownURL, encoding: .utf8))
+                .map { $0.contains("promptResultCount: 1") && $0.contains("## Prompt Results") }
+                ?? false
+        }
+
+        let markdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        XCTAssertTrue(markdown.contains("promptResultCount: 1"))
+        XCTAssertTrue(markdown.contains("## Prompt Results"))
+        XCTAssertTrue(markdown.contains("- 1. Action Items"))
+
+        let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcriptionID)
+        let resultMarkdownURL = try XCTUnwrap(
+            MeetingMarkdownArtifactPaths.resolve(
+                transcription: transcription,
+                promptResults: promptResults
+            ).promptResultFiles.first?.path.map(URL.init(fileURLWithPath:))
+        )
+        let resultMarkdown = try String(contentsOf: resultMarkdownURL, encoding: .utf8)
+        XCTAssertTrue(resultMarkdown.contains("Task one"))
+
+        let expectedMarkdown = MeetingMarkdownRenderer().render(
+            transcription: transcription,
+            promptResults: promptResults,
+            artifactPaths: MeetingMarkdownArtifactPaths.resolve(
+                transcription: transcription,
+                promptResults: promptResults
+            )
+        )
+        XCTAssertEqual(markdown, expectedMarkdown)
     }
 
     func testGeneratePromptResultDoesNotPersistEmptyStream() async throws {
