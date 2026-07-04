@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Services/Capture/MeetingEchoDelayEstimatorTests.swift
+  s_f911c03b0f46f5::t_e2687de59dec5c 2,124,126
+  s_f911c03b0f46f5::t_8781aec5a6d285 77-89,91-94,99-117
+  s_f911c03b0f46f5::t_3fb6665bc76cea 1,90,118-123,125,127-137,169-224
+  s_f911c03b0f46f5::t_298475b8d13e68 20-22,35-37,95-98,163-165
+Sources/MacParakeetCore/Services/Capture/MeetingEchoDelayEstimator.swift
+  s_f911c03b0f46f5::t_55d7b091c39336 1,91-93,95-96,98
+  s_f911c03b0f46f5::t_24cea5d346b479 78-80,86-88,94,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bc34b716ebf0074a45da9829a53502b04e256702",
+  "prompts": {},
+  "sessions": {
+    "s_f911c03b0f46f5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2d13-6b0d-7b42-812a-f33eeeb593b7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
