@@ -15,8 +15,8 @@ import Foundation
 /// - whole-word (`\b…\b`), case-insensitive matching,
 /// - rules apply in array order, so a later rule can act on an earlier rule's
 ///   output,
-/// - `replacement == nil` (a vocabulary anchor) substitutes the word with
-///   itself,
+/// - `replacement == nil` or blank (a vocabulary anchor) substitutes the word
+///   with itself,
 /// - a word whose pattern fails to compile is skipped silently.
 struct CustomWordReplacer: Sendable {
     private struct Rule: Sendable {
@@ -29,12 +29,18 @@ struct CustomWordReplacer: Sendable {
     init(words: [CustomWord]) {
         rules = words.compactMap { word in
             guard word.isEnabled else { return nil }
-            let replacement = word.replacement ?? word.word
+            let replacement = word.replacement?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let template = if let replacement, !replacement.isEmpty {
+                replacement
+            } else {
+                word.word
+            }
             let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word.word))\\b"
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
                 return nil
             }
-            return Rule(regex: regex, template: NSRegularExpression.escapedTemplate(for: replacement))
+            return Rule(regex: regex, template: NSRegularExpression.escapedTemplate(for: template))
         }
     }
 

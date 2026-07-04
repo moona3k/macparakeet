@@ -125,6 +125,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- `transcribe` / `retranscribe` now apply local recognition-time custom
+  vocabulary boosting when the selected engine is Parakeet TDT (`v3` or `v2`)
+  and enabled `vocab words` entries have no replacement text. Unsupported
+  engines and empty vocabularies keep the previous unboosted path.
+- Human-readable `vocab words list` output now reports whether the current
+  app-default engine supports recognition-time vocabulary boosting. `--json`
+  output is unchanged.
 - `meetings export --format md --stdout` now uses the same shared Markdown
   renderer as `meeting.md`, including YAML frontmatter, notes, transcript,
   prompt-result index, artifact paths, and `speakerLabelsIncluded` metadata.

@@ -239,7 +239,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                 parakeetModelVariant: parakeetVariant,
                 speechEngine: speechEngine.engine,
                 nemotronModelVariant: nemotronVariant,
-                defaults: defaults
+                defaults: defaults,
+                customWordRepository: customWordRepo
             )
             sttClient = client
 

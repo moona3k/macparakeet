@@ -4,6 +4,8 @@ import MacParakeetViewModels
 
 struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
+    var recognitionStatus: CustomVocabularyBoostingSupportPresentation =
+        CustomVocabularyBoostingPresentation.status(for: .parakeet(.v3))
     @Environment(\.dismiss) private var dismiss
     @State private var hoveredWordID: UUID?
     @FocusState private var wordFieldFocused: Bool
@@ -16,7 +18,7 @@ struct CustomWordsView: View {
 
             VocabSheetHeader(
                 title: "Custom Words",
-                subtitle: "Teach MacParakeet how you say things.",
+                subtitle: recognitionStatus.detail,
                 onDone: { dismiss() }
             )
 
@@ -159,7 +161,10 @@ struct CustomWordsView: View {
 
     private func wordRow(_ word: CustomWord) -> some View {
         let isHovered = hoveredWordID == word.id
-        let toggleHint: String = word.replacement.map { "Replaces with \($0)" } ?? "Enforces exact spelling"
+        let trimmedReplacement = word.replacement?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let toggleHint: String = trimmedReplacement.isEmpty
+            ? "Enforces exact spelling"
+            : "Replaces with \(trimmedReplacement)"
         return HStack(spacing: DesignSystem.Spacing.md) {
             Toggle("", isOn: Binding(
                 get: { word.isEnabled },
@@ -176,8 +181,8 @@ struct CustomWordsView: View {
                     .font(DesignSystem.Typography.body)
                     .opacity(word.isEnabled ? 1.0 : 0.55)
 
-                if let replacement = word.replacement {
-                    Text("Replaces with: \(replacement)")
+                if !trimmedReplacement.isEmpty {
+                    Text("Replaces with: \(trimmedReplacement)")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                 } else {

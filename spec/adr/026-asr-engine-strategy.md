@@ -79,9 +79,10 @@ models join as variants within an existing family (as Parakeet
 v2/v3/Unified already do). Near-term roadmap, all within FluidAudio,
 in priority order:
 
-1. **Custom-vocabulary Parakeet CTC** — names/jargon accuracy is the
-   canonical dictation complaint and the clearest moat against Apple's
-   free engine.
+1. **Custom-vocabulary Parakeet CTC** — Phase 1 ships this as a
+   recognition-time CTC sidecar for Parakeet TDT v2/v3 enabled anchors.
+   Future work is chunked long-audio sidecar rescoring and any support
+   FluidAudio exposes for non-TDT engines.
 2. **CJK coverage: Parakeet Japanese + SenseVoiceSmall** — closes the
    gap that currently forces Korean/Japanese/Chinese users onto Whisper
    (and that Parakeet v3 fails outright, per the ADR-001 amendment).

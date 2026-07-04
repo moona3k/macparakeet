@@ -145,26 +145,56 @@ For meeting recording specifically, this has an important consequence: the saved
 
 ### Custom Vocabulary Boosting (v0.11.0+)
 
-FluidAudio's CTC-based keyword boosting maps to MacParakeet's `CustomWord` model:
+MacParakeet Phase 1 uses FluidAudio's 110M CTC encoder as a post-TDT
+recognition sidecar, not as a replacement ASR runtime. The normal Parakeet TDT
+decode runs first and returns transcript text plus token timings; when
+recognition boosting is supported and there are enabled vocabulary anchors,
+MacParakeet runs the CTC sidecar over the same audio samples and uses
+`VocabularyRescorer` to produce the final transcript text.
 
-```swift
-let vocabulary = CustomVocabularyContext(terms: [
-    CustomVocabularyTerm(text: "MacParakeet"),
-    CustomVocabularyTerm(
-        text: "macOS",
-        aliases: ["Mac OS", "Macos"]  // recognized variants → canonical form
-    ),
-])
+Source of truth:
 
-let result = try await asrManager.transcribe(
-    audioSamples,
-    customVocabulary: vocabulary
-)
-// result.ctcDetectedTerms — vocabulary terms spotted
-// result.ctcAppliedTerms — terms applied to transcription
-```
+- Enabled `CustomWord` rows with `replacement == nil` or blank replacement
+  become recognition-time vocabulary anchors.
+- Enabled rows with nonblank `replacement` remain deterministic
+  post-transcription corrections/backstops.
+- Disabled rows and terms shorter than `minTermLength` (`3`) are ignored by
+  recognition boosting.
 
-This runs a secondary CTC encoder (110M params) alongside the primary TDT encoder. Memory doubles from ~66MB to ~130MB when active. Optimal at 1-50 terms.
+Support matrix:
+
+| Engine / variant | Recognition boosting |
+|------------------|----------------------|
+| Parakeet TDT `v3` | Yes |
+| Parakeet TDT `v2` | Yes |
+| Parakeet Unified | No |
+| Nemotron | No |
+| WhisperKit | No |
+| Cohere Transcribe | No |
+
+Runtime behavior:
+
+- Empty vocabulary or unsupported engine variants take the byte-for-byte
+  previous path: no CTC model download/load and no added latency.
+- The CTC model is lazy-loaded from FluidAudio's Application Support model
+  cache only when boosting is needed; download/load/rescoring failures degrade
+  to the unboosted transcript and log only content-free diagnostics.
+- Vocabulary tokenization is cached by stable content hash and refreshed when
+  the effective anchor set changes.
+- Product constants live in `CustomVocabularyBoostingConfiguration`:
+  `minSimilarity = 0.65`, `minTermLength = 3`, and FluidAudio's size-aware
+  rescoring defaults otherwise.
+- Dictation sidecar audio uses the same 16 kHz samples sent to TDT, including
+  the 0.5 second trailing-silence pad from issue #562. File and meeting
+  finalization keep the URL/disk-backed TDT path; Phase 1 only sidecars short
+  audio that can be loaded under the configured sidecar sample bound, and skips
+  boosting for longer jobs until chunked sidecar rescoring lands.
+- Vocabulary contents are user data. MacParakeet does not log or emit telemetry
+  with the term strings.
+
+When active, peak working RAM is approximately the Parakeet TDT slot plus the
+CTC sidecar (~130 MB total). The intended term count remains small user
+vocabularies rather than full dictionaries.
 
 ### Additional Capabilities (via FluidAudio)
 
@@ -174,7 +204,7 @@ This runs a secondary CTC encoder (110M params) alongside the primary TDT encode
 | Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~15% DER (VoxConverse, CoreML), ~130 MB models, unlimited speakers. See ADR-010. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
-| Custom vocabulary | CTC/TDT keyword boosting | 99.3% recall, 110M secondary encoder |
+| Custom vocabulary | CTC/TDT keyword boosting | 110M sidecar for Parakeet TDT v2/v3 enabled anchors |
 
 **Note:** ASR (Parakeet TDT) and diarization (pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
 

@@ -97,6 +97,48 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertTrue(schema.json)
     }
 
+    func testVocabWordsRecognitionBoostingStatusLineUsesCapabilityRegistry() {
+        let suiteName = "macparakeet-vocab-cli-defaults-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
+        XCTAssertTrue(
+            VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+                .contains("Recognition boosting on")
+        )
+
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        let unifiedLine = VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+        XCTAssertTrue(unifiedLine.contains("Clean corrections only"))
+        XCTAssertTrue(unifiedLine.contains("Parakeet English (Unified)"))
+
+        SpeechEnginePreference.cohere.save(to: defaults)
+        let cohereLine = VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+        XCTAssertTrue(cohereLine.contains("Clean corrections only"))
+        XCTAssertTrue(cohereLine.contains("Cohere"))
+    }
+
+    func testVocabWordsListDisplaysBlankReplacementAsAnchor() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "MacParakeet", replacement: "  ")
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.ListWords.parse([
+            "--database", dbPath,
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        XCTAssertTrue(output.contains("[+] MacParakeet (anchor)"))
+        XCTAssertFalse(output.contains("MacParakeet ->"))
+    }
+
     func testVocabWordsSetTogglesEnabledState() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = CustomWordRepository(dbQueue: manager.dbQueue)

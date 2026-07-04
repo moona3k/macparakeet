@@ -15,14 +15,21 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        customWordRepository: (any CustomWordRepositoryProtocol)? = nil,
+        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil
     ) {
+        let customVocabularyProvider = customWordRepository.map {
+            RepositoryCustomVocabularyBoostingTermProvider(repository: $0)
+        }
         let runtime = STTRuntime(
             parakeetModelVariant: parakeetModelVariant,
             speechEngine: speechEngine,
             nemotronModelVariant: nemotronModelVariant,
             whisperModelVariant: whisperModelVariant,
-            defaults: defaults
+            defaults: defaults,
+            customVocabularyProvider: customVocabularyProvider,
+            customVocabularyRescorer: customVocabularyRescorer
         )
         self.scheduler = STTScheduler(runtime: runtime)
     }

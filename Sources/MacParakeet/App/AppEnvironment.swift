@@ -86,7 +86,8 @@ final class AppEnvironment {
             parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(),
             speechEngine: SpeechEnginePreference.current(),
             nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(),
-            whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
+            whisperModelVariant: SpeechEnginePreference.whisperModelVariant(),
+            customVocabularyProvider: RepositoryCustomVocabularyBoostingTermProvider(repository: customWordRepo)
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
         // Ship raw meeting mic capture by default. VPIO remains available for

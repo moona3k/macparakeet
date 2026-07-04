@@ -61,6 +61,39 @@ final class STTRuntimeDictationPadTests: XCTestCase {
         XCTAssertFalse(padded.prefix(realSampleCount).allSatisfy { $0 == 0 })
     }
 
+    func testCustomVocabularySidecarReceivesPaddedDictationSamples() async throws {
+        let realSampleCount = 4_800  // 0.3 s at 16 kHz
+        let url = try writeMonoFloatWav(
+            sampleCount: realSampleCount,
+            sampleRate: 16_000,
+            valueAt: { Float(sin(Double($0) * 0.05)) }
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let padded = STTRuntime.paddedDictationSamples(audioPath: url.path)
+        let rescorer = DictationPadCustomVocabularyRescorer(text: "MacParakeet")
+        let result = await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "MAC Parakeet",
+            tokenTimings: [
+                TokenTiming(token: "▁MAC", tokenId: 1, startTime: 0.0, endTime: 0.2, confidence: 0.9),
+                TokenTiming(token: "▁Parakeet", tokenId: 2, startTime: 0.2, endTime: 0.6, confidence: 0.9),
+            ],
+            audioSamples: padded,
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer
+        )
+
+        XCTAssertEqual(result.text, "MacParakeet")
+        let requests = await rescorer.recordedRequests()
+        XCTAssertEqual(requests.count, 1)
+        let requestSamples = requests[0].audioSamples
+        let expectedPad = Int(STTRuntime.dictationTrailingSilenceSeconds * Double(ASRConstants.sampleRate))
+        XCTAssertEqual(requestSamples.count, realSampleCount + expectedPad)
+        XCTAssertEqual(requestSamples, padded)
+        XCTAssertTrue(requestSamples.suffix(expectedPad).allSatisfy { $0 == 0 })
+    }
+
     func testPaddedDictationSamplesFallsThroughWhenPadWouldExceedSingleWindow() throws {
         // A clip whose padded length would cross the single-window limit must
         // stay on FluidAudio's URL path instead of being loaded and padded in
@@ -115,5 +148,28 @@ final class STTRuntimeDictationPadTests: XCTestCase {
         }
         try file.write(from: buffer)
         return url
+    }
+}
+
+private actor DictationPadCustomVocabularyRescorer: CustomVocabularyRescoring {
+    private var requests: [CustomVocabularyRescoringRequest] = []
+    private let text: String
+
+    init(text: String) {
+        self.text = text
+    }
+
+    func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult {
+        requests.append(request)
+        return CustomVocabularyRescoringResult(
+            text: text,
+            detectedTerms: request.vocabulary.terms,
+            appliedTerms: request.vocabulary.terms,
+            replacementCount: request.vocabulary.terms.count
+        )
+    }
+
+    func recordedRequests() -> [CustomVocabularyRescoringRequest] {
+        requests
     }
 }

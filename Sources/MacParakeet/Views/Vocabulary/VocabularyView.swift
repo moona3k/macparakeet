@@ -44,7 +44,10 @@ struct VocabularyView: View {
         .sheet(isPresented: $showCustomWords) {
             settingsViewModel.refreshStats()
         } content: {
-            CustomWordsView(viewModel: customWordsViewModel)
+            CustomWordsView(
+                viewModel: customWordsViewModel,
+                recognitionStatus: settingsViewModel.customVocabularyRecognitionStatus
+            )
                 .frame(width: 640, height: 560)
         }
         .sheet(isPresented: $showTextSnippets) {
@@ -134,7 +137,7 @@ struct VocabularyView: View {
                 pipelineStep(
                     number: 2,
                     title: "Fix words",
-                    detail: "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")",
+                    detail: "\(customWordCountLabel) · \(settingsViewModel.customVocabularyRecognitionStatus.title)",
                     actionTitle: "Manage words",
                     action: {
                         customWordsViewModel.loadWords()
@@ -167,6 +170,10 @@ struct VocabularyView: View {
             }
             .padding(.top, 2)
         }
+    }
+
+    private var customWordCountLabel: String {
+        "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")"
     }
 
     private var insertionStyleRow: some View {

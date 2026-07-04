@@ -69,6 +69,12 @@ with human progress/status kept off stdout.
 - `meetings export --format md --stdout` emits the same Markdown shape as the
   materialized `meeting.md`; use `--stdout --format json` when the caller needs
   parseable JSON on stdout.
+- Recognition-time custom vocabulary boosting does not add JSON fields in v1.
+  For Parakeet TDT `v3` and `v2`, enabled `vocab words` entries with no
+  replacement text may improve the returned transcript text before downstream
+  processing. Unsupported engines and empty vocabularies keep the previous
+  unboosted path; human `vocab words list` support text is not a JSON
+  contract.
 
 ## Failure Envelope
 

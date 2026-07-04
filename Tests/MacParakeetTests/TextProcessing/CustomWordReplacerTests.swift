@@ -57,6 +57,11 @@ final class CustomWordReplacerTests: XCTestCase {
         XCTAssertEqual(replacer.apply(to: "i love swift and SWIFT"), "i love Swift and Swift")
     }
 
+    func testBlankReplacementAnchorNormalizesToStoredCasing() {
+        let replacer = CustomWordReplacer(words: [CustomWord(word: "MacParakeet", replacement: "  ")])
+        XCTAssertEqual(replacer.apply(to: "macparakeet and MACPARAKEET"), "MacParakeet and MacParakeet")
+    }
+
     func testReplacementTemplateIsLiteral() {
         // Replacement text containing regex template metacharacters ("$1") must
         // be inserted literally, not interpreted as a capture reference.
@@ -72,12 +77,14 @@ final class CustomWordReplacerTests: XCTestCase {
             CustomWord(word: "acme", replacement: "ACME Corp"),
             CustomWord(word: "disabled", replacement: "SHOULD-NOT-APPEAR", isEnabled: false),
             CustomWord(word: "anchor", replacement: nil),
+            CustomWord(word: "MacParakeet", replacement: " "),
         ]
         let pipeline = TextProcessingPipeline()
         let samples = [
             "deploy k8s for acme",
             "ACME and Acme and acme",
             "anchor stays anchored",
+            "macparakeet",
             "disabled words do nothing",
             "",
             "no custom words here",

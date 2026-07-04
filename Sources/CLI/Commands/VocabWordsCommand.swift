@@ -15,6 +15,19 @@ struct VocabWordsCommand: AsyncParsableCommand {
         defaultSubcommand: ListWords.self
     )
 
+    static func recognitionBoostingStatusLine(
+        defaults: UserDefaults = macParakeetAppDefaults()
+    ) -> String {
+        let capabilities = SpeechEngineCapabilityRegistry.capabilities(
+            for: SpeechEnginePreference.current(defaults: defaults),
+            parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
+            nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
+            whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        )
+        let status = CustomVocabularyBoostingPresentation.status(for: capabilities)
+        return "Custom vocabulary: \(status.title) - \(status.detail)"
+    }
+
     struct ListWords: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "list",
@@ -54,18 +67,21 @@ struct VocabWordsCommand: AsyncParsableCommand {
 
                 if words.isEmpty {
                     print("No custom words configured.")
+                    print(VocabWordsCommand.recognitionBoostingStatusLine())
                     return
                 }
 
                 for word in words {
                     let status = word.isEnabled ? "+" : "-"
-                    if let replacement = word.replacement {
+                    if let replacement = word.replacement?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !replacement.isEmpty {
                         print("[\(status)] \(word.word) -> \(replacement)  [\(word.source.rawValue)]  (\(word.id.uuidString.prefix(8)))")
                     } else {
                         print("[\(status)] \(word.word) (anchor)  [\(word.source.rawValue)]  (\(word.id.uuidString.prefix(8)))")
                     }
                 }
                 print("\n\(words.count) word(s)")
+                print(VocabWordsCommand.recognitionBoostingStatusLine())
             }
         }
     }

@@ -371,6 +371,14 @@ public final class SettingsViewModel {
     }
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
+    public var customVocabularyRecognitionStatus: CustomVocabularyBoostingSupportPresentation {
+        CustomVocabularyBoostingPresentation.status(for: SpeechEngineCapabilityRegistry.capabilities(
+            for: engine.speechEnginePreference,
+            parakeetModelVariant: engine.parakeetModelVariant,
+            nemotronModelVariant: engine.nemotronModelVariant,
+            whisperModelVariant: engine.whisperModelVariant.rawValue
+        ))
+    }
 
     // Storage
     public var saveDictationHistory: Bool {

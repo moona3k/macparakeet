@@ -80,6 +80,8 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// every STT engine and lane contends on one Neural Engine mutex in
     /// production.
     private let inferenceGate: ANEInferenceGate
+    private let customVocabularyProvider: (any CustomVocabularyBoostingTermProviding)?
+    private let customVocabularyRescorer: any CustomVocabularyRescoring
 
     private var interactiveManager: AsrManager?
     private var backgroundManager: AsrManager?
@@ -148,7 +150,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
         defaults: UserDefaults = .standard,
-        inferenceGate: ANEInferenceGate = .shared
+        inferenceGate: ANEInferenceGate = .shared,
+        customVocabularyProvider: (any CustomVocabularyBoostingTermProviding)? = nil,
+        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil
     ) {
         self.currentParakeetVariant = parakeetModelVariant
         // `.unified` has no TDT version; the TDT path is never taken for it, so a
@@ -160,6 +164,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
         self.defaults = defaults
         self.inferenceGate = inferenceGate
+        self.customVocabularyProvider = customVocabularyProvider
+        self.customVocabularyRescorer = customVocabularyRescorer ?? FluidAudioCustomVocabularyRescorer()
     }
 
     #if DEBUG
@@ -513,10 +519,14 @@ public actor STTRuntime: STTRuntimeProtocol {
                     let result = try await inferenceGate.withExclusiveAccess {
                         try await manager.transcribe(paddedSamples, decoderState: &decoderState)
                     }
+                    let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
+                        to: result,
+                        audioSamples: paddedSamples
+                    )
                     onProgress?(100, 100)
                     return STTResult(
-                        text: result.text,
-                        words: STTWordTimingBuilder.words(from: result.tokenTimings),
+                        text: boostedResult.text,
+                        words: STTWordTimingBuilder.words(from: boostedResult.tokenTimings),
                         language: "en",
                         engine: .parakeet,
                         engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
@@ -563,7 +573,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             let result = try await inferenceGate.withExclusiveAccess {
                 try await manager.transcribe(audioURL, decoderState: &decoderState)
             }
-            let words = STTWordTimingBuilder.words(from: result.tokenTimings)
+            let boostedResult = await applyCustomVocabularyBoostingIfAvailable(
+                to: result,
+                audioSamples: Self.customVocabularySidecarSamples(audioPath: audioPath)
+            )
+            let words = STTWordTimingBuilder.words(from: boostedResult.tokenTimings)
             onProgress?(100, 100)
             // Telemetry `language` is attributed "en": MacParakeet positions
             // Parakeet as English-first (v2 is English-only; v3 multilingual is
@@ -572,7 +586,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             // `engineVariant` carries the active build (v2/v3) so adoption and
             // impact can be measured without exposing transcript content.
             return STTResult(
-                text: result.text,
+                text: boostedResult.text,
                 words: words,
                 language: "en",
                 engine: .parakeet,
@@ -665,6 +679,101 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         return AudioChunker.extractAndResample(from: buffer)
     }
+
+    static func customVocabularySidecarSamples(audioPath: String) -> [Float] {
+        loadShortDictationSamples16k(
+            path: audioPath,
+            maxSamples: CustomVocabularyBoostingConfiguration.maxSidecarSampleCount
+        ) ?? []
+    }
+
+    private func applyCustomVocabularyBoostingIfAvailable(
+        to result: ASRResult,
+        audioSamples: [Float]
+    ) async -> ASRResult {
+        guard let customVocabularyProvider else { return result }
+        let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(currentParakeetVariant))
+        let vocabulary = await customVocabularyProvider.currentVocabulary()
+        return await Self.applyCustomVocabularyBoosting(
+            to: result,
+            audioSamples: audioSamples,
+            capabilities: capabilities,
+            vocabulary: vocabulary,
+            rescorer: customVocabularyRescorer,
+            inferenceGate: inferenceGate,
+            logger: logger
+        )
+    }
+
+    static func applyCustomVocabularyBoosting(
+        to result: ASRResult,
+        audioSamples: [Float],
+        capabilities: SpeechEngineCapabilities,
+        vocabulary: CustomVocabularyBoostingVocabulary,
+        rescorer: any CustomVocabularyRescoring,
+        inferenceGate: ANEInferenceGate,
+        logger: Logger? = nil
+    ) async -> ASRResult {
+        guard capabilities.supportsCustomVocabulary,
+              !vocabulary.isEmpty,
+              !audioSamples.isEmpty,
+              let tokenTimings = result.tokenTimings,
+              !tokenTimings.isEmpty
+        else {
+            return result
+        }
+
+        do {
+            let rescored = try await inferenceGate.withExclusiveAccess {
+                try await rescorer.rescore(
+                    CustomVocabularyRescoringRequest(
+                        transcript: result.text,
+                        tokenTimings: tokenTimings,
+                        audioSamples: audioSamples,
+                        vocabulary: vocabulary
+                    )
+                )
+            }
+            return result.withRescoring(
+                text: rescored.text,
+                detected: rescored.detectedTerms,
+                applied: rescored.appliedTerms
+            )
+        } catch {
+            logger?.warning(
+                "custom_vocabulary_boost_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
+            )
+            return result
+        }
+    }
+
+    #if DEBUG
+    static func applyCustomVocabularyBoostingForTesting(
+        transcript: String,
+        tokenTimings: [TokenTiming]?,
+        audioSamples: [Float],
+        capabilities: SpeechEngineCapabilities,
+        vocabulary: CustomVocabularyBoostingVocabulary,
+        rescorer: any CustomVocabularyRescoring,
+        inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false)
+    ) async -> ASRResult {
+        let result = ASRResult(
+            text: transcript,
+            confidence: 1,
+            duration: 0,
+            processingTime: 0,
+            tokenTimings: tokenTimings
+        )
+        return await applyCustomVocabularyBoosting(
+            to: result,
+            audioSamples: audioSamples,
+            capabilities: capabilities,
+            vocabulary: vocabulary,
+            rescorer: rescorer,
+            inferenceGate: inferenceGate
+        )
+    }
+    #endif
 
     private func transcribeParakeetPreview(samples: [Float]) async throws -> STTResult {
         // Parakeet Unified drives live dictation through its native streaming

@@ -194,7 +194,7 @@ public enum SpeechEngineCapabilityRegistry {
                 supportsTailPreview: !variant.usesUnifiedEngine,
                 providesWordTimestamps: !variant.usesUnifiedEngine,
                 supportedLanguages: variant.isEnglishOnly ? .fixed("en") : .automatic(),
-                supportsCustomVocabulary: false,
+                supportsCustomVocabulary: !variant.usesUnifiedEngine,
                 modelLifecycle: SpeechEngineModelLifecycle(
                     modelName: variant.modelName,
                     variantID: variant.rawValue,

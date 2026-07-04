@@ -739,7 +739,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--source", valueName: "all|manual|learned", summary: "Filter by source."),
                 databaseOption,
             ],
-            output: "Array of CustomWord objects."
+            output: "Array of CustomWord objects for --json; human output also reports recognition-boosting support for the current app-default engine."
         ),
         CLISpecCommand(
             ["vocab", "words", "add"],
@@ -748,7 +748,7 @@ private extension CLISpecCommand {
             jsonMode: "none",
             arguments: [
                 .argument("word", summary: "Word or phrase to match."),
-                .argument("replacement", required: false, summary: "Replacement text; omit for vocabulary anchor."),
+                .argument("replacement", required: false, summary: "Replacement text; omit for a vocabulary anchor that can boost supported Parakeet TDT recognition."),
             ],
             options: [databaseOption],
             output: "Human-readable add confirmation."
