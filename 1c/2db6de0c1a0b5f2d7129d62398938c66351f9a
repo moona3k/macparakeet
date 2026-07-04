@@ -1,0 +1,44 @@
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_c991c073876a88::t_a62d95d3db2a02 118-141
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingMetadata.swift
+  s_c991c073876a88::t_145b789fea04b9 100
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_c991c073876a88::t_145b789fea04b9 84
+Sources/MacParakeetCore/Services/System/FrontmostApplicationProvider.swift
+  s_c991c073876a88::t_145b789fea04b9 18,22-25
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_c991c073876a88::t_a62d95d3db2a02 243-252,254-264,266-270
+  s_43784a8bbb773b::t_56341557900216 253,265
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_c991c073876a88::t_a62d95d3db2a02 292-316
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_c991c073876a88::t_145b789fea04b9 319
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_c991c073876a88::t_a62d95d3db2a02 443-473
+spec/01-data-model.md
+  s_43784a8bbb773b::t_56341557900216 115,593,1135-1136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c2db6de0c1a0b5f2d7129d62398938c66351f9a",
+  "prompts": {},
+  "sessions": {
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_c991c073876a88": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bb5-344b-7663-964d-9690830feb9d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
