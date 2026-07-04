@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCaptureHealth.swift
+  s_f93963c9ce92fa::t_6bed48c61e2e10 265-274,276-284,286-293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d18848875d066169152f38b097cb306df3dd5ba",
+  "prompts": {},
+  "sessions": {
+    "s_f93963c9ce92fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-b1d6-7e13-92f3-355e2f1d9cc5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
