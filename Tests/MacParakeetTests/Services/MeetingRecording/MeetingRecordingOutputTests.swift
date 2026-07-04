@@ -406,6 +406,71 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
     }
 
+    func testMeetingRecordingMetadataRoundTripsStartContext() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let startContext = MeetingStartContext(
+            triggerKind: .calendarAutoStart,
+            frontmostApplication: .init(
+                bundleIdentifier: "us.zoom.xos",
+                localizedName: "zoom.us"
+            ),
+            sourceMode: .microphoneAndSystem
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: MeetingSourceAlignment(
+                    meetingOriginHostTime: nil,
+                    microphone: nil,
+                    system: nil
+                ),
+                startContext: startContext
+            ),
+            folderURL: dir
+        )
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(metadata.startContext, startContext)
+
+        let archived = try MeetingRecordingOutput.loadArchived(
+            displayName: "Recovered Meeting",
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            durationSeconds: 12
+        )
+        XCTAssertEqual(archived.startContext, startContext)
+    }
+
+    func testMeetingRecordingMetadataWithMalformedStartContextStillLoads() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+
+        let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)
+        ) as? [String: Any])
+        json["startContext"] = [
+            "triggerKind": "future_trigger",
+            "sourceMode": "microphone_only",
+        ]
+        let data = try JSONSerialization.data(
+            withJSONObject: json,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: url, options: .atomic)
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertNil(metadata.startContext, "malformed startContext must not block metadata load")
+        XCTAssertEqual(metadata.speechEngine.engine, .parakeet)
+
+        let archived = try MeetingRecordingOutput.loadArchived(
+            displayName: "Recovered Meeting",
+            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            durationSeconds: 12
+        )
+        XCTAssertNil(archived.startContext)
+    }
+
     func testUpdateEchoSuppressionSavesThroughInjectedFileManager() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

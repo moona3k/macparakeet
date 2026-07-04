@@ -427,6 +427,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             transcription.status = .processing
             transcription.errorMessage = nil
             transcription.userNotes = transcription.userNotes ?? recording.userNotes
+            transcription.meetingStartContext = transcription.meetingStartContext ?? recording.startContext
             transcription.updatedAt = Date()
             try transcriptionRepo.save(transcription)
 
@@ -1066,6 +1067,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             status: .processing,
             sourceType: .meeting,
             userNotes: recording.userNotes,
+            meetingStartContext: recording.startContext,
             engine: recording.speechEngine.engine.rawValue
         )
     }

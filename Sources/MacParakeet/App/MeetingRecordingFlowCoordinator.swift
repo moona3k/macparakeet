@@ -50,6 +50,7 @@ final class MeetingRecordingFlowCoordinator {
     private let sttManager: (any STTRuntimeManaging)?
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
+    private let frontmostApplicationProvider: any FrontmostApplicationProviding
     private var llmService: LLMServiceProtocol?
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
@@ -108,6 +109,7 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
+        frontmostApplicationProvider: any FrontmostApplicationProviding = NSWorkspaceFrontmostApplicationProvider(),
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
@@ -129,6 +131,7 @@ final class MeetingRecordingFlowCoordinator {
         self.sttManager = sttManager
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
+        self.frontmostApplicationProvider = frontmostApplicationProvider
         self.llmService = llmService
         self.pillViewModel = pillViewModel
         self.meetingTranscriptionQueue =
@@ -173,6 +176,7 @@ final class MeetingRecordingFlowCoordinator {
     /// hop. Manual / hotkey starts set only the trigger, so the service falls
     /// back to its date-based default title.
     private var pendingTitle: String?
+    private var pendingStartContext: MeetingStartContext?
 
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
@@ -222,8 +226,12 @@ final class MeetingRecordingFlowCoordinator {
         trigger: TelemetryMeetingRecordingTrigger = .manual
     ) -> Int? {
         guard stateMachine.state == .idle else { return nil }
-        pendingTrigger = pendingTrigger ?? trigger
+        let resolvedTrigger = pendingTrigger ?? trigger
+        let sourceMode = meetingAudioSourceModeProvider()
+        pendingTrigger = resolvedTrigger
         pendingTitle = title
+        pendingAudioSourceMode = sourceMode
+        pendingStartContext = makeStartContext(trigger: resolvedTrigger, sourceMode: sourceMode)
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -319,6 +327,9 @@ final class MeetingRecordingFlowCoordinator {
         }
         pendingTrigger = .calendarAutoStart
         pendingTitle = title
+        let sourceMode = meetingAudioSourceModeProvider()
+        pendingAudioSourceMode = sourceMode
+        pendingStartContext = makeStartContext(trigger: .calendarAutoStart, sourceMode: sourceMode)
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
         return stateMachine.generation
@@ -342,6 +353,7 @@ final class MeetingRecordingFlowCoordinator {
         pendingTrigger = nil
         pendingTitle = nil
         pendingAudioSourceMode = nil
+        pendingStartContext = nil
         currentMeetingOperationContext = nil
         currentMeetingTrigger = nil
         if wasCalendarTriggered {
@@ -378,12 +390,23 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    private func makeStartContext(
+        trigger: TelemetryMeetingRecordingTrigger,
+        sourceMode: MeetingAudioSourceMode
+    ) -> MeetingStartContext {
+        MeetingStartContext(
+            triggerKind: MeetingStartContext.TriggerKind(trigger),
+            frontmostApplication: frontmostApplicationProvider.currentFrontmostApplication(),
+            sourceMode: sourceMode
+        )
+    }
+
     private func executeEffect(_ effect: MeetingRecordingFlowEffect) {
         switch effect {
         case .checkPermissions:
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
-                let sourceMode = meetingAudioSourceModeProvider()
+                let sourceMode = self.pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
                 self.pendingAudioSourceMode = sourceMode
                 let microphoneGranted: Bool
                 let microphonePrompted: Bool
@@ -527,15 +550,22 @@ final class MeetingRecordingFlowCoordinator {
             let trigger = pendingTrigger
             let title = pendingTitle
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
+            let startContext = pendingStartContext
+                ?? makeStartContext(trigger: trigger ?? .manual, sourceMode: sourceMode)
             pendingTrigger = nil
             pendingTitle = nil
             pendingAudioSourceMode = nil
+            pendingStartContext = nil
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             currentMeetingOperationContext = operationContext
             currentMeetingTrigger = trigger.map(TelemetryMeetingOperationTrigger.init)
             actionTask = Task { @MainActor in
                 do {
-                    try await meetingRecordingService.startRecording(title: title, sourceMode: sourceMode)
+                    try await meetingRecordingService.startRecording(
+                        title: title,
+                        sourceMode: sourceMode,
+                        startContext: startContext
+                    )
                     let isSpeechModelReady = await self.sttManager?.isReady() ?? true
                     switch self.panelViewModel?.liveTranscriptStatus {
                     case .some(.startingAudio) where isSpeechModelReady:
@@ -683,6 +713,7 @@ final class MeetingRecordingFlowCoordinator {
             pendingTrigger = nil
             pendingTitle = nil
             pendingAudioSourceMode = nil
+            pendingStartContext = nil
             actionTask?.cancel()
             actionTask = Task { @MainActor in
                 // Stop the in-flight debounce so it can't fire against a
@@ -1271,6 +1302,7 @@ extension MeetingRecordingFlowCoordinator {
         pendingTrigger = nil
         pendingTitle = nil
         pendingAudioSourceMode = nil
+        pendingStartContext = nil
         _ = stateMachine.handle(.startRequested)
         _ = stateMachine.handle(.permissionsGranted(generation: stateMachine.generation))
         _ = stateMachine.handle(.recordingStarted(generation: stateMachine.generation))

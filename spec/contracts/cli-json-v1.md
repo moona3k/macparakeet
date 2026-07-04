@@ -51,6 +51,9 @@ with human progress/status kept off stdout.
   `wordRange.startIndex` / `wordRange.endIndexExclusive` into the same payload's
   `wordTimestamps` array. Callers that need stable citations should prefer
   these persisted segments over re-segmenting words.
+- `meetings show --json` meeting objects can include optional `startContext`
+  for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
+  optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
 
 ## Failure Envelope
 

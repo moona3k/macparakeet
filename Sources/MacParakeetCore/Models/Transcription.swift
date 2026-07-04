@@ -47,6 +47,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// summary generation (ADR-020 §3). `nil` for non-meeting transcripts
     /// and for meetings where the user took no notes.
     public var userNotes: String?
+    /// One-shot context captured when a meeting recording starts. `nil` for
+    /// non-meeting rows and legacy meetings.
+    public var meetingStartContext: MeetingStartContext?
     /// STT engine that produced this transcript (`"parakeet"` / `"nemotron"` /
     /// `"cohere"` / `"whisper"`).
     /// `nil` for rows created before the v0.8 engine-attribution migration.
@@ -100,6 +103,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         recoveredFromCrash: Bool = false,
         isTranscriptEdited: Bool = false,
         userNotes: String? = nil,
+        meetingStartContext: MeetingStartContext? = nil,
         engine: String? = nil,
         engineVariant: String? = nil,
         derivedTitle: String? = nil,
@@ -134,6 +138,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.recoveredFromCrash = recoveredFromCrash
         self.isTranscriptEdited = isTranscriptEdited
         self.userNotes = userNotes
+        self.meetingStartContext = meetingStartContext
         self.engine = engine
         self.engineVariant = engineVariant
         self.derivedTitle = derivedTitle
@@ -248,7 +253,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -311,6 +316,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
+        meetingStartContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)) ?? nil
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)

@@ -261,6 +261,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
     let engineVariant: String?
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
+    let startContext: MeetingStartContext?
 
     init(_ transcription: Transcription) {
         id = transcription.id
@@ -274,6 +275,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
         engineVariant = transcription.engineVariant
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
+        startContext = transcription.meetingStartContext
     }
 }
 
@@ -340,6 +342,7 @@ private struct MeetingArtifactTranscript: Codable {
     let sourceType: Transcription.SourceType
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
+    let startContext: MeetingStartContext?
 
     init(_ transcription: Transcription) {
         id = transcription.id
@@ -364,6 +367,7 @@ private struct MeetingArtifactTranscript: Codable {
         sourceType = transcription.sourceType
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
+        startContext = transcription.meetingStartContext
     }
 }
 

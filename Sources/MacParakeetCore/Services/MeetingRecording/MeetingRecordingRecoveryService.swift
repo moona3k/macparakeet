@@ -198,7 +198,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         try MeetingRecordingMetadataStore.save(
             MeetingRecordingMetadata(
                 sourceAlignment: sourceAlignment,
-                speechEngine: lock.speechEngine
+                speechEngine: lock.speechEngine,
+                startContext: lock.startContext
             ),
             folderURL: folderURL
         )
@@ -245,6 +246,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             durationSeconds: duration,
             sourceAlignment: sourceAlignment,
             speechEngine: lock.speechEngine,
+            startContext: lock.startContext,
             userNotes: lock.notes
         )
 

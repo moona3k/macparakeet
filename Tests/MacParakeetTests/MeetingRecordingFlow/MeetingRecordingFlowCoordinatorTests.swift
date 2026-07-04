@@ -204,6 +204,61 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.testHook_state, .recording)
     }
 
+    func testStartRecordingCapturesStartContextForDiscoveredStartPaths() async throws {
+        let app = MeetingStartContext.FrontmostApplication(
+            bundleIdentifier: "COM.Example.MeetingApp",
+            localizedName: "Meeting App"
+        )
+
+        let manualService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let manualCoordinator = makeStartContextCoordinator(
+            recordingService: manualService,
+            sourceMode: .microphoneOnly,
+            frontmostApplication: app
+        )
+        XCTAssertNotNil(manualCoordinator.startRecording(trigger: .manual))
+        try await waitForStartCall(on: manualService, coordinator: manualCoordinator)
+        var serviceSnapshot = await manualService.snapshot()
+        var start = try XCTUnwrap(serviceSnapshot.startCalls.first)
+        XCTAssertNil(start.title)
+        XCTAssertEqual(start.sourceMode, .microphoneOnly)
+        XCTAssertEqual(start.startContext?.triggerKind, .manual)
+        XCTAssertEqual(start.startContext?.frontmostApplication, app)
+        XCTAssertEqual(start.startContext?.sourceMode, .microphoneOnly)
+
+        let hotkeyService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let hotkeyCoordinator = makeStartContextCoordinator(
+            recordingService: hotkeyService,
+            sourceMode: .microphoneAndSystem,
+            frontmostApplication: app
+        )
+        XCTAssertNotNil(hotkeyCoordinator.startRecording(trigger: .hotkey))
+        try await waitForStartCall(on: hotkeyService, coordinator: hotkeyCoordinator)
+        serviceSnapshot = await hotkeyService.snapshot()
+        start = try XCTUnwrap(serviceSnapshot.startCalls.first)
+        XCTAssertNil(start.title)
+        XCTAssertEqual(start.sourceMode, .microphoneAndSystem)
+        XCTAssertEqual(start.startContext?.triggerKind, .hotkey)
+        XCTAssertEqual(start.startContext?.frontmostApplication, app)
+        XCTAssertEqual(start.startContext?.sourceMode, .microphoneAndSystem)
+
+        let calendarService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let calendarCoordinator = makeStartContextCoordinator(
+            recordingService: calendarService,
+            sourceMode: .systemOnly,
+            frontmostApplication: app
+        )
+        XCTAssertNotNil(calendarCoordinator.startFromCalendar(title: "Roadmap Review"))
+        try await waitForStartCall(on: calendarService, coordinator: calendarCoordinator)
+        serviceSnapshot = await calendarService.snapshot()
+        start = try XCTUnwrap(serviceSnapshot.startCalls.first)
+        XCTAssertEqual(start.title, "Roadmap Review")
+        XCTAssertEqual(start.sourceMode, .systemOnly)
+        XCTAssertEqual(start.startContext?.triggerKind, .calendarAutoStart)
+        XCTAssertEqual(start.startContext?.frontmostApplication, app)
+        XCTAssertEqual(start.startContext?.sourceMode, .systemOnly)
+    }
+
     func testCohereRecordingShowsLivePreviewUnsupportedCopy() async throws {
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
@@ -293,6 +348,43 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         )
     }
 
+    private func makeStartContextCoordinator(
+        recordingService: MeetingRecordingServiceSpy,
+        sourceMode: MeetingAudioSourceMode,
+        frontmostApplication: MeetingStartContext.FrontmostApplication?
+    ) -> MeetingRecordingFlowCoordinator {
+        MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            meetingAudioSourceModeProvider: { sourceMode },
+            frontmostApplicationProvider: StaticFrontmostApplicationProvider(frontmostApplication),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+    }
+
+    private func waitForStartCall(
+        on service: MeetingRecordingServiceSpy,
+        coordinator: MeetingRecordingFlowCoordinator
+    ) async throws {
+        for _ in 0..<3 {
+            await coordinator.testHook_waitForActionTask()
+            let snapshot = await service.snapshot()
+            if snapshot.startCallCount > 0 {
+                return
+            }
+            await Task.yield()
+        }
+        XCTFail("Expected recording service to receive startRecording.")
+    }
+
     private func makeRecordingOutput() -> MeetingRecordingOutput {
         let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -320,9 +412,29 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
     }
 }
 
+private struct StaticFrontmostApplicationProvider: FrontmostApplicationProviding {
+    private let frontmostApplication: MeetingStartContext.FrontmostApplication?
+
+    init(_ frontmostApplication: MeetingStartContext.FrontmostApplication?) {
+        self.frontmostApplication = frontmostApplication
+    }
+
+    @MainActor
+    func currentFrontmostApplication() -> MeetingStartContext.FrontmostApplication? {
+        frontmostApplication
+    }
+}
+
 private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
+    struct StartCall: Sendable, Equatable {
+        let title: String?
+        let sourceMode: MeetingAudioSourceMode?
+        let startContext: MeetingStartContext?
+    }
+
     private let output: MeetingRecordingOutput
     var startCallCount = 0
+    var startCalls: [StartCall] = []
     var stopCallCount = 0
     var completedTranscriptionSessionIDs: [UUID] = []
 
@@ -330,8 +442,17 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         self.output = output
     }
 
-    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws {
+    func startRecording(
+        title: String?,
+        sourceMode: MeetingAudioSourceMode?,
+        startContext: MeetingStartContext?
+    ) async throws {
         startCallCount += 1
+        startCalls.append(StartCall(
+            title: title,
+            sourceMode: sourceMode,
+            startContext: startContext
+        ))
     }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
@@ -383,9 +504,15 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         }
     }
 
-    func snapshot() -> (startCallCount: Int, stopCallCount: Int, completedTranscriptionSessionIDs: [UUID]) {
+    func snapshot() -> (
+        startCallCount: Int,
+        startCalls: [StartCall],
+        stopCallCount: Int,
+        completedTranscriptionSessionIDs: [UUID]
+    ) {
         (
             startCallCount: startCallCount,
+            startCalls: startCalls,
             stopCallCount: stopCallCount,
             completedTranscriptionSessionIDs: completedTranscriptionSessionIDs
         )

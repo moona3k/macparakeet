@@ -24,7 +24,18 @@ final class MeetingArtifactStoreTests: XCTestCase {
     }
 
     func testMaterializeWritesFirstClassMeetingArtifactFiles() async throws {
-        let transcription = makeMeeting(notes: "Decision: ship\nOwner: Dana")
+        let startContext = MeetingStartContext(
+            triggerKind: .manual,
+            frontmostApplication: .init(
+                bundleIdentifier: "com.apple.MobileSMS",
+                localizedName: "Messages"
+            ),
+            sourceMode: .microphoneOnly
+        )
+        let transcription = makeMeeting(
+            notes: "Decision: ship\nOwner: Dana",
+            startContext: startContext
+        )
         let result = PromptResult(
             transcriptionId: transcription.id,
             promptName: "Executive Summary",
@@ -86,10 +97,13 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let wordRange = try XCTUnwrap(transcriptSegments.first?["wordRange"] as? [String: Any])
         XCTAssertEqual(wordRange["startIndex"] as? Int, 0)
         XCTAssertEqual(wordRange["endIndexExclusive"] as? Int, 1)
+        assertStartContext(transcript["startContext"], equals: startContext)
 
         let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
         XCTAssertEqual(manifest["schema"] as? String, MeetingArtifactStore.schema)
         XCTAssertEqual(manifest["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
+        let manifestMeeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        assertStartContext(manifestMeeting["startContext"], equals: startContext)
         let files = try XCTUnwrap(manifest["files"] as? [String: Any])
         XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(files["mixedAudioPath"] as? String, transcription.filePath)
@@ -226,7 +240,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
         }
     }
 
-    private func makeMeeting(notes: String?) -> Transcription {
+    private func makeMeeting(
+        notes: String?,
+        startContext: MeetingStartContext? = nil
+    ) -> Transcription {
         Transcription(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
             fileName: "Design Review",
@@ -259,8 +276,37 @@ final class MeetingArtifactStoreTests: XCTestCase {
             status: .completed,
             sourceType: .meeting,
             userNotes: notes,
+            meetingStartContext: startContext,
             engine: "parakeet",
             engineVariant: "v3"
+        )
+    }
+
+    private func assertStartContext(
+        _ value: Any?,
+        equals expected: MeetingStartContext,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let context = value as? [String: Any] else {
+            return XCTFail("Expected startContext object.", file: file, line: line)
+        }
+        XCTAssertEqual(context["triggerKind"] as? String, expected.triggerKind.rawValue, file: file, line: line)
+        XCTAssertEqual(context["sourceMode"] as? String, expected.sourceMode.rawValue, file: file, line: line)
+        guard let app = context["frontmostApplication"] as? [String: Any] else {
+            return XCTFail("Expected frontmostApplication object.", file: file, line: line)
+        }
+        XCTAssertEqual(
+            app["bundleIdentifier"] as? String,
+            expected.frontmostApplication?.bundleIdentifier,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            app["localizedName"] as? String,
+            expected.frontmostApplication?.localizedName,
+            file: file,
+            line: line
         )
     }
 

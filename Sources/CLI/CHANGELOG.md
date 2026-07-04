@@ -104,6 +104,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   Each segment carries a UUID, start/end time, speaker/source label, text, and
   a word-index range into `wordTimestamps`, so agents can cite stable meeting
   transcript segments without deriving boundaries themselves.
+- `meetings show --json` and meeting JSON exports now include optional
+  `startContext` for rows recorded by versions that capture the local meeting
+  start snapshot. The field reports the trigger kind, configured source mode,
+  and frontmost app bundle id/name captured at recording start.
 
 ### Changed
 

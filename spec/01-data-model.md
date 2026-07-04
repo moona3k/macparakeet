@@ -112,6 +112,7 @@ CREATE TABLE transcriptions (
     fileName TEXT NOT NULL,                            -- Original filename (e.g., "interview.mp3")
     filePath TEXT,                                     -- Original file path (nullable, may be moved/deleted)
     meetingArtifactFolderPath TEXT,                    -- v0.22: Durable meeting artifact folder path
+    meetingStartContext TEXT,                          -- v0.24: JSON one-shot meeting start context
     fileSizeBytes INTEGER,                             -- Original file size
     durationMs INTEGER,                                -- Audio/video duration in milliseconds
     rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
@@ -154,7 +155,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
-- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone.m4a` and/or `system.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. The folder is the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
+- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone.m4a` and/or `system.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. `meetingStartContext` stores the one-shot local-only start snapshot for meeting rows: trigger kind, configured source mode, and the frontmost app bundle id/name read at recording start. The folder is the first-class local artifact contract for the session; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
 - The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.meetingArtifactFolderPath`, falling back to the parent of `transcriptions.filePath` for legacy rows.
 - Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
@@ -589,6 +590,7 @@ struct Transcription: Codable, Identifiable {
     var fileName: String
     var filePath: String?
     var meetingArtifactFolderPath: String? // v0.22 — Durable meeting artifact folder
+    var meetingStartContext: MeetingStartContext? // v0.24 — One-shot meeting start context
     var fileSizeBytes: Int?
     var durationMs: Int?
     var rawTranscript: String?
@@ -1129,6 +1131,9 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.18 — llm_runs metadata ledger
 // v0.19 — dictations.language
 // v0.20 — prompts.appliesToSources (auto-run source scoping; NULL = all sources)
+// v0.22 — transcriptions.meetingArtifactFolderPath
+// v0.23 — transcriptions.transcriptSegments
+// v0.24 — transcriptions.meetingStartContext
 ```
 
 ### Migration Rules
@@ -1150,6 +1155,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions` | v0.1 | File transcription records |
 | `transcriptions.meetingArtifactFolderPath` | v0.22 | Durable meeting artifact folder path retained after meeting audio deletion |
 | `transcriptions.transcriptSegments` | v0.23 | Durable meeting transcript segments (JSON) for stable per-transcript-version citations |
+| `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

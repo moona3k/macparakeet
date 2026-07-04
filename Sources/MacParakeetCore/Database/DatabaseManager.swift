@@ -1040,6 +1040,15 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.24 — One-shot meeting start context. Raw SQL by design: migrations
+        // must not depend on the evolving Codable model shape for this JSON blob.
+        migrator.registerMigration("v0.24-meeting-start-context") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("meetingStartContext") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN meetingStartContext TEXT")
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()
