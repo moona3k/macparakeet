@@ -39,6 +39,20 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testShowMeetingRecordingPillDefaultsToTrueAndReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults))
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldShowMeetingRecordingPill)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults))
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).shouldShowMeetingRecordingPill)
+    }
+
     func testSpeakerDiarizationDefaultsToTrueWhenUnset() {
         let preferences = makePreferences()
         XCTAssertTrue(preferences.shouldDiarize)

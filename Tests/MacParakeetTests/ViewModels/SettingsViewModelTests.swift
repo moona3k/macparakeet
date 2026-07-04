@@ -231,6 +231,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.speakerDiarization, "speakerDiarization should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
+        XCTAssertTrue(viewModel.showMeetingRecordingPill, "showMeetingRecordingPill should default to true")
         XCTAssertFalse(viewModel.meetingAutoStopEnabled, "meeting auto-stop should default to false")
         XCTAssertTrue(
             viewModel.preferBuiltInMicWhenBluetoothOutput,
@@ -269,6 +270,7 @@ final class SettingsViewModelTests: XCTestCase {
             MeetingAudioSourceMode.systemOnly.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
         )
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
@@ -295,6 +297,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.speakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
+        XCTAssertFalse(vm.showMeetingRecordingPill)
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertTrue(vm.instantDictationEnabled)
@@ -329,6 +332,34 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.meetingAutoStop, .meetingAutoStop])
+    }
+
+    func testShowMeetingRecordingPillPersistsEmitsTelemetryAndPostsNotification() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetShowMeetingRecordingPillDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            notificationCount += 1
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        viewModel.showMeetingRecordingPill = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey))
+
+        viewModel.showMeetingRecordingPill = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey))
+        XCTAssertEqual(notificationCount, 2)
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.meetingRecordingPill, .meetingRecordingPill])
     }
 
     func testPauseMediaDuringDictationPersistsAndEmitsTelemetry() {

@@ -720,6 +720,25 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["setting"], "cohere_language")
     }
 
+    func testSettingChangedSerializesMeetingRecordingPillSetting() throws {
+        let event = TelemetryEvent(
+            spec: .settingChanged(setting: .meetingRecordingPill),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["setting"], "meeting_recording_pill")
+    }
+
     func testDictationOperationSerializesCancelReason() throws {
         let event = TelemetryEvent(
             spec: .dictationOperation(

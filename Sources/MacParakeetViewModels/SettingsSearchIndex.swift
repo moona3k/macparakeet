@@ -83,6 +83,7 @@ public enum SettingsSearchIndex {
     /// that won't render.
     private static let meetingGatedIds: Set<String> = [
         "meeting",
+        "meeting.floatingControls",
         "meeting.autoStop",
         "meeting.calendar",
         "system.permissions.screen"
@@ -238,6 +239,17 @@ public enum SettingsSearchIndex {
             title: "Calendar",
             subtitle: "in Meeting Recording",
             keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.floatingControls",
+            tab: .capture,
+            title: "Show floating meeting controls",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "floating controls", "meeting pill", "recording pill", "hide meeting",
+                "hide recording", "recording ui", "menu bar", "overlay"
+            ],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(

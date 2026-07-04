@@ -309,6 +309,7 @@ final class AppEnvironmentConfigurer {
             sttManager: env.sttScheduler,
             speechEngineSelectionProvider: { await env.sttScheduler.currentSpeechEngineSelection() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
+            shouldShowFloatingMeetingPill: { env.runtimePreferences.shouldShowMeetingRecordingPill },
             probableCalendarSnapshotProvider: {
                 calendarCoordinator?.probableSnapshotForManualStart()
             },

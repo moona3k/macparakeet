@@ -77,6 +77,7 @@ final class MeetingRecordingPillController {
     var onOpenApp: (() -> Void)?
     var onCancelRecording: (() -> Void)?
     var onPauseToggle: (() -> Void)?
+    var isVisible: Bool { panel != nil }
 
     init(viewModel: MeetingRecordingPillViewModel) {
         self.pillViewModel = viewModel

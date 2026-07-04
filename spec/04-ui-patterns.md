@@ -9,7 +9,7 @@ MacParakeet has these primary UI surfaces:
 2. **Idle Pill** -- Persistent floating indicator, always visible when not dictating or meeting-recording
 3. **Dictation Overlay** -- Compact pill for recording state
 4. **Meeting Recording Tile** -- Capture tile on the Transcribe tab; reflects live recording state
-5. **Meeting Recording Pill** -- Persistent floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
+5. **Meeting Recording Pill** -- Default-on, hideable floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
 6. **Meeting Recording Panel** -- Floating Notes / Transcript / Ask panel with audio levels and stop controls
 7. **Meetings Workspace** -- Dedicated route for upcoming, live, and saved meeting work
 8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
@@ -117,7 +117,7 @@ States, all bound to the long-lived `MeetingRecordingPillViewModel` shared with 
 - **Completed**: green checkmark + "Saved to Library"; auto-reverts to idle.
 - **Error**: amber triangle + recovery message; auto-dismisses through the recording flow coordinator.
 
-The tile body is informational. Only the visible Start and Stop capsules are real SwiftUI `Button`s, and both call the same `toggleRecording` path the menu bar uses. Completing, transcribing, completed, and error states render as inert status surfaces and must not expose button traits or no-op accessibility actions. The floating pill stays visible during recording so users who hide the main window keep an active control surface.
+The tile body is informational. Only the visible Start and Stop capsules are real SwiftUI `Button`s, and both call the same `toggleRecording` path the menu bar uses. Completing, transcribing, completed, and error states render as inert status surfaces and must not expose button traits or no-op accessibility actions. The floating pill stays visible by default during recording so users who hide the main window keep an active control surface; users can hide it in Settings and continue controlling the live recording from the status menu, hotkey, or Meetings surfaces.
 
 ### Library Meetings Filter
 
@@ -485,7 +485,7 @@ panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
 ## Meeting Recording Pill (v0.6)
 
-Persistent floating pill that appears during meeting recording. Uses the sacred-geometry Merkaba icon as the anchor. Clicking the pill opens the meeting recording panel. Shares its state (`MeetingRecordingPillViewModel`) with the **Meeting Recording Tile** on the Transcribe tab — both surfaces stay in sync because they bind to the same long-lived view model owned by `AppDelegate`.
+Default-on floating pill that appears during meeting recording unless the user disables **Show floating meeting controls** in Settings. Uses the sacred-geometry Merkaba icon as the anchor. Clicking the pill opens the meeting recording panel. Shares its state (`MeetingRecordingPillViewModel`) with the **Meeting Recording Tile** on the Transcribe tab — both surfaces stay in sync because they bind to the same long-lived view model owned by `AppDelegate`.
 
 ### Layout
 
@@ -502,12 +502,13 @@ Persistent floating pill that appears during meeting recording. Uses the sacred-
 
 ### Behavior
 
-- **Appears** when meeting recording starts (after permissions granted)
-- **Persists** for the entire recording session — does not auto-dismiss
+- **Appears** when meeting recording starts (after permissions granted) if `showMeetingRecordingPill` is enabled
+- **Persists** for the entire recording session while enabled — does not auto-dismiss
 - **Click** anywhere on the pill opens the meeting recording panel
 - **Stays visible** during concurrent dictation — dictation overlay appears separately
 - **Hides** idle pill while visible (meeting pill replaces it)
 - **Disappears** when recording stops (transitions to transcription in library)
+- **Status menu fallback** exposes Stop Recording, Open Live Meeting Panel, and the Show Floating Meeting Controls toggle so hidden-pill recordings remain controllable
 
 ### Panel: `NSPanel` (non-activating)
 

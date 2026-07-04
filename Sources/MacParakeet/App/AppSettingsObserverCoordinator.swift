@@ -16,6 +16,7 @@ final class AppSettingsObserverCoordinator {
     private let onAppearanceModeChanged: () -> Void
     private let onMenuBarOnlyModeChanged: () -> Void
     private let onShowIdlePillChanged: () -> Void
+    private let onShowMeetingRecordingPillChanged: () -> Void
     private let onInstantDictationChanged: () -> Void
     private let onMicrophoneSelectionChanged: () -> Void
     private let onMeetingAudioRetentionChanged: () -> Void
@@ -32,6 +33,7 @@ final class AppSettingsObserverCoordinator {
             (.macParakeetAppearanceModeDidChange, { $0.onAppearanceModeChanged() }),
             (.macParakeetMenuBarOnlyModeDidChange, { $0.onMenuBarOnlyModeChanged() }),
             (.macParakeetShowIdlePillDidChange, { $0.onShowIdlePillChanged() }),
+            (.macParakeetShowMeetingRecordingPillDidChange, { $0.onShowMeetingRecordingPillChanged() }),
             (.macParakeetInstantDictationDidChange, { $0.onInstantDictationChanged() }),
             (.macParakeetMicrophoneSelectionDidChange, { $0.onMicrophoneSelectionChanged() }),
             (.macParakeetMeetingAudioRetentionDidChange, { $0.onMeetingAudioRetentionChanged() }),
@@ -49,6 +51,7 @@ final class AppSettingsObserverCoordinator {
         onAppearanceModeChanged: @escaping () -> Void,
         onMenuBarOnlyModeChanged: @escaping () -> Void,
         onShowIdlePillChanged: @escaping () -> Void,
+        onShowMeetingRecordingPillChanged: @escaping () -> Void,
         onInstantDictationChanged: @escaping () -> Void,
         onMicrophoneSelectionChanged: @escaping () -> Void,
         onMeetingAudioRetentionChanged: @escaping () -> Void
@@ -64,6 +67,7 @@ final class AppSettingsObserverCoordinator {
         self.onAppearanceModeChanged = onAppearanceModeChanged
         self.onMenuBarOnlyModeChanged = onMenuBarOnlyModeChanged
         self.onShowIdlePillChanged = onShowIdlePillChanged
+        self.onShowMeetingRecordingPillChanged = onShowMeetingRecordingPillChanged
         self.onInstantDictationChanged = onInstantDictationChanged
         self.onMicrophoneSelectionChanged = onMicrophoneSelectionChanged
         self.onMeetingAudioRetentionChanged = onMeetingAudioRetentionChanged

@@ -184,6 +184,16 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
         }
     }
+    public var showMeetingRecordingPill: Bool {
+        didSet {
+            defaults.set(
+                showMeetingRecordingPill,
+                forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey
+            )
+            NotificationCenter.default.post(name: .macParakeetShowMeetingRecordingPillDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .meetingRecordingPill))
+        }
+    }
     public var meetingAutoStopEnabled: Bool {
         didSet {
             defaults.set(
@@ -694,6 +704,7 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         meetingAutoStopEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
         ) as? Bool ?? false
