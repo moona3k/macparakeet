@@ -1,0 +1,31 @@
+plans/active/2026-07-03-stt-capability-registry.md
+  s_2e5bbf5846c75f::t_24a73a2aec97ab 3,55-60,102-121
+  s_fd5fc9fd5d9c75::t_8234e015f1173d 122
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_2e5bbf5846c75f::t_5a0782a24ebd9e 90-112,1323-1325,1329-1332,1336-1351
+  s_2e5bbf5846c75f::t_c28599cccd6119 1326-1328,1333-1335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "176918ab386e413cb67705054a816fd44689dc9d",
+  "prompts": {},
+  "sessions": {
+    "s_2e5bbf5846c75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-5d74-7653-b10d-bb77e4f85980",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fd5fc9fd5d9c75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "515805ce-ac7e-45bd-82c6-25e5269a4bf9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
