@@ -6,6 +6,9 @@ spec/README.md
   s_4272d79a3d4bc7::t_0c44094f3dbd5b 114
 plans/active/2026-07-03-stt-capability-registry.md
   s_4272d79a3d4bc7::t_658c105bbc9ba1 1-33,39-58,61-65,69-116
+  s_9c41282708a1b7::t_04c74a5e3146da 34-38,59-60,66-68
+plans/README.md
+  s_9c41282708a1b7::t_a656d7585974da 34
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -18,6 +21,14 @@ plans/active/2026-07-03-stt-capability-registry.md
         "tool": "claude",
         "id": "2a226cfe-1186-470e-9296-f0248af07152",
         "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_9c41282708a1b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ba0-6368-7480-888c-f962b717a2fa",
+        "model": "gpt-5.5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
