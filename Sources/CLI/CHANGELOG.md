@@ -91,6 +91,15 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `meetings artifact <meeting> --json|--envelope` now materializes a
+  deterministic top-level `meeting.md` alongside the existing
+  `manifest.json`, `transcript.json`, notes, and prompt-result files. The
+  returned `MeetingArtifactSnapshot` includes additive `markdownPath` and
+  optional `cleanedMicrophoneAudioPath` fields.
+- `meetings show --json` and `meetings export --stdout --format json` now
+  include additive `artifactMarkdownPath` and optional
+  `cleanedMicrophoneAudioPath` fields for meeting rows with resolvable artifact
+  folders.
 - `meetings show --json` and `meetings export --stdout --format json` now
   include an optional local-only `calendarEventSnapshot` for meeting recordings
   started from a calendar event or probably overlapping the current calendar
@@ -116,6 +125,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- `meetings export --format md --stdout` now uses the same shared Markdown
+  renderer as `meeting.md`, including YAML frontmatter, notes, transcript,
+  prompt-result index, artifact paths, and `speakerLabelsIncluded` metadata.
 - `spec --json` now documents `meetings export` JSON stdout mode as
   `--stdout --format json`, matching the command's file-output default.
 - `transcribe` / `retranscribe` app-default speaker detection now resolves to

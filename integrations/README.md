@@ -379,9 +379,16 @@ those rows are stored as `PromptResult` records rather than overwriting
 It refreshes the session folder from SQLite and returns paths to:
 
 - `manifest.json` — schema, meeting metadata, and file index
+- `meeting.md` — deterministic Markdown view with local frontmatter, notes,
+  transcript, prompt-result index, and artifact paths
 - `transcript.json` — transcript text, timestamps, speakers, diarization
 - `notes.md` — user-authored notes when present
 - `prompt-results.json` and `prompt-results/*.md` — saved generated outputs
+
+`meetings export <id> --format md --stdout` uses the same Markdown shape as
+`meeting.md` without refreshing unrelated files. For machine-readable paths,
+use `meetings artifact <id> --json` (`markdownPath`) or
+`meetings export <id> --stdout --format json` (`artifactMarkdownPath`).
 
 Future meeting sessions are stored under the configured artifact root:
 
@@ -526,6 +533,7 @@ macparakeet-cli meetings transcript "<id-or-prefix-or-title>" --format json
 macparakeet-cli meetings notes append "<id-or-prefix-or-title>" --text "<note>" --json
 macparakeet-cli meetings results add "<id-or-prefix-or-title>" --name "Agent Notes" --stdin --json
 macparakeet-cli meetings export "<id-or-prefix-or-title>" --format md --stdout
+macparakeet-cli meetings export "<id-or-prefix-or-title>" --stdout --format json
 ```
 
 Use `meetings` commands for Granola-style deterministic workflows: list
