@@ -9,9 +9,11 @@ Sources/MacParakeetViewModels/TranscriptionViewModel.swift
   s_e658bd8f2c85c4::t_89b6c390068922 215,223,229,1258,1262,1303-1320,1323-1324
   s_e658bd8f2c85c4::t_4496cfd696e5a7 1321-1322
   s_2e5bbf5846c75f::t_52d2d3dbb1d20a 1325-1326
+  s_e658bd8f2c85c4::t_ff3b7953f540ef 1261,1265,1270
 Tests/CLITests/MeetingsCommandTests.swift
   s_e658bd8f2c85c4::t_b7c4e8635c673a 248-261
   s_e658bd8f2c85c4::t_0d8167ccb55176 239-247,262-279,281,283-285
+  s_e658bd8f2c85c4::t_0bf7544c0c0346 280,282
 Sources/CLI/Commands/TranscribeCommand.swift
   s_e658bd8f2c85c4::t_069715e3248a59 64-68,441,447,449,609-633
   s_e658bd8f2c85c4::t_ba05a3bc3e5bae 572,583,597,599
