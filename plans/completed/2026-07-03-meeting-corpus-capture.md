@@ -1,6 +1,9 @@
 # Meeting corpus capture — agent-ready raw materials
 
-> Status: **TODO** (P1; three independent slices, each its own PR)
+> Status: **COMPLETED 2026-07-04** — all five slices merged: #684 segments
+> (`6d255fd84`), #686 start context (`679bea9ae`), #687 calendar context
+> (`8f7fd7dfb`), #688 diarization default (`cfbcccb30`), #689 retention copy
+> (`358f2c460`).
 > Date: 2026-07-03
 > Governing decision: [ADR-027](../../spec/adr/027-product-north-star.md) —
 > the meeting corpus is the product's long-term asset; interfaces and indexes

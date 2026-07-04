@@ -30,7 +30,6 @@
 
 | Plan | Title | Status | Priority | What's left |
 |------|-------|--------|----------|-------------|
-| [2026-07-03-meeting-corpus-capture](active/2026-07-03-meeting-corpus-capture.md) | Meeting corpus capture — agent-ready raw materials | **TODO** | **P1** | First ADR-027 follow-through, capture-side only. Slice 1: calendar context snapshot (event id/times/attendees/URL plus organizer support — today only the title survives; includes ADR-017 §6 amendment). Slice 2: start context for every recording (trigger kind + frontmost app). Slice 3: durable transcript segment IDs (UUID + word-index range; agents can cite stably). Slices independent, each own PR, no UI. Decisions made 2026-07-03: diarization default ON where supported (Slice 4), raw-audio deletion stays but gets honest warning copy (Slice 5). |
 | [2026-07-03-speaker-voiceprints](active/2026-07-03-speaker-voiceprints.md) | Persistent speaker profiles (voiceprints) | **PROPOSED** | P2 | Research-backed plan for issue #662: enroll a speaker once (via the existing rename flow), auto-suggest their name in future diarized recordings by matching FluidAudio's per-speaker 256-d embeddings (already free in every offline diarization) against a local GRDB profile store. Opt-in, on-device, suggestions-require-confirmation; embeddings stored only for explicitly enrolled speakers (ambient "appeared in N recordings" detection deferred to Phase 3 as its own privacy decision). 5 research reports in `docs/research/2026-07-03-speaker-voiceprints/`. Next: Daniel's 4 open-question calls, then **Phase 0 calibration spike** (intra/inter-speaker distance separation on the retained meeting corpus → τ + margin + GO/NO-GO) before any product code. Concretizes the speaker-memory layer of `docs/plans/2026-06-14-002`. |
 | [2026-07-03-stt-capability-registry](active/2026-07-03-stt-capability-registry.md) | STT capability registry + optional-engine adapters | **TODO** | P2 | Sequenced behind the current meeting AEC P1, but required by ADR-026 §4 before any new engine family. Phase A: exhaustively-keyed `(engine, variant)` capability registry replacing the ~13 switch-on-engine sites, read-only adoption + totality tests. Phase B: wrap optional engines (Nemotron ml/en, Whisper, Cohere) as adapters. Phase C (gated on microbenchmark): Parakeet TDT extraction; declining it is a valid outcome. Constraints inherited from `docs/research/2026-06-28-architecture-deepening-opportunities.md` finding 3. |
 | [2026-07-03-parakeet-custom-vocabulary](active/2026-07-03-parakeet-custom-vocabulary.md) | Parakeet custom vocabulary (names/jargon boosting) | **TODO** | P2 | ADR-026 roadmap #1, sequenced after registry Phase A. FluidAudio 0.15.4 (pinned) already ships the API (`CustomVocabularyContext` via `SlidingWindowAsrManager`). Phase 0: choose the integration seam for our TDT paths + term-recall eval with WER-regression bound. MUST reuse existing `CustomWord`/Vocabulary feature (no second store). Daniel decision gate after Phase 0. |
@@ -89,6 +88,16 @@
 
 - No hard blockers between active plans. Soft sequencing: keep meeting-audio changes behind the measurement harness, and prefer the remaining audio/STT regression tests before another broad capture/STT change.
 - The two engine-switch plans are a pair: `ux-revamp` (Stage A, partial) is the parent; `stage-b` is its on-hold continuation. Both gate on the A3 cold-switch telemetry before the reactive flow is greenlit.
+
+## Recently archived → `completed/` (2026-07-04)
+
+- **2026-07-03-meeting-corpus-capture** → all five slices shipped in one day:
+  #684 durable transcript segments (`6d255fd84`), #686 start context
+  (`679bea9ae`), #687 calendar context snapshot + ADR-017 §6 amendment
+  (`8f7fd7dfb`), #688 diarization default ON where supported (`cfbcccb30`),
+  #689 raw-audio deletion warning copy (`358f2c460`). First ADR-027
+  follow-through; capture-side only. Deferred remainders (provenance
+  sidecar, speaker embeddings) are recorded in the plan.
 
 ## Recently archived → `completed/` (2026-06-21)
 
