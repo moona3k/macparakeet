@@ -252,8 +252,8 @@ struct MeetingRecordingPanelView: View {
                 }
             }
 
-            if viewModel.showsSourceHealthChips {
-                MeetingSourceHealthChips(chips: viewModel.sourceHealthChips)
+            if !visibleSourceHealthChips.isEmpty {
+                MeetingSourceHealthChips(chips: visibleSourceHealthChips)
             }
 
             if viewModel.showsLaggingIndicator {
@@ -265,6 +265,10 @@ struct MeetingRecordingPanelView: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
+    }
+
+    var visibleSourceHealthChips: [MeetingSourceHealthChip] {
+        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.sourceHealthChips : []
     }
 
     @ViewBuilder

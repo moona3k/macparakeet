@@ -210,7 +210,7 @@ struct MeetingRecordingTile: View {
                         .font(.system(size: 15, weight: .semibold).monospacedDigit())
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                    if let warning = viewModel.mirroredSourceHealthWarning {
+                    if let warning = visibleSourceHealthWarning {
                         MeetingSourceHealthInlineBadge(chip: warning)
                     }
                 }
@@ -376,7 +376,11 @@ struct MeetingRecordingTile: View {
     }
 
     private var sourceHealthAccessibilitySuffix: String {
-        viewModel.mirroredSourceHealthWarning.map { ", \($0.label)" } ?? ""
+        visibleSourceHealthWarning.map { ", \($0.label)" } ?? ""
+    }
+
+    var visibleSourceHealthWarning: MeetingSourceHealthChip? {
+        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.mirroredSourceHealthWarning : nil
     }
 }
 

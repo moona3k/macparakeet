@@ -3,8 +3,9 @@
 > **Status:** IMPLEMENTED 2026-07-04 — shipped as PR #707 (source health
 > model + UI), PR #708 (meeting.md artifact + shared renderer + CLI/contract
 > promotion), and PR #710 (speaker rename UX + rollback guard). Remaining:
-> manual dual-source QA of the live health chips (mute/unmute, system
-> interruption) before release framing.
+> health UI hidden behind default-off flag per product decision 2026-07-04
+> (chips read as warnings during normal quiet capture); model/plumbing
+> retained; future direction = invisible-until-confirmed-actionable surface.
 > **Date:** 2026-07-04
 > **Priority:** P1 for visible source health, P2 for artifact/CLI promotion and
 > speaker rename polish
