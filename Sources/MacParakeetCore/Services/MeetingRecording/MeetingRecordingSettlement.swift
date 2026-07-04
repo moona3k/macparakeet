@@ -72,24 +72,21 @@ public struct MeetingRecordingSettlement: Sendable {
     }
 
     private static func transcription(_ transcription: Transcription, belongsTo folderURL: URL) -> Bool {
-        let folderPaths = MeetingArtifactPathAliases.aliases(for: folderURL)
         if let folderPath = transcription.meetingArtifactFolderPath,
-            folderPaths.contains(folderPath)
+            MeetingArtifactPathAliases.matches(folderPath, for: folderURL)
         {
             return true
         }
 
         guard let filePath = transcription.filePath else { return false }
-        let meetingFilePaths = folderPaths.map {
-            URL(fileURLWithPath: $0, isDirectory: true)
-                .appendingPathComponent("meeting.m4a")
-                .path
-        }
-        return meetingFilePaths.contains(filePath)
+        return MeetingArtifactPathAliases.matches(
+            filePath,
+            for: folderURL.appendingPathComponent("meeting.m4a")
+        )
     }
 }
 
-enum MeetingRecordingSettlementError: Error, LocalizedError, Equatable {
+enum MeetingRecordingSettlementError: Error, LocalizedError, Equatable, Sendable {
     case missingTranscription(transcriptionID: UUID, sessionID: UUID)
     case notMeetingTranscription(
         transcriptionID: UUID,

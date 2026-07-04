@@ -19,4 +19,18 @@ enum MeetingArtifactPathAliases {
         }
         return paths
     }
+
+    /// True when `candidate` names the same on-disk location as `url`. Exact
+    /// alias match first; falls back to case-insensitive comparison because
+    /// the default APFS volume is case-insensitive but case-preserving, so a
+    /// stored path may differ from a freshly derived one only by case.
+    static func matches(_ candidate: String, for url: URL) -> Bool {
+        let aliases = aliases(for: url)
+        if aliases.contains(candidate) {
+            return true
+        }
+        return aliases.contains {
+            $0.compare(candidate, options: .caseInsensitive) == .orderedSame
+        }
+    }
 }

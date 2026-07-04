@@ -77,6 +77,28 @@ final class MeetingRecordingSettlementTests: XCTestCase {
         XCTAssertEqual(lockStore.deletes, [folderURL])
     }
 
+    func testDeletesLockWhenStoredFolderPathDiffersOnlyByCase() async throws {
+        // APFS is case-insensitive but case-preserving: a stored artifact path
+        // that differs from the freshly derived session path only by case still
+        // names the same folder and must not false-refuse settlement.
+        let repo = MockTranscriptionRepository()
+        let lockStore = SettlementLockFileStore()
+        let settlement = MeetingRecordingSettlement(lockFileStore: lockStore, transcriptionRepo: repo)
+        let folderURL = makeFolderURL()
+        var transcription = makeTranscription(status: .completed, folderURL: folderURL)
+        transcription.meetingArtifactFolderPath = folderURL.path.uppercased()
+        transcription.filePath = nil
+        try repo.save(transcription)
+
+        try await settlement.settleCompletedTranscription(
+            folderURL: folderURL,
+            transcriptionID: transcription.id,
+            sessionID: UUID()
+        )
+
+        XCTAssertEqual(lockStore.deletes, [folderURL])
+    }
+
     func testRefusesWhenCompletedRowBelongsToDifferentFolder() async throws {
         let repo = MockTranscriptionRepository()
         let lockStore = SettlementLockFileStore()
