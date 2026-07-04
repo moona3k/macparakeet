@@ -205,9 +205,15 @@ struct MeetingRecordingTile: View {
                         .font(DesignSystem.Typography.sectionTitle)
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
                 }
-                Text(viewModel.formattedElapsed)
-                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                HStack(spacing: 8) {
+                    Text(viewModel.formattedElapsed)
+                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    if let warning = viewModel.mirroredSourceHealthWarning {
+                        MeetingSourceHealthInlineBadge(chip: warning)
+                    }
+                }
                 backgroundTranscriptionBadge
             }
 
@@ -351,9 +357,9 @@ struct MeetingRecordingTile: View {
         case .idle:
             return permissionState.isReady ? "Record meeting" : "\(permissionState.title): \(permissionState.detail)"
         case .recording:
-            return "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+            return "Recording meeting, \(viewModel.formattedElapsed) elapsed\(sourceHealthAccessibilitySuffix)"
         case .paused:
-            return "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
+            return "Meeting recording paused, \(viewModel.formattedElapsed) elapsed\(sourceHealthAccessibilitySuffix)"
         case .completing, .transcribing:
             return "Transcribing meeting"
         case .completed:
@@ -367,6 +373,10 @@ struct MeetingRecordingTile: View {
         // Tile body is informational; Start / Stop buttons carry the
         // action hints themselves.
         ""
+    }
+
+    private var sourceHealthAccessibilitySuffix: String {
+        viewModel.mirroredSourceHealthWarning.map { ", \($0.label)" } ?? ""
     }
 }
 

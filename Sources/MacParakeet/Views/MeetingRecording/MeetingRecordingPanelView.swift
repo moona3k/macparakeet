@@ -252,6 +252,10 @@ struct MeetingRecordingPanelView: View {
                 }
             }
 
+            if viewModel.showsSourceHealthChips {
+                MeetingSourceHealthChips(chips: viewModel.sourceHealthChips)
+            }
+
             if viewModel.showsLaggingIndicator {
                 Label("Transcript preview is catching up", systemImage: "exclamationmark.triangle.fill")
                     .font(DesignSystem.Typography.caption.weight(.semibold))

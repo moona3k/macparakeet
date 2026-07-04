@@ -220,9 +220,12 @@ final class MeetingRecordingFlowCoordinator {
         microphoneMuteToggleTask?.cancel()
         microphoneMuteToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
             let microphoneMuteState = await meetingRecordingService.setMicrophoneMuted(wantMuted)
+            let captureHealth = await meetingRecordingService.captureHealth
             guard !Task.isCancelled, let self else { return }
             self.panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
             self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
+            self.panelViewModel?.captureHealth = captureHealth
+            self.pillViewModel.captureHealth = captureHealth
         }
     }
 
@@ -493,22 +496,25 @@ final class MeetingRecordingFlowCoordinator {
             // celebration from the previous meeting (back-to-back): cancel its
             // dismiss/min-display tasks so they can't tear down this fresh pill.
             cancelSavedCompletion()
+            let initialSourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
+            let initialCaptureHealth = MeetingCaptureHealthSummary.starting(sourceMode: initialSourceMode)
             let vm = pillViewModel
             vm.onStop = { [weak self] in self?.toggleRecording() }
             vm.onPauseToggle = { [weak self] in self?.togglePause() }
             vm.elapsedSeconds = 0
             vm.micLevel = 0
             vm.systemLevel = 0
+            vm.captureHealth = initialCaptureHealth
             vm.state = .recording
             let panelVM = panelViewModel ?? MeetingRecordingPanelViewModel()
             panelVM.state = .recording
             panelVM.elapsedSeconds = 0
             panelVM.micLevel = 0
             panelVM.systemLevel = 0
+            panelVM.captureHealth = initialCaptureHealth
             panelVM.isPaused = false
             panelVM.isMicrophoneMuted = false
-            panelVM.canToggleMicrophoneMute =
-                (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
+            panelVM.canToggleMicrophoneMute = initialSourceMode.capturesMicrophone
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             refreshInitialLiveTranscriptStatus(for: panelVM)
@@ -647,6 +653,7 @@ final class MeetingRecordingFlowCoordinator {
             cancelSavedCompletion()
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
+            pillViewModel.captureHealth = .notRecording
             pillViewModel.state = .completing
             pillController?.refreshState()
             pillViewModel.onCompletionAnimationFinished = { [weak self] in
@@ -660,6 +667,7 @@ final class MeetingRecordingFlowCoordinator {
             panelViewModel?.state = .transcribing
             panelViewModel?.micLevel = 0
             panelViewModel?.systemLevel = 0
+            panelViewModel?.captureHealth = .notRecording
             hideMeetingPanel()
 
         case .stopRecordingAndTranscribe:
@@ -896,6 +904,7 @@ final class MeetingRecordingFlowCoordinator {
         pillViewModel.elapsedSeconds = 0
         pillViewModel.micLevel = 0
         pillViewModel.systemLevel = 0
+        pillViewModel.captureHealth = .notRecording
         pillViewModel.state = .idle
         teardownMeetingPanel()
         onFlowReturnedToIdle()
@@ -960,6 +969,7 @@ final class MeetingRecordingFlowCoordinator {
                 let elapsedSeconds = await meetingRecordingService.elapsedSeconds
                 let captureMode = await meetingRecordingService.captureMode
                 let microphoneMuteState = await meetingRecordingService.microphoneMuteState
+                let captureHealth = await meetingRecordingService.captureHealth
 
                 guard !Task.isCancelled else { break }
                 if pillViewModel.micLevel != micLevel {
@@ -970,6 +980,9 @@ final class MeetingRecordingFlowCoordinator {
                 }
                 if pillViewModel.elapsedSeconds != elapsedSeconds {
                     pillViewModel.elapsedSeconds = elapsedSeconds
+                }
+                if pillViewModel.captureHealth != captureHealth {
+                    pillViewModel.captureHealth = captureHealth
                 }
                 if let panelViewModel {
                     if panelViewModel.elapsedSeconds != elapsedSeconds {
@@ -993,6 +1006,9 @@ final class MeetingRecordingFlowCoordinator {
                     }
                     if panelViewModel.canToggleMicrophoneMute != microphoneMuteState.canMute {
                         panelViewModel.canToggleMicrophoneMute = microphoneMuteState.canMute
+                    }
+                    if panelViewModel.captureHealth != captureHealth {
+                        panelViewModel.captureHealth = captureHealth
                     }
                 }
                 // Pause/resume reconciliation (issue #235). The user-facing

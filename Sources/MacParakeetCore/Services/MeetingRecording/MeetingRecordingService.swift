@@ -390,7 +390,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         guard currentSession != nil else {
             return .notRecording
         }
-        let sourceMode = captureHealthMetrics.sourceMode ?? .microphoneAndSystem
+        guard let sourceMode = captureHealthMetrics.sourceMode else {
+            return .starting(sourceMode: .microphoneAndSystem)
+        }
         return MeetingCaptureHealthSummary.reduce(
             sourceMode: sourceMode,
             microphoneLevel: latestLevels.microphone,

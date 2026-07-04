@@ -143,6 +143,22 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         system: MeetingSourceHealth(source: .system, status: .notSelected)
     )
 
+    public static func starting(sourceMode: MeetingAudioSourceMode) -> MeetingCaptureHealthSummary {
+        MeetingCaptureHealthSummary(
+            sourceMode: sourceMode,
+            microphone: MeetingSourceHealth(
+                source: .microphone,
+                status: sourceMode.capturesMicrophone ? .starting : .notSelected,
+                recoveryAction: sourceMode.capturesMicrophone ? nil : .changeSourceMode
+            ),
+            system: MeetingSourceHealth(
+                source: .system,
+                status: sourceMode.capturesSystemAudio ? .starting : .notSelected,
+                recoveryAction: sourceMode.capturesSystemAudio ? nil : .changeSourceMode
+            )
+        )
+    }
+
     public var isDegraded: Bool {
         microphone.status.isDegraded || system.status.isDegraded
     }
