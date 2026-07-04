@@ -869,7 +869,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 return await nemotronEnglishEngine?.isReady() ?? false
             }
             return await nemotronEngine?.isReady() ?? false
-        case .whisper:
+        case .whisper(_):
             return await whisperEngine?.isReady() ?? false
         case .cohere:
             return await cohereEngine?.isReady() ?? false
@@ -1854,11 +1854,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         switch key {
         case .parakeet(.unified):
             STTError.transcriptionFailed("Parakeet Unified uses native live dictation partials and does not support display-preview transcription.")
-        case .parakeet:
+        case .parakeet(_):
             STTError.transcriptionFailed("Parakeet TDT supports display-preview transcription.")
-        case .nemotron:
+        case .nemotron(_):
             STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
-        case .whisper:
+        case .whisper(_):
             STTError.transcriptionFailed("Whisper supports display-preview transcription.")
         case .cohere:
             STTError.transcriptionFailed("Cohere uses record-then-transcribe dictation and does not support display-preview transcription.")

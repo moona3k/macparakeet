@@ -145,7 +145,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let calendarEventSnapshot: MeetingCalendarSnapshot?
 
         var supportsLiveChunkTranscription: Bool {
-            speechEngineCapabilities?.providesWordTimestamps ?? (speechEngine.engine != .cohere)
+            speechEngineCapabilities?.providesWordTimestamps == true
         }
     }
 
@@ -433,9 +433,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let now = wallClockNow()
         let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
         currentSpeechEngineLease = speechEngineLease
-        let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
-        let speechEngineCapabilities = speechEngineLease?.capabilities
-            ?? Self.defaultCapabilities(for: speechEngine)
+        let speechEngine: SpeechEngineSelection
+        let speechEngineCapabilities: SpeechEngineCapabilities?
+        if let speechEngineLease {
+            speechEngine = speechEngineLease.selection
+            speechEngineCapabilities = speechEngineLease.capabilities
+        } else {
+            speechEngine = SpeechEngineSelection(engine: .parakeet)
+            speechEngineCapabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+        }
         let session = Session(
             id: sessionID,
             displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
@@ -561,10 +567,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func isMissingFileError(_ error: Error) -> Bool {
         let nsError = error as NSError
         return nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError
-    }
-
-    private static func defaultCapabilities(for selection: SpeechEngineSelection) -> SpeechEngineCapabilities? {
-        SpeechEngineCapabilityRegistry.capabilities(for: selection.engine)
     }
 
     private func validateStartStillCurrent(_ session: Session) async throws {

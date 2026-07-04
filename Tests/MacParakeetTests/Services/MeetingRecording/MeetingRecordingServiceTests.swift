@@ -2984,7 +2984,7 @@ private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTran
         capabilities: SpeechEngineCapabilities? = nil
     ) {
         self.selection = selection
-        self.capabilities = capabilities
+        self.capabilities = capabilities ?? SpeechEngineCapabilityRegistry.capabilities(for: selection.engine)
     }
 
     var activeLeaseCount: Int {
