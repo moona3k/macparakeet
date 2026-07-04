@@ -1,0 +1,24 @@
+plans/active/2026-07-04-long-meeting-aec-policy.md
+  s_741b05fa7fe81b::t_90fa19f6c9077e 72,74-77,81-82
+  s_741b05fa7fe81b::t_99e918e48a05c6 136-142
+  s_741b05fa7fe81b::t_5ccec138b6f4fe 147-150
+  s_741b05fa7fe81b::t_82bae3489ee10e 15-17
+  s_741b05fa7fe81b::t_de8e2e78136cff 95-100
+  s_741b05fa7fe81b::t_8f2e857731d11f 206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "431c8c12fe06c0e9498d72cc3138729bcc709c7c",
+  "prompts": {},
+  "sessions": {
+    "s_741b05fa7fe81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0d028ac-a245-4222-b6fc-76e336fe62bf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
