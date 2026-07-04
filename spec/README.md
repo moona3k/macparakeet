@@ -111,6 +111,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B implemented behind default-off flag — replaces withdrawn ADR-017 calendar auto-stop) |
 | [ADR-024](adr/024-activity-based-meeting-detection.md) | Activity-based meeting detection (Phases A+B process-audio/camera collectors + pure detector implemented behind default-off flag; coordinator/prompt phases proposed) |
 | [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (Phase A mic-health telemetry watchdog implemented; warning UI + repair proposed) |
+| [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy — local-only reaffirmed; two runtimes (FluidAudio primary, WhisperKit fallback); engines grow as variants not new cards; capability registry required before a new engine family; Apple SpeechTranscriber spike-only |
 
 ## Version Roadmap
 
