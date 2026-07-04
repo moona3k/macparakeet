@@ -1,0 +1,22 @@
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_35765baab2f0ed::t_84554c9e7d8d49 88-92
+  s_35765baab2f0ed::t_c5df8d6ad163ae 110-114
+  s_35765baab2f0ed::t_c93de70b393531 137-140
+  s_35765baab2f0ed::t_7046206301d0bf 130-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d7faa70212f19d57d369fe1af3c102f769801526",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
