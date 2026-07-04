@@ -60,6 +60,11 @@ extension STTRuntimeProtocol {
     }
 }
 
+enum CustomVocabularyBoostingPreparationMode {
+    case awaitPreparation
+    case backgroundIfNeeded
+}
+
 /// Sole owner of the shared local speech-engine lifecycle.
 ///
 /// The runtime stays process-wide and singular at the app boundary, but it keeps
@@ -522,6 +527,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                     try Task.checkCancellation()
                     let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
                         to: result,
+                        preparationMode: .backgroundIfNeeded,
                         loadAudioSamples: { paddedSamples }
                     )
                     onProgress?(100, 100)
@@ -576,7 +582,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
             let boostedResult = try await applyCustomVocabularyBoostingIfAvailable(
-                to: result
+                to: result,
+                preparationMode: .awaitPreparation
             ) {
                 try Self.customVocabularySidecarSamples(audioPath: audioPath)
             }
@@ -708,6 +715,7 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     private func applyCustomVocabularyBoostingIfAvailable(
         to result: ASRResult,
+        preparationMode: CustomVocabularyBoostingPreparationMode,
         loadAudioSamples: () throws -> [Float]
     ) async throws -> ASRResult {
         guard let customVocabularyProvider else { return result }
@@ -727,6 +735,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             vocabulary: vocabulary,
             rescorer: customVocabularyRescorer,
             inferenceGate: inferenceGate,
+            preparationMode: preparationMode,
             logger: logger
         )
     }
@@ -738,6 +747,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate,
+        preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation,
         logger: Logger? = nil
     ) async throws -> ASRResult {
         try Task.checkCancellation()
@@ -752,7 +762,19 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         do {
             try Task.checkCancellation()
-            try await rescorer.prepare(vocabulary: vocabulary)
+            switch preparationMode {
+            case .awaitPreparation:
+                try await rescorer.prepare(vocabulary: vocabulary)
+            case .backgroundIfNeeded:
+                guard await rescorer.isPrepared(vocabulary: vocabulary) else {
+                    startBackgroundCustomVocabularyPreparation(
+                        vocabulary: vocabulary,
+                        rescorer: rescorer,
+                        logger: logger
+                    )
+                    return result
+                }
+            }
             try Task.checkCancellation()
             let rescored = try await inferenceGate.withExclusiveAccess {
                 try await rescorer.rescore(
@@ -778,6 +800,27 @@ public actor STTRuntime: STTRuntimeProtocol {
                 "custom_vocabulary_boost_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
             )
             return result
+        }
+    }
+
+    private static func startBackgroundCustomVocabularyPreparation(
+        vocabulary: CustomVocabularyBoostingVocabulary,
+        rescorer: any CustomVocabularyRescoring,
+        logger: Logger?
+    ) {
+        // Dictation finalize must not wait on the first-use CTC download/load.
+        // This deliberate fire-and-forget exception protects interactive paste
+        // latency; a later utterance uses the prepared cache once this finishes.
+        Task.detached {
+            do {
+                try await rescorer.prepare(vocabulary: vocabulary)
+            } catch is CancellationError {
+                // The caller already returned the unboosted dictation result.
+            } catch {
+                logger?.warning(
+                    "custom_vocabulary_prepare_background_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
+                )
+            }
         }
     }
 
@@ -977,7 +1020,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         capabilities: SpeechEngineCapabilities,
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
-        inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false)
+        inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false),
+        preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation
     ) async throws -> ASRResult {
         let result = ASRResult(
             text: transcript,
@@ -992,7 +1036,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             capabilities: capabilities,
             vocabulary: vocabulary,
             rescorer: rescorer,
-            inferenceGate: inferenceGate
+            inferenceGate: inferenceGate,
+            preparationMode: preparationMode
         )
     }
     #endif

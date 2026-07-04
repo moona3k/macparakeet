@@ -196,11 +196,13 @@ public struct CustomVocabularyRescoringResult: Sendable {
 }
 
 public protocol CustomVocabularyRescoring: Sendable {
+    func isPrepared(vocabulary: CustomVocabularyBoostingVocabulary) async -> Bool
     func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws
     func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult
 }
 
 public extension CustomVocabularyRescoring {
+    func isPrepared(vocabulary: CustomVocabularyBoostingVocabulary) async -> Bool { true }
     func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {}
 }
 
@@ -257,6 +259,10 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
     public func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {
         guard !vocabulary.isEmpty else { return }
         _ = try await components(for: vocabulary)
+    }
+
+    public func isPrepared(vocabulary: CustomVocabularyBoostingVocabulary) async -> Bool {
+        vocabulary.isEmpty || cachedVocabularies[vocabulary.contentHash] != nil
     }
 
     public func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult {

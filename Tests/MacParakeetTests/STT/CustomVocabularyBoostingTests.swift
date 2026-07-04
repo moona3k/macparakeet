@@ -81,6 +81,62 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(requestCount, 0)
     }
 
+    func testDictationUnpreparedVocabularyReturnsUnboostedAndStartsBackgroundPreparation() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet", isPrepared: false)
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "MAC Parakeet",
+            tokenTimings: Self.tokenTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer,
+            preparationMode: .backgroundIfNeeded
+        )
+
+        XCTAssertEqual(result.text, "MAC Parakeet")
+        let requestCount = await rescorer.requestCount()
+        XCTAssertEqual(requestCount, 0)
+        try await waitForPrepareCount(1, rescorer: rescorer)
+    }
+
+    func testDictationPreparedVocabularyBoostsWithoutPreparing() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet", isPrepared: true)
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "MAC Parakeet",
+            tokenTimings: Self.tokenTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer,
+            preparationMode: .backgroundIfNeeded
+        )
+
+        XCTAssertEqual(result.text, "MacParakeet")
+        let prepareCount = await rescorer.prepareCount()
+        let requestCount = await rescorer.requestCount()
+        XCTAssertEqual(prepareCount, 0)
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testFileMeetingModeAwaitsPreparationBeforeBoosting() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet", isPrepared: false)
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "MAC Parakeet",
+            tokenTimings: Self.tokenTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer,
+            preparationMode: .awaitPreparation
+        )
+
+        XCTAssertEqual(result.text, "MacParakeet")
+        let prepareCount = await rescorer.prepareCount()
+        let requestCount = await rescorer.requestCount()
+        XCTAssertEqual(prepareCount, 1)
+        XCTAssertEqual(requestCount, 1)
+    }
+
     func testSupportedEngineInvokesSidecarWithOriginalSamples() async throws {
         let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
         let samples: [Float] = [0.1, 0.2, 0.3, 0.0, 0.0]
@@ -200,16 +256,44 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         TokenTiming(token: "▁MAC", tokenId: 1, startTime: 0.0, endTime: 0.2, confidence: 0.9),
         TokenTiming(token: "▁Parakeet", tokenId: 2, startTime: 0.2, endTime: 0.6, confidence: 0.9),
     ]
+
+    private func waitForPrepareCount(
+        _ expectedCount: Int,
+        rescorer: FakeCustomVocabularyRescorer,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        for _ in 0..<50 {
+            if await rescorer.prepareCount() == expectedCount {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let count = await rescorer.prepareCount()
+        XCTAssertEqual(count, expectedCount, file: file, line: line)
+    }
 }
 
 private actor FakeCustomVocabularyRescorer: CustomVocabularyRescoring {
     private(set) var requests: [CustomVocabularyRescoringRequest] = []
+    private var prepared: Bool
+    private var prepareCalls = 0
     private let text: String
     private let error: Error?
 
-    init(text: String = "boosted", error: Error? = nil) {
+    init(text: String = "boosted", error: Error? = nil, isPrepared: Bool = true) {
         self.text = text
         self.error = error
+        self.prepared = isPrepared
+    }
+
+    func isPrepared(vocabulary: CustomVocabularyBoostingVocabulary) async -> Bool {
+        prepared
+    }
+
+    func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {
+        prepareCalls += 1
+        prepared = true
     }
 
     func rescore(_ request: CustomVocabularyRescoringRequest) async throws -> CustomVocabularyRescoringResult {
@@ -227,6 +311,10 @@ private actor FakeCustomVocabularyRescorer: CustomVocabularyRescoring {
 
     func requestCount() -> Int {
         requests.count
+    }
+
+    func prepareCount() -> Int {
+        prepareCalls
     }
 }
 
