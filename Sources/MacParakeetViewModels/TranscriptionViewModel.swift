@@ -1364,7 +1364,6 @@ public final class TranscriptionViewModel {
         )
 
         let artifactStore = meetingArtifactStore
-        let promptResultRepo = promptResultRepo
         let logger = logger
         let task = Task.detached(priority: .utility) { [weak self, previousTask, transcriptionRepo, promptResultRepo, artifactStore, logger] in
             await previousTask?.value
@@ -1475,8 +1474,9 @@ public final class TranscriptionViewModel {
 
         do {
             let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
+            let artifactStore = meetingArtifactStore
             _ = try await Task.detached(priority: .utility) {
-                try await meetingArtifactStore.materialize(
+                try await artifactStore.materialize(
                     transcription: transcription,
                     promptResults: promptResults
                 )

@@ -105,7 +105,6 @@ final class AppEnvironmentConfigurer {
             transcriptionRepo: env.transcriptionRepo,
             llmService: hasLLMConfig ? env.llmService : nil,
             promptResultRepo: env.promptResultRepo,
-            meetingArtifactStore: MeetingArtifactStore(),
             promptResultsViewModel: promptResultsViewModel
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
