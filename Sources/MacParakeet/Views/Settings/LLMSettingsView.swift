@@ -592,6 +592,11 @@ struct LLMSettingsView: View {
         let isMasterEnabled = viewModel.aiFormatterSmartDefaultsEnabled
         let isCategoryEnabled = viewModel.isAIFormatterSmartDefaultCategoryEnabled(categoryDefault.category)
         let isEffectivelyEnabled = isMasterEnabled && isCategoryEnabled
+        let accessibilityValue = isEffectivelyEnabled
+            ? "Enabled"
+            : isCategoryEnabled
+            ? "Enabled, inactive while Smart defaults are off"
+            : "Disabled"
         let isSelected = selectedSmartDefaultCategory == categoryDefault.category
 
         return HStack(spacing: 6) {
@@ -601,11 +606,11 @@ struct LLMSettingsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: smartDefaultIcon(for: categoryDefault.category))
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(isEffectivelyEnabled ? DesignSystem.Colors.accent : Color.secondary)
+                        .foregroundStyle(isCategoryEnabled ? DesignSystem.Colors.accent : Color.secondary)
                         .frame(width: 16, height: 16)
                     Text(categoryDefault.name)
                         .font(DesignSystem.Typography.caption.weight(.medium))
-                        .foregroundStyle(isEffectivelyEnabled ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                        .foregroundStyle(isCategoryEnabled ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
@@ -627,7 +632,7 @@ struct LLMSettingsView: View {
             .controlSize(.mini)
             .disabled(!isMasterEnabled)
             .accessibilityLabel("Enable the \(categoryDefault.name) smart default")
-            .accessibilityValue(isEffectivelyEnabled ? "Enabled" : "Disabled")
+            .accessibilityValue(accessibilityValue)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
