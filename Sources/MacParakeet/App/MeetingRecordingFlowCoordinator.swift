@@ -22,6 +22,16 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    var canPresentLiveMeetingPanel: Bool {
+        guard panelController != nil else { return false }
+        switch stateMachine.state {
+        case .starting, .recording:
+            return true
+        case .idle, .checkingPermissions, .stopping, .finishing:
+            return false
+        }
+    }
+
     var isCapturingMeetingAudioForAutoStop: Bool {
         stateMachine.state == .recording
     }
@@ -50,6 +60,7 @@ final class MeetingRecordingFlowCoordinator {
     private let sttManager: (any STTRuntimeManaging)?
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
+    private let shouldShowFloatingMeetingPill: @MainActor @Sendable () -> Bool
     private let frontmostApplicationProvider: any FrontmostApplicationProviding
     private let probableCalendarSnapshotProvider: @MainActor @Sendable () -> MeetingCalendarSnapshot?
     private var llmService: LLMServiceProtocol?
@@ -110,6 +121,7 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
+        shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
         frontmostApplicationProvider: any FrontmostApplicationProviding = NSWorkspaceFrontmostApplicationProvider(),
         probableCalendarSnapshotProvider: @escaping @MainActor @Sendable () -> MeetingCalendarSnapshot? = {
             nil
@@ -136,6 +148,7 @@ final class MeetingRecordingFlowCoordinator {
         self.sttManager = sttManager
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
+        self.shouldShowFloatingMeetingPill = shouldShowFloatingMeetingPill
         self.frontmostApplicationProvider = frontmostApplicationProvider
         self.probableCalendarSnapshotProvider = probableCalendarSnapshotProvider
         self.llmService = llmService
@@ -319,8 +332,21 @@ final class MeetingRecordingFlowCoordinator {
     /// current recording face immediately.
     func restoreFloatingPillIfRecording() {
         guard isMeetingRecordingActive else { return }
-        pillController?.show()
-        pillController?.refreshState()
+        refreshFloatingPillVisibility()
+    }
+
+    func refreshFloatingPillVisibility() {
+        guard isMeetingRecordingActive else {
+            pillController?.hide()
+            return
+        }
+
+        if shouldShowFloatingMeetingPill() {
+            pillController?.show()
+            pillController?.refreshState()
+        } else {
+            pillController?.hide(preserveFrameForNextShow: true)
+        }
     }
 
     /// Calendar-driven entry point. Marks the next start as auto-start so
@@ -571,7 +597,7 @@ final class MeetingRecordingFlowCoordinator {
                 }
                 panelController = controller
             }
-            pillController?.show()
+            refreshFloatingPillVisibility()
             startSpeechWarmUpObservation()
             startPillPolling()
             startPillGlowPolling()
@@ -1232,6 +1258,10 @@ final class MeetingRecordingFlowCoordinator {
         panelController?.show()
     }
 
+    func presentLiveMeetingPanel() {
+        showMeetingPanel()
+    }
+
     private func hideMeetingPanel() {
         panelController?.hide()
     }
@@ -1374,5 +1404,13 @@ extension MeetingRecordingFlowCoordinator {
 
     var testHook_panelViewModel: MeetingRecordingPanelViewModel? {
         panelViewModel
+    }
+
+    var testHook_hasFloatingPillController: Bool {
+        pillController != nil
+    }
+
+    var testHook_isFloatingPillVisible: Bool {
+        pillController?.isVisible == true
     }
 }

@@ -1249,6 +1249,14 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Show floating meeting controls",
+                    detail: "Shows the small recording pill while a meeting is active. Turn this off to control recording from the menu bar, hotkey, or Meetings tab.",
+                    isOn: $viewModel.showMeetingRecordingPill
+                )
+
+                Divider()
+
                 HStack(alignment: .center) {
                     rowText(
                         title: "Audio sources",

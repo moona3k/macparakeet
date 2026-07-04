@@ -20,6 +20,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+    var shouldShowMeetingRecordingPill: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
     var preferBuiltInMicWhenBluetoothOutput: Bool { get }
@@ -481,6 +482,7 @@ public enum VoiceReturnTriggerPhrases: Sendable {
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
     public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
+    public static let showMeetingRecordingPillKey = "showMeetingRecordingPill"
     public static let silenceAutoStopKey = "silenceAutoStop"
     public static let silenceDelayKey = "silenceDelay"
     public static let voiceReturnEnabledKey = "voiceReturnEnabled"
@@ -566,6 +568,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public static func speakerDiarizationEnabled(defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: speakerDiarizationKey) as? Bool ?? defaultSpeakerDiarizationEnabled
+    }
+
+    public static func showMeetingRecordingPill(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: showMeetingRecordingPillKey) as? Bool ?? true
     }
 
     public var processingMode: Dictation.ProcessingMode {
@@ -654,6 +660,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var meetingAudioSourceMode: MeetingAudioSourceMode {
         MeetingAudioSourceMode.current(defaults: defaults)
+    }
+
+    public var shouldShowMeetingRecordingPill: Bool {
+        Self.showMeetingRecordingPill(defaults: defaults)
     }
 
     public var pauseMediaDuringDictation: Bool {

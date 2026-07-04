@@ -258,6 +258,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingActiveProvider: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
         },
+        liveMeetingPanelAvailableProvider: { [weak self] in
+            self?.meetingRecordingFlowCoordinator?.canPresentLiveMeetingPanel == true
+        },
+        showFloatingMeetingControlsProvider: { [weak self] in
+            self?.settingsViewModel.showMeetingRecordingPill ?? true
+        },
         dictationCaptureActiveProvider: { [weak self] in
             self?.dictationFlowCoordinator?.isCapturingAudio == true
         },
@@ -279,6 +285,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onToggleMeetingRecording: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: false)
+        },
+        onOpenLiveMeetingPanel: { [weak self] in
+            self?.meetingRecordingFlowCoordinator?.presentLiveMeetingPanel()
+        },
+        onToggleFloatingMeetingControls: { [weak self] in
+            self?.settingsViewModel.showMeetingRecordingPill.toggle()
         },
         onCreateTransform: { [weak self] in
             self?.mainWindowState.beginCreatingTransform()
@@ -322,6 +334,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowIdlePillChanged: { [weak self] in
             self?.handleShowIdlePillChange()
+        },
+        onShowMeetingRecordingPillChanged: { [weak self] in
+            self?.handleShowMeetingRecordingPillChange()
         },
         onInstantDictationChanged: { [weak self] in
             self?.applyInstantDictationPreference(refreshWarmCapture: false)
@@ -718,6 +733,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             dictationFlowCoordinator?.hideIdlePill()
         }
+    }
+
+    private func handleShowMeetingRecordingPillChange() {
+        meetingRecordingFlowCoordinator?.refreshFloatingPillVisibility()
     }
 
     private func applyInstantDictationPreference(refreshWarmCapture: Bool) {

@@ -450,15 +450,69 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.isMeetingRecordingActive)
     }
 
-    private func makeQuitTeardownCoordinator() -> MeetingRecordingFlowCoordinator {
-        MeetingRecordingFlowCoordinator(
-            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+    func testStartWithFloatingPillHiddenStillStartsRecordingFlow() async throws {
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let visibility = FloatingPillVisibilityProbe(shouldShow: false)
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: recordingService,
+            shouldShowFloatingMeetingPill: { visibility.shouldShow }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+
+        let snapshot = await recordingService.snapshot()
+        XCTAssertEqual(snapshot.startCallCount, 1)
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.isMeetingRecordingActive)
+        XCTAssertTrue(coordinator.testHook_hasFloatingPillController)
+        XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
+    }
+
+    func testRefreshingFloatingPillVisibilityDoesNotDisturbRecordingFlow() async throws {
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let visibility = FloatingPillVisibilityProbe(shouldShow: false)
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: recordingService,
+            shouldShowFloatingMeetingPill: { visibility.shouldShow }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
+
+        visibility.shouldShow = true
+        coordinator.refreshFloatingPillVisibility()
+
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.testHook_isFloatingPillVisible)
+
+        visibility.shouldShow = false
+        coordinator.refreshFloatingPillVisibility()
+
+        let snapshot = await recordingService.snapshot()
+        XCTAssertEqual(snapshot.startCallCount, 1)
+        XCTAssertEqual(snapshot.stopCallCount, 0)
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.isMeetingRecordingActive)
+        XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
+    }
+
+    private func makeQuitTeardownCoordinator(
+        recordingService: MeetingRecordingServiceSpy? = nil,
+        shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true }
+    ) -> MeetingRecordingFlowCoordinator {
+        let recordingService = recordingService ?? MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        return MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
             transcriptionService: MockTranscriptionService(),
             permissionService: MockPermissionService(),
             transcriptionRepo: MockTranscriptionRepository(),
             conversationRepo: MockChatConversationRepository(),
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
+            shouldShowFloatingMeetingPill: shouldShowFloatingMeetingPill,
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
@@ -556,6 +610,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
                 system: track
             )
         )
+    }
+}
+
+@MainActor
+private final class FloatingPillVisibilityProbe {
+    var shouldShow: Bool
+
+    init(shouldShow: Bool) {
+        self.shouldShow = shouldShow
     }
 }
 
