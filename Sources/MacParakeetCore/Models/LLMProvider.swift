@@ -313,14 +313,15 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public static func openaiCompatible(
         apiKey: String? = nil,
         model: String,
-        baseURL: URL
+        baseURL: URL,
+        isLocal: Bool? = nil
     ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .openaiCompatible,
             baseURL: baseURL,
             apiKey: apiKey,
             modelName: model,
-            isLocal: Self.isLoopbackEndpoint(baseURL)
+            isLocal: isLocal ?? Self.isLoopbackEndpoint(baseURL)
         )
     }
 

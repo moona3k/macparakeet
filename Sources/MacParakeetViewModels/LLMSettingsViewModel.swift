@@ -187,6 +187,15 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var allowInsecureLocalNetworkHTTP: Bool {
+        get { draft.allowInsecureLocalNetworkHTTP }
+        set {
+            var nextDraft = draft
+            nextDraft.allowInsecureLocalNetworkHTTP = newValue
+            updateDraft(nextDraft)
+        }
+    }
+
     public var baseURLPlaceholder: String {
         guard let providerID = draft.providerID else { return "https://..." }
         let fallback = providerID == .openaiCompatible ? "https://api.example.com/v1" : "https://..."
@@ -315,6 +324,10 @@ public final class LLMSettingsViewModel {
 
     public var isLocalConfiguration: Bool {
         draft.isLocalConfiguration
+    }
+
+    public var usesInsecureLocalNetworkHTTP: Bool {
+        draft.usesInsecureLocalNetworkHTTP
     }
 
     public var validationMessage: String? {
@@ -539,6 +552,7 @@ public final class LLMSettingsViewModel {
             baseURL: String,
             modelName: String,
             apiKey: String?,
+            isLocal: Bool,
             localCLIConfig: LocalCLIConfig?
         )
     }
@@ -1122,6 +1136,7 @@ public final class LLMSettingsViewModel {
         draft.providerID == snapshot.providerID
             && draft.trimmedAPIKey == snapshot.trimmedAPIKey
             && draft.trimmedBaseURLOverride == snapshot.trimmedBaseURLOverride
+            && draft.allowInsecureLocalNetworkHTTP == snapshot.allowInsecureLocalNetworkHTTP
     }
 
     private func reconcileModelSelection(with models: [String], snapshot: LLMSettingsDraft) {
@@ -1181,6 +1196,7 @@ public final class LLMSettingsViewModel {
                 baseURL: Self.defaultBaseURL(for: providerID),
                 modelName: "cli",
                 apiKey: nil,
+                isLocal: false,
                 localCLIConfig: LocalCLIConfig(
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
@@ -1193,6 +1209,7 @@ public final class LLMSettingsViewModel {
             baseURL: draftBaseURL(for: providerID),
             modelName: draft.effectiveModelName,
             apiKey: providerID.supportsAPIKey ? draft.trimmedAPIKey : nil,
+            isLocal: draft.isLocalConfiguration,
             localCLIConfig: nil
         )
     }
@@ -1204,6 +1221,7 @@ public final class LLMSettingsViewModel {
             baseURL: config.baseURL.absoluteString,
             modelName: config.modelName,
             apiKey: config.id.supportsAPIKey ? (config.apiKey ?? "") : nil,
+            isLocal: config.isLocal,
             localCLIConfig: config.id == .localCLI ? cliConfigStore?.load() : nil
         )
     }

@@ -51,9 +51,9 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertNil(draft.validationError)
     }
 
-    // Preserves PR #109's tightening: remote providers (including OpenAI-compatible
-    // shims) must use HTTPS unless the user is pointing at loopback.
-    func testOpenAICompatibleRejectsHTTPOnLANHost() {
+    // Preserves PR #109's tightening: OpenAI-compatible LAN HTTP needs an
+    // explicit local-network opt-in unless the user is pointing at loopback.
+    func testOpenAICompatibleRejectsHTTPOnLANHostWithoutOptIn() {
         let draft = LLMSettingsDraft(
             providerID: .openaiCompatible,
             useCustomModel: true,
@@ -61,7 +61,26 @@ final class LLMSettingsDraftTests: XCTestCase {
             baseURLOverride: "http://192.168.1.5:8000/v1"
         )
 
-        XCTAssertEqual(draft.validationError, .invalidBaseURL)
+        XCTAssertEqual(draft.validationError, .localNetworkHTTPRequiresOptIn)
+    }
+
+    func testOpenAICompatibleAllowsHTTPOnLANHostWithExplicitOptIn() throws {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "local-model",
+            baseURLOverride: "http://192.168.1.5:8000/v1",
+            allowInsecureLocalNetworkHTTP: true
+        )
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isLocalConfiguration)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+
+        let config = try draft.buildConfig(defaultBaseURL: "")
+        XCTAssertEqual(config?.id, .openaiCompatible)
+        XCTAssertEqual(config?.baseURL.absoluteString, "http://192.168.1.5:8000/v1")
+        XCTAssertEqual(config?.isLocal, true)
     }
 
     // Regression: #118 — 0.0.0.0 bind addresses (common Ollama config) must be accepted.
@@ -187,5 +206,26 @@ final class LLMSettingsDraftTests: XCTestCase {
 
         XCTAssertEqual(config?.id, .openaiCompatible)
         XCTAssertEqual(config?.isLocal, false)
+    }
+
+    func testOpenAICompatibleStoredLocalNetworkHTTPConfigRestoresOptIn() {
+        let config = LLMProviderConfig(
+            id: .openaiCompatible,
+            baseURL: URL(string: "http://192.168.1.5:8000/v1")!,
+            apiKey: nil,
+            modelName: "local-model",
+            isLocal: true
+        )
+
+        let draft = LLMSettingsDraft.fromStoredConfig(
+            config,
+            suggestedModels: [],
+            defaultModelName: "",
+            defaultBaseURL: ""
+        )
+
+        XCTAssertTrue(draft.allowInsecureLocalNetworkHTTP)
+        XCTAssertTrue(draft.usesInsecureLocalNetworkHTTP)
+        XCTAssertNil(draft.validationError)
     }
 }
