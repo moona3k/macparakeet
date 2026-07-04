@@ -13,6 +13,7 @@ plans/active/2026-07-03-parakeet-custom-vocabulary.md
   s_4272d79a3d4bc7::t_c47f29fe3f362c 1-20,27,37-46,56-58,62-75,78-79
 plans/README.md
   s_4272d79a3d4bc7::t_08bc1d083ad7fc 37
+  s_9c41282708a1b7::t_2de3edcf61b76a 35-36
 plans/active/2026-07-03-stt-capability-registry.md
   s_4272d79a3d4bc7::t_0d517ffae2b3c2 80-85
 ---
@@ -27,6 +28,14 @@ plans/active/2026-07-03-stt-capability-registry.md
         "tool": "claude",
         "id": "2a226cfe-1186-470e-9296-f0248af07152",
         "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_9c41282708a1b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ba0-6368-7480-888c-f962b717a2fa",
+        "model": "gpt-5.5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
