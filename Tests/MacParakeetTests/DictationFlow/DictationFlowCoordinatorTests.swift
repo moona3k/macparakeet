@@ -38,7 +38,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         harness.coordinator.stopDictation()
         let firstPasted = await waitUntilAsync {
-            await harness.clipboard.snapshot().pasteCallCount == 1
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 1 && harness.coordinator.flowStateForTesting == .idle
         }
         XCTAssertTrue(firstPasted)
         XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
@@ -49,7 +50,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         harness.coordinator.stopDictation()
         let secondPasted = await waitUntilAsync {
-            await harness.clipboard.snapshot().pasteCallCount == 2
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 2 && harness.coordinator.flowStateForTesting == .idle
         }
         XCTAssertTrue(secondPasted)
 
@@ -355,8 +357,13 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     ) async -> Bool {
         let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
         while Date() < deadline {
+            if Task.isCancelled { return false }
             if condition() { return true }
-            try? await Task.sleep(for: .milliseconds(5))
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch {
+                return false
+            }
         }
         return condition()
     }
@@ -367,8 +374,13 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     ) async -> Bool {
         let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
         while Date() < deadline {
+            if Task.isCancelled { return false }
             if await condition() { return true }
-            try? await Task.sleep(for: .milliseconds(5))
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch {
+                return false
+            }
         }
         return await condition()
     }
