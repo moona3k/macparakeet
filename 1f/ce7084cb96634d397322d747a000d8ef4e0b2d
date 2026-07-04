@@ -1,0 +1,41 @@
+benchmarks/asr/custom-vocab-phase0/scripts/term_recall.py
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 44-48
+benchmarks/asr/custom-vocab-phase0/scripts/librispeech_manifest.py
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 34-36
+plans/active/2026-07-03-parakeet-custom-vocabulary.md
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 3,72-81
+  s_e30d5c35fb2a2c::t_1fcefad1cc463e 82
+benchmarks/asr/custom-vocab-phase0/scripts/generate_oov_say.py
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 47-49,51-57,84-87
+benchmarks/asr/custom-vocab-phase0/README.md
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 4-5,66,71
+benchmarks/asr/custom-vocab-phase0/probe/Package.swift
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 1
+  s_6cf78d5fda4d3b::t_a0048de94cedb8 13
+benchmarks/asr/custom-vocab-phase0/probe/Sources/CustomVocabPhase0Probe/main.swift
+  s_6cf78d5fda4d3b::t_b9e31f6295dd1c 178-179,188,217-219,235-236,327-328,372-376,384-404,410-411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1fce7084cb96634d397322d747a000d8ef4e0b2d",
+  "prompts": {},
+  "sessions": {
+    "s_6cf78d5fda4d3b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-56e0-7800-84d3-9d48ab698f5c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e30d5c35fb2a2c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1a-699c-7682-93e5-e1358693189f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
