@@ -31,6 +31,9 @@ def main() -> int:
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
 
+    if not args.split_dir.is_dir():
+        parser.error(f"split directory does not exist or is not a directory: {args.split_dir}")
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with args.output.open("w", encoding="utf-8") as handle:

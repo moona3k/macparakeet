@@ -1,13 +1,12 @@
 # Custom Vocabulary Phase 0 Probe
 
 Scratch harness for `plans/active/2026-07-03-parakeet-custom-vocabulary.md`.
-It links against the repo-resolved FluidAudio checkout in `.build/checkouts`
-so experiments use the pinned FluidAudio 0.15.4 source from `Package.resolved`.
+It resolves FluidAudio 0.15.4 directly so a clean checkout can build the probe
+without relying on root `.build` artifacts.
 
 From the repo root:
 
 ```bash
-swift package resolve
 swift build -c release --package-path benchmarks/asr/custom-vocab-phase0/probe \
   --product custom-vocab-phase0-probe
 python3 benchmarks/asr/custom-vocab-phase0/scripts/generate_oov_say.py
@@ -64,12 +63,12 @@ Generate the LibriSpeech clean manifests used for the WER guard:
 
 ```bash
 python3 benchmarks/asr/custom-vocab-phase0/scripts/librispeech_manifest.py \
-  --split-dir /Users/dmoon/asr-bench/LibriSpeech/test-clean \
+  --split-dir "$LIBRISPEECH_DIR/test-clean" \
   --limit 200 \
   --output benchmarks/asr/custom-vocab-phase0/generated/librispeech-test-clean-first200.jsonl
 
 python3 benchmarks/asr/custom-vocab-phase0/scripts/librispeech_manifest.py \
-  --split-dir /Users/dmoon/asr-bench/LibriSpeech/test-clean \
+  --split-dir "$LIBRISPEECH_DIR/test-clean" \
   --output benchmarks/asr/custom-vocab-phase0/generated/librispeech-test-clean-full.jsonl
 ```
 

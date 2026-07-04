@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "custom-vocab-phase0-probe", targets: ["CustomVocabPhase0Probe"])
     ],
     dependencies: [
-        .package(path: "../../../../.build/checkouts/FluidAudio")
+        .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.4")
     ],
     targets: [
         .executableTarget(

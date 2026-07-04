@@ -175,6 +175,8 @@ struct CustomVocabPhase0Probe {
             var detected: [String] = []
             var applied: [String] = []
             var replacements: [ReplacementRecord] = []
+            var boostSupported = false
+            var unsupportedReason: String?
 
             if let boost {
                 let spotResult = try await boost.spotter.spotKeywordsWithLogProbs(
@@ -183,6 +185,7 @@ struct CustomVocabPhase0Probe {
                 )
                 detected = uniquePreservingOrder(spotResult.detections.map { $0.term.text })
                 if let tokenTimings = rawResult.tokenTimings, !tokenTimings.isEmpty {
+                    boostSupported = true
                     let sizeConfig = ContextBiasingConstants.rescorerConfig(
                         forVocabSize: boost.vocabulary.terms.count
                     )
@@ -211,6 +214,9 @@ struct CustomVocabPhase0Probe {
                             reason: $0.reason
                         )
                     }
+                } else {
+                    unsupportedReason =
+                        "TDT transcript did not include token timings; skipping VocabularyRescorer.ctcTokenRescore."
                 }
             }
 
@@ -226,8 +232,8 @@ struct CustomVocabPhase0Probe {
                 proc_s: proc,
                 rtfx: Double(samples.count) / 16_000.0 / proc,
                 boost_requested: boost != nil,
-                boost_supported: boost != nil,
-                unsupported_reason: nil,
+                boost_supported: boostSupported,
+                unsupported_reason: unsupportedReason,
                 raw_hyp: boost == nil ? nil : rawText,
                 ctc_detected_terms: detected,
                 ctc_applied_terms: applied,
@@ -318,8 +324,8 @@ struct CustomVocabPhase0Probe {
 
     static func write(_ record: ProbeRecord, to handle: FileHandle, encoder: JSONEncoder) throws {
         let data = try encoder.encode(record)
-        handle.write(data)
-        handle.write(Data("\n".utf8))
+        try handle.write(contentsOf: data)
+        try handle.write(contentsOf: Data("\n".utf8))
     }
 
     static func resolveAudioURL(_ audio: String, relativeTo manifestURL: URL) -> URL {
@@ -363,11 +369,11 @@ struct CustomVocabPhase0Probe {
             case "--output": args.output = try value()
             case "--dataset": args.dataset = try value()
             case "--vocab": args.vocab = try value()
-            case "--limit": args.limit = Int(try value())
-            case "--append-silence-seconds": args.appendSilenceSeconds = Double(try value()) ?? 0
-            case "--min-similarity": args.minSimilarity = Float(try value())
-            case "--cbw": args.cbw = Float(try value())
-            case "--margin-seconds": args.marginSeconds = Double(try value())
+            case "--limit": args.limit = try parseInt(try value(), flag: flag)
+            case "--append-silence-seconds": args.appendSilenceSeconds = try parseDouble(try value(), flag: flag)
+            case "--min-similarity": args.minSimilarity = try parseFloat(try value(), flag: flag)
+            case "--cbw": args.cbw = try parseFloat(try value(), flag: flag)
+            case "--margin-seconds": args.marginSeconds = try parseDouble(try value(), flag: flag)
             case "--help", "-h": throw ProbeError.usage("")
             default: throw ProbeError.usage("unknown argument \(flag)")
             }
@@ -375,12 +381,34 @@ struct CustomVocabPhase0Probe {
         return args
     }
 
+    static func parseInt(_ raw: String, flag: String) throws -> Int {
+        guard let value = Int(raw) else {
+            throw ProbeError.usage("invalid integer for \(flag): \(raw)")
+        }
+        return value
+    }
+
+    static func parseDouble(_ raw: String, flag: String) throws -> Double {
+        guard let value = Double(raw) else {
+            throw ProbeError.usage("invalid number for \(flag): \(raw)")
+        }
+        return value
+    }
+
+    static func parseFloat(_ raw: String, flag: String) throws -> Float {
+        guard let value = Float(raw) else {
+            throw ProbeError.usage("invalid number for \(flag): \(raw)")
+        }
+        return value
+    }
+
     static func usage() -> String {
         """
         Usage:
           custom-vocab-phase0-probe --engine tdt-v3|tdt-v2|tdt-110m|unified \\
             --manifest PATH --output PATH [--dataset NAME] [--vocab PATH] \\
-            [--limit N] [--append-silence-seconds S]
+            [--limit N] [--append-silence-seconds S] [--min-similarity F] \\
+            [--cbw F] [--margin-seconds S]
         """
     }
 

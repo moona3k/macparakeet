@@ -44,7 +44,17 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
+    if not args.input.is_file():
+        parser.error(f"input file does not exist or is not a file: {args.input}")
+
     rows = read_jsonl(args.input)
+    seen_ids: set[str] = set()
+    for row in rows:
+        row_id = row["id"]
+        if row_id in seen_ids:
+            parser.error(f"duplicate manifest id: {row_id}")
+        seen_ids.add(row_id)
+
     voices = installed_voices()
     missing = sorted({row["voice"] for row in rows if row["voice"] not in voices})
     if missing:
@@ -71,7 +81,10 @@ def main() -> int:
                 check=True,
             )
         out_row = dict(row)
-        out_row["audio"] = audio_path.relative_to(args.output.parent).as_posix()
+        if audio_path.is_relative_to(args.output.parent):
+            out_row["audio"] = audio_path.relative_to(args.output.parent).as_posix()
+        else:
+            out_row["audio"] = audio_path.as_posix()
         out_rows.append(out_row)
 
     with args.output.open("w", encoding="utf-8") as handle:

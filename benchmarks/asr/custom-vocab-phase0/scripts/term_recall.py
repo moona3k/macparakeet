@@ -41,6 +41,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
+    if not args.manifest.is_file():
+        parser.error(f"manifest file does not exist or is not a file: {args.manifest}")
+    if not args.records.is_file():
+        parser.error(f"records file does not exist or is not a file: {args.records}")
+
     manifest = {row["id"]: row for row in read_jsonl(args.manifest)}
     records = read_jsonl(args.records)
 

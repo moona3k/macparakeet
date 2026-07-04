@@ -1,6 +1,6 @@
 # Parakeet custom vocabulary (names/jargon boosting)
 
-> Status: **TODO** (Phase 0 investigation first; product decision gate in §4)
+> Status: **Phase 0 complete — GO for Phase 1** (decision Daniel, 2026-07-04)
 > Date: 2026-07-03
 > Governing decision: [ADR-026 §3](../../spec/adr/026-asr-engine-strategy.md) — roadmap item 1
 > Sequencing: prefer after capability-registry Phase A
@@ -68,6 +68,17 @@ If custom vocab requires switching to a CTC variant (not the default
 TDT/Unified): is a "boosted accuracy for your terms" variant worth a
 variant row, or do we hold until FluidAudio supports it on the default
 family? Bring Phase 0 numbers to that decision.
+
+Resolution (2026-07-04): Daniel resolved the gate as **GO for Phase 1** based
+on the Phase 0 evidence in
+[`docs/research/2026-07-04-custom-vocab-phase0.md`](../../docs/research/2026-07-04-custom-vocab-phase0.md).
+Boosting is a property of the default Parakeet TDT path (TDT transcript plus
+CTC 110M sidecar rescoring under `ANEInferenceGate`), not a CTC variant row.
+Phase 1 should start with the strict `minSimilarity=0.65` gate (74% OOV recall,
++0.102pt full `test-clean` WER), mark Unified unsupported via
+`supportsCustomVocabulary`, and mitigate the 48 false replacements observed
+across full `test-clean` even at the strict gate. Sequence this after
+capability-registry Phase A registry definition lands, per the note above.
 
 ## Acceptance
 
