@@ -151,6 +151,41 @@ public enum SpeechEngineCapabilityRegistry {
         return capabilities
     }
 
+    public static func variantKey(
+        for engine: SpeechEnginePreference,
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.defaultParakeetModelVariant,
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+    ) -> SpeechEngineVariantKey? {
+        switch engine {
+        case .parakeet:
+            .parakeet(parakeetModelVariant)
+        case .nemotron:
+            .nemotron(nemotronModelVariant)
+        case .whisper:
+            WhisperModelVariant.normalize(whisperModelVariant).map(SpeechEngineVariantKey.whisper)
+        case .cohere:
+            .cohere
+        }
+    }
+
+    public static func capabilities(
+        for engine: SpeechEnginePreference,
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.defaultParakeetModelVariant,
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+    ) -> SpeechEngineCapabilities? {
+        guard let key = variantKey(
+            for: engine,
+            parakeetModelVariant: parakeetModelVariant,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant
+        ) else {
+            return nil
+        }
+        return capabilities(for: key)
+    }
+
     private static func makeParakeetRows() -> [SpeechEngineCapabilities] {
         ParakeetModelVariant.allCases.map { variant in
             SpeechEngineCapabilities(

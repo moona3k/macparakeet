@@ -14,6 +14,32 @@ final class AppEnvironmentTests: XCTestCase {
         ))
     }
 
+    func testParakeetDictationRoutingUsesVariantCapabilities() {
+        XCTAssertFalse(AppEnvironment.shouldAttemptLiveDictationTranscription(
+            speechEngine: .parakeet,
+            parakeetModelVariant: .v3,
+            liveDictationStreamingEnabled: true
+        ))
+        let tdtPreview = AppEnvironment.dictationPreviewSpeechEngine(
+            speechEngine: .parakeet,
+            parakeetModelVariant: .v3,
+            liveDictationStreamingEnabled: true
+        )
+        XCTAssertEqual(tdtPreview?.selection, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertEqual(tdtPreview?.capabilities.key, .parakeet(.v3))
+
+        XCTAssertTrue(AppEnvironment.shouldAttemptLiveDictationTranscription(
+            speechEngine: .parakeet,
+            parakeetModelVariant: .unified,
+            liveDictationStreamingEnabled: true
+        ))
+        XCTAssertNil(AppEnvironment.dictationPreviewSpeechEngine(
+            speechEngine: .parakeet,
+            parakeetModelVariant: .unified,
+            liveDictationStreamingEnabled: true
+        ))
+    }
+
     func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

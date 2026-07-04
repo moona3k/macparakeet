@@ -62,6 +62,16 @@ final class DictationServiceTests: XCTestCase {
         super.tearDown()
     }
 
+    private static func previewSpeechEngine(
+        _ key: SpeechEngineVariantKey,
+        language: String? = nil
+    ) -> SpeechEngineCapabilitySelection {
+        SpeechEngineCapabilitySelection(
+            selection: SpeechEngineSelection(engine: key.engine, language: language),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: key)
+        )
+    }
+
     func testInitialStateIsIdle() async {
         let state = await service.state
         if case .idle = state {} else {
@@ -681,7 +691,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -756,7 +766,7 @@ final class DictationServiceTests: XCTestCase {
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
             shouldShowDictationPreview: { true },
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .cohere, language: "ja") },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.cohere, language: "ja") },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
@@ -787,7 +797,7 @@ final class DictationServiceTests: XCTestCase {
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
             shouldShowDictationPreview: { false },
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -816,7 +826,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero,
             dictationPreviewWindowSeconds: 3.0 / 16_000.0
         )
@@ -847,7 +857,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -875,7 +885,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero,
             dictationPreviewCancellationTimeout: .milliseconds(50)
         )
@@ -906,7 +916,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))

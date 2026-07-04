@@ -47,6 +47,7 @@ protocol STTRuntimeProtocol: Sendable {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws
     func currentSpeechEngineSelection() async -> SpeechEngineSelection
+    func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities
 }
 
 extension STTRuntimeProtocol {
@@ -233,15 +234,20 @@ public actor STTRuntime: STTRuntimeProtocol {
         activeTranscriptionCount += 1
         defer { activeTranscriptionCount -= 1 }
 
+        let capabilities = capabilities(for: selection.engine)
+        guard capabilities.supportsTailPreview else {
+            throw tailPreviewUnsupportedError(for: capabilities.key)
+        }
+
         switch selection.engine {
         case .parakeet:
             return try await transcribeParakeetPreview(samples: samples)
         case .whisper:
             return try await transcribeWhisperPreview(samples: samples, language: selection.language)
         case .nemotron:
-            throw STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
+            throw tailPreviewUnsupportedError(for: capabilities.key)
         case .cohere:
-            throw STTError.transcriptionFailed("Cohere uses record-then-transcribe dictation and does not support display-preview transcription.")
+            throw tailPreviewUnsupportedError(for: capabilities.key)
         }
     }
 
@@ -251,6 +257,10 @@ public actor STTRuntime: STTRuntimeProtocol {
     ) async throws {
         guard liveDictationSession == nil else {
             throw STTError.engineBusy
+        }
+        let capabilities = capabilities(for: speechEngine)
+        guard capabilities.supportsNativeLiveDictation else {
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(capabilities.key.engine)
         }
         let engine: any NativeLiveDictating
         let language: String?
@@ -853,28 +863,27 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func isReady() async -> Bool {
-        if speechEngine == .nemotron {
-            if nemotronModelVariant.isEnglishOnly {
+        switch capabilities(for: speechEngine).key {
+        case .nemotron(let variant):
+            if variant.isEnglishOnly {
                 return await nemotronEnglishEngine?.isReady() ?? false
             }
             return await nemotronEngine?.isReady() ?? false
-        }
-        if speechEngine == .whisper {
+        case .whisper:
             return await whisperEngine?.isReady() ?? false
-        }
-        if speechEngine == .cohere {
+        case .cohere:
             return await cohereEngine?.isReady() ?? false
-        }
+        case .parakeet(let variant):
+            // Parakeet engine: Unified reports through its own engine actor.
+            if variant.usesUnifiedEngine {
+                return await parakeetUnifiedEngine?.isReady() ?? false
+            }
 
-        // Parakeet engine: Unified reports through its own engine actor.
-        if currentParakeetVariant.usesUnifiedEngine {
-            return await parakeetUnifiedEngine?.isReady() ?? false
+            guard let interactiveManager, let backgroundManager else { return false }
+            let interactiveReady = await interactiveManager.isAvailable
+            let backgroundReady = await backgroundManager.isAvailable
+            return interactiveReady && backgroundReady
         }
-
-        guard let interactiveManager, let backgroundManager else { return false }
-        let interactiveReady = await interactiveManager.isAvailable
-        let backgroundReady = await backgroundManager.isAvailable
-        return interactiveReady && backgroundReady
     }
 
     public func shutdown() async {
@@ -1271,6 +1280,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             engine: speechEngine,
             language: defaultLanguage(for: speechEngine)
         )
+    }
+
+    public func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
+        capabilities(for: speechEngine)
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
@@ -1782,39 +1795,32 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func telemetryModelKind(for engine: SpeechEnginePreference) -> TelemetryModelKind {
-        switch engine {
-        case .parakeet:
-            .parakeetSTT
-        case .nemotron:
-            .nemotronSTT
-        case .whisper:
-            .whisperSTT
-        case .cohere:
-            .cohereSTT
-        }
+        capabilities(for: engine).telemetryIdentity.modelKind
     }
 
     private func telemetryEngineVariant(for engine: SpeechEnginePreference) -> String? {
-        switch engine {
-        case .parakeet:
-            // Surface the active Parakeet build (v2/v3/unified) so model-load
-            // telemetry can measure variant adoption and impact (issues #311,
-            // #398, #520). Read the source-of-truth variant directly so unified —
-            // which has no `AsrModelVersion` — is attributed correctly rather than
-            // collapsing to the `modelVersion` placeholder.
-            currentParakeetVariant.rawValue
-        case .nemotron:
-            nemotronModelVariant.rawValue
-        case .whisper:
-            whisperModelVariant
-        case .cohere:
-            // Surface the active compute policy (ane/gpu) so model-load
-            // telemetry can compare the two backends' load/latency posture.
-            CohereTranscribeEngine.ComputePolicy.current(defaults: defaults).rawValue
-        }
+        capabilities(for: engine).telemetryIdentity.engineVariant.value(defaults: defaults)
     }
 
     private func defaultLanguage(for engine: SpeechEnginePreference) -> String? {
+        let languagePolicy = capabilities(for: engine).supportedLanguages
+        switch languagePolicy.mode {
+        case .automatic:
+            return languagePolicy.defaultLanguage
+        case .fixed:
+            // Preserve the existing persisted-selection behavior for Nemotron:
+            // the English-only build ignores the language hint at execution
+            // time, while the stored multilingual default stays visible.
+            if engine == .nemotron {
+                return SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+            }
+            return languagePolicy.defaultLanguage
+        case .selectable:
+            return selectableDefaultLanguage(for: engine)
+        }
+    }
+
+    private func selectableDefaultLanguage(for engine: SpeechEnginePreference) -> String? {
         switch engine {
         case .parakeet:
             nil
@@ -1824,6 +1830,38 @@ public actor STTRuntime: STTRuntimeProtocol {
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         case .cohere:
             SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
+        }
+    }
+
+    private func capabilities(for engine: SpeechEnginePreference) -> SpeechEngineCapabilities {
+        SpeechEngineCapabilityRegistry.capabilities(for: variantKey(for: engine))
+    }
+
+    private func variantKey(for engine: SpeechEnginePreference) -> SpeechEngineVariantKey {
+        switch engine {
+        case .parakeet:
+            .parakeet(currentParakeetVariant)
+        case .nemotron:
+            .nemotron(nemotronModelVariant)
+        case .whisper:
+            .whisper(WhisperModelVariant.normalize(whisperModelVariant) ?? .largeV3Turbo632MB)
+        case .cohere:
+            .cohere
+        }
+    }
+
+    private func tailPreviewUnsupportedError(for key: SpeechEngineVariantKey) -> STTError {
+        switch key {
+        case .parakeet(.unified):
+            STTError.transcriptionFailed("Parakeet Unified uses native live dictation partials and does not support display-preview transcription.")
+        case .parakeet:
+            STTError.transcriptionFailed("Parakeet TDT supports display-preview transcription.")
+        case .nemotron:
+            STTError.transcriptionFailed("Nemotron uses native live dictation partials and does not support display-preview transcription.")
+        case .whisper:
+            STTError.transcriptionFailed("Whisper supports display-preview transcription.")
+        case .cohere:
+            STTError.transcriptionFailed("Cohere uses record-then-transcribe dictation and does not support display-preview transcription.")
         }
     }
 

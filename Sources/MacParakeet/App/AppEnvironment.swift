@@ -364,44 +364,44 @@ final class AppEnvironment {
     nonisolated static func shouldAttemptLiveDictationTranscription(
         speechEngine: SpeechEnginePreference = SpeechEnginePreference.current(),
         parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(),
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(),
+        whisperModelVariant: String = SpeechEnginePreference.whisperModelVariant(),
         liveDictationStreamingEnabled: Bool = AppFeatures.liveDictationStreamingEnabled
     ) -> Bool {
         guard liveDictationStreamingEnabled else { return false }
-        switch speechEngine {
-        case .nemotron:
-            // Both Nemotron builds stream live dictation partials from
-            // their FluidAudio streaming managers.
-            return true
-        case .parakeet:
-            return parakeetModelVariant.usesUnifiedEngine
-        case .whisper:
-            return false
-        case .cohere:
-            // Batch engine: record-then-transcribe, no live partials.
-            return false
-        }
+        return SpeechEngineCapabilityRegistry.capabilities(
+            for: speechEngine,
+            parakeetModelVariant: parakeetModelVariant,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant
+        )?.supportsNativeLiveDictation == true
     }
 
     nonisolated static func dictationPreviewSpeechEngine(
         speechEngine: SpeechEnginePreference = SpeechEnginePreference.current(),
         parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(),
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(),
+        whisperModelVariant: String = SpeechEnginePreference.whisperModelVariant(),
         liveDictationStreamingEnabled: Bool = AppFeatures.liveDictationStreamingEnabled
-    ) -> SpeechEngineSelection? {
+    ) -> SpeechEngineCapabilitySelection? {
         guard liveDictationStreamingEnabled else { return nil }
-        switch speechEngine {
-        case .parakeet:
-            guard !parakeetModelVariant.usesUnifiedEngine else {
-                return nil
-            }
-            return SpeechEngineSelection(engine: .parakeet)
-        case .nemotron:
-            return nil
-        case .whisper:
-            return nil
-        case .cohere:
-            // No display-preview path; Cohere finalizes on stop.
+        // Product policy still limits the display-preview lane to Parakeet TDT
+        // while this feature rides the live-dictation flag; the registry answers
+        // whether the selected Parakeet variant actually has that tail-preview path.
+        guard speechEngine == .parakeet else { return nil }
+        guard let capabilities = SpeechEngineCapabilityRegistry.capabilities(
+            for: speechEngine,
+            parakeetModelVariant: parakeetModelVariant,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant
+        ) else {
             return nil
         }
+        guard capabilities.supportsTailPreview else { return nil }
+        return SpeechEngineCapabilitySelection(
+            selection: SpeechEngineSelection(engine: .parakeet),
+            capabilities: capabilities
+        )
     }
 
     nonisolated static func syncAIFormatterAvailabilityWithLLMConfiguration(

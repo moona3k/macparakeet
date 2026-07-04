@@ -562,12 +562,38 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     }
 }
 
+public struct SpeechEngineCapabilitySelection: Equatable, Sendable {
+    public let selection: SpeechEngineSelection
+    public let capabilities: SpeechEngineCapabilities
+
+    public init(selection: SpeechEngineSelection, capabilities: SpeechEngineCapabilities) {
+        precondition(
+            selection.engine == capabilities.key.engine,
+            "SpeechEngineCapabilitySelection engine mismatch: \(selection.engine.rawValue) != \(capabilities.key.engine.rawValue)"
+        )
+        self.selection = selection
+        self.capabilities = capabilities
+    }
+}
+
 public struct SpeechEngineLease: Equatable, Sendable {
     public let id: UUID
     public let selection: SpeechEngineSelection
+    public let capabilities: SpeechEngineCapabilities?
 
-    public init(id: UUID = UUID(), selection: SpeechEngineSelection) {
+    public init(
+        id: UUID = UUID(),
+        selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
+        if let capabilities {
+            precondition(
+                selection.engine == capabilities.key.engine,
+                "SpeechEngineLease engine mismatch: \(selection.engine.rawValue) != \(capabilities.key.engine.rawValue)"
+            )
+        }
         self.id = id
         self.selection = selection
+        self.capabilities = capabilities
     }
 }

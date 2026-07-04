@@ -140,11 +140,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let systemAudioURL: URL
         let mixedAudioURL: URL
         let speechEngine: SpeechEngineSelection
+        let speechEngineCapabilities: SpeechEngineCapabilities?
         let startContext: MeetingStartContext?
         let calendarEventSnapshot: MeetingCalendarSnapshot?
 
         var supportsLiveChunkTranscription: Bool {
-            speechEngine.engine != .cohere
+            speechEngineCapabilities?.providesWordTimestamps ?? (speechEngine.engine != .cohere)
         }
     }
 
@@ -433,6 +434,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
         currentSpeechEngineLease = speechEngineLease
         let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
+        let speechEngineCapabilities = speechEngineLease?.capabilities
+            ?? Self.defaultCapabilities(for: speechEngine)
         let session = Session(
             id: sessionID,
             displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
@@ -443,6 +446,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             systemAudioURL: writer.systemAudioURL,
             mixedAudioURL: writer.mixedAudioURL,
             speechEngine: speechEngine,
+            speechEngineCapabilities: speechEngineCapabilities,
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot
         )
@@ -557,6 +561,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func isMissingFileError(_ error: Error) -> Bool {
         let nsError = error as NSError
         return nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError
+    }
+
+    private static func defaultCapabilities(for selection: SpeechEngineSelection) -> SpeechEngineCapabilities? {
+        SpeechEngineCapabilityRegistry.capabilities(for: selection.engine)
     }
 
     private func validateStartStillCurrent(_ session: Session) async throws {

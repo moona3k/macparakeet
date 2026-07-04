@@ -885,6 +885,36 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .cohere, language: "ja"))
     }
 
+    func testMeetingLivePreviewUsesLeaseCapabilities() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = LeasingMeetingSTTClient(
+            selection: SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await Task.sleep(for: .milliseconds(100))
+
+        let routedSelections = await sttClient.routedSelections
+        XCTAssertEqual(routedSelections, [])
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .parakeet))
+    }
+
     func testStaleChunkFailureFromPreviousSessionDoesNotPoisonNextSession() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -2945,11 +2975,16 @@ private actor StopOutputCapture {
 
 private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, SpeechEngineSessionManaging {
     private let selection: SpeechEngineSelection
+    private let capabilities: SpeechEngineCapabilities?
     private var activeLeases: Set<UUID> = []
     private(set) var routedSelections: [SpeechEngineSelection] = []
 
-    init(selection: SpeechEngineSelection) {
+    init(
+        selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
         self.selection = selection
+        self.capabilities = capabilities
     }
 
     var activeLeaseCount: Int {
@@ -2957,7 +2992,7 @@ private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTran
     }
 
     func beginSpeechEngineSession() async -> SpeechEngineLease {
-        let lease = SpeechEngineLease(selection: selection)
+        let lease = SpeechEngineLease(selection: selection, capabilities: capabilities)
         activeLeases.insert(lease.id)
         return lease
     }

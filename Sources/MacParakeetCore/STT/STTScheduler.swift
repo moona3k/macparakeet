@@ -222,12 +222,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         let id = UUID()
         liveDictationSession = .active(id)
         do {
-            let selection = await runtime.currentSpeechEngineSelection()
-            // Selection only carries the engine family. `STTRuntime` owns the
-            // active Parakeet sub-variant and rejects TDT v2/v3 below; the
-            // scheduler only filters families with no native live path at all.
-            guard selection.engine == .nemotron || selection.engine == .parakeet else {
-                throw STTLiveDictationTranscriptionError.unsupportedEngine(selection.engine)
+            let capabilities = await runtime.currentSpeechEngineCapabilities()
+            guard capabilities.supportsNativeLiveDictation else {
+                throw STTLiveDictationTranscriptionError.unsupportedEngine(capabilities.key.engine)
             }
             try await runtime.beginLiveDictationTranscription(
                 sessionID: id,
@@ -496,7 +493,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
                 )
             }
         }
-        return SpeechEngineLease(id: sessionID, selection: await runtime.currentSpeechEngineSelection())
+        let selection = await runtime.currentSpeechEngineSelection()
+        let capabilities = await runtime.currentSpeechEngineCapabilities()
+        return SpeechEngineLease(id: sessionID, selection: selection, capabilities: capabilities)
     }
 
     public func endSpeechEngineSession(_ lease: SpeechEngineLease) async {

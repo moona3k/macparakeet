@@ -109,7 +109,7 @@ public actor DictationService: DictationServiceProtocol {
     private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let shouldAttemptLiveDictationTranscription: @Sendable () -> Bool
     private let shouldShowDictationPreview: @Sendable () -> Bool
-    private let dictationPreviewSpeechEngine: @Sendable () -> SpeechEngineSelection?
+    private let dictationPreviewSpeechEngine: @Sendable () -> SpeechEngineCapabilitySelection?
     private let markFirstDictationCompleted: (@Sendable () -> Void)?
     private let cancelWindow: Duration
     private let dictationPreviewInterval: Duration
@@ -170,7 +170,7 @@ public actor DictationService: DictationServiceProtocol {
         aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         shouldAttemptLiveDictationTranscription: (@Sendable () -> Bool)? = nil,
         shouldShowDictationPreview: (@Sendable () -> Bool)? = nil,
-        dictationPreviewSpeechEngine: (@Sendable () -> SpeechEngineSelection?)? = nil,
+        dictationPreviewSpeechEngine: (@Sendable () -> SpeechEngineCapabilitySelection?)? = nil,
         markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
         cancelWindow: Duration = .seconds(5),
         dictationPreviewInterval: Duration = .seconds(1),
@@ -911,8 +911,9 @@ public actor DictationService: DictationServiceProtocol {
         guard let previewTranscriber = sttTranscriber as? any STTDictationPreviewTranscribing else {
             return nil
         }
-        guard let speechEngine = dictationPreviewSpeechEngine() else { return nil }
-        guard speechEngine.engine != .nemotron, speechEngine.engine != .cohere else { return nil }
+        guard let previewSpeechEngine = dictationPreviewSpeechEngine() else { return nil }
+        guard previewSpeechEngine.capabilities.supportsTailPreview else { return nil }
+        let speechEngine = previewSpeechEngine.selection
 
         var continuation: AsyncStream<[Float]>.Continuation?
         let stream = AsyncStream<[Float]>(bufferingPolicy: .bufferingNewest(120)) {

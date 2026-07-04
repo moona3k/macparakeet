@@ -70,7 +70,10 @@ final class STTSchedulerTests: XCTestCase {
 
     func testLiveDictationBeginAllowsParakeetSelectionForUnifiedRuntime() async throws {
         let runtime = MockSTTRuntime()
-        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .parakeet))
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        )
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
 
         let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
@@ -82,6 +85,42 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(result.engine, .parakeet)
         let liveDictationSamples = await runtime.liveDictationSamples
         XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
+    }
+
+    func testLiveDictationBeginRejectsParakeetTDTCapabilityBeforeRuntimeBegin() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        do {
+            _ = try await scheduler.beginLiveDictationTranscription { _ in }
+            XCTFail("Expected Parakeet TDT to be rejected by the capability gate")
+        } catch let error as STTLiveDictationTranscriptionError {
+            XCTAssertEqual(error, .unsupportedEngine(.parakeet))
+        } catch {
+            XCTFail("Expected unsupportedEngine, got \(error)")
+        }
+
+        let hasActiveSession = await runtime.hasActiveLiveDictationSession
+        XCTAssertFalse(hasActiveSession)
+    }
+
+    func testSessionLeaseCarriesCurrentCapabilities() async {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .whisper, language: "ko"),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertEqual(lease.capabilities?.key, .whisper(.largeV3Turbo632MB))
+        await scheduler.endSpeechEngineSession(lease)
     }
 
     func testLiveDictationFinalizationIgnoresConcurrentCancel() async throws {
@@ -1354,6 +1393,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     private(set) var nemotronModelVariantSwitches: [NemotronModelVariant] = []
     private var selection = SpeechEngineSelection(engine: .parakeet)
+    private var capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
     private var shouldBlockNextClearModelCache = false
@@ -1596,7 +1636,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: preference)
+        updateSelection(SpeechEngineSelection(engine: preference))
         ready = false
     }
 
@@ -1626,7 +1666,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: .parakeet)
+        updateSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(variant))
+        )
     }
 
     func setNemotronModelVariant(
@@ -1646,7 +1689,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: .nemotron)
+        updateSelection(
+            SpeechEngineSelection(engine: .nemotron),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+        )
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {
@@ -1660,8 +1706,27 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         return selection
     }
 
-    func setCurrentSelection(_ selection: SpeechEngineSelection) {
+    func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
+        capabilities
+    }
+
+    func setCurrentSelection(
+        _ selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
+        updateSelection(selection, capabilities: capabilities)
+    }
+
+    private func updateSelection(
+        _ selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
         self.selection = selection
+        self.capabilities = capabilities ?? Self.defaultCapabilities(for: selection.engine)
+    }
+
+    private static func defaultCapabilities(for engine: SpeechEnginePreference) -> SpeechEngineCapabilities {
+        SpeechEngineCapabilityRegistry.capabilities(for: engine)!
     }
 
     func blockNextSelectionRead() {
