@@ -85,8 +85,11 @@ Enrollment flywheel, correction-based (the Otter/Circleback pattern, minus cloud
 4. Next diarized recording: matcher compares detected-speaker embeddings against
    profiles → high-confidence matches surface as **suggestions** ("Looks like Sarah
    — confirm?"), never silent rewrites (2026-06-14 plan hard rule).
-5. Confirmation applies the label via the existing rename path AND adds that
-   meeting's embedding as a new profile sample → profiles improve with use.
+5. Confirmation applies the label via the existing rename path. Adding that
+   meeting's embedding as a new profile sample is part of the confirm action's
+   *disclosed* semantics ("Confirm and improve Sarah's voice profile") — samples
+   are only ever added to already-enrolled profiles via this explicit act, so v1
+   never retains voiceprints from ambient recordings for anyone unenrolled.
 6. Unknowns stay "Others N". Below-margin matches stay unknown ("wrong automatic
    names are worse than anonymous speakers").
 
@@ -104,7 +107,11 @@ accumulation). That's Phase 3, a separate opt-in, decided later.
   learn from <2s backchannels (snap those to the surrounding turn's label instead).
 - Profiles: K ≤ 10 raw reference embeddings + recomputed centroid; score = max over
   references (preserves per-channel modes); samples added only on user confirmation
-  (no silent EMA — poisoning/drift).
+  (no silent EMA — poisoning/drift). **At most one sample per profile per
+  recording** (the speaker-level aggregate): offline segment embeddings are
+  cluster-derived from the same centroid, so storing several from one meeting
+  would inflate `sampleCount` and fake diversity — K references should mean K
+  distinct recordings/channels.
 - Channel tags on every sample (`system`, `microphone`, `file`) — prefer
   same-channel references when scoring; channel mismatch is the default failure
   mode, not an edge case.
@@ -120,10 +127,17 @@ accumulation). That's Phase 3, a separate opt-in, decided later.
   `matches(for:channel:)`, `enroll(...)`, `recordConfirmation(...)`, `deleteProfile(...)`,
   `deleteAll()`. Pure-Swift cosine math (embeddings already L2-normalized → dot
   product); O(profiles × detected speakers) — microseconds, no scheduler involvement.
+  **Adapter prerequisite:** today `DiarizationService.diarize()` drops FluidAudio's
+  `speakerDatabase`/segment embeddings when building `MacParakeetDiarizationResult`
+  — Phase 1's first change is surfacing per-speaker embeddings through that
+  adapter (behind the feature flag), otherwise the matcher has nothing to score.
 - **Assignment provenance**: per the 2026-06-14 plan, do NOT extend `SpeakerInfo`.
   New `transcriptions.speakerAssignments` JSON column keyed by speakerId:
   `{source: channel|diarization|userCorrection|profileSuggestion|profileConfirmed,
-  profileId?, confidence?}`. Matching `spec/contracts/` doc updated in the same PR.
+  profileId?, confidence?}`. `profileId`/`confidence` are sensitive identity
+  metadata: default exports, diagnostics, and support bundles carry display
+  labels only and omit/redact assignment metadata. Matching `spec/contracts/`
+  doc updated in the same PR.
 - **Wiring**: the two insertion points above.
 - **Settings**: "Remember speakers" toggle (default off, requires speaker detection
   on) + profile list with per-profile delete + "Delete all voice profiles".
