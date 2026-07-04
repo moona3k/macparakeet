@@ -1,0 +1,31 @@
+{
+ "generatedAt": "2026-07-03T23:01:35-0700",
+ "selectionRule": "all sessions with readable microphone.m4a and system.m4a durations >= 300 seconds",
+ "requestedCount": 40,
+ "selectedCount": 3,
+ "blockedReason": "Only 3 sessions in the retained folder satisfy readable paired tracks and duration >= 5 min.",
+ "sessions": [
+  {
+   "label": "M1",
+   "month": "2026-04",
+   "durationSecApprox": "~21 min",
+   "microphoneSecApprox": "~21 min",
+   "systemSecApprox": "~21 min"
+  },
+  {
+   "label": "M2",
+   "month": "2026-06",
+   "durationSecApprox": "~26 min",
+   "microphoneSecApprox": "~26 min",
+   "systemSecApprox": "~26 min"
+  },
+  {
+   "label": "M3",
+   "month": "2026-06",
+   "durationSecApprox": "~43 min",
+   "microphoneSecApprox": "~43 min",
+   "systemSecApprox": "~43 min"
+  }
+ ],
+ "note": "Session labels M1-M3 are local anonymized identifiers; the UUID mapping stays uncommitted."
+}

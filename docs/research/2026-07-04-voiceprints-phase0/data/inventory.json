@@ -1,0 +1,122 @@
+{
+ "note": "Per-session roster withheld (private-meeting metadata); aggregates only. Full inventory regenerates locally via the harness.",
+ "summary": {
+  "generatedAt": "2026-07-03T22:49:44-0700",
+  "root": "~/Library/Application Support/MacParakeet/meeting-recordings",
+  "sessionCount": 465,
+  "dateRange": {},
+  "tracks": {
+   "microphone": 463,
+   "system": 457,
+   "meeting": 21,
+   "cleanedMicrophone": 3,
+   "bothMicrophoneAndSystem": 457
+  },
+  "durationSec": {
+   "count": 24,
+   "min": 0.124,
+   "p5": 0.32,
+   "p25": 0.5015000000000001,
+   "p50": 21.071,
+   "p75": 416.38800000000003,
+   "p95": 2411.6697500000014,
+   "max": 2834.602,
+   "mean": 465.1070833333333
+  },
+  "eligibleDurationAtLeast5MinBothTracks": 3,
+  "perTrack": {
+   "microphone.m4a": {
+    "exists": 463,
+    "nonzeroBytes": 328,
+    "validDuration": 22,
+    "durationSec": {
+     "count": 22,
+     "min": 0.149333,
+     "p5": 0.32,
+     "p25": 0.37866675,
+     "p50": 11.9466665,
+     "p75": 234.88533325,
+     "p95": 1533.9424003,
+     "max": 2563.861333,
+     "mean": 375.20096963636365
+    }
+   },
+   "system.m4a": {
+    "exists": 457,
+    "nonzeroBytes": 258,
+    "validDuration": 14,
+    "durationSec": {
+     "count": 14,
+     "min": 0.064,
+     "p5": 0.3136,
+     "p25": 6.912000000000001,
+     "p50": 128.725333,
+     "p75": 989.9093334999999,
+     "p95": 2658.0672001,
+     "max": 2834.645333,
+     "mean": 637.9123809285713
+    }
+   },
+   "meeting.m4a": {
+    "exists": 21,
+    "nonzeroBytes": 21,
+    "validDuration": 18,
+    "durationSec": {
+     "count": 18,
+     "min": 0.124,
+     "p5": 0.4963,
+     "p25": 10.45175,
+     "p50": 149.5205,
+     "p75": 1108.4842500000002,
+     "p95": 2604.43475,
+     "max": 2834.602,
+     "mean": 619.8227777777778
+    }
+   },
+   "microphone-cleaned.m4a": {
+    "exists": 3,
+    "nonzeroBytes": 3,
+    "validDuration": 3,
+    "durationSec": {
+     "count": 3,
+     "min": 183.552,
+     "p5": 184.9536,
+     "p25": 190.56,
+     "p50": 197.568,
+     "p75": 1380.768,
+     "p95": 2327.3279999999995,
+     "max": 2563.968,
+     "mean": 981.6959999999999
+    }
+   }
+  },
+  "validMicrophoneAndSystemDuration": {
+   "count": 12,
+   "durationSec": {
+    "count": 12,
+    "min": 0.149333,
+    "p5": 0.37226670000000006,
+    "p25": 5.264000000000001,
+    "p50": 105.397333,
+    "p75": 494.89066675000004,
+    "p95": 2005.9882666999993,
+    "max": 2563.861333,
+    "mean": 502.0319999166666
+   }
+  },
+  "validMicrophoneAndSystemDurationAtLeast5Min": {
+   "count": 3,
+   "durationSec": {
+    "count": 3,
+    "min": 1237.482667,
+    "p5": 1268.689067,
+    "p25": 1393.514667,
+    "p50": 1549.546667,
+    "p75": 2056.7039999999997,
+    "p95": 2462.4298663999994,
+    "max": 2563.861333,
+    "mean": 1783.6302223333332
+   }
+  }
+ }
+}

@@ -1,8 +1,11 @@
 # Persistent Speaker Profiles (Voiceprints) — Research Synthesis + Implementation Plan
 
 - **Date:** 2026-07-03
-- **Status:** PROPOSED — pending Daniel's calls on §Open Questions and the Phase 0
-  GO/NO-GO gate
+- **Status:** PROPOSED — decisions settled 2026-07-04; Phase 0 result: NO-GO on
+  the current meeting corpus (pre-AEC echo contamination + only 3 usable
+  sessions; embeddings not proven insufficient). Phase 1 blocked pending Phase
+  0b clean-corpus validation — see
+  `docs/research/2026-07-04-voiceprints-phase0-calibration.md`.
 - **Trigger:** issue #662 (yakov0922) + a Reddit voiceprint post aimed at MacWhisper;
   related demand in #430, #106
 - **Research:** 5 delegated reports in
@@ -188,15 +191,9 @@ differentiator, but honestly:
   identity once live diarization (#430) ships; calendar-attendee hints (hints
   only, never authoritative).
 
-## Open questions (Daniel)
+## Decisions (Daniel, 2026-07-04)
 
-1. **Always-confirm vs graduated auto-apply.** The 2026-06-14 plan says suggestions
-   always require confirmation. Recommend: v1 strict confirm; consider opt-in
-   auto-apply (with provenance chip + undo) only after dogfooding proves precision.
-2. **Ambient embeddings for unnamed speakers** (enables the issue's exact UX +
-   retro-matching): recommend NO for v1 — strictest consent posture, smallest
-   surface.
-3. **BIPA posture**: docs-only vs regional gating. Recommend docs-only + consent
-   gate (indie, local-only, user-controlled).
-4. **Podcast/file scope in v1 or v2**: recommend v2 (Phase 2) to keep Phase 1
-   reviewable, even though it's the Reddit author's own use case.
+1. **Auto-apply: strict confirm in v1.** Every match surfaces as a suggestion requiring confirmation; opt-in auto-apply (provenance chip + undo) reconsidered only after dogfooding shows precision.
+2. **Ambient embeddings: NO.** v1 stores embeddings only for explicitly enrolled speakers; recurring-unknown detection remains a Phase 3 decision with its own opt-in.
+3. **BIPA posture: docs + consent gate only.** First-enrollment permission acknowledgment plus plain-language guidance; no regional gating.
+4. **Podcast/file scope: Phase 2.** v1 is meetings-only to keep the first PR series reviewable.
