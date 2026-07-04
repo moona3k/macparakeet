@@ -113,6 +113,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (Phase A mic-health telemetry watchdog implemented; warning UI + repair proposed) |
 | [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy — local-only reaffirmed; two runtimes (FluidAudio primary, WhisperKit fallback); engines grow as variants not new cards; capability registry required before a new engine family; Apple SpeechTranscriber spike-only |
 | [ADR-027](adr/027-product-north-star.md) | Product north star — MacParakeet is the private speech memory of your Mac; Library (search + QA + export) becomes the center of gravity; agent access first-class; ambient capture parked (not rejected); session-based capture stands |
+| [ADR-028](adr/028-meeting-echo-cancellation.md) | Offline meeting echo cancellation via derived cleaned-mic artifact |
 
 ## Version Roadmap
 

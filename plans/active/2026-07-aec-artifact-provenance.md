@@ -6,5 +6,6 @@ support/QA must determine cleaned-vs-raw and why without app logs. Design:
 render-resolution summary (reason code, model version, render timing, delay
 estimate, probe stats) persisted as additive optional `echoSuppression` fields
 in meeting-recording-metadata.json, written when the readiness gate resolves
-(PR #671's taxonomy). Shipped with the echo-probe skip PR. Related: journal
-design rationale 2026-07-03; ADR-026 (pending).
+(PR #671's taxonomy, extended by #705's long-meeting guard). Shipped with the
+echo-probe skip PR. Related: journal design rationale 2026-07-03;
+[ADR-028](../../spec/adr/028-meeting-echo-cancellation.md).

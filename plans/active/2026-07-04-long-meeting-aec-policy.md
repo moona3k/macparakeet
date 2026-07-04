@@ -247,5 +247,5 @@ runs on separate branches off `origin/main`.
   behavior for <2 h meetings is unchanged).
 - Watch `meeting_cleaned_mic` log lines for `predictedRenderTimeout`
   occurrences in diagnostics to learn how often real users hit 2 h+ meetings.
-- Phase 2 gets its own plan revision + ADR touch (ADR-026 provenance section)
+- Phase 2 gets its own plan revision + ADR touch (ADR-028 provenance section)
   when green-lit.
