@@ -6,8 +6,8 @@
 > the meeting corpus is the product's long-term asset; interfaces and indexes
 > are re-derivable later, but context not captured at meeting time is lost
 > forever.
-> Evidence: capture-data audit 2026-07-03 (file:line refs inlined below;
-> verified against `north-star-vision` @ 72c4cc468).
+> Evidence: capture-data audit 2026-07-03; key source surfaces are named below.
+> Drift-check before executing any slice.
 
 ## Goal
 
@@ -16,7 +16,7 @@ that future cross-meeting search, QA, and agent access will need — with no
 new UI and no user-visible behavior change. This plan is capture-side only:
 it makes records richer from the day it ships. It deliberately builds
 nothing on top (no index, no chat surface, no embeddings — all re-derivable
-later per ADR-027).
+later per [ADR-027](../../spec/adr/027-product-north-star.md)).
 
 What already exists and must not regress: word timestamps + confidence +
 mic/system attribution persist (`Transcription.wordTimestamps`, finalizer
@@ -27,13 +27,13 @@ exposes list/show/transcript/export with words + speakers in JSON.
 ## Slice 1 — Calendar context snapshot (the big one)
 
 Today only the event **title** survives auto-start (as the record's
-`fileName`); event id, scheduled start/end, attendees, organizer, and
-meeting URL are fetched each poll tick and discarded
-(`Calendar/CalendarEvent.swift` — the doc comment there explicitly
-anticipates this feature; `MeetingAutoStartCoordinator.swift` passes title
-only). ADR-017 §6 decided not to persist events; that rationale predates
-ADR-027, so **amending ADR-017 is part of this slice** (repo rule: update
-the ADR deliberately, don't code around it).
+`fileName`). `Sources/MacParakeetCore/Calendar/CalendarEvent.swift` carries
+event id, external id, scheduled start/end, attendees, and meeting URL at
+poll time, then `Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift`
+passes only the title into the recording flow. Organizer is not converted
+today, so adding it belongs to this slice. ADR-017 §6 decided not to persist
+events; that rationale predates ADR-027, so **amending ADR-017 is part of
+this slice** (repo rule: update the ADR deliberately, don't code around it).
 
 - On auto-start, snapshot the triggering event onto the meeting record:
   `eventIdentifier`, `externalId`, title, scheduled start/end, attendees
@@ -60,8 +60,9 @@ the ADR deliberately, don't code around it).
 ## Slice 2 — Start context for every recording (small)
 
 Manually started meetings get a date-as-title and nothing else
-(`MeetingRecordingFlowCoordinator` start path); ADR-024's app-detection
-collectors are compiled but disabled, and activity snapshots are transient.
+(`Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift` start path);
+ADR-024's app-detection collectors are compiled but disabled, and activity
+snapshots are transient.
 Without turning ADR-024 detection on:
 
 - Persist at recording start: trigger kind (manual / hotkey / calendar
@@ -73,8 +74,9 @@ Without turning ADR-024 detection on:
 ## Slice 3 — Durable transcript segments
 
 Segments are currently derived on the fly for UI from word timestamps
-(`TranscriptSegmenter`), with synthesized identity (start + speaker) — an
-agent cannot stably cite "meeting X, segment 47".
+(`Sources/MacParakeetCore/Utilities/TranscriptSegmenter.swift`), with
+synthesized identity (start + speaker) — an agent cannot stably cite
+"meeting X, segment 47".
 
 - At finalization, materialize segments with: UUID, start/end, speaker or
   source label, text, and word-index range into the persisted word array.
@@ -90,14 +92,16 @@ agent cannot stably cite "meeting X, segment 47".
 
 ## Open product decisions (Daniel — no code until decided)
 
-1. **Diarization default** — currently off (`AppRuntimePreferences`),
-   requires a system track. Corpus value says on-by-default where
-   supported; cost is per-meeting compute. Decide separately.
+1. **Diarization default** — currently off
+   (`Sources/MacParakeetCore/AppRuntimePreferences.swift`), requires a
+   system track. Corpus value says on-by-default where supported; cost is
+   per-meeting compute. Decide separately.
 2. **Raw-audio retention posture** — Remove Audio/retention deletes all
-   raw tracks (`TranscriptionAssetCleanup`), which permanently forecloses
-   later diarization/re-transcription backfill. Options: let raw sources
-   outlive mixed audio, or keep behavior and add honest warning copy.
-   Decide separately; this plan does not change deletion behavior.
+   raw tracks (`Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift`),
+   which permanently forecloses later diarization/re-transcription backfill.
+   Options: let raw sources outlive mixed audio, or keep behavior and add
+   honest warning copy. Decide separately; this plan does not change
+   deletion behavior.
 
 ## Deliberately deferred
 
