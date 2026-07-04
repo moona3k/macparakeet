@@ -1,3 +1,4 @@
+import Accelerate
 import Foundation
 
 /// The result of estimating how far the microphone's echo lags the system-audio
@@ -74,38 +75,27 @@ struct MeetingEchoDelayEstimator: Sendable {
         return micEmphasized.withUnsafeBufferPointer { mic in
             refEmphasized.withUnsafeBufferPointer { ref in
                 var micEnergy: Float = 0
-                for n in windowStart..<count {
-                    micEnergy += mic[n] * mic[n]
-                }
+                let vectorLength = vDSP_Length(windowLength)
+                let micStart = mic.baseAddress!.advanced(by: windowStart)
+                vDSP_dotpr(micStart, 1, micStart, 1, &micEnergy, vectorLength)
                 guard micEnergy > 0 else { return nil }
-
-                var refEnergies: [Float] = []
-                refEnergies.reserveCapacity(maxLagSamples + 1)
-                var currentRefEnergy: Float = 0
-                for n in windowStart..<count {
-                    let r = ref[n]
-                    currentRefEnergy += r * r
-                }
-                refEnergies.append(currentRefEnergy)
-                if maxLagSamples > 0 {
-                    for lag in 1...maxLagSamples {
-                        let removed = ref[count - lag]
-                        let added = ref[windowStart - lag]
-                        currentRefEnergy += added * added - removed * removed
-                        refEnergies.append(max(0, currentRefEnergy))
-                    }
-                }
 
                 var bestLag = 0
                 var bestScore: Float = 0  // |normalized correlation|
                 for lag in 0...maxLagSamples {
-                    let refEnergy = refEnergies[lag]
+                    let refStart = ref.baseAddress!.advanced(by: windowStart - lag)
+                    var refEnergy: Float = 0
+                    vDSP_dotpr(refStart, 1, refStart, 1, &refEnergy, vectorLength)
                     guard refEnergy > 0 else { continue }
                     var cross: Float = 0
-                    for n in windowStart..<count {
-                        let r = ref[n - lag]
-                        cross += mic[n] * r
-                    }
+                    vDSP_dotpr(
+                        micStart,
+                        1,
+                        refStart,
+                        1,
+                        &cross,
+                        vectorLength
+                    )
                     let normalized = cross / (micEnergy * refEnergy).squareRoot()
                     let score = min(1, abs(normalized))
                     if score > bestScore {
