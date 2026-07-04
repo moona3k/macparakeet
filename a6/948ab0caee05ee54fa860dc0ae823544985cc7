@@ -8,6 +8,7 @@ Tests/CLITests/MeetingsCommandTests.swift
 Sources/MacParakeetViewModels/TranscriptionViewModel.swift
   s_03194fc411710d::t_6df1a8cb0b61b9 1450,1469,1473-1476,1478-1485
   s_e658bd8f2c85c4::t_f02a6747e2e1bd 1486-1487
+  s_03194fc411710d::t_ff0cbb669eaa79 1352-1353,1393,1443-1444,1446-1449,1470-1472,1477
 Sources/CLI/Commands/PromptsCommand.swift
   s_03194fc411710d::t_a00b182afd6271 483-486,499-512
   s_03194fc411710d::t_cc0c37b76845af 513-515
