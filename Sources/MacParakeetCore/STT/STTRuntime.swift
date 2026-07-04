@@ -767,11 +767,13 @@ public actor STTRuntime: STTRuntimeProtocol {
                 try await rescorer.prepare(vocabulary: vocabulary)
             case .backgroundIfNeeded:
                 guard await rescorer.isPrepared(vocabulary: vocabulary) else {
+                    try Task.checkCancellation()
                     startBackgroundCustomVocabularyPreparation(
                         vocabulary: vocabulary,
                         rescorer: rescorer,
                         logger: logger
                     )
+                    try Task.checkCancellation()
                     return result
                 }
             }

@@ -137,6 +137,38 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(requestCount, 1)
     }
 
+    func testDictationBackgroundPreparationPropagatesCancellationAfterReadinessProbe() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(
+            text: "MacParakeet",
+            isPrepared: false,
+            isPreparedDelayNanoseconds: 50_000_000
+        )
+        let task = Task {
+            try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+                transcript: "MAC Parakeet",
+                tokenTimings: Self.tokenTimings,
+                audioSamples: [0.1, 0.2, 0.3],
+                capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+                vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+                rescorer: rescorer,
+                preparationMode: .backgroundIfNeeded
+            )
+        }
+
+        try await Task.sleep(nanoseconds: 10_000_000)
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation to escape cold dictation boosting")
+        } catch is CancellationError {
+            let prepareCount = await rescorer.prepareCount()
+            let requestCount = await rescorer.requestCount()
+            XCTAssertEqual(prepareCount, 0)
+            XCTAssertEqual(requestCount, 0)
+        }
+    }
+
     func testSupportedEngineInvokesSidecarWithOriginalSamples() async throws {
         let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
         let samples: [Float] = [0.1, 0.2, 0.3, 0.0, 0.0]
@@ -280,15 +312,25 @@ private actor FakeCustomVocabularyRescorer: CustomVocabularyRescoring {
     private var prepareCalls = 0
     private let text: String
     private let error: Error?
+    private let isPreparedDelayNanoseconds: UInt64
 
-    init(text: String = "boosted", error: Error? = nil, isPrepared: Bool = true) {
+    init(
+        text: String = "boosted",
+        error: Error? = nil,
+        isPrepared: Bool = true,
+        isPreparedDelayNanoseconds: UInt64 = 0
+    ) {
         self.text = text
         self.error = error
         self.prepared = isPrepared
+        self.isPreparedDelayNanoseconds = isPreparedDelayNanoseconds
     }
 
     func isPrepared(vocabulary: CustomVocabularyBoostingVocabulary) async -> Bool {
-        prepared
+        if isPreparedDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: isPreparedDelayNanoseconds)
+        }
+        return prepared
     }
 
     func prepare(vocabulary: CustomVocabularyBoostingVocabulary) async throws {
