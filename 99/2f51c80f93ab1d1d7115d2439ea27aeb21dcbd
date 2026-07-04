@@ -1,0 +1,27 @@
+spec/contracts/meeting-artifacts-v1.md
+  s_03194fc411710d::t_664bf98213cee5 22-24,66-71,90-91,115,118-124,188-192
+integrations/README.md
+  s_03194fc411710d::t_aef87442c64a95 382-383,388-392,536
+spec/contracts/cli-json-v1.md
+  s_03194fc411710d::t_e57bb48fdfac34 62-71,129-130
+spec/01-data-model.md
+  s_03194fc411710d::t_fcfa2dd87b5f70 159
+Sources/CLI/CHANGELOG.md
+  s_03194fc411710d::t_11b31276c1a6ce 94-102,128-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "992f51c80f93ab1d1d7115d2439ea27aeb21dcbd",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
