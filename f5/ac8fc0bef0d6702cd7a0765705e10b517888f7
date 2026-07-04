@@ -1,0 +1,19 @@
+docs/audits/2026-07-04-localvqe-aec-runtime-findings.md
+  s_dcba8a1ad7a2cc::t_d753bbf82ac72e 1-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5ac8fc0bef0d6702cd7a0765705e10b517888f7",
+  "prompts": {},
+  "sessions": {
+    "s_dcba8a1ad7a2cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ae7-6076-79a3-9300-28c76e60b78f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
