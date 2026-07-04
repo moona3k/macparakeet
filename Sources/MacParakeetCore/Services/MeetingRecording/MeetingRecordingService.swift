@@ -254,6 +254,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var latestLevels = MeetingAudioLevels()
     private var sourceHealthLastBufferAt: [AudioSource: Date] = [:]
     private var activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?
+    private var recentMicrophoneRms: Float = 0
     private var recentSystemRms: Float = 0
     private var recentProcessedMicRms: Float = 0
     private var latestSystemSignalAt: ContinuousClock.Instant?
@@ -395,8 +396,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         return MeetingCaptureHealthSummary.reduce(
             sourceMode: sourceMode,
-            microphoneLevel: latestLevels.microphone,
-            systemLevel: latestLevels.system,
+            microphoneLevel: microphoneCaptureHealthRms,
+            systemLevel: recentSystemRms,
             lastBufferAt: sourceHealthLastBufferAt,
             isMicrophoneMuted: microphoneMuteState.isMuted,
             microphoneStarted: captureHealthMetrics.microphoneStarted,
@@ -506,6 +507,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             captureHealthMetrics = CaptureHealthMetrics()
             sourceHealthLastBufferAt = [:]
             activeMicrophoneStall = nil
+            recentMicrophoneRms = 0
             recentSystemRms = 0
             recentProcessedMicRms = 0
             latestSystemSignalAt = nil
@@ -816,6 +818,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // pauses, instead of decaying from the EMA over the next few
         // hundred ms. Same reasoning as the `failCapture` path.
         latestLevels = MeetingAudioLevels()
+        recentMicrophoneRms = 0
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
@@ -862,6 +865,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         if muted {
             microphoneMutedHostTime = Self.currentAudioHostTime()
             latestLevels.microphone = 0
+            recentMicrophoneRms = 0
             recentProcessedMicRms = 0
         } else {
             if let microphoneMutedHostTime {
@@ -958,6 +962,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 try writer?.write(recordingBuffer, source: .microphone)
                 if handling == .recordAndProcess {
                     latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
+                    updateMicrophoneRms(with: latestLevels.microphone)
                     if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
                         await ingestResampledSamples(
                             samples,
@@ -1031,6 +1036,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func failCapture(_ error: Error) async {
         captureFailed = true
         latestLevels = MeetingAudioLevels()
+        recentMicrophoneRms = 0
+        recentSystemRms = 0
+        recentProcessedMicRms = 0
         microphoneMuted = false
         activeMicrophoneStall = nil
         microphoneMutedHostTime = nil
@@ -1496,6 +1504,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return size.uint64Value
     }
 
+    private var microphoneCaptureHealthRms: Float {
+        recentProcessedMicRms > 0 ? recentProcessedMicRms : recentMicrophoneRms
+    }
+
+    private func updateMicrophoneRms(with bufferRms: Float) {
+        recentMicrophoneRms = exponentialMovingAverage(previous: recentMicrophoneRms, sample: bufferRms)
+    }
+
     private func updateSystemRms(with bufferRms: Float) {
         recentSystemRms = exponentialMovingAverage(previous: recentSystemRms, sample: bufferRms)
         if bufferRms > Self.systemActiveFloor {
@@ -1602,6 +1618,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sourceHealthLastBufferAt = [:]
         activeMicrophoneStall = nil
         interruptedSources = []
+        recentMicrophoneRms = 0
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
