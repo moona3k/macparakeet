@@ -91,7 +91,7 @@ struct TranscriptResultView: View {
 
     @State private var backHovered = false
     @State private var headerExpanded = false
-    @State private var speakerOverviewExpanded = false
+    @State private var speakerOverviewExpanded = true
     @State private var copied = false
     @State private var copiedResultID: UUID?
     @State private var copiedButtonResultID: UUID?
@@ -137,6 +137,7 @@ struct TranscriptResultView: View {
     /// manual-scroll pause when find never navigated.
     @State private var findPausedAutoScroll = false
     @State private var editingSpeakerId: String?
+    @State private var editingSpeakerContextID: String?
     @State private var editingSpeakerLabel: String = ""
     @State private var showConversationPopover = false
     @State private var hoveredConversationId: UUID?
@@ -226,7 +227,7 @@ struct TranscriptResultView: View {
             }
             rebuildSegmentCache()
             headerExpanded = false
-            speakerOverviewExpanded = false
+            speakerOverviewExpanded = true
             editingMeetingTitle = false
             meetingTitleDraft = ""
             editingTranscript = false
@@ -2849,6 +2850,14 @@ struct TranscriptResultView: View {
             segments: cachedSegments,
             speakerColorMap: cachedSpeakerColorMap,
             speakerLabelForID: { cachedSpeakerLabelMap[$0] ?? "Unknown" },
+            speakerLabelContent: { speakerID, speakerLabel, speakerColor, renameContextID in
+                speakerLabelView(
+                    speaker: SpeakerInfo(id: speakerID, label: speakerLabel),
+                    color: speakerColor,
+                    contextID: renameContextID,
+                    font: DesignSystem.Typography.body.weight(.semibold)
+                )
+            },
             isSegmentActive: isSegmentActiveBinarySearch(segmentIndex:),
             timestampLabel: { formatTimestamp(ms: $0) },
             isTimestampSeekable: playerViewModel.playerState == .ready,
@@ -2877,68 +2886,77 @@ struct TranscriptResultView: View {
         )
 
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            // Collapsible header row
-            HStack {
-                Text("Speaker overview")
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-
-                if !speakerOverviewExpanded {
-                    // Compact inline speaker dots when collapsed
-                    HStack(spacing: 4) {
-                        ForEach(speakers.prefix(6), id: \.id) { speaker in
-                            Circle()
-                                .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .rotationEffect(.degrees(speakerOverviewExpanded ? 180 : 0))
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
+            Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     speakerOverviewExpanded.toggle()
                 }
-            }
+            } label: {
+                HStack {
+                    Text("Speaker overview")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-            if speakerOverviewExpanded {
-            ForEach(speakers, id: \.id) { speaker in
-                let stats = speakerStats[speaker.id]
-                HStack(spacing: DesignSystem.Spacing.md) {
-                    Circle()
-                        .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
-                        .frame(width: 10, height: 10)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        speakerLabelView(speaker: speaker, color: colorMap[speaker.id] ?? DesignSystem.Colors.textSecondary)
-
-                        if let stats {
-                            HStack(spacing: DesignSystem.Spacing.sm) {
-                                metadataChip(icon: "clock", text: formatSpeakingTime(ms: stats.speakingTimeMs), tint: DesignSystem.Colors.textSecondary)
-                                metadataChip(icon: "text.word.spacing", text: "\(stats.wordCount.formatted()) words", tint: DesignSystem.Colors.textSecondary)
+                    if !speakerOverviewExpanded {
+                        // Compact inline speaker dots when collapsed
+                        HStack(spacing: 4) {
+                            ForEach(speakers.prefix(6), id: \.id) { speaker in
+                                Circle()
+                                    .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
+                                    .frame(width: 8, height: 8)
                             }
                         }
                     }
 
                     Spacer()
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .rotationEffect(.degrees(speakerOverviewExpanded ? 180 : 0))
                 }
-                .padding(DesignSystem.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.45))
-                )
             }
-            Text("Speaker labels are approximate.")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-            } // end if speakerOverviewExpanded
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(SpeakerRenameAccessibility.overviewToggleLabel(isExpanded: speakerOverviewExpanded))
+            .accessibilityHint(SpeakerRenameAccessibility.overviewToggleHint)
+            .accessibilityIdentifier(SpeakerRenameAccessibility.overviewToggleIdentifier)
+
+            if speakerOverviewExpanded {
+                ForEach(speakers, id: \.id) { speaker in
+                    let stats = speakerStats[speaker.id]
+                    HStack(spacing: DesignSystem.Spacing.md) {
+                        Circle()
+                            .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
+                            .frame(width: 10, height: 10)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            speakerLabelView(
+                                speaker: speaker,
+                                color: colorMap[speaker.id] ?? DesignSystem.Colors.textSecondary,
+                                contextID: SpeakerRenameAccessibility.overviewRenameContextIdentifier(for: speaker.id)
+                            )
+
+                            if let stats {
+                                HStack(spacing: DesignSystem.Spacing.sm) {
+                                    metadataChip(icon: "clock", text: formatSpeakingTime(ms: stats.speakingTimeMs), tint: DesignSystem.Colors.textSecondary)
+                                    metadataChip(icon: "text.word.spacing", text: "\(stats.wordCount.formatted()) words", tint: DesignSystem.Colors.textSecondary)
+                                }
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(DesignSystem.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                            .fill(DesignSystem.Colors.surfaceElevated.opacity(0.45))
+                    )
+                }
+                Text("Speaker labels are approximate.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
         }
         .padding(DesignSystem.Spacing.md)
         .background(
@@ -2948,10 +2966,15 @@ struct TranscriptResultView: View {
     }
 
     @ViewBuilder
-    private func speakerLabelView(speaker: SpeakerInfo, color: Color) -> some View {
-        if editingSpeakerId == speaker.id {
+    private func speakerLabelView(
+        speaker: SpeakerInfo,
+        color: Color,
+        contextID: String,
+        font: Font = DesignSystem.Typography.caption.weight(.semibold)
+    ) -> some View {
+        if editingSpeakerId == speaker.id, editingSpeakerContextID == contextID {
             TextField("Name", text: $editingSpeakerLabel)
-                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .font(font)
                 .foregroundStyle(color)
                 .textFieldStyle(.plain)
                 .frame(minWidth: 60, maxWidth: 200)
@@ -2968,38 +2991,44 @@ struct TranscriptResultView: View {
                         commitSpeakerRename()
                     }
                 }
-                .accessibilityLabel("Speaker name")
-                .accessibilityHint("Press Return or move focus away to save. Press Escape to cancel.")
+                .accessibilityLabel(SpeakerRenameAccessibility.speakerNameFieldLabel)
+                .accessibilityHint(SpeakerRenameAccessibility.speakerNameFieldHint)
+                .accessibilityIdentifier(SpeakerRenameAccessibility.speakerNameFieldIdentifier(for: speaker.id))
         } else {
             HStack(spacing: 6) {
                 Text(speaker.label)
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .font(font)
                     .foregroundStyle(color)
                     .onTapGesture {
-                        beginSpeakerRename(speaker)
+                        beginSpeakerRename(speaker, contextID: contextID)
                     }
 
                 Button {
-                    beginSpeakerRename(speaker)
+                    beginSpeakerRename(speaker, contextID: contextID)
                 } label: {
-                    Image(systemName: "pencil")
+                    Label(SpeakerRenameAccessibility.renameButtonLabel(for: speaker.label), systemImage: "pencil")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 20, height: 20)
                 }
                 .parakeetAction(.subtle)
                 .controlSize(.small)
-                .help("Rename \(speaker.label)")
-                .accessibilityLabel("Rename \(speaker.label)")
-                .accessibilityHint("Edits this speaker label for this meeting only.")
+                .help(SpeakerRenameAccessibility.renameButtonLabel(for: speaker.label))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(SpeakerRenameAccessibility.renameButtonLabel(for: speaker.label))
+                .accessibilityHint(SpeakerRenameAccessibility.renameButtonHint)
+                .accessibilityIdentifier(SpeakerRenameAccessibility.renameButtonIdentifier(for: speaker.id))
             }
+            .accessibilityElement(children: .contain)
         }
     }
 
-    private func beginSpeakerRename(_ speaker: SpeakerInfo) {
-        if editingSpeakerId != nil, editingSpeakerId != speaker.id {
+    private func beginSpeakerRename(_ speaker: SpeakerInfo, contextID: String) {
+        if editingSpeakerId != nil, editingSpeakerId != speaker.id || editingSpeakerContextID != contextID {
             commitSpeakerRename()
         }
         editingSpeakerId = speaker.id
+        editingSpeakerContextID = contextID
         editingSpeakerLabel = speaker.label
     }
 
@@ -3015,6 +3044,7 @@ struct TranscriptResultView: View {
 
     private func cancelSpeakerRename() {
         editingSpeakerId = nil
+        editingSpeakerContextID = nil
         editingSpeakerLabel = ""
         speakerRenameFocused = false
     }
