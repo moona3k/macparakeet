@@ -1,0 +1,41 @@
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_f93963c9ce92fa::t_f8805758abf523 213,379-381,383
+  s_f93963c9ce92fa::t_b20134ef2b8e77 382
+Tests/MacParakeetTests/Views/MeetingRecordingTileTests.swift
+  s_f93963c9ce92fa::t_b20134ef2b8e77 3,6,61-82
+  s_84e0547d41e036::t_0fbad745779d55 83
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_f93963c9ce92fa::t_b20134ef2b8e77 255-256,270-271
+  s_84e0547d41e036::t_71c00b4ecf420f 272-273
+plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  s_f93963c9ce92fa::t_f8805758abf523 6-8
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillView.swift
+  s_f93963c9ce92fa::t_b20134ef2b8e77 160,275-276
+  s_84e0547d41e036::t_ee8d6ee0385e3d 277-278
+Sources/MacParakeetCore/AppFeatures.swift
+  s_f93963c9ce92fa::t_f8805758abf523 43-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4873422a3e6e43926786df730a1ace59c66ca264",
+  "prompts": {},
+  "sessions": {
+    "s_84e0547d41e036": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e8b-0aec-7a90-9302-abfece7ad365",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f93963c9ce92fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-b1d6-7e13-92f3-355e2f1d9cc5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
