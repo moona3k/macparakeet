@@ -2997,7 +2997,7 @@ struct TranscriptResultView: View {
                 }
                 .accessibilityLabel(SpeakerRenameAccessibility.speakerNameFieldLabel)
                 .accessibilityHint(SpeakerRenameAccessibility.speakerNameFieldHint)
-                .accessibilityIdentifier(SpeakerRenameAccessibility.speakerNameFieldIdentifier(for: speaker.id))
+                .accessibilityIdentifier(SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: contextID))
         } else {
             HStack(spacing: 6) {
                 Text(speaker.label)
@@ -3021,7 +3021,7 @@ struct TranscriptResultView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(SpeakerRenameAccessibility.renameButtonLabel(for: speaker.label))
                 .accessibilityHint(SpeakerRenameAccessibility.renameButtonHint)
-                .accessibilityIdentifier(SpeakerRenameAccessibility.renameButtonIdentifier(for: speaker.id))
+                .accessibilityIdentifier(SpeakerRenameAccessibility.renameButtonIdentifier(contextID: contextID))
                 .opacity(renameButtonOpacity)
             }
             .accessibilityElement(children: .contain)

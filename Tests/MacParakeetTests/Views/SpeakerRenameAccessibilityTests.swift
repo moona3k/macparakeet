@@ -21,14 +21,14 @@ final class SpeakerRenameAccessibilityTests: XCTestCase {
         )
     }
 
-    func testRenameButtonLabelsAndIdentifiersAreSpeakerSpecific() {
+    func testRenameButtonLabelsAreSpeakerSpecificAndIdentifiersAreContextSpecific() {
         XCTAssertEqual(
             SpeakerRenameAccessibility.renameButtonLabel(for: "Others"),
             "Rename Others"
         )
         XCTAssertEqual(
-            SpeakerRenameAccessibility.renameButtonIdentifier(for: "speaker_1"),
-            "transcript.speaker.rename.speaker_1"
+            SpeakerRenameAccessibility.renameButtonIdentifier(contextID: "overview:speaker_1"),
+            "transcript.speaker.rename.overview:speaker_1"
         )
         XCTAssertEqual(
             SpeakerRenameAccessibility.renameButtonHint,
@@ -43,8 +43,8 @@ final class SpeakerRenameAccessibilityTests: XCTestCase {
             "Press Return or move focus away to save. Press Escape to cancel."
         )
         XCTAssertEqual(
-            SpeakerRenameAccessibility.speakerNameFieldIdentifier(for: "speaker_1"),
-            "transcript.speaker.name.speaker_1"
+            SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: "turn:speaker_1:1200:0"),
+            "transcript.speaker.name.turn:speaker_1:1200:0"
         )
     }
 
@@ -60,25 +60,34 @@ final class SpeakerRenameAccessibilityTests: XCTestCase {
     }
 
     func testRenameContextIdentifiersSeparateOverviewAndRepeatedTimedTurns() {
-        XCTAssertEqual(
-            SpeakerRenameAccessibility.overviewRenameContextIdentifier(for: "speaker_1"),
-            "overview:speaker_1"
+        let overview = SpeakerRenameAccessibility.overviewRenameContextIdentifier(for: "speaker_1")
+        let firstTurn = SpeakerRenameAccessibility.turnRenameContextIdentifier(
+            speakerID: "speaker_1",
+            firstStartMs: 1200,
+            duplicateOrdinal: 0
         )
-        XCTAssertEqual(
-            SpeakerRenameAccessibility.turnRenameContextIdentifier(
-                speakerID: "speaker_1",
-                firstStartMs: 1200,
-                duplicateOrdinal: 0
-            ),
-            "turn:speaker_1:1200:0"
+        let secondTurn = SpeakerRenameAccessibility.turnRenameContextIdentifier(
+            speakerID: "speaker_1",
+            firstStartMs: 1200,
+            duplicateOrdinal: 1
         )
-        XCTAssertEqual(
-            SpeakerRenameAccessibility.turnRenameContextIdentifier(
-                speakerID: "speaker_1",
-                firstStartMs: 1200,
-                duplicateOrdinal: 1
-            ),
-            "turn:speaker_1:1200:1"
-        )
+
+        XCTAssertEqual(overview, "overview:speaker_1")
+        XCTAssertEqual(firstTurn, "turn:speaker_1:1200:0")
+        XCTAssertEqual(secondTurn, "turn:speaker_1:1200:1")
+
+        let renameButtonIdentifiers = [
+            SpeakerRenameAccessibility.renameButtonIdentifier(contextID: overview),
+            SpeakerRenameAccessibility.renameButtonIdentifier(contextID: firstTurn),
+            SpeakerRenameAccessibility.renameButtonIdentifier(contextID: secondTurn),
+        ]
+        let speakerNameFieldIdentifiers = [
+            SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: overview),
+            SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: firstTurn),
+            SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: secondTurn),
+        ]
+
+        XCTAssertEqual(Set(renameButtonIdentifiers).count, 3)
+        XCTAssertEqual(Set(speakerNameFieldIdentifiers).count, 3)
     }
 }

@@ -15,12 +15,12 @@ enum SpeakerRenameAccessibility {
         "Rename \(speakerLabel)"
     }
 
-    static func renameButtonIdentifier(for speakerID: String) -> String {
-        "transcript.speaker.rename.\(speakerID)"
+    static func renameButtonIdentifier(contextID: String) -> String {
+        "transcript.speaker.rename.\(contextID)"
     }
 
-    static func speakerNameFieldIdentifier(for speakerID: String) -> String {
-        "transcript.speaker.name.\(speakerID)"
+    static func speakerNameFieldIdentifier(contextID: String) -> String {
+        "transcript.speaker.name.\(contextID)"
     }
 
     static func renameButtonOpacity(isVisuallyRevealed: Bool) -> Double {
