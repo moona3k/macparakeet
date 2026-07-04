@@ -42,34 +42,40 @@ assets or hardware that cannot be produced in a sandbox.
   Retention deletes `microphone-cleaned.m4a` with the other managed audio.
 - **U4 — prefer cleaned mic for final meeting STT: DONE.**
   `transcribeMeetingSources` resolves the `.microphone` source through
-  `MeetingRecordingOutput.microphoneTranscriptionURL`, which prefers the cleaned
-  file when present and falls back to raw otherwise. The "health gate" is
-  presence + on-disk existence: the renderer guarantees every output frame is
-  either echo-cancelled or raw-fallback (never worse than raw per frame), so no
-  separate numeric runtime gate is applied. A global RMS/energy gate was
-  deliberately NOT used — on a real meeting it cannot distinguish good echo
-  removal (mic that was mostly bleed → correctly quiet) from a model that mutes
+  `MeetingRecordingOutput.resolvedMicrophoneTranscriptionSource`. The stop path
+  schedules a background render to a hidden candidate file, while final STT waits
+  on a bounded `MeetingCleanedMicrophoneReadiness` handle. It publishes and uses
+  `microphone-cleaned.m4a` only when the render completes before the deadline and
+  the artifact is non-empty and decodable; timeout, invalid output, missing
+  reference, missing assets, render failure, or untrusted recovered alignment
+  select raw `microphone.m4a` with a diagnostic reason. A global RMS/energy gate
+  is deliberately NOT used — on a real meeting it cannot distinguish good echo
+  removal (mic that was mostly bleed -> correctly quiet) from a model that mutes
   near-end voice; that near-end-fidelity risk is owned by model selection
   (U5 chose echo-only v1.4) and real QA (U9), not a runtime heuristic.
-- **U5 — release verification + model decision gate: IN PROGRESS.** The
-  packaging/verification half landed in PR #646
-  (`scripts/dist/verify_meeting_echo_assets.sh`, runtime asset gates). The model
-  decision gate was scored on the synthetic harness (PR #650,
-  `MeetingAecModelScoringTests`): **echo-only `localvqe-v1.4-aec-200K-f32` is the
-  chosen release default candidate** because the joint `v1.2` model zeroes the
-  near-end voice (retain 0.00) while v1.4 preserves it (retain ~1.0) at 35.6 dB
-  ERLE — see "Model decision gate — result (2026-06-28)" under U5. Remaining U5:
-  build/sign/notarize the proprietary universal `liblocalvqe.dylib` + bundle the
-  chosen model, then flip `defaultModelName`.
+- **U5 — release verification + model decision gate: DONE for the repo gate,
+  still pending product QA.** The packaging/verification path landed in PRs
+  #646/#654/#656 (`scripts/dist/prepare_meeting_echo_assets.sh`,
+  `scripts/dist/verify_meeting_echo_assets.sh`, runtime asset gates, checksum
+  defaults, and bundle auto-prepare). The model decision gate was scored on the
+  synthetic harness (PR #650, `MeetingAecModelScoringTests`): **echo-only
+  `localvqe-v1.4-aec-200K-f32` is the chosen release default** because the joint
+  `v1.2` model zeroes the near-end voice (retain 0.00) while v1.4 preserves it
+  (retain ~1.0) at 35.6 dB ERLE — see "Model decision gate — result
+  (2026-06-28)" under U5. `MeetingEchoSuppressionFactory.defaultModelName` and
+  `scripts/dist/meeting_echo_asset_defaults.sh` now both point at the v1.4
+  default. Remaining release risk belongs to U9 real speaker-mode QA, signing/
+  notarization evidence for the final app bundle, and any WebRTC skip/benchmark
+  decision under U6.
 - **U8 — docs: UPDATED.** `spec/05-audio-pipeline.md` and
   `spec/contracts/meeting-artifacts-v1.md` describe the derived artifact + STT
   routing. CLI artifact output intentionally omits the cleaned mic: it is an
   internal STT input, not a user-facing export the user opens.
-- **U3/U4 are inert in shipped builds until U5 bundles assets** — production
-  resolves to `PassthroughMicConditioner`, so `renderCleanedMicrophone` skips and
-  final STT reads raw `microphone.m4a` exactly as today. Landing the wiring now is
-  safe (no behavior change without assets), fully tested, and is the prerequisite
-  for U9; it is no longer deferred.
+- **U3/U4 are inert when shipped builds lack AEC assets** — production resolves
+  to `PassthroughMicConditioner`, so the scheduled cleaned-mic render reports
+  `rawNoAECAssets`, removes any stale candidate/stable cleaned file, and final
+  STT reads raw `microphone.m4a`. With release assets present, final STT can wait
+  for and use the cleaned artifact through the readiness gate above.
 - **U6/U9 — REMAINING.** U6: optional WebRTC AEC3 benchmark or skip-decision
   record. U9: real no-headphones speaker-mode QA closes #605.
 
@@ -115,7 +121,8 @@ The shipped measurement harness proved that reference alignment is load-bearing:
 
 **Artifacts and transcription**
 
-- R9. Prefer the cleaned mic path for the final `Me` stream only after health gates pass.
+- R9. Prefer the cleaned mic path for the final `Me` stream only after readiness
+  and decodability gates pass.
 - R10. Retain any `microphone-cleaned.m4a` derived artifact under the same retention and deletion rules as other meeting source audio.
 - R11. Keep `meeting.m4a` as playback/export output and avoid treating it as the final STT input.
 
@@ -201,7 +208,8 @@ flowchart TB
 1. Make delay estimation and metrics production-ready before changing product behavior.
 2. Integrate adaptive delay into `MicConditioning` and prove synthetic improvement.
 3. Add post-stop cleaned mic artifact rendering while raw files remain untouched.
-4. Teach final meeting STT to prefer the cleaned mic only when health gates pass.
+4. Teach final meeting STT to prefer the cleaned mic only when readiness and
+   decodability gates pass.
 5. Package and verify LocalVQE assets for release builds.
 6. Run benchmark and real-meeting QA, then update specs and close issue #605.
 
@@ -276,7 +284,7 @@ flowchart TB
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift`
-- **Approach:** Derive cleaned mic from finalized raw source files rather than adding a third real-time writer first. This keeps capture-risk low and lets the renderer reuse `MeetingSourceAlignment`, the selected echo runtime, and health gates before final STT. Persist enough metadata for recovery and later inspection.
+- **Approach:** Derive cleaned mic from finalized raw source files rather than adding a third real-time writer first. This keeps capture-risk low and lets the renderer reuse `MeetingSourceAlignment`, the selected echo runtime, and readiness/decodability gates before final STT. Persist enough metadata for recovery and later inspection.
 - **Patterns to follow:** `MeetingAudioStorageWriter` source-file naming, `MeetingRecordingOutput` source URL conventions, recovery lock handling in `MeetingRecordingRecoveryService`.
 - **Test scenarios:**
   - Dual-source meeting with available cleaner writes `microphone-cleaned.m4a` and records metadata pointing to it.
@@ -287,7 +295,7 @@ flowchart TB
   - Meeting audio retention/deletion removes `microphone-cleaned.m4a` together with other retained meeting source audio.
 - **Verification:** Meeting recording, recovery, artifact-store, and retention tests prove cleaned artifact lifecycle without regressing raw artifact preservation.
 
-### U4. Prefer cleaned mic for final meeting STT with health gates
+### U4. Prefer cleaned mic for final meeting STT with readiness gates
 
 - **Goal:** Route final `Me` transcription through the cleaned mic artifact only when it is present, decodable, duration-aligned, and healthy.
 - **Requirements:** R2, R5, R6, R7, R8, R9, R11, AE1, AE2, AE3, AE4, AE5
@@ -299,8 +307,12 @@ flowchart TB
   - `Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptSourceReconcilerTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptFinalizerTests.swift`
-- **Approach:** Update `transcribeMeetingSources` so `AudioSource.microphone` resolves to the cleaned mic candidate when health gates pass and raw mic otherwise. Keep system STT on `system.m4a`. Keep `MeetingTranscriptSourceReconciler` as a safety net for residual overlap, not the primary AEC mechanism.
-- **Health gates:** cleaned file exists, decodes, duration is within tolerance of raw mic/source alignment, processor diagnostics show nonzero processed frames, failure/fallback ratio is below threshold, and near-end-only/silent-reference checks do not indicate destructive suppression.
+- **Approach:** Update `transcribeMeetingSources` so `AudioSource.microphone` resolves to the cleaned mic candidate when readiness/decodability gates pass and raw mic otherwise. Keep system STT on `system.m4a`. Keep `MeetingTranscriptSourceReconciler` as a safety net for residual overlap, not the primary AEC mechanism.
+- **Health gates:** the cleaned render completes before the bounded deadline,
+  the candidate output can be atomically published, and the published file is
+  non-empty and decodable. Processor diagnostics and RMS ratio are emitted for
+  QA, but not used as runtime routing gates; near-end/silent-reference safety is
+  owned by model selection plus real speaker-mode QA.
 - **Patterns to follow:** Existing source alignment offsets and vocabulary application in `TranscriptionService`; source reconciliation in `MeetingTranscriptFinalizer`.
 - **Test scenarios:**
   - When cleaned mic is healthy, final microphone STT receives the cleaned file path.
@@ -323,8 +335,15 @@ flowchart TB
   - `scripts/dist/verify_meeting_echo_assets.sh`
   - `docs/distribution.md`
   - `spec/05-audio-pipeline.md`
-- **Approach:** Continue using `liblocalvqe.dylib` plus `MeetingEchoSuppression/localvqe-v1.2-1.3M-f32.gguf` or the selected v1.4 AEC model, but make release builds fail when required assets are missing. Keep dev builds able to run passthrough. Verify checksum, executable bit, dependency paths, and code signature where available.
-- **Model decision gate:** Score v1.4 AEC and v1.2 joint models on the harness before choosing the release default. Prefer echo-only v1.4 if it preserves near-end better, even if v1.2 removes more noise.
+- **Approach:** Use `liblocalvqe.dylib` plus
+  `MeetingEchoSuppression/localvqe-v1.4-aec-200K-f32.gguf` as the selected
+  default model, and make release builds fail when required assets are missing.
+  Keep dev builds able to run passthrough. Verify checksum, executable bit,
+  dependency paths, and code signature where available.
+- **Model decision gate:** Score v1.4 AEC and v1.2 joint models on the harness
+  before choosing the release default. Prefer echo-only v1.4 if it preserves
+  near-end better, even if v1.2 removes more noise. This gate has selected v1.4;
+  rerun it when changing the default model or LocalVQE runtime pin.
 - **Patterns to follow:** Existing `BUNDLE_MEETING_ECHO_ASSETS`, `REQUIRE_MEETING_ECHO_ASSETS`, and `MACPARAKEET_MEETING_ECHO_MODEL_SHA256` handling.
 - **Test scenarios:**
   - Automatic mode with no bundled assets returns passthrough and logs unavailable state.
@@ -382,12 +401,12 @@ stays intelligible and undistorted and (b) far-end echo does not appear in the `
 transcript. If v1.4's double-talk near-end is still damaged on real speech, the
 echo-only-vs-joint choice — or LocalVQE itself (WebRTC AEC3, plan U6) — must be revisited.
 
-**Follow-up (its own reviewed change, not done in the scoring branch).** When a
-canceller is bundled, set `MeetingEchoSuppressionFactory.defaultModelName` to
-`localvqe-v1.4-aec-200K-f32.gguf` (currently `localvqe-v1.2-1.3M-f32.gguf`) and bundle
-that file via `MACPARAKEET_MEETING_ECHO_MODEL_SRC`/`_NAME`. The runtime resolves
-`Resources/MeetingEchoSuppression/<defaultModelName>`, so the constant and the bundled
-basename must match.
+**Follow-up completed in later reviewed changes.** The runtime default and
+bundle defaults now both point at `localvqe-v1.4-aec-200K-f32.gguf`, with the
+pinned default checksum `b6e43138...3c731`. Release builds can auto-prepare the
+runtime/model through `scripts/dist/prepare_meeting_echo_assets.sh`, then
+`scripts/dist/build_app_bundle.sh` verifies the bundled assets before the app can
+claim meeting AEC readiness.
 
 **Reproduce:**
 
@@ -440,7 +459,7 @@ test skips when the env vars are unset, so CI stays green without the private as
 - **Test scenarios:**
   - Successful cleaned path logs processor loaded, delay confidence, processed frame count, cleaned artifact URL basename, and final-STT source choice.
   - Missing assets logs passthrough/fallback reason.
-  - Failed health gate logs fallback reason without exposing transcript text or audio samples.
+  - Failed readiness gate logs fallback reason without exposing transcript text or audio samples.
   - Feedback diagnostic scope includes AEC summary lines within existing size/time caps.
 - **Verification:** Uploaded diagnostic logs can distinguish "AEC worked", "AEC skipped by configuration", "AEC tried and fell back", and "final STT used raw".
 
@@ -458,7 +477,7 @@ test skips when the env vars are unset, so CI stays green without the private as
   - `Tests/CLITests/MeetingsCommandTests.swift`
   - `docs/human-qa-guide.md`
   - `docs/distribution.md`
-- **Approach:** Document that raw source files remain truth, cleaned mic is a derived artifact, final meeting STT may prefer cleaned mic after health gates, and retention applies to cleaned audio. Expose cleaned artifact presence in any existing meeting artifact listing without making users manage it separately.
+- **Approach:** Document that raw source files remain truth, cleaned mic is a derived artifact, final meeting STT may prefer cleaned mic after the readiness/decodability gates, and retention applies to cleaned audio. Expose cleaned artifact presence in any existing meeting artifact listing without making users manage it separately.
 - **Patterns to follow:** Existing meeting artifact folder/CLI conventions and boundary contract docs.
 - **Test scenarios:**
   - CLI meeting artifact output includes cleaned mic when present and omits it cleanly when absent.
@@ -495,7 +514,7 @@ test skips when the env vars are unset, so CI stays green without the private as
 | `swift test --filter MeetingAecMeasurementTests` | U1, U2, U5, U6 | Harness reports aligned cancellation, misalignment failure, LocalVQE/WebRTC or documented benchmark decision, and double-talk retention. |
 | `swift test --filter MeetingEchoSuppressorTests` | U2 | Frame carry, adaptive delay, partial/missing reference, reset, and flush behavior hold. |
 | `swift test --filter MeetingRecordingServiceTests` | U3, U7 | Cleaned artifact lifecycle and diagnostics are covered. |
-| `swift test --filter TranscriptionServiceTests` | U4 | Final meeting STT prefers cleaned mic only after health gates. |
+| `swift test --filter TranscriptionServiceTests` | U4 | Final meeting STT prefers cleaned mic only after the readiness/decodability gates. |
 | `swift test --filter MeetingRecordingRecoveryServiceTests` | U3 | Recovery tolerates absent cleaned artifact and preserves raw sources. |
 | `swift test --filter MeetingsCommandTests` | U8 | CLI/artifact listing reflects cleaned mic presence. |
 | `scripts/dist/verify_meeting_echo_assets.sh <app>` | U5 | Release bundle contains valid echo assets when AEC is claimed. |
@@ -549,7 +568,7 @@ test skips when the env vars are unset, so CI stays green without the private as
 
 - U1-U8 are implemented with focused tests and full `swift test` passing.
 - Release bundle verification proves echo assets are present and valid when the build claims AEC support.
-- Final meeting STT uses cleaned mic for the `Me` stream when health gates pass and raw mic when they fail.
+- Final meeting STT uses cleaned mic for the `Me` stream when readiness/decodability gates pass and raw mic when they fail.
 - Raw `microphone.m4a` and `system.m4a` remain preserved and recoverable.
 - `microphone-cleaned.m4a` or the equivalent derived cleaned input follows meeting audio retention/deletion rules.
 - Diagnostic logs distinguish loaded, skipped, failed, and fallback AEC states.
