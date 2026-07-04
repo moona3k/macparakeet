@@ -14,7 +14,11 @@
 - **Planned at**: 2026-07-04, branch `docs/long-meeting-aec-policy`
 - **Progress**: Phase 1a implemented as PR #695, Phase 1b as PR #696 (both
   2026-07-04, fresh-eye reviewed). The Phase 1 sections below are updated to
-  match the final implemented shape.
+  match the final implemented shape. Phase 1b's first real run then exposed
+  a harness validity bug (fixed, #703) and a production render-throughput
+  bug in the adaptive delay estimator (fixed, #704, ~0.5x -> 11.7x). The
+  decision gate is CLOSED — measured results and decisions in
+  `docs/audits/2026-07-04-long-meeting-full-pipeline-findings.md`.
 - **Baseline**: `origin/main` at `cfbcccb30e23` (post PR #688
   diarization-default-on)
 - **Relates**: issue #605; PRs #671, #676, #688; ADR-010, ADR-026, ADR-027;
@@ -157,16 +161,28 @@ real meeting, per stage.
 - README-level usage note in the audit doc or script header (exact command,
   env vars, where output goes).
 
-### Decision gate after 1b
+### Decision gate after 1b — CLOSED 2026-07-04
 
-Daniel + Fable review the measured table and set:
+Measured on merged main (`2d6ed0246`), production configuration (adaptive
+delay ON, diarization default-on), two real meetings — full tables in
+`docs/audits/2026-07-04-long-meeting-full-pipeline-findings.md`. Decisions:
 
-- the raw-first duration threshold (validate or tighten the 2 h guard;
-  decide whether 90-120 min needs raw-first too),
-- whether a free-memory secondary guard is needed (only if a swap cliff shows),
-- go/no-go + priority for Phase 2.
+- **Guard unchanged**: factor stays 12.59 (optimistic-with-headroom;
+  production measures 11.70-11.77x on M4 Pro — the asymmetry rationale is
+  in the policy's code comment). Derived threshold ~2.1 h of captured
+  media. No raw-first tier below 2.1 h: a 90-minute meeting fully enriches
+  ~8 minutes after stop.
+- **No free-memory secondary guard**: RSS tracked the ~230 KB/s model
+  within +/-16%; no cliff observed. Revisit only with Phase 3.
+- **Phase 2: GO in principle, P2 priority.** It is the only route to
+  cleaned/diarized artifacts for >2.1 h meetings, but urgency depends on
+  real-world frequency — watch the `predictedRenderTimeout` diagnostics
+  line (#695) for the signal before scheduling implementation.
+- Post-stop cost is AEC-render-dominated (STT + diarization run at
+  195-240x realtime, ~13% of the render's cost) — Phase 2's design can
+  treat enrichment as effectively AEC-only re-work.
 
-## Phase 2 — Background enrichment lane (GATED on 1b; do not dispatch yet)
+## Phase 2 — Background enrichment lane (GO in principle, P2; not yet scheduled)
 
 Shape (design intent, to be detailed after the gate):
 

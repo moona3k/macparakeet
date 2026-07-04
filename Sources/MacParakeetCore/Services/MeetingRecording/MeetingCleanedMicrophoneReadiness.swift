@@ -12,10 +12,15 @@ public enum MeetingCleanedMicrophoneRoutingReason: String, Sendable, Codable, Ca
 }
 
 public struct MeetingCleanedMicrophoneReadinessPolicy: Sendable, Equatable {
-    /// `docs/audits/2026-07-04-localvqe-aec-runtime-findings.md` measured
-    /// 11.67-12.59x realtime on an M4 Pro. The fastest observed factor keeps
-    /// the duration guard limited to renders that would exceed the cap even
-    /// at the best measured rate.
+    /// Optimistic realtime-factor bound for the duration guard. Production
+    /// renders (adaptive reference delay ON, post-#704 vDSP estimator)
+    /// measured 11.70-11.77x on an M4 Pro
+    /// (`docs/audits/2026-07-04-long-meeting-full-pipeline-findings.md`);
+    /// 12.59 deliberately sits above that as headroom for faster machines.
+    /// The asymmetry is intentional: a too-high bound wastes at most one
+    /// capped render on meetings just past the threshold, while a too-low
+    /// bound would permanently deny viable cleaned-mic renders on hardware
+    /// faster than the measured baseline.
     public static let bestMeasuredRealtimeFactor: Double = 12.59
 
     public static let production = MeetingCleanedMicrophoneReadinessPolicy(
