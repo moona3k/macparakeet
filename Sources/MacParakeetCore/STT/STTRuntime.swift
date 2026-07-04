@@ -739,8 +739,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         inferenceGate: ANEInferenceGate,
         logger: Logger? = nil
     ) async throws -> ASRResult {
-        guard !Task.isCancelled,
-              capabilities.supportsCustomVocabulary,
+        try Task.checkCancellation()
+        guard capabilities.supportsCustomVocabulary,
               !vocabulary.isEmpty,
               !audioSamples.isEmpty,
               let tokenTimings = result.tokenTimings,

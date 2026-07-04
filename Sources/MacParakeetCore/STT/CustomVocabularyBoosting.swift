@@ -299,10 +299,11 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
                 replacement.shouldReplace ? replacement.replacementWord : nil
             }
         )
+        let replacementCount = output.replacements.filter(\.shouldReplace).count
 
         if output.wasModified {
             logger.info(
-                "custom_vocabulary_boost_applied terms=\(request.vocabulary.terms.count, privacy: .public) replacements=\(applied.count, privacy: .public)"
+                "custom_vocabulary_boost_applied terms=\(request.vocabulary.terms.count, privacy: .public) replacements=\(replacementCount, privacy: .public)"
             )
         }
 
@@ -310,7 +311,7 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             text: output.text,
             detectedTerms: detected,
             appliedTerms: applied,
-            replacementCount: output.replacements.filter(\.shouldReplace).count
+            replacementCount: replacementCount
         )
     }
 
