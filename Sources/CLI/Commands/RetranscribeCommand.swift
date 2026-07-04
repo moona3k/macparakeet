@@ -241,43 +241,43 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             )
             sttClient = client
 
-            switch target {
-            case .dictation(let dictation):
-                let result = try await retranscribeDictation(
-                    dictation,
-                    sttClient: client,
-                    speechEngine: speechEngine,
-                    dictationRepo: dictationRepo,
-                    customWordRepo: customWordRepo,
-                    snippetRepo: snippetRepo,
-                    defaults: defaults
-                )
-                runResult = .success(result)
-            case .transcription(let transcription):
-                let result = try await retranscribeTranscription(
-                    transcription,
-                    speechEngine: speechEngine,
-                    transcriptionRepo: transcriptionRepo,
-                    promptResultRepo: promptResultRepo,
-                    customWordRepo: customWordRepo,
-                    snippetRepo: snippetRepo,
-                    defaults: defaults,
-                    sttTranscriber: client
-                )
-                runResult = .success(result)
-            case .meeting(let transcription):
-                let result = try await retranscribeMeeting(
-                    transcription,
-                    speechEngine: speechEngine,
-                    transcriptionRepo: transcriptionRepo,
-                    promptResultRepo: promptResultRepo,
-                    customWordRepo: customWordRepo,
-                    snippetRepo: snippetRepo,
-                    defaults: defaults,
-                    sttTranscriber: client
-                )
-                runResult = .success(result)
+            let result = try await withStandardOutputRedirectedToStandardError {
+                switch target {
+                case .dictation(let dictation):
+                    return try await retranscribeDictation(
+                        dictation,
+                        sttClient: client,
+                        speechEngine: speechEngine,
+                        dictationRepo: dictationRepo,
+                        customWordRepo: customWordRepo,
+                        snippetRepo: snippetRepo,
+                        defaults: defaults
+                    )
+                case .transcription(let transcription):
+                    return try await retranscribeTranscription(
+                        transcription,
+                        speechEngine: speechEngine,
+                        transcriptionRepo: transcriptionRepo,
+                        promptResultRepo: promptResultRepo,
+                        customWordRepo: customWordRepo,
+                        snippetRepo: snippetRepo,
+                        defaults: defaults,
+                        sttTranscriber: client
+                    )
+                case .meeting(let transcription):
+                    return try await retranscribeMeeting(
+                        transcription,
+                        speechEngine: speechEngine,
+                        transcriptionRepo: transcriptionRepo,
+                        promptResultRepo: promptResultRepo,
+                        customWordRepo: customWordRepo,
+                        snippetRepo: snippetRepo,
+                        defaults: defaults,
+                        sttTranscriber: client
+                    )
+                }
             }
+            runResult = .success(result)
         } catch {
             runResult = .failure(error)
         }

@@ -148,13 +148,20 @@ struct HealthCommand: AsyncParsableCommand {
         if let repairAttempts = validatedRepairAttempts {
             if !json { print(); print("Speech-stack repair requested...") }
             do {
-                try await prepareSpeechStack(
-                    attempts: repairAttempts,
-                    sttClient: sttClient,
-                    diarizationService: diarizationService,
-                    defaults: defaults,
-                    log: { message in if !self.json { print("  \(message)") } }
-                )
+                let repairOperation = {
+                    try await prepareSpeechStack(
+                        attempts: repairAttempts,
+                        sttClient: sttClient,
+                        diarizationService: diarizationService,
+                        defaults: defaults,
+                        log: { message in if !self.json { print("  \(message)") } }
+                    )
+                }
+                if json {
+                    try await withStandardOutputRedirectedToStandardError(repairOperation)
+                } else {
+                    try await repairOperation()
+                }
                 report.repair = HealthReport.Repair(attempted: true, completed: true, error: nil)
                 if !json { print("Speech-stack repair completed.") }
             } catch {

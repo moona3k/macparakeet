@@ -563,10 +563,12 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             )
 
             if let podcastQuery {
-                let result = try await transcribePodcastQuery(
-                    query: podcastQuery,
-                    service: service
-                )
+                let result = try await withStandardOutputRedirectedToStandardError {
+                    try await transcribePodcastQuery(
+                        query: podcastQuery,
+                        service: service
+                    )
+                }
                 if let outputDir {
                     let dir = try Self.prepareOutputDir(outputDir)
                     let url = try await Self.writeOutput(result, to: dir, format: format)
@@ -582,17 +584,21 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     printSaveHintIfSaved(result, format: format)
                 }
             } else if writeToFiles {
-                try await runBatch(
-                    inputs: resolvedInputs,
-                    service: service,
-                    speechEngine: speechEngine
-                )
+                try await withStandardOutputRedirectedToStandardError {
+                    try await runBatch(
+                        inputs: resolvedInputs,
+                        service: service,
+                        speechEngine: speechEngine
+                    )
+                }
             } else {
-                let result = try await transcribeOne(
-                    input: resolvedInputs[0],
-                    service: service,
-                    speechEngine: speechEngine
-                )
+                let result = try await withStandardOutputRedirectedToStandardError {
+                    try await transcribeOne(
+                        input: resolvedInputs[0],
+                        service: service,
+                        speechEngine: speechEngine
+                    )
+                }
                 switch format {
                 case .json:
                     try printJSON(result)
