@@ -76,5 +76,5 @@ Accessibility is still granted during onboarding for all users, which also cover
 - The warm-up tracks its own `engineBusy` flag, separate from the permission `isBusy`, so the head-start download never disables the Microphone/Accessibility grant buttons.
 - `startEngineWarmUp()` is idempotent (generation + observation-token guards): the early trigger starts it; the Speech Model step's `.onAppear` call is a no-op fallback. No second download.
 - The Parakeet-vs-Whisper fork is preserved for CJK locales — `whisperRecommendation` resolves synchronously in `init`, before any trigger.
-- A warm-up failure that occurs before the user reaches the Speech Model step is suppressed (state resets to `.idle`); the terminal `.failed` only surfaces once that step is shown, so an early/transient failure never flashes a failed card on an earlier step.
+- A warm-up failure that occurs before the user reaches the Speech Model step is preserved as `.failed`, but only the Speech Model step renders failure UI. Earlier steps continue to show their permission/hotkey surfaces, and the user sees the existing error + Retry affordance immediately on reaching Speech Model.
 - `modelDownloadStarted` now fires at onboarding open; the start→ready duration still measures real download time (the background download is independent of the user's step).

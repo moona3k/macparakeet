@@ -77,7 +77,7 @@ struct OnboardingFlowView: View {
             // Whisper fork is already decided (whisperRecommendation resolves in
             // the VM init), and startEngineWarmUp() is idempotent — the engine
             // step's .onAppear call below is a fallback, and any failure before
-            // the engine step is suppressed until that step is shown (§5.1–5.3).
+            // the engine step is preserved but rendered only there (§5.1–5.3).
             viewModel.startEngineWarmUp()
         }
         .onDisappear {
@@ -222,7 +222,7 @@ struct OnboardingFlowView: View {
             if case .ready = viewModel.engineState { return true }
             return false
         case .done:
-            return viewModel.hasCompletedOnboarding
+            return viewModel.hasCompletedCurrentRun
         }
     }
 
@@ -538,6 +538,7 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(.secondary)
         }
         .onAppear {
+            viewModel.refreshAccessibilityPermission()
             startAnimations()
             onHotkeyPreviewArm()
         }

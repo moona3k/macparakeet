@@ -116,6 +116,42 @@ private final class PollingPermissionService: PermissionServiceProtocol, @unchec
     }
 }
 
+private final class DelayedMicrophonePermissionService: PermissionServiceProtocol, @unchecked Sendable {
+    var microphonePermission: PermissionStatus = .granted
+    var accessibilityPermission = false
+    var microphoneDelay: Duration = .milliseconds(200)
+
+    func checkMicrophonePermission() async -> PermissionStatus {
+        try? await Task.sleep(for: microphoneDelay)
+        return microphonePermission
+    }
+
+    func requestMicrophonePermission() async -> Bool {
+        microphonePermission = .granted
+        return true
+    }
+
+    func checkScreenRecordingPermission() -> Bool {
+        true
+    }
+
+    func requestScreenRecordingPermission() -> Bool {
+        true
+    }
+
+    func openMicrophoneSettings() {}
+
+    func openScreenRecordingSettings() {}
+
+    func checkAccessibilityPermission() -> Bool {
+        accessibilityPermission
+    }
+
+    func requestAccessibilityPermission(prompt _: Bool) -> Bool {
+        accessibilityPermission
+    }
+}
+
 @MainActor
 final class OnboardingViewModelTests: XCTestCase {
     private func waitUntil(
@@ -212,6 +248,117 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.refresh()
         try await Task.sleep(for: .milliseconds(50))
         XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    func testAccessibilityDeniedTelemetryEmitsWhenPromptedUserDismissesStillUngranted() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        perms.accessibilityPermission = false
+        perms.requestAccessibilityResult = false
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .accessibility)
+        vm.requestAccessibilityAccess()
+
+        XCTAssertFalse(vm.accessibilityGranted)
+        XCTAssertTrue(telemetry.snapshot().contains {
+            if case .permissionPrompted(let permission) = $0 { return permission == .accessibility }
+            return false
+        })
+        XCTAssertFalse(telemetry.snapshot().contains {
+            if case .permissionDenied = $0 { return true }
+            return false
+        }, "Accessibility should not emit denied immediately after prompting")
+
+        vm.markOnboardingDismissed()
+        vm.markOnboardingDismissed()
+
+        let deniedPermissions = telemetry.snapshot().compactMap { event -> TelemetryPermission? in
+            guard case .permissionDenied(let permission) = event else { return nil }
+            return permission
+        }
+        XCTAssertEqual(deniedPermissions, [.accessibility])
+    }
+
+    func testAccessibilityGrantTelemetryCanArriveOnRefreshAfterPrompt() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        perms.accessibilityPermission = false
+        perms.requestAccessibilityResult = false
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .accessibility)
+        vm.requestAccessibilityAccess()
+
+        perms.accessibilityPermission = true
+        vm.refreshAccessibilityPermission()
+
+        let grantedPermissions = telemetry.snapshot().compactMap { event -> TelemetryPermission? in
+            guard case .permissionGranted(let permission) = event else { return nil }
+            return permission
+        }
+        XCTAssertEqual(grantedPermissions, [.accessibility])
+        XCTAssertFalse(telemetry.snapshot().contains {
+            if case .permissionDenied = $0 { return true }
+            return false
+        })
+    }
+
+    func testAccessibilityDismissRechecksBeforeDeniedTelemetry() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        perms.accessibilityPermission = false
+        perms.requestAccessibilityResult = false
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .accessibility)
+        vm.requestAccessibilityAccess()
+
+        perms.accessibilityPermission = true
+        vm.markOnboardingDismissed()
+
+        let grantedPermissions = telemetry.snapshot().compactMap { event -> TelemetryPermission? in
+            guard case .permissionGranted(let permission) = event else { return nil }
+            return permission
+        }
+        XCTAssertEqual(grantedPermissions, [.accessibility])
+        XCTAssertFalse(telemetry.snapshot().contains {
+            if case .permissionDenied = $0 { return true }
+            return false
+        })
+    }
+
+    func testHotkeyRefreshChecksAccessibilityBeforePendingFullRefreshCompletes() async throws {
+        let perms = DelayedMicrophonePermissionService()
+        perms.accessibilityPermission = false
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.refresh()
+
+        perms.accessibilityPermission = true
+        XCTAssertFalse(vm.accessibilityGranted)
+        XCTAssertTrue(vm.refreshAccessibilityPermission())
+        XCTAssertTrue(vm.accessibilityGranted)
+
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(vm.accessibilityGranted)
     }
 
     func testStepOrdering() {
@@ -320,6 +467,26 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertTrue(vm.hasCompletedOnboarding)
+    }
+
+    func testPersistedCompletionDoesNotCompleteCurrentRunProgress() {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("2026-01-01T00:00:00Z", forKey: OnboardingViewModel.onboardingCompletedKey)
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+
+        XCTAssertTrue(vm.hasCompletedOnboarding)
+        XCTAssertFalse(vm.hasCompletedCurrentRun)
+
+        _ = vm.markOnboardingCompleted()
+
+        XCTAssertTrue(vm.hasCompletedOnboarding)
+        XCTAssertTrue(vm.hasCompletedCurrentRun)
+        XCTAssertNotNil(defaults.string(forKey: OnboardingViewModel.onboardingCompletedKey))
     }
 
     func testNoMeetingRecordingOrCalendarStepsInFlow() {
@@ -601,10 +768,10 @@ final class OnboardingViewModelTests: XCTestCase {
     }
 
     /// Guard 3 (§5.3): a warm-up failure that lands before the user reaches the
-    /// Speech Model step must NOT surface a terminal `.failed`; it resets to
-    /// `.idle` so the engine step can retry. Once on the engine step, the failure
-    /// is allowed to surface.
-    func testWarmUpFailureBeforeEngineStepIsSuppressedUntilEngineStep() async throws {
+    /// Speech Model step must be preserved so the engine step can immediately
+    /// show the existing error + Retry UI. Earlier steps do not render
+    /// `engineState`, so preserving `.failed` does not add failure UI there.
+    func testWarmUpFailureBeforeEngineStepIsPreservedForEngineStep() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
@@ -621,22 +788,23 @@ final class OnboardingViewModelTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
 
-        if case .failed = vm.engineState {
-            XCTFail("a warm-up failure before the engine step must not surface as .failed")
+        guard case .failed(let message) = vm.engineState else {
+            return XCTFail("expected the head-start failure to be preserved, got \(vm.engineState)")
         }
-        XCTAssertEqual(vm.engineState, .idle, "suppressed failure resets to .idle so the engine step can retry")
+        XCTAssertTrue(message.contains("boom"), "preserved failure should retain the original error")
         XCTAssertFalse(vm.engineBusy)
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "early-step navigation must not be blocked by hidden engine failure UI")
+        let backgroundWarmUpCount = await stt.backgroundWarmUpCallCountSnapshot()
 
-        // Reaching the engine step retries; now the failure is allowed to surface.
+        // Reaching the engine step must not silently retry over the preserved
+        // failure; Retry is the explicit restart path.
         vm.jump(to: .engine)
         vm.startEngineWarmUp()
-        try await waitUntil(timeout: .seconds(2)) {
-            if case .failed = vm.engineState { return true }
-            return false
-        }
-        guard case .failed = vm.engineState else {
-            return XCTFail("the engine-step retry should surface the failure, got \(vm.engineState)")
-        }
+        try await Task.sleep(for: .milliseconds(50))
+
+        let backgroundWarmUpCountAfterEngineAppear = await stt.backgroundWarmUpCallCountSnapshot()
+        XCTAssertEqual(backgroundWarmUpCountAfterEngineAppear, backgroundWarmUpCount)
+        guard case .failed = vm.engineState else { return XCTFail("engine step should still surface the preserved failure") }
     }
 
     /// Guard 2 (§5.2): the head-start must honor the Whisper fork for a CJK
