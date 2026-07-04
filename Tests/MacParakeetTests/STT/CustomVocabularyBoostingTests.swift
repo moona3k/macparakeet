@@ -103,21 +103,23 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(requests[0].vocabulary.terms, ["MacParakeet"])
     }
 
-    func testBoundaryChangingBoostSkipsLongTranscriptTimingSynthesis() async throws {
-        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
-        let longTimings = (0..<(CustomVocabularyBoostingConfiguration.maxBoundaryChangingTimingWordCount + 1))
-            .map { index in
-                TokenTiming(
-                    token: "▁word\(index)",
-                    tokenId: index,
-                    startTime: Double(index),
-                    endTime: Double(index + 1),
-                    confidence: 0.9
-                )
-            }
+    func testBoundaryChangingBoostPreservesLongTranscriptWithSynthesizedChangedSpan() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(
+            text: "please open MacParakeet now and save this note"
+        )
+        let words = ["please", "open", "mac", "parakeet", "now", "and", "save", "this", "note"]
+        let longTimings = words.enumerated().map { index, word in
+            TokenTiming(
+                token: "▁\(word)",
+                tokenId: index,
+                startTime: Double(index),
+                endTime: Double(index + 1),
+                confidence: 0.9
+            )
+        }
 
         let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
-            transcript: longTimings.map(\.token).joined(separator: " ").replacingOccurrences(of: "▁", with: ""),
+            transcript: words.joined(separator: " "),
             tokenTimings: longTimings,
             audioSamples: [0.1, 0.2, 0.3],
             capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
@@ -125,8 +127,15 @@ final class CustomVocabularyBoostingTests: XCTestCase {
             rescorer: rescorer
         )
 
-        XCTAssertNotEqual(result.text, "MacParakeet")
-        XCTAssertEqual(STTWordTimingBuilder.words(from: result.tokenTimings).count, longTimings.count)
+        let resultWords = STTWordTimingBuilder.words(from: result.tokenTimings)
+        XCTAssertEqual(result.text, "please open MacParakeet now and save this note")
+        XCTAssertEqual(resultWords.map(\.word), ["please", "open", "MacParakeet", "now", "and", "save", "this", "note"])
+        XCTAssertEqual(resultWords[0].startMs, 0)
+        XCTAssertEqual(resultWords[0].endMs, 1000)
+        XCTAssertEqual(resultWords[2].startMs, 2000)
+        XCTAssertEqual(resultWords[2].endMs, 4000)
+        XCTAssertEqual(resultWords[3].startMs, 4000)
+        XCTAssertEqual(resultWords[3].endMs, 5000)
     }
 
     func testSidecarFailureFallsBackToUnboostedTranscript() async throws {

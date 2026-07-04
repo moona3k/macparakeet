@@ -717,6 +717,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         let vocabulary = await customVocabularyProvider.currentVocabulary()
         try Task.checkCancellation()
         guard !vocabulary.isEmpty else { return result }
+        guard let tokenTimings = result.tokenTimings, !tokenTimings.isEmpty else { return result }
         let audioSamples = try loadAudioSamples()
         try Task.checkCancellation()
         return try await Self.applyCustomVocabularyBoosting(
@@ -844,29 +845,128 @@ public actor STTRuntime: STTRuntimeProtocol {
             }
         }
 
-        guard originalWords.count <= CustomVocabularyBoostingConfiguration.maxBoundaryChangingTimingWordCount else {
+        let matches = wordTimingAlignmentMatches(
+            originalWords: originalWords,
+            rescoredWords: rescoredWords
+        )
+        var synthesized: [TokenTiming] = []
+        var originalCursor = 0
+        var rescoredCursor = 0
+        var syntheticTokenIndex = 0
+
+        func appendTiming(word: String, startMs: Int, endMs: Int, confidence: Float) {
+            synthesized.append(
+                TokenTiming(
+                    token: "▁\(word)",
+                    tokenId: -1 - syntheticTokenIndex,
+                    startTime: Double(startMs) / 1_000,
+                    endTime: Double(endMs) / 1_000,
+                    confidence: confidence
+                )
+            )
+            syntheticTokenIndex += 1
+        }
+
+        func appendSyntheticSegment(originalRange: Range<Int>, rescoredRange: Range<Int>) {
+            guard !rescoredRange.isEmpty else { return }
+
+            let segmentStartMs: Int
+            let segmentEndMs: Int
+            if !originalRange.isEmpty {
+                segmentStartMs = originalWords[originalRange.lowerBound].startMs
+                segmentEndMs = originalWords[originalRange.upperBound - 1].endMs
+            } else {
+                segmentStartMs =
+                    originalRange.lowerBound > 0
+                    ? originalWords[originalRange.lowerBound - 1].endMs
+                    : firstWord.startMs
+                segmentEndMs =
+                    originalRange.lowerBound < originalWords.count
+                    ? originalWords[originalRange.lowerBound].startMs
+                    : lastWord.endMs
+            }
+
+            guard segmentEndMs >= segmentStartMs else { return }
+            let durationPerWord = Double(segmentEndMs - segmentStartMs) / Double(rescoredRange.count)
+            for (offset, wordIndex) in rescoredRange.enumerated() {
+                let wordStartMs = segmentStartMs + Int((durationPerWord * Double(offset)).rounded())
+                let wordEndMs =
+                    offset == rescoredRange.count - 1
+                    ? segmentEndMs
+                    : segmentStartMs + Int((durationPerWord * Double(offset + 1)).rounded())
+                appendTiming(
+                    word: rescoredWords[wordIndex],
+                    startMs: wordStartMs,
+                    endMs: wordEndMs,
+                    confidence: 0
+                )
+            }
+        }
+
+        for match in matches {
+            appendSyntheticSegment(
+                originalRange: originalCursor..<match.originalIndex,
+                rescoredRange: rescoredCursor..<match.rescoredIndex
+            )
+
+            let timing = originalWords[match.originalIndex]
+            appendTiming(
+                word: rescoredWords[match.rescoredIndex],
+                startMs: timing.startMs,
+                endMs: timing.endMs,
+                confidence: Float(timing.confidence)
+            )
+
+            originalCursor = match.originalIndex + 1
+            rescoredCursor = match.rescoredIndex + 1
+        }
+
+        appendSyntheticSegment(
+            originalRange: originalCursor..<originalWords.count,
+            rescoredRange: rescoredCursor..<rescoredWords.count
+        )
+
+        guard !synthesized.isEmpty else {
             return nil
         }
 
-        let startTime = Double(firstWord.startMs) / 1_000
-        let endTime = Double(lastWord.endMs) / 1_000
-        guard endTime >= startTime else { return nil }
+        return synthesized
+    }
 
-        let durationPerWord = (endTime - startTime) / Double(rescoredWords.count)
-        return rescoredWords.enumerated().map { index, word in
-            let wordStart = startTime + (durationPerWord * Double(index))
-            let wordEnd =
-                index == rescoredWords.count - 1
-                ? endTime
-                : startTime + (durationPerWord * Double(index + 1))
-            return TokenTiming(
-                token: "▁\(word)",
-                tokenId: -1 - index,
-                startTime: wordStart,
-                endTime: wordEnd,
-                confidence: 0
-            )
+    private static func wordTimingAlignmentMatches(
+        originalWords: [TimestampedWord],
+        rescoredWords: [String]
+    ) -> [(originalIndex: Int, rescoredIndex: Int)] {
+        let normalizedOriginalWords = originalWords.map { normalizedTimingWord($0.word) }
+        let normalizedRescoredWords = rescoredWords.map(normalizedTimingWord)
+        var matches: [(originalIndex: Int, rescoredIndex: Int)] = []
+        var originalSearchStart = 0
+
+        for (rescoredIndex, normalizedRescoredWord) in normalizedRescoredWords.enumerated() {
+            guard !normalizedRescoredWord.isEmpty else { continue }
+            var originalIndex = originalSearchStart
+            while originalIndex < normalizedOriginalWords.count {
+                if normalizedOriginalWords[originalIndex] == normalizedRescoredWord {
+                    matches.append((originalIndex: originalIndex, rescoredIndex: rescoredIndex))
+                    originalSearchStart = originalIndex + 1
+                    break
+                }
+                originalIndex += 1
+            }
         }
+
+        return matches
+    }
+
+    private static func normalizedTimingWord(_ word: String) -> String {
+        word
+            .unicodeScalars
+            .filter {
+                CharacterSet.alphanumerics.contains($0)
+            }
+            .map(String.init)
+            .joined()
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
     #if DEBUG
