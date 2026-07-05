@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+. "$ROOT_DIR/scripts/dist/meeting_echo_asset_defaults.sh"
+
 APP_PATH="${1:-${APP_PATH:-$ROOT_DIR/dist/MacParakeet.app}}"
 REQUIRE_MEETING_ECHO_ASSETS="${REQUIRE_MEETING_ECHO_ASSETS:-0}"
 VERIFY_CODE_SIGNATURES="${VERIFY_CODE_SIGNATURES:-0}"
@@ -107,12 +110,28 @@ else
   missing_tool "nm" "meeting echo runtime LocalVQE symbols"
 fi
 
-if [[ -n "${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}" ]]; then
+expected_model_sha="${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}"
+if [[ -z "$expected_model_sha" ]]; then
+  bundled_model_name="$(basename "$MODEL_PATH")"
+  bundled_model_name_lc="$(printf '%s' "$bundled_model_name" | tr '[:upper:]' '[:lower:]')"
+  default_model_name_lc="$(printf '%s' "$DEFAULT_MEETING_ECHO_MODEL_NAME" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$bundled_model_name_lc" == "$default_model_name_lc" ]]; then
+    expected_model_sha="$DEFAULT_MEETING_ECHO_MODEL_SHA256"
+  elif [[ "$STRICT_MEETING_ECHO_ASSETS" == "1" ]]; then
+    echo "Error: strict meeting echo asset verification requires MACPARAKEET_MEETING_ECHO_MODEL_SHA256 for non-default models." >&2
+    echo "  Bundled model: $bundled_model_name" >&2
+    echo "  Default model: $DEFAULT_MEETING_ECHO_MODEL_NAME" >&2
+    echo "  Set MACPARAKEET_MEETING_ECHO_MODEL_SHA256 to the expected SHA256 for this model." >&2
+    exit 1
+  fi
+fi
+
+if [[ -n "$expected_model_sha" ]]; then
   actual_sha="$(shasum -a 256 "$MODEL_PATH" | awk '{print $1}')"
-  expected_sha_lc="$(printf '%s' "$MACPARAKEET_MEETING_ECHO_MODEL_SHA256" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+  expected_sha_lc="$(printf '%s' "$expected_model_sha" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
   if [[ "$actual_sha" != "$expected_sha_lc" ]]; then
     echo "Error: bundled meeting echo model SHA256 mismatch." >&2
-    echo "  Expected: $MACPARAKEET_MEETING_ECHO_MODEL_SHA256" >&2
+    echo "  Expected: $expected_model_sha" >&2
     echo "  Actual:   $actual_sha" >&2
     exit 1
   fi
