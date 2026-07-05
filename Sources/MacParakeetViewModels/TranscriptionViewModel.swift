@@ -9,6 +9,7 @@ public final class TranscriptionViewModel {
     public struct RetranscriptionEngineOption: Equatable, Sendable {
         public struct Choice: Identifiable, Equatable, Sendable {
             public let selection: SpeechEngineSelection
+            public let capabilities: SpeechEngineCapabilities
             public let isPrimary: Bool
             public let isAvailable: Bool
             public let unavailableReason: String?
@@ -43,19 +44,14 @@ public final class TranscriptionViewModel {
 
         public var firstTimestampCapableChoice: Choice? {
             choices.first { choice in
-                choice.isAvailable && producesWordTimestamps(choice.selection)
+                choice.isAvailable && choice.capabilities.providesWordTimestamps
             }
         }
 
         public func producesWordTimestamps(_ selection: SpeechEngineSelection) -> Bool {
-            switch selection.engine {
-            case .parakeet:
-                !parakeetVariant.usesUnifiedEngine
-            case .nemotron, .whisper:
-                true
-            case .cohere:
-                false
-            }
+            choices
+                .first { $0.selection.engine == selection.engine }?
+                .capabilities.providesWordTimestamps ?? false
         }
     }
 
@@ -492,14 +488,27 @@ public final class TranscriptionViewModel {
             primaryReflectsTranscriptEngine = false
         }
 
+        let parakeetVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+        let nemotronVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+        let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+
         let choices = retranscriptionEngineOrder(primary: primaryEngine.engine).map { engine in
             let selection = SpeechEngineSelection(
                 engine: engine,
                 language: Self.retranscriptionLanguage(for: engine, defaults: defaults)
             )
+            guard let capabilities = SpeechEngineCapabilityRegistry.capabilities(
+                for: engine,
+                parakeetModelVariant: parakeetVariant,
+                nemotronModelVariant: nemotronVariant,
+                whisperModelVariant: whisperVariant
+            ) else {
+                preconditionFailure("Missing SpeechEngineCapabilities row for \(engine.rawValue)")
+            }
             let unavailableReason = retranscriptionUnavailableReason(for: engine)
             return RetranscriptionEngineOption.Choice(
                 selection: engine == primaryEngine.engine ? primaryEngine : selection,
+                capabilities: capabilities,
                 isPrimary: engine == primaryEngine.engine,
                 isAvailable: unavailableReason == nil,
                 unavailableReason: unavailableReason,
@@ -510,8 +519,8 @@ public final class TranscriptionViewModel {
         return RetranscriptionEngineOption(
             primaryEngine: primaryEngine,
             choices: choices,
-            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
-            parakeetVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
+            nemotronVariant: nemotronVariant,
+            parakeetVariant: parakeetVariant,
             primaryReflectsTranscriptEngine: primaryReflectsTranscriptEngine
         )
     }
