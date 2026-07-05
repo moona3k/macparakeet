@@ -1,0 +1,19 @@
+Sources/CLI/CHANGELOG.md
+  s_51976bcc0d2829::t_84a2c48476d49a 133-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc06eb7adb9e3ce0823b91ee1e7c6d6345ce4697",
+  "prompts": {},
+  "sessions": {
+    "s_51976bcc0d2829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d7bbd9b-bf64-4700-803b-b0fd38416538",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
