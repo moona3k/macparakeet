@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_2a75fa1c414460::t_ad6b3b7cde22ba 442-444,446
+  s_2a75fa1c414460::t_add7699ae808f1 445,447,456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f0a6b9a9003a61794aaf88ab46810e393ebd25b9",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
