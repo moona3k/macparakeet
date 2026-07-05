@@ -73,6 +73,7 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// so notes-saves cannot race with state-transition writes.
     func updateNotes(_ notes: String) async
     var isRecording: Bool { get async }
+    var activeSessionID: UUID? { get async }
     var isPaused: Bool { get async }
     var micLevel: Float { get async }
     var systemLevel: Float { get async }
@@ -111,6 +112,10 @@ public extension MeetingRecordingServiceProtocol {
 
     var captureHealth: MeetingCaptureHealthSummary {
         get async { .notRecording }
+    }
+
+    var activeSessionID: UUID? {
+        get async { nil }
     }
 
     func captureFailureSignalForCurrentSession() async -> AsyncStream<MeetingCaptureFailureSignal> {
@@ -371,6 +376,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     public var isRecording: Bool {
         currentSession != nil
+    }
+
+    public var activeSessionID: UUID? {
+        currentSession?.id
     }
 
     public var isPaused: Bool {
@@ -712,21 +721,68 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             throw MeetingAudioError.notRunning
         }
 
+        let serviceStopStartedAt = Date()
+        var serviceStopOutcome = "success"
+        func elapsedMilliseconds(since startedAt: Date) -> Int {
+            max(0, Int((Date().timeIntervalSince(startedAt) * 1_000).rounded()))
+        }
+        func appendStopStage(
+            _ stage: String,
+            startedAt: Date,
+            outcome: String = "success",
+            detail: String? = nil
+        ) {
+            let suffix = detail.map { " \($0)" } ?? ""
+            let fields = [
+                "meeting_stop_stage",
+                "session=\(session.id.uuidString)",
+                "stage=\(stage)",
+                "duration_ms=\(elapsedMilliseconds(since: startedAt))",
+                "outcome=\(outcome)",
+            ].joined(separator: " ")
+            AudioCaptureDiagnostics.append(
+                "\(fields)\(suffix)"
+            )
+        }
+        defer {
+            appendStopStage("service_total", startedAt: serviceStopStartedAt, outcome: serviceStopOutcome)
+        }
+
         AudioCaptureDiagnostics.append(
             "meeting_recording_stopping session=\(session.id.uuidString)"
         )
+        let captureStopStartedAt = Date()
         await audioCaptureService.stop()
+        appendStopStage("capture_stop", startedAt: captureStopStartedAt)
+        let drainStartedAt = Date()
         await drainProcessingTaskAfterCaptureStop()
+        appendStopStage("processing_drain", startedAt: drainStartedAt)
+        let writerFinalizeStartedAt = Date()
         let finalizedWriter = writer
         writer = nil
         await finalizeWriter(finalizedWriter)
+        appendStopStage("writer_finalize", startedAt: writerFinalizeStartedAt)
         let writerMetrics = [
             AudioSource.microphone: finalizedWriter?.metrics(for: .microphone),
             AudioSource.system: finalizedWriter?.metrics(for: .system),
         ]
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
 
-        let inputURLs = try existingSourceURLs(for: session)
+        let sourceURLsStartedAt = Date()
+        let inputURLs: [URL]
+        do {
+            inputURLs = try existingSourceURLs(for: session)
+            appendStopStage("source_urls", startedAt: sourceURLsStartedAt)
+        } catch {
+            serviceStopOutcome = "failure_source_urls"
+            appendStopStage(
+                "source_urls",
+                startedAt: sourceURLsStartedAt,
+                outcome: "failure",
+                detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
+            )
+            throw error
+        }
         guard !inputURLs.isEmpty else {
             AudioCaptureDiagnostics.append(
                 captureHealthSummaryLine(
@@ -741,6 +797,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             await releaseSpeechEngineLease()
             cleanupState()
             try? fileManager.removeItem(at: session.folderURL)
+            serviceStopOutcome = "failure_no_audio"
             throw MeetingAudioError.noAudioCaptured
         }
 
@@ -749,6 +806,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             availableSources: availableSources,
             writerMetrics: writerMetrics
         )
+        let metadataStartedAt = Date()
         do {
             try MeetingRecordingMetadataStore.save(
                 MeetingRecordingMetadata(
@@ -759,28 +817,48 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 ),
                 folderURL: session.folderURL
             )
+            appendStopStage("metadata_save", startedAt: metadataStartedAt)
         } catch {
             await liveChunkTranscriber.finishSession()
             await releaseSpeechEngineLease()
             cleanupState()
+            serviceStopOutcome = "failure_metadata"
+            appendStopStage(
+                "metadata_save",
+                startedAt: metadataStartedAt,
+                outcome: "failure",
+                detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
+            )
             throw MeetingAudioError.storageFailed(error.localizedDescription)
         }
 
+        let mixStartedAt = Date()
         do {
             try await audioConverter.mixToM4A(
                 inputURLs: inputURLs,
                 outputURL: session.mixedAudioURL,
                 sourceAlignment: sourceAlignment
             )
+            appendStopStage("mix", startedAt: mixStartedAt)
         } catch {
             logger.error(
                 "meeting_mix_failed_nonfatal session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            preservePlayableMeetingAudioFallback(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
+            preservePlayableMeetingAudioFallback(
+                inputURLs: inputURLs,
+                outputURL: session.mixedAudioURL
+            )
+            appendStopStage(
+                "mix",
+                startedAt: mixStartedAt,
+                outcome: "fallback",
+                detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
+            )
         }
 
         let finalNotes = currentNotes
         let notesFileManager = MeetingNotesFile.SendableFileManager(fileManager)
+        let notesStartedAt = Date()
         do {
             try await MeetingNotesFile.write(
                 notes: finalNotes,
@@ -788,9 +866,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 to: session.folderURL,
                 fileManager: notesFileManager
             )
+            appendStopStage("notes_write", startedAt: notesStartedAt)
         } catch {
             logger.warning(
                 "meeting_notes_file_write_failed session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+            appendStopStage(
+                "notes_write",
+                startedAt: notesStartedAt,
+                outcome: "failure_nonfatal",
+                detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
             )
         }
 
@@ -806,12 +891,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         ))
             .withNotes(finalNotes)
             .withState(.awaitingTranscription)
+        let lockStartedAt = Date()
         do {
             try lockFileStore.write(awaitingLock, folderURL: session.folderURL)
+            appendStopStage("lock_write", startedAt: lockStartedAt)
         } catch {
             await liveChunkTranscriber.finishSession()
             await releaseSpeechEngineLease()
             cleanupState()
+            serviceStopOutcome = "failure_lock"
+            appendStopStage(
+                "lock_write",
+                startedAt: lockStartedAt,
+                outcome: "failure",
+                detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
+            )
             throw MeetingAudioError.storageFailed(error.localizedDescription)
         }
         currentLockFile = awaitingLock
@@ -829,12 +923,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // The render guard models audio work, so use captured media duration
         // rather than user-facing wall-clock meeting duration.
         let renderDurationSeconds = sourceAlignment.cleanedMicrophoneRenderDurationSeconds
+        let cleanedMicScheduleStartedAt = Date()
         let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
             session: session,
             availableSources: availableSources,
             sourceAlignment: sourceAlignment,
             renderDuration: renderDurationSeconds
         )
+        appendStopStage("cleaned_mic_schedule", startedAt: cleanedMicScheduleStartedAt)
         let output = MeetingRecordingOutput(
             sessionID: session.id,
             displayName: session.displayName,
@@ -852,8 +948,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             calendarEventSnapshot: session.calendarEventSnapshot
         )
 
+        let cleanupStartedAt = Date()
         await liveChunkTranscriber.finishSession()
         await releaseSpeechEngineLease()
+        appendStopStage("cleanup", startedAt: cleanupStartedAt)
         logger.info("Meeting recording finalized: \(session.id.uuidString, privacy: .public)")
         AudioCaptureDiagnostics.append(
             "meeting_recording_stopped session=\(session.id.uuidString) duration_s=\(String(format: "%.3f", durationSeconds))"
