@@ -1,5 +1,8 @@
 import Foundation
 import MacParakeetCore
+#if MACPARAKEET_HAS_MLX_LOCAL_LLM
+import MacParakeetLocalLLM
+#endif
 import MacParakeetViewModels
 import OSLog
 
@@ -271,7 +274,7 @@ final class AppEnvironment {
             )
         }
 
-        llmClient = RoutingLLMClient()
+        llmClient = Self.makeLLMClient()
         self.llmConfigStore = llmConfigStore
         llmService = LLMService(
             client: llmClient,
@@ -435,5 +438,15 @@ final class AppEnvironment {
                 defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
             }
         }
+    }
+
+    private nonisolated static func makeLLMClient() -> RoutingLLMClient {
+        #if MACPARAKEET_HAS_MLX_LOCAL_LLM
+        return RoutingLLMClient(
+            inProcessClient: InProcessLLMClient(runtime: MLXLocalLLMRuntime())
+        )
+        #else
+        return RoutingLLMClient()
+        #endif
     }
 }

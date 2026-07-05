@@ -264,6 +264,62 @@ final class InProcessLLMClientTests: XCTestCase {
         XCTAssertEqual(requestContents, ["First"])
     }
 
+    func testQueuedGenerationCancellationBeforeWaitRegistrationReturnsPromptly() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let signal = StateSignal<String>()
+        let runtime = CoordinatedLocalLLMRuntime(signal: signal)
+        let coordinator = LocalLLMLifetimeCoordinator(
+            beforeWaitContinuationHook: {
+                await signal.emit("before-wait-registration")
+                _ = await signal.wait(for: "release-wait-registration")
+            }
+        )
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            idleUnloadDelaySeconds: 60,
+            lifetimeCoordinator: coordinator
+        )
+
+        let firstTask = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "First")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "queued-cancel-race-test")),
+                options: .default
+            )
+        }
+        let didStartFirstStream = await signal.wait(for: "stream-started-First")
+        XCTAssertTrue(didStartFirstStream)
+
+        let queuedTask = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Second")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "queued-cancel-race-test")),
+                options: .default
+            )
+        }
+        let didReachWaitRegistration = await signal.wait(for: "before-wait-registration")
+        XCTAssertTrue(didReachWaitRegistration)
+
+        queuedTask.cancel()
+        await signal.emit("release-wait-registration")
+
+        do {
+            _ = try await queuedTask.value
+            XCTFail("Expected queued local generation to throw CancellationError")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+
+        let requestContents = await runtime.requestContents()
+        XCTAssertEqual(requestContents, ["First"])
+        await signal.emit("finish-First")
+        let firstResponse = try await firstTask.value
+        XCTAssertEqual(firstResponse.content, "response-First")
+    }
+
     func testStreamingYieldsRuntimeChunks() async throws {
         let modelDirectory = temporaryModelDirectory()
         let runtime = FakeLocalLLMRuntime(eventPlans: [[
@@ -333,6 +389,58 @@ final class InProcessLLMClientTests: XCTestCase {
         try await Task.sleep(nanoseconds: 80_000_000)
         let unloadCount = await runtime.unloadCallCount()
         XCTAssertEqual(unloadCount, 1)
+    }
+
+    func testStaleIdleUnloadDoesNotUnloadDuringNextGeneration() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let signal = StateSignal<String>()
+        let runtime = CoordinatedLocalLLMRuntime(signal: signal)
+        let coordinator = LocalLLMLifetimeCoordinator(
+            beforeIdleUnloadHook: {
+                await signal.emit("idle-unload-ready")
+                _ = await signal.wait(for: "release-idle-unload")
+            }
+        )
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            idleUnloadDelaySeconds: 0,
+            lifetimeCoordinator: coordinator
+        )
+
+        let firstTask = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "First")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "idle-unload-race-test")),
+                options: .default
+            )
+        }
+        let didStartFirstStream = await signal.wait(for: "stream-started-First")
+        XCTAssertTrue(didStartFirstStream)
+        await signal.emit("finish-First")
+        let firstResponse = try await firstTask.value
+        XCTAssertEqual(firstResponse.content, "response-First")
+        let didReachIdleUnload = await signal.wait(for: "idle-unload-ready")
+        XCTAssertTrue(didReachIdleUnload)
+
+        let secondTask = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Second")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "idle-unload-race-test")),
+                options: .default
+            )
+        }
+        let didStartSecondStream = await signal.wait(for: "stream-started-Second")
+        XCTAssertTrue(didStartSecondStream)
+
+        await signal.emit("release-idle-unload")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let didUnloadDuringActiveStream = await runtime.didUnloadDuringActiveStream()
+        XCTAssertFalse(didUnloadDuringActiveStream)
+
+        await signal.emit("finish-Second")
+        let secondResponse = try await secondTask.value
+        XCTAssertEqual(secondResponse.content, "response-Second")
     }
 
     private func temporaryModelDirectory() -> URL {
@@ -429,4 +537,68 @@ private enum FakeRuntimeEvent: Sendable {
     case text(String)
     case metrics(LLMGenerationMetrics)
     case failure(any Error & Sendable)
+}
+
+private actor CoordinatedLocalLLMRuntime: LocalLLMRuntime {
+    private let signal: StateSignal<String>
+    private var loadCalls: [LocalLLMModelReference] = []
+    private var unloadCalls = 0
+    private var requests: [[ChatMessage]] = []
+    private var activeStreamIDs: Set<UUID> = []
+    private var unloadedDuringActiveStream = false
+
+    init(signal: StateSignal<String>) {
+        self.signal = signal
+    }
+
+    func load(model: LocalLLMModelReference) async throws {
+        loadCalls.append(model)
+    }
+
+    func unload() async {
+        unloadCalls += 1
+        if !activeStreamIDs.isEmpty {
+            unloadedDuringActiveStream = true
+        }
+    }
+
+    func generateStream(
+        messages: [ChatMessage],
+        options: ChatCompletionOptions
+    ) async throws -> AsyncThrowingStream<LocalLLMRuntimeEvent, Error> {
+        requests.append(messages)
+        let requestLabel = messages.map(\.content).joined(separator: "\n\n")
+        let streamID = UUID()
+        activeStreamIDs.insert(streamID)
+        let signal = signal
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                await signal.emit("stream-started-\(requestLabel)")
+                _ = await signal.wait(for: "finish-\(requestLabel)")
+                continuation.yield(.text("response-\(requestLabel)"))
+                self.finishStream(id: streamID)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func instrumentation() async -> LLMGenerationMetrics? {
+        nil
+    }
+
+    func requestContents() -> [String] {
+        requests.map { request in
+            request.map(\.content).joined(separator: "\n\n")
+        }
+    }
+
+    func didUnloadDuringActiveStream() -> Bool {
+        unloadedDuringActiveStream
+    }
+
+    private func finishStream(id: UUID) {
+        activeStreamIDs.remove(id)
+    }
 }

@@ -4,6 +4,7 @@ import MLXHuggingFace
 import MLXLLM
 import MLXLMCommon
 import OSLog
+import Tokenizers
 
 #if MACPARAKEET_HAS_MLX_LOCAL_LLM
 
@@ -32,7 +33,10 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
 
         clearLoadedState()
 
-        modelContainer = try await loadModelContainer(from: model.directory)
+        modelContainer = try await loadModelContainer(
+            from: model.directory,
+            using: #huggingFaceTokenizerLoader()
+        )
         loadedModel = model
         unloadAfterGeneration = false
         logger.info("Loaded local MLX model \(model.modelName, privacy: .public)")
@@ -94,22 +98,21 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
             }
 
             try Task.checkCancellation()
-            let session = ChatSession(modelContainer)
-            let prompt = Self.prompt(from: messages)
-            let parameters = GenerateParameters(
-                temperature: Float(options.temperature ?? 0.2),
-                maxTokens: options.maxTokens,
-                kvBits: 4
+            let session = ChatSession(
+                modelContainer,
+                generateParameters: GenerateParameters(
+                    maxTokens: options.maxTokens,
+                    kvBits: 4,
+                    temperature: Float(options.temperature ?? 0.2)
+                )
             )
+            let prompt = Self.prompt(from: messages)
 
             let start = Date()
             var firstTokenDate: Date?
             var tokenCount = 0
 
-            for try await token in session.streamResponse(
-                to: prompt,
-                generateParameters: parameters
-            ) {
+            for try await token in session.streamResponse(to: prompt) {
                 try Task.checkCancellation()
                 if firstTokenDate == nil {
                     firstTokenDate = Date()

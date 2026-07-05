@@ -28,7 +28,7 @@ let packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
     .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.31.4"),
     .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
-    .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
+    .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.1.6")),
 ] : [])
 
 let coreDependencies: [Target.Dependency] = [
@@ -101,7 +101,8 @@ let package = Package(
             name: "MacParakeet",
             dependencies: appDependencies,
             path: "Sources/MacParakeet",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            swiftSettings: mlxLocalLLMSwiftSettings
         ),
         // macparakeet-cli — versioned public surface (semver, Sources/CLI/CHANGELOG.md).
         // Consumed by the macOS app, scripted callers, and downstream agent skills
