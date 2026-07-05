@@ -80,6 +80,10 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
         XCTAssertTrue(cleared)
 
+        let recordedSuccess = await waitUntil {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "success")
+        }
+        XCTAssertTrue(recordedSuccess)
         let events = harness.telemetry.snapshot()
         XCTAssertTrue(events.containsCaptionShown(firstInstall: true))
         XCTAssertTrue(events.containsCaptionDuration(outcome: "success"))
@@ -225,6 +229,34 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(harness.coordinator.processingLoadCaptionForTesting)
     }
 
+    func testStalePasteCompletionDoesNotClearNextProcessingCaption() async throws {
+        let harness = try makeHarness(isReady: true, transcribeDelayMs: 5)
+        await harness.clipboard.setPasteDelayMs(150)
+
+        try await harness.startAndStop()
+        let successVisible = await waitUntil {
+            harness.coordinator.overlayStateForTesting?.isSuccessForTest == true
+        }
+        XCTAssertTrue(successVisible)
+
+        await harness.stt.setReady(false)
+        await harness.stt.setTranscribeDelay(milliseconds: 300)
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let secondStarted = await waitUntil {
+            harness.coordinator.overlayStateForTesting?.isRecordingForTest == true
+        }
+        XCTAssertTrue(secondStarted)
+        harness.coordinator.stopDictation()
+
+        let secondCaptionShown = await harness.captionSignal.wait(for: .preparing)
+        XCTAssertTrue(secondCaptionShown)
+        let firstPasteCompleted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts.count == 1
+        }
+        XCTAssertTrue(firstPasteCompleted)
+        XCTAssertEqual(harness.coordinator.processingLoadCaptionForTesting, .preparing)
+    }
+
     func testKeepDictationOnClipboardPastesNormalPayloadWithoutRestore() async throws {
         let harness = try makeHarness(
             isReady: true,
@@ -277,15 +309,20 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         )
 
         // The paste uses the insertion style captured when the transcript was
-        // produced. With the success checkmark removed, paste is immediate, so a
-        // later preference change can no longer race ahead of it — the captured
-        // (inline) style is applied. (When the finalize queue lands, the deferred
-        // paste will snapshot the style into the job, re-establishing this
-        // guarantee against a mid-flight preference change.)
+        // produced. Even while the success checkmark is visible, a later
+        // preference change cannot race ahead of it — the captured (inline)
+        // style is applied.
         harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
         let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
         XCTAssertTrue(started)
         harness.coordinator.stopDictation()
+        let completed = await waitUntil { harness.coordinator.overlayStateForTesting?.isSuccessForTest == true }
+        XCTAssertTrue(completed)
+
+        harness.preferencesDefaults.set(
+            DictationInsertionStyle.sentence.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
+        )
 
         let pasted = await waitUntilAsync {
             await harness.clipboard.snapshot().lastPastedText != nil

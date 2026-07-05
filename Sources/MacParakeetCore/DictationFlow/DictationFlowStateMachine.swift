@@ -383,12 +383,8 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         case (.processing, .transcriptionCompleted(let gen)):
             guard gen == generation else { return [] }
-            // No success checkmark — the pasted text is the confirmation. Keep
-            // the processing pill up through the paste, then drop straight to
-            // idle on pasteSucceeded (below) so the next dictation can start the
-            // instant the text lands.
             state = .finishing(outcome: .success)
-            return [.updateMenuBar(.idle), .resignKeyWindow, .pasteTranscript]
+            return [.showSuccess, .updateMenuBar(.idle), .resignKeyWindow, .resetHotkeyStateMachine, .pasteTranscript]
 
         case (.processing, .transcriptionFailedNoSpeech(let gen)):
             guard gen == generation else { return [] }
@@ -465,11 +461,10 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         case (.finishing(.success), .pasteSucceeded(let gen)):
             guard gen == generation else { return [] }
-            // Text is in — no checkmark dwell. Return to idle and re-arm the
-            // hotkey immediately so a press right after drop-in starts a new
-            // dictation instead of waiting out a success animation.
-            state = .idle
-            return [.hideOverlay, .reloadHistory, .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill]
+            // Text is in; keep the success checkmark visible briefly so the
+            // dictation has a clear completion affordance. A fresh hotkey press
+            // while this dwells is still handled by the finishing restart path.
+            return [.startDisplayDismissTimer(seconds: 0.8)]
 
         case (.finishing(.success), .pasteFailed(let gen, let message)):
             guard gen == generation else { return [] }
@@ -490,7 +485,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
-                .hideIdlePill, .showReadyPill, .startReadyDismissTimer,
+                .hideIdlePill, .showReadyPill, .startReadyDismissTimer, .resetHotkeyStateMachine,
             ]
 
         case (.finishing, .startRequested(let mode)):
@@ -499,7 +494,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
-                .hideIdlePill, .checkEntitlements,
+                .hideIdlePill, .checkEntitlements, .resetHotkeyStateMachine,
             ]
 
         case (.finishing, .cancelRequested), (.finishing, .dismissRequested):

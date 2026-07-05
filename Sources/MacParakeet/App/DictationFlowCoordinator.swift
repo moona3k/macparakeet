@@ -495,7 +495,7 @@ final class DictationFlowCoordinator {
             overlayViewModel?.state = .cancelled(timeRemaining: seconds)
 
         case .showSuccess:
-            dismissCaption(outcome: .success)
+            clearCaptionVisualWhileAwaitingPasteOutcome()
             overlayViewModel?.state = .success
 
         case .showNoSpeech:
@@ -593,11 +593,8 @@ final class DictationFlowCoordinator {
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
-            actionTask = Task { @MainActor in
-                // Paste immediately — there's no success checkmark to wait for;
-                // the pasted text is the confirmation.
-                guard !Task.isCancelled else { return }
-
+            Task { @MainActor in
+                var completedDictation = dictation
                 let action = self.pendingPostPasteAction
                 self.pendingPostPasteAction = nil
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -612,6 +609,7 @@ final class DictationFlowCoordinator {
                 do {
                     if action == nil && !transcriptHasText {
                         self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
                         return
@@ -634,32 +632,33 @@ final class DictationFlowCoordinator {
                             restoresClipboard: !keepDictationOnClipboard
                         )
                     }
-                    guard !Task.isCancelled else { return }
 
                     // Save pastedToApp metadata
                     if let pastedToApp = pastedToAppAtDispatch {
-                        self.currentDictation?.pastedToApp = pastedToApp
-                        self.currentDictation?.updatedAt = Date()
-                        if let d = self.currentDictation {
-                            do {
-                                try self.dictationRepo.save(d)
-                            } catch {
-                                self.dictationLog.error("Failed to save pastedToApp metadata error=\(error.localizedDescription, privacy: .public)")
+                        completedDictation.pastedToApp = pastedToApp
+                        completedDictation.updatedAt = Date()
+                        do {
+                            try self.dictationRepo.save(completedDictation)
+                            if self.currentDictation?.id == completedDictation.id {
+                                self.currentDictation = completedDictation
                             }
+                        } catch {
+                            self.dictationLog.error("Failed to save pastedToApp metadata error=\(error.localizedDescription, privacy: .public)")
                         }
                     }
 
                     let rawChars = dictation.rawTranscript.count
                     let cleanChars = dictation.cleanTranscript?.count ?? 0
-                    let app = self.currentDictation?.pastedToApp ?? "none"
+                    let app = completedDictation.pastedToApp ?? "none"
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
+                    guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .success)
                     self.sendEvent(.pasteSucceeded(generation: gen))
                 } catch {
-                    guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                    guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .failure)
                     if !transcriptHasText {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
@@ -865,13 +864,7 @@ final class DictationFlowCoordinator {
     }
 
     private func dismissCaption(outcome: ProcessingLoadCaptionOutcome) {
-        captionGeneration += 1
-        captionGraceTimer?.cancel()
-        captionEscalationTimer?.cancel()
-        captionFailureDismissTask?.cancel()
-        captionGraceTimer = nil
-        captionEscalationTimer = nil
-        captionFailureDismissTask = nil
+        resetCaptionTimers()
 
         if let shownAt = captionShownAt {
             let durationMs = max(0, Int(Date().timeIntervalSince(shownAt) * 1000))
@@ -882,6 +875,21 @@ final class DictationFlowCoordinator {
             captionShownAt = nil
         }
         setProcessingLoadCaption(nil)
+    }
+
+    private func clearCaptionVisualWhileAwaitingPasteOutcome() {
+        resetCaptionTimers()
+        setProcessingLoadCaption(nil)
+    }
+
+    private func resetCaptionTimers() {
+        captionGeneration += 1
+        captionGraceTimer?.cancel()
+        captionEscalationTimer?.cancel()
+        captionFailureDismissTask?.cancel()
+        captionGraceTimer = nil
+        captionEscalationTimer = nil
+        captionFailureDismissTask = nil
     }
 
     private func showErrorAfterCaptionFailureIfNeeded(message: String) {
