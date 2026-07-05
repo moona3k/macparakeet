@@ -169,6 +169,40 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         }
     }
 
+    func testDictationBackgroundPreparationCancelsBeforeSharedWarmupStarts() async throws {
+        let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet", isPrepared: false)
+        let registrationProbe = BackgroundPreparationRegistrationProbe()
+        let task = Task {
+            try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+                transcript: "MAC Parakeet",
+                tokenTimings: Self.tokenTimings,
+                audioSamples: [0.1, 0.2, 0.3],
+                capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+                vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+                rescorer: rescorer,
+                preparationMode: .backgroundIfNeeded,
+                backgroundPreparationTaskRegistered: {
+                    await registrationProbe.holdUntilReleased()
+                }
+            )
+        }
+
+        await registrationProbe.waitUntilRegistered()
+        task.cancel()
+        await registrationProbe.release()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation to escape before background preparation starts")
+        } catch is CancellationError {
+            await Task.yield()
+            let prepareCount = await rescorer.prepareCount()
+            let requestCount = await rescorer.requestCount()
+            XCTAssertEqual(prepareCount, 0)
+            XCTAssertEqual(requestCount, 0)
+        }
+    }
+
     func testSupportedEngineInvokesSidecarWithOriginalSamples() async throws {
         let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet")
         let samples: [Float] = [0.1, 0.2, 0.3, 0.0, 0.0]
@@ -303,6 +337,43 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         }
         let count = await rescorer.prepareCount()
         XCTAssertEqual(count, expectedCount, file: file, line: line)
+    }
+}
+
+private actor BackgroundPreparationRegistrationProbe {
+    private var registered = false
+    private var released = false
+    private var registrationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func holdUntilReleased() async {
+        registered = true
+        let waiters = registrationWaiters
+        registrationWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            releaseWaiters.append(continuation)
+        }
+    }
+
+    func waitUntilRegistered() async {
+        guard !registered else { return }
+        await withCheckedContinuation { continuation in
+            registrationWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        released = true
+        let waiters = releaseWaiters
+        releaseWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 }
 

@@ -69,6 +69,8 @@ private final class BackgroundCustomVocabularyPreparationCancellation: @unchecke
     private let lock = NSLock()
     private var task: Task<Void, Never>?
     private var cancelled = false
+    private var startAllowed = false
+    private var startWaiter: CheckedContinuation<Void, Never>?
 
     func setTask(_ task: Task<Void, Never>) throws {
         lock.lock()
@@ -88,8 +90,11 @@ private final class BackgroundCustomVocabularyPreparationCancellation: @unchecke
         lock.lock()
         cancelled = true
         let task = task
+        let startWaiter = startWaiter
+        self.startWaiter = nil
         lock.unlock()
 
+        startWaiter?.resume()
         task?.cancel()
     }
 
@@ -101,6 +106,42 @@ private final class BackgroundCustomVocabularyPreparationCancellation: @unchecke
         if shouldCancel {
             throw CancellationError()
         }
+    }
+
+    func allowStart() throws {
+        lock.lock()
+        let shouldCancel = cancelled
+        let startWaiter = startWaiter
+        startAllowed = true
+        self.startWaiter = nil
+        lock.unlock()
+
+        startWaiter?.resume()
+
+        if shouldCancel {
+            throw CancellationError()
+        }
+    }
+
+    func waitUntilStartAllowed() async throws {
+        try checkCancellation()
+        await withCheckedContinuation { continuation in
+            var shouldResume = false
+
+            lock.lock()
+            if startAllowed || cancelled {
+                shouldResume = true
+            } else {
+                startWaiter = continuation
+            }
+            lock.unlock()
+
+            if shouldResume {
+                continuation.resume()
+            }
+        }
+        try Task.checkCancellation()
+        try checkCancellation()
     }
 }
 
@@ -787,7 +828,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate,
         preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation,
-        logger: Logger? = nil
+        logger: Logger? = nil,
+        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil
     ) async throws -> ASRResult {
         try Task.checkCancellation()
         guard capabilities.supportsCustomVocabulary,
@@ -812,11 +854,15 @@ public actor STTRuntime: STTRuntimeProtocol {
                         let preparationTask = startBackgroundCustomVocabularyPreparation(
                             vocabulary: vocabulary,
                             rescorer: rescorer,
+                            cancellation: cancellation,
                             logger: logger
                         )
                         try cancellation.setTask(preparationTask)
+                        if let backgroundPreparationTaskRegistered {
+                            await backgroundPreparationTaskRegistered()
+                        }
                         try Task.checkCancellation()
-                        try cancellation.checkCancellation()
+                        try cancellation.allowStart()
                         return result
                     } onCancel: {
                         cancellation.cancel()
@@ -854,6 +900,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private static func startBackgroundCustomVocabularyPreparation(
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
+        cancellation: BackgroundCustomVocabularyPreparationCancellation,
         logger: Logger?
     ) -> Task<Void, Never> {
         // Dictation finalize must not wait on the first-use CTC download/load.
@@ -861,9 +908,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         // latency; a later utterance uses the prepared cache once this finishes.
         Task.detached {
             do {
+                try await cancellation.waitUntilStartAllowed()
                 try await rescorer.prepare(vocabulary: vocabulary)
             } catch is CancellationError {
-                // The caller already returned the unboosted dictation result.
+                // The caller either cancelled before release or already returned
+                // the unboosted dictation result.
             } catch {
                 logger?.warning(
                     "custom_vocabulary_prepare_background_failed error_type=\(String(describing: type(of: error)), privacy: .public)"
@@ -1069,7 +1118,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false),
-        preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation
+        preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation,
+        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil
     ) async throws -> ASRResult {
         let result = ASRResult(
             text: transcript,
@@ -1085,7 +1135,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             vocabulary: vocabulary,
             rescorer: rescorer,
             inferenceGate: inferenceGate,
-            preparationMode: preparationMode
+            preparationMode: preparationMode,
+            backgroundPreparationTaskRegistered: backgroundPreparationTaskRegistered
         )
     }
     #endif
