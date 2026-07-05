@@ -169,7 +169,8 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
     }
 
     private static func chatInput(from messages: [ChatMessage]) -> MLXChatInput {
-        let instructions = messages
+        let instructions =
+            messages
             .filter { $0.role == .system }
             .map(\.content)
             .joined(separator: "\n\n")

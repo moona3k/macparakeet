@@ -94,7 +94,8 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
 
     public static func environmentModelDirectory(for config: LLMProviderConfig) throws -> URL {
         guard let rawPath = ProcessInfo.processInfo.environment[modelDirectoryEnvironmentVariable],
-              !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             throw LLMError.modelNotFound(
                 "Set \(modelDirectoryEnvironmentVariable) to a local MLX model directory for \(config.modelName)."
             )
@@ -279,7 +280,8 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     }
 
     private static func splitForMapReduce(_ messages: [ChatMessage], maxCharacters: Int) -> [String] {
-        let joined = messages
+        let joined =
+            messages
             .map { "\($0.role.rawValue.uppercased()): \($0.modelContent)" }
             .joined(separator: "\n\n")
         return split(joined, maxCharacters: maxCharacters)
@@ -314,15 +316,15 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             ChatMessage(
                 role: .user,
                 content: """
-                Process chunk \(index) of \(total) for the user's request. Preserve facts exactly and do not infer missing details.
+                    Process chunk \(index) of \(total) for the user's request. Preserve facts exactly and do not infer missing details.
 
-                Original conversation context, including user and assistant turns:
-                \(originalConversationContext)
+                    Original conversation context, including user and assistant turns:
+                    \(originalConversationContext)
 
-                Chunk:
-                \(chunk)
-                """
-            ),
+                    Chunk:
+                    \(chunk)
+                    """
+            )
         ]
     }
 
@@ -345,15 +347,15 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             ChatMessage(
                 role: .user,
                 content: """
-                Combine the chunk results into one final answer for the original request. Preserve source facts exactly, remove duplication, and do not add unstated details.
+                    Combine the chunk results into one final answer for the original request. Preserve source facts exactly, remove duplication, and do not add unstated details.
 
-                Original conversation context, including user and assistant turns:
-                \(originalConversationContext)
+                    Original conversation context, including user and assistant turns:
+                    \(originalConversationContext)
 
-                Chunk results:
-                \(boundedCombined)
-                """
-            ),
+                    Chunk results:
+                    \(boundedCombined)
+                    """
+            )
         ]
     }
 
@@ -361,7 +363,8 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         _ messages: [ChatMessage],
         maxCharacters: Int = 6_000
     ) -> String {
-        let context = messages
+        let context =
+            messages
             .filter { $0.role != .system }
             .map { "\($0.role.rawValue.uppercased()): \($0.modelContent)" }
             .joined(separator: "\n\n")
@@ -443,9 +446,10 @@ private actor LocalLLMLifetimeCoordinator {
         if activeGenerationID != nil {
             let lease = LocalLLMGenerationLease(id: UUID())
             return try await withTaskCancellationHandler {
-                try await withCheckedThrowingContinuation { (
-                    continuation: CheckedContinuation<LocalLLMGenerationLease, Error>
-                ) in
+                try await withCheckedThrowingContinuation {
+                    (
+                        continuation: CheckedContinuation<LocalLLMGenerationLease, Error>
+                    ) in
                     waitingGenerations.append(
                         WaitingGeneration(lease: lease, continuation: continuation)
                     )
@@ -519,8 +523,9 @@ private actor LocalLLMLifetimeCoordinator {
         runtime: any LocalLLMRuntime
     ) async {
         guard scheduledUnloadID == id,
-              activeGenerationID == nil,
-              waitingGenerations.isEmpty else {
+            activeGenerationID == nil,
+            waitingGenerations.isEmpty
+        else {
             return
         }
 

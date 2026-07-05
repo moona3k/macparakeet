@@ -10,11 +10,13 @@ final class InProcessLLMClientTests: XCTestCase {
             timeToFirstTokenMs: 25,
             peakRSSBytes: 1_000
         )
-        let runtime = FakeLocalLLMRuntime(eventPlans: [[
-            .text("hello"),
-            .text(" local"),
-            .metrics(metrics),
-        ]])
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [
+                .text("hello"),
+                .text(" local"),
+                .metrics(metrics),
+            ]
+        ])
         let client = InProcessLLMClient(
             runtime: runtime,
             modelDirectoryResolver: { _ in modelDirectory },
@@ -54,7 +56,7 @@ final class InProcessLLMClientTests: XCTestCase {
 
         let response = try await client.chatCompletion(
             messages: [
-                ChatMessage(role: .user, content: String(repeating: "a", count: 100)),
+                ChatMessage(role: .user, content: String(repeating: "a", count: 100))
             ],
             context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "chunk-test")),
             options: .default
@@ -70,7 +72,7 @@ final class InProcessLLMClientTests: XCTestCase {
     func testChunkingBypassesMapReduceWhenSplitProducesOneChunk() async throws {
         let modelDirectory = temporaryModelDirectory()
         let runtime = FakeLocalLLMRuntime(eventPlans: [
-            [.text("single")],
+            [.text("single")]
         ])
         let client = InProcessLLMClient(
             runtime: runtime,
@@ -82,7 +84,7 @@ final class InProcessLLMClientTests: XCTestCase {
 
         let response = try await client.chatCompletion(
             messages: [
-                ChatMessage(role: .user, content: String(repeating: "a", count: 450)),
+                ChatMessage(role: .user, content: String(repeating: "a", count: 450))
             ],
             context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "single-chunk-test")),
             options: .default
@@ -159,7 +161,7 @@ final class InProcessLLMClientTests: XCTestCase {
 
         _ = try await client.chatCompletion(
             messages: [
-                ChatMessage(role: .user, content: String(repeating: "a", count: 500)),
+                ChatMessage(role: .user, content: String(repeating: "a", count: 500))
             ],
             context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "prompt-budget-test")),
             options: .default
@@ -275,10 +277,12 @@ final class InProcessLLMClientTests: XCTestCase {
 
     func testStreamingYieldsRuntimeChunks() async throws {
         let modelDirectory = temporaryModelDirectory()
-        let runtime = FakeLocalLLMRuntime(eventPlans: [[
-            .text("stream"),
-            .text("-chunk"),
-        ]])
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [
+                .text("stream"),
+                .text("-chunk"),
+            ]
+        ])
         let client = InProcessLLMClient(
             runtime: runtime,
             modelDirectoryResolver: { _ in modelDirectory },
@@ -458,12 +462,13 @@ private actor FakeLocalLLMRuntime: LocalLLMRuntime {
         requests.append(messages)
         resumeSatisfiedWaiters(&requestCountWaiters, currentCount: requests.count)
         let events = eventPlans.isEmpty ? [.text("fallback")] : eventPlans.removeFirst()
-        latestMetricsValue = events.compactMap { event in
-            if case .metrics(let metrics) = event {
-                return metrics
-            }
-            return nil
-        }.last
+        latestMetricsValue =
+            events.compactMap { event in
+                if case .metrics(let metrics) = event {
+                    return metrics
+                }
+                return nil
+            }.last
         let delayNanoseconds = delayNanoseconds
 
         return AsyncThrowingStream { continuation in
