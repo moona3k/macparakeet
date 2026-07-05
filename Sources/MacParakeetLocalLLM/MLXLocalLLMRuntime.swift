@@ -37,7 +37,7 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
 
         clearLoadedState()
 
-        modelContainer = try await loadModelContainer(
+        modelContainer = try await LLMModelFactory.shared.loadContainer(
             from: model.directory,
             using: #huggingFaceTokenizerLoader()
         )
