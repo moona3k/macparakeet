@@ -2510,6 +2510,14 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+        let parakeet = try retranscriptionChoice(.parakeet, in: option)
+        let expectedParakeet = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+
+        XCTAssertEqual(parakeet.capabilities, expectedParakeet)
+        XCTAssertEqual(
+            option.producesWordTimestamps(parakeet.selection),
+            expectedParakeet.providesWordTimestamps
+        )
 
         XCTAssertEqual(
             option.firstTimestampCapableChoice?.selection,
@@ -2546,11 +2554,109 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+        let parakeet = try retranscriptionChoice(.parakeet, in: option)
+        let whisper = try retranscriptionChoice(.whisper, in: option)
+        let whisperVariant = try XCTUnwrap(
+            WhisperModelVariant.normalize(SpeechEnginePreference.defaultWhisperModelVariant)
+        )
+        let expectedParakeet = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        let expectedWhisper = SpeechEngineCapabilityRegistry.capabilities(for: .whisper(whisperVariant))
 
-        XCTAssertFalse(option.producesWordTimestamps(SpeechEngineSelection(engine: .parakeet)))
+        XCTAssertEqual(parakeet.capabilities, expectedParakeet)
+        XCTAssertEqual(whisper.capabilities, expectedWhisper)
+        XCTAssertEqual(
+            option.producesWordTimestamps(parakeet.selection),
+            expectedParakeet.providesWordTimestamps
+        )
+        XCTAssertEqual(
+            option.producesWordTimestamps(whisper.selection),
+            expectedWhisper.providesWordTimestamps
+        )
+        XCTAssertFalse(expectedParakeet.providesWordTimestamps)
+        XCTAssertTrue(expectedWhisper.providesWordTimestamps)
         XCTAssertEqual(
             option.firstTimestampCapableChoice?.selection,
             SpeechEngineSelection(engine: .whisper)
+        )
+    }
+
+    func testRetranscriptionEngineOptionChoicesCarryRegistryTimestampCapabilities() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(
+            SpeechEnginePreference.defaultWhisperModelVariant,
+            defaults: defaults
+        )
+        viewModel = TranscriptionViewModel(
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true },
+            isCohereModelDownloaded: { true }
+        )
+
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-timestamps-registry-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Cohere Meeting",
+            filePath: tmpFile.path,
+            durationMs: 2_000,
+            rawTranscript: "Old transcript",
+            status: .completed,
+            sourceType: .meeting,
+            engine: SpeechEnginePreference.cohere.rawValue
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+        let parakeet = try retranscriptionChoice(.parakeet, in: option)
+        let nemotron = try retranscriptionChoice(.nemotron, in: option)
+        let whisper = try retranscriptionChoice(.whisper, in: option)
+        let cohere = try retranscriptionChoice(.cohere, in: option)
+        let whisperVariant = try XCTUnwrap(
+            WhisperModelVariant.normalize(SpeechEnginePreference.defaultWhisperModelVariant)
+        )
+
+        XCTAssertEqual(
+            parakeet.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        )
+        XCTAssertEqual(
+            nemotron.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(.english1120))
+        )
+        XCTAssertEqual(
+            whisper.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .whisper(whisperVariant))
+        )
+        XCTAssertEqual(
+            cohere.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+        )
+        XCTAssertEqual(
+            option.producesWordTimestamps(parakeet.selection),
+            parakeet.capabilities.providesWordTimestamps
+        )
+        XCTAssertEqual(
+            option.producesWordTimestamps(nemotron.selection),
+            nemotron.capabilities.providesWordTimestamps
+        )
+        XCTAssertEqual(
+            option.producesWordTimestamps(whisper.selection),
+            whisper.capabilities.providesWordTimestamps
+        )
+        XCTAssertEqual(
+            option.producesWordTimestamps(cohere.selection),
+            cohere.capabilities.providesWordTimestamps
+        )
+        XCTAssertEqual(
+            option.firstTimestampCapableChoice?.selection.engine,
+            .nemotron
         )
     }
 
@@ -2583,6 +2689,19 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+        let parakeet = try retranscriptionChoice(.parakeet, in: option)
+        let cohere = try retranscriptionChoice(.cohere, in: option)
+
+        XCTAssertEqual(
+            parakeet.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        )
+        XCTAssertEqual(
+            cohere.capabilities,
+            SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+        )
+        XCTAssertFalse(parakeet.capabilities.providesWordTimestamps)
+        XCTAssertFalse(cohere.capabilities.providesWordTimestamps)
 
         XCTAssertNil(option.firstTimestampCapableChoice)
     }
