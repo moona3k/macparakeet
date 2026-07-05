@@ -1,0 +1,120 @@
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_c7a1f84180062a::t_7bfcdb590077ee 56-64
+plans/README.md
+  s_c7a1f84180062a::t_89e6ac5e1b7569 46
+spec/02-features.md
+  s_c7a1f84180062a::t_18a87bd983443a 1563,1567
+  s_c7a1f84180062a::t_738ee0d00b0e7f 1568
+plans/active/2026-07-04-issue-647-local-transcription-title-rename.md
+  s_c7a1f84180062a::t_8def4bc5e3cd08 1-169,172-381
+  s_c7a1f84180062a::t_1d7602da1c2468 170-171
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c7a1f84180062a::t_13bf090d4b62f8 1434,1456-1458,1460-1464,1466,1469-1474,1476
+  s_c7a1f84180062a::t_881f84a4e6c215 1459,1467
+  s_c7a1f84180062a::t_2f0321f71a7b26 1468
+  s_c7a1f84180062a::t_f0a68b76f793fa 1477-1478
+  s_c7a1f84180062a::t_d8c786f66b566e 1465,1475
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_c7a1f84180062a::t_70e3166743ab0c 217
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_c7a1f84180062a::t_fb7fd1819dc9ac 116,127,129,134,136-137,144
+  s_c7a1f84180062a::t_e178249e4c2fd1 114-115,117-126,128,130-133,135,138-143,145-152
+  s_c7a1f84180062a::t_0568a01c6e1592 703-742
+  s_c7a1f84180062a::t_3d291fb428a31d 519-529,535,545-556,606,613
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_c7a1f84180062a::t_119209e098d22a 88
+  s_c7a1f84180062a::t_be6c36185d4721 69,71,73-77,79-87,89-90
+  s_c7a1f84180062a::t_a510122cdbc362 70,72,78
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_c7a1f84180062a::t_fd31e2e5eca918 18,79-83,101,115-124,440-450,585,601-603
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_c7a1f84180062a::t_19ca278272c773 192
+  s_c7a1f84180062a::t_d720e68888c807 193
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_c7a1f84180062a::t_41693e7003c235 230,251,270-271,275-276,280,283
+  s_c7a1f84180062a::t_5c48a4902a10ef 291-313
+  s_c7a1f84180062a::t_a63b4209c369e7 768-771
+  s_c7a1f84180062a::t_340082af59e877 222-229,231-250,252-269,272-274,277-279,281-282,284-290
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_c7a1f84180062a::t_0ee0acb45baffb 142,165-167
+  s_c7a1f84180062a::t_2f6ccb0fa302cd 137,214-216,220-221
+  s_c7a1f84180062a::t_ff751239199ac2 143,217-219
+  s_567450aef0d021::t_b7a0826fce1769 222-225
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_c7a1f84180062a::t_2a8199646f2931 2064,2081
+  s_c7a1f84180062a::t_1078fc070a9e3f 2097,2099-2118
+  s_c7a1f84180062a::t_a4038c19c5b4d9 88-91
+  s_c7a1f84180062a::t_70455e37f1012c 2052-2063,2065-2080,2082-2096
+  s_fe6b4f424131db::t_77c989fa6218ae 2098
+spec/04-ui-patterns.md
+  s_c7a1f84180062a::t_97c6bc19c69171 126-131
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_c7a1f84180062a::t_473f078a357160 17-18,152-165,167,330-337,473-486,494
+  s_c7a1f84180062a::t_4988a6bc8439af 166,487-493
+  s_4c5ad856ed0bdb::t_ad2eeca542ec86 495
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_c7a1f84180062a::t_beae4c958098f7 434-441,443-447,456-458,466-475
+  s_e323b204ea3fab::t_e76a61de760743 476
+  s_c7a1f84180062a::t_db1b9fb966ae21 442,448-455
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_c7a1f84180062a::t_53de064f692f14 1062-1070
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_c7a1f84180062a::t_740b900b15411f 64-66,117,154
+  s_c7a1f84180062a::t_51ce29055bfbab 181-207
+  s_c7a1f84180062a::t_db78ad5042796c 320,391
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c7a1f84180062a::t_cccc8f41c0827f 111-112,166,231-232
+  s_c7a1f84180062a::t_2dc1bb73f009fa 837,966-967,969,972-973,975,981,989,994-995,1001,1039-1040,1043-1049,1051,1055-1057,1060-1066
+spec/01-data-model.md
+  s_c7a1f84180062a::t_de9d5c656da484 142,172,624,1145,1169
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_c7a1f84180062a::t_d02b1a23c51d78 87,119,171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "997442f27c233dbf60360ad78bc1a83bdc8ab6db",
+  "prompts": {},
+  "sessions": {
+    "s_4c5ad856ed0bdb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d2acde0-e82c-4543-b0e1-5547fc3845fe",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_567450aef0d021": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9b-a197-72c1-9531-53fba20a4cba",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c7a1f84180062a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f1b-ae06-7051-a2d2-5dbcc3c7b842",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fe6b4f424131db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2feb-257e-79d1-b1f6-69ee95401a03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
