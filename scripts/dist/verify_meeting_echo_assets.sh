@@ -113,7 +113,9 @@ fi
 expected_model_sha="${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}"
 if [[ -z "$expected_model_sha" ]]; then
   bundled_model_name="$(basename "$MODEL_PATH")"
-  if [[ "$bundled_model_name" == "$DEFAULT_MEETING_ECHO_MODEL_NAME" ]]; then
+  bundled_model_name_lc="$(printf '%s' "$bundled_model_name" | tr '[:upper:]' '[:lower:]')"
+  default_model_name_lc="$(printf '%s' "$DEFAULT_MEETING_ECHO_MODEL_NAME" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$bundled_model_name_lc" == "$default_model_name_lc" ]]; then
     expected_model_sha="$DEFAULT_MEETING_ECHO_MODEL_SHA256"
   elif [[ "$STRICT_MEETING_ECHO_ASSETS" == "1" ]]; then
     echo "Error: strict meeting echo asset verification requires MACPARAKEET_MEETING_ECHO_MODEL_SHA256 for non-default models." >&2

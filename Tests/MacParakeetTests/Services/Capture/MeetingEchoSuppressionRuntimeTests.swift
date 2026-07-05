@@ -420,6 +420,19 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertTrue(result.output.contains("SHA256 mismatch"))
     }
 
+    func testDistributionVerifierRejectsCaseVariantDefaultModelChecksumMismatchWithoutEnv() throws {
+        let appURL = try Self.makeEchoAssetAppBundle(
+            modelName: "LocalVQE-v1.4-aec-200K-f32.gguf",
+            modelData: Data("model".utf8),
+            includeLibrary: true
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let result = try Self.runVerifier(appURL: appURL)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("SHA256 mismatch"))
+    }
+
     func testDistributionVerifierRejectsExplicitChecksumMismatch() throws {
         let appURL = try Self.makeEchoAssetAppBundle(
             modelName: MeetingEchoSuppressionFactory.defaultModelName,
