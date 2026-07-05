@@ -130,6 +130,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- Meeting artifact audio filenames are now role-explicit: `microphone.m4a` →
+  `microphone-raw.m4a`, `system.m4a` → `system-raw.m4a`, and `meeting.m4a` →
+  `meeting-playback.m4a`. Paths surfaced through `MeetingArtifactSnapshot` and
+  meeting JSON output (`rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, `playbackAudioPath`, and `filePath` for playback) use
+  the new names. There is deliberately no backward compatibility with
+  old-name recordings: the meeting artifact contract is pre-hardening, so this
+  rename ships without a version bump.
 - `retranscribe --kind meeting --speaker-detection app-default` now follows
   the saved meeting speaker-detection preference. `transcribe` and
   transcription retranscription continue to follow the saved file/URL
