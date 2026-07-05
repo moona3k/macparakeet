@@ -14,6 +14,15 @@ Issues: #439 (integrated local cleanup), relates #265, #550, #460, #563, #408
 > Primary focus: **cleanup**. Summary and grounded-QA are covered second, with an
 > evidence-backed argument that for those tasks the long-context *architecture*
 > matters more than the model.
+>
+> Product gate (updated 2026-07-04): the local model ships as an *option*, not the
+> default — cloud/frontier stays the recommended path per surface until local
+> reaches parity there. Phase 0 therefore answers two bars per surface:
+> **OFFER** (fidelity gates pass at a high rate AND quality clearly beats the
+> deterministic floor) and **RECOMMEND** (parity with the cloud baseline).
+> Single-transcript cleanup, summary, or Q&A may pass before broader library
+> intelligence does. Cross-meeting / whole-library analysis and tool-calling are
+> not presumed viable just because a local model can answer one transcript.
 
 ---
 
@@ -48,9 +57,10 @@ corrupted number into a 4/5 and hides the failure that destroys user trust.
 ## 2. What Phase 0 must answer (go / no-go)
 
 - **Q-QUALITY:** On a domain-matched gold set, does an on-device 4B-class model do
-  cleanup that (a) passes the fidelity gates at a high rate and (b) is judged at
-  least at parity with the current cloud-cleanup baseline and clearly above the
-  deterministic no-LLM baseline?
+  cleanup that (a) passes the fidelity gates at a high rate, (b) clearly beats the
+  deterministic no-LLM baseline (the bar to OFFER the local option), and (c)
+  reaches parity with the current cloud-cleanup baseline (the bar to RECOMMEND
+  local for that surface)?
 - **Q-MODEL:** Which model + quant wins the cleanup bake-off?
 - **Q-PREFILL:** Where does prefill latency cross the UX budget as input grows
   (1K → 64K tokens)? This sets the single-shot vs map-reduce threshold.
@@ -60,9 +70,15 @@ corrupted number into a 4/5 and hides the failure that destroys user trust.
   parse-success rate at our schema sizes? Is a custom logits processor worth it?
 - **Q-LONGCTX:** Confirm long-context degradation on our transcripts to justify
   map-reduce + retrieval over "use a bigger model."
+- **Q-SCOPE:** Which product surfaces are actually good enough to ship: cleanup,
+  summary, one-transcript Q&A, selected-text Transforms, cross-meeting/library
+  analysis, and/or tool-calling?
 
-A "go" means: at least one model+quant clears the cleanup quality bar within the
-latency/RAM budget on a mid-tier Mac, with a credible long-transcript path.
+A "go" means: at least one model+quant clears the OFFER bar within the latency/RAM
+budget on a mid-tier Mac, with a credible long-transcript path and a clearly
+bounded product scope; RECOMMEND status per surface additionally requires cloud
+parity. A "partial go" is acceptable — cleanup alone is a shippable scope — while
+cross-library analysis remains a no-go.
 
 ---
 
@@ -181,7 +197,10 @@ few-shot + self-consistency.
 ## 5. Gold set recipe (the highest-leverage Phase 0 item)
 
 No large commercial real-dictation→cleaned corpus exists. The set that matches our
-true distribution is ours — build it.
+true distribution is ours — build it. Build it in two slices (2026-07-04): a
+~50-item core annotated with must-preserve lists only (enough for the Tier-1 gates
+and a directional read alongside the runtime spike), then the full stratified ~200
++ judge calibration only if the go/no-go is borderline.
 
 - **Cleanup: ~200 items.** Stratify by length: ~60 short dictation (<50 words),
   ~80 medium (50–300), ~60 long/meeting (>300, multi-speaker). Spread across ~5–8
@@ -270,13 +289,20 @@ bounds — calibrate on a small meeting set.
 Numbers below are triangulated from measured community benchmarks; the prefill
 curve is the gap to close on our own hardware.
 
+> Role change (2026-07-04): these measurements are **instrumentation, not a
+> shipping gate**. The parent plan's §3 memory invariants (always-chunked long
+> inputs + `kvBits:4` + unload-on-idle) make the OOM/prefill failure modes
+> structurally unreachable, so the §7 numbers are collected from the spike build
+> during dogfood and used to tune the chunking threshold. Go/no-go rests on the
+> quality gates (§3–§5, §9).
+
 ### Model + quant — Qwen3-4B-Instruct-2507 (exact HF sizes, 2026-06-27)
 | Quant | Size | Note |
 |---|---|---|
-| 4-bit | 2.26 GB | baseline |
-| **4-bit DWQ (2510)** | **2.26 GB** | **ship this — same size, distillation-recovered quality** |
-| 6-bit | 3.27 GB | cheap quality upgrade if testing demands |
-| 8-bit | 4.27 GB | effectively lossless |
+| 4-bit | 2.26 GB | `mlx-community/Qwen3-4B-Instruct-2507-4bit` |
+| **4-bit DDWQ** | **2.53 GB** | **ship this — `mlx-community/Qwen3-4B-Instruct-2507-DDWQ` (verified 2026-07-04; repo is named DDWQ, slightly larger than plain 4-bit), distillation-recovered quality** |
+| 6-bit | 3.27 GB | `…-6bit`; cheap quality upgrade if testing demands |
+| 8-bit | 4.27 GB | `…-8bit`; effectively lossless |
 | bf16 | 8.04 GB | reference |
 
 Quant quality consensus: 8-bit ≈ lossless, 6-bit imperceptible, **plain 4-bit is
@@ -378,15 +404,23 @@ didn't say," suppress preamble, preserve speaker/timing tags, skip trivial input
 
 ## 9. Go / no-go criteria
 
-GO if, on the domain-matched gold set:
-- Best model+quant achieves a gate pass-rate competitive with the cloud baseline
-  and clearly above the deterministic floor, AND
-- mean quality among passers ≥ cloud-baseline parity on cleanup, AND
+Two bars per surface (positioning decided 2026-07-04: local ships as an option,
+not the default).
+
+GO-TO-OFFER if, on the domain-matched gold set:
+- Best model+quant achieves a high absolute Tier-1 gate pass-rate (fidelity is
+  trust-critical even for an opt-in path), AND
+- mean quality among passers clearly beats the deterministic no-LLM floor, AND
 - meets the latency budget (short dictation interactive; long-transcript path has a
   workable map-reduce threshold from the prefill curve), AND
 - fits RAM on a 16 GB Mac for the default tier (with `kvBits:4` long-context), AND
 - structured-output reliability is high enough (or fixable via validate-retry) for
-  the v1 scope (cleanup + summary + Ask; tool-calling is Phase 3).
+  the offered scope (tool-calling is Phase 3).
+
+GO-TO-RECOMMEND (per surface, later): additionally, gate pass-rate competitive
+with the cloud baseline AND mean quality among passers at cloud parity. Until a
+surface clears this, setup/recommendation copy keeps pointing at cloud for best
+quality.
 
 NO-GO / re-scope triggers: gates fail too often even at 8-bit (over-edit/
 hallucination intrinsic at 4B) → consider the 30B-A3B tier (parent plan §3 places

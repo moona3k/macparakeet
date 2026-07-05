@@ -54,11 +54,17 @@ The current branch supports these provider/runtime types through one shared serv
 
 ### Locked Decisions
 
-1. **No bundled LLM runtime.** No mlx-swift-lm, no llama.cpp, no Cactus, no model downloads. Zero GPU/memory impact from LLM.
+1. **No bundled LLM runtime in the accepted current architecture.** No mlx-swift-lm, no llama.cpp, no Cactus, no model downloads. Zero GPU/memory impact from LLM.
 2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, OpenAI-compatible endpoints, local servers, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
 5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
+
+### Future Reconsideration
+
+This ADR can be superseded only if local LLMs prove good enough for the actual product jobs, not merely because they are convenient to package. The likely first acceptable scope is single-transcript work: cleanup, summarization, or grounded Q&A over one transcript. Cross-meeting / whole-library analysis, agent workflows, and tool calling need materially stronger context handling, intelligence, and structured-output reliability before MacParakeet should make a first-party local model the default path. A future proposal must pass a Phase 0 eval against real transcripts and cloud baselines before adding a runtime or model download to the app.
+
+**Amendment (2026-07-04): direction confirmed, positioning fixed.** Product decision: MacParakeet will offer a first-party local model (Qwen/Gemma-class via MLX) as a dead-simple, one-click *option* aimed at non-technical and privacy-first users, while cloud/frontier providers remain the recommended quality path per surface until the local model demonstrably reaches parity there. The accepted architecture is unchanged for now — the Phase 0 eval in `plans/active/2026-06-27-on-device-local-llm.md` still gates adding any runtime or model download. Shipping bar per surface: fidelity-safe and clearly above the deterministic pipeline to *offer*; cloud parity to *recommend*. Agentic/tool-calling and whole-library analysis stay cloud-first until proven.
 
 ### Features Enabled
 
