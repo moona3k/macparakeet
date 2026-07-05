@@ -70,12 +70,14 @@ public final class InProcessModelManagerViewModel {
     }
 
     public func refresh() async {
+        guard setupTask == nil else { return }
         guard let downloader else {
             state = .setUpNeeded
             return
         }
         isModelDownloaded = await downloader.isDefaultModelDownloaded()
         hasModelArtifacts = await downloader.hasDefaultModelArtifacts()
+        guard setupTask == nil else { return }
         state = isModelDownloaded ? .ready : .setUpNeeded
     }
 

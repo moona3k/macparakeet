@@ -387,7 +387,7 @@ struct LLMSettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.successGreen)
                         .accessibilityHidden(true)
-                    Text(manager.isLocalAISelected ? "Local AI is downloaded, verified, and selected." : "Local AI is downloaded and verified. The current AI choice can still stay on a cloud or BYO provider.")
+                    Text(manager.isLocalAISelected ? "Local AI is downloaded and selected." : "Local AI is downloaded. The current AI choice can still stay on a cloud or BYO provider.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

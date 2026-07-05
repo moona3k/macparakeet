@@ -126,6 +126,34 @@ final class InProcessModelManagerViewModelTests: XCTestCase {
         XCTAssertNil(configStore.config)
     }
 
+    func testRefreshDuringActiveSetupKeepsDownloadingState() async throws {
+        let downloader = BlockingInProcessModelDownloader()
+        let viewModel = InProcessModelManagerViewModel()
+        viewModel.configure(
+            downloader: downloader,
+            configStore: MockLLMConfigStore(),
+            llmClient: MockLLMClient(),
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        viewModel.startEnableLocalAI()
+        while !(await downloader.hasStartedDownload()) {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        await viewModel.refresh()
+
+        guard case .downloading = viewModel.state else {
+            return XCTFail("Expected downloading state, got \(viewModel.state)")
+        }
+
+        viewModel.cancelSetup()
+        let deadline = Date().addingTimeInterval(10)
+        while viewModel.isWorking, Date() < deadline {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+    }
+
     func testRefreshSurfacesPartialArtifactsAndDeleteClearsThem() async {
         let downloader = FakeInProcessModelDownloader(isDownloaded: false, hasArtifacts: true)
         let viewModel = InProcessModelManagerViewModel()
