@@ -337,13 +337,21 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
 
         let hash = vocabulary.contentHash
         if let loadTask = cachedVocabularyLoadTasks[hash] {
-            let cachedVocabulary = try await loadTask.value
-            rememberCachedVocabularyHash(hash)
+            let cachedVocabulary: CachedVocabulary
+            do {
+                cachedVocabulary = try await loadTask.value
+            } catch {
+                if !(error is CancellationError) {
+                    cachedVocabularyLoadTasks.removeValue(forKey: hash)
+                }
+                throw error
+            }
+            storeCachedVocabulary(cachedVocabulary)
             return cachedVocabulary
         }
 
         try Task.checkCancellation()
-        let loadTask = Task {
+        let loadTask = Task.detached { [self, vocabulary] in
             let resources = try await self.ctcResources()
             return try await Self.makeCachedVocabulary(
                 vocabulary: vocabulary,
@@ -354,16 +362,18 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
 
         do {
             let cachedVocabulary = try await loadTask.value
-            cachedVocabularyLoadTasks.removeValue(forKey: hash)
-            cachedVocabularies[hash] = cachedVocabulary
-            rememberCachedVocabularyHash(hash)
-            evictStaleCachedVocabularies()
-            logger.info(
-                "custom_vocabulary_boost_loaded terms=\(cachedVocabulary.context.terms.count, privacy: .public)"
-            )
+            let shouldLogLoad = cachedVocabularies[hash] == nil
+            storeCachedVocabulary(cachedVocabulary)
+            if shouldLogLoad {
+                logger.info(
+                    "custom_vocabulary_boost_loaded terms=\(cachedVocabulary.context.terms.count, privacy: .public)"
+                )
+            }
             return cachedVocabulary
         } catch {
-            cachedVocabularyLoadTasks.removeValue(forKey: hash)
+            if !(error is CancellationError) {
+                cachedVocabularyLoadTasks.removeValue(forKey: hash)
+            }
             throw error
         }
     }
@@ -374,10 +384,20 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
         }
 
         if let resourceLoadTask {
-            return try await resourceLoadTask.value
+            do {
+                let resources = try await resourceLoadTask.value
+                cachedResources = resources
+                self.resourceLoadTask = nil
+                return resources
+            } catch {
+                if !(error is CancellationError) {
+                    self.resourceLoadTask = nil
+                }
+                throw error
+            }
         }
 
-        let loadTask = Task {
+        let loadTask = Task.detached {
             try await Self.loadCtcResources()
         }
         resourceLoadTask = loadTask
@@ -388,7 +408,9 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             resourceLoadTask = nil
             return resources
         } catch {
-            resourceLoadTask = nil
+            if !(error is CancellationError) {
+                resourceLoadTask = nil
+            }
             throw error
         }
     }
@@ -462,6 +484,14 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
             let removed = cachedVocabularyOrder.removeFirst()
             cachedVocabularies.removeValue(forKey: removed)
         }
+    }
+
+    private func storeCachedVocabulary(_ cachedVocabulary: CachedVocabulary) {
+        let hash = cachedVocabulary.hash
+        cachedVocabularyLoadTasks.removeValue(forKey: hash)
+        cachedVocabularies[hash] = cachedVocabulary
+        rememberCachedVocabularyHash(hash)
+        evictStaleCachedVocabularies()
     }
 
     private static func uniquePreservingOrder(_ values: [String]) -> [String] {
