@@ -18,6 +18,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     public var lastRestoresClipboard: Bool?
     public var pasteCallCount = 0
     private var pasteError: Error?
+    private var pasteDelayMs: UInt64 = 0
 
     public init() {}
 
@@ -38,6 +39,9 @@ public actor MockClipboardService: ClipboardServiceProtocol {
 
     public func pasteText(_ text: String, restoresClipboard: Bool) async throws {
         pasteCallCount += 1
+        if pasteDelayMs > 0 {
+            try await Task.sleep(for: .milliseconds(pasteDelayMs))
+        }
         if let pasteError {
             throw pasteError
         }
@@ -63,5 +67,9 @@ public actor MockClipboardService: ClipboardServiceProtocol {
 
     public func setPasteError(_ error: Error?) {
         pasteError = error
+    }
+
+    public func setPasteDelayMs(_ delayMs: UInt64) {
+        pasteDelayMs = delayMs
     }
 }

@@ -566,10 +566,10 @@ final class DictationFlowStateMachineTests: XCTestCase {
 
         let effects = m.handle(.transcriptionCompleted(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
-        // No success checkmark — the pasted text is the confirmation.
-        XCTAssertFalse(effects.contains(.showSuccess))
+        XCTAssertTrue(effects.contains(.showSuccess))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.resignKeyWindow))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.pasteTranscript))
     }
 
@@ -708,17 +708,12 @@ final class DictationFlowStateMachineTests: XCTestCase {
         _ = m.handle(.transcriptionCompleted(generation: gen))
 
         let effects = m.handle(.pasteSucceeded(generation: gen))
-        // No checkmark dwell — paste lands and we return to idle + re-arm the
-        // hotkey immediately so the next dictation can start right after.
-        XCTAssertEqual(m.state, .idle)
-        XCTAssertTrue(effects.contains(.hideOverlay))
-        XCTAssertTrue(effects.contains(.reloadHistory))
-        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
-        XCTAssertTrue(effects.contains(.showIdlePill))
-        XCTAssertFalse(effects.contains(.startDisplayDismissTimer(seconds: 0.8)))
+        XCTAssertEqual(m.state, .finishing(outcome: .success))
+        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 0.8)))
+        XCTAssertFalse(effects.contains(.hideOverlay))
     }
 
-    func testPasteSuccessAcceptsImmediatePersistentRestart() {
+    func testSuccessDwellAcceptsImmediatePersistentRestart() {
         var m = machineInProcessing()
         let gen = m.generation
         _ = m.handle(.transcriptionCompleted(generation: gen))
@@ -730,6 +725,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.generation, gen + 1)
         XCTAssertTrue(effects.contains(.checkEntitlements))
         XCTAssertTrue(effects.contains(.hideIdlePill))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingPasteFailed() {
@@ -744,12 +740,10 @@ final class DictationFlowStateMachineTests: XCTestCase {
     }
 
     func testFinishingDisplayDismissExpired() {
-        // Success no longer uses a dismiss timer (it returns to idle on paste),
-        // so the dismiss-timer path is exercised via the no-speech leaf, which
-        // still dwells before clearing.
         var m = machineInProcessing()
         let gen = m.generation
-        _ = m.handle(.transcriptionFailedNoSpeech(generation: gen))
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        _ = m.handle(.pasteSucceeded(generation: gen))
 
         let effects = m.handle(.displayDismissExpired(generation: gen))
         XCTAssertEqual(m.state, .idle)
@@ -811,11 +805,12 @@ final class DictationFlowStateMachineTests: XCTestCase {
     func testFinishingStaleDisplayDismiss() {
         var m = machineInProcessing()
         let gen = m.generation
-        _ = m.handle(.transcriptionFailedNoSpeech(generation: gen))
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        _ = m.handle(.pasteSucceeded(generation: gen))
 
         let effects = m.handle(.displayDismissExpired(generation: gen - 1))
         XCTAssertTrue(effects.isEmpty)
-        XCTAssertEqual(m.state, .finishing(outcome: .noSpeech))
+        XCTAssertEqual(m.state, .finishing(outcome: .success))
     }
 
     func testFinishingReadyPillRequested() {
@@ -884,6 +879,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .ready)
         XCTAssertTrue(effects.contains(.showReadyPill))
         XCTAssertTrue(effects.contains(.cancelActionTask))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingErrorStartRequested() {
@@ -942,8 +938,13 @@ final class DictationFlowStateMachineTests: XCTestCase {
         _ = m.handle(.transcriptionCompleted(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
 
-        // → paste succeeded returns straight to idle (no checkmark dwell)
-        let effects = m.handle(.pasteSucceeded(generation: gen))
+        // → paste succeeded starts the success-checkmark dwell
+        let pasteEffects = m.handle(.pasteSucceeded(generation: gen))
+        XCTAssertEqual(m.state, .finishing(outcome: .success))
+        XCTAssertTrue(pasteEffects.contains(.startDisplayDismissTimer(seconds: 0.8)))
+
+        // → idle
+        let effects = m.handle(.displayDismissExpired(generation: gen))
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))

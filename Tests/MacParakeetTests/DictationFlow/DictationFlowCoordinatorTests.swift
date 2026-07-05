@@ -68,6 +68,43 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(savedTranscripts.contains("second dictated message"))
     }
 
+    func testSuccessDwellRestartDoesNotCancelCompletedPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configureSequence(results: [
+            STTResult(text: "first delayed paste"),
+            STTResult(text: "second dictation"),
+        ])
+        await harness.clipboard.setPasteDelayMs(100)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let firstStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(firstStarted)
+
+        harness.coordinator.stopDictation()
+        let firstSuccessVisible = await waitUntil {
+            if case .success = harness.coordinator.overlayStateForTesting { return true }
+            return false
+        }
+        XCTAssertTrue(firstSuccessVisible)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let secondStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(secondStarted)
+
+        harness.coordinator.stopDictation()
+        let bothPasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 2
+        }
+        XCTAssertTrue(bothPasted)
+
+        let clipboardSnapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(
+            clipboardSnapshot.pastedTexts,
+            ["first delayed paste ", "second dictation "]
+        )
+    }
+
     func testSuccessfulMicPermissionRequestDismissesStaleStartFailure() async throws {
         let harness = try await makeMicPermissionHarness(
             microphonePermission: .notDetermined,
