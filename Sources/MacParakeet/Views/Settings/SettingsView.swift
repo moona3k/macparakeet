@@ -1151,7 +1151,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Use Mac mic with Bluetooth headphones",
-                    detail: "When the microphone is set to System Default and output is AirPods or other Bluetooth headphones, use the Mac's built-in mic first. This keeps headphone audio clear and helps avoid missed starts. Specific microphone choices above still take priority.",
+                    detail: "When the microphone is set to System Default and output is AirPods or other Bluetooth headphones, use the Mac's built-in mic first. This keeps headphone audio clear and helps avoid missed starts. Specific microphone choices above still take priority when available.",
                     isOn: $viewModel.preferBuiltInMicWhenBluetoothOutput
                 )
 
