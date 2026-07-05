@@ -1,0 +1,34 @@
+Sources/MacParakeetLocalLLM/MLXLocalLLMRuntime.swift
+  s_2a75fa1c414460::t_5c1ab5f2c656b3 15-16,22-28,33,38,43-48,59-61,63-64,88-91,136-149
+  s_567450aef0d021::t_e1eda06ce2eec7 150
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_2a75fa1c414460::t_f051d153965cf6 69-94,97-129,133-135,137,139-140
+  s_2a75fa1c414460::t_45dd86139216fd 130-132
+  s_2a75fa1c414460::t_608896ff8de47a 95-96,136,138
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_2a75fa1c414460::t_634b380be5dc54 18,85-99,129,132-134,151,157,313,323-326,333-362,384,386-410,412,417
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e4d3ce1b5cc0e8a610edd95b6394e6033c0f636",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_567450aef0d021": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9b-a197-72c1-9531-53fba20a4cba",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
