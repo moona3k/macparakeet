@@ -1,0 +1,73 @@
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_2d5dc1f3023759::t_2fc1b9d3f7a1ce 232,269,300,969-993,2625,2641
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_2d5dc1f3023759::t_77a743b4e5c6ec 1230-1236,1383
+  s_2d5dc1f3023759::t_2b45c9eee60650 1229
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_2d5dc1f3023759::t_dec546b519ad5b 16,506-507,576-579,634-636
+  s_2d5dc1f3023759::t_33b8a0b2008b73 637
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_2d5dc1f3023759::t_dec546b519ad5b 505
+Tests/CLITests/ConfigCommandTests.swift
+  s_2d5dc1f3023759::t_5d01696e90484a 39,77-81,91,174-179,250-254
+  s_2d5dc1f3023759::t_0cd4732a625fb3 120
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_2d5dc1f3023759::t_c35016b918b97f 2210-2247
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_2d5dc1f3023759::t_cba96a38f69d29 407-410,442-445,477-478,482,501
+docs/cli-testing.md
+  s_2d5dc1f3023759::t_e525479d93cd52 297-300
+  s_2d5dc1f3023759::t_9b2b179a776746 277-280,318,333-337
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_2d5dc1f3023759::t_404b45446ea9c2 71-97
+Sources/CLI/Commands/ConfigCommand.swift
+  s_2d5dc1f3023759::t_cba96a38f69d29 44,130-136,338-340,434-436
+  s_2d5dc1f3023759::t_17613566ebffec 437
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_2d5dc1f3023759::t_dec546b519ad5b 446-451,749
+integrations/README.md
+  s_2d5dc1f3023759::t_4948ab3e972307 237-242,280,530,574-581
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_2d5dc1f3023759::t_cba96a38f69d29 574
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_2d5dc1f3023759::t_dec546b519ad5b 232,263,292,324,352-354
+  s_2d5dc1f3023759::t_0a5ad5496f0277 1156
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_2d5dc1f3023759::t_5635cb8557ee4c 113,115-125,231
+  s_2d5dc1f3023759::t_75316119b15ed4 114
+Tests/CLITests/SpecCommandTests.swift
+  s_2d5dc1f3023759::t_a3cc3a345b15b1 261-263
+Sources/CLI/Commands/SpecCommand.swift
+  s_2d5dc1f3023759::t_ee7b45f5dfeb9c 230
+integrations/openclaw/README.md
+  s_2d5dc1f3023759::t_e525479d93cd52 57
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_2d5dc1f3023759::t_d7bbb4cb160bdd 87,256-261
+  s_2d5dc1f3023759::t_8657c5475dd31d 262-263
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_2d5dc1f3023759::t_dec546b519ad5b 361
+spec/adr/010-speaker-diarization.md
+  s_2d5dc1f3023759::t_a210e388aafa29 128,130,132,164-169
+  s_2d5dc1f3023759::t_ce0b88938a3230 170
+Sources/CLI/CHANGELOG.md
+  s_2d5dc1f3023759::t_9cb58f7afdb84f 94-96,131-135
+  s_2d5dc1f3023759::t_e525479d93cd52 148-153
+spec/02-features.md
+  s_2d5dc1f3023759::t_e525479d93cd52 1396-1397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7eaa6684ac5d65fa0fffdc2eed7c6d9df49c6500",
+  "prompts": {},
+  "sessions": {
+    "s_2d5dc1f3023759": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f33ab-e847-7e92-8ccd-25f1c8ea29c3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
