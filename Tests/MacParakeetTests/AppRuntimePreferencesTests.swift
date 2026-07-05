@@ -167,6 +167,11 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.dictationUndoCountdown.seconds, 5)
     }
 
+    func testDictationUndoCountdownCasesAreOrderedForSettingsPicker() {
+        XCTAssertEqual(DictationUndoCountdown.allCases, [.off, .oneSecond, .fiveSeconds])
+        XCTAssertEqual(DictationUndoCountdown.allCases.map(\.displayTitle), ["Off", "1 second", "5 seconds"])
+    }
+
     func testDictationUndoCountdownRoundTripsStoredValue() {
         for countdown in DictationUndoCountdown.allCases {
             let defaults = UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!

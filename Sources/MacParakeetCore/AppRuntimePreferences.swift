@@ -251,9 +251,9 @@ public enum DictationPreviewTextSize: String, CaseIterable, Hashable, Sendable, 
 }
 
 public enum DictationUndoCountdown: String, CaseIterable, Hashable, Sendable, Equatable {
-    case fiveSeconds = "fiveSeconds"
-    case oneSecond = "oneSecond"
     case off = "off"
+    case oneSecond = "oneSecond"
+    case fiveSeconds = "fiveSeconds"
 
     public var seconds: Double? {
         switch self {
