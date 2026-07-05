@@ -13,6 +13,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldAutoGenerateMeetingTitles: Bool { get }
     var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
+    var shouldDiarizeMeetings: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterEnabledForTranscriptions: Bool { get }
@@ -502,6 +503,8 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let defaultSpeakerDiarizationEnabled = true
+    public static let meetingSpeakerDiarizationKey = "meetingSpeakerDiarization"
+    public static let defaultMeetingSpeakerDiarizationEnabled = true
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
@@ -570,6 +573,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: speakerDiarizationKey) as? Bool ?? defaultSpeakerDiarizationEnabled
     }
 
+    public static func meetingSpeakerDiarizationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingSpeakerDiarizationKey) as? Bool ?? defaultMeetingSpeakerDiarizationEnabled
+    }
+
     public static func showMeetingRecordingPill(defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: showMeetingRecordingPillKey) as? Bool ?? true
     }
@@ -622,6 +629,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldDiarize: Bool {
         Self.speakerDiarizationEnabled(defaults: defaults)
+    }
+
+    public var shouldDiarizeMeetings: Bool {
+        Self.meetingSpeakerDiarizationEnabled(defaults: defaults)
     }
 
     public var aiFormatterEnabled: Bool {

@@ -54,7 +54,7 @@ If MacParakeet.app is already installed, the bundled CLI is also available at
 | Use GUI/default preferences | `macparakeet-cli transcribe <path> --engine app-default --parakeet-model app-default --speaker-detection app-default --mode app-default --downloaded-audio app-default --media-audio-quality app-default --format json` |
 | Inspect/select speech models | `macparakeet-cli models list --json` / `macparakeet-cli models select parakeet-v3 --json` / `macparakeet-cli models select parakeet-v2 --json` / `macparakeet-cli models select nemotron-multilingual-1120ms --json` / `macparakeet-cli models select cohere-transcribe --json` |
 | Download optional speech models | `macparakeet-cli models download nemotron-multilingual-1120ms` / `macparakeet-cli models download cohere-transcribe` / `macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB` |
-| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json`; `macparakeet-cli config set speech-engine nemotron --json`; `macparakeet-cli config set cohere-language ja --json` |
+| Configure shared defaults | `macparakeet-cli config set speaker-detection off --json`; `macparakeet-cli config set meeting-speaker-detection off --json`; `macparakeet-cli config set parakeet-model v3 --json`; `macparakeet-cli config set speech-engine nemotron --json`; `macparakeet-cli config set cohere-language ja --json` |
 | List recent transcriptions | `macparakeet-cli history transcriptions --json` |
 | Search transcriptions | `macparakeet-cli history search-transcriptions "<query>" --json` |
 | Search dictations | `macparakeet-cli history search "<query>" --json` |

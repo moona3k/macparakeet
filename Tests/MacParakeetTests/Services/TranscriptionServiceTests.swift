@@ -2207,6 +2207,44 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
     }
 
+    func testTranscribeMeetingUsesMeetingDiarizationPreference() async throws {
+        let recording = try makeDualSourceMeetingRecording(displayName: "Meeting Diarization Off")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+
+        let diarization = MockDiarizationService()
+        await diarization.configure(result: MacParakeetDiarizationResult(
+            segments: [
+                SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 200),
+            ],
+            speakerCount: 1,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Speaker 1"),
+            ]
+        ))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldDiarize: { true },
+            shouldDiarizeMeetings: { false },
+            diarizationService: diarization
+        )
+
+        let result = try await service.transcribeMeeting(recording: recording)
+        let diarizeCalled = await diarization.diarizeCalled
+
+        XCTAssertFalse(diarizeCalled)
+        XCTAssertEqual(result.speakerCount, 2)
+        XCTAssertEqual(result.speakers, [
+            SpeakerInfo(id: "microphone", label: "Me"),
+            SpeakerInfo(id: "system", label: "Others"),
+        ])
+        XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "system"])
+    }
+
     func testTranscribeMeetingPreservesOverlappingMicrophoneAndSystemSpeech() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

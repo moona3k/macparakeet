@@ -36,6 +36,7 @@ final class ConfigCommandTests: XCTestCase {
             "whisper-language",
             "cohere-language",
             "speaker-detection",
+            "meeting-speaker-detection",
             "auto-meeting-titles",
             "voice-return-enabled",
             "voice-return-triggers",
@@ -73,6 +74,11 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "off")
     }
 
+    func testReadMeetingSpeakerDetectionReflectsExplicitFalse() throws {
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-speaker-detection", defaults: defaults), "off")
+    }
+
     func testReadAgentDefaultsReflectGUIFallbacks() throws {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
@@ -82,6 +88,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "whisper-language", defaults: defaults), "auto")
         XCTAssertEqual(try ConfigCommand.read(key: "cohere-language", defaults: defaults), "en")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "on")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-speaker-detection", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-enabled", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-triggers", defaults: defaults), "press return")
@@ -110,6 +117,7 @@ final class ConfigCommandTests: XCTestCase {
     func testCanonicalKeyNormalizesUnderscoreAliases() throws {
         XCTAssertEqual(try ConfigCommand.canonicalKey(" youtube_audio_quality "), "youtube-audio-quality")
         XCTAssertEqual(try ConfigCommand.canonicalKey("SPEAKER_DETECTION"), "speaker-detection")
+        XCTAssertEqual(try ConfigCommand.canonicalKey("MEETING_SPEAKER_DETECTION"), "meeting-speaker-detection")
     }
 
     func testReadUnknownKeyThrowsValidationError() {
@@ -162,6 +170,12 @@ final class ConfigCommandTests: XCTestCase {
 
         XCTAssertEqual(try ConfigCommand.write(key: "speaker-detection", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool, true)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "meeting-speaker-detection", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey) as? Bool,
+            false
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "auto-meeting-titles", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool, false)
@@ -233,6 +247,11 @@ final class ConfigCommandTests: XCTestCase {
     func testWriteCanonicalizesUnderscoreKeys() throws {
         XCTAssertEqual(try ConfigCommand.write(key: "speaker_detection", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool, true)
+        XCTAssertEqual(try ConfigCommand.write(key: "meeting_speaker_detection", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey) as? Bool,
+            false
+        )
         XCTAssertEqual(
             try ConfigCommand.write(key: "meeting_audio_retention", value: "30d", defaults: defaults),
             "delete-after-30-days"

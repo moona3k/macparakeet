@@ -84,6 +84,7 @@ public enum SettingsSearchIndex {
     private static let meetingGatedIds: Set<String> = [
         "meeting",
         "meeting.floatingControls",
+        "meeting.speakerDetection",
         "meeting.autoStop",
         "meeting.calendar",
         "system.permissions.screen"
@@ -250,6 +251,14 @@ public enum SettingsSearchIndex {
                 "floating controls", "meeting pill", "recording pill", "hide meeting",
                 "hide recording", "recording ui", "menu bar", "overlay"
             ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.speakerDetection",
+            tab: .capture,
+            title: "Speaker detection",
+            subtitle: "in Meeting Recording",
+            keywords: ["speaker", "speaker labels", "diarization", "participants", "others", "system audio"],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(

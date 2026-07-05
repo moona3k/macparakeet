@@ -227,7 +227,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--language", valueName: "CODE", summary: "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect."),
                 CLISpecParameter.option("--parakeet-model", valueName: "app-default|v3|v2|unified", summary: "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English without timestamps."),
                 CLISpecParameter.option("--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms", summary: "Nemotron Beta build for this rerun; ignored for Parakeet, Cohere, and Whisper."),
-                CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection for saved transcriptions and meetings."),
+                CLISpecParameter.option("--speaker-detection", valueName: "app-default|on|off", summary: "Speaker detection for saved transcriptions and meetings; app-default follows the record type's saved preference."),
                 CLISpecParameter.option("--speaker-count", valueName: "N", summary: "Exact known speaker count for saved transcriptions and meetings."),
                 CLISpecParameter.option("--speaker-min", valueName: "N", summary: "Minimum speaker count bound for saved transcriptions and meetings."),
                 CLISpecParameter.option("--speaker-max", valueName: "N", summary: "Maximum speaker count bound for saved transcriptions and meetings."),

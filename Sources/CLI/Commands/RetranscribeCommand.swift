@@ -404,7 +404,10 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            defaults: defaults
+            defaults: defaults,
+            storedSpeakerDetection: defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey
+            ) as? Bool
         )
         printErr("Retranscribing \(original.fileName) with \(speechEngine.engine.rawValue)...")
         let updated = try await service.retranscribe(
@@ -436,7 +439,10 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            defaults: defaults
+            defaults: defaults,
+            storedSpeakerDetection: defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey
+            ) as? Bool
         )
         printErr("Retranscribing meeting \(original.fileName) with \(speechEngine.engine.rawValue)...")
         let progress = Self.progressHandler(prefix: "Retranscribing meeting")
@@ -468,11 +474,12 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        storedSpeakerDetection: Bool?
     ) -> TranscriptionService {
         let resolvedSpeakerDetection = TranscribeCommand.resolveSpeakerDetection(
             speakerDetection,
-            storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
+            storedEnabled: storedSpeakerDetection,
             noDiarize: noDiarize,
             speakerCount: speakerCount,
             speakerMin: speakerMin,
@@ -491,6 +498,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             snippetRepo: snippetRepo,
             processingMode: { processingMode },
             shouldDiarize: { resolvedSpeakerDetection.enabled },
+            shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
             diarizationService: TranscribeCommand.makeDiarizationService(for: resolvedSpeakerDetection)
         )
     }

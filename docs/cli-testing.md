@@ -274,9 +274,10 @@ transcriptions and meetings; dictations reject those flags.
 
 ### Speaker Diarization
 
-Speaker detection follows the saved app/CLI preference by default. A fresh
-preference store resolves to `on`, matching the GUI default where supported.
-Pin a run with the explicit option, or use the legacy alias to force it off:
+Speaker detection follows the workflow-specific saved app/CLI preference by
+default. A fresh preference store resolves to `on`, matching the GUI default
+where supported. Pin a run with the explicit option, or use the legacy alias to
+force it off:
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection on
@@ -293,8 +294,10 @@ constraints. They imply speaker detection when `--speaker-detection` is left at
 and/or `--speaker-max` for bounds; values must be positive, and
 `--speaker-min` cannot exceed `--speaker-max`.
 
-`config get speaker-detection` reports the saved app-default value used by
-bare `transcribe` and by `--speaker-detection app-default`.
+`config get speaker-detection` reports the saved file/URL app-default value
+used by bare `transcribe` and transcription retranscription. `config get
+meeting-speaker-detection` reports the saved meeting app-default value used by
+meeting retranscription when `--speaker-detection` is left at `app-default`.
 
 ### Shared Config
 
@@ -312,6 +315,7 @@ swift run macparakeet-cli config set nemotron-model english-1120ms
 swift run macparakeet-cli config set nemotron-language auto
 swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
+swift run macparakeet-cli config set meeting-speaker-detection off
 swift run macparakeet-cli config set auto-meeting-titles on
 swift run macparakeet-cli config set save-transcription-audio off
 swift run macparakeet-cli config set meeting-audio-retention keep-forever
@@ -326,11 +330,11 @@ swift run macparakeet-cli config set prefer-built-in-mic-bluetooth-output on
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
-`cohere-language`, `speaker-detection`, `auto-meeting-titles`,
-`save-transcription-audio`, `meeting-audio-retention`, `meeting-audio-source`,
-`save-meeting-audio`, `youtube-audio-quality`, `meeting-artifacts-folder`,
-`meeting-hook-enabled`, `meeting-hook-path`, `meeting-hook-timeout`,
-`voice-return-enabled`, `voice-return-triggers`,
+`cohere-language`, `speaker-detection`, `meeting-speaker-detection`,
+`auto-meeting-titles`, `save-transcription-audio`, `meeting-audio-retention`,
+`meeting-audio-source`, `save-meeting-audio`, `youtube-audio-quality`,
+`meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
+`meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`,
 `prefer-built-in-mic-bluetooth-output`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.

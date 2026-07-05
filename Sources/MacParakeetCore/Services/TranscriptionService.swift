@@ -229,6 +229,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let shouldAutoGenerateMeetingTitles: @Sendable () -> Bool
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
+    private let shouldDiarizeMeetings: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
@@ -259,6 +260,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
+        shouldDiarizeMeetings: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         podcastResolver: PodcastResolving? = nil,
         podcastSearchResolver: PodcastSearchResolving? = nil,
@@ -287,6 +289,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             shouldAutoGenerateMeetingTitles: shouldAutoGenerateMeetingTitles,
             shouldKeepDownloadedAudio: shouldKeepDownloadedAudio,
             shouldDiarize: shouldDiarize,
+            shouldDiarizeMeetings: shouldDiarizeMeetings,
             youtubeDownloader: youtubeDownloader,
             podcastResolver: podcastResolver,
             podcastSearchResolver: podcastSearchResolver,
@@ -318,6 +321,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
+        shouldDiarizeMeetings: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         podcastResolver: PodcastResolving? = nil,
         podcastSearchResolver: PodcastSearchResolving? = nil,
@@ -345,7 +349,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.shouldAutoGenerateMeetingTitles = shouldAutoGenerateMeetingTitles ?? { false }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
-        self.shouldDiarize = shouldDiarize ?? { true }
+        let resolvedShouldDiarize = shouldDiarize ?? { true }
+        self.shouldDiarize = resolvedShouldDiarize
+        self.shouldDiarizeMeetings = shouldDiarizeMeetings ?? resolvedShouldDiarize
         self.youtubeDownloader = youtubeDownloader
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
@@ -1147,7 +1153,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     ) async throws -> Transcription {
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
-        let diarizationRequested = diarizationService != nil && shouldDiarize() && recording.sourceAlignment.system != nil
+        let diarizationRequested = diarizationService != nil && shouldDiarizeMeetings() && recording.sourceAlignment.system != nil
         var temporaryWavURLs: [URL] = []
         var sourceWavURLs: [AudioSource: URL] = [:]
         defer {

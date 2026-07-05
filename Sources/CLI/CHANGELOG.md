@@ -91,6 +91,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config get|set|list` now includes `meeting-speaker-detection`, the saved
+  app-default speaker-detection setting used for meeting recording and meeting
+  retranscription.
 - `meetings artifact <meeting> --json|--envelope` now materializes a
   deterministic top-level `meeting.md` alongside the existing
   `manifest.json`, `transcript.json`, notes, and prompt-result files. The
@@ -125,6 +128,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- `retranscribe --kind meeting --speaker-detection app-default` now follows
+  the saved meeting speaker-detection preference. `transcribe` and
+  transcription retranscription continue to follow the saved file/URL
+  `speaker-detection` preference; explicit `--speaker-detection on|off`
+  remains a per-run override.
 - `transcribe` / `retranscribe` now apply local recognition-time custom
   vocabulary boosting when the selected engine is Parakeet TDT (`v3` or `v2`)
   and enabled `vocab words` entries have no replacement text. Unsupported
@@ -137,10 +145,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   prompt-result index, artifact paths, and `speakerLabelsIncluded` metadata.
 - `spec --json` now documents `meetings export` JSON stdout mode as
   `--stdout --format json`, matching the command's file-output default.
-- `transcribe` / `retranscribe` app-default speaker detection now resolves to
-  `on` for a fresh preference store. `config get speaker-detection` reports
-  `on` when unset; an explicit saved `off`, `--speaker-detection off`, or
-  `--no-diarize` still disables diarization.
+- `transcribe` and transcription `retranscribe` app-default speaker detection
+  now resolve to `on` for a fresh file/URL preference store. `config get
+  speaker-detection` reports `on` when unset; meeting retranscription uses the
+  new `meeting-speaker-detection` app-default value. An explicit saved `off`,
+  `--speaker-detection off`, or `--no-diarize` still disables diarization for
+  the relevant workflow.
 - Plain-text `retranscribe` validation/misuse failures now use exit code `2`,
   matching the JSON envelope path and the public exit-code contract.
 

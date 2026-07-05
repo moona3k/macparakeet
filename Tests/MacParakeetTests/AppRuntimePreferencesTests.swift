@@ -68,6 +68,33 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertFalse(preferences.shouldDiarize)
     }
 
+    func testMeetingSpeakerDiarizationDefaultsToTrueWhenUnset() {
+        let preferences = makePreferences()
+        XCTAssertTrue(preferences.shouldDiarizeMeetings)
+    }
+
+    func testMeetingSpeakerDiarizationRespectsExplicitFalse() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertFalse(preferences.shouldDiarizeMeetings)
+    }
+
+    func testSpeakerDiarizationPreferencesAreIndependent() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertFalse(preferences.shouldDiarize)
+        XCTAssertTrue(preferences.shouldDiarizeMeetings)
+    }
+
     func testVoiceReturnTriggersAreDisabledWhenToggleIsOff() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

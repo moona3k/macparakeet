@@ -229,6 +229,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.saveMeetingAudio, "saveMeetingAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
         XCTAssertTrue(viewModel.speakerDiarization, "speakerDiarization should default to true")
+        XCTAssertTrue(viewModel.meetingSpeakerDiarization, "meetingSpeakerDiarization should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
         XCTAssertTrue(viewModel.showMeetingRecordingPill, "showMeetingRecordingPill should default to true")
@@ -265,6 +266,7 @@ final class SettingsViewModelTests: XCTestCase {
             forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey
         )
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
         testDefaults.set("usb-mic-uid", forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         testDefaults.set(
             MeetingAudioSourceMode.systemOnly.rawValue,
@@ -295,6 +297,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.saveMeetingAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
         XCTAssertTrue(vm.speakerDiarization)
+        XCTAssertFalse(vm.meetingSpeakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
         XCTAssertFalse(vm.showMeetingRecordingPill)
@@ -963,6 +966,31 @@ final class SettingsViewModelTests: XCTestCase {
             testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
             false
         )
+        XCTAssertNil(testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey))
+    }
+
+    func testSettingMeetingSpeakerDiarizationPersistsExplicitFalse() {
+        viewModel.meetingSpeakerDiarization = false
+
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey) as? Bool,
+            false
+        )
+        XCTAssertNil(testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey))
+    }
+
+    func testMeetingSpeakerDiarizationEmitsDistinctTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.meetingSpeakerDiarization = false
+        viewModel.speakerDiarization = false
+
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.meetingSpeakerDiarization, .speakerDiarization])
     }
 
     func testMeetingHotkeyPersistsToDedicatedDefaultsKey() {
@@ -2594,6 +2622,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.saveTranscriptionAudio = false
         viewModel.saveMeetingAudio = false
         viewModel.speakerDiarization = true
+        viewModel.meetingSpeakerDiarization = false
 
         // Create a new ViewModel reading from the same defaults
         let vm2 = SettingsViewModel(defaults: testDefaults)
@@ -2609,6 +2638,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm2.meetingAudioRetention, .deleteImmediately)
         XCTAssertFalse(vm2.saveMeetingAudio)
         XCTAssertTrue(vm2.speakerDiarization)
+        XCTAssertFalse(vm2.meetingSpeakerDiarization)
     }
 
     // MARK: - Model deletion

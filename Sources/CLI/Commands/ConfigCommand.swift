@@ -41,6 +41,7 @@ struct ConfigCommand: ParsableCommand {
           whisper-language          auto|<Whisper language code>    default: auto
           cohere-language           <Cohere language code>          default: en (no auto)
           speaker-detection         on|off                          default: on
+          meeting-speaker-detection on|off                          default: on
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
@@ -126,7 +127,13 @@ struct ConfigCommand: ParsableCommand {
             key: "speaker-detection",
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
-            summary: "Default file/meeting speaker diarization setting."
+            summary: "Default file and URL transcription speaker detection."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-speaker-detection",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Default meeting recording speaker detection."
         ),
         CLIConfigKeySpec(
             key: "auto-meeting-titles",
@@ -328,6 +335,9 @@ struct ConfigCommand: ParsableCommand {
         case "speaker-detection":
             let on = UserDefaultsAppRuntimePreferences.speakerDiarizationEnabled(defaults: store)
             return on ? "on" : "off"
+        case "meeting-speaker-detection":
+            let on = UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationEnabled(defaults: store)
+            return on ? "on" : "off"
         case "auto-meeting-titles":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
             return on ? "on" : "off"
@@ -420,6 +430,10 @@ struct ConfigCommand: ParsableCommand {
         case "speaker-detection":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+            return parsed ? "on" : "off"
+        case "meeting-speaker-detection":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
             return parsed ? "on" : "off"
         case "auto-meeting-titles":
             let parsed = try parseBool(value, key: key)

@@ -234,10 +234,12 @@ macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --
 ```
 
 To test the same defaults a user selected in the GUI, make every app-default
-read explicit. Bare `transcribe` already follows the saved speaker-detection
-preference, but the full flag group below also opts into saved speech-engine,
-processing, audio-retention, and YouTube-quality defaults. This does not
-exercise GUI-only UI, playback, hotkey, export, or optional AI formatter output.
+read explicit. Bare `transcribe` already follows the saved file/URL
+speaker-detection preference, while `retranscribe --kind meeting` follows the
+saved meeting speaker-detection preference when left at app-default. The full
+flag group below also opts into saved speech-engine, processing,
+audio-retention, and YouTube-quality defaults. This does not exercise GUI-only
+UI, playback, hotkey, export, or optional AI formatter output.
 
 ```bash
 macparakeet-cli transcribe /path/to/audio.mp3 \
@@ -275,6 +277,7 @@ macparakeet-cli config set whisper-language ko
 macparakeet-cli config set cohere-language ja
 macparakeet-cli config set processing-mode raw
 macparakeet-cli config set speaker-detection off
+macparakeet-cli config set meeting-speaker-detection off
 macparakeet-cli config set save-transcription-audio off
 macparakeet-cli config set youtube-audio-quality m4a
 ```
@@ -524,6 +527,7 @@ macparakeet-cli transcribe "<path-or-media-url>" \
 macparakeet-cli config list --json
 macparakeet-cli config set speech-engine parakeet --json
 macparakeet-cli config set speaker-detection off --json
+macparakeet-cli config set meeting-speaker-detection off --json
 macparakeet-cli history transcriptions --json
 macparakeet-cli history search-transcriptions "<query>" --json
 macparakeet-cli history search "<query>" --json
@@ -567,12 +571,14 @@ macparakeet-cli prompts run "<prompt-name>" \
   `--mode app-default`, `--downloaded-audio app-default`, and
   `--media-audio-quality app-default`) when you are intentionally checking
   GUI-default behavior. Pin explicit flags for reproducible agent tests.
-- `config get speaker-detection` reports the saved app-default value, which is
-  `on` for a fresh preference store. Bare `transcribe` and
-  `--speaker-detection app-default` use that value; pass
-  `--speaker-detection on` or `off` to override it for one run. For known
-  speaker counts, use per-run `--speaker-count`, `--speaker-min`, or
-  `--speaker-max` instead of mutating the saved default.
+- `config get speaker-detection` reports the saved file/URL app-default value,
+  which is `on` for a fresh preference store. `config get
+  meeting-speaker-detection` reports the saved meeting app-default value, also
+  defaulting to `on`. Bare `transcribe` uses the file/URL value; meeting
+  retranscription uses the meeting value when `--speaker-detection` is left at
+  `app-default`. Pass `--speaker-detection on` or `off` to override it for one
+  run. For known speaker counts, use per-run `--speaker-count`,
+  `--speaker-min`, or `--speaker-max` instead of mutating the saved default.
 ````
 
 ## Conventions

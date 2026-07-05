@@ -571,6 +571,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     shouldKeepDownloadedAudio
                 },
                 shouldDiarize: { resolvedSpeakerDetection.enabled },
+                shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
                 youtubeDownloader: youtubeDownloader,
                 podcastResolver: PodcastEpisodeResolver(),
                 podcastSearchResolver: PodcastQueryResolver(),

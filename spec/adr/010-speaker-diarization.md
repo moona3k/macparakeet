@@ -125,11 +125,11 @@ If diarization fails (e.g. `noSpeechDetected`, model error, timeout), the ASR re
 
 **Progress UX:** When enabled, show "Transcribing..." during ASR, then "Identifying speakers..." during diarization. When disabled, the diarization step is skipped entirely (no progress indicator for it).
 
-~~**No global toggle.**~~ **Global toggle added.** A "Speaker detection" toggle in Settings → Transcription controls whether diarization runs. The original concern about "why don't I see speakers?" confusion is addressed by the toggle being clearly labeled and discoverable.
+~~**No global toggle.**~~ **Settings toggles added.** Separate "Speaker detection" toggles in Settings → Transcription and Settings → Meeting Recording control whether diarization runs for file/URL transcription and meeting recordings. The original concern about "why don't I see speakers?" confusion is addressed by the toggles being clearly labeled and discoverable in the relevant capture workflow.
 
-Skip diarization for: dictation (single speaker by design), or when the Settings toggle is off.
+Skip diarization for: dictation (single speaker by design), or when the corresponding Settings toggle is off.
 
-**CLI:** `macparakeet-cli transcribe` follows the saved speaker-detection preference; when unset, the preference defaults to on where supported. Use `--no-diarize` / `--speaker-detection off` to skip, or a speaker-count constraint to force it on. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
+**CLI:** `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; `macparakeet-cli retranscribe --kind meeting` follows the saved meeting speaker-detection preference when `--speaker-detection app-default` is used. When unset, both preferences default to on where supported. Use `--no-diarize` / `--speaker-detection off` to skip for one run, or a speaker-count constraint to force it on. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
 
 **Readiness contract:** Diarization remains a separate service from the STT scheduler, but when speaker detection is enabled (on by default where supported — see the 2026-07-03 amendment) the onboarding/ready-state path must account for diarization-model readiness before claiming file transcription is fully ready.
 
@@ -160,6 +160,13 @@ Skip diarization for: dictation (single speaker by design), or when the Settings
 > with ADR-027's private speech-memory direction: speaker structure is only
 > recoverable while raw meeting audio exists, so capture-time diarization is the
 > last chance to preserve speaker labels in the corpus.
+>
+> **Amendment (2026-07-05):** The single saved value was split by workflow.
+> File and URL transcription continue to use the `speakerDiarization`
+> preference. Meeting recording now uses the independent
+> `meetingSpeakerDiarization` preference, also UserDefaults-backed and default
+> on where supported. Meetings still diarize only the isolated system-audio
+> track after capture; microphone words remain source-labeled as `Me`.
 >
 > **2. The FluidAudio dependency surface has grown.** The core decision above
 > still stands — MacParakeet ships only the offline batch pipeline and uses

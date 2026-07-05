@@ -1393,8 +1393,8 @@ new scheduling architecture.
 - [x] Single-speaker files handled gracefully (one speaker label)
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
-- [x] Settings toggle for speaker detection (on by default where supported; explicit off is preserved)
-- [x] CLI: `macparakeet-cli transcribe` follows the saved speaker-detection preference (on by default when unset); `--speaker-detection off` / `--no-diarize` to force off, speaker-count constraints to force on
+- [x] Settings toggles for file/URL and meeting speaker detection (on by default where supported; explicit off is preserved)
+- [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on
 
 ---
 

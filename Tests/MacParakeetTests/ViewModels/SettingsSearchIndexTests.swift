@@ -110,6 +110,19 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
+        let queries = ["system audio", "participants", "others", "speaker labels"]
+
+        for query in queries {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertTrue(ids.contains("meeting.speakerDetection"), "Query \(query) should find meeting speaker detection")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.speakerDetection"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+    }
+
     func testRowEntryHasBreadcrumbSubtitle() {
         let results = SettingsSearchIndex.matches("screen recording")
         let rowEntry = results.first { $0.id == "system.permissions.screen" }
@@ -215,6 +228,7 @@ final class SettingsSearchIndexTests: XCTestCase {
         let meetingGatedIds: Set<String> = [
             "meeting",
             "meeting.floatingControls",
+            "meeting.speakerDetection",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"

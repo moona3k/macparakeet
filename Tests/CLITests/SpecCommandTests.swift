@@ -258,6 +258,9 @@ final class SpecCommandTests: XCTestCase {
         let bluetoothMicPreference = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "prefer-built-in-mic-bluetooth-output" })
         XCTAssertEqual(bluetoothMicPreference["allowedValues"] as? [String], ["on", "off"])
 
+        let meetingSpeakerDetection = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "meeting-speaker-detection" })
+        XCTAssertEqual(meetingSpeakerDetection["allowedValues"] as? [String], ["on", "off"])
+
         let timeout = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "meeting-hook-timeout" })
         XCTAssertEqual(timeout["valueSyntax"] as? String, "seconds 1-300")
     }

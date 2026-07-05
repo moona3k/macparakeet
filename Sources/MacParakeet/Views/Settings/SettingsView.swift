@@ -1227,6 +1227,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Speaker detection",
+                    detail: "Split captured system audio into other speakers after recording when audio is clear.",
+                    isOn: $viewModel.meetingSpeakerDiarization
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-save meetings to disk",
                     detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
                     isOn: $viewModel.meetingAutoSave
@@ -1372,7 +1380,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Speaker detection",
-                    detail: "Optional. Adds speaker labels when audio is clear; leave off if labels are unreliable.",
+                    detail: "Add speaker labels to file and URL transcriptions when audio is clear.",
                     isOn: $viewModel.speakerDiarization
                 )
 

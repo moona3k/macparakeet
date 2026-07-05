@@ -358,6 +358,7 @@ final class AppEnvironment {
             shouldAutoGenerateMeetingTitles: meetingTitleGenerationEnabledClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
+            shouldDiarizeMeetings: { [runtimePreferences] in runtimePreferences.shouldDiarizeMeetings },
             youtubeDownloader: youtubeDownloader,
             podcastResolver: PodcastEpisodeResolver(),
             podcastSearchResolver: PodcastQueryResolver(),
