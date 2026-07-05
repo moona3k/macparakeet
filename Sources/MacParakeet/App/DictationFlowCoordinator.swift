@@ -182,6 +182,7 @@ final class DictationFlowCoordinator {
     private var captionFailureDismissTask: Task<Void, Never>?
     private var captionShownAt: Date?
     private var captionGeneration = 0
+    var testHook_onProcessingLoadCaptionChange: ((DictationOverlayViewModel.ProcessingLoadCaption?) -> Void)?
 
     // MARK: - Flow Context (not state machine concerns)
 
@@ -468,7 +469,7 @@ final class DictationFlowCoordinator {
             vm.recordingMode = mode
             vm.processingMessage = nil
             vm.busyProcessingMessage = nil
-            vm.processingLoadCaption = nil
+            setProcessingLoadCaption(nil)
             vm.liveTranscript = ""
             vm.previewTextSize = runtimePreferences.dictationPreviewTextSize
             vm.state = .recording
@@ -478,7 +479,7 @@ final class DictationFlowCoordinator {
             overlayViewModel?.stopTimer()
             overlayViewModel?.processingMessage = nil
             overlayViewModel?.busyProcessingMessage = nil
-            overlayViewModel?.processingLoadCaption = nil
+            setProcessingLoadCaption(nil)
             overlayViewModel?.liveTranscript = ""
             overlayViewModel?.state = .processing
             armProcessingLoadCaption()
@@ -790,6 +791,11 @@ final class DictationFlowCoordinator {
         stateMachine.state
     }
 
+    private func setProcessingLoadCaption(_ caption: DictationOverlayViewModel.ProcessingLoadCaption?) {
+        overlayViewModel?.processingLoadCaption = caption
+        testHook_onProcessingLoadCaptionChange?(caption)
+    }
+
     private func armProcessingLoadCaption() {
         captionGeneration += 1
         let generation = captionGeneration
@@ -839,7 +845,7 @@ final class DictationFlowCoordinator {
         let extendedCaption: DictationOverlayViewModel.ProcessingLoadCaption =
             isCohere ? .optimizingExtended : .preparingExtended
 
-        overlayViewModel?.processingLoadCaption = baseCaption
+        setProcessingLoadCaption(baseCaption)
         captionShownAt = Date()
         Telemetry.send(.dictationFirstLoadCaptionShown(firstInstall: firstInstall))
 
@@ -848,7 +854,7 @@ final class DictationFlowCoordinator {
             Task { @MainActor in
                 guard self?.captionGeneration == generation else { return }
                 guard self?.overlayViewModel?.processingLoadCaption == baseCaption else { return }
-                self?.overlayViewModel?.processingLoadCaption = extendedCaption
+                self?.setProcessingLoadCaption(extendedCaption)
             }
         }
         captionEscalationTimer = escalation
@@ -875,7 +881,7 @@ final class DictationFlowCoordinator {
             ))
             captionShownAt = nil
         }
-        overlayViewModel?.processingLoadCaption = nil
+        setProcessingLoadCaption(nil)
     }
 
     private func showErrorAfterCaptionFailureIfNeeded(message: String) {
@@ -886,7 +892,7 @@ final class DictationFlowCoordinator {
 
         switch overlayViewModel?.processingLoadCaption {
         case .preparing, .preparingExtended, .optimizing, .optimizingExtended:
-            overlayViewModel?.processingLoadCaption = .failed
+            setProcessingLoadCaption(.failed)
             captionFailureDismissTask?.cancel()
             captionFailureDismissTask = Task { @MainActor [weak self] in
                 guard let self else { return }

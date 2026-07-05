@@ -1873,12 +1873,16 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.currentTranscription = meeting
 
         viewModel.renameSpeaker(id: "S1", to: "Alice")
+        let firstRefreshCompleted = await artifactStore.waitForMaterializeCallCount(1)
+        XCTAssertTrue(firstRefreshCompleted)
+
         viewModel.renameSpeaker(id: "S1", to: "Bob")
 
-        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        let failedRenameRefreshCompleted = await artifactStore.waitForMaterializeCallCount(2)
+        XCTAssertTrue(failedRenameRefreshCompleted)
         let calls = await artifactStore.materializeCalls
-        XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls.first?.transcription.speakers?.first?.label, "Alice")
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls.last?.transcription.speakers?.first?.label, "Alice")
         XCTAssertEqual(viewModel.currentTranscription?.speakers?.first?.label, "Alice")
         XCTAssertNotNil(viewModel.errorMessage)
     }
@@ -3513,6 +3517,7 @@ private struct MaterializeCall: Sendable {
 
 private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
     private let materializeDelay: Duration?
+    private let materializeCallCountSignal = StateSignal<Int>()
     private var calls: [MaterializeCall] = []
     private var activeMaterializeCount = 0
     private(set) var startedMaterializeCount = 0
@@ -3530,6 +3535,13 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
         calls.count
     }
 
+    func waitForMaterializeCallCount(_ count: Int, timeout: Duration = .seconds(1)) async -> Bool {
+        if calls.count >= count {
+            return true
+        }
+        return await materializeCallCountSignal.wait(for: count, timeout: timeout)
+    }
+
     func materialize(
         transcription: Transcription,
         promptResults: [PromptResult]
@@ -3542,6 +3554,7 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
         }
         activeMaterializeCount -= 1
         calls.append(MaterializeCall(transcription: transcription, promptResults: promptResults))
+        await materializeCallCountSignal.emit(calls.count)
 
         let folderPath = MeetingArtifactStore.sessionFolderURL(for: transcription)?
             .standardizedFileURL.path
