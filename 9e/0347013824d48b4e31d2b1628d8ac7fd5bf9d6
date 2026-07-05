@@ -1,0 +1,39 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_e21e774de7a309::t_b3527cb323c624 61-62,330-332,357-362,368-373,396-403,409-411,495-496,599-604,616-621,659-664,733-735,759-760,775-776,779-780,794-796,884-885,887-889,972-977,1031-1036,1490,1595-1601,1604-1605,1609-1618,1621-1627,1717-1721
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_e21e774de7a309::t_b3527cb323c624 231-235,240-241,243-247,293-298,318-323
+Tests/MacParakeetTests/ViewModels/InProcessModelManagerViewModelTests.swift
+  s_e21e774de7a309::t_b3527cb323c624 276-283
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_e21e774de7a309::t_b3527cb323c624 22-23,77-78,103-104,158-161,178-180
+Sources/MacParakeetCore/AppFeatures.swift
+  s_e21e774de7a309::t_b3527cb323c624 146-150
+Tests/MacParakeetTests/Models/LLMProviderDescriptorTests.swift
+  s_e21e774de7a309::t_b3527cb323c624 60-61,63-64,66-67,71-72,90-91,113-117
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_e21e774de7a309::t_b3527cb323c624 108-109
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  s_e21e774de7a309::t_b3527cb323c624 225-232
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_e21e774de7a309::t_b3527cb323c624 108-109,313-314
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_e21e774de7a309::t_b3527cb323c624 106-107,351-352,492-493,496-498,528-529,660-664,689-690,763-764,798-799,811-812,842-843,879-880,898-899,951-952,997-998,1164-1169,1190-1192,1321-1322
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_e21e774de7a309::t_b3527cb323c624 215,315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9e0347013824d48b4e31d2b1628d8ac7fd5bf9d6",
+  "prompts": {},
+  "sessions": {
+    "s_e21e774de7a309": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a48f9227-c4cf-4c5c-8bf0-c83121e42bcb",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
