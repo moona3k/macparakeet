@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-public enum MeetingRecordingLockState: String, Codable, Sendable, Equatable {
+public enum MeetingRecordingLockState: String, Codable, Sendable, Equatable, CaseIterable {
     case recording
     case awaitingTranscription
 }

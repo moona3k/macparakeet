@@ -349,11 +349,11 @@ prompt-customization trend.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `meeting_recovery_discovered` | `count`, `source` (launch, settings) | How often interrupted recordings are found, and where users encounter them |
-| `meeting_recovery_started` | `count`, `source` | How often users choose to recover |
-| `meeting_recovery_completed` | `count`, `duration_seconds`, `source` | Recovery success rate and latency |
-| `meeting_recovery_discarded` | `count`, `source` | How often users intentionally discard interrupted recordings |
-| `meeting_recovery_failed` | `count`, `source`, `error_type`, `error_detail` | What blocks recovery in the field |
+| `meeting_recovery_discovered` | `count`, `source` (launch, settings), `phases` | How often interrupted recordings are found, what lock phase they were interrupted in, and where users encounter them |
+| `meeting_recovery_started` | `count`, `source`, `phases` | How often users choose to recover, by interrupted lock phase |
+| `meeting_recovery_completed` | `count`, `duration_seconds`, `source`, `phases` | Recovery success rate and latency by interrupted lock phase |
+| `meeting_recovery_discarded` | `count`, `source`, `phases` | How often users intentionally discard interrupted recordings, by interrupted lock phase |
+| `meeting_recovery_failed` | `count`, `source`, `phases`, `error_type`, `error_detail` | What blocks recovery in the field, by interrupted lock phase |
 
 ### 4c. Meeting Recording — "Is meeting capture healthy?"
 
