@@ -1,7 +1,10 @@
 # Architecture Deepening Opportunities — Meeting flow state + STT engine adapters
 
-> Status: **PROPOSED** (exploration, not committed work; no ADR yet — do not
-> treat as a decision). Surfaced 2026-06-28 via the
+> Status: **SUPERSEDED** by
+> [2026-07-04-architecture-deepening-round2.md](./2026-07-04-architecture-deepening-round2.md)
+> (2026-07-04). Finding 3's Phase A shipped as `SpeechEngineCapabilities` (#721);
+> Finding 1 was re-verified and narrowed to a failure-only signal (R2-2).
+> Original status: PROPOSED, surfaced 2026-06-28 via the
 > `/improve-codebase-architecture` review against `origin/main` at `8ab6dddd4`,
 > then hardened against three independent design reviews (Codex, Gemini,
 > adversarial-document-reviewer) that verified every claim against the code.
