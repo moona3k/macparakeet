@@ -65,6 +65,45 @@ enum CustomVocabularyBoostingPreparationMode {
     case backgroundIfNeeded
 }
 
+private final class BackgroundCustomVocabularyPreparationCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+    private var cancelled = false
+
+    func setTask(_ task: Task<Void, Never>) throws {
+        lock.lock()
+        let shouldCancel = cancelled
+        if !shouldCancel {
+            self.task = task
+        }
+        lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+            throw CancellationError()
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = task
+        lock.unlock()
+
+        task?.cancel()
+    }
+
+    func checkCancellation() throws {
+        lock.lock()
+        let shouldCancel = cancelled
+        lock.unlock()
+
+        if shouldCancel {
+            throw CancellationError()
+        }
+    }
+}
+
 /// Sole owner of the shared local speech-engine lifecycle.
 ///
 /// The runtime stays process-wide and singular at the app boundary, but it keeps
@@ -767,19 +806,21 @@ public actor STTRuntime: STTRuntimeProtocol {
                 try await rescorer.prepare(vocabulary: vocabulary)
             case .backgroundIfNeeded:
                 guard await rescorer.isPrepared(vocabulary: vocabulary) else {
-                    try Task.checkCancellation()
-                    let preparationTask = startBackgroundCustomVocabularyPreparation(
-                        vocabulary: vocabulary,
-                        rescorer: rescorer,
-                        logger: logger
-                    )
-                    do {
+                    let cancellation = BackgroundCustomVocabularyPreparationCancellation()
+                    return try await withTaskCancellationHandler {
                         try Task.checkCancellation()
-                    } catch is CancellationError {
-                        preparationTask.cancel()
-                        throw CancellationError()
+                        let preparationTask = startBackgroundCustomVocabularyPreparation(
+                            vocabulary: vocabulary,
+                            rescorer: rescorer,
+                            logger: logger
+                        )
+                        try cancellation.setTask(preparationTask)
+                        try Task.checkCancellation()
+                        try cancellation.checkCancellation()
+                        return result
+                    } onCancel: {
+                        cancellation.cancel()
                     }
-                    return result
                 }
             }
             try Task.checkCancellation()
