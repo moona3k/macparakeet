@@ -86,6 +86,7 @@ final class MeetingRecordingFlowCoordinator {
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
     private var pillGlowPollingTask: Task<Void, Never>?
+    private var captureFailureObservationTask: Task<Void, Never>?
     private var transcriptObservationTask: Task<Void, Never>?
     private var speechWarmUpObservationTask: Task<Void, Never>?
     // Saved-completion celebration (Metatron bloom → checkmark). The flow returns
@@ -199,7 +200,7 @@ final class MeetingRecordingFlowCoordinator {
 
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
-    /// with the 150ms polling reconciler (which reads `captureMode` from the
+    /// with the 1s polling reconciler (which reads `captureMode` from the
     /// actor and could see `.full` while the spawned pause Task is still
     /// queued, then flip the pill back to `.recording`).
     ///
@@ -643,6 +644,7 @@ final class MeetingRecordingFlowCoordinator {
                         break
                     }
                     self.sendEvent(.recordingStarted(generation: gen))
+                    self.startCaptureFailureObservation(generation: gen)
                     Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                 } catch {
@@ -1051,28 +1053,6 @@ final class MeetingRecordingFlowCoordinator {
                     pillViewModel.state = .recording
                 }
                 panelViewModel?.isPaused = serviceIsPaused
-                if captureMode == .stopped,
-                    stateMachine.state == .recording,
-                    pillViewModel.state == .recording || pillViewModel.state == .paused
-                {
-                    // Audio capture stopped while the state machine still
-                    // expects a live recording — typically because
-                    // `MeetingRecordingService.failCapture` ran (mic unplug,
-                    // writer error, OS audio routing change). Could also
-                    // fire while paused if a USB mic is unplugged mid-pause.
-                    // Without this signal the pill keeps showing the paused
-                    // glyph or "recording" with a ticking timer while no
-                    // audio is actually being captured. Surface it through
-                    // the state machine so the existing stop+transcribe
-                    // path saves whatever made it to disk.
-                    pillViewModel.micLevel = 0
-                    pillViewModel.systemLevel = 0
-                    panelViewModel?.micLevel = 0
-                    panelViewModel?.systemLevel = 0
-                    sendEvent(.captureFailed(generation: stateMachine.generation))
-                    break
-                }
-
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -1126,9 +1106,33 @@ final class MeetingRecordingFlowCoordinator {
         pillGlowPollingTask = nil
     }
 
+    private func startCaptureFailureObservation(generation: Int) {
+        captureFailureObservationTask?.cancel()
+        captureFailureObservationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let stream = await meetingRecordingService.captureFailureSignalForCurrentSession()
+            for await _ in stream {
+                guard !Task.isCancelled else { break }
+                guard stateMachine.generation == generation, stateMachine.state == .recording else { break }
+                pillViewModel.micLevel = 0
+                pillViewModel.systemLevel = 0
+                panelViewModel?.micLevel = 0
+                panelViewModel?.systemLevel = 0
+                sendEvent(.captureFailed(generation: generation))
+                break
+            }
+        }
+    }
+
+    private func stopCaptureFailureObservation() {
+        captureFailureObservationTask?.cancel()
+        captureFailureObservationTask = nil
+    }
+
     private func stopPillPolling() {
         pillPollingTask?.cancel()
         pillPollingTask = nil
+        stopCaptureFailureObservation()
         stopPillGlowPolling()
     }
 
@@ -1392,6 +1396,18 @@ extension MeetingRecordingFlowCoordinator {
 
     func testHook_waitForActionTask() async {
         await actionTask?.value
+    }
+
+    func testHook_startCaptureFailureObservation(generation: Int) {
+        startCaptureFailureObservation(generation: generation)
+    }
+
+    func testHook_waitForCaptureFailureObservationTask() async {
+        await captureFailureObservationTask?.value
+    }
+
+    var testHook_generation: Int {
+        stateMachine.generation
     }
 
     func testHook_waitForMeetingTranscriptionQueue() async {

@@ -32,6 +32,14 @@ public struct MeetingMicrophoneMuteState: Sendable, Equatable {
     }
 }
 
+public struct MeetingCaptureFailureSignal: Sendable, Equatable {
+    public let sessionID: UUID
+
+    public init(sessionID: UUID) {
+        self.sessionID = sessionID
+    }
+}
+
 public protocol MeetingRecordingServiceProtocol: Sendable {
     /// `title` lets callers (e.g., the calendar auto-start path) pre-name
     /// the recording. `nil` or whitespace-only falls back to the default
@@ -75,6 +83,10 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var microphoneMuteState: MeetingMicrophoneMuteState { get async }
     var captureHealth: MeetingCaptureHealthSummary { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
+    /// One terminal capture-failure signal for the currently active session.
+    /// If that session has already failed, the returned stream yields once and
+    /// finishes; if no session is active, it finishes without yielding.
+    func captureFailureSignalForCurrentSession() async -> AsyncStream<MeetingCaptureFailureSignal>
 }
 
 public extension MeetingRecordingServiceProtocol {
@@ -99,6 +111,12 @@ public extension MeetingRecordingServiceProtocol {
 
     var captureHealth: MeetingCaptureHealthSummary {
         get async { .notRecording }
+    }
+
+    func captureFailureSignalForCurrentSession() async -> AsyncStream<MeetingCaptureFailureSignal> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
     }
 }
 
@@ -266,6 +284,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private var transcriptContinuation: AsyncStream<MeetingTranscriptUpdate>.Continuation?
     private var cachedTranscriptUpdates: AsyncStream<MeetingTranscriptUpdate>?
+    private var captureFailureObserverContinuations:
+        [UUID: [UUID: AsyncStream<MeetingCaptureFailureSignal>.Continuation]] = [:]
+    private var captureFailureSignaledSessionIDs: Set<UUID> = []
 
     private static let rmsEmaAlpha: Float = 0.3
     private static let processedRmsHealthLevelScale: Float = 10
@@ -472,6 +493,35 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return stream
     }
 
+    public func captureFailureSignalForCurrentSession() async -> AsyncStream<MeetingCaptureFailureSignal> {
+        guard let sessionID = currentSession?.id else {
+            return AsyncStream { continuation in
+                continuation.finish()
+            }
+        }
+
+        var continuation: AsyncStream<MeetingCaptureFailureSignal>.Continuation?
+        let stream = AsyncStream<MeetingCaptureFailureSignal>(bufferingPolicy: .bufferingOldest(1)) {
+            continuation = $0
+        }
+        guard let continuation else { return stream }
+
+        if captureFailureSignaledSessionIDs.contains(sessionID) || captureFailed {
+            continuation.yield(MeetingCaptureFailureSignal(sessionID: sessionID))
+            continuation.finish()
+            return stream
+        }
+
+        let observerID = UUID()
+        captureFailureObserverContinuations[sessionID, default: [:]][observerID] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.removeCaptureFailureObserver(sessionID: sessionID, observerID: observerID)
+            }
+        }
+        return stream
+    }
+
     public func startRecording(
         title: String? = nil,
         sourceMode: MeetingAudioSourceMode? = nil,
@@ -553,6 +603,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             transcriptAssembler.reset()
             isTranscriptionLagging = false
             captureFailed = false
+            captureFailureSignaledSessionIDs.remove(session.id)
             interruptedSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
@@ -1086,6 +1137,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func failCapture(_ error: Error) async {
+        guard let sessionID = currentSession?.id,
+              !captureFailureSignaledSessionIDs.contains(sessionID)
+        else { return }
+
+        captureFailureSignaledSessionIDs.insert(sessionID)
         captureFailed = true
         latestLevels = MeetingAudioLevels()
         recentMicrophoneRms = 0
@@ -1096,7 +1152,35 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         microphoneMutedHostTime = nil
         completedMicrophoneMuteHostTimeRanges = []
         logger.error("meeting_capture_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        emitCaptureFailureSignal(for: sessionID)
         await audioCaptureService.stop()
+    }
+
+    private func emitCaptureFailureSignal(for sessionID: UUID) {
+        guard let continuations = captureFailureObserverContinuations.removeValue(forKey: sessionID) else {
+            return
+        }
+        let signal = MeetingCaptureFailureSignal(sessionID: sessionID)
+        for continuation in continuations.values {
+            continuation.yield(signal)
+            continuation.finish()
+        }
+    }
+
+    private func finishCaptureFailureSignal(for sessionID: UUID) {
+        if let continuations = captureFailureObserverContinuations.removeValue(forKey: sessionID) {
+            for continuation in continuations.values {
+                continuation.finish()
+            }
+        }
+        captureFailureSignaledSessionIDs.remove(sessionID)
+    }
+
+    private func removeCaptureFailureObserver(sessionID: UUID, observerID: UUID) {
+        captureFailureObserverContinuations[sessionID]?[observerID] = nil
+        if captureFailureObserverContinuations[sessionID]?.isEmpty == true {
+            captureFailureObserverContinuations[sessionID] = nil
+        }
     }
 
     /// Pick the live-preview chunking strategy for this session and install it
@@ -1664,6 +1748,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func cleanupState() {
+        let finishedSessionID = currentSession?.id
         currentSession = nil
         currentNotes = nil
         currentLockFile = nil
@@ -1696,6 +1781,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         transcriptContinuation?.finish()
         transcriptContinuation = nil
         cachedTranscriptUpdates = nil
+        if let finishedSessionID {
+            finishCaptureFailureSignal(for: finishedSessionID)
+        }
     }
 
     private static func resolveDisplayName(title: String?, fallbackDate: Date) -> String {

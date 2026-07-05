@@ -90,6 +90,104 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.systemTrackPresent, true)
     }
 
+    func testCaptureFailureSignalUsesStopTranscribeFlowExactlyOnce() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+
+        await recordingService.emitCaptureFailure()
+        await recordingService.emitCaptureFailure()
+        try await waitForStopCall(on: recordingService, coordinator: coordinator)
+
+        let recordingSnapshot = await recordingService.snapshot()
+        let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertEqual(recordingSnapshot.stopCallCount, 1)
+        XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
+    }
+
+    func testCaptureFailureSignalWhilePausedUsesStopTranscribeFlow() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let pillViewModel = MeetingRecordingPillViewModel()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: pillViewModel,
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        coordinator.togglePause()
+        try await waitForPillState(pillViewModel, .paused)
+
+        await recordingService.emitCaptureFailure()
+        try await waitForStopCall(on: recordingService, coordinator: coordinator)
+
+        let recordingSnapshot = await recordingService.snapshot()
+        let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertEqual(recordingSnapshot.stopCallCount, 1)
+        XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
+    }
+
+    func testStaleGenerationCaptureFailureSignalIsIgnored() async throws {
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+        coordinator.testHook_enterRecording()
+        let staleGeneration = coordinator.testHook_generation - 1
+
+        coordinator.testHook_startCaptureFailureObservation(generation: staleGeneration)
+        await recordingService.emitCaptureFailure()
+        await coordinator.testHook_waitForCaptureFailureObservationTask()
+
+        let recordingSnapshot = await recordingService.snapshot()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertEqual(recordingSnapshot.stopCallCount, 0)
+    }
+
     func testCanStartNextRecordingWhilePreviousFinalizeIsQueued() async throws {
         let output = makeRecordingOutput()
         let recordingService = MeetingRecordingServiceSpy(output: output)
@@ -586,6 +684,40 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTFail("Expected recording service to receive startRecording.")
     }
 
+    private func waitForStopCall(
+        on service: MeetingRecordingServiceSpy,
+        coordinator: MeetingRecordingFlowCoordinator,
+        expectedCount: Int = 1
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while true {
+            await coordinator.testHook_waitForActionTask()
+            let snapshot = await service.snapshot()
+            if snapshot.stopCallCount >= expectedCount {
+                return
+            }
+            if startedAt.duration(to: .now) > .seconds(1) {
+                XCTFail("Expected recording service to receive stopRecording.")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForPillState(
+        _ pillViewModel: MeetingRecordingPillViewModel,
+        _ expectedState: MeetingRecordingPillViewModel.PillState
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while pillViewModel.state != expectedState {
+            if startedAt.duration(to: .now) > .seconds(1) {
+                XCTFail("Timed out waiting for pill state \(expectedState); latest state: \(pillViewModel.state)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func makeRecordingOutput() -> MeetingRecordingOutput {
         let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -649,6 +781,10 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     var stopCallCount = 0
     var startTitles: [String?] = []
     var calendarEventSnapshots: [MeetingCalendarSnapshot?] = []
+    private var paused = false
+    private var captureFailureSessionID = UUID()
+    private var captureFailureSignaled = false
+    private var captureFailureContinuations: [UUID: AsyncStream<MeetingCaptureFailureSignal>.Continuation] = [:]
 
     init(output: MeetingRecordingOutput) {
         self.output = output
@@ -669,18 +805,31 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         ))
         startTitles.append(title)
         calendarEventSnapshots.append(calendarEventSnapshot)
+        paused = false
+        finishCaptureFailureContinuations()
+        captureFailureSessionID = UUID()
+        captureFailureSignaled = false
     }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
         stopCallCount += 1
+        paused = false
+        finishCaptureFailureContinuations()
         return output
     }
 
-    func cancelRecording() async {}
+    func cancelRecording() async {
+        paused = false
+        finishCaptureFailureContinuations()
+    }
 
-    func pauseRecording() async {}
+    func pauseRecording() async {
+        paused = true
+    }
 
-    func resumeRecording() async {}
+    func resumeRecording() async {
+        paused = false
+    }
 
     func setMicrophoneMuted(_ muted: Bool) async -> MeetingMicrophoneMuteState {
         MeetingMicrophoneMuteState(isMuted: muted, canMute: true)
@@ -690,7 +839,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 
     var isRecording: Bool { true }
 
-    var isPaused: Bool { false }
+    var isPaused: Bool { paused }
 
     var micLevel: Float { 0 }
 
@@ -698,7 +847,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 
     var elapsedSeconds: Int { 0 }
 
-    var captureMode: CaptureMode { .full }
+    var captureMode: CaptureMode { paused ? .paused : .full }
 
     var isMicrophoneMuted: Bool { false }
 
@@ -712,6 +861,53 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         AsyncStream { continuation in
             continuation.finish()
         }
+    }
+
+    func captureFailureSignalForCurrentSession() async -> AsyncStream<MeetingCaptureFailureSignal> {
+        var continuation: AsyncStream<MeetingCaptureFailureSignal>.Continuation?
+        let stream = AsyncStream<MeetingCaptureFailureSignal>(bufferingPolicy: .bufferingOldest(1)) {
+            continuation = $0
+        }
+        guard let continuation else { return stream }
+
+        if captureFailureSignaled {
+            continuation.yield(MeetingCaptureFailureSignal(sessionID: captureFailureSessionID))
+            continuation.finish()
+            return stream
+        }
+
+        let continuationID = UUID()
+        captureFailureContinuations[continuationID] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.removeCaptureFailureContinuation(id: continuationID)
+            }
+        }
+        return stream
+    }
+
+    func emitCaptureFailure() {
+        guard !captureFailureSignaled else { return }
+        captureFailureSignaled = true
+        let continuations = captureFailureContinuations
+        captureFailureContinuations.removeAll()
+        let signal = MeetingCaptureFailureSignal(sessionID: captureFailureSessionID)
+        for continuation in continuations.values {
+            continuation.yield(signal)
+            continuation.finish()
+        }
+    }
+
+    private func finishCaptureFailureContinuations() {
+        let continuations = captureFailureContinuations
+        captureFailureContinuations.removeAll()
+        for continuation in continuations.values {
+            continuation.finish()
+        }
+    }
+
+    private func removeCaptureFailureContinuation(id: UUID) {
+        captureFailureContinuations[id] = nil
     }
 
     func snapshot() -> (

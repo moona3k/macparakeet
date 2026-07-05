@@ -594,6 +594,78 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
+    func testCaptureFailureSignalYieldsOnceForRuntimeError() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        let stream = await service.captureFailureSignalForCurrentSession()
+        let signalTask = Task { await collectCaptureFailureSignals(from: stream) }
+
+        await captureService.yield(.error(.captureRuntimeFailure("simulated runtime failure")))
+
+        let signals = try await value(
+            of: signalTask,
+            timeoutMessage: "Timed out waiting for capture-failure signal"
+        )
+        XCTAssertEqual(signals.count, 1)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureFailureSignalYieldsToLateObserverForFailedSession() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        await captureService.yield(.error(.captureRuntimeFailure("simulated runtime failure")))
+        try await waitForCaptureMode(service) { $0 == .stopped }
+
+        let stream = await service.captureFailureSignalForCurrentSession()
+        let signalTask = Task { await collectCaptureFailureSignals(from: stream) }
+        let signals = try await value(
+            of: signalTask,
+            timeoutMessage: "Timed out waiting for late capture-failure signal"
+        )
+        XCTAssertEqual(signals.count, 1)
+
+        await service.cancelRecording()
+    }
+
+    func testDuplicateCaptureFailuresEmitOneSignal() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        let stream = await service.captureFailureSignalForCurrentSession()
+        let signalTask = Task { await collectCaptureFailureSignals(from: stream) }
+
+        await captureService.yield(.error(.captureRuntimeFailure("first runtime failure")))
+        await captureService.yield(.error(.captureRuntimeFailure("duplicate runtime failure")))
+
+        let signals = try await value(
+            of: signalTask,
+            timeoutMessage: "Timed out waiting for duplicate capture-failure signal"
+        )
+        let stopCallCount = await captureService.stopCallCount
+        XCTAssertEqual(signals.count, 1)
+        XCTAssertEqual(stopCallCount, 1)
+
+        await service.cancelRecording()
+    }
+
     func testSystemSourceInterruptionKeepsMicrophoneRecordingAlive() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -1781,6 +1853,21 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    private func waitForCaptureMode(
+        _ service: MeetingRecordingService,
+        timeout: Duration = .seconds(1),
+        _ predicate: @escaping (CaptureMode) -> Bool
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while !predicate(await service.captureMode) {
+            if startedAt.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for capture mode predicate")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func waitForCaptureHealth(
         _ service: MeetingRecordingService,
         timeout: Duration = .seconds(1),
@@ -1797,6 +1884,37 @@ final class MeetingRecordingServiceTests: XCTestCase {
                 return health
             }
             try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func collectCaptureFailureSignals(
+        from stream: AsyncStream<MeetingCaptureFailureSignal>
+    ) async -> [MeetingCaptureFailureSignal] {
+        var signals: [MeetingCaptureFailureSignal] = []
+        for await signal in stream {
+            signals.append(signal)
+        }
+        return signals
+    }
+
+    private func value<T>(
+        of task: Task<T, Never>,
+        timeout: Duration = .seconds(1),
+        timeoutMessage: String
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                await task.value
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw TestError.timedOut(timeoutMessage)
+            }
+            guard let value = try await group.next() else {
+                throw TestError.timedOut(timeoutMessage)
+            }
+            group.cancelAll()
+            return value
         }
     }
 
@@ -2920,6 +3038,7 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
 
 private enum TestError: Error {
     case lockWriteFailed
+    case timedOut(String)
 }
 
 private final class RecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
