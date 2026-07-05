@@ -1,0 +1,69 @@
+spec/11-llm-integration.md
+  s_2a75fa1c414460::t_3506386707bd2d 349-356
+  s_2a75fa1c414460::t_e747a77f95ea88 8-10,23,28,39,56,79,107
+plans/active/2026-06-27-on-device-local-llm.md
+  s_2a75fa1c414460::t_027f5cb0787e2f 118-119
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_2a75fa1c414460::t_2c07a44af5c4a6 222-227,237
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_2a75fa1c414460::t_25d0eb8979a4e1 67,103-105,144,151-161
+  s_2a75fa1c414460::t_3fb1b41d50ea4b 145-146,148-150,162
+  s_2a75fa1c414460::t_bbc55c73a0fec9 147
+  s_2a75fa1c414460::t_e25dc3ce3c5dcb 66
+  s_2a75fa1c414460::t_fab82de88b1874 1-65,68-102,106-143,163-164
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_2a75fa1c414460::t_cceee7796981e7 25,106-120,311-319,324-356
+  s_2a75fa1c414460::t_3ce56daeaf7028 357
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_2a75fa1c414460::t_12813aba6645ff 41-46,183-187,239,262-407,409-411
+  s_2a75fa1c414460::t_e345b03d1446e8 408
+  s_29fd8f3c93ebe0::t_c1d9398f7e01b6 412
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_2a75fa1c414460::t_1752d786e2f994 156,334-337,571,586-588,594-603,606-608
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_2a75fa1c414460::t_7eb1318ac8dc91 114-118
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_2a75fa1c414460::t_728f39886bc539 57,65-66,87,102
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_2a75fa1c414460::t_8ebe4323c6b66f 1-214,217-220,222-372,374-376,378-573
+  s_2a75fa1c414460::t_905bc6b21b30e0 215-216,221
+  s_2a75fa1c414460::t_4307b5d0e1bc92 373,377
+Sources/MacParakeetCore/AppFeatures.swift
+  s_2a75fa1c414460::t_29064082d4be91 128-150
+Tests/MacParakeetTests/Models/LLMProviderDescriptorTests.swift
+  s_2a75fa1c414460::t_704c8bd649ce0b 103-106,109
+  s_2a75fa1c414460::t_3eab40b65dee1d 74,86-102,107-108,110-111
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_2a75fa1c414460::t_76aa22f14c1519 179-277
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  s_2a75fa1c414460::t_f9600c97298691 1-150,154-172
+  s_2a75fa1c414460::t_f18908c8a70fde 151-153
+Tests/MacParakeetTests/ViewModels/InProcessModelManagerViewModelTests.swift
+  s_2a75fa1c414460::t_f7c348faca5f48 1-27,30-50,55-102,105-107,113-117,119-123,125-127,129-135,137-148,150,163-164
+  s_2a75fa1c414460::t_a83279f20c0d01 28-29,51-54,103-104
+  s_2a75fa1c414460::t_376ab7916a2c74 108-112,118,124,128,136,149,151-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b0fd04f7479d8aac5bdfe9e2c49d80a38bd7e6d6",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
