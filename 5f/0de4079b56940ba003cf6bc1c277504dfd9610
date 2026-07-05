@@ -1,0 +1,32 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_29fd8f3c93ebe0::t_6df84590e5b820 83-86,291-292
+  s_29fd8f3c93ebe0::t_2b448134738e46 284-286,293-297
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 727
+  s_29fd8f3c93ebe0::t_2b448134738e46 569,710-712,715,744-745,807-808,812,940-946
+  s_29fd8f3c93ebe0::t_4976a729206b88 881
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 864,878-882
+  s_29fd8f3c93ebe0::t_8d9d4f65adccf3 890-891
+  s_29fd8f3c93ebe0::t_6df84590e5b820 498,877,883-889
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_29fd8f3c93ebe0::t_4976a729206b88 488
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 497
+  s_29fd8f3c93ebe0::t_2b448134738e46 387,464-467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5f0de4079b56940ba003cf6bc1c277504dfd9610",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
