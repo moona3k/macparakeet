@@ -328,6 +328,32 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertTrue(result.output.contains("Meeting echo assets verified"))
     }
 
+    func testDistributionVerifierAcceptsDefaultModelWithExplicitMatchingChecksum() throws {
+        let appURL = try Self.makeEchoAssetAppBundle(
+            modelName: MeetingEchoSuppressionFactory.defaultModelName,
+            modelData: Data("model".utf8),
+            includeLibrary: true
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let modelURL = appURL.appendingPathComponent(
+            "Contents/Resources/MeetingEchoSuppression/" +
+                MeetingEchoSuppressionFactory.defaultModelName
+        )
+
+        let result = try Self.runVerifier(
+            appURL: appURL,
+            environment: [
+                "REQUIRE_MEETING_ECHO_ASSETS": "1",
+                "MACPARAKEET_MEETING_ECHO_MODEL_SHA256": try MeetingEchoSuppressionFactory.sha256Hex(
+                    for: modelURL
+                ),
+            ]
+        )
+
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("Meeting echo assets verified"))
+    }
+
     func testDistributionVerifierFailsWhenRequiredAssetsAreMissing() throws {
         let appURL = try Self.makeEmptyAppBundle()
         defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
@@ -381,7 +407,20 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
         XCTAssertTrue(result.output.contains("exactly one meeting echo model must be bundled"))
     }
 
-    func testDistributionVerifierRejectsChecksumMismatch() throws {
+    func testDistributionVerifierRejectsDefaultModelChecksumMismatchWithoutEnv() throws {
+        let appURL = try Self.makeEchoAssetAppBundle(
+            modelName: MeetingEchoSuppressionFactory.defaultModelName,
+            modelData: Data("model".utf8),
+            includeLibrary: true
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let result = try Self.runVerifier(appURL: appURL)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("SHA256 mismatch"))
+    }
+
+    func testDistributionVerifierRejectsExplicitChecksumMismatch() throws {
         let appURL = try Self.makeEchoAssetAppBundle(
             modelName: MeetingEchoSuppressionFactory.defaultModelName,
             modelData: Data("model".utf8),
@@ -398,6 +437,25 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
         XCTAssertNotEqual(result.status, 0)
         XCTAssertTrue(result.output.contains("SHA256 mismatch"))
+    }
+
+    func testDistributionVerifierRejectsStrictCustomModelWithoutChecksum() throws {
+        let appURL = try Self.makeEchoAssetAppBundle(
+            modelName: "custom-aec-model.gguf",
+            modelData: Data("model".utf8),
+            includeLibrary: true
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let result = try Self.runVerifier(
+            appURL: appURL,
+            environment: ["REQUIRE_MEETING_ECHO_ASSETS": "1"]
+        )
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(
+            result.output.contains("requires MACPARAKEET_MEETING_ECHO_MODEL_SHA256"),
+            result.output
+        )
     }
 
     func testDistributionVerifierRejectsRuntimeMissingRequiredSymbols() throws {
@@ -425,9 +483,17 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
             universalLibrary: true
         )
         defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+        let modelURL = appURL.appendingPathComponent(
+            "Contents/Resources/MeetingEchoSuppression/localvqe-v1.4-aec-200K-f32.gguf"
+        )
         let result = try Self.runVerifier(
             appURL: appURL,
-            environment: ["REQUIRE_MEETING_ECHO_ASSETS": "1"]
+            environment: [
+                "REQUIRE_MEETING_ECHO_ASSETS": "1",
+                "MACPARAKEET_MEETING_ECHO_MODEL_SHA256": try MeetingEchoSuppressionFactory.sha256Hex(
+                    for: modelURL
+                ),
+            ]
         )
 
         XCTAssertEqual(result.status, 0, result.output)
