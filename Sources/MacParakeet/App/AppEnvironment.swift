@@ -274,7 +274,13 @@ final class AppEnvironment {
             )
         }
 
-        llmClient = Self.makeLLMClient()
+        #if MACPARAKEET_HAS_MLX_LOCAL_LLM
+        llmClient = RoutingLLMClient(
+            inProcessClient: InProcessLLMClient(runtime: MLXLocalLLMRuntime())
+        )
+        #else
+        llmClient = RoutingLLMClient()
+        #endif
         self.llmConfigStore = llmConfigStore
         llmService = LLMService(
             client: llmClient,
@@ -438,15 +444,5 @@ final class AppEnvironment {
                 defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
             }
         }
-    }
-
-    private nonisolated static func makeLLMClient() -> RoutingLLMClient {
-        #if MACPARAKEET_HAS_MLX_LOCAL_LLM
-        return RoutingLLMClient(
-            inProcessClient: InProcessLLMClient(runtime: MLXLocalLLMRuntime())
-        )
-        #else
-        return RoutingLLMClient()
-        #endif
     }
 }

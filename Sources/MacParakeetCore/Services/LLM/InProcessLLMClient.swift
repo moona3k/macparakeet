@@ -16,10 +16,10 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     private let chunkCharacterThreshold: Int
     private let chunkCharacterLimit: Int
     private let idleUnloadDelayNanoseconds: UInt64
-    private let lifetimeCoordinator: LocalLLMLifetimeCoordinator
+    private let lifetimeCoordinator = LocalLLMLifetimeCoordinator()
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "InProcessLLMClient")
 
-    public convenience init(
+    public init(
         runtime: any LocalLLMRuntime = UnavailableLocalLLMRuntime(),
         modelDirectoryResolver: @escaping LocalLLMModelDirectoryResolver = {
             try InProcessLLMClient.environmentModelDirectory(for: $0)
@@ -28,33 +28,12 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         chunkCharacterLimit: Int = InProcessLLMClient.defaultChunkCharacterLimit,
         idleUnloadDelaySeconds: TimeInterval = InProcessLLMClient.defaultIdleUnloadDelaySeconds
     ) {
-        self.init(
-            runtime: runtime,
-            modelDirectoryResolver: modelDirectoryResolver,
-            chunkCharacterThreshold: chunkCharacterThreshold,
-            chunkCharacterLimit: chunkCharacterLimit,
-            idleUnloadDelaySeconds: idleUnloadDelaySeconds,
-            lifetimeCoordinator: LocalLLMLifetimeCoordinator()
-        )
-    }
-
-    init(
-        runtime: any LocalLLMRuntime = UnavailableLocalLLMRuntime(),
-        modelDirectoryResolver: @escaping LocalLLMModelDirectoryResolver = {
-            try InProcessLLMClient.environmentModelDirectory(for: $0)
-        },
-        chunkCharacterThreshold: Int = InProcessLLMClient.defaultChunkCharacterThreshold,
-        chunkCharacterLimit: Int = InProcessLLMClient.defaultChunkCharacterLimit,
-        idleUnloadDelaySeconds: TimeInterval = InProcessLLMClient.defaultIdleUnloadDelaySeconds,
-        lifetimeCoordinator: LocalLLMLifetimeCoordinator
-    ) {
         self.runtime = runtime
         self.modelDirectoryResolver = modelDirectoryResolver
         self.chunkCharacterThreshold = max(1, chunkCharacterThreshold)
         self.chunkCharacterLimit = max(1, chunkCharacterLimit)
         let boundedDelay = max(0, idleUnloadDelaySeconds)
         self.idleUnloadDelayNanoseconds = UInt64(boundedDelay * 1_000_000_000)
-        self.lifetimeCoordinator = lifetimeCoordinator
     }
 
     public func chatCompletion(
@@ -103,23 +82,9 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     }
 
     public func testConnection(context: LLMExecutionContext) async throws {
-        try Task.checkCancellation()
-        let lease = try await lifetimeCoordinator.beginGeneration()
-        do {
+        try await withGenerationLease(delayNanoseconds: 0) {
             try Task.checkCancellation()
             try await loadRuntime(for: context.providerConfig)
-            await lifetimeCoordinator.endGeneration(
-                lease,
-                runtime: runtime,
-                delayNanoseconds: 0
-            )
-        } catch {
-            await lifetimeCoordinator.endGeneration(
-                lease,
-                runtime: runtime,
-                delayNanoseconds: 0
-            )
-            throw error
         }
     }
 
@@ -149,10 +114,7 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             throw LLMError.providerError("InProcessLLMClient received \(context.providerConfig.id.rawValue).")
         }
 
-        try Task.checkCancellation()
-        let lease = try await lifetimeCoordinator.beginGeneration()
-
-        do {
+        return try await withGenerationLease(delayNanoseconds: idleUnloadDelayNanoseconds) {
             try Task.checkCancellation()
             try await loadRuntime(for: context.providerConfig)
 
@@ -172,17 +134,29 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             }
 
             log(metrics: response.metrics, inputCharacters: Self.inputCharacterCount(messages))
+            return response
+        }
+    }
+
+    private func withGenerationLease<T: Sendable>(
+        delayNanoseconds: UInt64,
+        _ operation: @Sendable () async throws -> T
+    ) async throws -> T {
+        try Task.checkCancellation()
+        let lease = try await lifetimeCoordinator.beginGeneration()
+        do {
+            let result = try await operation()
             await lifetimeCoordinator.endGeneration(
                 lease,
                 runtime: runtime,
-                delayNanoseconds: idleUnloadDelayNanoseconds
+                delayNanoseconds: delayNanoseconds
             )
-            return response
+            return result
         } catch {
             await lifetimeCoordinator.endGeneration(
                 lease,
                 runtime: runtime,
-                delayNanoseconds: idleUnloadDelayNanoseconds
+                delayNanoseconds: delayNanoseconds
             )
             throw error
         }
@@ -451,43 +425,30 @@ private struct LocalLLMPromptBudget: Sendable {
     let partialResultCharacters: Int
 }
 
-typealias LocalLLMLifetimeHook = @Sendable () async -> Void
-
-actor LocalLLMLifetimeCoordinator {
+private actor LocalLLMLifetimeCoordinator {
     private var unloadTask: Task<Void, Never>?
-    private var activeGenerationID: UUID?
-    private var idleUnloadGeneration: UInt64 = 0
+    private var scheduledUnloadID: UUID?
     private var unloadInProgress = false
+    private var activeGenerationID: UUID?
     private var waitingGenerations: [WaitingGeneration] = []
-    private let beforeWaitContinuationHook: LocalLLMLifetimeHook?
-    private let beforeIdleUnloadHook: LocalLLMLifetimeHook?
-
-    init(
-        beforeWaitContinuationHook: LocalLLMLifetimeHook? = nil,
-        beforeIdleUnloadHook: LocalLLMLifetimeHook? = nil
-    ) {
-        self.beforeWaitContinuationHook = beforeWaitContinuationHook
-        self.beforeIdleUnloadHook = beforeIdleUnloadHook
-    }
 
     func beginGeneration() async throws -> LocalLLMGenerationLease {
         try Task.checkCancellation()
-        if activeGenerationID != nil || unloadInProgress {
+        if unloadInProgress {
+            let task = unloadTask
+            await task?.value
+            return try await beginGeneration()
+        }
+
+        if activeGenerationID != nil {
             let lease = LocalLLMGenerationLease(id: UUID())
             return try await withTaskCancellationHandler {
-                if let beforeWaitContinuationHook {
-                    await beforeWaitContinuationHook()
-                }
-                return try await withCheckedThrowingContinuation { (
+                try await withCheckedThrowingContinuation { (
                     continuation: CheckedContinuation<LocalLLMGenerationLease, Error>
                 ) in
-                    if Task.isCancelled {
-                        continuation.resume(throwing: CancellationError())
-                    } else {
-                        waitingGenerations.append(
-                            WaitingGeneration(lease: lease, continuation: continuation)
-                        )
-                    }
+                    waitingGenerations.append(
+                        WaitingGeneration(lease: lease, continuation: continuation)
+                    )
                 }
             } onCancel: {
                 Task {
@@ -509,7 +470,10 @@ actor LocalLLMLifetimeCoordinator {
     ) {
         guard activeGenerationID == lease.id else { return }
 
-        if resumeNextWaitingGeneration() {
+        if !waitingGenerations.isEmpty {
+            let next = waitingGenerations.removeFirst()
+            activeGenerationID = next.lease.id
+            next.continuation.resume(returning: next.lease)
             return
         }
 
@@ -525,34 +489,23 @@ actor LocalLLMLifetimeCoordinator {
     }
 
     private func cancelPendingUnload() {
-        idleUnloadGeneration &+= 1
         unloadTask?.cancel()
         unloadTask = nil
+        scheduledUnloadID = nil
     }
 
     private func scheduleUnload(runtime: any LocalLLMRuntime, delayNanoseconds: UInt64) {
-        cancelPendingUnload()
-        let generation = idleUnloadGeneration
+        unloadTask?.cancel()
+        let unloadID = UUID()
+        scheduledUnloadID = unloadID
         unloadTask = Task {
-            guard delayNanoseconds > 0 else {
-                if let beforeIdleUnloadHook {
-                    await beforeIdleUnloadHook()
-                }
-                await self.unloadIfStillIdle(
-                    generation: generation,
-                    runtime: runtime
-                )
-                return
-            }
-
             do {
-                try await Task.sleep(nanoseconds: delayNanoseconds)
-                try Task.checkCancellation()
-                if let beforeIdleUnloadHook {
-                    await beforeIdleUnloadHook()
+                if delayNanoseconds > 0 {
+                    try await Task.sleep(nanoseconds: delayNanoseconds)
                 }
-                await self.unloadIfStillIdle(
-                    generation: generation,
+                try Task.checkCancellation()
+                await self.unloadIfStillScheduled(
+                    id: unloadID,
                     runtime: runtime
                 )
             } catch {
@@ -561,45 +514,25 @@ actor LocalLLMLifetimeCoordinator {
         }
     }
 
-    private func unloadIfStillIdle(
-        generation: UInt64,
+    private func unloadIfStillScheduled(
+        id: UUID,
         runtime: any LocalLLMRuntime
     ) async {
-        guard generation == idleUnloadGeneration,
+        guard scheduledUnloadID == id,
               activeGenerationID == nil,
-              waitingGenerations.isEmpty,
-              !unloadInProgress else {
+              waitingGenerations.isEmpty else {
             return
         }
 
-        unloadTask = nil
+        scheduledUnloadID = nil
         unloadInProgress = true
         await runtime.unload()
-        finishIdleUnload(generation: generation)
-    }
-
-    private func finishIdleUnload(generation: UInt64) {
-        guard unloadInProgress else { return }
         unloadInProgress = false
-
-        if generation == idleUnloadGeneration {
-            unloadTask = nil
-        }
-
-        _ = resumeNextWaitingGeneration()
-    }
-
-    private func resumeNextWaitingGeneration() -> Bool {
-        guard !waitingGenerations.isEmpty else { return false }
-
-        let next = waitingGenerations.removeFirst()
-        activeGenerationID = next.lease.id
-        next.continuation.resume(returning: next.lease)
-        return true
+        unloadTask = nil
     }
 }
 
-struct LocalLLMGenerationLease: Sendable {
+private struct LocalLLMGenerationLease: Sendable {
     let id: UUID
 }
 

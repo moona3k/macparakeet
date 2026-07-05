@@ -27,8 +27,7 @@ let packageDependencies: [Package.Dependency] = [
     // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
     .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.31.4"),
-    .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
-    .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.1.6")),
+    .package(url: "https://github.com/huggingface/swift-transformers", "1.1.6" ..< "1.2.0"),
 ] : [])
 
 let coreDependencies: [Target.Dependency] = [
@@ -73,7 +72,6 @@ let mlxLocalLLMTargets: [Target] = enableMLXLocalLLM ? [
             .product(name: "MLXLLM", package: "mlx-swift-lm"),
             .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
             .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
-            .product(name: "HuggingFace", package: "swift-huggingface"),
             .product(name: "Tokenizers", package: "swift-transformers"),
         ],
         path: "Sources/MacParakeetLocalLLM",
