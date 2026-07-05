@@ -136,43 +136,6 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: folderURL.path))
     }
 
-    func testDetachMeetingAudioRemovesLegacySourceNamesForDeletionOnlyTolerance() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folderURL) }
-
-        let legacyMixedURL = folderURL.appendingPathComponent("meeting.m4a")
-        let legacyMicURL = folderURL.appendingPathComponent("microphone.m4a")
-        let legacySystemURL = folderURL.appendingPathComponent("system.m4a")
-        let notesURL = folderURL.appendingPathComponent("notes.md")
-        XCTAssertTrue(FileManager.default.createFile(atPath: legacyMixedURL.path, contents: Data("mix".utf8)))
-        XCTAssertTrue(FileManager.default.createFile(atPath: legacyMicURL.path, contents: Data("mic".utf8)))
-        XCTAssertTrue(FileManager.default.createFile(atPath: legacySystemURL.path, contents: Data("system".utf8)))
-        try Data("notes".utf8).write(to: notesURL)
-
-        let transcription = Transcription(
-            fileName: "Meeting",
-            filePath: legacyMixedURL.path,
-            status: .completed,
-            sourceType: .meeting
-        )
-        let repo = MockTranscriptionRepository()
-        repo.transcriptions = [transcription]
-
-        let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
-            for: transcription,
-            repository: repo
-        )
-
-        XCTAssertTrue(result.detached)
-        XCTAssertNil(repo.transcriptions.first?.filePath)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacyMixedURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacyMicURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacySystemURL.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
-    }
-
     func testMeetingDeletionRemovesArtifactFolderAfterAudioWasDetached() throws {
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

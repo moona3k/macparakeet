@@ -13,9 +13,6 @@ final class TranscriptionAssetCleanupCleanedMicTests: XCTestCase {
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("microphone-raw.m4a"))
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("system-raw.m4a"))
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("meeting-playback.m4a"))
-        XCTAssertFalse(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("microphone.m4a"))
-        XCTAssertFalse(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("system.m4a"))
-        XCTAssertFalse(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("meeting.m4a"))
         XCTAssertEqual(
             "microphone-cleaned.m4a",
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName,

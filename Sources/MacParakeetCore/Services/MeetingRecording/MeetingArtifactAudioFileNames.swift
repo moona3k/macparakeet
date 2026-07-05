@@ -12,12 +12,4 @@ public enum MeetingArtifactAudioFileNames {
         rawSystem,
         cleanedMicrophone,
     ]
-
-    // Deletion-only tolerance for first-pass pre-hardening dev artifacts. Do
-    // not use these names for reads, recovery, loading, manifests, or writes.
-    static let legacyDeletionOnly: Set<String> = [
-        "meeting.m4a",
-        "microphone.m4a",
-        "system.m4a",
-    ]
 }

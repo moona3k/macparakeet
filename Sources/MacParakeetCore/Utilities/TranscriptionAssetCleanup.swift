@@ -30,9 +30,6 @@ public enum TranscriptionAssetCleanup {
         category: "TranscriptionAssetCleanup"
     )
     private static let standardMeetingAudioFileNames = MeetingArtifactAudioFileNames.managedCurrent
-    private static let deletionCandidateMeetingAudioFileNames =
-        MeetingArtifactAudioFileNames.managedCurrent
-        .union(MeetingArtifactAudioFileNames.legacyDeletionOnly)
     private static let managedMeetingAudioExtensions: Set<String> = [
         "aac",
         "caf",
@@ -171,7 +168,7 @@ public enum TranscriptionAssetCleanup {
 
     private static func meetingAudioFileCandidates(mixedAudioURL: URL, folderURL: URL) -> Set<URL> {
         var candidates = Set(
-            deletionCandidateMeetingAudioFileNames.map { folderURL.appendingPathComponent($0).standardizedFileURL }
+            standardMeetingAudioFileNames.map { folderURL.appendingPathComponent($0).standardizedFileURL }
         )
         if mixedAudioURL.deletingLastPathComponent().standardizedFileURL == folderURL,
            managedMeetingAudioExtensions.contains(mixedAudioURL.pathExtension.lowercased()) {
