@@ -384,7 +384,7 @@ final class TelemetryServiceTests: XCTestCase {
     }
 
     func testErrorDetailPropsAreSanitizedAtSerializationBoundary() throws {
-        let rawDetail = "Failed /Users/alice/private-meeting.m4a via https://example.com/token?secret=abc"
+        let rawDetail = "Failed /Users/alice/private-meeting-playback.m4a via https://example.com/token?secret=abc"
         let specs: [TelemetryEventSpec] = [
             .dictationFailed(errorType: "runtime", errorDetail: rawDetail),
             .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),

@@ -105,7 +105,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         self.recordingDurationProvider = recordingDurationProvider
     }
 
-    /// Minimum size (bytes) for either `microphone.m4a` or `system.m4a` to
+    /// Minimum size (bytes) for either `microphone-raw.m4a` or `system-raw.m4a` to
     /// be considered worth offering recovery on. AAC fragmented-MP4 init
     /// headers (no audio frames) are ~557 bytes; even a fraction of a second
     /// of compressed audio is several KB. The threshold is comfortably above
@@ -151,7 +151,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     private func canOfferRecovery(for lock: MeetingRecordingLockFile) throws -> Bool {
         guard let folderURL = lock.folderURL else { return false }
-        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
         if try existingCompletedTranscription(for: mixedURL) != nil {
             return true
         }
@@ -160,8 +160,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     private func hasViableAudio(in lock: MeetingRecordingLockFile) -> Bool {
         guard let folderURL = lock.folderURL else { return false }
-        let micSize = fileSize(at: folderURL.appendingPathComponent("microphone.m4a"))
-        let sysSize = fileSize(at: folderURL.appendingPathComponent("system.m4a"))
+        let micSize = fileSize(at: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone))
+        let sysSize = fileSize(at: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem))
         return max(micSize, sysSize) >= Self.minViableAudioBytes
     }
 
@@ -173,9 +173,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             throw MeetingRecordingRecoveryError.missingSessionFolder
         }
 
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
-        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        let microphoneURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+        let systemURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
+        let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
 
         if let existing = try existingCompletedTranscription(for: mixedURL) {
             await writeNotesSidecar(for: lock, folderURL: folderURL)
@@ -283,7 +283,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     public func discard(_ lock: MeetingRecordingLockFile) async throws {
         guard let folderURL = lock.folderURL else { return }
         if fileManager.fileExists(atPath: folderURL.path) {
-            let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+            let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
             if let completed = try existingCompletedTranscription(for: mixedURL) {
                 try await settlement.settleCompletedTranscription(
                     folderURL: folderURL,

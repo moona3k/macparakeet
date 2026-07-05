@@ -11,7 +11,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLPrefersExistingCleanedMic() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try writeM4A(to: cleanedURL)
@@ -23,7 +23,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedMissingOnDisk() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         try Data([0x00]).write(to: rawURL)
         // URL is set but the file was never written / was deleted by retention.
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
@@ -35,7 +35,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLIsCheapAndDoesNotDecodeCorruptCleanedMic() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
@@ -47,7 +47,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testValidatedMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsCorrupt() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
@@ -59,8 +59,8 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testReadinessTimeoutDoesNotPublishLateCleanedArtifact() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
-        let systemURL = dir.appendingPathComponent("system.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = dir.appendingPathComponent("system-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         let candidateURL = dir.appendingPathComponent(".microphone-cleaned-test.tmp.m4a")
         try Data([0x00]).write(to: rawURL)
@@ -79,7 +79,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
             sessionID: UUID(),
             displayName: "Timeout",
             folderURL: dir,
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             microphoneAudioURL: rawURL,
             systemAudioURL: systemURL,
             cleanedMicrophoneAudioURL: cleanedURL,
@@ -119,8 +119,8 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
-        let systemURL = dir.appendingPathComponent("system.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = dir.appendingPathComponent("system-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try Data([0x00]).write(to: systemURL)
@@ -145,7 +145,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
             sessionID: UUID(),
             displayName: "Cleaned",
             folderURL: dir,
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             microphoneAudioURL: rawURL,
             systemAudioURL: systemURL,
             cleanedMicrophoneAudioURL: cleanedURL,
@@ -171,7 +171,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testResolvedSourcePreservesArchivedCleanedRenderMetadata() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try writeM4A(to: cleanedURL)
@@ -208,7 +208,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testResolvedSourcePreservesArchivedCleanedMetricsWhenArtifactTurnsInvalid() async throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
@@ -246,8 +246,8 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
-        let systemURL = dir.appendingPathComponent("system.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = dir.appendingPathComponent("system-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         try Data([0x00]).write(to: systemURL)
@@ -266,7 +266,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
             sessionID: UUID(),
             displayName: "No Echo",
             folderURL: dir,
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             microphoneAudioURL: rawURL,
             systemAudioURL: systemURL,
             cleanedMicrophoneAudioURL: cleanedURL,
@@ -302,7 +302,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLFallsBackToRawWhenCleanedIsEmpty() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data([0x00]).write(to: rawURL)
         FileManager.default.createFile(atPath: cleanedURL.path, contents: Data())
@@ -314,7 +314,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLFallsBackToRawWhenNoCleanedURL() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let rawURL = dir.appendingPathComponent("microphone.m4a")
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
         try Data([0x00]).write(to: rawURL)
 
         let output = makeOutput(folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: nil)
@@ -325,7 +325,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
         try writeM4A(to: dir.appendingPathComponent("microphone-cleaned.m4a"))
 
         let output = try MeetingRecordingOutput.loadArchived(
@@ -339,7 +339,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
         let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
 
@@ -353,7 +353,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
 
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12)
@@ -364,7 +364,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
-        let mixedURL = dir.appendingPathComponent("meeting.m4a")
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(
             atPath: dir.appendingPathComponent("microphone-cleaned.m4a").path,
             contents: Data())
@@ -407,7 +407,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
 
         let output = try MeetingRecordingOutput.loadArchived(
             displayName: "Archived",
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             durationSeconds: 12
         )
 
@@ -497,7 +497,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
 
         let archived = try MeetingRecordingOutput.loadArchived(
             displayName: "Recovered Meeting",
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             durationSeconds: 12
         )
         XCTAssertEqual(archived.startContext, startContext)
@@ -528,7 +528,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
 
         let archived = try MeetingRecordingOutput.loadArchived(
             displayName: "Recovered Meeting",
-            mixedAudioURL: dir.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
             durationSeconds: 12
         )
         XCTAssertNil(archived.startContext)
@@ -589,7 +589,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
     }
 
     /// Metadata with nil source tracks so `loadArchived` does not require the
-    /// raw `microphone.m4a`/`system.m4a` files — keeping these tests focused on
+    /// raw `microphone-raw.m4a`/`system-raw.m4a` files — keeping these tests focused on
     /// the cleaned-mic probe.
     private func saveAlignmentMetadata(in dir: URL) throws {
         try MeetingRecordingMetadataStore.save(
@@ -694,9 +694,9 @@ final class MeetingRecordingOutputTests: XCTestCase {
             sessionID: UUID(),
             displayName: "Test",
             folderURL: folderURL,
-            mixedAudioURL: folderURL.appendingPathComponent("meeting.m4a"),
+            mixedAudioURL: folderURL.appendingPathComponent("meeting-playback.m4a"),
             microphoneAudioURL: microphoneAudioURL,
-            systemAudioURL: folderURL.appendingPathComponent("system.m4a"),
+            systemAudioURL: folderURL.appendingPathComponent("system-raw.m4a"),
             cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
             durationSeconds: 1,
             sourceAlignment: MeetingSourceAlignment(

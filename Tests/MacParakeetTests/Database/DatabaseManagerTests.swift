@@ -330,7 +330,7 @@ final class DatabaseManagerTests: XCTestCase {
 
         let transcription = Transcription(
             id: transcriptionID,
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             sourceType: .meeting,
             userNotes: "key decision: ship Friday\nfollow up with QA"
         )

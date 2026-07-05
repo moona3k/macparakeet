@@ -399,11 +399,17 @@ final class SpecCommandTests: XCTestCase {
 
         let show = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "show"] })
         XCTAssertTrue((show["output"] as? String)?.contains("artifactMarkdownPath") == true)
+        XCTAssertTrue((show["output"] as? String)?.contains("rawMicrophoneAudioPath") == true)
         XCTAssertTrue((show["output"] as? String)?.contains("cleanedMicrophoneAudioPath") == true)
+        XCTAssertTrue((show["output"] as? String)?.contains("rawSystemAudioPath") == true)
+        XCTAssertTrue((show["output"] as? String)?.contains("playbackAudioPath") == true)
 
         let artifact = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "artifact"] })
         XCTAssertTrue((artifact["output"] as? String)?.contains("markdownPath") == true)
+        XCTAssertTrue((artifact["output"] as? String)?.contains("rawMicrophoneAudioPath") == true)
         XCTAssertTrue((artifact["output"] as? String)?.contains("cleanedMicrophoneAudioPath") == true)
+        XCTAssertTrue((artifact["output"] as? String)?.contains("rawSystemAudioPath") == true)
+        XCTAssertTrue((artifact["output"] as? String)?.contains("playbackAudioPath") == true)
     }
 
     private func specPayload() throws -> [String: Any] {

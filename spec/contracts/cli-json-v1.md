@@ -62,10 +62,14 @@ with human progress/status kept off stdout.
 - `meetings show --json` and `meetings export --stdout --format json` include
   additive artifact path fields for meeting rows when the session folder can be
   resolved: `artifactMarkdownPath` points to `meeting.md`, and optional
-  `cleanedMicrophoneAudioPath` points to a viable `microphone-cleaned.m4a`.
+  `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, and `playbackAudioPath` point to retained meeting
+  audio artifacts.
 - `meetings artifact --json` and `--envelope` return additive
-  `MeetingArtifactSnapshot` fields `markdownPath` and optional
-  `cleanedMicrophoneAudioPath`. The same refresh also writes `meeting.md`.
+  `MeetingArtifactSnapshot` fields `markdownPath`, optional
+  `rawMicrophoneAudioPath`, optional `cleanedMicrophoneAudioPath`, optional
+  `rawSystemAudioPath`, and optional `playbackAudioPath`. The same refresh also
+  writes `meeting.md`.
 - `meetings export --format md --stdout` emits the same Markdown shape as the
   materialized `meeting.md`; use `--stdout --format json` when the caller needs
   parseable JSON on stdout.

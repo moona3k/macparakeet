@@ -3,9 +3,9 @@ import Foundation
 /// Resolves the on-disk audio file for a finalized meeting recording and
 /// suggests an export-friendly filename.
 ///
-/// Meeting transcriptions store the mixed-track `meeting.m4a` path in
+/// Meeting transcriptions store the playback/export `meeting-playback.m4a` path in
 /// `Transcription.filePath`. The file itself lives at
-/// `~/Library/Application Support/MacParakeet/meeting-recordings/<sessionUUID>/meeting.m4a`
+/// `~/Library/Application Support/MacParakeet/meeting-recordings/<sessionUUID>/meeting-playback.m4a`
 /// (see `MeetingAudioStorageWriter`).
 ///
 /// This helper is the single seam between UI surfaces ("Show in Finder",
@@ -21,7 +21,7 @@ public enum MeetingAudioFile {
 
     // MARK: - URL resolution
 
-    /// Returns the mixed-track audio URL for a meeting transcription, or
+    /// Returns the playback/export audio URL for a meeting transcription, or
     /// `nil` for non-meeting sources or transcriptions without a stored
     /// file path. Does NOT check on-disk existence; call
     /// `isAvailable(for:)` when that matters.
@@ -73,7 +73,7 @@ public enum MeetingAudioFile {
     ///
     /// 1. **No source destruction on same-file save.** A user can pick
     ///    the meeting's own folder in "Save Audio As…" and confirm an
-    ///    overwrite of `meeting.m4a`. A pre-delete-then-copy approach
+    ///    overwrite of `meeting-playback.m4a`. A pre-delete-then-copy approach
     ///    would erase the only source file and then fail the copy.
     ///    Here we detect identical paths and no-op.
     /// 2. **No mid-copy corruption.** Large meetings can be hundreds of

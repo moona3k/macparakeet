@@ -61,9 +61,9 @@ final class MeetingAudioStorageWriter {
         }
         self.targetFormat = format
         self.folderURL = folderURL
-        self.microphoneAudioURL = folderURL.appendingPathComponent("microphone.m4a")
-        self.systemAudioURL = folderURL.appendingPathComponent("system.m4a")
-        self.mixedAudioURL = folderURL.appendingPathComponent("meeting.m4a")
+        self.microphoneAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+        self.systemAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
+        self.mixedAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
 
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 

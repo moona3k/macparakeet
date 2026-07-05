@@ -37,12 +37,12 @@ final class MeetingRecordingCrashRecoveryTests: XCTestCase {
         ]) { _, new in new }
 
         try process.run()
-        try await waitForFileToGrow(folderURL.appendingPathComponent("microphone.m4a"))
+        try await waitForFileToGrow(folderURL.appendingPathComponent("microphone-raw.m4a"))
         try await Task.sleep(for: .seconds(5))
         kill(process.processIdentifier, SIGKILL)
         process.waitUntilExit()
 
-        let duration = try await audioDuration(folderURL.appendingPathComponent("microphone.m4a"))
+        let duration = try await audioDuration(folderURL.appendingPathComponent("microphone-raw.m4a"))
         XCTAssertGreaterThanOrEqual(duration, 4.0)
     }
 

@@ -669,7 +669,10 @@ private struct MeetingRecord: Encodable {
     let artifactFolderPath: String?
     let artifactManifestPath: String?
     let artifactMarkdownPath: String?
+    let rawMicrophoneAudioPath: String?
     let cleanedMicrophoneAudioPath: String?
+    let rawSystemAudioPath: String?
+    let playbackAudioPath: String?
     let hasArtifactManifest: Bool
     let startContext: MeetingStartContext?
 
@@ -704,7 +707,10 @@ private struct MeetingRecord: Encodable {
         artifactFolderPath = artifactPaths.artifactFolderPath
         artifactManifestPath = artifactPaths.manifestPath
         artifactMarkdownPath = artifactPaths.markdownPath
+        rawMicrophoneAudioPath = artifactPaths.rawMicrophoneAudioPath
         cleanedMicrophoneAudioPath = artifactPaths.cleanedMicrophoneAudioPath
+        rawSystemAudioPath = artifactPaths.rawSystemAudioPath
+        playbackAudioPath = artifactPaths.playbackAudioPath
         hasArtifactManifest = artifactPaths.manifestPath.map {
             FileManager.default.fileExists(atPath: $0)
         } ?? false

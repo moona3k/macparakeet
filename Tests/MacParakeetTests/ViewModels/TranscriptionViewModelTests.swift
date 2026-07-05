@@ -855,7 +855,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent("vm-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
         try "notes".write(to: notesURL, atomically: true, encoding: .utf8)
@@ -895,7 +895,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent("vm-recovered-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
         defer { try? FileManager.default.removeItem(at: folder) }
 
@@ -1678,7 +1678,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             .appendingPathComponent("speaker-rename-artifact-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folderURL) }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0]))
 
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
@@ -1743,7 +1743,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             .appendingPathComponent("speaker-rename-artifact-stale-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folderURL) }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0]))
 
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
@@ -1891,7 +1891,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(namePrefix)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0]))
         let meeting = Transcription(
             fileName: "Design Review",
@@ -1979,7 +1979,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             .appendingPathComponent("TranscriptionViewModelTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folderURL) }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         try Data("audio".utf8).write(to: audioURL)
 
         let t = Transcription(
@@ -2308,8 +2308,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(lastSource, .meeting)
         let lastMeetingRecording = await mockService.lastMeetingRecording
         XCTAssertEqual(lastMeetingRecording?.mixedAudioURL, archivedMeeting.mixedURL)
-        XCTAssertEqual(lastMeetingRecording?.microphoneAudioURL.lastPathComponent, "microphone.m4a")
-        XCTAssertEqual(lastMeetingRecording?.systemAudioURL.lastPathComponent, "system.m4a")
+        XCTAssertEqual(lastMeetingRecording?.microphoneAudioURL.lastPathComponent, "microphone-raw.m4a")
+        XCTAssertEqual(lastMeetingRecording?.systemAudioURL.lastPathComponent, "system-raw.m4a")
         XCTAssertEqual(lastMeetingRecording?.sourceAlignment.system?.startOffsetMs, 150)
         let lastFileURL = await mockService.lastFileURL
         XCTAssertNil(lastFileURL, "Meeting retranscribe should use transcribeMeeting, not generic file transcription")
@@ -3121,7 +3121,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("retranscribe-meeting-fallback-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let tmpFile = tmpDir.appendingPathComponent("meeting.m4a")
+        let tmpFile = tmpDir.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -3162,7 +3162,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-        let mixedURL = tmpDir.appendingPathComponent("meeting.m4a")
+        let mixedURL = tmpDir.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data([0]))
         try MeetingRecordingMetadataStore.save(
             MeetingRecordingMetadata(
@@ -3467,9 +3467,9 @@ final class TranscriptionViewModelTests: XCTestCase {
             .appendingPathComponent("meeting-archive-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
-        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = folderURL.appendingPathComponent("system-raw.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data([0]))
         FileManager.default.createFile(atPath: microphoneURL.path, contents: Data([1]))
         FileManager.default.createFile(atPath: systemURL.path, contents: Data([2]))

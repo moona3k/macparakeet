@@ -733,8 +733,8 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             displayName: "Design Review",
             folderURL: folder,
             mixedAudioURL: folder.appendingPathComponent("mixed.m4a"),
-            microphoneAudioURL: folder.appendingPathComponent("microphone.m4a"),
-            systemAudioURL: folder.appendingPathComponent("system.m4a"),
+            microphoneAudioURL: folder.appendingPathComponent("microphone-raw.m4a"),
+            systemAudioURL: folder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 42,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: 1,

@@ -78,7 +78,7 @@ idle → checkingPermissions → starting → recording(elapsedSeconds)
 ```
 
 2026-06 amendment: `queued(transcriptionID)` is not a long-lived UI state.
-It marks the durable stop boundary: source audio, `meeting.m4a`,
+It marks the durable stop boundary: source audio, `meeting-playback.m4a`,
 `recording.lock(state=awaitingTranscription)`, and the processing Library row
 exist on disk, so the recorder returns to idle and another meeting can start.
 Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
@@ -123,7 +123,7 @@ the post-stop final transcription path is unchanged.
 
 ### 8. Source-aware meeting finalization
 
-Keeping mic and system audio as separate streams enables source-aware attribution in the default dual-source mode: mic audio = "Me", system audio = remote speakers. Final meeting STT transcribes the selected source files separately and merges fresh results using persisted source-alignment metadata; `meeting.m4a` is the playback/export artifact, not the authoritative STT input. Single-source meetings skip the unselected stream and produce a mono playback artifact.
+Keeping mic and system audio as separate streams enables source-aware attribution in the default dual-source mode: mic audio = "Me", system audio = remote speakers. Final meeting STT transcribes the selected source files separately and merges fresh results using persisted source-alignment metadata; `meeting-playback.m4a` is the playback/export artifact, not the authoritative STT input. Single-source meetings skip the unselected stream and produce a mono playback artifact.
 
 ### 9. Speech engine captured at recording start
 

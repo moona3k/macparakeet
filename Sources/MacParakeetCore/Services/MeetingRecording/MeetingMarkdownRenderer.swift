@@ -18,9 +18,9 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
     public var markdownPath: String?
     public var transcriptPath: String?
     public var notesPath: String?
-    public var mixedAudioPath: String?
-    public var microphoneAudioPath: String?
-    public var systemAudioPath: String?
+    public var playbackAudioPath: String?
+    public var rawMicrophoneAudioPath: String?
+    public var rawSystemAudioPath: String?
     public var cleanedMicrophoneAudioPath: String?
     public var metadataPath: String?
     public var promptResultsPath: String?
@@ -33,9 +33,9 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
         markdownPath: String? = nil,
         transcriptPath: String? = nil,
         notesPath: String? = nil,
-        mixedAudioPath: String? = nil,
-        microphoneAudioPath: String? = nil,
-        systemAudioPath: String? = nil,
+        playbackAudioPath: String? = nil,
+        rawMicrophoneAudioPath: String? = nil,
+        rawSystemAudioPath: String? = nil,
         cleanedMicrophoneAudioPath: String? = nil,
         metadataPath: String? = nil,
         promptResultsPath: String? = nil,
@@ -47,9 +47,9 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
         self.markdownPath = markdownPath
         self.transcriptPath = transcriptPath
         self.notesPath = notesPath
-        self.mixedAudioPath = mixedAudioPath
-        self.microphoneAudioPath = microphoneAudioPath
-        self.systemAudioPath = systemAudioPath
+        self.playbackAudioPath = playbackAudioPath
+        self.rawMicrophoneAudioPath = rawMicrophoneAudioPath
+        self.rawSystemAudioPath = rawSystemAudioPath
         self.cleanedMicrophoneAudioPath = cleanedMicrophoneAudioPath
         self.metadataPath = metadataPath
         self.promptResultsPath = promptResultsPath
@@ -64,7 +64,7 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
     ) -> MeetingMarkdownArtifactPaths {
         guard let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription) else {
             return MeetingMarkdownArtifactPaths(
-                mixedAudioPath: transcription.filePath,
+                playbackAudioPath: transcription.filePath,
                 promptResultFiles: promptResults.enumerated().map { index, result in
                     MeetingMarkdownPromptResultFile(
                         id: result.id,
@@ -84,8 +84,8 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
             MeetingArtifactStore.promptResultsDirectoryName,
             isDirectory: true
         )
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        let microphoneURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+        let systemURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
         let cleanedMicrophoneURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName
         )
@@ -97,9 +97,9 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
             markdownPath: markdownURL.path,
             transcriptPath: transcriptURL.path,
             notesPath: normalizedNonEmptyText(transcription.userNotes) == nil ? nil : notesURL.path,
-            mixedAudioPath: transcription.filePath,
-            microphoneAudioPath: fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil,
-            systemAudioPath: fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil,
+            playbackAudioPath: transcription.filePath,
+            rawMicrophoneAudioPath: fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil,
+            rawSystemAudioPath: fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil,
             cleanedMicrophoneAudioPath: MeetingRecordingOutput.isViableCleanedMicrophoneFile(
                 at: cleanedMicrophoneURL,
                 fileManager: fileManager
@@ -187,9 +187,9 @@ public struct MeetingMarkdownRenderer: Sendable {
         appendOptional("markdownPath", artifactPaths.markdownPath, to: &lines)
         appendOptional("transcriptPath", artifactPaths.transcriptPath, to: &lines)
         appendOptional("notesPath", artifactPaths.notesPath, to: &lines)
-        appendOptional("mixedAudioPath", artifactPaths.mixedAudioPath, to: &lines)
-        appendOptional("microphoneAudioPath", artifactPaths.microphoneAudioPath, to: &lines)
-        appendOptional("systemAudioPath", artifactPaths.systemAudioPath, to: &lines)
+        appendOptional("playbackAudioPath", artifactPaths.playbackAudioPath, to: &lines)
+        appendOptional("rawMicrophoneAudioPath", artifactPaths.rawMicrophoneAudioPath, to: &lines)
+        appendOptional("rawSystemAudioPath", artifactPaths.rawSystemAudioPath, to: &lines)
         appendOptional("cleanedMicrophoneAudioPath", artifactPaths.cleanedMicrophoneAudioPath, to: &lines)
         appendOptional("metadataPath", artifactPaths.metadataPath, to: &lines)
         lines.append("speakerLabelsIncluded: \(speakerLabelsIncluded ? "true" : "false")")
@@ -277,9 +277,9 @@ public struct MeetingMarkdownRenderer: Sendable {
             ("Markdown", artifactPaths.markdownPath),
             ("Transcript JSON", artifactPaths.transcriptPath),
             ("Notes", artifactPaths.notesPath),
-            ("Mixed audio", artifactPaths.mixedAudioPath),
-            ("Microphone audio", artifactPaths.microphoneAudioPath),
-            ("System audio", artifactPaths.systemAudioPath),
+            ("Playback audio", artifactPaths.playbackAudioPath),
+            ("Raw microphone audio", artifactPaths.rawMicrophoneAudioPath),
+            ("Raw system audio", artifactPaths.rawSystemAudioPath),
             ("Cleaned microphone audio", artifactPaths.cleanedMicrophoneAudioPath),
             ("Metadata", artifactPaths.metadataPath),
             ("Prompt results JSON", artifactPaths.promptResultsPath),

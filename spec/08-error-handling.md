@@ -71,8 +71,8 @@ During active meeting recording, MacParakeet writes fragmented source audio and 
 
 ```
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
-  microphone.m4a
-  system.m4a
+  microphone-raw.m4a
+  system-raw.m4a
   recording.lock
 ```
 

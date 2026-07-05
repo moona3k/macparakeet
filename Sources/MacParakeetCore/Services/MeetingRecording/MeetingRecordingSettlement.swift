@@ -81,7 +81,7 @@ public struct MeetingRecordingSettlement: Sendable {
         guard let filePath = transcription.filePath else { return false }
         return MeetingArtifactPathAliases.matches(
             filePath,
-            for: folderURL.appendingPathComponent("meeting.m4a")
+            for: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
         )
     }
 }

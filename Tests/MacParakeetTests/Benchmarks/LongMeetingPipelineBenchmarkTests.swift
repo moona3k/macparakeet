@@ -279,8 +279,8 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
         }
 
         let requiredURLs = [
-            source.appendingPathComponent("microphone.m4a"),
-            source.appendingPathComponent("system.m4a"),
+            source.appendingPathComponent("microphone-raw.m4a"),
+            source.appendingPathComponent("system-raw.m4a"),
             MeetingRecordingMetadataStore.metadataURL(for: source)
         ]
         for url in requiredURLs where !FileManager.default.fileExists(atPath: url.path) {
@@ -296,8 +296,8 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     }
 
     private func loadRecording(from folderURL: URL) async throws -> MeetingRecordingOutput {
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        let microphoneURL = folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = folderURL.appendingPathComponent("system-raw.m4a")
         let mixedURL = existingMixedAudioURL(in: folderURL) ?? microphoneURL
 
         guard FileManager.default.fileExists(atPath: microphoneURL.path) else {
@@ -329,7 +329,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     }
 
     private func existingMixedAudioURL(in folderURL: URL) -> URL? {
-        let candidates = ["meeting.m4a", "mixed.m4a"].map { folderURL.appendingPathComponent($0) }
+        let candidates = ["meeting-playback.m4a", "mixed.m4a"].map { folderURL.appendingPathComponent($0) }
         return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
@@ -428,8 +428,8 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             microphone[index] = near + echo
         }
 
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        let microphoneURL = folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = folderURL.appendingPathComponent("system-raw.m4a")
         try await MeetingCleanedMicRenderer.encodeMonoFloat(
             microphone,
             sampleRate: sampleRate,
@@ -442,7 +442,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             to: systemURL,
             fileManager: .default
         )
-        try FileManager.default.copyItem(at: microphoneURL, to: folderURL.appendingPathComponent("meeting.m4a"))
+        try FileManager.default.copyItem(at: microphoneURL, to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let track = MeetingSourceAlignment.Track(
             firstHostTime: nil,

@@ -156,7 +156,7 @@ final class MeetingRecordingSettlementTests: XCTestCase {
         let folderURL = makeFolderURL()
         let transcription = Transcription(
             fileName: "Recovered Team Sync",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             meetingArtifactFolderPath: nil,
             status: .completed,
             sourceType: .meeting
@@ -204,7 +204,7 @@ final class MeetingRecordingSettlementTests: XCTestCase {
     ) -> Transcription {
         Transcription(
             fileName: "Recovered Team Sync",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             meetingArtifactFolderPath: folderURL.path,
             status: status,
             sourceType: .meeting

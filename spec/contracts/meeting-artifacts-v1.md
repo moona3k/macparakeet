@@ -42,15 +42,15 @@ playback/export path and may be cleared by user deletion or retention.
 
 The v1 folder can contain these stable filenames:
 
-- `meeting.m4a`: mixed playback/export audio referenced by
+- `meeting-playback.m4a`: mixed playback/export audio referenced by
   `transcriptions.filePath` while retained.
-- `microphone.m4a`: optional source mic audio.
-- `system.m4a`: optional source system audio.
+- `microphone-raw.m4a`: optional source mic audio.
+- `system-raw.m4a`: optional source system audio.
 - `microphone-cleaned.m4a`: optional derived echo-cancelled mic (16 kHz mono),
-  produced after stop from `microphone.m4a` + `system.m4a` when a meeting echo
+  produced after stop from `microphone-raw.m4a` + `system-raw.m4a` when a meeting echo
   suppressor is loaded (plan #605 U3). Internal STT input for the local ("Me")
   track only after final-STT readiness/decodability gates pass, not a
-  user-facing export; the raw `microphone.m4a` remains the source of truth.
+  user-facing export; the raw `microphone-raw.m4a` remains the source of truth.
   Absent for single-source meetings, missing/unloaded AEC assets, render
   failures, and when the echo-path probe finds no system-audio bleed to cancel.
   Removed with the other managed audio by retention/detach.
@@ -88,7 +88,10 @@ The v1 folder can contain these stable filenames:
 - `folderPath`
 - `manifestPath`
 - `markdownPath`
+- `rawMicrophoneAudioPath`
 - `cleanedMicrophoneAudioPath`
+- `rawSystemAudioPath`
+- `playbackAudioPath`
 - `transcriptPath`
 - `notesPath`
 - `promptResultsPath`
@@ -110,8 +113,8 @@ EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
 event identifiers, scheduled time range, title, attendee/organizer names and
 emails, meeting URL/service, and capture timestamp.
 
-`manifest.files` keeps path fields for `folderPath`, `mixedAudioPath`,
-`microphoneAudioPath`, `cleanedMicrophoneAudioPath`, `systemAudioPath`,
+`manifest.files` keeps path fields for `folderPath`, `playbackAudioPath`,
+`rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`, `rawSystemAudioPath`,
 `metadataPath`, `manifestPath`, `markdownPath`, `transcriptPath`, `notesPath`,
 `promptResultsPath`, and `promptResultsDirectoryPath`.
 
@@ -159,9 +162,12 @@ and capture timestamp.
 
 ## Versioning And Compatibility
 
-The current schema is v1. Additive fields and new optional files can remain v1
-when old consumers can ignore them. Renaming or removing stable filenames or
-fields requires a schema-version bump and CLI/changelog notes.
+The current schema is v1. This contract absorbed the pre-hardening rename to
+role-explicit audio filenames and path fields in place before external
+compatibility was promised. Future additive fields and new optional files can
+remain v1 when old consumers can ignore them. Future renames or removals of
+stable filenames or fields require a schema-version bump and CLI/changelog
+notes.
 
 The database row stays canonical. Do not teach features to treat the folder as
 the source of truth for mutable meeting metadata unless the contract is updated

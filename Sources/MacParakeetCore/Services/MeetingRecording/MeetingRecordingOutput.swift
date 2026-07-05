@@ -142,8 +142,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let metadata = try MeetingRecordingMetadataStore.load(
             from: folderURL,
             fileManager: fileManager)
-        let microphoneAudioURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemAudioURL = folderURL.appendingPathComponent("system.m4a")
+        let microphoneAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+        let systemAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
         let cleanedURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // Keep archive loading cheap; this is called from UI list/reopen paths.
@@ -156,12 +156,12 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
 
         if metadata.sourceAlignment.microphone != nil,
            !hasFile(at: microphoneAudioURL, fileManager: fileManager) {
-            throw MeetingAudioError.storageFailed("Missing archived meeting source file: microphone.m4a")
+            throw MeetingAudioError.storageFailed("Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)")
         }
 
         if metadata.sourceAlignment.system != nil,
            !hasFile(at: systemAudioURL, fileManager: fileManager) {
-            throw MeetingAudioError.storageFailed("Missing archived meeting source file: system.m4a")
+            throw MeetingAudioError.storageFailed("Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)")
         }
 
         return MeetingRecordingOutput(

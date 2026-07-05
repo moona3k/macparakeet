@@ -42,7 +42,7 @@ final class MeetingAudioFileTests: XCTestCase {
     }
 
     func testMixedAudioURLReturnsResolvedURLForMeeting() throws {
-        let path = "/tmp/MacParakeetTests/meeting.m4a"
+        let path = "/tmp/MacParakeetTests/meeting-playback.m4a"
         let transcription = makeTranscription(
             fileName: "Meeting",
             filePath: path,
@@ -69,7 +69,7 @@ final class MeetingAudioFileTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let file = directory.appendingPathComponent("meeting.m4a")
+        let file = directory.appendingPathComponent("meeting-playback.m4a")
         try Data([0x00, 0x01]).write(to: file)
 
         let transcription = makeTranscription(
@@ -99,7 +99,7 @@ final class MeetingAudioFileTests: XCTestCase {
     func testStateReturnsNotMeetingWhenStatusIsProcessing() throws {
         let directory = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let audioURL = directory.appendingPathComponent("meeting.m4a")
+        let audioURL = directory.appendingPathComponent("meeting-playback.m4a")
         try Data("audio".utf8).write(to: audioURL)
 
         let transcription = makeTranscription(
@@ -146,7 +146,7 @@ final class MeetingAudioFileTests: XCTestCase {
     func testStateReturnsSavedWhenMeetingAudioExists() throws {
         let directory = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let audioURL = directory.appendingPathComponent("meeting.m4a")
+        let audioURL = directory.appendingPathComponent("meeting-playback.m4a")
         try Data("audio".utf8).write(to: audioURL)
 
         let transcription = makeTranscription(
@@ -248,7 +248,7 @@ final class MeetingAudioFileTests: XCTestCase {
     func testSafeCopyIsNoOpWhenSourceEqualsDestination() throws {
         let directory = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("meeting.m4a")
+        let url = directory.appendingPathComponent("meeting-playback.m4a")
         try Data("hello".utf8).write(to: url)
 
         try MeetingAudioFile.safeCopy(from: url, to: url)

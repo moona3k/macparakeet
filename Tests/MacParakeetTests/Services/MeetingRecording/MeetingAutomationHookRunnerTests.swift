@@ -11,7 +11,7 @@ final class MeetingAutomationHookRunnerTests: XCTestCase {
         folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MeetingAutomationHookRunnerTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         suiteName = "macparakeet.test.meeting-hook.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
@@ -117,7 +117,7 @@ final class MeetingAutomationHookRunnerTests: XCTestCase {
         Transcription(
             id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
             fileName: "Automation Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             durationMs: 1_000,
             rawTranscript: "Discuss hook safety.",
             status: .completed,

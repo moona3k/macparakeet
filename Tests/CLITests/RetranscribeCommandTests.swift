@@ -258,7 +258,7 @@ final class RetranscribeCommandTests: XCTestCase {
     func testPreservesRecoveredMeetingNotesWhenOriginalRowHasNoUserData() {
         let original = Transcription(
             fileName: "Meeting",
-            filePath: "/tmp/meeting.m4a",
+            filePath: "/tmp/meeting-playback.m4a",
             rawTranscript: "old",
             status: .completed,
             sourceType: .meeting

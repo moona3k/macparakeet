@@ -4,8 +4,8 @@ import os
 import OSLog
 
 /// Post-stop renderer that derives a cleaned microphone artifact
-/// (`microphone-cleaned.m4a`) from the finalized raw `microphone.m4a` +
-/// `system.m4a` source files (plan #605 unit U3).
+/// (`microphone-cleaned.m4a`) from the finalized raw `microphone-raw.m4a` +
+/// `system-raw.m4a` source files (plan #605 unit U3).
 ///
 /// The raw source files are preserved untouched; the cleaned file is a derived
 /// artifact. Rendering reads both raw sources back as 16 kHz mono PCM, aligns
@@ -18,10 +18,10 @@ import OSLog
 /// resolve to a `.skipped(reason)` outcome and leave the raw sources intact, so
 /// a meeting completes even when cleaning is unavailable or fails.
 final class MeetingCleanedMicRenderer {
-    static let cleanedMicrophoneFileName = "microphone-cleaned.m4a"
+    static let cleanedMicrophoneFileName = MeetingArtifactAudioFileNames.cleanedMicrophone
 
     /// Sample rate the echo suppressor expects; the cleaned artifact is a derived
-    /// STT input (not the playback/export `meeting.m4a`), so 16 kHz mono is fine.
+    /// STT input (not the playback/export `meeting-playback.m4a`), so 16 kHz mono is fine.
     static let renderSampleRate = 16_000
     static let maxDecodedFrames = renderSampleRate * 4 * 3_600
     /// Production probes use five 10-second windows, spread across the recording

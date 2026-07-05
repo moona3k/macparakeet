@@ -29,15 +29,10 @@ public enum TranscriptionAssetCleanup {
         subsystem: "com.macparakeet.core",
         category: "TranscriptionAssetCleanup"
     )
-    private static let standardMeetingAudioFileNames: Set<String> = [
-        "meeting.m4a",
-        "microphone.m4a",
-        "system.m4a",
-        // Derived echo-cancelled mic (plan #605 U3). Listed so the targeted
-        // "Remove Audio Only" detach path deletes it alongside the raw sources
-        // instead of orphaning it.
-        MeetingCleanedMicRenderer.cleanedMicrophoneFileName,
-    ]
+    private static let standardMeetingAudioFileNames = MeetingArtifactAudioFileNames.managedCurrent
+    private static let deletionCandidateMeetingAudioFileNames =
+        MeetingArtifactAudioFileNames.managedCurrent
+        .union(MeetingArtifactAudioFileNames.legacyDeletionOnly)
     private static let managedMeetingAudioExtensions: Set<String> = [
         "aac",
         "caf",
@@ -109,8 +104,8 @@ public enum TranscriptionAssetCleanup {
             try removeMeetingAudioFiles(removalPlan, fileManager: fileManager)
         } catch let removalError {
             // The candidate set is unordered, so a mid-loop failure can leave the
-            // canonical mixed file (the one `filePath` points at) already deleted
-            // while a sibling (microphone.m4a/system.m4a) removal throws. Keep the
+            // playback file (the one `filePath` points at) already deleted
+            // while a source file removal throws. Keep the
             // DB pointer consistent with disk: if the mixed file is gone, clear
             // `filePath` so the row stops advertising playable audio and the
             // retention sweeper stops re-selecting and re-failing on it forever.
@@ -176,7 +171,7 @@ public enum TranscriptionAssetCleanup {
 
     private static func meetingAudioFileCandidates(mixedAudioURL: URL, folderURL: URL) -> Set<URL> {
         var candidates = Set(
-            standardMeetingAudioFileNames.map { folderURL.appendingPathComponent($0).standardizedFileURL }
+            deletionCandidateMeetingAudioFileNames.map { folderURL.appendingPathComponent($0).standardizedFileURL }
         )
         if mixedAudioURL.deletingLastPathComponent().standardizedFileURL == folderURL,
            managedMeetingAudioExtensions.contains(mixedAudioURL.pathExtension.lowercased()) {

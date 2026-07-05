@@ -98,11 +98,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   deterministic top-level `meeting.md` alongside the existing
   `manifest.json`, `transcript.json`, notes, and prompt-result files. The
   returned `MeetingArtifactSnapshot` includes additive `markdownPath` and
-  optional `cleanedMicrophoneAudioPath` fields.
+  optional `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, and `playbackAudioPath` fields.
 - `meetings show --json` and `meetings export --stdout --format json` now
   include additive `artifactMarkdownPath` and optional
-  `cleanedMicrophoneAudioPath` fields for meeting rows with resolvable artifact
-  folders.
+  `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, and `playbackAudioPath` fields for meeting rows with
+  resolvable artifact folders.
 - `meetings show --json` and `meetings export --stdout --format json` now
   include an optional local-only `calendarEventSnapshot` for meeting recordings
   started from a calendar event or probably overlapping the current calendar

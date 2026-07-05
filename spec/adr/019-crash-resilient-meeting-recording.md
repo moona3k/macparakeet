@@ -14,13 +14,13 @@ edge-case crash. The current `MeetingAudioStorageWriter`
 uses `AVAudioFile`, which writes audio bytes incrementally but only
 flushes the MP4 container's `moov` atom in `deinit` (when the
 writer is set to nil during `finalize()`). Without the `moov` atom,
-the resulting `microphone.m4a` and `system.m4a` are typically
+the resulting `microphone-raw.m4a` and `system-raw.m4a` are typically
 unplayable — every byte of audio is on disk, but no decoder can
 locate samples without the index.
 
 Compounding the problem, three other artifacts only land on a clean
 stop: `meeting-recording-metadata.json` (source-alignment offsets and captured
-speech engine), `meeting.m4a` (the
+speech engine), `meeting-playback.m4a` (the
 mixed file FFmpeg produces from the two source files), and the full
 post-stop transcription pass. So a crash mid-recording silently
 loses the entire session — audio, alignment, and transcript — even
@@ -132,7 +132,7 @@ the session folder before any audio is captured:
 
 On `stopRecording()` (success path), the marker is rewritten to
 `state: "awaitingTranscription"` after the writers have been
-finalized, `meeting-recording-metadata.json` is on disk, and `meeting.m4a` has been
+finalized, `meeting-recording-metadata.json` is on disk, and `meeting-playback.m4a` has been
 mixed. The marker is **atomically deleted** only after the post-stop
 `Transcription` row has been completed. The stopped-session path first saves a
 processing Library row, then queues final transcription; the lock stays in
@@ -151,7 +151,7 @@ sessions are presented as a list). Accepting runs the standard
 post-stop pipeline:
 
 1. Truncate-repair the fragmented selected-source audio files
-   (`microphone.m4a`, `system.m4a`, or both depending on source mode; no-op
+   (`microphone-raw.m4a`, `system-raw.m4a`, or both depending on source mode; no-op
    for fragmented MP4 — they're already valid up to the last fragment; just
    verify with `AVAsset.tracks` loadability).
 2. Synthesize `meeting-recording-metadata.json` from the audio file durations
@@ -222,7 +222,7 @@ source = ~1.4 GB per meeting. Too much disk for a free local app
 where users may record many meetings.
 
 **Periodic finalize-and-rotate (chunked AVAudioFile).** Every N
-minutes, finalize the current `microphone.m4a` and start a new one
+minutes, finalize the current `microphone-raw.m4a` and start a new one
 (`microphone-002.m4a`, etc.). Rejected: many small files per
 session, complex re-merge logic on stop, race conditions on the
 rotation boundary, and `AVAudioFile.deinit` is the only flush
@@ -273,7 +273,7 @@ user can tell the difference at a glance.
   schema-version handling.
 - Integration: kill -9 mid-recording test (run a recording in a
   child process, kill it after 5 s, assert the resulting
-  `microphone.m4a` is loadable as `AVAsset` and contains at least
+  `microphone-raw.m4a` is loadable as `AVAsset` and contains at least
   4 s of audio).
 - Integration: launch-time recovery scan finds N crashed sessions,
   recovers them via the standard pipeline, deletes lock files.

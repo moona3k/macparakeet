@@ -165,8 +165,8 @@ final class HistoryCommandTests: XCTestCase {
         let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent("macparakeet-cli-meeting-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
-        let systemAudioURL = folder.appendingPathComponent("system.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
+        let systemAudioURL = folder.appendingPathComponent("system-raw.m4a")
         let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemAudioURL.path, contents: Data("system".utf8)))
@@ -174,7 +174,7 @@ final class HistoryCommandTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             filePath: audioURL.path,
             rawTranscript: "Discuss retention",
             status: .completed,
@@ -211,7 +211,7 @@ final class HistoryCommandTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: meetingRoot) }
         let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         let sourceAudioURL = folder.appendingPathComponent("source-capture.wav")
         let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
@@ -219,7 +219,7 @@ final class HistoryCommandTests: XCTestCase {
         try Data("notes".utf8).write(to: notesURL)
 
         let meeting = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             filePath: audioURL.path,
             rawTranscript: "Discuss retention",
             status: .completed,
@@ -233,7 +233,7 @@ final class HistoryCommandTests: XCTestCase {
             sourceType: .file
         )
         let externalMeeting = Transcription(
-            fileName: "external-meeting.m4a",
+            fileName: "external-meeting-playback.m4a",
             filePath: "/tmp/external-meeting-\(UUID().uuidString).m4a",
             rawTranscript: "External",
             status: .completed,
@@ -274,7 +274,7 @@ final class HistoryCommandTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: meetingRoot) }
         let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
 
         // A lock file owned by this (alive) test process stands in for a live
@@ -290,7 +290,7 @@ final class HistoryCommandTests: XCTestCase {
         )
 
         let meeting = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             filePath: audioURL.path,
             rawTranscript: "In progress",
             status: .completed,
@@ -321,7 +321,7 @@ final class HistoryCommandTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: meetingRoot) }
         let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let audioURL = folder.appendingPathComponent("meeting.m4a")
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
 
         try MeetingRecordingLockFileStore().write(
@@ -336,7 +336,7 @@ final class HistoryCommandTests: XCTestCase {
         )
 
         let meeting = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             filePath: audioURL.path,
             rawTranscript: nil,
             status: .processing,

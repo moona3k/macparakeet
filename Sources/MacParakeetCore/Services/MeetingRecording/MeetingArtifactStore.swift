@@ -31,7 +31,10 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let folderPath: String
     public let manifestPath: String
     public let markdownPath: String?
+    public let rawMicrophoneAudioPath: String?
     public let cleanedMicrophoneAudioPath: String?
+    public let rawSystemAudioPath: String?
+    public let playbackAudioPath: String?
     public let transcriptPath: String
     public let notesPath: String?
     public let promptResultsPath: String
@@ -48,7 +51,10 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         folderPath: String,
         manifestPath: String,
         markdownPath: String?,
+        rawMicrophoneAudioPath: String? = nil,
         cleanedMicrophoneAudioPath: String? = nil,
+        rawSystemAudioPath: String? = nil,
+        playbackAudioPath: String? = nil,
         transcriptPath: String,
         notesPath: String?,
         promptResultsPath: String,
@@ -64,7 +70,10 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.folderPath = folderPath
         self.manifestPath = manifestPath
         self.markdownPath = markdownPath
+        self.rawMicrophoneAudioPath = rawMicrophoneAudioPath
         self.cleanedMicrophoneAudioPath = cleanedMicrophoneAudioPath
+        self.rawSystemAudioPath = rawSystemAudioPath
+        self.playbackAudioPath = playbackAudioPath
         self.transcriptPath = transcriptPath
         self.notesPath = notesPath
         self.promptResultsPath = promptResultsPath
@@ -159,7 +168,10 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             folderPath: folderURL.path,
             manifestPath: manifestURL.path,
             markdownPath: artifactPaths.markdownPath,
+            rawMicrophoneAudioPath: artifactPaths.rawMicrophoneAudioPath,
             cleanedMicrophoneAudioPath: artifactPaths.cleanedMicrophoneAudioPath,
+            rawSystemAudioPath: artifactPaths.rawSystemAudioPath,
+            playbackAudioPath: artifactPaths.playbackAudioPath,
             transcriptPath: transcriptURL.path,
             notesPath: notesPath,
             promptResultsPath: promptResultsURL.path,
@@ -331,10 +343,10 @@ private struct MeetingArtifactMeetingSummary: Codable {
 
 private struct MeetingArtifactFiles: Codable {
     let folderPath: String
-    let mixedAudioPath: String?
-    let microphoneAudioPath: String?
+    let playbackAudioPath: String?
+    let rawMicrophoneAudioPath: String?
     let cleanedMicrophoneAudioPath: String?
-    let systemAudioPath: String?
+    let rawSystemAudioPath: String?
     let metadataPath: String?
     let manifestPath: String
     let markdownPath: String?
@@ -345,10 +357,10 @@ private struct MeetingArtifactFiles: Codable {
 
     init(paths: MeetingMarkdownArtifactPaths) {
         folderPath = paths.artifactFolderPath ?? ""
-        mixedAudioPath = paths.mixedAudioPath
-        microphoneAudioPath = paths.microphoneAudioPath
+        playbackAudioPath = paths.playbackAudioPath
+        rawMicrophoneAudioPath = paths.rawMicrophoneAudioPath
         cleanedMicrophoneAudioPath = paths.cleanedMicrophoneAudioPath
-        systemAudioPath = paths.systemAudioPath
+        rawSystemAudioPath = paths.rawSystemAudioPath
         metadataPath = paths.metadataPath
         manifestPath = paths.manifestPath ?? ""
         markdownPath = paths.markdownPath

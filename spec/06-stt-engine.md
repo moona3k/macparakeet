@@ -141,7 +141,7 @@ let samples = try AudioConverter.resampleBuffer(buffer)
 
 **Critical:** Always use FluidAudio's `AudioConverter` — never manually decode audio. CoreML models require correctly resampled input; manual parsing silently corrupts it.
 
-For meeting recording specifically, this has an important consequence: the saved `meeting.m4a` artifact may preserve microphone/system channel separation as stereo, but the current final Parakeet path still works on mono per-source WAVs. MacParakeet avoids collapsing the final meeting path to a single mono mix by transcribing `microphone.m4a` and `system.m4a` separately, then merging those fresh results with persisted source-alignment metadata. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the end-to-end meeting pipeline.
+For meeting recording specifically, this has an important consequence: the saved `meeting-playback.m4a` artifact may preserve microphone/system channel separation as stereo, but the current final Parakeet path still works on mono per-source WAVs. MacParakeet avoids collapsing the final meeting path to a single mono mix by transcribing `microphone-raw.m4a` and `system-raw.m4a` separately, then merging those fresh results with persisted source-alignment metadata. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the end-to-end meeting pipeline.
 
 ### Custom Vocabulary Boosting (v0.11.0+)
 
@@ -359,7 +359,7 @@ Backpressure and queueing rules:
 - Meeting live chunks are best-effort and may be dropped under backlog
 - When a meeting stops, queued live-preview work may be cancelled/dropped so `meetingFinalize` runs next
 - Meeting finalization uses `meetingFinalize` both immediately after stop and for archived meeting retranscribes when `meeting-recording-metadata.json` is available
-- Legacy meeting rows without archived source metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact
+- Meeting rows without archived source metadata fall back to `fileTranscription` on the stored `transcriptions.filePath` audio
 - Dictation must not be queued behind meeting or batch work
 - File transcription is intentionally queued and single-job in v1; a running long batch job may delay meeting STT on the background slot
 - Back-to-back meeting recording does not add a second ASR lane. The meeting
@@ -403,19 +403,19 @@ Meeting live preview (v0.6):
     → live transcript update
 
 Meeting stop / finalization:
-  microphone.m4a + system.m4a + MeetingSourceAlignment
+  microphone-raw.m4a + system-raw.m4a + MeetingSourceAlignment
     → convert each source to mono WAV
     → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, speechEngine: capturedSelection, onProgress:) per source
     → aligned merge
     → final saved meeting transcript
 
 Saved meeting retranscription from the library:
-  meeting.m4a + archived meeting-recording-metadata.json + source files
+  meeting-playback.m4a + archived meeting-recording-metadata.json + source files
     → reconstruct MeetingRecordingOutput
     → same dual-source meetingFinalize path and captured engine as immediate post-stop finalization
     → updated meeting transcript
-  Legacy fallback:
-    existing meeting.m4a only → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
+  Stored-file fallback:
+    transcriptions.filePath audio only → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
 ```
 
 ---

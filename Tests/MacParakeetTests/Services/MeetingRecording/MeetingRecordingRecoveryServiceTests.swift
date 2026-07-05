@@ -71,9 +71,9 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(audioConverter.mixes.count, 1)
-        XCTAssertEqual(audioConverter.mixes.first?.output, fixture.folderURL.appendingPathComponent("meeting.m4a"))
+        XCTAssertEqual(audioConverter.mixes.first?.output, fixture.folderURL.appendingPathComponent("meeting-playback.m4a"))
         XCTAssertFalse(
-            FileManager.default.fileExists(atPath: fixture.folderURL.appendingPathComponent("meeting.m4a").path),
+            FileManager.default.fileExists(atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path),
             "failed playback mix should not block source-based transcription"
         )
     }
@@ -106,9 +106,9 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         for point in RecoveryCrashPoint.allCases {
             try resetRecoveryFixture()
             let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
-            let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
-            let microphoneURL = fixture.folderURL.appendingPathComponent("microphone.m4a")
-            let systemURL = fixture.folderURL.appendingPathComponent("system.m4a")
+            let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
+            let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+            let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
             let microphoneBefore = try Data(contentsOf: microphoneURL)
             let systemBefore = try Data(contentsOf: systemURL)
 
@@ -157,7 +157,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertTrue(transcription.recoveredFromCrash)
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(audioConverter.mixes.count, 1)
-        XCTAssertEqual(audioConverter.mixes.first?.inputs.map(\.lastPathComponent), ["microphone.m4a"])
+        XCTAssertEqual(audioConverter.mixes.first?.inputs.map(\.lastPathComponent), ["microphone-raw.m4a"])
         let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
         XCTAssertNotNil(metadata.sourceAlignment.microphone)
         XCTAssertNil(metadata.sourceAlignment.system)
@@ -184,7 +184,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         )
         let existing = Transcription(
             fileName: fixture.lock.displayName,
-            filePath: fixture.folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path,
             status: .completed,
             sourceType: .meeting
         )
@@ -204,7 +204,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     func testRecoverUpdatesExistingAwaitingTranscriptionStub() async throws {
         let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
-        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
         let stub = Transcription(
             fileName: fixture.lock.displayName,
             filePath: mixedURL.path,
@@ -240,7 +240,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     func testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock() async throws {
         let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
-        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8))
         let existing = Transcription(
             fileName: fixture.lock.displayName,
@@ -260,7 +260,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     func testDiscardSurfacesFailedLockDeleteAndStaysRetryable() async throws {
         let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
-        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8))
         let existing = Transcription(
             fileName: fixture.lock.displayName,
@@ -288,7 +288,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     func testRecoverRetryUpdatesPreviousIncompleteRecoveryRow() async throws {
         let fixture = try makeRecoverableSession()
-        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
         let stale = Transcription(
             fileName: fixture.lock.displayName,
             filePath: mixedURL.path,
@@ -366,7 +366,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(conditionerProbe.buildCount, 0)
         XCTAssertEqual(recording.cleanedMicrophoneAudioURL, staleCleanedURL)
         XCTAssertEqual(decision.reason, .skippedNoEchoPath)
-        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
+        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone-raw.m4a"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleCleanedURL.path))
         let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .skippedNoEchoPath)
@@ -402,7 +402,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             "above-threshold recovery must not construct the cleaned-mic render task"
         )
         XCTAssertEqual(decision.reason, .predictedRenderTimeout)
-        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
+        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone-raw.m4a"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleCleanedURL.path))
         let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .predictedRenderTimeout)
@@ -431,7 +431,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             "missing recovered sources must remove stale cleaned artifacts so reopened sessions use raw mic")
         let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
         XCTAssertEqual(decision.reason, .rawMissingSystemReference)
-        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone.m4a"))
+        XCTAssertEqual(decision.url, fixture.folderURL.appendingPathComponent("microphone-raw.m4a"))
     }
 
     private enum SourceFixture {
@@ -468,7 +468,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let mixedPaths = Set(
             folderPaths.map {
                 URL(fileURLWithPath: $0, isDirectory: true)
-                    .appendingPathComponent("meeting.m4a")
+                    .appendingPathComponent("meeting-playback.m4a")
                     .path
             })
         return try transcriptionRepo.fetchAll(limit: nil).filter { transcription in
@@ -578,8 +578,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         // session: real audio on the mic, init-stub system file.
         let folderURL = tempRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try writeM4A(to: folderURL.appendingPathComponent("microphone.m4a"))
-        try writeStubAudio(to: folderURL.appendingPathComponent("system.m4a"))
+        try writeM4A(to: folderURL.appendingPathComponent("microphone-raw.m4a"))
+        try writeStubAudio(to: folderURL.appendingPathComponent("system-raw.m4a"))
         let lock = MeetingRecordingLockFile(
             sessionId: UUID(),
             startedAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -597,7 +597,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
     func testDiscoverKeepsCompletedMeetingWhenSourceAudioIsMissing() async throws {
         let folderURL = tempRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8))
         let existing = Transcription(
             fileName: "Recovered Team Sync",
@@ -647,8 +647,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let sessionID = UUID()
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try writeStubAudio(to: folderURL.appendingPathComponent("microphone.m4a"))
-        try writeStubAudio(to: folderURL.appendingPathComponent("system.m4a"))
+        try writeStubAudio(to: folderURL.appendingPathComponent("microphone-raw.m4a"))
+        try writeStubAudio(to: folderURL.appendingPathComponent("system-raw.m4a"))
 
         let lock = MeetingRecordingLockFile(
             sessionId: sessionID,
@@ -679,23 +679,23 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try writeM4A(
-            to: folderURL.appendingPathComponent("microphone.m4a"),
+            to: folderURL.appendingPathComponent("microphone-raw.m4a"),
             sampleRate: microphoneSampleRate
         )
         switch systemAudio {
         case .valid:
             try writeM4A(
-                to: folderURL.appendingPathComponent("system.m4a"),
+                to: folderURL.appendingPathComponent("system-raw.m4a"),
                 sampleRate: systemSampleRate
             )
         case .silent:
             try writeM4A(
-                to: folderURL.appendingPathComponent("system.m4a"),
+                to: folderURL.appendingPathComponent("system-raw.m4a"),
                 sampleRate: systemSampleRate,
                 sampleValue: 0
             )
         case .corrupt:
-            try Data("not audio".utf8).write(to: folderURL.appendingPathComponent("system.m4a"))
+            try Data("not audio".utf8).write(to: folderURL.appendingPathComponent("system-raw.m4a"))
         }
 
         let lock = MeetingRecordingLockFile(

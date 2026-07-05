@@ -20,17 +20,17 @@ default mode is dual-stream capture:
 - **system** audio is captured separately
 - selected streams feed the **live transcript UI** during recording
 - selected streams are written to disk as separate files
-- after stop, the selected source files are mixed into `meeting.m4a` for playback/export
-- final post-stop STT does **not** transcribe `meeting.m4a`
+- after stop, the selected source files are mixed into `meeting-playback.m4a` for playback/export
+- final post-stop STT does **not** transcribe `meeting-playback.m4a`
 - the speech engine/language is captured at meeting start and reused for live preview, crash recovery, and finalization
 - instead, it runs fresh batch STT separately on the selected retained source files:
-  - `microphone.m4a`
-  - `system.m4a`
-- those fresh results are merged by persisted source-alignment metadata. Single-source sessions skip the unselected source and produce a mono `meeting.m4a`.
+  - `microphone-raw.m4a`
+  - `system-raw.m4a`
+- those fresh results are merged by persisted source-alignment metadata. Single-source sessions skip the unselected source and produce a mono `meeting-playback.m4a`.
 
 The important constraints:
 
-- `meeting.m4a` is usually **stereo** (`L=mic`, `R=system`)
+- `meeting-playback.m4a` is usually **stereo** (`L=mic`, `R=system`)
 - STT input is still **mono** in this app pipeline, regardless of whether the selected engine is Parakeet or WhisperKit
 - the live transcript is now **live/UI-only**
 - `preparedTranscript` is no longer part of the final correctness path
@@ -76,8 +76,8 @@ Meeting starts
              MeetingRecordingService
                     │
                     ├── write source files
-                    │     ├── microphone.m4a
-                    │     └── system.m4a
+                    │     ├── microphone-raw.m4a
+                    │     └── system-raw.m4a
                     │
                     ├── persist in-progress recovery state
                     │     └── recording.lock
@@ -97,11 +97,11 @@ Meeting starts
 Meeting stops
     │
     ├── finalize source files
-    ├── mix microphone.m4a + system.m4a -> meeting.m4a
+    ├── mix microphone-raw.m4a + system-raw.m4a -> meeting-playback.m4a
     └── TranscriptionService.transcribeMeeting(recording:)
-          ├── convert microphone.m4a -> 16 kHz mono WAV
+          ├── convert microphone-raw.m4a -> 16 kHz mono WAV
           ├── batch STT on mic WAV using captured engine
-          ├── convert system.m4a -> 16 kHz mono WAV
+          ├── convert system-raw.m4a -> 16 kHz mono WAV
           ├── batch STT on system WAV using captured engine
           ├── align words using persisted source offsets
           ├── merge source-aware words into final transcript
@@ -135,18 +135,18 @@ Each meeting session produces a folder containing:
 
 ```text
 meeting-recordings/<uuid>/
-├── microphone.m4a
-├── system.m4a
-├── meeting.m4a
+├── microphone-raw.m4a
+├── system-raw.m4a
+├── meeting-playback.m4a
 ├── meeting-recording-metadata.json
 └── recording.lock              # present only while recording/recovery is in progress
 ```
 
 Semantics:
 
-- `microphone.m4a`: mic-only source recording
-- `system.m4a`: system-only source recording
-- `meeting.m4a`: final mixed playback/export artifact
+- `microphone-raw.m4a`: mic-only source recording
+- `system-raw.m4a`: system-only source recording
+- `meeting-playback.m4a`: final mixed playback/export artifact
 - `meeting-recording-metadata.json`: persisted source alignment metadata and captured speech engine for post-stop merge
 - `recording.lock`: in-progress recovery state, notes, and speech engine; removed after successful stop/finalize
 
@@ -163,9 +163,9 @@ Relevant code:
 - `Sources/MacParakeetCore/Services/MeetingRecordingMetadata.swift`
 - `Sources/MacParakeetCore/Services/MeetingRecordingService.swift`
 
-## What `meeting.m4a` actually is
+## What `meeting-playback.m4a` actually is
 
-For the normal two-source meeting case, `meeting.m4a` is **stereo**:
+For the normal two-source meeting case, `meeting-playback.m4a` is **stereo**:
 
 - left channel = microphone
 - right channel = system audio
@@ -179,7 +179,7 @@ The FFmpeg graph explicitly pans mic to the left channel and system to the right
 
 For single-input sessions, the output remains mono.
 
-Important: `meeting.m4a` is a **playback/export artifact**, not the authoritative STT input.
+Important: `meeting-playback.m4a` is a **playback/export artifact**, not the authoritative STT input.
 
 ## Live transcription path
 
@@ -260,7 +260,7 @@ This metadata is:
 
 Why it exists:
 
-- `microphone.m4a` and `system.m4a` are written as independent continuous files
+- `microphone-raw.m4a` and `system-raw.m4a` are written as independent continuous files
 - each post-stop STT pass returns timestamps relative to its own file origin
 - the offsets are needed to align the two fresh transcripts onto a single meeting timeline
 
@@ -270,9 +270,9 @@ Without this metadata, "transcribe both files and sort by timestamps" would be g
 
 Saved meeting retranscription from the library now reuses the same dual-source finalization flow when the archived meeting folder still contains:
 
-- `meeting.m4a`
-- `microphone.m4a`
-- `system.m4a`
+- `meeting-playback.m4a`
+- `microphone-raw.m4a`
+- `system-raw.m4a`
 - `meeting-recording-metadata.json`
 
 `TranscriptionViewModel` reconstructs a `MeetingRecordingOutput` from the archived folder and calls `TranscriptionService.transcribeMeeting(recording:)` again instead of routing the meeting through generic mixed-file transcription.
@@ -280,14 +280,16 @@ Saved meeting retranscription from the library now reuses the same dual-source f
 Important nuance:
 
 - this keeps later retranscribes aligned with the immediate post-stop correctness path
-- legacy meeting rows that only have `meeting.m4a` still fall back to mixed-file transcription so old data keeps working
+- when source reconstruction is unavailable, retranscription falls back to the
+  stored `transcriptions.filePath` as generic retained audio; it does not probe
+  alternate source filenames in the artifact folder
 
 ## Post-stop final transcription path
 
 After stop, `TranscriptionService.transcribeMeeting(recording:)` performs a **fresh batch STT pass per source file**:
 
-1. convert `microphone.m4a` to mono WAV and transcribe it
-2. convert `system.m4a` to mono WAV and transcribe it
+1. convert `microphone-raw.m4a` to mono WAV and transcribe it
+2. convert `system-raw.m4a` to mono WAV and transcribe it
 3. shift each result by its persisted source start offset
 4. merge the shifted words into one source-aware transcript
 
@@ -364,13 +366,13 @@ So the practical constraint is:
 - MacParakeet can store stereo meeting artifacts
 - but Parakeet / FluidAudio do not consume those artifacts as stereo in this app pipeline
 
-This is exactly why the current finalization design transcribes the separate source files independently instead of trying to feed stereo `meeting.m4a` into Parakeet.
+This is exactly why the current finalization design transcribes the separate source files independently instead of trying to feed stereo `meeting-playback.m4a` into Parakeet.
 
 ## Why the current design is clean
 
 This architecture keeps the right responsibilities separated:
 
-- **capture** preserves the strongest source artifacts (`microphone.m4a`, `system.m4a`, stereo `meeting.m4a`)
+- **capture** preserves the strongest source artifacts (`microphone-raw.m4a`, `system-raw.m4a`, stereo `meeting-playback.m4a`)
 - **live transcript** serves responsiveness and the meeting panel UI
 - **final transcript** is built from fresh post-stop source-file STT, not from live metadata
 - **diarization** is optional refinement, not the primary structure source
@@ -397,7 +399,7 @@ The current implementation is a good foundation, but there are still real limits
    - that is intentional
    - it prevents diarization from replacing the primary mic/system structure
 
-4. **`meeting.m4a` remains valuable even though it is not the authoritative STT input**
+4. **`meeting-playback.m4a` remains valuable even though it is not the authoritative STT input**
    - playback/export artifact
    - stereo archival asset
    - future post-processing input if a better multichannel-aware backend is adopted
@@ -417,5 +419,5 @@ Current MacParakeet meeting recording works like this:
 The important mental model is:
 
 - **live transcript** is not the final truth
-- **`meeting.m4a`** is not the final STT input
+- **`meeting-playback.m4a`** is not the final STT input
 - **the separate source files plus source alignment metadata** are the finalization source of truth

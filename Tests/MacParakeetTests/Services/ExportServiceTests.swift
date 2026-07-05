@@ -353,7 +353,7 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatSRTTranscriptionWithoutTimestampsUsesSingleCue() {
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             durationMs: 2500,
             rawTranscript: " Hello\n\nworld. ",
             status: .completed,
@@ -367,7 +367,7 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatVTTTranscriptionWithoutTimestampsUsesSingleCue() {
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             durationMs: 2500,
             rawTranscript: " Hello\n\nworld. ",
             status: .completed,

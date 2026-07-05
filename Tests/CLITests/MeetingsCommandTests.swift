@@ -115,13 +115,13 @@ final class MeetingsCommandTests: XCTestCase {
             try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
         let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
         let meeting = Transcription(
             fileName: "Design Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "We agreed to ship the parser.",
             status: .completed,
             sourceType: .meeting,
@@ -391,7 +391,9 @@ final class MeetingsCommandTests: XCTestCase {
         try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
+        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone-raw.m4a"))
+        try Data("system".utf8).write(to: folderURL.appendingPathComponent("system-raw.m4a"))
         try writeM4A(to: folderURL.appendingPathComponent("microphone-cleaned.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
@@ -399,7 +401,7 @@ final class MeetingsCommandTests: XCTestCase {
         let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
         let meeting = Transcription(
             fileName: "Artifact Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "We agreed to make meeting folders first-class.",
             cleanTranscript: "Meeting folders are first-class.",
             status: .completed,
@@ -432,7 +434,10 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(snapshot["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
         XCTAssertEqual(snapshot["markdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(snapshot["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
         XCTAssertEqual(snapshot["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
+        XCTAssertEqual(snapshot["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
+        XCTAssertEqual(snapshot["playbackAudioPath"] as? String, folderURL.appendingPathComponent("meeting-playback.m4a").path)
         XCTAssertEqual(snapshot["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
         XCTAssertEqual(snapshot["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
         XCTAssertEqual(snapshot["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
@@ -464,7 +469,10 @@ final class MeetingsCommandTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any]
         )
         XCTAssertEqual(exportPayload["artifactMarkdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(exportPayload["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
         XCTAssertEqual(exportPayload["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
+        XCTAssertEqual(exportPayload["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
+        XCTAssertEqual(exportPayload["playbackAudioPath"] as? String, folderURL.appendingPathComponent("meeting-playback.m4a").path)
     }
 
     func testMarkdownExportMatchesMaterializedMeetingMarkdown() async throws {
@@ -476,8 +484,8 @@ final class MeetingsCommandTests: XCTestCase {
             try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
-        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
+        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone-raw.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
@@ -486,7 +494,7 @@ final class MeetingsCommandTests: XCTestCase {
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
             createdAt: Date(timeIntervalSince1970: 1_720_000_000),
             fileName: "Design Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             durationMs: 2_000,
             rawTranscript: "Ship it.",
             wordTimestamps: [
@@ -547,14 +555,14 @@ final class MeetingsCommandTests: XCTestCase {
             try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
         let meeting = Transcription(
             createdAt: Date(timeIntervalSince1970: 1_720_000_000),
             fileName: "Result Refresh Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "Refresh the artifact.",
             status: .completed,
             sourceType: .meeting,
@@ -601,7 +609,7 @@ final class MeetingsCommandTests: XCTestCase {
             try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
@@ -609,7 +617,7 @@ final class MeetingsCommandTests: XCTestCase {
             id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
             createdAt: Date(timeIntervalSince1970: 1_720_000_000),
             fileName: "Speaker Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "Ship it.",
             wordTimestamps: [
                 WordTimestamp(word: "Ship", startMs: 0, endMs: 400, confidence: 0.98, speakerId: "S1"),
@@ -652,13 +660,13 @@ final class MeetingsCommandTests: XCTestCase {
             try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
         let meeting = Transcription(
             fileName: "Envelope Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "Envelope mode stays opt in.",
             status: .completed,
             sourceType: .meeting

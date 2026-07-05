@@ -166,7 +166,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                                           │
                                                           ▼ (on stop)
                                               AudioFileConverter (FFmpeg mix)
-                                              → meeting.m4a (stereo dual-source when both tracks exist)
+                                              → meeting-playback.m4a (stereo dual-source when both tracks exist)
                                               → awaiting-transcription lock + Library stub
                                               → background source-file STT + aligned merge
 ```
@@ -193,7 +193,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   session and aligned by host time. `CaptureOrchestrator` owns join + offset +
   live-preview chunk boundaries via `MeetingAudioPairJoiner` plus per-source
   `MeetingLiveAudioChunking` strategies. Single-source sessions skip the
-  unselected stream and produce a mono `meeting.m4a`.
+  unselected stream and produce a mono `meeting-playback.m4a`.
 - Raw capture applies no platform AEC/noise suppression/AGC. Meeting mic
   conditioning is preview-only: release bundles with LocalVQE assets may run
   `StreamingMeetingEchoSuppressor` over paired mic/system samples, while
@@ -206,17 +206,17 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
 - After recording stops, the captured source M4As are finalized and merged into
-  `meeting.m4a`. Dual-input sessions preserve source separation as stereo
+  `meeting-playback.m4a`. Dual-input sessions preserve source separation as stereo
   (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery
   lock is then rewritten to `awaitingTranscription`, and a processing Library
   row is saved before the recorder returns to idle.
-- Final meeting STT does **not** transcribe `meeting.m4a`. A background queue
+- Final meeting STT does **not** transcribe `meeting-playback.m4a`. A background queue
   transcribes the captured source files separately with the engine captured at
   recording start, then merges those fresh results by persisted
   `MeetingSourceAlignment`. For the local (`Me`) microphone track, source
   selection follows the echo-cancellation readiness gate below. The system track
   is unchanged. `MeetingRecordingOutput.microphoneTranscriptionURL` remains a
-  cheap UI/list helper, not the final-STT gate. `meeting.m4a` is kept as the
+  cheap UI/list helper, not the final-STT gate. `meeting-playback.m4a` is kept as the
   playback/export artifact. See
   `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full
   pipeline and tradeoffs.
@@ -227,7 +227,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 ### Meeting Echo Cancellation (AEC)
 
 Dual-source meeting capture preserves raw source artifacts:
-`microphone.m4a` and `system.m4a`, plus mixed `meeting.m4a` for playback and
+`microphone-raw.m4a` and `system-raw.m4a`, plus mixed `meeting-playback.m4a` for playback and
 export. After stop, `MeetingCleanedMicRenderer` can derive
 `microphone-cleaned.m4a` offline from the raw mic and system reference using
 the LocalVQE echo-only v1.4 path with `MeetingEchoDelayEstimator` delay
@@ -286,9 +286,9 @@ User clicks "Start Meeting Recording"
     → User clicks Stop
     → Stop capture and finalize the captured source file(s)
     → Persist `meeting-recording-metadata.json` with source alignment and speech engine
-    → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
+    → Merge streams into `meeting-playback.m4a` (stereo for dual input; mono for single input)
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
-    → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting.m4a`
+    → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting-playback.m4a`
     → Enqueue background finalization and return recorder to idle
     → User may immediately start the next meeting recording
     → Background queue converts each captured source M4A → 16kHz mono WAV via FFmpeg
@@ -316,10 +316,10 @@ the stopped meeting waits for that job to finish; once the slot is free,
 
 ```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
-    ├── microphone.m4a    # Raw mic audio when captured (AAC, 48kHz mono) — source of truth
-    ├── system.m4a        # System audio when captured (AAC, 48kHz mono)
+    ├── microphone-raw.m4a    # Raw mic audio when captured (AAC, 48kHz mono) — source of truth
+    ├── system-raw.m4a        # System audio when captured (AAC, 48kHz mono)
     ├── microphone-cleaned.m4a  # Optional derived echo-cancelled mic (16kHz mono); STT input for the "Me" track only after readiness/decodability gates pass
-    ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
+    ├── meeting-playback.m4a       # Playback/export artifact (stereo dual-source when both tracks exist)
     ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine, optionally echoSuppression provenance
     ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine
     └── chunks/            # Live-preview scratch chunks
@@ -334,8 +334,8 @@ to an auto-deleting mode is gated behind a one-time confirmation; the legacy
 managed meeting audio from the meeting detail view, Library/Meetings row menus,
 Settings > Storage, and CLI support commands. Audio deletion clears the
 transcript's stored `filePath` and removes top-level app-managed audio files
-from the session folder, including `meeting.m4a`, selected-source
-`microphone.m4a` / `system.m4a`, and other managed audio extensions. It keeps
+from the session folder, including `meeting-playback.m4a`, selected-source
+`microphone-raw.m4a` / `system-raw.m4a`, and other managed audio extensions. It keeps
 the transcript row, `meetingArtifactFolderPath`, and non-audio artifacts such
 as `manifest.json`, `transcript.json`, `notes.md`, and prompt-result files.
 Full meeting deletion is the path that removes the session folder.

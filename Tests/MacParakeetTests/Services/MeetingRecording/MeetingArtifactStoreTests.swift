@@ -14,9 +14,9 @@ final class MeetingArtifactStoreTests: XCTestCase {
         folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MeetingArtifactStoreTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
-        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone.m4a"))
-        try Data("system".utf8).write(to: folderURL.appendingPathComponent("system.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
+        try Data("mic".utf8).write(to: folderURL.appendingPathComponent("microphone-raw.m4a"))
+        try Data("system".utf8).write(to: folderURL.appendingPathComponent("system-raw.m4a"))
         try Data("{}".utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: folderURL))
     }
 
@@ -60,6 +60,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.folderPath, folderURL.path)
         XCTAssertEqual(snapshot.manifestPath, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
         XCTAssertEqual(snapshot.markdownPath, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(snapshot.rawMicrophoneAudioPath, folderURL.appendingPathComponent("microphone-raw.m4a").path)
+        XCTAssertNil(snapshot.cleanedMicrophoneAudioPath)
+        XCTAssertEqual(snapshot.rawSystemAudioPath, folderURL.appendingPathComponent("system-raw.m4a").path)
+        XCTAssertEqual(snapshot.playbackAudioPath, transcription.filePath)
         XCTAssertEqual(snapshot.transcriptPath, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
         XCTAssertEqual(snapshot.notesPath, MeetingNotesFile.fileURL(for: folderURL).path)
         XCTAssertEqual(snapshot.promptResultsPath, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
@@ -72,9 +76,9 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.promptResultsDirectoryPath))
         let folderEntries = Set(try FileManager.default.contentsOfDirectory(atPath: folderURL.path))
         XCTAssertTrue(folderEntries.isSuperset(of: [
-            "meeting.m4a",
-            "microphone.m4a",
-            "system.m4a",
+            "meeting-playback.m4a",
+            "microphone-raw.m4a",
+            "system-raw.m4a",
             MeetingRecordingMetadataStore.metadataURL(for: folderURL).lastPathComponent,
             MeetingArtifactStore.manifestFileName,
             MeetingArtifactStore.markdownFileName,
@@ -93,9 +97,9 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(markdown.contains("markdownPath: \"\(snapshot.markdownPath!)\""))
         XCTAssertTrue(markdown.contains("transcriptPath: \"\(snapshot.transcriptPath)\""))
         XCTAssertTrue(markdown.contains("notesPath: \"\(MeetingNotesFile.fileURL(for: folderURL).path)\""))
-        XCTAssertTrue(markdown.contains("mixedAudioPath: \"\(transcription.filePath!)\""))
-        XCTAssertTrue(markdown.contains("microphoneAudioPath: \"\(folderURL.appendingPathComponent("microphone.m4a").path)\""))
-        XCTAssertTrue(markdown.contains("systemAudioPath: \"\(folderURL.appendingPathComponent("system.m4a").path)\""))
+        XCTAssertTrue(markdown.contains("playbackAudioPath: \"\(transcription.filePath!)\""))
+        XCTAssertTrue(markdown.contains("rawMicrophoneAudioPath: \"\(folderURL.appendingPathComponent("microphone-raw.m4a").path)\""))
+        XCTAssertTrue(markdown.contains("rawSystemAudioPath: \"\(folderURL.appendingPathComponent("system-raw.m4a").path)\""))
         XCTAssertTrue(markdown.contains("metadataPath: \"\(MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)\""))
         XCTAssertTrue(markdown.contains("speakerLabelsIncluded: true"))
         XCTAssertTrue(markdown.contains("promptResultCount: 1"))
@@ -136,9 +140,9 @@ final class MeetingArtifactStoreTests: XCTestCase {
         assertStartContext(manifestMeeting["startContext"], equals: startContext)
         let files = try XCTUnwrap(manifest["files"] as? [String: Any])
         XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
-        XCTAssertEqual(files["mixedAudioPath"] as? String, transcription.filePath)
-        XCTAssertEqual(files["microphoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone.m4a").path)
-        XCTAssertEqual(files["systemAudioPath"] as? String, folderURL.appendingPathComponent("system.m4a").path)
+        XCTAssertEqual(files["playbackAudioPath"] as? String, transcription.filePath)
+        XCTAssertEqual(files["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
+        XCTAssertEqual(files["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
         XCTAssertNil(files["cleanedMicrophoneAudioPath"] as? String)
         XCTAssertEqual(files["metadataPath"] as? String, MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)
         XCTAssertEqual(files["manifestPath"] as? String, snapshot.manifestPath)
@@ -317,19 +321,20 @@ final class MeetingArtifactStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.folderPath, folderURL.path)
+        XCTAssertNil(snapshot.playbackAudioPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.manifestPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.transcriptPath))
 
         let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
         let files = try XCTUnwrap(manifest["files"] as? [String: Any])
         XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
-        XCTAssertNil(files["mixedAudioPath"] as? String)
+        XCTAssertNil(files["playbackAudioPath"] as? String)
     }
 
     func testMaterializeRejectsNonMeetingRows() async throws {
         let transcription = Transcription(
             fileName: "File",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             sourceType: .file
         )
 
@@ -352,7 +357,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         Transcription(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
             fileName: "Design Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             durationMs: 12_000,
             rawTranscript: "Raw transcript.",
             cleanTranscript: "Clean transcript.",

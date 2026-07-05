@@ -118,7 +118,7 @@ This means:
 - file transcription does not receive dedicated always-on capacity
 
 Meeting recordings use `meetingFinalize` from the background finalization queue after durable stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
-Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact.
+Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the mixed `meeting-playback.m4a` artifact.
 
 Reference shape:
 

@@ -120,7 +120,7 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
     ) throws -> (transcription: Transcription, folderURL: URL, audioURL: URL) {
         let folderURL = rootURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        let audioURL = folderURL.appendingPathComponent("meeting.m4a")
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
         XCTAssertTrue(FileManager.default.createFile(
             atPath: MeetingRecordingMetadataStore.metadataURL(for: folderURL).path,

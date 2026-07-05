@@ -125,13 +125,13 @@ final class PromptResultsViewModelTests: XCTestCase {
             .appendingPathComponent("PromptResultsViewModelTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folderURL) }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting.m4a"))
+        try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let transcriptionID = UUID()
         let transcription = Transcription(
             id: transcriptionID,
             fileName: "Design Review",
-            filePath: folderURL.appendingPathComponent("meeting.m4a").path,
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
             rawTranscript: "Alice will send the draft tomorrow.",
             status: .completed,
             sourceType: .meeting,
@@ -727,7 +727,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         try transcriptionRepo.save(
             Transcription(
                 id: transcriptionID,
-                fileName: "meeting.m4a",
+                fileName: "meeting-playback.m4a",
                 sourceType: .meeting,
                 userNotes: "decision: ship Friday\nQA owns smoke tests"
             )
@@ -772,7 +772,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         try transcriptionRepo.save(
             Transcription(
                 id: transcriptionID,
-                fileName: "meeting.m4a",
+                fileName: "meeting-playback.m4a",
                 sourceType: .meeting,
                 userNotes: "snapshot me"
             )
@@ -928,7 +928,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         try transcriptionRepo.save(
             Transcription(
                 id: transcriptionID,
-                fileName: "meeting.m4a",
+                fileName: "meeting-playback.m4a",
                 sourceType: .meeting
             )
         )

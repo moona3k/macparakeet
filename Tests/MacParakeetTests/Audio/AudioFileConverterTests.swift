@@ -54,8 +54,8 @@ final class AudioFileConverterTests: XCTestCase {
     func testFFmpegMixArgumentsPreserveStereoForMicAndSystem() {
         let converter = AudioFileConverter()
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a"
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a"
         )
 
         XCTAssertTrue(args.contains("-filter_complex"))
@@ -89,8 +89,8 @@ final class AudioFileConverterTests: XCTestCase {
         )
 
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a",
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a",
             sourceAlignment: alignment
         )
 
@@ -103,8 +103,8 @@ final class AudioFileConverterTests: XCTestCase {
     func testFFmpegMixArgumentsKeepLongestDualSourceDuration() {
         let converter = AudioFileConverter()
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a"
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a"
         )
 
         guard let filterFlagIndex = args.firstIndex(of: "-filter_complex") else {

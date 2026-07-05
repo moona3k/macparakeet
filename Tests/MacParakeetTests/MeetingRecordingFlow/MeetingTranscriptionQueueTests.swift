@@ -153,9 +153,9 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             sessionID: UUID(),
             displayName: displayName,
             folderURL: folder,
-            mixedAudioURL: folder.appendingPathComponent("meeting.m4a"),
-            microphoneAudioURL: folder.appendingPathComponent("microphone.m4a"),
-            systemAudioURL: folder.appendingPathComponent("system.m4a"),
+            mixedAudioURL: folder.appendingPathComponent("meeting-playback.m4a"),
+            microphoneAudioURL: folder.appendingPathComponent("microphone-raw.m4a"),
+            systemAudioURL: folder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 42,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: 1,
@@ -276,7 +276,7 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
         let transcription = Transcription(
             id: transcriptionID,
             fileName: recording.displayName,
-            filePath: mismatched ? folderPath + "/meeting.m4a" : recording.mixedAudioURL.path,
+            filePath: mismatched ? folderPath + "/meeting-playback.m4a" : recording.mixedAudioURL.path,
             meetingArtifactFolderPath: folderPath,
             rawTranscript: "done",
             status: .completed,

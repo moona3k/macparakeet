@@ -1458,7 +1458,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testRefreshStatsIncludesMeetingAudioStorage() async throws {
         let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("meeting.m4a")
+        let file = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x3, count: 2048)))
 
         viewModel.configure(
@@ -1494,7 +1494,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testClearMeetingAudioRemovesFilesAndClearsMeetingStoredPaths() async throws {
         let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("meeting.m4a")
+        let file = folder.appendingPathComponent("meeting-playback.m4a")
         let sourceFile = folder.appendingPathComponent("source-capture.wav")
         let notes = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x4, count: 1024)))
@@ -1555,7 +1555,7 @@ final class SettingsViewModelTests: XCTestCase {
         let youtubeDirPath = youtubeDownloadsTestDir.path
         let meeting = Transcription(
             fileName: "meeting",
-            filePath: "\(blockedPath)/meeting.m4a",
+            filePath: "\(blockedPath)/meeting-playback.m4a",
             status: .completed,
             sourceType: .meeting
         )
@@ -1582,7 +1582,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testClearMeetingAudioRefusesWhileMeetingRecordingActive() throws {
         let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("meeting.m4a")
+        let file = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x5, count: 1024)))
 
         let meeting = Transcription(
@@ -1614,7 +1614,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testClearMeetingAudioRefusesAwaitingTranscriptionLockEvenWhenOwnerIsDead() throws {
         let folder = meetingRecordingsTestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("meeting.m4a")
+        let file = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: Data(repeating: 0x5, count: 1024)))
         try MeetingRecordingLockFileStore().write(
             MeetingRecordingLockFile(

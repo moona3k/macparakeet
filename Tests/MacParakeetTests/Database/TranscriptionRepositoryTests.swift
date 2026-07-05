@@ -170,7 +170,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
             sourceMode: .microphoneAndSystem
         )
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             sourceType: .meeting,
             meetingStartContext: startContext
         )
@@ -186,7 +186,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
     func testMalformedMeetingStartContextDoesNotBlockTranscriptionDecode() throws {
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             rawTranscript: "Usable transcript",
             sourceType: .meeting
         )
@@ -203,7 +203,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
         XCTAssertNil(fetched.meetingStartContext, "malformed start context should be dropped")
-        XCTAssertEqual(fetched.fileName, "meeting.m4a")
+        XCTAssertEqual(fetched.fileName, "meeting-playback.m4a")
         XCTAssertEqual(fetched.rawTranscript, "Usable transcript")
         XCTAssertEqual(fetched.sourceType, .meeting)
     }
@@ -243,7 +243,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
     }
 
     func testFetchByFilePathFiltersBySourceTypeAndOrdersNewestFirst() throws {
-        let path = "/tmp/meeting.m4a"
+        let path = "/tmp/meeting-playback.m4a"
         let olderMeeting = Transcription(
             createdAt: Date(timeIntervalSinceNow: -100),
             fileName: "older meeting",
@@ -472,7 +472,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
     func testFetchLibraryPageFiltersBySourceType() throws {
         let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
         let youtube = Transcription(fileName: "video.mp3", status: .completed, sourceType: .youtube)
-        let meeting = Transcription(fileName: "meeting.m4a", status: .completed, sourceType: .meeting)
+        let meeting = Transcription(fileName: "meeting-playback.m4a", status: .completed, sourceType: .meeting)
         try repo.save(local)
         try repo.save(youtube)
         try repo.save(meeting)
@@ -487,7 +487,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
     func testFetchLibraryPageFiltersFavoritesAndComposesWithSourceType() throws {
         let meetingFavorite = Transcription(
-            fileName: "fav meeting.m4a",
+            fileName: "fav meeting-playback.m4a",
             status: .completed,
             isFavorite: true,
             sourceType: .meeting
@@ -499,7 +499,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
             sourceType: .file
         )
         let meetingNormal = Transcription(
-            fileName: "normal meeting.m4a",
+            fileName: "normal meeting-playback.m4a",
             status: .completed,
             sourceType: .meeting
         )
@@ -832,10 +832,10 @@ final class TranscriptionRepositoryTests: XCTestCase {
         )
         try repo.save(transcription)
 
-        try repo.updateFilePath(id: transcription.id, filePath: "/tmp/session/meeting.m4a")
+        try repo.updateFilePath(id: transcription.id, filePath: "/tmp/session/meeting-playback.m4a")
 
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
-        XCTAssertEqual(fetched.filePath, "/tmp/session/meeting.m4a")
+        XCTAssertEqual(fetched.filePath, "/tmp/session/meeting-playback.m4a")
         XCTAssertEqual(fetched.meetingArtifactFolderPath, "/tmp/session")
     }
 
@@ -844,7 +844,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
             .appendingPathComponent("macparakeet-repo-meetings-\(UUID().uuidString)", isDirectory: true)
         let managedAudio = meetingRoot
             .appendingPathComponent("session", isDirectory: true)
-            .appendingPathComponent("meeting.m4a")
+            .appendingPathComponent("meeting-playback.m4a")
         let externalAudio = FileManager.default.temporaryDirectory
             .appendingPathComponent("external-meeting-\(UUID().uuidString).m4a")
             .path
@@ -888,7 +888,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         let oldMeeting = Transcription(
             createdAt: now.addingTimeInterval(-31 * 24 * 60 * 60),
             fileName: "old meeting",
-            filePath: "/tmp/old-meeting/meeting.m4a",
+            filePath: "/tmp/old-meeting/meeting-playback.m4a",
             status: .completed,
             sourceType: .meeting,
             updatedAt: now.addingTimeInterval(-31 * 24 * 60 * 60)
@@ -896,7 +896,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         let emptyTranscriptMeeting = Transcription(
             createdAt: now.addingTimeInterval(-32 * 24 * 60 * 60),
             fileName: "silent meeting",
-            filePath: "/tmp/silent-meeting/meeting.m4a",
+            filePath: "/tmp/silent-meeting/meeting-playback.m4a",
             rawTranscript: "",
             status: .completed,
             sourceType: .meeting,
@@ -905,7 +905,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         let tooNew = Transcription(
             createdAt: now.addingTimeInterval(-5 * 24 * 60 * 60),
             fileName: "new meeting",
-            filePath: "/tmp/new-meeting/meeting.m4a",
+            filePath: "/tmp/new-meeting/meeting-playback.m4a",
             status: .completed,
             sourceType: .meeting,
             updatedAt: now.addingTimeInterval(-5 * 24 * 60 * 60)
@@ -920,7 +920,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         let processing = Transcription(
             createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
             fileName: "processing meeting",
-            filePath: "/tmp/processing-meeting/meeting.m4a",
+            filePath: "/tmp/processing-meeting/meeting-playback.m4a",
             status: .processing,
             sourceType: .meeting,
             updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)

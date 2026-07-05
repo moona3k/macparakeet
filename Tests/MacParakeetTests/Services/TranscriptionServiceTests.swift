@@ -1247,9 +1247,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -1342,9 +1342,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         let cleanedURL = recordingFolder.appendingPathComponent("microphone-cleaned.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
@@ -1637,9 +1637,9 @@ final class TranscriptionServiceTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -1820,8 +1820,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -1839,7 +1839,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -1861,8 +1861,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -1880,7 +1880,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -1913,8 +1913,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -1931,7 +1931,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -1960,8 +1960,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2004,7 +2004,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -2087,8 +2087,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2103,7 +2103,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -2130,9 +2130,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -2251,9 +2251,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -2312,8 +2312,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
 
@@ -2351,7 +2351,7 @@ final class TranscriptionServiceTests: XCTestCase {
             displayName: "Meeting Demo",
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
-            microphoneAudioURL: recordingFolder.appendingPathComponent("microphone.m4a"),
+            microphoneAudioURL: recordingFolder.appendingPathComponent("microphone-raw.m4a"),
             systemAudioURL: systemURL,
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
@@ -2376,8 +2376,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2397,7 +2397,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -2418,8 +2418,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2436,7 +2436,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -2458,9 +2458,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -2508,9 +2508,9 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: systemURL.path, contents: Data("system".utf8)))
@@ -2560,8 +2560,8 @@ final class TranscriptionServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recordingFolder) }
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2573,7 +2573,7 @@ final class TranscriptionServiceTests: XCTestCase {
             folderURL: recordingFolder,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
-            systemAudioURL: recordingFolder.appendingPathComponent("system.m4a"),
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
             durationSeconds: 1.0,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
@@ -2764,9 +2764,9 @@ final class TranscriptionServiceTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
 
-        let mixedURL = recordingFolder.appendingPathComponent("meeting.m4a")
-        let microphoneURL = recordingFolder.appendingPathComponent("microphone.m4a")
-        let systemURL = recordingFolder.appendingPathComponent("system.m4a")
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = recordingFolder.appendingPathComponent("system-raw.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
 
@@ -2815,9 +2815,9 @@ final class TranscriptionServiceTests: XCTestCase {
         cleanedURL: URL? = nil,
         readiness: MeetingCleanedMicrophoneReadiness? = nil
     ) throws -> MeetingRecordingOutput {
-        let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
+        let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = folderURL.appendingPathComponent("system-raw.m4a")
         if !FileManager.default.fileExists(atPath: mixedURL.path) {
             XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
         }

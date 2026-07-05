@@ -889,7 +889,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
-            output: "MeetingRecord object with transcript, transcriptSegments, notes, prompt-result count, artifactMarkdownPath, and optional cleanedMicrophoneAudioPath."
+            output: "MeetingRecord object with transcript, transcriptSegments, notes, prompt-result count, artifactMarkdownPath, and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath."
         ),
         CLISpecCommand(
             ["meetings", "transcript"],
@@ -984,7 +984,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
-            output: "MeetingArtifactSnapshot object with folderPath, manifestPath, markdownPath, transcriptPath, prompt-result paths, and optional cleanedMicrophoneAudioPath."
+            output: "MeetingArtifactSnapshot object with folderPath, manifestPath, markdownPath, transcriptPath, prompt-result paths, and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath."
         ),
         CLISpecCommand(
             ["meetings", "export"],

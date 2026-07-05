@@ -91,8 +91,8 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
 
         let scenario = MeetingAecScenarioFactory.make(
             name: "double-talk", nearEndActive: true, farEndActive: true, echoPath: echoPath)
-        let micURL = dir.appendingPathComponent("microphone.m4a")
-        let sysURL = dir.appendingPathComponent("system.m4a")
+        let micURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let sysURL = dir.appendingPathComponent("system-raw.m4a")
         try await MeetingCleanedMicRenderer.encodeMonoFloat(
             scenario.mic, sampleRate: 16_000, to: micURL, fileManager: .default)
         try await MeetingCleanedMicRenderer.encodeMonoFloat(
@@ -290,7 +290,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
 
         let outcome = try await MeetingCleanedMicRenderer().render(
             microphoneURL: micURL,
-            systemURL: dir.appendingPathComponent("system.m4a"),
+            systemURL: dir.appendingPathComponent("system-raw.m4a"),
             sourceAlignment: equalAlignment(),
             outputURL: dir.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName),
             conditioner: StreamingMeetingEchoSuppressor(
@@ -325,8 +325,8 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         scenario: MeetingAecScenario,
         includeSystem: Bool = true
     ) async throws -> (URL, URL) {
-        let micURL = dir.appendingPathComponent("microphone.m4a")
-        let sysURL = dir.appendingPathComponent("system.m4a")
+        let micURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let sysURL = dir.appendingPathComponent("system-raw.m4a")
         try await MeetingCleanedMicRenderer.encodeMonoFloat(
             scenario.mic, sampleRate: 16_000, to: micURL, fileManager: .default)
         if includeSystem {
