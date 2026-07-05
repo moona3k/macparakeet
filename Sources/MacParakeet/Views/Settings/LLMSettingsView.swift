@@ -26,8 +26,6 @@ struct LLMSettingsView: View {
     @State private var aiFormatterAppIcons: [String: NSImage] = [:]
     @State private var aiFormatterAppIconLoadingIDs: Set<String> = []
 
-    private static let providerOrder: [LLMProviderID] = LLMProviderID.userSelectableProviderIDs
-
     private static let smartDefaultGridColumns = [
         GridItem(.adaptive(minimum: 168), spacing: DesignSystem.Spacing.sm)
     ]
@@ -39,6 +37,12 @@ struct LLMSettingsView: View {
             Divider()
 
             selectedAIOptionSection
+
+            if viewModel.shouldShowInProcessLocalSetup {
+                Divider()
+
+                localAISetupSection
+            }
 
             if viewModel.selectedProviderID != nil {
                 Divider()
@@ -176,6 +180,11 @@ struct LLMSettingsView: View {
 
             aiFormatterSection
         }
+        .task {
+            if viewModel.shouldShowInProcessLocalSetup {
+                await viewModel.inProcessModelManager.refresh()
+            }
+        }
     }
 
     @ViewBuilder
@@ -227,7 +236,7 @@ struct LLMSettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker("AI option", selection: $viewModel.selectedProviderID) {
                     Text("None").tag(LLMProviderID?.none)
-                    ForEach(Self.providerOrder, id: \.self) { provider in
+                    ForEach(providerOrder, id: \.self) { provider in
                         Text(provider.displayName).tag(Optional(provider))
                     }
                 }
@@ -248,6 +257,157 @@ struct LLMSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private var providerOrder: [LLMProviderID] {
+        LLMProviderID.userSelectableProviderIDs(
+            inProcessLocalLLMVisible: viewModel.shouldShowInProcessLocalSetup
+        )
+    }
+
+    @ViewBuilder
+    private var localAISetupSection: some View {
+        let manager = viewModel.inProcessModelManager
+
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text("Local AI")
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                        Text("Experimental")
+                            .font(DesignSystem.Typography.micro.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+                    }
+                    Text("Optional on-device setup. Cloud providers remain recommended for best AI answer quality.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(manager.modelDisplayName), \(manager.modelSizeDescription) download.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                localAIActionButtons
+            }
+
+            localAIStateContent
+        }
+        .id("ai.localAI")
+    }
+
+    @ViewBuilder
+    private var localAIActionButtons: some View {
+        let manager = viewModel.inProcessModelManager
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            if manager.isModelDownloaded {
+                Button {
+                    Task { await manager.deleteModel() }
+                } label: {
+                    Label("Delete model", systemImage: "trash")
+                }
+                .parakeetAction(.secondary)
+                .disabled(manager.isWorking)
+            }
+
+            Button {
+                Task { await manager.enableLocalAI() }
+            } label: {
+                Label(localAIPrimaryButtonTitle, systemImage: manager.isModelDownloaded ? "checkmark.circle" : "arrow.down.circle")
+            }
+            .parakeetAction(.secondary)
+            .disabled(!manager.meetsMemoryRequirement || manager.isWorking)
+        }
+        .fixedSize()
+    }
+
+    private var localAIPrimaryButtonTitle: String {
+        let manager = viewModel.inProcessModelManager
+        if manager.isModelDownloaded {
+            return manager.isLocalAISelected ? "Test local AI" : "Use local AI"
+        }
+        return "Enable local AI"
+    }
+
+    @ViewBuilder
+    private var localAIStateContent: some View {
+        let manager = viewModel.inProcessModelManager
+        if !manager.meetsMemoryRequirement {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .accessibilityHidden(true)
+                Text("Local AI needs \(manager.minimumMemoryDescription). Use a cloud provider above or a local server such as LM Studio/Ollama.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            switch manager.state {
+            case .setUpNeeded:
+                Text("Downloads are never automatic. Enable local AI only on a dev-enabled build when you want to test the on-device option.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .downloading(let progress):
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: progress)
+                        .frame(maxWidth: 320)
+                    Text(localAIProgressCopy)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .verifying:
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Verifying files and testing the local runtime.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .ready:
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.successGreen)
+                        .accessibilityHidden(true)
+                    Text(manager.isLocalAISelected ? "Local AI is downloaded, verified, and selected." : "Local AI is downloaded and verified. The current AI choice can still stay on a cloud or BYO provider.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            case .failed(let reason, let recoverable):
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: recoverable ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(recoverable ? DesignSystem.Colors.warningAmber : DesignSystem.Colors.textSecondary)
+                        .accessibilityHidden(true)
+                    Text(reason)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(recoverable ? DesignSystem.Colors.warningAmber : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var localAIProgressCopy: String {
+        guard let progress = viewModel.inProcessModelManager.progress else {
+            return "Preparing download..."
+        }
+        let completed = ByteCountFormatter.string(fromByteCount: Int64(progress.completedBytes), countStyle: .file)
+        let total = ByteCountFormatter.string(fromByteCount: Int64(progress.totalBytes), countStyle: .file)
+        if let currentFile = progress.currentFile {
+            return "\(completed) of \(total) - \(currentFile)"
+        }
+        return "\(completed) of \(total)"
     }
 
     private var localNetworkHTTPSection: some View {

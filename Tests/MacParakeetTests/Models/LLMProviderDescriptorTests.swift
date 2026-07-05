@@ -71,7 +71,7 @@ final class LLMProviderDescriptorTests: XCTestCase {
     func testInProcessLocalProviderIsHiddenWhileFeatureFlagIsOff() {
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertEqual(
-            LLMProviderID.userSelectableProviderIDs,
+            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false),
             [
                 .lmstudio,
                 .ollama,
@@ -83,6 +83,31 @@ final class LLMProviderDescriptorTests: XCTestCase {
                 .localCLI,
             ]
         )
-        XCTAssertFalse(LLMProviderID.userSelectableProviderIDs.contains(.inProcessLocal))
+        XCTAssertFalse(LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false).contains(.inProcessLocal))
+    }
+
+    func testDeveloperOverrideCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
+        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
+
+        XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
+        XCTAssertTrue(AppFeatures.inProcessLocalLLMDeveloperOverrideEnabled(defaults: defaults, arguments: []))
+        XCTAssertTrue(AppFeatures.isInProcessLocalLLMVisible(defaults: defaults, arguments: []))
+        XCTAssertTrue(LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: true).contains(.inProcessLocal))
+    }
+
+    func testDeveloperLaunchArgumentCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
+        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
+        XCTAssertTrue(AppFeatures.inProcessLocalLLMDeveloperOverrideEnabled(
+            defaults: defaults,
+            arguments: [AppFeatures.inProcessLocalLLMDeveloperLaunchArgument]
+        ))
     }
 }

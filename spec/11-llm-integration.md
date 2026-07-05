@@ -5,7 +5,9 @@
 > ADR: ADR-011 (Cloud API keys + optional local providers)
 > Note: §1 (Transcript Summary) is superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. §3's old UserDefaults custom-transform design is superseded by ADR-022's productized `Prompt.Category.transform` Transforms. Provider protocol, formatter, chat, and CLI sections remain current.
 
-This spec defines how MacParakeet integrates LLM-powered features via external providers.
+This spec defines how MacParakeet integrates LLM-powered features via user-selected providers,
+including external providers, local servers/CLI tools, and a developer-gated in-process local
+model option.
 
 ---
 
@@ -18,12 +20,12 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 
 ## Non-Goals
 
-1. Bundling any LLM runtime or model today (no mlx-swift-lm, no llama.cpp, no model downloads in the current accepted architecture).
+1. Bundling any LLM runtime/model or making local LLMs the public default. The in-process MLX runtime remains a gated app-build target, and the verified model downloader/setup UI stays hidden behind a developer enable path while `AppFeatures.inProcessLocalLLMEnabled == false`.
 2. Bundled/default LLM processing in the dictation hot path. The AI formatter is opt-in, runs after deterministic cleanup, and falls back to the deterministic result if the provider fails.
 3. Building a hosted backend or proxy service.
 4. Automatic fallback between providers.
 
-**Future direction (updated 2026-07-04):** A first-party local model (Qwen/Gemma-class via MLX) will be offered as a dead-simple, one-click *option* once Phase 0 evidence shows it is trust-safe and clearly better than the deterministic pipeline for at least one surface (cleanup is the likely first). Cloud/frontier providers remain the recommended quality path per surface until the local model reaches parity there; cross-library / cross-meeting analysis, durable tool calling, and agent workflows stay cloud-first until local capability is proven. See `plans/active/2026-06-27-on-device-local-llm.md`.
+**Local MLX status (updated 2026-07-05):** The in-process provider, MLX runtime seam, verified model downloader, and one-click Settings card now exist as a developer-gated path. The public feature flag remains off, downloads are never automatic, and cloud/frontier providers remain the recommended quality path per surface until local capability reaches parity there. See `plans/active/2026-06-27-on-device-local-llm.md`.
 
 ---
 
@@ -34,6 +36,7 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
     → LLMService (builds prompt with transcript context)
     → LLMExecutionContextResolver (resolves provider config + CLI config)
     → RoutingLLMClient
+        → .inProcessLocal: InProcessLLMClient → LocalLLMRuntime (MLX only in gated app builds)
         → .localCLI: LocalCLILLMClient → LocalCLIExecutor (posix_spawn)
         → .other:    LLMClient (URLSession)
             → .anthropic: POST /v1/messages
@@ -50,6 +53,7 @@ The current branch does not flatten every provider into one wire protocol. `Rout
 - **Ollama** uses the native chat API (`POST /api/chat`) so thinking can be disabled.
 - **OpenAI, Gemini, OpenRouter, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
+- **Local MLX** is in-process through `InProcessLLMClient` and `LocalLLMRuntime`; the concrete MLX target is compiled only for gated app builds.
 
 Streaming is provider-specific under the hood:
 
@@ -72,6 +76,7 @@ The service boundary stays stable even though the transport is mixed.
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
+| Local MLX | In-process local, developer-gated | `inprocess://local` | N/A |
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
 
@@ -99,6 +104,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case ollama
     case lmstudio
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
+    case inProcessLocal // Developer-gated Local MLX option; no HTTP, no API key
 }
 ```
 
@@ -339,6 +345,14 @@ Respond with only the transformed text. Do not add explanations or preamble.
 ## UI
 
 ### Settings > AI
+
+The public Settings flow defaults to no AI provider and recommends cloud/frontier
+providers for best answer quality. The Local MLX one-click card is visible only
+when the developer override is active (`MacParakeetEnableInProcessLocalLLM` or
+`--enable-local-ai`); the public feature flag remains off. That card RAM-gates
+machines below 16 GB, downloads the verified Qwen3 model to
+`Application Support/MacParakeet/LLMModels/`, verifies size + SHA-256 hashes,
+tests the in-process runtime, and only then saves `.inProcessLocal`.
 
 ```
 ┌─────────────────────────────────────────────┐

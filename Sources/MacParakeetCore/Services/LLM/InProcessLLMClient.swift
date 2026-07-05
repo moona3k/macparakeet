@@ -22,7 +22,7 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     public init(
         runtime: any LocalLLMRuntime = UnavailableLocalLLMRuntime(),
         modelDirectoryResolver: @escaping LocalLLMModelDirectoryResolver = {
-            try InProcessLLMClient.environmentModelDirectory(for: $0)
+            try InProcessLLMClient.defaultModelDirectory(for: $0)
         },
         chunkCharacterThreshold: Int = InProcessLLMClient.defaultChunkCharacterThreshold,
         chunkCharacterLimit: Int = InProcessLLMClient.defaultChunkCharacterLimit,
@@ -101,6 +101,21 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             )
         }
         return URL(fileURLWithPath: rawPath, isDirectory: true)
+    }
+
+    public static func defaultModelDirectory(for config: LLMProviderConfig) throws -> URL {
+        if let rawPath = ProcessInfo.processInfo.environment[modelDirectoryEnvironmentVariable],
+            !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: rawPath, isDirectory: true)
+        }
+
+        let directory = InProcessLocalModelCatalog.modelDirectory(for: config.modelName)
+        guard FileManager.default.fileExists(atPath: directory.path) else {
+            throw LLMError.modelNotFound(
+                "Download the local AI model before using \(config.modelName), or set \(modelDirectoryEnvironmentVariable) to a local MLX model directory."
+            )
+        }
+        return directory
     }
 
     // MARK: - Generation
@@ -293,11 +308,51 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         var chunks: [String] = []
         var cursor = text.startIndex
         while cursor < text.endIndex {
-            let end = text.index(cursor, offsetBy: maxCharacters, limitedBy: text.endIndex) ?? text.endIndex
-            chunks.append(String(text[cursor..<end]))
-            cursor = end
+            let hardEnd = text.index(cursor, offsetBy: maxCharacters, limitedBy: text.endIndex) ?? text.endIndex
+            let end = hardEnd == text.endIndex
+                ? hardEnd
+                : preferredChunkBoundary(in: cursor..<hardEnd, text: text) ?? hardEnd
+            let chunk = String(text[cursor..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !chunk.isEmpty {
+                chunks.append(chunk)
+            }
+            cursor = skipLeadingWhitespace(from: end, in: text)
         }
         return chunks
+    }
+
+    private static func preferredChunkBoundary(
+        in range: Range<String.Index>,
+        text: String
+    ) -> String.Index? {
+        if let paragraphBreak = text.range(of: "\n\n", options: .backwards, range: range) {
+            return paragraphBreak.upperBound
+        }
+
+        var cursor = range.upperBound
+        while cursor > range.lowerBound {
+            let punctuationIndex = text.index(before: cursor)
+            if isSentenceTerminator(text[punctuationIndex]) {
+                let boundary = text.index(after: punctuationIndex)
+                if boundary == text.endIndex || boundary == range.upperBound || text[boundary].isWhitespace {
+                    return boundary
+                }
+            }
+            cursor = punctuationIndex
+        }
+        return nil
+    }
+
+    private static func isSentenceTerminator(_ character: Character) -> Bool {
+        character == "." || character == "!" || character == "?"
+    }
+
+    private static func skipLeadingWhitespace(from index: String.Index, in text: String) -> String.Index {
+        var cursor = index
+        while cursor < text.endIndex, text[cursor].isWhitespace {
+            cursor = text.index(after: cursor)
+        }
+        return cursor
     }
 
     private static func mapMessages(

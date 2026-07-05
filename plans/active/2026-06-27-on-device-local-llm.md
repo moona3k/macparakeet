@@ -115,6 +115,8 @@ Our LLM stack is already cleanly abstracted; the change is additive.
 
 **Build gating (decided 2026-07-04, from live verification):** MLX **cannot** land as a plain dependency — command-line SwiftPM can't build the Metal shaders (xcodebuild required; Jan's app ships this way, copying `default.metallib`), and mlx-swift-lm needs Swift tools 6.1 vs our tools 5.9 and CI's Xcode 16.1. Therefore: `LocalLLMRuntime` protocol + `InProcessLLMClient` live in `MacParakeetCore` with **no MLX import**; the MLX implementation lives in a separate opt-in target/module wired only into app builds, gated the same way as the existing no-Whisper gate, so `swift build` / `swift test` / CI never resolve or compile MLX. App release builds (xcodebuild, Daniel's machine) turn the gate on.
 
+**PR2 implementation note (2026-07-05):** the verified downloader, `InProcessModelManagerViewModel`, and one-click Settings card are allowed to exist behind the developer enable path while `AppFeatures.inProcessLocalLLMEnabled` remains `false`. This does not flip the public product surface: downloads are opt-in, RAM-gated at 16 GB, verified by size + SHA-256 manifest, and tested before `.inProcessLocal` is saved.
+
 Build the **chunking / map-reduce / retrieval layer** for long transcripts regardless (summary/QA need it; mitigates MLX long-prefill).
 
 ---

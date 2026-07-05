@@ -111,6 +111,11 @@ public enum AppPaths {
         "\(appSupportDir)/bin"
     }
 
+    /// Verified opt-in local LLM model cache.
+    public static var llmModelsDir: String {
+        "\(appSupportDir)/LLMModels"
+    }
+
     /// WhisperKit CoreML model cache base.
     public static var whisperModelsDir: String {
         "\(appSupportDir)/models/stt/whisper"

@@ -176,6 +176,105 @@ final class InProcessLLMClientTests: XCTestCase {
         XCTAssertTrue(reducePrompt.contains("[...truncated for local model memory...]"))
     }
 
+    func testChunkingPrefersParagraphBoundaries() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [.text("map-1")],
+            [.text("map-2")],
+            [.text("final")],
+        ])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            chunkCharacterThreshold: 10,
+            chunkCharacterLimit: 90,
+            idleUnloadDelaySeconds: 60
+        )
+
+        _ = try await client.chatCompletion(
+            messages: [
+                ChatMessage(
+                    role: .user,
+                    content: """
+                        First paragraph keeps one idea together.
+
+                        Second paragraph should begin the next local chunk.
+                        """
+                )
+            ],
+            context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "paragraph-boundary-test")),
+            options: .default
+        )
+
+        let requestContents = await runtime.requestContents()
+        XCTAssertEqual(requestContents.count, 3)
+        XCTAssertTrue(requestContents[0].contains("First paragraph keeps one idea together."))
+        XCTAssertFalse(requestContents[0].contains("Second paragraph should begin"))
+        XCTAssertTrue(requestContents[1].contains("Second paragraph should begin the next local chunk."))
+    }
+
+    func testChunkingPrefersSentenceBoundaries() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [.text("map-1")],
+            [.text("map-2")],
+            [.text("final")],
+        ])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            chunkCharacterThreshold: 10,
+            chunkCharacterLimit: 75,
+            idleUnloadDelaySeconds: 60
+        )
+
+        _ = try await client.chatCompletion(
+            messages: [
+                ChatMessage(
+                    role: .user,
+                    content: "Alpha sentence should stay whole. Beta sentence should start the second chunk."
+                )
+            ],
+            context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "sentence-boundary-test")),
+            options: .default
+        )
+
+        let requestContents = await runtime.requestContents()
+        XCTAssertEqual(requestContents.count, 3)
+        XCTAssertTrue(requestContents[0].contains("Alpha sentence should stay whole."))
+        XCTAssertFalse(requestContents[0].contains("Beta sentence"))
+        XCTAssertTrue(requestContents[1].contains("Beta sentence should start the second chunk."))
+    }
+
+    func testChunkingFallsBackToHardCutForSingleOversizedSentence() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [.text("map-1")],
+            [.text("map-2")],
+            [.text("final")],
+        ])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            chunkCharacterThreshold: 10,
+            chunkCharacterLimit: 60,
+            idleUnloadDelaySeconds: 60
+        )
+
+        _ = try await client.chatCompletion(
+            messages: [
+                ChatMessage(role: .user, content: String(repeating: "x", count: 90))
+            ],
+            context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "hard-cut-boundary-test")),
+            options: .default
+        )
+
+        let requestContents = await runtime.requestContents()
+        XCTAssertEqual(requestContents.count, 4)
+        XCTAssertTrue(requestContents.dropLast().allSatisfy { $0.contains("Process chunk") })
+        XCTAssertTrue(requestContents.last?.contains("Combine the chunk results") == true)
+    }
+
     func testQueuedGenerationDoesNotUnloadRuntimeBetweenRequests() async throws {
         let modelDirectory = temporaryModelDirectory()
         let firstGenerationGate = AsyncGate()

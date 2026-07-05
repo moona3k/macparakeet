@@ -125,4 +125,27 @@ public enum AppFeatures {
     /// `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1`, so normal SwiftPM builds and CI do
     /// not resolve mlx-swift-lm.
     public static let inProcessLocalLLMEnabled: Bool = false
+
+    /// Developer-only escape hatch for exercising the local LLM setup flow
+    /// while the public feature flag above stays off.
+    public static let inProcessLocalLLMDeveloperDefaultsKey = "MacParakeetEnableInProcessLocalLLM"
+    public static let inProcessLocalLLMDeveloperLaunchArgument = "--enable-local-ai"
+
+    public static func inProcessLocalLLMDeveloperOverrideEnabled(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        defaults.bool(forKey: inProcessLocalLLMDeveloperDefaultsKey)
+            || arguments.contains(inProcessLocalLLMDeveloperLaunchArgument)
+    }
+
+    public static func isInProcessLocalLLMVisible(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        inProcessLocalLLMEnabled || inProcessLocalLLMDeveloperOverrideEnabled(
+            defaults: defaults,
+            arguments: arguments
+        )
+    }
 }

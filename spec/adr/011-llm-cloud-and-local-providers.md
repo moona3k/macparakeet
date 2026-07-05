@@ -54,13 +54,15 @@ The current branch supports these provider/runtime types through one shared serv
 
 ### Locked Decisions
 
-1. **No bundled LLM runtime.** No mlx-swift-lm, no llama.cpp, no Cactus, no model downloads. Zero GPU/memory impact from LLM.
+1. **No bundled/default LLM runtime.** No LLM model is bundled, no local model downloads automatically, and no local LLM is public-default. The in-process MLX implementation is isolated behind a gated app-build target, and the verified first-party model downloader/setup UI is developer-gated while the public feature flag remains off.
 2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, OpenAI-compatible endpoints, local servers, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
 5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
 
 **Amendment (2026-07-04): direction confirmed, positioning fixed.** Product decision: MacParakeet will offer a first-party local model (Qwen/Gemma-class via MLX) as a dead-simple, one-click *option* aimed at non-technical and privacy-first users, while cloud/frontier providers remain the recommended quality path per surface until the local model demonstrably reaches parity there. The accepted architecture is unchanged for now — the Phase 0 eval in `plans/active/2026-06-27-on-device-local-llm.md` still gates adding any runtime or model download. Shipping bar per surface: fidelity-safe and clearly above the deterministic pipeline to *offer*; cloud parity to *recommend*. Agentic/tool-calling and whole-library analysis stay cloud-first until proven.
+
+**Amendment (2026-07-05): developer-gated Local MLX foundation.** The provider seam, gated MLX runtime wiring, verified model downloader, and one-click Settings card may exist in `main` as non-public infrastructure. `AppFeatures.inProcessLocalLLMEnabled` stays `false`; developers expose the option with `MacParakeetEnableInProcessLocalLLM` or `--enable-local-ai`. The app still never bundles a model, never downloads one automatically, and never recommends Local MLX over cloud/frontier quality until surface-specific evidence justifies that change.
 
 ### Features Enabled
 
@@ -82,7 +84,7 @@ Local 8B models produce mediocre summaries. Cloud models (Claude Sonnet, GPT-4o)
 
 ### Zero resource impact
 
-No GPU memory, no model downloads, no ANE contention. The app's resource profile stays focused on STT. LLM inference happens entirely outside the app's process — either on a remote server, in Ollama's separate process, or inside an external CLI tool.
+No GPU memory, model downloads, or ANE contention in the public/default product path. The app's resource profile stays focused on STT unless a developer explicitly enables and tests the gated Local MLX path. Public LLM inference still happens outside the app's process — either on a remote server, in Ollama's separate process, or inside an external CLI tool.
 
 ### Privacy spectrum, user's choice
 
@@ -97,7 +99,7 @@ Users choose their privacy/quality tradeoff. The app makes the tradeoff explicit
 
 ### Implementation simplicity
 
-One Swift service boundary with provider-aware routing. The current implementation keeps UI/domain code simple while allowing provider-specific transport where needed. No model management, no GPU scheduling, no memory pressure handling, no idle unload timers. Compare this to the mlx-swift-lm integration which touched 15+ files.
+One Swift service boundary with provider-aware routing. The current implementation keeps UI/domain code simple while allowing provider-specific transport where needed. The developer-gated Local MLX path owns its model management, runtime lifetime, and idle unload behavior behind `InProcessLLMClient`; normal provider call sites do not change.
 
 ### Bring-your-own-model via local providers
 

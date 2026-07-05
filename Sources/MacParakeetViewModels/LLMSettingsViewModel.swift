@@ -153,6 +153,7 @@ public final class LLMSettingsViewModel {
     public var aiFormatterProfileDraft: AIFormatterProfileDraft?
     public var aiFormatterProfileError: String?
     public private(set) var aiFormatterSmartDefaultsPolicy: AIFormatterSmartDefaultsPolicy
+    public let inProcessModelManager: InProcessModelManagerViewModel
     private var discoveredModels: [String] = []
 
     public var selectedProviderID: LLMProviderID? {
@@ -328,6 +329,10 @@ public final class LLMSettingsViewModel {
 
     public var usesInsecureLocalNetworkHTTP: Bool {
         draft.usesInsecureLocalNetworkHTTP
+    }
+
+    public var shouldShowInProcessLocalSetup: Bool {
+        AppFeatures.isInProcessLocalLLMVisible(defaults: defaults)
     }
 
     public var validationMessage: String? {
@@ -563,6 +568,7 @@ public final class LLMSettingsViewModel {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.inProcessModelManager = InProcessModelManagerViewModel()
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
         self.aiFormatterEnabledForTranscriptions = Self.loadStoredAIFormatterEnabledForTranscriptions(from: defaults)
         self.autoGenerateMeetingTitles = Self.loadStoredAutoGenerateMeetingTitles(from: defaults)
@@ -577,14 +583,29 @@ public final class LLMSettingsViewModel {
         configStore: LLMConfigStoreProtocol,
         llmClient: LLMClientProtocol,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
-        aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol? = nil
+        aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol? = nil,
+        inProcessModelDownloader: any InProcessModelDownloading = InProcessModelDownloader(),
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
     ) {
         self.configStore = configStore
         self.llmClient = llmClient
         self.cliConfigStore = cliConfigStore
         self.aiFormatterProfileRepo = aiFormatterProfileRepo
+        inProcessModelManager.configure(
+            downloader: inProcessModelDownloader,
+            configStore: configStore,
+            llmClient: llmClient,
+            physicalMemoryBytes: physicalMemoryBytes,
+            onConfigurationChanged: { [weak self] in
+                self?.loadExistingConfig()
+                self?.onConfigurationChanged?()
+            }
+        )
         loadExistingConfig()
         loadAIFormatterProfiles()
+        Task {
+            await inProcessModelManager.refresh()
+        }
     }
 
     public func saveConfiguration() {

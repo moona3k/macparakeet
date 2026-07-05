@@ -219,6 +219,12 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     }
 
     public static var userSelectableProviderIDs: [LLMProviderID] {
+        userSelectableProviderIDs()
+    }
+
+    public static func userSelectableProviderIDs(
+        inProcessLocalLLMVisible: Bool = AppFeatures.isInProcessLocalLLMVisible()
+    ) -> [LLMProviderID] {
         [
             .lmstudio,
             .ollama,
@@ -228,7 +234,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
             .openrouter,
             .openaiCompatible,
             .localCLI,
-        ] + (AppFeatures.inProcessLocalLLMEnabled ? [.inProcessLocal] : [])
+        ] + (inProcessLocalLLMVisible ? [.inProcessLocal] : [])
     }
 
     public var displayName: String {
