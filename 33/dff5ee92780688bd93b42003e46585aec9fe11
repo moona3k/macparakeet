@@ -1,0 +1,28 @@
+Package.swift
+  s_ba5a78e8bcb942::t_875a292cbc9207 30
+Sources/MacParakeetLocalLLM/MLXLocalLLMRuntime.swift
+  s_ba5a78e8bcb942::t_875a292cbc9207 17,24-26,63-66,73-79,81-85,107-112,115-117,124-127,153,161-166,173-178,181,183,185,188-203,207-211
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_ba5a78e8bcb942::t_875a292cbc9207 277-283
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_ba5a78e8bcb942::t_875a292cbc9207 85,117,137-148,152,154,159,430,432,437-443,494,498-500,503-504,506-508,517-518,521,523,527,531
+  s_ba5a78e8bcb942::t_3c25179f300473 19,22,428,446,449-451,473-476,535
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_ba5a78e8bcb942::t_875a292cbc9207 179,182,184,197,203-204,210-212,221,224,226,242,251,264,338-340,345,347-353,358,361-368,374,378-380,382,384-408,420,425-426,430-431,435,444-447,455,481-482,506-523,529-537,544,547-549,551-555,558-562,564,566-569,571-573,575-581,583-585,588-592
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33dff5ee92780688bd93b42003e46585aec9fe11",
+  "prompts": {},
+  "sessions": {
+    "s_ba5a78e8bcb942": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "092b5396-8c78-4851-92cc-fee068ceaa4c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
