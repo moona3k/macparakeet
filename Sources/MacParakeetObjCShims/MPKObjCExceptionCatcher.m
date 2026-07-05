@@ -37,3 +37,7 @@ BOOL MPKTryBlock(NS_NOESCAPE void (^block)(void),
         return NO;
     }
 }
+
+mach_port_t MPKCurrentTaskPort(void) {
+    return mach_task_self();
+}
