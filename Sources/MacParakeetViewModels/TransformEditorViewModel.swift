@@ -17,9 +17,9 @@ import MacParakeetCore
 ///   collide with another Transform / dictation / meeting hotkey.
 /// - Prompt body: required.
 ///
-/// The view layer pairs this with a `TransformsHotkeyCollisionChecker`
-/// instance (Sources/MacParakeet/Hotkey) for the shortcut-collision
-/// branch. The collision results map directly to `shortcutError`.
+/// The view layer pairs this with Core's `TransformsHotkeyCollisionChecker`
+/// for the shortcut-collision branch. The collision results map directly to
+/// `shortcutError`.
 @MainActor
 @Observable
 public final class TransformEditorViewModel {
@@ -97,7 +97,7 @@ public final class TransformEditorViewModel {
     public func validate(
         existingPrompts: [Prompt],
         reservedHotkeys: [TransformShortcutReservedHotkey],
-        collisionChecker: TransformShortcutCollisionChecking
+        collisionChecker: TransformsHotkeyCollisionChecker
     ) {
         validateName(against: existingPrompts)
         validateContent()
@@ -130,7 +130,7 @@ public final class TransformEditorViewModel {
     private func validateShortcut(
         existingPrompts: [Prompt],
         reservedHotkeys: [TransformShortcutReservedHotkey],
-        collisionChecker: TransformShortcutCollisionChecking
+        collisionChecker: TransformsHotkeyCollisionChecker
     ) {
         guard let candidate = shortcut else {
             // A nil shortcut is a valid dormant state. Surface a friendly
@@ -148,7 +148,7 @@ public final class TransformEditorViewModel {
                 return (prompt.id, s)
             }
         )
-        let collision = collisionChecker.checkForEditor(
+        let collision = collisionChecker.check(
             candidate: candidate,
             existing: bindings,
             excludingPromptID: editingID,
@@ -204,47 +204,5 @@ public final class TransformEditorViewModel {
 
     public var defaultRunningLabelPreview: String {
         Prompt.defaultRunningLabel(forName: normalizedName)
-    }
-}
-
-// MARK: - Collision-checking abstraction
-//
-// `TransformsHotkeyCollisionChecker` itself lives in the MacParakeet GUI
-// target (alongside the registry). The ViewModels target can't import
-// MacParakeet, so we define a small protocol here that the GUI side
-// retroactively conforms to. Tests can fake it without dragging in
-// CGEvent infrastructure.
-
-public protocol TransformShortcutCollisionChecking {
-    /// Named distinctly from the GUI checker's `check(...)` so the adapter
-    /// in MacParakeet doesn't introduce an ambiguity with the underlying
-    /// type's own method of the same shape.
-    func checkForEditor(
-        candidate: KeyboardShortcut,
-        existing: [UUID: KeyboardShortcut],
-        excludingPromptID: UUID?,
-        reservedHotkeys: [TransformShortcutReservedHotkey]
-    ) -> TransformShortcutCollision?
-}
-
-/// Mirror of the GUI's `TransformsHotkeyCollision` for ViewModel-layer use.
-/// The GUI's checker has a small adapter that maps between the two.
-public enum TransformShortcutCollision: Equatable, Sendable {
-    case missingModifier
-    case macOSDeadKey
-    case duplicateTransform(otherPromptID: UUID)
-    case reservedHotkey(name: String)
-
-    public var message: String {
-        switch self {
-        case .missingModifier:
-            return "Shortcut must include a modifier key (\u{2303}, \u{2325}, \u{21E7}, or \u{2318})."
-        case .macOSDeadKey:
-            return "This shortcut produces a special character on Mac. Pick another combo."
-        case .duplicateTransform:
-            return "Another Transform already uses this shortcut."
-        case .reservedHotkey(let name):
-            return "This shortcut conflicts with \(name)."
-        }
     }
 }

@@ -103,15 +103,7 @@ final class AppHotkeyCoordinator {
         let conflict: Conflict?
     }
 
-    struct HotkeyConflictCandidate: Equatable {
-        let trigger: HotkeyTrigger
-        let mode: HotkeyTrigger.ConflictMode
-
-        init(_ trigger: HotkeyTrigger, mode: HotkeyTrigger.ConflictMode = .exclusive) {
-            self.trigger = trigger
-            self.mode = mode
-        }
-    }
+    typealias HotkeyConflictCandidate = HotkeyConflictPolicy.Candidate
 
     static func menuTitle(for trigger: HotkeyTrigger) -> String {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
@@ -398,13 +390,7 @@ final class AppHotkeyCoordinator {
         for trigger: HotkeyTrigger,
         among conflicts: [HotkeyConflictCandidate]
     ) -> [HotkeyTrigger] {
-        conflicts.compactMap { conflict in
-            guard !conflict.trigger.isDisabled,
-                  trigger.conflicts(with: conflict.trigger, otherMode: conflict.mode) else {
-                return nil
-            }
-            return conflict.trigger
-        }
+        HotkeyConflictPolicy.conflictingTriggers(for: trigger, among: conflicts)
     }
 
     private static func uniqueTriggers(_ triggers: [HotkeyTrigger]) -> [HotkeyTrigger] {
