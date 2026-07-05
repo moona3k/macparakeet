@@ -5,7 +5,7 @@
 > Nine candidates (two standing from June, four new from the AEC/LocalVQE surface,
 > three revived from the June "unwritten six") were adversarially verified against
 > `origin/main` @ `8a709ce83` by four independent Codex reviewers instructed to
-> refute. Five were cut, four confirmed with narrow scopes. Line anchors were
+> refute. Five were cut or already implemented, five confirmed with narrow scopes. Line anchors were
 > current at `8a709ce83`; re-check before acting — they drift.
 
 Vocabulary as in the June doc: **module / interface / implementation / deep /
