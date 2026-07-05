@@ -183,7 +183,8 @@ final class AppEnvironment {
         let checkoutURLString =
             (Bundle.main.object(forInfoDictionaryKey: "MacParakeetCheckoutURL") as? String)
             ?? ProcessInfo.processInfo.environment["MACPARAKEET_CHECKOUT_URL"]
-        checkoutURL = checkoutURLString
+        checkoutURL =
+            checkoutURLString
             .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 }
             .flatMap(URL.init(string:))
@@ -265,7 +266,9 @@ final class AppEnvironment {
                     // design; log it so a corrupted DB doesn't silently route
                     // every dictation past the user's profiles.
                     Logger(subsystem: "com.macparakeet.app", category: "AIFormatter")
-                        .error("Formatter profile fetch failed; using fallback prompt error=\(error.localizedDescription, privacy: .public)")
+                        .error(
+                            "Formatter profile fetch failed; using fallback prompt error=\(error.localizedDescription, privacy: .public)"
+                        )
                 }
             )
         } else {
@@ -274,7 +277,13 @@ final class AppEnvironment {
             )
         }
 
-        llmClient = Self.makeLLMClient()
+        #if MACPARAKEET_HAS_MLX_LOCAL_LLM
+        llmClient = RoutingLLMClient(
+            inProcessClient: InProcessLLMClient(runtime: MLXLocalLLMRuntime())
+        )
+        #else
+        llmClient = RoutingLLMClient()
+        #endif
         self.llmConfigStore = llmConfigStore
         llmService = LLMService(
             client: llmClient,
@@ -318,9 +327,10 @@ final class AppEnvironment {
                     .string(forKey: OnboardingViewModel.onboardingCompletedKey)
                     .flatMap { ISO8601DateFormatter().date(from: $0) }
                     .map { Date().timeIntervalSince($0) }
-                Telemetry.send(.firstDictationCompleted(
-                    activationWindow: TelemetryActivationWindow(secondsSinceOnboarding: secondsSinceOnboarding)
-                ))
+                Telemetry.send(
+                    .firstDictationCompleted(
+                        activationWindow: TelemetryActivationWindow(secondsSinceOnboarding: secondsSinceOnboarding)
+                    ))
             }
         )
 
@@ -393,12 +403,14 @@ final class AppEnvironment {
         // while this feature rides the live-dictation flag; the registry answers
         // whether the selected Parakeet variant actually has that tail-preview path.
         guard speechEngine == .parakeet else { return nil }
-        guard let capabilities = SpeechEngineCapabilityRegistry.capabilities(
-            for: speechEngine,
-            parakeetModelVariant: parakeetModelVariant,
-            nemotronModelVariant: nemotronModelVariant,
-            whisperModelVariant: whisperModelVariant
-        ) else {
+        guard
+            let capabilities = SpeechEngineCapabilityRegistry.capabilities(
+                for: speechEngine,
+                parakeetModelVariant: parakeetModelVariant,
+                nemotronModelVariant: nemotronModelVariant,
+                whisperModelVariant: whisperModelVariant
+            )
+        else {
             return nil
         }
         guard capabilities.supportsTailPreview else { return nil }
@@ -418,13 +430,15 @@ final class AppEnvironment {
         } catch {
             return
         }
-        let hasDictationRoutingPreference = defaults.object(
-            forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
-        ) != nil
+        let hasDictationRoutingPreference =
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey
+            ) != nil
         if config != nil {
-            let legacyFormatterWasEnabled = defaults.object(
-                forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey
-            ) as? Bool == true
+            let legacyFormatterWasEnabled =
+                defaults.object(
+                    forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey
+                ) as? Bool == true
             if !hasDictationRoutingPreference {
                 defaults.set(
                     legacyFormatterWasEnabled,
@@ -438,15 +452,5 @@ final class AppEnvironment {
                 defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
             }
         }
-    }
-
-    private nonisolated static func makeLLMClient() -> RoutingLLMClient {
-        #if MACPARAKEET_HAS_MLX_LOCAL_LLM
-        return RoutingLLMClient(
-            inProcessClient: InProcessLLMClient(runtime: MLXLocalLLMRuntime())
-        )
-        #else
-        return RoutingLLMClient()
-        #endif
     }
 }

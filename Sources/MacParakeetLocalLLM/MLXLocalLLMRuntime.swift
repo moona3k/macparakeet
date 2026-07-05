@@ -13,13 +13,17 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
     private var modelContainer: ModelContainer?
     private var loadedModel: LocalLLMModelReference?
     private var latestMetrics: LLMGenerationMetrics?
-    private var generationInProgress = false
+    private var generationTask: Task<Void, Never>?
+    private var generationInProgress: Bool { generationTask != nil }
     private var unloadAfterGeneration = false
 
     public init() {}
 
     public func load(model: LocalLLMModelReference) async throws {
         try Task.checkCancellation()
+        await drainGenerationIfNeeded()
+        try Task.checkCancellation()
+
         if generationInProgress {
             guard loadedModel == model, modelContainer != nil else {
                 throw LLMError.providerError("Cannot switch local MLX models while generation is in progress.")
@@ -33,7 +37,7 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
 
         clearLoadedState()
 
-        modelContainer = try await loadModelContainer(
+        modelContainer = try await LLMModelFactory.shared.loadContainer(
             from: model.directory,
             using: #huggingFaceTokenizerLoader()
         )
@@ -56,27 +60,28 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
         messages: [ChatMessage],
         options: ChatCompletionOptions
     ) async throws -> AsyncThrowingStream<LocalLLMRuntimeEvent, Error> {
+        try Task.checkCancellation()
+        await drainGenerationIfNeeded()
+        try Task.checkCancellation()
+
         guard modelContainer != nil else {
             throw LLMError.modelNotFound("Local MLX model is not loaded.")
         }
-        guard !generationInProgress else {
-            throw LLMError.providerError("Local MLX generation is already in progress.")
-        }
 
-        generationInProgress = true
         unloadAfterGeneration = false
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                await self.generate(
-                    messages: messages,
-                    options: options,
-                    continuation: continuation
-                )
-            }
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
+        let streamPair = AsyncThrowingStream<LocalLLMRuntimeEvent, Error>.makeStream()
+        let task = Task {
+            await self.generate(
+                messages: messages,
+                options: options,
+                continuation: streamPair.continuation
+            )
         }
+        generationTask = task
+        streamPair.continuation.onTermination = { _ in
+            task.cancel()
+        }
+        return streamPair.stream
     }
 
     public func instrumentation() async -> LLMGenerationMetrics? {
@@ -98,21 +103,27 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
             }
 
             try Task.checkCancellation()
+            let parameters = GenerateParameters(
+                maxTokens: options.maxTokens,
+                kvBits: 4,
+                temperature: Float(options.temperature ?? 0.2)
+            )
+            let input = Self.chatInput(from: messages)
             let session = ChatSession(
                 modelContainer,
-                generateParameters: GenerateParameters(
-                    maxTokens: options.maxTokens,
-                    kvBits: 4,
-                    temperature: Float(options.temperature ?? 0.2)
-                )
+                instructions: input.instructions,
+                history: input.history,
+                generateParameters: parameters
             )
-            let prompt = Self.prompt(from: messages)
 
             let start = Date()
             var firstTokenDate: Date?
             var tokenCount = 0
 
-            for try await token in session.streamResponse(to: prompt) {
+            for try await token in session.streamResponse(
+                to: input.prompt,
+                role: input.role
+            ) {
                 try Task.checkCancellation()
                 if firstTokenDate == nil {
                     firstTokenDate = Date()
@@ -137,12 +148,18 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
     }
 
     private func finishGeneration() {
-        generationInProgress = false
+        generationTask = nil
         guard unloadAfterGeneration else { return }
 
         unloadAfterGeneration = false
         clearLoadedState()
         logger.info("Unloaded local MLX model")
+    }
+
+    private func drainGenerationIfNeeded() async {
+        while let generationTask {
+            await generationTask.value
+        }
     }
 
     private func clearLoadedState() {
@@ -151,19 +168,46 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
         latestMetrics = nil
     }
 
-    private static func prompt(from messages: [ChatMessage]) -> String {
-        messages.map { message in
+    private static func chatInput(from messages: [ChatMessage]) -> MLXChatInput {
+        let instructions =
+            messages
+            .filter { $0.role == .system }
+            .map(\.content)
+            .joined(separator: "\n\n")
+        let conversationalMessages = messages.compactMap { message -> Chat.Message? in
             switch message.role {
             case .system:
-                return "System: \(message.content)"
+                return nil
             case .user:
-                return "User: \(message.modelContent)"
+                return .user(message.modelContent)
             case .assistant:
-                return "Assistant: \(message.content)"
+                return .assistant(message.content)
             }
         }
-        .joined(separator: "\n\n")
+
+        guard let finalMessage = conversationalMessages.last else {
+            return MLXChatInput(
+                instructions: instructions.isEmpty ? nil : instructions,
+                history: [],
+                prompt: "",
+                role: .user
+            )
+        }
+
+        return MLXChatInput(
+            instructions: instructions.isEmpty ? nil : instructions,
+            history: Array(conversationalMessages.dropLast()),
+            prompt: finalMessage.content,
+            role: finalMessage.role
+        )
     }
+}
+
+private struct MLXChatInput {
+    let instructions: String?
+    let history: [Chat.Message]
+    let prompt: String
+    let role: Chat.Message.Role
 }
 
 #endif

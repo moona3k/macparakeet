@@ -73,12 +73,14 @@ Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 | `calendarEnabled` | `true` | Shipping calendar reminders/auto-start; per-user auto-start defaults off |
 | `meetingAutoStopEnabled` | `true` | `main` dogfood flag for ADR-023; per-user setting defaults off and is not yet in a tagged release |
 | `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 Phase A mic-health telemetry watchdog |
+| `meetingSourceHealthUIEnabled` | `false` | Source-health model/plumbing stay compiled, but health chips/pill glyph/tile mirror are hidden after the 2026-07-04 product review |
 | `meetingActivityDetectionEnabled` | `false` | ADR-024 collectors/detector are compiled but runtime coordinator/UI remain gated |
 | `transformsEnabled` | `true` | Productized Transforms shipping surface |
 | `cohereEngineEnabled` | `true` | Settings exposes Cohere Transcribe as an opt-in, downloaded, batch-only local engine; no live preview/timestamps |
 | `meetingVadLiveChunkingEnabled` | `true` | VAD-guided meeting live-preview chunking; final post-stop transcript path unchanged |
 | `liveDictationStreamingEnabled` | `true` | Display-only live dictation preview enabled on `main`; final paste remains stop-time transcription |
 | `aiFormatterProfilesEnabled` | `false` | App-aware AI Formatter profiles are code-complete but held out of the current tagged release train |
+| `inProcessLocalLLMEnabled` | `false` | In-process local LLM (MLX) foundation seam is compiled and tested, but provider lists hide the option; the real MLX runtime links only in opt-in `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1` app builds |
 
 ## Architecture Decision Records (ADRs)
 
