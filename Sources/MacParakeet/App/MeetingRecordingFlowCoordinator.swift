@@ -708,22 +708,104 @@ final class MeetingRecordingFlowCoordinator {
             currentMeetingOperationContext = operationContext
             actionTask = Task { @MainActor in
                 var stoppedOutput: MeetingRecordingOutput?
+                let queueingStartedAt = Date()
+                var queueingOutcome = "success"
+                var queueingFailureDetail: String?
+                var activeSessionID: UUID?
+                func elapsedMilliseconds(since startedAt: Date) -> Int {
+                    max(0, Int((Date().timeIntervalSince(startedAt) * 1_000).rounded()))
+                }
+                func appendStopStage(
+                    _ stage: String,
+                    sessionID: UUID?,
+                    startedAt: Date,
+                    outcome: String = "success",
+                    detail: String? = nil
+                ) {
+                    let sessionField = sessionID.map { " session=\($0.uuidString)" } ?? ""
+                    let suffix = detail.map { " \($0)" } ?? ""
+                    let fields = [
+                        "meeting_stop_stage\(sessionField)",
+                        "stage=\(stage)",
+                        "duration_ms=\(elapsedMilliseconds(since: startedAt))",
+                        "outcome=\(outcome)",
+                    ].joined(separator: " ")
+                    AudioCaptureDiagnostics.append(
+                        "\(fields)\(suffix)"
+                    )
+                }
+                defer {
+                    appendStopStage(
+                        "queued_total",
+                        sessionID: stoppedOutput?.sessionID ?? activeSessionID,
+                        startedAt: queueingStartedAt,
+                        outcome: queueingOutcome,
+                        detail: queueingFailureDetail
+                    )
+                }
+
                 do {
+                    activeSessionID = await meetingRecordingService.activeSessionID
                     let prepared = try await Observability.withOperationContext(operationContext) {
                         // Flush any keystrokes typed in the last < 250 ms so
                         // they make it onto the lock file and into the saved
                         // Transcription.userNotes (ADR-020 §8).
+                        let notesCommitStartedAt = Date()
                         await notesVM?.commit()
-                        let output = try await meetingRecordingService.stopRecording()
+                        appendStopStage(
+                            "notes_commit",
+                            sessionID: activeSessionID,
+                            startedAt: notesCommitStartedAt
+                        )
+                        let serviceStopStartedAt = Date()
+                        let output: MeetingRecordingOutput
+                        do {
+                            output = try await meetingRecordingService.stopRecording()
+                        } catch {
+                            appendStopStage(
+                                "service_stop",
+                                sessionID: activeSessionID,
+                                startedAt: serviceStopStartedAt,
+                                outcome: error is CancellationError ? "cancelled" : "failure",
+                                detail: "error_type=\(TelemetryErrorClassifier.classify(error))"
+                            )
+                            throw error
+                        }
                         stoppedOutput = output
+                        appendStopStage(
+                            "service_stop",
+                            sessionID: output.sessionID,
+                            startedAt: serviceStopStartedAt
+                        )
                         Telemetry.send(
                             .meetingRecordingCompleted(
                                 durationSeconds: output.durationSeconds,
                                 liveWordCount: liveWordCount,
                                 liveTranscriptLagged: liveTranscriptLagged
                             ))
-                        let prepared = try await transcriptionService.prepareMeetingTranscription(recording: output)
+                        let prepareRowStartedAt = Date()
+                        let prepared: Transcription
+                        do {
+                            prepared = try await transcriptionService.prepareMeetingTranscription(
+                                recording: output
+                            )
+                        } catch {
+                            appendStopStage(
+                                "prepare_row",
+                                sessionID: output.sessionID,
+                                startedAt: prepareRowStartedAt,
+                                outcome: error is CancellationError ? "cancelled" : "failure",
+                                detail: "error_type=\(TelemetryErrorClassifier.classify(error))"
+                            )
+                            throw error
+                        }
+                        appendStopStage(
+                            "prepare_row",
+                            sessionID: output.sessionID,
+                            startedAt: prepareRowStartedAt
+                        )
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
+                        let enqueueStartedAt = Date()
                         meetingTranscriptionQueue.enqueue(
                             MeetingTranscriptionQueue.Item(
                                 recording: output,
@@ -733,6 +815,11 @@ final class MeetingRecordingFlowCoordinator {
                                 liveWordCount: liveWordCount,
                                 liveTranscriptLagged: liveTranscriptLagged
                             ))
+                        appendStopStage(
+                            "queue_enqueue",
+                            sessionID: output.sessionID,
+                            startedAt: enqueueStartedAt
+                        )
                         return prepared
                     }
                     self.currentMeetingOperationContext = nil
@@ -742,6 +829,8 @@ final class MeetingRecordingFlowCoordinator {
                     // If stop already succeeded, the lock is already
                     // awaitingTranscription. Leave it for recovery to retry.
                     if error is CancellationError {
+                        queueingOutcome = "cancelled"
+                        queueingFailureDetail = "error_type=\(TelemetryErrorClassifier.classify(error))"
                         self.sendMeetingOperation(
                             outcome: .cancelled,
                             output: stoppedOutput,
@@ -752,6 +841,8 @@ final class MeetingRecordingFlowCoordinator {
                         self.currentMeetingOperationContext = nil
                         self.currentMeetingTrigger = nil
                     } else {
+                        queueingOutcome = "failure"
+                        queueingFailureDetail = "error_type=\(TelemetryErrorClassifier.classify(error))"
                         Telemetry.send(
                             .meetingRecordingFailed(
                                 errorType: TelemetryErrorClassifier.classify(error),
