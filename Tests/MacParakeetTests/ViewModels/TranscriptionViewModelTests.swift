@@ -85,6 +85,10 @@ private final class FailSecondSpeakerUpdate: @unchecked Sendable {
     }
 }
 
+private enum LocalTitleRenameTestError: Error {
+    case persistenceFailed
+}
+
 @MainActor
 final class TranscriptionViewModelTests: XCTestCase {
     var viewModel: TranscriptionViewModel!
@@ -2043,6 +2047,73 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.currentTranscription?.fileName, "Meeting Apr 5")
         XCTAssertTrue(mockRepo.updateFileNameCalls.isEmpty)
+    }
+
+    func testRenameCurrentLocalTranscriptionTitleUpdatesOverrideOnly() {
+        let t = Transcription(
+            fileName: "IMG_1942.m4a",
+            filePath: "/tmp/IMG_1942.m4a",
+            status: .completed,
+            sourceType: .file,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+        viewModel.transcriptions = [t]
+
+        viewModel.renameCurrentTranscriptionTitle(to: "  Q3 Vendor Notes  ")
+
+        XCTAssertEqual(viewModel.currentTranscription?.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(viewModel.currentTranscription?.effectiveDisplayTitle, "Q3 Vendor Notes")
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "IMG_1942.m4a")
+        XCTAssertEqual(viewModel.currentTranscription?.filePath, "/tmp/IMG_1942.m4a")
+        XCTAssertEqual(viewModel.currentTranscription?.derivedTitle, "Auto Derived Title")
+        XCTAssertEqual(viewModel.transcriptions.first?.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(mockRepo.updateTitleOverrideCalls.count, 1)
+        XCTAssertEqual(mockRepo.updateTitleOverrideCalls[0].titleOverride, "Q3 Vendor Notes")
+        XCTAssertTrue(mockRepo.updateFileNameCalls.isEmpty)
+    }
+
+    func testRenameCurrentLocalTranscriptionTitleIgnoresBlankAndNoOpTitle() {
+        let t = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            sourceType: .file,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameCurrentTranscriptionTitle(to: "   ")
+        viewModel.renameCurrentTranscriptionTitle(to: "Auto Derived Title")
+
+        XCTAssertNil(viewModel.currentTranscription?.titleOverride)
+        XCTAssertEqual(viewModel.currentTranscription?.effectiveDisplayTitle, "Auto Derived Title")
+        XCTAssertTrue(mockRepo.updateTitleOverrideCalls.isEmpty)
+    }
+
+    func testRenameCurrentLocalTranscriptionTitleSurfacesPersistenceFailure() {
+        let t = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            sourceType: .file,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [t]
+        mockRepo.updateTitleOverrideError = LocalTitleRenameTestError.persistenceFailed
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameCurrentTranscriptionTitle(to: "Q3 Vendor Notes")
+
+        XCTAssertEqual(mockRepo.updateTitleOverrideCalls.count, 1)
+        XCTAssertNil(viewModel.currentTranscription?.titleOverride)
+        XCTAssertTrue(viewModel.errorMessage?.contains("Failed to rename transcription") ?? false)
     }
 
     // MARK: - Tab Visibility

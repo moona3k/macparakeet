@@ -134,10 +134,14 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var deleteError: Error?
     var onDelete: (@Sendable (UUID) -> Void)?
     var updateFileNameCalls: [(id: UUID, fileName: String)] = []
+    var updateTitleOverrideCalls: [(id: UUID, titleOverride: String?)] = []
     var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
     var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
+    var fetchAllError: Error?
+    var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
+    var updateTitleOverrideError: Error?
     var updateFilePathError: Error?
     var updateSpeakersError: Error?
     var updateSpeakersHandler: (@Sendable (UUID, [SpeakerInfo]?) throws -> Void)?
@@ -159,6 +163,12 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 
     func fetchAll(limit: Int?) throws -> [Transcription] {
+        if let fetchAllError {
+            throw fetchAllError
+        }
+        if let fetchAllHandler {
+            return try fetchAllHandler(limit)
+        }
         let sorted = transcriptions.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
         return sorted
@@ -201,6 +211,19 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].fileName = fileName
             transcriptions[idx].derivedTitle = fileName
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
+    func updateTitleOverride(id: UUID, titleOverride: String?) throws {
+        let normalizedTitle = Transcription.normalizedTitleOverride(from: titleOverride)
+        updateTitleOverrideCalls.append((id: id, titleOverride: normalizedTitle))
+        if let updateTitleOverrideError {
+            throw updateTitleOverrideError
+        }
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            guard transcriptions[idx].sourceType == .file else { return }
+            transcriptions[idx].titleOverride = normalizedTitle
             transcriptions[idx].updatedAt = Date()
         }
     }

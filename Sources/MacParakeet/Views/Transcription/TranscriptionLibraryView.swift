@@ -14,6 +14,8 @@ struct TranscriptionLibraryView: View {
     var onSelect: (Transcription) -> Void
 
     @State private var pendingDelete: Transcription?
+    @State private var pendingRename: Transcription?
+    @State private var renameTitleDraft = ""
     @State private var pendingDeleteAudio: Transcription?
     @State private var audioSaveErrorMessage: String?
     @State private var showingBulkExportOptions = false
@@ -146,6 +148,22 @@ struct TranscriptionLibraryView: View {
             if let pending = pendingDelete {
                 Text(singleDeleteMessage(for: pending))
             }
+        }
+        .alert(
+            "Rename Transcription",
+            isPresented: Binding(
+                get: { pendingRename != nil },
+                set: { if !$0 { cancelRename() } }
+            )
+        ) {
+            TextField("Title", text: $renameTitleDraft)
+            Button("Cancel", role: .cancel) {
+                cancelRename()
+            }
+            Button("Rename") {
+                commitRename()
+            }
+            .disabled(isRenameDisabled)
         }
         .alert(
             MeetingDeletionCopy.audioOnlyAlertTitle,
@@ -309,6 +327,14 @@ struct TranscriptionLibraryView: View {
             Label("Open", systemImage: "doc.text")
         }
 
+        if !viewModel.isBulkSelectionModeEnabled, transcription.sourceType == .file {
+            Button {
+                beginRename(transcription)
+            } label: {
+                Label("Rename...", systemImage: "pencil")
+            }
+        }
+
         if !viewModel.isBulkSelectionModeEnabled {
             Button {
                 viewModel.beginBulkSelection(startingWith: transcription)
@@ -442,6 +468,30 @@ struct TranscriptionLibraryView: View {
                 audioSaveErrorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func beginRename(_ transcription: Transcription) {
+        pendingRename = transcription
+        renameTitleDraft = transcription.effectiveDisplayTitle
+    }
+
+    private func cancelRename() {
+        pendingRename = nil
+        renameTitleDraft = ""
+    }
+
+    private func commitRename() {
+        guard let transcription = pendingRename else { return }
+        if viewModel.renameTranscriptionTitle(transcription, to: renameTitleDraft) {
+            cancelRename()
+        }
+    }
+
+    private var isRenameDisabled: Bool {
+        guard let normalizedTitle = Transcription.normalizedTitleOverride(from: renameTitleDraft) else {
+            return true
+        }
+        return normalizedTitle == pendingRename?.effectiveDisplayTitle
     }
 
     // Static so the completeness check runs once at first use rather than

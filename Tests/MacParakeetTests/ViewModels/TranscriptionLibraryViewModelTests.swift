@@ -219,6 +219,156 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.filteredTranscriptions.first?.fileName, "Apple.mp3")
     }
 
+    func testRenameLocalTranscriptionTitleUpdatesOverrideAndPreservesSourceMetadata() async throws {
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            filePath: "/tmp/IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        try repo.save(transcription)
+        vm.filter = .local
+        await load()
+
+        vm.renameTranscriptionTitle(vm.transcriptions[0], to: "  Q3 Vendor Notes  ")
+
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertEqual(loaded.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(loaded.effectiveDisplayTitle, "Q3 Vendor Notes")
+        XCTAssertEqual(loaded.fileName, "IMG_1942.m4a")
+        XCTAssertEqual(loaded.filePath, "/tmp/IMG_1942.m4a")
+        XCTAssertEqual(loaded.derivedTitle, "Auto Derived Title")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(fetched.fileName, "IMG_1942.m4a")
+        XCTAssertEqual(fetched.filePath, "/tmp/IMG_1942.m4a")
+        XCTAssertEqual(fetched.derivedTitle, "Auto Derived Title")
+    }
+
+    func testRenameLocalTranscriptionTitleRejectsBlankAndNoOpTitles() async throws {
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        try repo.save(transcription)
+        await load()
+
+        vm.renameTranscriptionTitle(vm.transcriptions[0], to: "   ")
+        vm.renameTranscriptionTitle(vm.transcriptions[0], to: "Auto Derived Title")
+
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertNil(loaded.titleOverride)
+        XCTAssertEqual(loaded.effectiveDisplayTitle, "Auto Derived Title")
+        XCTAssertNil(try repo.fetch(id: transcription.id)?.titleOverride)
+    }
+
+    func testRenameLocalTranscriptionTitleReloadsCurrentSortOrder() async throws {
+        let first = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            fileName: "z-source.m4a",
+            status: .completed
+        )
+        let second = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            fileName: "b-source.m4a",
+            status: .completed
+        )
+        try repo.save(first)
+        try repo.save(second)
+        vm.filter = .local
+        vm.sortOrder = .titleAscending
+        await load()
+
+        XCTAssertEqual(vm.filteredTranscriptions.map(\.id), [second.id, first.id])
+
+        XCTAssertTrue(vm.renameTranscriptionTitle(first, to: "Aardvark Notes"))
+
+        XCTAssertEqual(vm.filteredTranscriptions.map(\.id), [first.id, second.id])
+    }
+
+    func testRenameLocalTranscriptionTitleReportsRefreshFailureAfterSuccessfulWrite() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await load(viewModel)
+
+        mockRepo.fetchAllError = LibraryRenameTestError.reloadFailed
+        XCTAssertTrue(viewModel.renameTranscriptionTitle(viewModel.transcriptions[0], to: "Q3 Vendor Notes"))
+
+        XCTAssertEqual(mockRepo.updateTitleOverrideCalls.count, 1)
+        XCTAssertEqual(mockRepo.transcriptions.first?.titleOverride, "Q3 Vendor Notes")
+        XCTAssertTrue(
+            viewModel.errorMessage?.contains("Renamed transcription, but failed to refresh Library") ?? false
+        )
+        XCTAssertFalse(viewModel.errorMessage?.contains("Failed to rename transcription") ?? true)
+    }
+
+    func testRenameLocalTranscriptionTitleReturnsFalseWhenWriteFails() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [transcription]
+        mockRepo.updateTitleOverrideError = LibraryRenameTestError.persistenceFailed
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await load(viewModel)
+
+        let renamed = viewModel.renameTranscriptionTitle(viewModel.transcriptions[0], to: "Q3 Vendor Notes")
+
+        XCTAssertFalse(renamed)
+        XCTAssertEqual(mockRepo.updateTitleOverrideCalls.count, 1)
+        XCTAssertNil(mockRepo.transcriptions.first?.titleOverride)
+        XCTAssertTrue(viewModel.errorMessage?.contains("Failed to rename transcription") ?? false)
+    }
+
+    func testRenameLocalTranscriptionTitlePreventsStaleInFlightLoadFromOverwritingRefresh() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        let gate = StaleFetchGate()
+        mockRepo.transcriptions = [transcription]
+        mockRepo.fetchAllHandler = { [mockRepo, gate] limit in
+            let callNumber = gate.nextCallNumber()
+            let snapshot = mockRepo.transcriptions
+            if callNumber == 1 {
+                gate.blockFirstFetchUntilAllowed()
+            }
+            let sorted = snapshot.sorted { $0.createdAt > $1.createdAt }
+            if let limit { return Array(sorted.prefix(limit)) }
+            return sorted
+        }
+        viewModel.configure(transcriptionRepo: mockRepo)
+
+        let staleLoad = viewModel.loadTranscriptions()
+        await Task.detached {
+            gate.waitForFirstFetchStarted()
+        }.value
+
+        XCTAssertTrue(viewModel.renameTranscriptionTitle(transcription, to: "Q3 Vendor Notes"))
+        XCTAssertEqual(viewModel.transcriptions.first?.titleOverride, "Q3 Vendor Notes")
+
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        XCTAssertEqual(viewModel.transcriptions.first?.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(viewModel.transcriptions.first?.effectiveDisplayTitle, "Q3 Vendor Notes")
+    }
+
     // MARK: - Favorites
 
     func testToggleFavorite() async throws {
@@ -670,6 +820,38 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         // Only the audio-less meeting is skipped — the three non-meeting items
         // are not counted (the old behavior reported 4).
         XCTAssertEqual(operation.skippedCount, 1)
+    }
+}
+
+private enum LibraryRenameTestError: Error {
+    case reloadFailed
+    case persistenceFailed
+}
+
+private final class StaleFetchGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var callCount = 0
+    private let firstFetchStarted = DispatchSemaphore(value: 0)
+    private let allowFirstFetch = DispatchSemaphore(value: 0)
+
+    func nextCallNumber() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        callCount += 1
+        return callCount
+    }
+
+    func blockFirstFetchUntilAllowed() {
+        firstFetchStarted.signal()
+        allowFirstFetch.wait()
+    }
+
+    func waitForFirstFetchStarted() {
+        firstFetchStarted.wait()
+    }
+
+    func allowFirstFetchToFinish() {
+        allowFirstFetch.signal()
     }
 }
 

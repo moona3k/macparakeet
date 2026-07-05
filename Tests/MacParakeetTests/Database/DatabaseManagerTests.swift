@@ -53,6 +53,15 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testTitleOverrideMigrationAddsTranscriptionColumn() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(columns.contains("titleOverride"))
+        }
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")

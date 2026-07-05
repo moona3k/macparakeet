@@ -1431,6 +1431,7 @@ public final class TranscriptionViewModel {
 
     public func renameCurrentTranscription(to newFileName: String) {
         guard var transcription = currentTranscription else { return }
+        guard transcription.sourceType == .meeting else { return }
         let trimmed = newFileName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != transcription.fileName else { return }
 
@@ -1449,6 +1450,29 @@ public final class TranscriptionViewModel {
             }
         } catch {
             logger.error("Failed to persist transcription rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
+        }
+    }
+
+    public func renameCurrentTranscriptionTitle(to newTitle: String) {
+        guard let transcription = currentTranscription else { return }
+        guard transcription.sourceType == .file else { return }
+        guard let transcriptionRepo else { return }
+        guard let normalizedTitle = Transcription.normalizedTitleOverride(from: newTitle),
+              normalizedTitle != transcription.effectiveDisplayTitle else {
+            return
+        }
+
+        clearError()
+        do {
+            try transcriptionRepo.updateTitleOverride(id: transcription.id, titleOverride: normalizedTitle)
+            guard let updatedTranscription = try transcriptionRepo.fetch(id: transcription.id) else { return }
+            currentTranscription = updatedTranscription
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index] = updatedTranscription
+            }
+        } catch {
+            logger.error("Failed to persist transcription title rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
+            setError(message: "Failed to rename transcription: \(error.localizedDescription)")
         }
     }
 

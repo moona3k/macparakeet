@@ -15,6 +15,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func deleteAll() throws
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
     func updateFileName(id: UUID, fileName: String) throws
+    func updateTitleOverride(id: UUID, titleOverride: String?) throws
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
     func updateFilePath(id: UUID, filePath: String?) throws
@@ -75,7 +76,11 @@ extension TranscriptionRepositoryProtocol {
             results.sort { $0.createdAt < $1.createdAt }
         case .titleAscending:
             results.sort {
-                $0.fileName.localizedCaseInsensitiveCompare($1.fileName) == .orderedAscending
+                let comparison = $0.effectiveDisplayTitle.localizedCaseInsensitiveCompare($1.effectiveDisplayTitle)
+                if comparison == .orderedSame {
+                    return $0.createdAt > $1.createdAt
+                }
+                return comparison == .orderedAscending
             }
         }
 
@@ -93,6 +98,7 @@ extension TranscriptionRepositoryProtocol {
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
     public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {}
     public func updateFileName(id: UUID, fileName: String) throws {}
+    public func updateTitleOverride(id: UUID, titleOverride: String?) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
     public func updateFilePath(id: UUID, filePath: String?) throws {}
@@ -106,6 +112,19 @@ extension TranscriptionRepositoryProtocol {
 // advertise Swift Sendable conformance.
 public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
     private let dbQueue: DatabaseQueue
+    private static let libraryDisplayTitleExpression = """
+        COALESCE(
+            CASE
+                WHEN sourceType = 'meeting' THEN NULL
+                ELSE NULLIF(TRIM(titleOverride), '')
+            END,
+            CASE
+                WHEN sourceType = 'meeting' THEN NULLIF(TRIM(fileName), '')
+                ELSE COALESCE(NULLIF(TRIM(derivedTitle), ''), NULLIF(TRIM(fileName), ''))
+            END,
+            fileName
+        )
+        """
 
     public init(dbQueue: DatabaseQueue) {
         self.dbQueue = dbQueue
@@ -421,6 +440,18 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
+    public func updateTitleOverride(id: UUID, titleOverride: String?) throws {
+        let normalizedTitle = Transcription.normalizedTitleOverride(from: titleOverride)
+        try dbQueue.write { db in
+            guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
+            guard transcription.sourceType == .file else { return }
+            guard transcription.normalizedTitleOverride != normalizedTitle else { return }
+            transcription.titleOverride = normalizedTitle
+            transcription.updatedAt = Date()
+            try transcription.update(db)
+        }
+    }
+
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
@@ -555,7 +586,7 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         case .dateAscending:
             return "createdAt ASC"
         case .titleAscending:
-            return "fileName COLLATE NOCASE ASC, createdAt DESC"
+            return "\(libraryDisplayTitleExpression) COLLATE NOCASE ASC, createdAt DESC"
         }
     }
 }
@@ -571,7 +602,9 @@ private func transcriptionMatchesLibrarySearch(
     _ transcription: Transcription,
     normalizedQuery: String
 ) -> Bool {
-    UnicodeSearch.contains(transcription.fileName, normalizedQuery: normalizedQuery)
+    UnicodeSearch.contains(transcription.effectiveDisplayTitle, normalizedQuery: normalizedQuery)
+        || UnicodeSearch.contains(transcription.fileName, normalizedQuery: normalizedQuery)
+        || (transcription.derivedTitle.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
         || (transcription.rawTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
         || (transcription.cleanTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
         || (transcription.channelName.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)

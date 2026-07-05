@@ -431,11 +431,57 @@ public final class TranscriptionLibraryViewModel {
         }
     }
 
+    @discardableResult
+    public func renameTranscriptionTitle(_ transcription: Transcription, to title: String) -> Bool {
+        guard transcription.sourceType == .file else { return false }
+        guard let repo = transcriptionRepo else { return false }
+        guard let normalizedTitle = Transcription.normalizedTitleOverride(from: title),
+              normalizedTitle != transcription.effectiveDisplayTitle else {
+            return false
+        }
+
+        errorMessage = nil
+        do {
+            try repo.updateTitleOverride(id: transcription.id, titleOverride: normalizedTitle)
+        } catch {
+            logger.error("Failed to rename transcription title: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to rename transcription: \(error.localizedDescription)"
+            return false
+        }
+
+        cancelActiveLoad()
+        do {
+            try reloadLoadedWindow()
+        } catch {
+            logger.error("Renamed transcription title but failed to refresh Library: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Renamed transcription, but failed to refresh Library: \(error.localizedDescription)"
+        }
+        return true
+    }
+
     private func reloadAfterStateChange() {
         exitBulkSelection()
         searchDebounceTask?.cancel()
         searchDebounceTask = nil
         loadTranscriptions()
+    }
+
+    private func reloadLoadedWindow() throws {
+        guard let repo = transcriptionRepo else { return }
+        guard var query = makeQuery(offset: 0) else {
+            publishLoadedItems([], hasMore: false)
+            return
+        }
+        query.limit = max(pageSize, transcriptions.count)
+        let page = try repo.fetchLibraryPage(query: query)
+        publishLoadedItems(page.items, hasMore: page.hasMore)
+    }
+
+    private func cancelActiveLoad() {
+        loadTask?.cancel()
+        loadTask = nil
+        loadGeneration += 1
+        isLoading = false
     }
 
     private func debounceSearchReload() {

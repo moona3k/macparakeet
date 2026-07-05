@@ -123,6 +123,12 @@ The tile body is informational. Only the visible Start and Stop capsules are rea
 
 When `Library.filter == .meeting`, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard` instead of the thumbnail grid the other filters use. Meeting rows surface saved-audio state directly (`Audio saved`, `Audio removed`, or `Audio missing`) so playback/retranscription expectations are visible before the user opens a menu.
 
+### Local Transcription Rename
+
+Local transcription rows expose `Rename...` with a `pencil` symbol in the same Library card/context menu as `Open`, placed before selection and destructive actions. The dialog is compact, prefilled with the effective display title, and rejects blank titles. Rename is a display-metadata operation only: the original source filename/path remain unchanged, and copy-on-import/media-retention behavior is not implied.
+
+The transcript detail header uses the same effective title as the Library. The pencil affordance is available for supported title-editing sources: meetings through the existing meeting title path, and local file transcriptions through the persisted title override path.
+
 ### Library Multi-Select Cleanup
 
 Library offers a `Select Many...` secondary action when there are visible rows. Selection mode keeps actions in a contextual bar above the content: `Cancel`, `Select All` (which targets the loaded rows only, so deletion never reaches unloaded records), `Clear`, `Remove Audio Only...` for selected meetings with stored audio, and `Delete Items...` / `Delete Meetings...` for full deletion.

@@ -61,6 +61,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// from, or probably overlaps, an EventKit event. Contains attendee data
     /// and remains local-only.
     public var calendarEventSnapshot: MeetingCalendarSnapshot?
+    /// User-authored display title for non-meeting transcription rows. This is
+    /// app metadata only; it does not rename or move the original source file.
+    public var titleOverride: String?
     /// Display-ready title derived from the transcript content at completion
     /// (substantive first sentence, filler-stripped). `nil` when the transcript
     /// is empty or when the row predates v0.9 backfill.
@@ -111,6 +114,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         engine: String? = nil,
         engineVariant: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        titleOverride: String? = nil,
         derivedTitle: String? = nil,
         derivedSnippet: String? = nil,
         updatedAt: Date = Date()
@@ -147,6 +151,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.engine = engine
         self.engineVariant = engineVariant
         self.calendarEventSnapshot = calendarEventSnapshot
+        self.titleOverride = Self.normalizedTitleOverride(from: titleOverride)
         self.derivedTitle = derivedTitle
         self.derivedSnippet = derivedSnippet
         self.updatedAt = updatedAt
@@ -172,6 +177,33 @@ extension Transcription {
         guard let speakers, !speakers.isEmpty,
               let wordTimestamps else { return false }
         return wordTimestamps.contains { $0.speakerId != nil }
+    }
+
+    public static func normalizedTitleOverride(from title: String?) -> String? {
+        guard let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    public var normalizedTitleOverride: String? {
+        Self.normalizedTitleOverride(from: titleOverride)
+    }
+
+    public var effectiveDisplayTitle: String {
+        if sourceType == .meeting {
+            let name = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? fileName : name
+        }
+        if let titleOverride = normalizedTitleOverride {
+            return titleOverride
+        }
+        if let derived = derivedTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !derived.isEmpty {
+            return derived
+        }
+        return fileName
     }
 }
 
@@ -285,7 +317,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
         case calendarEventSnapshot
     }
 
@@ -356,6 +388,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
             MeetingCalendarSnapshot.self,
             forKey: .calendarEventSnapshot
         )) ?? nil
+        titleOverride = Self.normalizedTitleOverride(from: try container.decodeIfPresent(String.self, forKey: .titleOverride))
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)

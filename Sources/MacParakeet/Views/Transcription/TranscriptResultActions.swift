@@ -84,7 +84,7 @@ enum TranscriptResultActions {
         format: TranscriptExportFormat
     ) throws -> URL {
         do {
-            let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
+            let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.effectiveDisplayTitle)
             let promptNameSafe = promptResult.promptName
                 .lowercased()
                 .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -116,7 +116,7 @@ enum TranscriptResultActions {
         options: TranscriptExportOptions = .default
     ) throws -> URL {
         do {
-            let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
+            let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.effectiveDisplayTitle)
             let downloadsURL = try downloadsDirectory()
             let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
             try exportTranscript(transcription: transcription, format: format, options: options, to: fileURL)
@@ -168,7 +168,7 @@ enum TranscriptResultActions {
                 try Task.checkCancellation()
                 await Task.yield()
 
-                let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
+                let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.effectiveDisplayTitle)
                 let fileURL = nextAvailableURL(in: directory, stem: stem, format: format)
                 let resolvedOptions = resolvedOptions(
                     for: transcription,

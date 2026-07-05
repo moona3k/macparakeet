@@ -1059,6 +1059,15 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.26 — User-authored display titles for local transcription rows.
+        // This is app metadata only: source file names and paths stay intact.
+        migrator.registerMigration("v0.26-transcription-title-override") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("titleOverride") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN titleOverride TEXT")
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

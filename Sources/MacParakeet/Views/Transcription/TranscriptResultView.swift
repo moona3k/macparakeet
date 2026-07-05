@@ -108,8 +108,8 @@ struct TranscriptResultView: View {
     @State private var notesCopied = false
     @State private var notesCopiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
-    @State private var editingMeetingTitle = false
-    @State private var meetingTitleDraft = ""
+    @State private var editingTitle = false
+    @State private var titleDraft = ""
     @State private var editingTranscript = false
     @State private var transcriptDraft = ""
     @State private var transcriptEditError: String?
@@ -163,7 +163,7 @@ struct TranscriptResultView: View {
     @State private var pendingDeleteMeetingAudio = false
     @State private var showingCancelGenerationAlert: UUID?
     @FocusState private var chatInputFocused: Bool
-    @FocusState private var meetingTitleFocused: Bool
+    @FocusState private var titleFocused: Bool
     @FocusState private var transcriptEditorFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
     @FocusState private var findFieldFocused: Bool
@@ -228,8 +228,8 @@ struct TranscriptResultView: View {
             rebuildSegmentCache()
             headerExpanded = false
             speakerOverviewExpanded = true
-            editingMeetingTitle = false
-            meetingTitleDraft = ""
+            editingTitle = false
+            titleDraft = ""
             editingTranscript = false
             transcriptDraft = ""
             transcriptEditError = nil
@@ -834,7 +834,7 @@ struct TranscriptResultView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    meetingTitleView
+                    titleView
 
                     if !headerExpanded {
                         // Inline metadata in collapsed mode
@@ -963,22 +963,22 @@ struct TranscriptResultView: View {
     }
 
     @ViewBuilder
-    private var meetingTitleView: some View {
-        if editingMeetingTitle {
+    private var titleView: some View {
+        if editingTitle {
             HStack(spacing: 8) {
-                TextField("Meeting title", text: $meetingTitleDraft)
+                TextField("Title", text: $titleDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(headerExpanded ? DesignSystem.Typography.pageTitle : DesignSystem.Typography.sectionTitle)
-                    .focused($meetingTitleFocused)
-                    .onSubmit(commitMeetingTitleRename)
+                    .focused($titleFocused)
+                    .onSubmit(commitTitleRename)
 
-                Button(action: commitMeetingTitleRename) {
+                Button(action: commitTitleRename) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(DesignSystem.Colors.successGreen)
                 }
                 .buttonStyle(.plain)
 
-                Button(action: cancelMeetingTitleRename) {
+                Button(action: cancelTitleRename) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
@@ -986,19 +986,19 @@ struct TranscriptResultView: View {
             }
         } else {
             HStack(spacing: 8) {
-                Text(displayedMeetingTitle)
+                Text(displayedTitle)
                     .font(headerExpanded ? DesignSystem.Typography.pageTitle : DesignSystem.Typography.sectionTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .lineLimit(headerExpanded ? 3 : 1)
 
-                if transcription.sourceType == .meeting {
-                    Button(action: beginMeetingTitleRename) {
+                if canRenameTitle {
+                    Button(action: beginTitleRename) {
                         Image(systemName: "pencil")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
                     }
                     .buttonStyle(.plain)
-                    .help("Rename meeting")
+                    .help(transcription.sourceType == .meeting ? "Rename meeting" : "Rename transcription")
                 }
 
                 if transcription.recoveredFromCrash {
@@ -1036,26 +1036,34 @@ struct TranscriptResultView: View {
         sourceDisplay.tint
     }
 
-    private var displayedMeetingTitle: String {
-        viewModel.currentTranscription?.fileName ?? transcription.fileName
+    private var displayedTitle: String {
+        (viewModel.currentTranscription ?? transcription).effectiveDisplayTitle
     }
 
-    private func beginMeetingTitleRename() {
-        meetingTitleDraft = displayedMeetingTitle
-        editingMeetingTitle = true
+    private var canRenameTitle: Bool {
+        transcription.sourceType == .meeting || transcription.sourceType == .file
+    }
+
+    private func beginTitleRename() {
+        titleDraft = displayedTitle
+        editingTitle = true
         Task { @MainActor in
-            meetingTitleFocused = true
+            titleFocused = true
         }
     }
 
-    private func cancelMeetingTitleRename() {
-        editingMeetingTitle = false
-        meetingTitleDraft = ""
+    private func cancelTitleRename() {
+        editingTitle = false
+        titleDraft = ""
     }
 
-    private func commitMeetingTitleRename() {
-        viewModel.renameCurrentTranscription(to: meetingTitleDraft)
-        editingMeetingTitle = false
+    private func commitTitleRename() {
+        if transcription.sourceType == .meeting {
+            viewModel.renameCurrentTranscription(to: titleDraft)
+        } else if transcription.sourceType == .file {
+            viewModel.renameCurrentTranscriptionTitle(to: titleDraft)
+        }
+        editingTitle = false
     }
 
     private func metadataChip(icon: String, text: String, tint: Color, symbolText: String? = nil) -> some View {

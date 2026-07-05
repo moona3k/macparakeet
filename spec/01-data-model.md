@@ -139,6 +139,7 @@ CREATE TABLE transcriptions (
     engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `nemotron` / `whisper`)
     engineVariant TEXT,                                  -- v0.8: Engine-specific model variant
     calendarEventSnapshot TEXT,                          -- v0.25: JSON local calendar context captured at meeting start
+    titleOverride TEXT,                                  -- v0.26: User-authored non-meeting display title override
     derivedTitle TEXT,                                   -- v0.9: Display title derived from transcript content
     derivedSnippet TEXT,                                 -- v0.9: Display preview snippet derived from transcript content
     updatedAt TEXT NOT NULL                              -- ISO 8601 timestamp
@@ -168,6 +169,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `userNotes` stores free-form meeting notes typed during recording; prompt generation snapshots this value on `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
+- `titleOverride` stores a user-authored display title for non-meeting transcription rows. It is app metadata only: it does not rename/move `filePath`, replace the original `fileName`, or participate in meeting artifact naming. Blank titles are normalized to `NULL`. Added in v0.26.
 - `derivedTitle` / `derivedSnippet` cache display copy derived from the completed transcript. Added in v0.9 so Library cards do not need to recompute preview text on every render.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
@@ -619,6 +621,7 @@ struct Transcription: Codable, Identifiable {
     var engine: String?                 // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?          // v0.8 — Engine-specific model variant
     var calendarEventSnapshot: MeetingCalendarSnapshot? // v0.25 — Local calendar context snapshot
+    var titleOverride: String?          // v0.26 — User-authored non-meeting display title override
     var derivedTitle: String?           // v0.9 — Display title derived from transcript text
     var derivedSnippet: String?         // v0.9 — Display preview snippet derived from transcript text
     var updatedAt: Date
@@ -1139,6 +1142,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.23 — transcriptions.transcriptSegments
 // v0.24 — transcriptions.meetingStartContext
 // v0.25 — transcriptions.calendarEventSnapshot (raw SQL additive column)
+// v0.26 — transcriptions.titleOverride (raw SQL additive column)
 ```
 
 ### Migration Rules
@@ -1162,6 +1166,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.transcriptSegments` | v0.23 | Durable meeting transcript segments (JSON) for stable per-transcript-version citations |
 | `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
+| `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

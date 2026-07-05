@@ -66,6 +66,28 @@ final class TranscriptResultActionsTests: XCTestCase {
         )
     }
 
+    func testBulkExportUsesEffectiveDisplayTitleForFilenames() async throws {
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            rawTranscript: "Visible title should drive the suggested export file name.",
+            status: .completed,
+            titleOverride: "Q3 Vendor Notes"
+        )
+
+        let result = try await TranscriptResultActions.exportTranscriptsToDirectory(
+            transcriptions: [transcription],
+            format: .txt,
+            options: TranscriptExportOptions(
+                includeTimestamps: false,
+                includeSpeakerLabels: false,
+                includeMetadata: false
+            ),
+            directory: tempDir
+        )
+
+        XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["Q3 Vendor Notes.txt"])
+    }
+
     func testBulkExportCompleteSuccessRequiresEveryRequestedFile() {
         let result = BulkTranscriptExportResult(
             directory: tempDir,
