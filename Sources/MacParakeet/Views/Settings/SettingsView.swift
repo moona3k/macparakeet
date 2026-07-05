@@ -5,55 +5,6 @@ import AppKit
 import MacParakeetCore
 import MacParakeetViewModels
 
-enum SettingsHotkeyConflictMessage {
-    static func disabled(conflictingWith rowName: String, trigger: HotkeyTrigger) -> String {
-        "Disabled — conflicts with \(rowName) (\(trigger.formattedLabel))."
-    }
-
-    static func blocked(conflictingWith rowName: String, trigger: HotkeyTrigger) -> String {
-        "Conflicts with \(rowName) (\(trigger.formattedLabel))."
-    }
-}
-
-enum SettingsDictationHotkeyConflictPolicy {
-    static func validation(
-        candidate: HotkeyTrigger,
-        peer: HotkeyTrigger,
-        peerName: String
-    ) -> HotkeyTrigger.ValidationResult? {
-        guard candidate.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isSharedDictationGesture(handsFree: candidate, pushToTalk: peer) {
-            return nil
-        }
-        return .blocked(SettingsHotkeyConflictMessage.blocked(
-            conflictingWith: peerName,
-            trigger: peer
-        ))
-    }
-
-    static func existingConflictMessage(
-        trigger: HotkeyTrigger,
-        peer: HotkeyTrigger,
-        peerName: String,
-        disablesTrigger: Bool
-    ) -> String? {
-        guard trigger.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isSharedDictationGesture(handsFree: trigger, pushToTalk: peer) {
-            return nil
-        }
-        if disablesTrigger {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: peerName,
-                trigger: peer
-            )
-        }
-        return SettingsHotkeyConflictMessage.blocked(
-            conflictingWith: peerName,
-            trigger: peer
-        )
-    }
-}
-
 enum SettingsDictationHotkeyDisplay {
     static func pushToTalkDisplayLabelOverride(
         pushToTalk: HotkeyTrigger,
@@ -1386,9 +1337,8 @@ struct SettingsView: View {
                 transcriptionHotkeyRow(
                     title: "File transcription hotkey",
                     detail: "Opens the file picker from anywhere on macOS.",
-                    trigger: $viewModel.fileTranscriptionHotkeyTrigger,
-                    otherTranscriptionTrigger: viewModel.youtubeTranscriptionHotkeyTrigger,
-                    otherTranscriptionName: "video URL transcription"
+                    surface: .fileTranscription,
+                    trigger: $viewModel.fileTranscriptionHotkeyTrigger
                 )
 
                 Divider()
@@ -1396,9 +1346,8 @@ struct SettingsView: View {
                 transcriptionHotkeyRow(
                     title: "Video URL transcription hotkey",
                     detail: "Opens the video URL panel from anywhere on macOS.",
-                    trigger: $viewModel.youtubeTranscriptionHotkeyTrigger,
-                    otherTranscriptionTrigger: viewModel.fileTranscriptionHotkeyTrigger,
-                    otherTranscriptionName: "file transcription"
+                    surface: .youtubeTranscription,
+                    trigger: $viewModel.youtubeTranscriptionHotkeyTrigger
                 )
 
                 Divider()
@@ -1454,12 +1403,23 @@ struct SettingsView: View {
     /// warning when the trigger collides with dictation, meeting, or the
     /// other transcription hotkey. Default trigger is `.disabled` — users opt
     /// in by recording a key.
+    private var hotkeyConflictSnapshot: HotkeyConflictPolicy.SettingsSnapshot {
+        HotkeyConflictPolicy.SettingsSnapshot(
+            handsFree: viewModel.hotkeyTrigger,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger,
+            meeting: viewModel.meetingHotkeyTrigger,
+            fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
+            youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
+            transformHotkeys: transformHotkeys,
+            meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
+        )
+    }
+
     private func transcriptionHotkeyRow(
         title: String,
         detail: String,
-        trigger: Binding<HotkeyTrigger>,
-        otherTranscriptionTrigger: HotkeyTrigger,
-        otherTranscriptionName: String
+        surface: HotkeyConflictPolicy.Surface,
+        trigger: Binding<HotkeyTrigger>
     ) -> some View {
         HStack(alignment: .center) {
             rowText(title: title, detail: detail)
@@ -1469,50 +1429,16 @@ struct SettingsView: View {
                     trigger: trigger,
                     defaultTrigger: .disabled,
                     additionalValidation: { candidate in
-                        guard !candidate.isDisabled else { return .allowed }
-                        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "hands-free mode",
-                                trigger: viewModel.hotkeyTrigger
-                            ))
-                        }
-                        if candidate.conflicts(
-                            with: viewModel.pushToTalkHotkeyTrigger,
-                            otherMode: .bareModifierDictation
-                        ) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "push to talk",
-                                trigger: viewModel.pushToTalkHotkeyTrigger
-                            ))
-                        }
-                        if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "meeting recording",
-                                trigger: viewModel.meetingHotkeyTrigger
-                            ))
-                        }
-                        if candidate.overlaps(with: otherTranscriptionTrigger) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: otherTranscriptionName,
-                                trigger: otherTranscriptionTrigger
-                            ))
-                        }
-                        if let conflict = transformHotkeyConflict(for: candidate) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: conflict.name,
-                                trigger: conflict.trigger
-                            ))
-                        }
-                        return .allowed
+                        HotkeyConflictPolicy.settingsValidation(
+                            candidate: candidate,
+                            surface: surface,
+                            snapshot: hotkeyConflictSnapshot
+                        )
                     },
                     onRecordingStateChanged: onHotkeyRecordingStateChanged
                 )
 
-                if let conflict = conflictMessage(
-                    trigger: trigger.wrappedValue,
-                    otherTranscription: otherTranscriptionTrigger,
-                    otherTranscriptionName: otherTranscriptionName
-                ) {
+                if let conflict = conflictMessage(trigger: trigger.wrappedValue, surface: surface) {
                     transcriptionHotkeyConflictText(conflict)
                 }
             }
@@ -1521,280 +1447,61 @@ struct SettingsView: View {
 
     private func conflictMessage(
         trigger: HotkeyTrigger,
-        otherTranscription: HotkeyTrigger,
-        otherTranscriptionName: String
+        surface: HotkeyConflictPolicy.Surface
     ) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            )
-        }
-        if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: otherTranscription) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: otherTranscriptionName,
-                trigger: otherTranscription
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: surface,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func dictationHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+        HotkeyConflictPolicy.settingsValidation(
             candidate: candidate,
-            peer: viewModel.pushToTalkHotkeyTrigger,
-            peerName: "push to talk"
-        ) {
-            return result
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+            surface: .handsFreeDictation,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func pushToTalkHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+        HotkeyConflictPolicy.settingsValidation(
             candidate: candidate,
-            peer: viewModel.hotkeyTrigger,
-            peerName: "hands-free mode"
-        ) {
-            return result
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+            surface: .pushToTalk,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func meetingHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(
-            with: viewModel.pushToTalkHotkeyTrigger,
-            otherMode: .bareModifierDictation
-        ) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            ))
-        }
-        if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+        HotkeyConflictPolicy.settingsValidation(
+            candidate: candidate,
+            surface: .meetingRecording,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func dictationHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-            trigger: trigger,
-            peer: viewModel.pushToTalkHotkeyTrigger,
-            peerName: "push to talk",
-            disablesTrigger: false
-        ) {
-            return conflict
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .handsFreeDictation,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func pushToTalkHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-            trigger: trigger,
-            peer: viewModel.hotkeyTrigger,
-            peerName: "hands-free mode",
-            disablesTrigger: true
-        ) {
-            return conflict
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .pushToTalk,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func meetingHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
-    }
-
-    private func transformHotkeyConflict(
-        for trigger: HotkeyTrigger,
-        triggerMode: HotkeyTrigger.ConflictMode = .exclusive
-    ) -> (name: String, trigger: HotkeyTrigger)? {
-        guard !trigger.isDisabled else { return nil }
-        for transform in transformHotkeys {
-            guard let shortcut = transform.shortcut else { continue }
-            let transformTrigger = shortcut.hotkeyTrigger
-            guard !transformTrigger.isDisabled else { continue }
-            if trigger.conflicts(with: transformTrigger, selfMode: triggerMode) {
-                return ("Transform \(transform.name)", transformTrigger)
-            }
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .meetingRecording,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func transcriptionHotkeyConflictText(_ message: String) -> some View {
