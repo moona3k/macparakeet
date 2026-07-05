@@ -768,12 +768,17 @@ public actor STTRuntime: STTRuntimeProtocol {
             case .backgroundIfNeeded:
                 guard await rescorer.isPrepared(vocabulary: vocabulary) else {
                     try Task.checkCancellation()
-                    startBackgroundCustomVocabularyPreparation(
+                    let preparationTask = startBackgroundCustomVocabularyPreparation(
                         vocabulary: vocabulary,
                         rescorer: rescorer,
                         logger: logger
                     )
-                    try Task.checkCancellation()
+                    do {
+                        try Task.checkCancellation()
+                    } catch is CancellationError {
+                        preparationTask.cancel()
+                        throw CancellationError()
+                    }
                     return result
                 }
             }
@@ -809,7 +814,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         vocabulary: CustomVocabularyBoostingVocabulary,
         rescorer: any CustomVocabularyRescoring,
         logger: Logger?
-    ) {
+    ) -> Task<Void, Never> {
         // Dictation finalize must not wait on the first-use CTC download/load.
         // This deliberate fire-and-forget exception protects interactive paste
         // latency; a later utterance uses the prepared cache once this finishes.
