@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_d5561907feea02::t_64c718b53d642c 390
+Tests/MacParakeetTests/ViewModels/InProcessModelManagerViewModelTests.swift
+  s_d5561907feea02::t_6b222c0cb5f8d8 129-156
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_d5561907feea02::t_d8acc7d59a4cf3 73,80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c91e0ce7e5bc9d2c53be61d2fb55d6a921bbff4",
+  "prompts": {},
+  "sessions": {
+    "s_d5561907feea02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d467a95c-4404-40f9-8cff-41fab1639162",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
