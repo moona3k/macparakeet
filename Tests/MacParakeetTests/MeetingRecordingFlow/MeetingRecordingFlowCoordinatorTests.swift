@@ -806,21 +806,19 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         startTitles.append(title)
         calendarEventSnapshots.append(calendarEventSnapshot)
         paused = false
-        finishCaptureFailureContinuations()
-        captureFailureSessionID = UUID()
-        captureFailureSignaled = false
+        resetCaptureFailureObservationState()
     }
 
     func stopRecording() async throws -> MeetingRecordingOutput {
         stopCallCount += 1
         paused = false
-        finishCaptureFailureContinuations()
+        resetCaptureFailureObservationState()
         return output
     }
 
     func cancelRecording() async {
         paused = false
-        finishCaptureFailureContinuations()
+        resetCaptureFailureObservationState()
     }
 
     func pauseRecording() async {
@@ -904,6 +902,12 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         for continuation in continuations.values {
             continuation.finish()
         }
+    }
+
+    private func resetCaptureFailureObservationState() {
+        finishCaptureFailureContinuations()
+        captureFailureSessionID = UUID()
+        captureFailureSignaled = false
     }
 
     private func removeCaptureFailureContinuation(id: UUID) {

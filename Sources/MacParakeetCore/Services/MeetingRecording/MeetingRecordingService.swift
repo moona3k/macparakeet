@@ -1177,9 +1177,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func removeCaptureFailureObserver(sessionID: UUID, observerID: UUID) {
-        captureFailureObserverContinuations[sessionID]?[observerID] = nil
+        captureFailureObserverContinuations[sessionID]?.removeValue(forKey: observerID)
         if captureFailureObserverContinuations[sessionID]?.isEmpty == true {
-            captureFailureObserverContinuations[sessionID] = nil
+            captureFailureObserverContinuations.removeValue(forKey: sessionID)
         }
     }
 
