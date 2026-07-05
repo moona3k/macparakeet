@@ -381,11 +381,14 @@ defaults before calling `LLMService`:
 The smart-default tier is user-controllable through
 `AIFormatterSmartDefaultsPolicy` (UserDefaults-backed, no schema change): a
 master "Smart defaults" switch plus per-category switches in Settings, where
-each built-in prompt is also readable before it ever runs. With the master
-switch off (or a category switched off), resolution skips that tier entirely,
-so a user who tuned the fallback prompt gets byte-for-byte pre-profiles
-behavior wherever no custom profile matches. Profile-fetch failures degrade to
-the fallback prompt and are logged via OSLog (`AIFormatter` category).
+each built-in prompt is also readable before it ever runs. The prompt preview
+remains readable when the master switch is off; the grid dims and per-category
+switches are disabled until the master switch is turned back on. With the
+master switch off (or a category switched off), resolution skips that tier
+entirely, so a user who tuned the fallback prompt gets byte-for-byte
+pre-profiles behavior wherever no custom profile matches. Profile-fetch
+failures degrade to the fallback prompt and are logged via OSLog
+(`AIFormatter` category).
 
 Saved dictation rows surface their routing provenance in History: rows
 formatted by an app or category profile (custom or smart default) show a small
