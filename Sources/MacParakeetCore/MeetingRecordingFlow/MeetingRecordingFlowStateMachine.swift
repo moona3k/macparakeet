@@ -26,12 +26,13 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     case startFailed(generation: Int, message: String)
     case stopRequested
     case cancelRequested
-    /// Emitted by the pill polling task when it detects that audio capture
-    /// has stopped unexpectedly while the state machine still believes a
-    /// recording is in progress (e.g., a USB mic was unplugged mid-meeting,
-    /// `MeetingRecordingService.failCapture` ran). Routes through the same
-    /// stop+transcribe path as `.stopRequested` so whatever audio was
-    /// captured before the failure still becomes a saved Transcription.
+    /// Emitted from `MeetingRecordingService`'s terminal capture-failure
+    /// signal when audio capture stops unexpectedly while the state machine
+    /// still believes a recording is in progress (e.g., a USB mic was
+    /// unplugged mid-meeting, `MeetingRecordingService.failCapture` ran).
+    /// Routes through the same stop+transcribe path as `.stopRequested` so
+    /// whatever audio was captured before the failure still becomes a saved
+    /// Transcription.
     case captureFailed(generation: Int)
     case recordingQueued(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
