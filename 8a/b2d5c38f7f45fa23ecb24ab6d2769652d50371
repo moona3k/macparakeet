@@ -1,0 +1,133 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c7a1f84180062a::t_13bf090d4b62f8 1434,1456-1458,1460-1464,1466,1469-1474,1476
+  s_c7a1f84180062a::t_2f0321f71a7b26 1468
+  s_c7a1f84180062a::t_881f84a4e6c215 1459,1467
+  s_c7a1f84180062a::t_d8c786f66b566e 1465,1475
+  s_c7a1f84180062a::t_f0a68b76f793fa 1477-1478
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_c7a1f84180062a::t_41693e7003c235 230,251,270-271,275-276,280,283
+  s_c7a1f84180062a::t_340082af59e877 222-229,231-250,252-269,272-274,277-279,281-282,284-285,287-290
+  s_c7a1f84180062a::t_5c48a4902a10ef 291-303,305-313
+  s_c7a1f84180062a::t_4f1273968fd950 286,304,314-371,828-855
+  s_c7a1f84180062a::t_a63b4209c369e7 826-827,856-857
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_c7a1f84180062a::t_2f6ccb0fa302cd 137,218-220,224,226
+  s_c7a1f84180062a::t_0ee0acb45baffb 142,166-167
+  s_c7a1f84180062a::t_ff751239199ac2 144,221-223
+  s_c7a1f84180062a::t_2b089688c2b63b 225
+  s_c7a1f84180062a::t_774df9c4647527 143,168-170
+  s_567450aef0d021::t_b7a0826fce1769 171,227-230
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_c7a1f84180062a::t_4988a6bc8439af 166,488-494
+  s_4c5ad856ed0bdb::t_ad2eeca542ec86 496
+  s_c7a1f84180062a::t_1cdd9dba5b229c 485-487
+  s_c7a1f84180062a::t_473f078a357160 17-18,152-165,167,330-337,473-484,495
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_c7a1f84180062a::t_d720e68888c807 193
+  s_c7a1f84180062a::t_19ca278272c773 192
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_c7a1f84180062a::t_1078fc070a9e3f 2097,2099-2118
+  s_fe6b4f424131db::t_77c989fa6218ae 2098
+  s_c7a1f84180062a::t_a4038c19c5b4d9 88-91
+  s_c7a1f84180062a::t_70455e37f1012c 2052-2063,2065-2080,2082-2096
+  s_c7a1f84180062a::t_2a8199646f2931 2064,2081
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_c7a1f84180062a::t_7bfcdb590077ee 56-64
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_c7a1f84180062a::t_90f46f1076c4fd 144,622
+  s_c7a1f84180062a::t_fb7fd1819dc9ac 116,127,129,134,136-137,145
+  s_c7a1f84180062a::t_3d291fb428a31d 520-530,536,546-557,607,614
+  s_c7a1f84180062a::t_0568a01c6e1592 713-750,768-769
+  s_c7a1f84180062a::t_e178249e4c2fd1 114-115,117-126,128,130-133,135,138-143,146-153
+  s_c7a1f84180062a::t_0b3c6852472f58 617-621,623-624,627,631,635,639,751-767
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_c7a1f84180062a::t_ce2bf94f44644d 447
+  s_c7a1f84180062a::t_2ad9c68c861f92 117-121
+  s_c7a1f84180062a::t_fd31e2e5eca918 18,79-83,101,115-116,122-127,443-446,448-454,589,605-607
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_c7a1f84180062a::t_53de064f692f14 1062-1070
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_e323b204ea3fab::t_e76a61de760743 486
+  s_c7a1f84180062a::t_db1b9fb966ae21 443,450-451,453-457
+  s_c7a1f84180062a::t_861876df87e4e6 434-437,440,449,452,459,478-484
+  s_c7a1f84180062a::t_beae4c958098f7 438-439,441-442,444-448,458,460-461,469-477,485
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_c7a1f84180062a::t_51ce29055bfbab 181-197,201-207
+  s_c7a1f84180062a::t_740b900b15411f 64-66,117,154
+  s_c7a1f84180062a::t_fac2b484f77b7f 198-200
+  s_c7a1f84180062a::t_db78ad5042796c 320,391
+spec/02-features.md
+  s_c7a1f84180062a::t_738ee0d00b0e7f 1568
+  s_c7a1f84180062a::t_18a87bd983443a 1563
+  s_c7a1f84180062a::t_ff16103d37b6ed 1567
+plans/README.md
+  s_c7a1f84180062a::t_89e6ac5e1b7569 46
+spec/01-data-model.md
+  s_c7a1f84180062a::t_ad3412bb7553e9 142,172,624,1169
+  s_c7a1f84180062a::t_de9d5c656da484 1145
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_c7a1f84180062a::t_d02b1a23c51d78 87,119,171
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_c7a1f84180062a::t_70e3166743ab0c 217
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_c7a1f84180062a::t_a510122cdbc362 70,72,78
+  s_c7a1f84180062a::t_119209e098d22a 88
+  s_c7a1f84180062a::t_be6c36185d4721 69,71,73-77,79-87,89-90
+spec/04-ui-patterns.md
+  s_c7a1f84180062a::t_97c6bc19c69171 126-131
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c7a1f84180062a::t_cccc8f41c0827f 111-112,166,231-232
+  s_c7a1f84180062a::t_2dc1bb73f009fa 837,966-967,969,972-973,975,981,989,994-995,1001,1039-1040,1043-1049,1051,1055-1057,1060-1066
+plans/active/2026-07-04-issue-647-local-transcription-title-rename.md
+  s_c7a1f84180062a::t_b051d6bbdf85f9 39,126-129,208,303
+  s_c7a1f84180062a::t_8def4bc5e3cd08 1-38,40-125,130-172,175-207,209-302,304-384
+  s_c7a1f84180062a::t_1d7602da1c2468 173-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ab2d5c38f7f45fa23ecb24ab6d2769652d50371",
+  "prompts": {},
+  "sessions": {
+    "s_4c5ad856ed0bdb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d2acde0-e82c-4543-b0e1-5547fc3845fe",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_567450aef0d021": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9b-a197-72c1-9531-53fba20a4cba",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c7a1f84180062a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f1b-ae06-7051-a2d2-5dbcc3c7b842",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fe6b4f424131db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2feb-257e-79d1-b1f6-69ee95401a03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
