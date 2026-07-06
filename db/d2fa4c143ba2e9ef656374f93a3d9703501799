@@ -1,0 +1,19 @@
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_9f40763b5cb5d5::t_a127d7af263256 108-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dbd2fa4c143ba2e9ef656374f93a3d9703501799",
+  "prompts": {},
+  "sessions": {
+    "s_9f40763b5cb5d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced68f09-ea3e-4027-85aa-238060fb2e55",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
