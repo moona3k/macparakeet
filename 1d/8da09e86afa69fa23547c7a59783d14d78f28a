@@ -1,0 +1,34 @@
+spec/adr/001-parakeet-stt.md
+  s_5a82fff34e6718::t_76b3e00c316935 11
+Tests/MacParakeetTests/Services/TranscriptExportOptionsTests.swift
+  s_5a82fff34e6718::t_79c4c1189c24c9 65
+spec/05-audio-pipeline.md
+  s_5a82fff34e6718::t_f5fb8a7f8d01ad 78
+docs/marketing.md
+  s_5a82fff34e6718::t_3fa0dcf55d13d3 181
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_5a82fff34e6718::t_4c3c0c670ceacb 164-165
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_5a82fff34e6718::t_6d520f335dfd78 2738,2745
+spec/00-vision.md
+  s_5a82fff34e6718::t_3fa0dcf55d13d3 84,92,525
+docs/research/2026-06-30-asr-model-landscape.md
+  s_5a82fff34e6718::t_e214ec04c7d3c9 4-5,20,67,86,284,312-313
+  s_5a82fff34e6718::t_79c4c1189c24c9 169-170,176-178,181-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1d8da09e86afa69fa23547c7a59783d14d78f28a",
+  "prompts": {},
+  "sessions": {
+    "s_5a82fff34e6718": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3527-41bb-7e02-98b1-d839ec9cb366",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
