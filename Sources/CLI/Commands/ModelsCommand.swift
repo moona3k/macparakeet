@@ -450,18 +450,34 @@ private func printModelDeleteResult(_ result: ModelDeleteResult, json: Bool) thr
     }
 }
 
+struct ModelCacheClearError: Error, LocalizedError {
+    let underlying: Error
+
+    var errorDescription: String? {
+        "Cleared speech and speaker model caches, but failed to clear the whisper model cache: \(underlying.localizedDescription)"
+    }
+}
+
 func clearModelCachesForCLI(
     json: Bool,
     sttClient: STTClientProtocol = makeParakeetSTTClient(),
     clearSpeakerCache: @Sendable () -> Void = { DiarizationService.clearModelCache() },
-    clearWhisperModels: @Sendable () -> Void = {
-        try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+    clearWhisperModels: @Sendable () throws -> Void = {
+        do {
+            try FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            // Nothing downloaded; an absent cache is already clear.
+        }
     }
 ) async throws {
     try await emitJSONOrRethrow(json: json) {
         await sttClient.clearModelCache()
         clearSpeakerCache()
-        clearWhisperModels()
+        do {
+            try clearWhisperModels()
+        } catch {
+            throw ModelCacheClearError(underlying: error)
+        }
         if json {
             try printJSON(
                 ModelCacheClearResult(

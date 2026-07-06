@@ -103,7 +103,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   delete-meeting-audio`, `history clear-meeting-audio`, `models delete`,
   `models clear`, `vocab words delete`, and `vocab snippets delete`. The new
   payloads report affected record/model IDs and/or counts while preserving the
-  existing human-readable output when `--json` is omitted.
+  existing human-readable output when `--json` is omitted. `models clear` now
+  surfaces a whisper-cache removal failure through the standard failure
+  envelope (exit `1`) instead of reporting unconditional success.
 - `spec --json` now documents the registered `feedback` command and the new
   JSON modes for the destructive mutators above.
 - `config get|set|list` now includes `meeting-speaker-detection`, the saved

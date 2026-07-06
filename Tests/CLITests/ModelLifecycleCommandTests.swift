@@ -788,6 +788,31 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertFalse(sttReady)
     }
 
+    func testModelsClearJSONEmitsFailureEnvelopeWhenWhisperClearFails() async throws {
+        let stt = StubSTTClient()
+        await stt.setReady(true)
+
+        var thrown: Error?
+        let output = try await captureStandardOutput {
+            do {
+                try await clearModelCachesForCLI(
+                    json: true,
+                    sttClient: stt,
+                    clearSpeakerCache: {},
+                    clearWhisperModels: { throw CocoaError(.fileWriteNoPermission) }
+                )
+            } catch {
+                thrown = error
+            }
+        }
+
+        XCTAssertTrue(thrown is CLIJSONEnvelopeExit)
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        let message = try XCTUnwrap(decoded["error"] as? String)
+        XCTAssertTrue(message.contains("whisper model cache"), "unexpected error message: \(message)")
+    }
+
     func testWarmUpRetriesConfiguredAttempts() async {
         let stt = StubSTTClient()
         let diarization = StubDiarizationService()
