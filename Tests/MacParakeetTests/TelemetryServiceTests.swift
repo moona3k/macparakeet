@@ -397,7 +397,13 @@ final class TelemetryServiceTests: XCTestCase {
             .restoreFailed(errorType: "network", errorDetail: rawDetail),
             .modelDownloadFailed(errorType: "network", errorDetail: rawDetail),
             .meetingRecordingFailed(errorType: "runtime", errorDetail: rawDetail),
-            .meetingRecoveryFailed(count: 1, source: .settings, errorType: "runtime", errorDetail: rawDetail),
+            .meetingRecoveryFailed(
+                count: 1,
+                source: .settings,
+                phases: [.recording],
+                errorType: "runtime",
+                errorDetail: rawDetail
+            ),
         ]
 
         let encoder = JSONEncoder()
@@ -493,7 +499,12 @@ final class TelemetryServiceTests: XCTestCase {
 
     func testMeetingRecoveryCompletedSerializesSafeProps() throws {
         let event = TelemetryEvent(
-            spec: .meetingRecoveryCompleted(count: 2, durationSeconds: 4.25, source: .settings),
+            spec: .meetingRecoveryCompleted(
+                count: 2,
+                durationSeconds: 4.25,
+                source: .settings,
+                phases: [.recording, .awaitingTranscription]
+            ),
             appVer: "0.4.2",
             osVer: "15.3",
             locale: "en-US",
@@ -511,8 +522,55 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["count"], "2")
         XCTAssertEqual(props["duration_seconds"], "4.2")
         XCTAssertEqual(props["source"], "settings")
+        XCTAssertEqual(props["phases"], "recording:1,awaitingTranscription:1")
         XCTAssertNil(props["session_id"])
         XCTAssertNil(props["file_path"])
+    }
+
+    func testMeetingRecoveryEventsSerializePhases() throws {
+        let phases: [MeetingRecordingLockState] = [.recording, .recording, .awaitingTranscription]
+        let specs: [TelemetryEventSpec] = [
+            .meetingRecoveryDiscovered(count: 3, source: .launch, phases: phases),
+            .meetingRecoveryStarted(count: 3, source: .launch, phases: phases),
+            .meetingRecoveryCompleted(count: 3, durationSeconds: 4.25, source: .launch, phases: phases),
+            .meetingRecoveryDiscarded(count: 3, source: .settings, phases: phases),
+            .meetingRecoveryFailed(count: 3, source: .settings, phases: phases, errorType: "no_audio"),
+        ]
+
+        for spec in specs {
+            let event = TelemetryEvent(
+                spec: spec,
+                appVer: "0.4.2",
+                osVer: "15.3",
+                locale: "en-US",
+                chip: "Apple M1",
+                session: "test-session"
+            )
+
+            XCTAssertEqual(event.props?["phases"], "recording:2,awaitingTranscription:1", spec.name.rawValue)
+        }
+    }
+
+    func testMeetingRecoveryPhaseSummaryUsesLockStateOrderAndUnknownFallback() {
+        XCTAssertEqual(
+            TelemetryMeetingRecoveryPhases.aggregate(lockStates: [
+                .awaitingTranscription,
+                .recording,
+                .recording,
+            ]),
+            "recording:2,awaitingTranscription:1"
+        )
+
+        XCTAssertEqual(
+            TelemetryMeetingRecoveryPhases.aggregate(rawPhases: [
+                "awaitingTranscription",
+                "recording",
+                "",
+                "future_state",
+                "recording",
+            ]),
+            "recording:2,awaitingTranscription:1,unknown:2"
+        )
     }
 
     func testCanonicalOperationSerializesSafeDimensionsOnly() throws {
@@ -1599,11 +1657,11 @@ final class TelemetryServiceTests: XCTestCase {
                 notesLengthBucket: "1_200",
                 errorType: nil
             ),
-            .meetingRecoveryDiscovered(count: 1, source: .launch),
-            .meetingRecoveryStarted(count: 1, source: .launch),
-            .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch),
-            .meetingRecoveryDiscarded(count: 1, source: .settings),
-            .meetingRecoveryFailed(count: 1, source: .settings, errorType: "no_audio"),
+            .meetingRecoveryDiscovered(count: 1, source: .launch, phases: [.recording]),
+            .meetingRecoveryStarted(count: 1, source: .launch, phases: [.recording]),
+            .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch, phases: [.recording]),
+            .meetingRecoveryDiscarded(count: 1, source: .settings, phases: [.recording]),
+            .meetingRecoveryFailed(count: 1, source: .settings, phases: [.recording], errorType: "no_audio"),
             .meetingAutoStopProposed(reason: .meetingAppClosed),
             .meetingAutoStopConfirmed(reason: .meetingAppClosed),
             .meetingAutoStopVetoed(reason: .prolongedSilence),

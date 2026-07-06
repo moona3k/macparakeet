@@ -59,7 +59,11 @@ final class MeetingRecoveryCoordinator {
             let recoveries = try await recoveryService.discoverPendingRecoveries()
             settingsViewModel.refreshPendingMeetingRecoveries()
             guard !recoveries.isEmpty else { return }
-            Telemetry.send(.meetingRecoveryDiscovered(count: recoveries.count, source: source))
+            Telemetry.send(.meetingRecoveryDiscovered(
+                count: recoveries.count,
+                source: source,
+                phases: Self.telemetryPhases(for: recoveries)
+            ))
             await presentMeetingRecoveryDialog(recoveries, recoveryService: recoveryService, source: source)
         } catch {
             await presentMeetingRecoveryError(error)
@@ -131,7 +135,11 @@ final class MeetingRecoveryCoordinator {
         source: TelemetryMeetingRecoverySource
     ) async {
         let startedAt = Date()
-        Telemetry.send(.meetingRecoveryStarted(count: recoveries.count, source: source))
+        Telemetry.send(.meetingRecoveryStarted(
+            count: recoveries.count,
+            source: source,
+            phases: Self.telemetryPhases(for: recoveries)
+        ))
         var lastRecoveredIndex = -1
         do {
             var recovered: [Transcription] = []
@@ -142,7 +150,8 @@ final class MeetingRecoveryCoordinator {
             Telemetry.send(.meetingRecoveryCompleted(
                 count: recovered.count,
                 durationSeconds: Date().timeIntervalSince(startedAt),
-                source: source
+                source: source,
+                phases: Self.telemetryPhases(for: recoveries)
             ))
             libraryViewModel.loadTranscriptions()
             onRecoveredTranscriptionsChanged()
@@ -155,6 +164,7 @@ final class MeetingRecoveryCoordinator {
             Telemetry.send(.meetingRecoveryFailed(
                 count: pendingRecoveries.count,
                 source: source,
+                phases: Self.telemetryPhases(for: pendingRecoveries),
                 errorType: TelemetryErrorClassifier.classify(error),
                 errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
@@ -173,16 +183,24 @@ final class MeetingRecoveryCoordinator {
         recoveryService: MeetingRecordingRecoveryServicing,
         source: TelemetryMeetingRecoverySource
     ) async {
+        var lastDiscardedIndex = -1
         do {
-            for recovery in recoveries {
+            for (index, recovery) in recoveries.enumerated() {
                 try await recoveryService.discard(recovery)
+                lastDiscardedIndex = index
             }
-            Telemetry.send(.meetingRecoveryDiscarded(count: recoveries.count, source: source))
-            settingsViewModel.refreshPendingMeetingRecoveries()
-        } catch {
-            Telemetry.send(.meetingRecoveryFailed(
+            Telemetry.send(.meetingRecoveryDiscarded(
                 count: recoveries.count,
                 source: source,
+                phases: Self.telemetryPhases(for: recoveries)
+            ))
+            settingsViewModel.refreshPendingMeetingRecoveries()
+        } catch {
+            let pending = Array(recoveries.dropFirst(lastDiscardedIndex + 1))
+            Telemetry.send(.meetingRecoveryFailed(
+                count: pending.count,
+                source: source,
+                phases: Self.telemetryPhases(for: pending),
                 errorType: TelemetryErrorClassifier.classify(error),
                 errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
@@ -223,5 +241,9 @@ final class MeetingRecoveryCoordinator {
 
         // Launch recovery can happen before there is a window to host a sheet.
         return alert.runModal()
+    }
+
+    nonisolated static func telemetryPhases(for recoveries: [MeetingRecordingLockFile]) -> [MeetingRecordingLockState] {
+        recoveries.map(\.state)
     }
 }

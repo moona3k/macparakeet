@@ -432,6 +432,49 @@ public enum TelemetryMeetingRecoverySource: String, Sendable, Equatable {
     case settings
 }
 
+public enum TelemetryMeetingRecoveryPhases {
+    public static let unknown = "unknown"
+
+    public static func aggregate(lockStates: [MeetingRecordingLockState]) -> String {
+        aggregate(rawPhases: lockStates.map(\.rawValue))
+    }
+
+    public static func aggregate(rawPhases: [String]) -> String {
+        var counts: [String: Int] = [:]
+        for phase in rawPhases {
+            counts[normalizedPhase(phase), default: 0] += 1
+        }
+
+        guard !counts.isEmpty else { return unknown }
+
+        return counts.keys.sorted(by: sortPhases).map { phase in
+            "\(phase):\(counts[phase] ?? 0)"
+        }.joined(separator: ",")
+    }
+
+    private static let phaseSortOrder: [String: Int] = Dictionary(
+        uniqueKeysWithValues: MeetingRecordingLockState.allCases.enumerated().map { pair in
+            (pair.element.rawValue, pair.offset)
+        }
+    )
+
+    private static func normalizedPhase(_ phase: String) -> String {
+        let trimmed = phase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return unknown }
+        guard trimmed == unknown || phaseSortOrder[trimmed] != nil else { return unknown }
+        return trimmed
+    }
+
+    private static func sortPhases(_ lhs: String, _ rhs: String) -> Bool {
+        if let lhsIndex = phaseSortOrder[lhs], let rhsIndex = phaseSortOrder[rhs] {
+            return lhsIndex < rhsIndex
+        }
+        if phaseSortOrder[lhs] != nil { return true }
+        if phaseSortOrder[rhs] != nil { return false }
+        return lhs < rhs
+    }
+}
+
 /// Outcome of a launch-time Silero VAD model prep attempt (Phase 4.5,
 /// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md` §6). The full
 /// vocabulary is modeled here, but the launch hook only transmits the
@@ -839,13 +882,19 @@ public enum TelemetryEventSpec: Sendable {
         notesLengthBucket: String?,
         errorType: String?
     )
-    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource)
-    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource)
-    case meetingRecoveryCompleted(count: Int, durationSeconds: Double, source: TelemetryMeetingRecoverySource)
-    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
+    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
+    case meetingRecoveryCompleted(
+        count: Int,
+        durationSeconds: Double,
+        source: TelemetryMeetingRecoverySource,
+        phases: [MeetingRecordingLockState]
+    )
+    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
     case meetingRecoveryFailed(
         count: Int,
         source: TelemetryMeetingRecoverySource,
+        phases: [MeetingRecordingLockState],
         errorType: String,
         errorDetail: String? = nil
     )
@@ -1560,31 +1609,36 @@ extension TelemetryEventSpec {
                 ("notes_length_bucket", notesLengthBucket),
                 ("error_type", errorType)
             )
-        case .meetingRecoveryDiscovered(let count, let source):
+        case .meetingRecoveryDiscovered(let count, let source, let phases):
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
-        case .meetingRecoveryStarted(let count, let source):
+        case .meetingRecoveryStarted(let count, let source, let phases):
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
-        case .meetingRecoveryCompleted(let count, let durationSeconds, let source):
+        case .meetingRecoveryCompleted(let count, let durationSeconds, let source, let phases):
             return [
                 "count": "\(count)",
                 "duration_seconds": Self.format(durationSeconds),
                 "source": source.rawValue,
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
-        case .meetingRecoveryDiscarded(let count, let source):
+        case .meetingRecoveryDiscarded(let count, let source, let phases):
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
-        case .meetingRecoveryFailed(let count, let source, let errorType, let errorDetail):
+        case .meetingRecoveryFailed(let count, let source, let phases, let errorType, let errorDetail):
             var props = [
                 "count": "\(count)",
                 "source": source.rawValue,
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
                 "error_type": errorType,
             ]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
@@ -1705,6 +1759,7 @@ extension TelemetryEventSpec {
         guard let detail, !detail.isEmpty else { return nil }
         return String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
     }
+
 
     private static func safeEngineVariant(_ variant: String?) -> String? {
         guard let variant,
@@ -1833,11 +1888,11 @@ public enum TelemetryImplementedContract {
         .meetingRecordingCancelled: ["duration_seconds"],
         .meetingRecordingFailed: ["error_type"],
         .meetingOperation: ["operation_id", "outcome"],
-        .meetingRecoveryDiscovered: ["count", "source"],
-        .meetingRecoveryStarted: ["count", "source"],
-        .meetingRecoveryCompleted: ["count", "duration_seconds", "source"],
-        .meetingRecoveryDiscarded: ["count", "source"],
-        .meetingRecoveryFailed: ["count", "source", "error_type"],
+        .meetingRecoveryDiscovered: ["count", "source", "phases"],
+        .meetingRecoveryStarted: ["count", "source", "phases"],
+        .meetingRecoveryCompleted: ["count", "duration_seconds", "source", "phases"],
+        .meetingRecoveryDiscarded: ["count", "source", "phases"],
+        .meetingRecoveryFailed: ["count", "source", "phases", "error_type"],
         .meetingAutoStopProposed: ["reason"],
         .meetingAutoStopConfirmed: ["reason"],
         .meetingAutoStopVetoed: ["reason"],
