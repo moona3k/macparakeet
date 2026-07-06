@@ -55,7 +55,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording with selectable microphone/system capture, meeting calendar support, Parakeet v3/v2/Unified model selection, optional local Nemotron Beta and WhisperKit recognition, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording with selectable microphone/system capture, meeting calendar support, Parakeet v3/v2/Unified model selection, optional local Nemotron Beta and WhisperKit recognition, and Transforms for selected-text rewrites. Current `main` adds opt-in Cohere Transcribe and other unreleased development work. All speech recognition happens on your Mac.
 
 ## Release status
 
@@ -63,8 +63,8 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture and audio-retention controls, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | Latest stable release plus untagged in-progress fixes, Cohere Transcribe, and development changes |
+| Stable DMG `0.6.24` | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture and audio-retention controls, meeting calendar reminders and opt-in auto-start, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
+| `main` branch | Development | Latest stable release plus Cohere Transcribe, meeting echo-cancellation/cleaned-mic artifact work for the next release train, recognition-time custom vocabulary boosting, and developer-gated in-process MLX local LLM groundwork that is compiled/tested but hidden from normal users |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
 
@@ -82,23 +82,49 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 
 **AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect any cloud provider (OpenAI, Anthropic, Gemini, OpenRouter), local runtime (Ollama, LM Studio), OpenAI-compatible endpoint, or CLI tool (Claude Code, Codex). Entirely opt-in.
 
-### Performance
-
-- ~155x realtime — 60 min of audio in ~23 seconds
-- ~2.5% word error rate with the default Parakeet TDT 0.6B-v3 model
-- Optional English-only Parakeet v2 model (~2.1% WER) for users who do not want v3 language auto-detect
-- Optional English-only Parakeet Unified model with punctuation/capitalization and word timestamps
-- ~66 MB working memory per active Parakeet inference slot
-- 25 European languages with Parakeet auto-detection
-- Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), WhisperKit for broad language coverage, and Cohere Transcribe for opt-in batch accuracy work
-
 ### Limitations
 
 - Apple Silicon only (M1/M2/M3/M4)
-- Parakeet is best for English and supported European languages
+- Parakeet is best for English and supported European languages; the v3 default is not a CJK/Korean engine
 - Nemotron is Beta while real-world quality is benchmarked
 - Nemotron, WhisperKit, and Cohere Transcribe require separate local model downloads before first use
 - Cohere is batch-only: it can be used for dictation after recording stops, file transcription, and meeting finalization, but it does not show live dictation preview or meeting live-preview chunks and does not provide word timestamps/speaker labels
+
+## ASR benchmarks
+
+The current ASR benchmark lives in [`benchmarks/asr/`](benchmarks/asr/). It scores every engine through the same normalizer, uses full LibriSpeech `test-clean` + `test-other` for English, uses capped FLEURS slices for multilingual coverage, and reports hardware-specific speed/memory on an Apple M4 Pro with 48 GB RAM on macOS 15. Run `benchmarks/asr/run_all.sh verify` to re-score the committed hypotheses and validate the benchmark contract.
+
+English accuracy, full LibriSpeech sets:
+
+| Engine | Runtime | Macro WER | `test-clean` WER | `test-other` WER |
+|--------|---------|----------:|-----------------:|-----------------:|
+| Cohere Transcribe q8 | FluidAudio CoreML | **2.07%** | 1.49% | **2.65%** |
+| Parakeet Unified | FluidAudio CoreML | 2.38% | 1.64% | 3.13% |
+| Parakeet v2 | FluidAudio CoreML | 2.57% | 1.86% | 3.27% |
+| Whisper large-v3 turbo | WhisperKit | 3.00% | 1.96% | 4.04% |
+| Parakeet v3 default | FluidAudio CoreML | 3.22% | 2.31% | 4.14% |
+| Nemotron English Beta | FluidAudio CoreML | 3.70% | 2.40% | 5.01% |
+| Nemotron Multilingual Beta | FluidAudio CoreML | 5.17% | 3.17% | 7.16% |
+
+Multilingual coverage, FLEURS first 150 utterances per language. English is WER; Korean, Japanese, and Chinese are CER:
+
+| Engine | en | ko | ja | zh | Notes |
+|--------|---:|---:|---:|---:|-------|
+| Cohere Transcribe q8 | 4.69 | 7.15 | **5.56** | 12.49 | Best Japanese; clean English/Korean/Chinese are statistical ties with the best alternative |
+| Whisper large-v3 turbo | 5.71 | **6.37** | 13.42 | **11.56** | Light broad-language fallback |
+| Nemotron Multilingual Beta | 7.08 | 9.32 | 15.29 | 19.47 | Still Beta by quality evidence |
+| Parakeet v3 default | **4.40** | 171.2 | 159.2 | 124.1 | Works for supported European languages; fails CJK/Korean here by romanizing output |
+
+Speed and memory, same Apple M4 Pro micro-benchmark:
+
+| Engine family | Cold start | Steady throughput | Peak RSS |
+|---------------|-----------:|------------------:|---------:|
+| Parakeet v2/v3/Unified | 0.38-0.93 s | ~81-93x realtime | 115-131 MB |
+| Nemotron EN/Multilingual Beta | 0.70-0.87 s | ~57-61x realtime | 141-142 MB |
+| Whisper large-v3 turbo | 2.29 s | ~14x realtime | 274 MB |
+| Cohere Transcribe q8 | ~73 s | ~11x realtime | ~11.6 GB |
+
+Cohere is the most accurate on-device engine in this benchmark, but its statistically clear wins are noisy English and Japanese. Clean English, Korean, and Chinese are ties with the best alternative under the paired-bootstrap test. Parakeet remains the default because it is fast, low-memory, timestamped, and strong on supported languages. Cohere is opt-in for accuracy-critical batch work on 16 GB+ Macs. The committed Cohere speed/memory row is still the older FluidAudio reference measurement; rerun the MacParakeet CLI Cohere path before making release or Settings claims from those numbers.
 
 ## Get it
 
@@ -141,35 +167,53 @@ scripts/dev/run_app.sh    # build, sign, launch
 
 The dev script creates a signed `.app` bundle so macOS grants mic and accessibility permissions. It disables target-level Xcode signing, then signs the finished bundle with the best available local identity. Override with `MACPARAKEET_CODESIGN_IDENTITY="Your Identity"` if needed.
 
-**CLI:**
+## Command line and agent automation
+
+`macparakeet-cli` is the public automation surface for MacParakeet: the canonical Swift-native interface to Parakeet TDT on Apple Silicon, plus the scriptable entry point for MacParakeet's local library, model cache, prompts, meetings, and JSON contracts. Use [`integrations/README.md`](integrations/README.md) for the agent-facing automation guide and [`Sources/CLI/CHANGELOG.md`](Sources/CLI/CHANGELOG.md) for compatibility notes.
+
+Discover the current machine-readable command catalog:
+
+```bash
+macparakeet-cli spec --json
+macparakeet-cli health --json
+```
+
+Transcribe files, folders, media URLs, or podcasts:
 
 ```bash
 macparakeet-cli transcribe /path/to/audio.mp3
 macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history
 macparakeet-cli transcribe lecture1.m4a lecture2.m4a --output-dir Transcripts --format transcript
+macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json
+macparakeet-cli transcribe /path/to/meeting.m4a --engine nemotron --language auto --format json
+macparakeet-cli transcribe /path/to/japanese.m4a --engine cohere --language ja --format json
+macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
+```
+
+Manage local models and shared app/CLI defaults:
+
+```bash
 macparakeet-cli models download nemotron-multilingual-1120ms
 macparakeet-cli models download cohere-transcribe
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 macparakeet-cli models list
 macparakeet-cli models select parakeet-v3
 macparakeet-cli config set parakeet-model v2
-macparakeet-cli transcribe /path/to/meeting.m4a --engine nemotron --language auto --format json
-macparakeet-cli transcribe /path/to/japanese.m4a --engine cohere --language ja --format json
-macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 macparakeet-cli models status
-macparakeet-cli history
 ```
 
-Use `--format transcript` for transcript-only stdout in shell pipelines. Add
-`--no-history` when you want a one-off transcription without saving a completed
-row to MacParakeet history. Multiple inputs or `--output-dir` write one transcript
-file per input. `models list` and `models select` inspect or update the shared
-speech default used by the app and `--engine app-default`; Parakeet rows are
-`parakeet-v3` and `parakeet-v2`, Nemotron rows are `nemotron-multilingual-1120ms`
-and `nemotron-english-1120ms`, Cohere is `cohere-transcribe`, and Whisper rows
-use the configured `whisper-*` model id. The Nemotron, Cohere, and Whisper CLI
-commands above require their local models to be downloaded first. When
-developing from source, prefix the same commands with `swift run`.
+Inspect and update local history, saved meetings, and agent-readable artifacts:
+
+```bash
+macparakeet-cli history transcriptions --json
+macparakeet-cli retranscribe <id-or-prefix-or-title> --update --json
+macparakeet-cli meetings list --json
+macparakeet-cli meetings show <meeting-id> --json
+macparakeet-cli meetings artifact <meeting-id> --json
+macparakeet-cli meetings export <meeting-id> --stdout --format json
+```
+
+Use `--format transcript` for transcript-only stdout in shell pipelines. Add `--no-history` when you want a one-off transcription without saving a completed row to MacParakeet history. Multiple inputs or `--output-dir` write one transcript file per input. `models list` and `models select` inspect or update the shared speech default used by the app and `--engine app-default`; Parakeet rows are `parakeet-v3`, `parakeet-v2`, and `parakeet-unified`, Nemotron rows are `nemotron-multilingual-1120ms` and `nemotron-english-1120ms`, Cohere is `cohere-transcribe`, and Whisper rows use the configured `whisper-*` model id. The Nemotron, Cohere, and Whisper CLI commands above require their local models to be downloaded first. When developing from source, prefix the same commands with `swift run`.
 
 ## Tech stack
 

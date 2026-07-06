@@ -50,7 +50,7 @@ These decisions are final. Do not second-guess them.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in); Nemotron 3.5 Beta, WhisperKit, and Cohere Transcribe optional | Parakeet gives 155x realtime and low RAM for supported languages; v2 avoids language auto-detect for English-only use; Nemotron is a fast opt-in Beta path with multilingual (default) and English-only builds; Whisper adds mature broad multilingual coverage locally; Cohere is a larger batch-only accuracy path |
+| Local STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (`v3` multilingual default, `v2` English-only opt-in, `unified` English-only opt-in); Nemotron 3.5 Beta, WhisperKit, and Cohere Transcribe optional | Parakeet gives the best speed/memory profile for supported languages in the current M4 Pro harness (~81-93x steady RTFx, 115-131 MB peak RSS by build); v2 avoids language auto-detect for English-only use; Unified adds punctuation/capitalization and token-derived timestamps; Nemotron is a fast opt-in Beta path with multilingual and English-only builds; Whisper adds mature broad multilingual coverage locally; Cohere is a larger batch-only accuracy path |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6 language mode (tools-version 5.9) |
 | Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
@@ -62,8 +62,8 @@ These decisions are final. Do not second-guess them.
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| Stable DMG | User-facing release, recommended for normal use | Dictation, file/media URL transcription, meeting recording, calendar auto-start (opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
-| `main` | Development | Latest stable release plus untagged fixes, Cohere Transcribe, and the flag delta below |
+| Stable DMG `0.6.24` | User-facing release, recommended for normal use | Dictation, file/media URL transcription, meeting recording, calendar auto-start (opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta and WhisperKit, exports, vocabulary, AI features |
+| `main` | Development | Latest stable release plus untagged fixes, Cohere Transcribe, recognition-time custom vocabulary boosting, meeting echo-cancellation/cleaned-mic artifact work for the next release train, developer-gated in-process MLX local LLM groundwork, and the flag delta below |
 
 Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 
@@ -127,7 +127,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), Cohere Transcribe on `main`, display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting audio N-day retention, plus other follow-up polish | **In progress on `main`** |
+| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023 implemented behind default-off flag), meeting reliability (ADR-025 Phase A implemented behind default-on kill-switch), activity-based detection (ADR-024 Phases A+B implemented behind default-off flag), Cohere Transcribe on `main`, display-only live dictation transcript preview (`liveDictationStreamingEnabled`, enabled on `main`), meeting echo-cancellation/cleaned-mic artifacts, recognition-time custom vocabulary boosting, meeting audio N-day retention, developer-gated local MLX groundwork, plus other follow-up polish | **In progress on `main`** |
 
 ## Version Progress
 

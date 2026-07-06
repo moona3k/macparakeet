@@ -14,9 +14,9 @@ MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio C
 |----------|-------|
 | Model | Parakeet TDT 0.6B (`v3` default, `v2` opt-in) |
 | Runtime | FluidAudio SDK (CoreML on ANE) |
-| Word Error Rate | ~2.5% (v3 multilingual) / ~2.1% (v2 English-only) |
-| Speed | ~155x realtime on Apple Silicon |
-| Peak working RAM | ~66 MB per active Parakeet inference slot (~130 MB with custom vocabulary boosting) |
+| Benchmark accuracy | Full-LibriSpeech macro WER: 3.22% (v3 multilingual), 2.57% (v2 English-only), 2.38% (Unified). FLEURS directional pass: v3 is strong on English but fails CJK/Korean by romanizing output. |
+| Speed | Apple M4 Pro speed/memory micro-bench: ~81x realtime (v3), ~90x (v2), ~93x (Unified) steady RTFx |
+| Peak working RAM | Apple M4 Pro speed/memory micro-bench: 131 MB (v3), 123 MB (v2), 115 MB (Unified) peak RSS, before recognition-time custom vocabulary boosting |
 | Model download | ~465 MB CoreML bundle per build (one-time; v2 and v3 cache independently) |
 | Output | Word-level timestamps with per-word confidence scores |
 | Input format | 16kHz mono Float32 samples (FluidAudio's AudioConverter handles resampling) |
@@ -192,9 +192,11 @@ Runtime behavior:
 - Vocabulary contents are user data. MacParakeet does not log or emit telemetry
   with the term strings.
 
-When active, peak working RAM is approximately the Parakeet TDT slot plus the
-CTC sidecar (~130 MB total). The intended term count remains small user
-vocabularies rather than full dictionaries.
+When active, peak working RAM is the Parakeet TDT slot plus the CTC sidecar. The
+published speed/memory benchmark currently measures the non-boosted Parakeet
+paths at 115-131 MB peak RSS on an M4 Pro; rerun a representative boosted-vocab
+case before publishing a boosted-memory number. The intended term count remains
+small user vocabularies rather than full dictionaries.
 
 ### Additional Capabilities (via FluidAudio)
 
@@ -494,7 +496,7 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - CoreML runs in-process (not a separate daemon) — no subprocess crash isolation
 - Wrap transcription calls in error handling
 - On CoreML failure, log the error, report to user, allow retry
-- Memory pressure: CoreML uses ~66 MB working RAM per active Parakeet inference slot, far less likely to trigger OOM than the previous ~2 GB MLX path
+- Memory pressure: the current M4 Pro benchmark measures Parakeet builds at 115-131 MB peak RSS in the isolated CLI speed/memory harness, far less likely to trigger OOM than the previous ~2 GB MLX path. Cohere is the exceptional opt-in batch engine and is budgeted separately.
 
 ### Engine Switching Errors
 
@@ -506,37 +508,39 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 
 - Transcription requests have a timeout proportional to audio duration
 - Short dictations: 30-second timeout
-- Long files: generous timeout (model runs at ~155x realtime)
+- Long files: generous timeout (Parakeet builds measured ~81-93x steady RTFx on the current M4 Pro benchmark; other engines vary by model)
 - Warm-up/model download allows a longer timeout (first-run downloads can take minutes)
 
 ---
 
 ## Performance
 
-| Scenario | Latency |
-|----------|---------|
-| CoreML compilation (first load) | ~3.4 seconds |
-| Model warm load (cached) | ~162 ms |
-| Short dictation (5-10 seconds audio) | <100ms transcription |
-| Long file transcription | ~23 seconds per hour of audio |
+| Scenario | Current benchmark evidence |
+|----------|----------------------------|
+| Parakeet cold start | 0.38 s (v3), 0.55 s (v2), 0.93 s (Unified) in the Apple M4 Pro speed/memory micro-bench |
+| Short dictation (5-10 seconds audio) | Usually sub-100ms STT work once the selected Parakeet build is ready |
+| Long file transcription | Parakeet v3/v2/Unified measured ~81-93x steady RTFx, roughly 39-44 seconds per hour of audio before I/O and post-processing overhead |
+| Optional engines | Nemotron measured ~57-61x, Whisper ~14x, and Cohere ~11x with a ~73 s cold start and ~11.6 GB peak RSS in the committed reference row |
 
-These figures are Parakeet/FluidAudio targets. WhisperKit exists for language coverage and should not be described as matching Parakeet latency.
+These figures are Apple M4 Pro benchmark evidence from `benchmarks/asr/`, not universal latency promises. WhisperKit exists for language coverage and should not be described as matching Parakeet latency. Cohere exists for accuracy-critical batch work and should not be described as matching Parakeet memory or cold-start behavior.
 
 ### Speed Comparison
 
-| Audio length | CoreML/ANE | Perceptible? |
-|-------------|-----------|-------------|
-| 5 seconds | 0.03s | No |
-| 30 seconds | 0.2s | No |
-| 1 minute | 0.4s | No |
-| 5 minutes | 1.9s | Barely |
-| 1 hour | 23s | Yes, but very fast |
+| Audio length | Parakeet v3 at ~81x steady RTFx | Perceptible? |
+|-------------|------------------------------|-------------|
+| 5 seconds | ~0.06 s | No |
+| 30 seconds | ~0.37 s | No |
+| 1 minute | ~0.74 s | Barely |
+| 5 minutes | ~3.7 s | Yes |
+| 1 hour | ~44 s | Yes, but still fast |
 
 For dictation (the primary use case), transcription time is imperceptible. For long file transcription, the ANE path is still remarkably fast.
 
 ### Memory Budget
 
-- Parakeet STT: ~66 MB working RAM per active slot (~130 MB with vocab boosting)
+- Parakeet STT: 115-131 MB peak RSS in the non-boosted M4 Pro speed/memory benchmark, depending on build
+- Recognition-time custom vocabulary boosting: adds the CTC sidecar; benchmark a representative boosted-vocab case before publishing a boosted memory number
+- Cohere Transcribe: ~11.6 GB peak RSS in the committed speed/memory reference row; treat it as a 16 GB+ opt-in batch engine
 - App process (UI + services): ~100 MB
 - Audio buffers: ~50 MB
 - Illustrative warm single-slot budget: ~200-250 MB before diarization
