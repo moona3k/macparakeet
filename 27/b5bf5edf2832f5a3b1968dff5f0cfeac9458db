@@ -1,0 +1,40 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactAudioFileNames.swift
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 9-12,19-72
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingSettlement.swift
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 82-84
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_7bb59a706e41d2::t_f75bc4ccd5c900 183-204,230-263,778-791,793
+  s_7bb59a706e41d2::t_aade17528062bd 774-777
+  s_7bb59a706e41d2::t_67fb9fb123ff01 264
+  s_7bb59a706e41d2::t_bdb1d354cc4e4b 792
+  s_7bb59a706e41d2::t_99661f438c206f 794
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 154,181-186,189,193,295,377-378,384,387-388,393-395,401-402
+  s_7bb59a706e41d2::t_aade17528062bd 162-169,389-392
+Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 32
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 145-153,180
+Sources/CLI/CHANGELOG.md
+  s_7bb59a706e41d2::t_efb1db7ffb6a7b 138-140
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_7bb59a706e41d2::t_f75bc4ccd5c900 377-398
+Tests/MacParakeetTests/Services/MeetingRecording/TranscriptionAssetCleanupCleanedMicTests.swift
+  s_7bb59a706e41d2::t_f75bc4ccd5c900 16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27b5bf5edf2832f5a3b1968dff5f0cfeac9458db",
+  "prompts": {},
+  "sessions": {
+    "s_7bb59a706e41d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3523-ca71-7691-a353-aba2e536d905",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
