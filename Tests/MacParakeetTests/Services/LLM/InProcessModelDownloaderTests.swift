@@ -227,6 +227,27 @@ final class InProcessModelDownloaderTests: XCTestCase {
         XCTAssertEqual(size, 0)
     }
 
+    func testDefaultModelCacheSizeSkipsSymlinkedSubdirectoryContents() async throws {
+        let fixture = try makeFixture(files: ["config.json": Data(repeating: 0x01, count: 4)])
+        try writeFixtureFiles(fixture)
+        let external = fixture.root.appendingPathComponent("external-target", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        try Data(repeating: 0x03, count: 9).write(to: external.appendingPathComponent("outside.bin"))
+        try FileManager.default.createSymbolicLink(
+            at: fixture.directory.appendingPathComponent("external-link", isDirectory: true),
+            withDestinationURL: external
+        )
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let size = await downloader.defaultModelCacheSizeBytes()
+
+        XCTAssertEqual(size, 4)
+    }
+
     func testCanceledDownloadThrowsCancellationAndPreservesCompletePartial() async throws {
         let fixture = try makeFixture(files: ["model.safetensors": Data("abcdef".utf8)])
         try FileManager.default.createDirectory(at: fixture.directory, withIntermediateDirectories: true)

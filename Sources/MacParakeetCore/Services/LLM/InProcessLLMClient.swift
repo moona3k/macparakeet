@@ -112,11 +112,29 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         do {
             await runtime.unload()
             try await operation()
-            await lifetimeCoordinator.endExclusiveOperation(lease)
+            await lifetimeCoordinator.endExclusiveOperation(
+                lease,
+                waitingGenerationError: Self.modelRemovedDuringRemovalError()
+            )
         } catch {
-            await lifetimeCoordinator.endExclusiveOperation(lease)
+            await lifetimeCoordinator.endExclusiveOperation(
+                lease,
+                waitingGenerationError: Self.modelRemovalFailedError(error)
+            )
             throw error
         }
+    }
+
+    private static func modelRemovedDuringRemovalError() -> LLMError {
+        .modelNotFound(
+            "The downloaded local AI model was removed. Download and verify it again before using local AI."
+        )
+    }
+
+    private static func modelRemovalFailedError(_ error: Error) -> LLMError {
+        .providerError(
+            "Local AI model removal did not complete before queued generation could start: \(error.localizedDescription)"
+        )
     }
 
     public static func environmentModelDirectory(for config: LLMProviderConfig) throws -> URL {
@@ -585,17 +603,14 @@ private actor LocalLLMLifetimeCoordinator {
         scheduleUnload(runtime: runtime, delayNanoseconds: delayNanoseconds)
     }
 
-    func endExclusiveOperation(_ lease: LocalLLMGenerationLease) {
+    func endExclusiveOperation(
+        _ lease: LocalLLMGenerationLease,
+        waitingGenerationError: any Error & Sendable
+    ) {
         guard activeGenerationID == lease.id else { return }
 
-        if !waitingGenerations.isEmpty {
-            let next = waitingGenerations.removeFirst()
-            activeGenerationID = next.lease.id
-            next.continuation.resume(returning: next.lease)
-            return
-        }
-
         activeGenerationID = nil
+        failWaitingGenerations(with: waitingGenerationError)
     }
 
     private func cancelWaitingGeneration(id: UUID) {
@@ -603,6 +618,12 @@ private actor LocalLLMLifetimeCoordinator {
 
         let waitingGeneration = waitingGenerations.remove(at: index)
         waitingGeneration.continuation.resume(throwing: CancellationError())
+    }
+
+    private func failWaitingGenerations(with error: any Error & Sendable) {
+        let waiting = waitingGenerations
+        waitingGenerations.removeAll()
+        waiting.forEach { $0.continuation.resume(throwing: error) }
     }
 
     private func cancelPendingUnload() {
