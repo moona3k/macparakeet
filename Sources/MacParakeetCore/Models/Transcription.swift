@@ -161,8 +161,8 @@ public struct Transcription: Codable, Identifiable, Sendable {
 extension Transcription {
     /// Whether this transcription carries word-level timing. This is the source
     /// of truth for the "Timed" transcript view and for whether timestamps can
-    /// be exported. Plain-text engines (Parakeet Unified, Cohere) and older
-    /// pre-timestamp records leave this `false`.
+    /// be exported. Plain-text engines (such as Cohere) and older pre-timestamp
+    /// records leave this `false`.
     public var hasWordTimestamps: Bool {
         guard let wordTimestamps else { return false }
         return !wordTimestamps.isEmpty

@@ -62,7 +62,7 @@ final class TranscriptExportOptionsTests: XCTestCase {
 
     /// The motivating legacy / plain-text-engine state: a `speakers` roster
     /// exists (so the header shows "N speakers") but the engine emitted no word
-    /// timings at all — Parakeet Unified / Cohere, or pre-#623 diarized records.
+    /// timings at all — Cohere, or pre-#623 diarized records.
     /// Speaker labels cannot be exported, so this must be false. Exercises the
     /// `guard let wordTimestamps` branch.
     func testHasSpeakerLabeledWordsFalseWhenSpeakersButNoWordTimestamps() {

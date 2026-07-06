@@ -1,6 +1,8 @@
 # ASR Model Landscape for MacParakeet
 
 Research date: 2026-06-30
+Updated: 2026-07-06 after FluidAudio v0.15.4 exposed Parakeet Unified token
+timings through `StreamingUnifiedAsrManager`.
 
 Audience: product, engineering, and release reviewers deciding which speech
 models should power MacParakeet's dictation, meetings, and file/media
@@ -15,7 +17,7 @@ seven selectable local ASR builds across four engine families:
 2. Parakeet TDT 0.6B v2, an English-only TDT fallback for users who value
    English stability over language breadth.
 3. Parakeet Unified EN 0.6B, an English-only, punctuated/capitalized Parakeet
-   runtime with native live dictation partials but no word timings.
+   runtime with native live dictation partials and token-derived word timings.
 4. Nemotron 3.5 ASR Streaming 0.6B, a multilingual beta streaming build.
 5. Nemotron Speech Streaming EN 0.6B, an English-only beta streaming build.
 6. Whisper Large v3 Turbo through WhisperKit, MacParakeet's broad-language
@@ -62,7 +64,7 @@ branch, not older plans or memory.
 | --- | --- | --- | --- | --- | --- | --- |
 | Parakeet TDT 0.6B v3 | Default Parakeet build; multilingual default | Tail-window batch preview | Routed through meeting live chunks | Yes, through FluidAudio TDT path | App ignores `--language`; model auto behavior | `Sources/MacParakeetCore/STT/README.md`, `SpeechEnginePreference.swift` |
 | Parakeet TDT 0.6B v2 | English-only Parakeet opt-in | Tail-window batch preview | Routed through meeting live chunks | Yes, through FluidAudio TDT path | Fixed English-only posture | `SpeechEnginePreference.swift`, `ParakeetModelVariant+ASR.swift` |
-| Parakeet Unified EN 0.6B | English-only Parakeet variant; separate FluidAudio runtime | Native streaming partials, final still uses offline recorded-file result | Routed through meeting live chunks | No | Fixed English | `ParakeetUnifiedEngine.swift`, `STTRuntime.swift` |
+| Parakeet Unified EN 0.6B | English-only Parakeet variant; separate FluidAudio runtime | Native streaming partials; final dictation/file/meeting work now uses the timestamp-capable streaming path | Routed through meeting live chunks | Yes, token-derived via FluidAudio streaming manager | Fixed English | `ParakeetUnifiedEngine.swift`, `STTRuntime.swift` |
 | Nemotron 3.5 ASR Streaming 0.6B | Multilingual beta engine | Native streaming partials | Routed through meeting live chunks | Yes, from token timings when available | Optional language hint or auto | `NemotronEngine.swift`, `STTRuntime.swift` |
 | Nemotron Speech Streaming EN 0.6B | English-only beta engine | Native streaming partials | Routed through meeting live chunks | Yes, from token timings when available | Fixed English | `NemotronEnglishEngine.swift`, `STTRuntime.swift` |
 | Whisper Large v3 Turbo | Optional broad-language local fallback | Tail-window batch preview path exists; no native streaming session | Routed through meeting live chunks | Yes, through WhisperKit word timings | Hint or auto detect | `WhisperEngine.swift`, `docs/cli-testing.md` |
@@ -81,7 +83,7 @@ or no-headset meeting QA.
 | --- | --- | --- | --- | --- | --- |
 | Parakeet TDT v3 | ++ | + | ++ | + | + |
 | Parakeet TDT v2 | ++ for English | + | + for English | + for English | + for English |
-| Parakeet Unified EN | ++ for English readability | ++ | + but no word timings | 0 | + for English |
+| Parakeet Unified EN | ++ for English readability | ++ | + for English with word timings | + for English | + for English |
 | Nemotron multilingual | + beta | ++ | + | + | + |
 | Nemotron English | + beta for English | ++ | + for English | + for English | + for English |
 | Whisper Large v3 Turbo | 0 to + depending on language and cold state | 0 | + | 0 to + | ++ for broad language coverage |
@@ -164,21 +166,21 @@ It should remain available for English meeting final transcripts and exports.
 
 ### Parakeet Unified EN 0.6B
 
-Best current use: English dictation and English final transcripts where
-readability matters more than word-level timings.
+Best current use: English dictation, live preview, and English final
+transcripts where readability and word timings both matter.
 
 Parakeet Unified is a 600M FastConformer-RNNT model trained for both offline and
 streaming inference. NVIDIA reports strong offline English WER and a smooth
 latency/quality curve from about 2.08 seconds down to 160 ms. The caveat is
 material: current inference is buffered streaming, which recomputes left
-context, not cache-aware streaming. MacParakeet's implementation uses
-FluidAudio's offline 15-second overlapping path for final output and a native
-streaming manager for display partials. It does not expose word timings in the
-current app.
+context, not cache-aware streaming. MacParakeet's implementation now uses
+FluidAudio's native streaming manager for final output and display partials, so
+the app preserves token-derived word timings.
 
 MacParakeet implication: Unified is a strong English dictation/readability
-option. It is not a drop-in replacement for timestamped meeting/export
-workflows until the word-timing gap is solved.
+option with timestamped meeting/export support. It is still not a universal
+Parakeet replacement because it is English-only and uses a different buffered
+streaming runtime from the v2/v3 TDT path.
 
 ### Nemotron Speech Streaming EN 0.6B
 
@@ -279,7 +281,7 @@ speaker/timing-rich meeting UX by itself.
 | --- | --- | --- | --- | --- | --- |
 | Parakeet TDT v3 | FastConformer-TDT | English + 24 European languages | No; tail-window batch preview | Word timings | European-only scope and language auto-detect on short speech |
 | Parakeet TDT v2 | FastConformer-TDT | English | No; tail-window batch preview | Word timings | English-only and noise sensitivity |
-| Parakeet Unified EN | FastConformer-RNNT unified offline/streaming | English | Yes, buffered streaming | No | No word timings; buffered streaming recomputes context |
+| Parakeet Unified EN | FastConformer-RNNT unified offline/streaming | English | Yes, buffered streaming | Token-derived word timings in app | English-only and buffered streaming recomputes context |
 | Nemotron English | Cache-aware FastConformer-RNNT | English | Yes | Token-derived word timings in app | Beta maturity and chunk-size quality tradeoff |
 | Nemotron 3.5 | Cache-aware FastConformer-RNNT with language prompt | 40 locales, uneven tiers | Yes | Token-derived word timings in app | Uneven language tiers; Core ML/local parity needs continuing QA |
 | Whisper Large v3 Turbo | Seq2seq Transformer | Broad multilingual | No native session in app | Word timings | Hallucination/repetition, cold start latency, uneven languages |
@@ -307,8 +309,8 @@ speaker/timing-rich meeting UX by itself.
    pending MacParakeet-owned benchmarks.
 2. Keep Parakeet v2 visible as the "English stability / timestamps" option, not
    as a legacy leftover.
-3. Position Parakeet Unified as "best English readability/live partials, no word
-   timings" rather than a universal Parakeet upgrade.
+3. Position Parakeet Unified as "best English readability/live partials with
+   word timings" rather than a universal Parakeet upgrade.
 4. Keep Nemotron behind beta framing until real MacParakeet QA covers the exact
    Apple devices, chunk sizes, languages, and meeting/dictation paths.
 5. Keep Whisper as the broad-language fallback and retranscription tool.

@@ -75,7 +75,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
-- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in; Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected globally in Settings or per CLI invocation where their engine constraints fit. Cohere is batch-only and produces plain text without word timestamps or live preview.
+- The selected speech engine is Parakeet by default. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in with native live preview and token-derived word timestamps; Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected globally in Settings or per CLI invocation where their engine constraints fit. Cohere is batch-only and produces plain text without word timestamps or live preview.
 
 ### Conversion Flow
 

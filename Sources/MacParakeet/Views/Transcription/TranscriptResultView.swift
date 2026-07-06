@@ -2735,15 +2735,14 @@ struct TranscriptResultView: View {
     }
 
     /// Shown above a meeting transcript that has text but no word timestamps
-    /// (e.g. it was transcribed with Cohere or Parakeet Unified). Makes the
+    /// (for example, it was transcribed with Cohere). Makes the
     /// text-only trade-off visible without promising speaker-label quality.
     private var meetingNoWordTimestampsBannerPresentation: MeetingTimedTranscriptRecoveryBannerPresentation? {
         let hasRetainedAudio =
             onRetranscribe != nil
             && (activeTranscription.filePath.map { FileManager.default.fileExists(atPath: $0) } ?? false)
         // Resolve the rerun choice from the live transcription so the banner
-        // stays in sync with what's actually shown. Parakeet Unified is also
-        // word-less, so don't offer it as the recovery path.
+        // stays in sync with what's actually shown.
         let timestampCapableRerun: SpeechEngineSelection? = hasRetainedAudio
             ? viewModel.retranscriptionEngineOption(for: activeTranscription)?
                 .firstTimestampCapableChoice?.selection

@@ -178,7 +178,7 @@ Most Mac voice apps do one thing. MacParakeet does all three — dictation, file
 *Last verified: 2026-05.*
 
 ### Body paragraph
-MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built around local Apple Silicon speech recognition: Parakeet v3 is the default for English and supported European languages, English-only Parakeet builds cover timestamped exports or readable live preview, Whisper handles broader-language files and retranscription, Nemotron is Beta live preview, and Cohere is local batch plain text.
+MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built around local Apple Silicon speech recognition: Parakeet v3 is the default for English and supported European languages, English-only Parakeet builds cover timestamped exports and readable live preview, Whisper handles broader-language files and retranscription, Nemotron is Beta live preview, and Cohere is local batch plain text.
 
 ## CTA Conventions
 
