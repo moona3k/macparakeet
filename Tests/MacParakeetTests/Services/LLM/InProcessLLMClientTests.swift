@@ -374,6 +374,83 @@ final class InProcessLLMClientTests: XCTestCase {
         XCTAssertEqual(requestContents, ["First"])
     }
 
+    func testQueuedGenerationFailsWhenModelRemovalCompletes() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let firstGenerationGate = AsyncGate()
+        let removalStartedGate = AsyncGate()
+        let deleteGate = AsyncGate()
+        let queuedStartedGate = AsyncGate()
+        let runtime = FakeLocalLLMRuntime(
+            eventPlans: [
+                [.wait(firstGenerationGate), .text("first")],
+                [.text("second")],
+            ]
+        )
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            idleUnloadDelaySeconds: 60
+        )
+
+        let firstTask = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "First")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "removal-queue-test")),
+                options: .default
+            )
+        }
+
+        try await withTimeout {
+            await runtime.waitForRequestCount(1)
+        }
+
+        let removalTask = Task {
+            try await client.withInProcessLocalModelRemoval {
+                await removalStartedGate.open()
+                await deleteGate.wait()
+            }
+        }
+
+        await firstGenerationGate.open()
+        _ = try await firstTask.value
+
+        try await withTimeout {
+            await removalStartedGate.wait()
+        }
+
+        let queuedTask = Task {
+            await queuedStartedGate.open()
+            return try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Second")],
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "removal-queue-test")),
+                options: .default
+            )
+        }
+
+        try await withTimeout {
+            await queuedStartedGate.wait()
+        }
+        try await Task.sleep(nanoseconds: 10_000_000)
+        let requestCountBeforeDelete = await runtime.requestCallCount()
+        XCTAssertEqual(requestCountBeforeDelete, 1)
+
+        await deleteGate.open()
+        try await removalTask.value
+
+        do {
+            _ = try await queuedTask.value
+            XCTFail("Expected queued generation to fail after local model removal")
+        } catch {
+            XCTAssertTrue(
+                error.localizedDescription.contains("removed"),
+                "Expected removed-model error, got \(error.localizedDescription)"
+            )
+        }
+
+        let requestCountAfterDelete = await runtime.requestCallCount()
+        XCTAssertEqual(requestCountAfterDelete, 1)
+    }
+
     func testStreamingYieldsRuntimeChunks() async throws {
         let modelDirectory = temporaryModelDirectory()
         let runtime = FakeLocalLLMRuntime(eventPlans: [

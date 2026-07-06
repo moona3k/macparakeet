@@ -66,6 +66,30 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.selectableProviderIDs.contains(.inProcessLocal))
     }
 
+    func testRemovingDownloadedInProcessModelClearsSelectedProviderDraft() async {
+        defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
+        mockClient.supportsInProcessLocalLLM = true
+        mockConfigStore.config = .inProcessLocal()
+        let downloader = SettingsFakeInProcessModelDownloader(isDownloaded: true, cacheSizeBytes: 123)
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            inProcessModelDownloader: downloader,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+        await viewModel.inProcessModelManager.refresh()
+
+        XCTAssertEqual(viewModel.selectedProviderID, .inProcessLocal)
+        XCTAssertTrue(viewModel.inProcessModelManager.isModelDownloaded)
+
+        await viewModel.inProcessModelManager.deleteModel()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertNil(viewModel.selectedProviderID)
+        XCTAssertFalse(viewModel.inProcessModelManager.isModelDownloaded)
+        XCTAssertEqual(viewModel.inProcessModelManager.modelCacheSizeBytes, 0)
+    }
+
     func testDeveloperOverrideShowsUnavailableExplanationWhenRuntimeMissing() {
         defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
         mockClient.supportsInProcessLocalLLM = false
@@ -1782,5 +1806,53 @@ final class LLMSettingsViewModelTests: XCTestCase {
         let saved = mockConfigStore.config
         XCTAssertEqual(saved?.id, .openaiCompatible)
         XCTAssertEqual(saved?.isLocal, true)
+    }
+}
+
+private actor SettingsFakeInProcessModelDownloader: InProcessModelDownloading {
+    private var isDownloaded: Bool
+    private var cacheSizeBytes: UInt64
+
+    init(isDownloaded: Bool, cacheSizeBytes: UInt64) {
+        self.isDownloaded = isDownloaded
+        self.cacheSizeBytes = cacheSizeBytes
+    }
+
+    nonisolated func defaultModelDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("SettingsFakeInProcessModelDownloader", isDirectory: true)
+    }
+
+    func isDefaultModelDownloaded() async -> Bool {
+        isDownloaded
+    }
+
+    func hasDefaultModelArtifacts() async -> Bool {
+        isDownloaded
+    }
+
+    func defaultModelCacheSizeBytes() async -> UInt64 {
+        cacheSizeBytes
+    }
+
+    func remainingDefaultModelDownloadBytes() async throws -> UInt64 {
+        isDownloaded ? 0 : InProcessLocalModelCatalog.defaultManifest.totalBytes
+    }
+
+    func verifyDefaultModel() async throws -> URL {
+        defaultModelDirectory()
+    }
+
+    func downloadDefaultModel(
+        progress: @escaping InProcessModelDownloadProgressHandler
+    ) async throws -> URL {
+        isDownloaded = true
+        cacheSizeBytes = InProcessLocalModelCatalog.defaultManifest.totalBytes
+        return defaultModelDirectory()
+    }
+
+    func deleteDefaultModel() async throws {
+        isDownloaded = false
+        cacheSizeBytes = 0
     }
 }

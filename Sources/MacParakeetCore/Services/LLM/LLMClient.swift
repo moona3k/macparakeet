@@ -21,6 +21,11 @@ public protocol LLMClientProtocol: Sendable {
 
     /// Fetches available model IDs from the provider's /models endpoint.
     func listModels(context: LLMExecutionContext) async throws -> [String]
+
+    /// Runs `operation` after any active in-process local generation is finished
+    /// and before future in-process generations may start. Non in-process
+    /// clients execute the operation directly.
+    func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws
 }
 
 public extension LLMClientProtocol {
@@ -56,6 +61,10 @@ public extension LLMClientProtocol {
 
     func listModels(config: LLMProviderConfig) async throws -> [String] {
         try await listModels(context: LLMExecutionContext(providerConfig: config))
+    }
+
+    func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws {
+        try await operation()
     }
 }
 

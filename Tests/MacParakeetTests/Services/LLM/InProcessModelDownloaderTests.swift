@@ -138,6 +138,116 @@ final class InProcessModelDownloaderTests: XCTestCase {
         XCTAssertFalse(afterDelete)
     }
 
+    func testRemainingDownloadBytesAccountsForPartialFiles() async throws {
+        let fixture = try makeFixture(files: ["model.safetensors": Data("abcdef".utf8)])
+        try FileManager.default.createDirectory(at: fixture.directory, withIntermediateDirectories: true)
+        let partial = fixture.directory.appendingPathComponent(".model.safetensors.part")
+        try Data("abc".utf8).write(to: partial)
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let remaining = try await downloader.remainingDefaultModelDownloadBytes()
+
+        XCTAssertEqual(remaining, 3)
+        let requests = await fixture.transport.requests()
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testRemainingDownloadBytesSkipsVerifiedCompletePartialFile() async throws {
+        let fixture = try makeFixture(files: ["model.safetensors": Data("abcdef".utf8)])
+        try FileManager.default.createDirectory(at: fixture.directory, withIntermediateDirectories: true)
+        let partial = fixture.directory.appendingPathComponent(".model.safetensors.part")
+        try Data("abcdef".utf8).write(to: partial)
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let remaining = try await downloader.remainingDefaultModelDownloadBytes()
+
+        XCTAssertEqual(remaining, 0)
+        let requests = await fixture.transport.requests()
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testRemainingDownloadBytesIsZeroForVerifiedManagedCache() async throws {
+        let fixture = try makeFixture()
+        try writeFixtureFiles(fixture)
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        _ = try await downloader.verifyDefaultModel()
+
+        let remaining = try await downloader.remainingDefaultModelDownloadBytes()
+        XCTAssertEqual(remaining, 0)
+    }
+
+    func testDefaultModelCacheSizeCountsManagedFiles() async throws {
+        let fixture = try makeFixture(files: [
+            "config.json": Data(repeating: 0x01, count: 4),
+            "model.safetensors": Data(repeating: 0x02, count: 6),
+        ])
+        try writeFixtureFiles(fixture)
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let size = await downloader.defaultModelCacheSizeBytes()
+
+        XCTAssertEqual(size, 10)
+    }
+
+    func testDefaultModelCacheSizeSkipsManagedDirectorySymlink() async throws {
+        let fixture = try makeFixture()
+        let external = fixture.root.appendingPathComponent("external-target", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        try Data(repeating: 0x03, count: 9).write(to: external.appendingPathComponent("outside.bin"))
+        try FileManager.default.createDirectory(at: fixture.root, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: fixture.directory,
+            withDestinationURL: external
+        )
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let size = await downloader.defaultModelCacheSizeBytes()
+
+        XCTAssertEqual(size, 0)
+    }
+
+    func testDefaultModelCacheSizeSkipsSymlinkedSubdirectoryContents() async throws {
+        let fixture = try makeFixture(files: ["config.json": Data(repeating: 0x01, count: 4)])
+        try writeFixtureFiles(fixture)
+        let external = fixture.root.appendingPathComponent("external-target", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        try Data(repeating: 0x03, count: 9).write(to: external.appendingPathComponent("outside.bin"))
+        try FileManager.default.createSymbolicLink(
+            at: fixture.directory.appendingPathComponent("external-link", isDirectory: true),
+            withDestinationURL: external
+        )
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        let size = await downloader.defaultModelCacheSizeBytes()
+
+        XCTAssertEqual(size, 4)
+    }
+
     func testCanceledDownloadThrowsCancellationAndPreservesCompletePartial() async throws {
         let fixture = try makeFixture(files: ["model.safetensors": Data("abcdef".utf8)])
         try FileManager.default.createDirectory(at: fixture.directory, withIntermediateDirectories: true)
@@ -260,6 +370,8 @@ final class InProcessModelDownloaderTests: XCTestCase {
     func testDeleteRemovesModelDirectory() async throws {
         let fixture = try makeFixture()
         try writeFixtureFiles(fixture)
+        let sibling = fixture.root.appendingPathComponent("sibling.txt")
+        try Data("keep".utf8).write(to: sibling)
         let downloader = InProcessModelDownloader(
             manifest: fixture.manifest,
             cacheRoot: fixture.root,
@@ -269,6 +381,30 @@ final class InProcessModelDownloaderTests: XCTestCase {
         try await downloader.deleteDefaultModel()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.directory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sibling.path))
+    }
+
+    func testDeleteRemovesManagedDirectorySymlinkWithoutFollowingIt() async throws {
+        let fixture = try makeFixture()
+        let external = fixture.root.appendingPathComponent("external-target", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        let externalFile = external.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: externalFile)
+        try FileManager.default.createDirectory(at: fixture.root, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: fixture.directory,
+            withDestinationURL: external
+        )
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        try await downloader.deleteDefaultModel()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.directory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: externalFile.path))
     }
 
     private func makeFixture(
