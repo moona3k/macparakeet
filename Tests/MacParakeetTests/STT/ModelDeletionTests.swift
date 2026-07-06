@@ -49,15 +49,16 @@ final class ModelDeletionTests: XCTestCase {
 
     // MARK: - Parakeet Unified cache validation
 
-    func testParakeetUnifiedRequiredModelFilesTrackOfflineDownloadSet() {
+    func testParakeetUnifiedRequiredModelFilesTrackRuntimeDownloadSet() {
         let requiredFiles = ParakeetUnifiedEngine.requiredModelFiles()
 
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
-        XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_int8.mlmodelc"))
+        XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("vocab.json"))
         XCTAssertTrue(requiredFiles.contains("metadata.json"))
+        XCTAssertEqual(requiredFiles, ParakeetUnifiedEngine.requiredStreamingModelFiles())
     }
 
     func testParakeetUnifiedRequiredStreamingModelFilesTrackStreamingDownloadSet() {

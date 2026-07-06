@@ -2600,7 +2600,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
     }
 
-    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceSkipsParakeetUnified() throws {
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceCanUseParakeetUnified() throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -2647,11 +2647,11 @@ final class TranscriptionViewModelTests: XCTestCase {
             option.producesWordTimestamps(whisper.selection),
             expectedWhisper.providesWordTimestamps
         )
-        XCTAssertFalse(expectedParakeet.providesWordTimestamps)
+        XCTAssertTrue(expectedParakeet.providesWordTimestamps)
         XCTAssertTrue(expectedWhisper.providesWordTimestamps)
         XCTAssertEqual(
             option.firstTimestampCapableChoice?.selection,
-            SpeechEngineSelection(engine: .whisper)
+            SpeechEngineSelection(engine: .parakeet)
         )
     }
 
@@ -2731,11 +2731,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
         XCTAssertEqual(
             option.firstTimestampCapableChoice?.selection.engine,
-            .nemotron
+            .parakeet
         )
     }
 
-    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceNilWhenOnlyWordlessEnginesAreAvailable() throws {
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesUnifiedWhenOtherTimestampEnginesAreUnavailable() throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -2775,10 +2775,13 @@ final class TranscriptionViewModelTests: XCTestCase {
             cohere.capabilities,
             SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
         )
-        XCTAssertFalse(parakeet.capabilities.providesWordTimestamps)
+        XCTAssertTrue(parakeet.capabilities.providesWordTimestamps)
         XCTAssertFalse(cohere.capabilities.providesWordTimestamps)
 
-        XCTAssertNil(option.firstTimestampCapableChoice)
+        XCTAssertEqual(
+            option.firstTimestampCapableChoice?.selection,
+            SpeechEngineSelection(engine: .parakeet)
+        )
     }
 
     func testRetranscriptionEngineOptionFallsBackToCurrentDefaultForLegacyFileTranscript() throws {

@@ -6,7 +6,7 @@ final class ParakeetUnifiedEngineDictationPadTests: XCTestCase {
     func testDictationSamplesAppendTrailingSilence() {
         let samples: [Float] = [0.1, -0.2, 0.3]
 
-        let padded = ParakeetUnifiedEngine.samplesForOfflineTranscription(
+        let padded = ParakeetUnifiedEngine.samplesForFinalTranscription(
             samples,
             job: .dictation
         )
@@ -20,7 +20,7 @@ final class ParakeetUnifiedEngineDictationPadTests: XCTestCase {
     func testNonDictationSamplesAreUnchanged() {
         let samples: [Float] = [0.1, -0.2, 0.3]
 
-        let meetingSamples = ParakeetUnifiedEngine.samplesForOfflineTranscription(
+        let meetingSamples = ParakeetUnifiedEngine.samplesForFinalTranscription(
             samples,
             job: .meetingFinalize
         )

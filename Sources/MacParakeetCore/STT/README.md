@@ -2,8 +2,8 @@
 
 > One process-wide speech-to-text control plane. Parakeet (FluidAudio /
 > CoreML) is default, with v3 multilingual as the default build, v2
-> English-only and Parakeet Unified (English-only, punctuated offline output
-> plus native live dictation partials)
+> English-only and Parakeet Unified (English-only, punctuated output
+> plus native live dictation partials and word timings)
 > as opt-in Parakeet variants; Nemotron is an opt-in Beta
 > engine with two builds — multilingual (Nemotron 3.5, default) and an
 > English-only streaming build (Nemotron Speech Streaming EN 0.6B);
@@ -39,14 +39,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   (text, word-level timing, optional detected language, the engine
   that produced the result, and an optional engine-specific model
   variant).
-- `ParakeetUnifiedEngine.swift` — FluidAudio `UnifiedAsrManager` +
-  `StreamingUnifiedAsrManager` wrapper for NVIDIA Parakeet Unified EN 0.6B
-  (English-only, int8). Selected when `ParakeetModelVariant == .unified`.
-  File, meeting, and recorded-file dictation use FluidAudio's overlapping 15 s
-  offline batch transcription (`parakeet-unified-offline-15s`) because that is
-  the best stop-time quality path. Live dictation uses the native low-latency
-  streaming build (`parakeet-unified-2080ms`) to emit partials while capture is
-  active. No word timings; `language` fixed to `en`.
+- `ParakeetUnifiedEngine.swift` — FluidAudio `StreamingUnifiedAsrManager`
+  wrapper for NVIDIA Parakeet Unified EN 0.6B (English-only, int8). Selected
+  when `ParakeetModelVariant == .unified`. File, meeting, recorded-file
+  dictation, and native live dictation use the `parakeet-unified-2080ms`
+  streaming build so final transcripts preserve FluidAudio token timings as
+  MacParakeet word timestamps. `language` is fixed to `en`.
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.
 - `NemotronEngine.swift` — FluidAudio Nemotron 3.5 wrapper for the

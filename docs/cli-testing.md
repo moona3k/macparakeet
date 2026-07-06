@@ -192,7 +192,7 @@ the STT input.
 Parakeet remains the no-flag default for semver stability and ignores
 `--language`. Within Parakeet, v3 covers English plus supported European
 languages, v2 is the English timestamped build, and Unified is readable English
-without word timestamps. Use `--parakeet-model app-default|v3|v2|unified` for
+with word timestamps. Use `--parakeet-model app-default|v3|v2|unified` for
 a single run, or `config set parakeet-model unified` /
 `models select parakeet-unified` to persist it.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved

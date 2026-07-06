@@ -385,7 +385,7 @@ public enum WhisperModelVariant: String, CaseIterable, Codable, Sendable {
 /// another language, which `v3`'s auto-detection occasionally does (issues
 /// #311, #398). `unified` is English-only NVIDIA Parakeet Unified EN 0.6B,
 /// a *different* runtime (its own CoreML chain, no `AsrModelVersion`) with
-/// strong English offline accuracy plus punctuation/capitalization (issue #520).
+/// strong English readability plus punctuation/capitalization (issue #520).
 ///
 /// The FluidAudio `AsrModelVersion` bridge lives in the STT layer
 /// (`ParakeetModelVariant+ASR.swift`) so this preference type stays
@@ -398,8 +398,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     /// Unified-FastConformer-RNNT — a *different* FluidAudio runtime from the TDT
     /// v2/v3 builds (its own preprocessor/encoder/decoder chain, no
     /// `AsrModelVersion`), so it is routed to ``ParakeetUnifiedEngine`` instead
-    /// of the shared `AsrManager`. The offline batch path is competitive with
-    /// v2 on English and adds punctuation/capitalization (issue #520).
+    /// of the shared `AsrManager`. It adds punctuation/capitalization and
+    /// token-derived word timings through FluidAudio's streaming manager.
     case unified
 
     /// Short label for the variant's language posture.
@@ -428,14 +428,14 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2:
             "English-only option for stable meetings and exports. Includes word timestamps."
         case .unified:
-            "Readable English with live preview. No word timestamps for exports."
+            "Readable English with live preview. Includes word timestamps for exports."
         }
     }
 
     /// Approximate on-disk download footprint. The TDT builds land near ~465 MB
-    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB); Unified's int8 offline
-    /// bundle is ~565 MB. Kept deliberately rounded so the copy doesn't read as
-    /// falsely precise.
+    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB); Unified's int8
+    /// streaming bundle is roughly in the same tier. Kept deliberately rounded
+    /// so the copy doesn't read as falsely precise.
     public var approximateDownloadSize: String {
         switch self {
         case .v3, .v2: "~465 MB"

@@ -11,21 +11,21 @@ import os
 /// routes the `.unified` `ParakeetModelVariant` here, exactly as the Nemotron
 /// engine routes its English variant to `NemotronEnglishEngine`.
 ///
-/// File, meeting, and recorded-file dictation use FluidAudio's offline
-/// `parakeet-unified-offline-15s` path because that remains the best-quality
-/// stop-time transcription mode. Live dictation uses the native
-/// `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) on the interactive
-/// lane only to emit partial transcripts while capture is active;
-/// `DictationService` still uses the recorded-file offline result for the final
-/// paste/history transcript.
+/// File, meeting, and recorded-file dictation use FluidAudio's native
+/// `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) so the final
+/// transcript carries token-derived word timings. Live dictation uses the same
+/// streaming manager shape on the interactive lane to emit partial transcripts
+/// while capture is active; `DictationService` still records the source audio
+/// alongside the live stream.
 ///
 /// Two lanes (interactive for dictation, background for file/meeting) each get
-/// their own `UnifiedAsrManager` so concurrent dictation + file/meeting work
+/// their own streaming manager so concurrent dictation + file/meeting work
 /// (ADR-015) never collides on one actor's buffers. Both instances load the
 /// same compiled artifacts, which CoreML maps read-only, so the dominant
 /// encoder weights are shared via the page cache rather than duplicated.
 public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     public static let modelVariant = ParakeetModelVariant.unified
+    private static let sliceSampleCount = 160_000
 
     /// int8 is FluidAudio's default and WER-lossless vs fp16 within benchmark
     /// noise, at ~half the download. Kept explicit so the choice is visible at
@@ -34,9 +34,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ParakeetUnifiedEngine")
 
-    private var interactiveManager: UnifiedAsrManager?
-    private var backgroundManager: UnifiedAsrManager?
-    private var liveStreamingManager: StreamingUnifiedAsrManager?
+    private var interactiveManager: StreamingUnifiedAsrManager?
+    private var backgroundManager: StreamingUnifiedAsrManager?
     private var initializationTask: Task<Void, Error>?
     private var activeLanes: Set<ParakeetUnifiedRuntimeLane> = []
 
@@ -70,8 +69,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             guard let manager = manager(for: lane) else {
                 throw STTError.modelNotLoaded
             }
-            // Fresh session: drop any buffered audio a cancelled prior job may
-            // have left behind on this lane's manager.
+            // Fresh session: drop any buffered audio or timings a cancelled
+            // prior job may have left behind on this lane's manager.
             try await manager.reset()
 
             onProgress?(0, 100)
@@ -79,35 +78,21 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             let recordedSamples = try await Task.detached(priority: .userInitiated) {
                 try AudioConverter().resampleAudioFile(audioURL)
             }.value
-            let samples = Self.samplesForOfflineTranscription(recordedSamples, job: job)
+            let samples = Self.samplesForFinalTranscription(recordedSamples, job: job)
             onProgress?(20, 100)
 
-            try Task.checkCancellation()
-            // The offline manager runs its own overlapping 15 s windows over the
-            // whole buffer, so the call is atomic — progress is coarse and
-            // cancellation is checked at the boundaries rather than mid-window.
-            let text = try await ANEInferenceGate.shared.withExclusiveAccess {
-                try await manager.transcribe(samples)
-            }
+            try await processSamples(samples, with: manager, onProgress: onProgress)
+            let text = try await finishStreamingTranscription(with: manager)
+            let tokenTimings = await manager.consumeTokenTimings()
             onProgress?(100, 100)
 
-            // No word timings: the offline `transcribe(_:) -> String` path
-            // surfaces none (same posture as the Nemotron builds). `language`
-            // reflects the build's fixed configuration — the model is
-            // English-only.
-            return STTResult(
-                text: text,
-                words: [],
-                language: "en",
-                engine: .parakeet,
-                engineVariant: Self.modelVariant.rawValue
-            )
+            return Self.result(text: text, tokenTimings: tokenTimings)
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
     }
 
-    static func samplesForOfflineTranscription(
+    static func samplesForFinalTranscription(
         _ samples: [Float],
         job: STTJobKind
     ) -> [Float] {
@@ -134,7 +119,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
         do {
             try await prepare(onProgress: nil)
-            guard let manager = liveStreamingManager else {
+            guard let manager = manager(for: lane) else {
                 throw STTError.modelNotLoaded
             }
             try await manager.reset()
@@ -149,7 +134,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
     public func processLiveDictationSamples(_ samples: [Float]) async throws {
         guard !samples.isEmpty else { return }
-        guard let manager = liveStreamingManager,
+        guard let manager = manager(for: .interactive),
               activeLanes.contains(.interactive) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
@@ -167,7 +152,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
     public func finishLiveDictation() async throws -> STTResult {
         let lane: ParakeetUnifiedRuntimeLane = .interactive
-        guard let manager = liveStreamingManager,
+        guard let manager = manager(for: lane),
               activeLanes.contains(lane) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
@@ -178,13 +163,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             let text = try await ANEInferenceGate.shared.withExclusiveAccess {
                 try await manager.finish()
             }
-            return STTResult(
-                text: text,
-                words: [],
-                language: "en",
-                engine: .parakeet,
-                engineVariant: Self.modelVariant.rawValue
-            )
+            let tokenTimings = await manager.consumeTokenTimings()
+            return Self.result(text: text, tokenTimings: tokenTimings)
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -193,7 +173,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     public func cancelLiveDictation() async {
         let lane: ParakeetUnifiedRuntimeLane = .interactive
         guard activeLanes.contains(lane) else { return }
-        if let manager = liveStreamingManager {
+        if let manager = manager(for: lane) {
             await manager.setPartialTranscriptCallback { _ in }
             try? await manager.reset()
         }
@@ -233,14 +213,11 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
         let interactiveManager = self.interactiveManager
         let backgroundManager = self.backgroundManager
-        let liveStreamingManager = self.liveStreamingManager
         self.interactiveManager = nil
         self.backgroundManager = nil
-        self.liveStreamingManager = nil
 
         await interactiveManager?.cleanup()
         await backgroundManager?.cleanup()
-        await liveStreamingManager?.cleanup()
     }
 
     public func isReady() -> Bool {
@@ -276,7 +253,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     }
 
     nonisolated static func requiredModelFiles() -> Set<String> {
-        ModelNames.ParakeetUnified.requiredModels(variant: downloadVariant)
+        requiredStreamingModelFiles()
     }
 
     nonisolated static func requiredStreamingModelFiles() -> Set<String> {
@@ -287,10 +264,10 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         requiredModelFiles().union(requiredStreamingModelFiles())
     }
 
-    /// Cached only when every file FluidAudio needs for both Unified access
-    /// paths is present. FluidAudio's own `loadModels(to:)` gates only on the
-    /// manager-specific encoder, so MacParakeet must be stricter to let explicit
-    /// downloads repair interrupted or partially deleted caches.
+    /// Cached only when every file FluidAudio needs for MacParakeet's Unified
+    /// streaming path is present. FluidAudio's own `loadModels(to:)` gates only
+    /// on the manager-specific encoder, so MacParakeet must be stricter to let
+    /// explicit downloads repair interrupted or partially deleted caches.
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
         let fileManager = FileManager.default
         return requiredAllModelFiles().allSatisfy { fileName in
@@ -315,8 +292,9 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         return !fileManager.fileExists(atPath: cacheRoot.path)
     }
 
-    /// Pre-fetches the offline model to its cache without loading it. A cached
-    /// model is a cheap no-op, mirroring the Nemotron engines' `downloadModel`.
+    /// Pre-fetches the Unified model exports to their cache without loading
+    /// them. A cached model is a cheap no-op, mirroring the Nemotron engines'
+    /// `downloadModel`.
     @discardableResult
     public nonisolated static func downloadModel(
         onProgress: (@Sendable (String) -> Void)? = nil
@@ -329,11 +307,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     // MARK: - Internals
 
     private var isLoaded: Bool {
-        interactiveManager != nil && backgroundManager != nil && liveStreamingManager != nil
-    }
-
-    private nonisolated static var downloadVariant: String {
-        encoderPrecision == .fp16 ? "offline-fp16" : "offline"
+        interactiveManager != nil && backgroundManager != nil
     }
 
     private nonisolated static var streamingDownloadVariant: String? {
@@ -347,17 +321,6 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         let progressHandler = makeDownloadProgressHandler(onProgress)
-        if !requiredModelFiles().allSatisfy({
-            FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
-        }) {
-            onProgress?("Preparing Parakeet Unified model download...")
-            try await DownloadUtils.downloadRepo(
-                .parakeetUnified,
-                to: modelsBaseDirectory(),
-                variant: downloadVariant,
-                progressHandler: progressHandler
-            )
-        }
         if !requiredStreamingModelFiles().allSatisfy({
             FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
         }) {
@@ -378,9 +341,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         )
         let progressHandler = Self.makeDownloadProgressHandler(onProgress)
 
-        let loadedInteractiveManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
-        let loadedBackgroundManager = UnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
-        let loadedLiveStreamingManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        let loadedInteractiveManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
+        let loadedBackgroundManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
         do {
             try await loadedInteractiveManager.loadModels(
                 to: nil,
@@ -394,28 +356,20 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
                 progressHandler: progressHandler
             )
             try Task.checkCancellation()
-            try await loadedLiveStreamingManager.loadModels(
-                to: nil,
-                configuration: nil,
-                progressHandler: progressHandler
-            )
-            try Task.checkCancellation()
         } catch {
             await loadedInteractiveManager.cleanup()
             await loadedBackgroundManager.cleanup()
-            await loadedLiveStreamingManager.cleanup()
             throw error
         }
 
         self.interactiveManager = loadedInteractiveManager
         self.backgroundManager = loadedBackgroundManager
-        self.liveStreamingManager = loadedLiveStreamingManager
         logger.notice("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue, privacy: .public)")
         AudioCaptureDiagnostics.append("parakeet_unified_model_prepare_complete variant=\(Self.modelVariant.rawValue)")
         onProgress?("Ready")
     }
 
-    private func manager(for lane: ParakeetUnifiedRuntimeLane) -> UnifiedAsrManager? {
+    private func manager(for lane: ParakeetUnifiedRuntimeLane) -> StreamingUnifiedAsrManager? {
         switch lane {
         case .interactive:
             interactiveManager
@@ -441,6 +395,48 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
     private func endTranscription(on lane: ParakeetUnifiedRuntimeLane) {
         activeLanes.remove(lane)
+    }
+
+    private func processSamples(
+        _ samples: [Float],
+        with manager: StreamingUnifiedAsrManager,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws {
+        var offset = 0
+        while offset < samples.count {
+            try Task.checkCancellation()
+            let end = min(offset + Self.sliceSampleCount, samples.count)
+            let buffer = try Self.makePCMBuffer(samples: samples[offset..<end])
+            try await manager.appendAudio(buffer)
+            try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.processBufferedAudio()
+            }
+            offset = end
+            let fraction = Double(offset) / Double(samples.count)
+            onProgress?(20 + Int(fraction * 70), 100)
+        }
+    }
+
+    private func finishStreamingTranscription(
+        with manager: StreamingUnifiedAsrManager
+    ) async throws -> String {
+        try Task.checkCancellation()
+        return try await ANEInferenceGate.shared.withExclusiveAccess {
+            try await manager.finish()
+        }
+    }
+
+    private nonisolated static func result(
+        text: String,
+        tokenTimings: [TokenTiming]
+    ) -> STTResult {
+        STTResult(
+            text: text,
+            words: STTWordTimingBuilder.words(from: tokenTimings),
+            language: "en",
+            engine: .parakeet,
+            engineVariant: Self.modelVariant.rawValue
+        )
     }
 
     private nonisolated static func makePCMBuffer(samples: ArraySlice<Float>) throws -> AVAudioPCMBuffer {

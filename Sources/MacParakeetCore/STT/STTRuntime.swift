@@ -188,8 +188,8 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// ``parakeetUnifiedEngine``. Mirrors how ``nemotronModelVariant`` selects
     /// between the two Nemotron engines.
     private var currentParakeetVariant: ParakeetModelVariant
-    /// Owns FluidAudio's offline Parakeet Unified runtime. Lazily created the
-    /// first time the `.unified` variant is used; sibling of the TDT
+    /// Owns FluidAudio's Parakeet Unified runtime. Lazily created the first
+    /// time the `.unified` variant is used; sibling of the TDT
     /// `interactiveManager`/`backgroundManager` pair.
     private var parakeetUnifiedEngine: ParakeetUnifiedEngine?
     private var speechEngine: SpeechEnginePreference

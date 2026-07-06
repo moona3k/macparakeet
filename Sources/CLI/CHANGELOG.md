@@ -220,11 +220,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
-- `models download parakeet-unified` now prepares both Parakeet Unified int8
-  encoder exports: the offline 15s batch path used by CLI transcription and
-  the native 2080ms streaming path used by app live dictation preview.
-  `transcribe --parakeet-model unified` is unchanged and still uses the offline
-  build for best stop-time quality.
+- `transcribe --parakeet-model unified` and `retranscribe --parakeet-model
+  unified` now use Parakeet Unified's native 2080ms streaming export for final
+  transcription, so Unified results include word timestamps for JSON output,
+  exports, and speaker alignment. `models download parakeet-unified` prepares
+  the same timestamp-capable export instead of the older offline batch export.
 - `models delete cohere-transcribe` now removes an incomplete Cohere cache
   directory as well as a fully downloaded model, so cancelled or failed
   downloads can be cleaned up from the CLI.

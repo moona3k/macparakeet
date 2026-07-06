@@ -79,7 +79,7 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
 
         let parakeetUnified = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
         XCTAssertFalse(parakeetUnified.supportsTailPreview)
-        XCTAssertFalse(parakeetUnified.providesWordTimestamps)
+        XCTAssertTrue(parakeetUnified.providesWordTimestamps)
         XCTAssertFalse(parakeetUnified.supportsCustomVocabulary)
         XCTAssertEqual(parakeetUnified.supportedLanguages, .fixed("en"))
 

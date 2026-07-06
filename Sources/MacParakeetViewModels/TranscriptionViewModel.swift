@@ -27,7 +27,7 @@ public final class TranscriptionViewModel {
         public let nemotronVariant: NemotronModelVariant
         /// Persisted Parakeet build a Parakeet rerun would load. Drives the
         /// engine card's subtitle so it reflects the actual v3/v2/Unified
-        /// posture (e.g. Unified is English-only and emits no word timestamps)
+        /// posture (e.g. Unified is English-only and emits word timestamps)
         /// rather than always advertising the multilingual v3 build.
         public let parakeetVariant: ParakeetModelVariant
         /// Whether `primaryEngine` reflects the engine that actually produced

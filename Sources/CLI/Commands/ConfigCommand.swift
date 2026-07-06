@@ -33,7 +33,7 @@ struct ConfigCommand: ParsableCommand {
           speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
           parakeet-model            v3|v2|unified                   default: v3
                                     (v3=supported languages, v2=English
-                                    timestamps, unified=English no timestamps)
+                                    timestamps, unified=readable English timestamps)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
                                     english-1120ms (Beta streaming)
           nemotron-language         auto|<Nemotron language code>   default: auto
@@ -97,7 +97,7 @@ struct ConfigCommand: ParsableCommand {
             key: "parakeet-model",
             valueSyntax: "v3|v2|unified",
             allowedValues: ["v3", "v2", "unified"],
-            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English without timestamps."
+            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
         ),
         CLIConfigKeySpec(
             key: "nemotron-model",

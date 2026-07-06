@@ -87,7 +87,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 - ~155x realtime — 60 min of audio in ~23 seconds
 - ~2.5% word error rate with the default Parakeet TDT 0.6B-v3 model
 - Optional English-only Parakeet v2 model (~2.1% WER) for users who do not want v3 language auto-detect
-- Optional English-only Parakeet Unified model with punctuation/capitalization and strong offline accuracy
+- Optional English-only Parakeet Unified model with punctuation/capitalization and word timestamps
 - ~66 MB working memory per active Parakeet inference slot
 - 25 European languages with Parakeet auto-detection
 - Optional local Nemotron Beta engine for fast multilingual ASR (a smaller English-only build is also available), WhisperKit for broad language coverage, and Cohere Transcribe for opt-in batch accuracy work

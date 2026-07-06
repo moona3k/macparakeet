@@ -1351,7 +1351,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .cohere, language: "ja"))
     }
 
-    func testMeetingLivePreviewUsesLeaseCapabilities() async throws {
+    func testMeetingLivePreviewRoutesUnifiedWhenLeaseCapabilitiesProvideTimestamps() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = LeasingMeetingSTTClient(
@@ -1371,10 +1371,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
             microphoneBuffer,
             AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
         ))
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitForRoutedLiveChunkSelection(sttClient)
 
         let routedSelections = await sttClient.routedSelections
-        XCTAssertEqual(routedSelections, [])
+        XCTAssertEqual(routedSelections, [SpeechEngineSelection(engine: .parakeet)])
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }

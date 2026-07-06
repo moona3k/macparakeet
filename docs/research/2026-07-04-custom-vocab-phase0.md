@@ -18,12 +18,13 @@ list (`minSimilarity=0.55`) was too permissive in this harness: it hit 84% OOV
 term recall, but failed the first-200 LibriSpeech guard by +1.198 pt and made
 52 false vocabulary replacements.
 
-Unified is not ready for the same feature through the current offline API. The
-CTC sidecar can detect terms for Unified audio, but FluidAudio's Unified batch
-API returns only `String`, with no public token timings or rescorer hook, so the
-probe could not apply corrections. On the 50-file OOV set, Unified no-vocab and
-vocab-requested output were byte-for-byte identical and recall stayed 13/50
-(26%).
+Unified is not ready for the same feature through its public vocabulary API. The
+CTC sidecar can detect terms for Unified audio, but the Phase 0 probe had no
+Unified rescorer hook, so it could not apply corrections. On the 50-file OOV
+set, Unified no-vocab and vocab-requested output were byte-for-byte identical
+and recall stayed 13/50 (26%). MacParakeet later wired FluidAudio's Unified
+streaming token timings for exports and speaker alignment; that does not by
+itself create a recognition-time vocabulary boosting hook.
 
 ## Governing Inputs
 
@@ -73,9 +74,9 @@ calls.
 - Plain TDT `AsrManager.transcribe(...)` APIs accept buffer/URL/samples plus
   decoder state and language, with no vocabulary argument (`AsrManager.swift`,
   lines 353-379 and 478-482).
-- Unified batch `transcribe(_:)` returns only `String`, so there is no public
-  token-timing surface to feed the rescorer (`UnifiedAsrManager.swift`, lines
-  170-172).
+- Unified now has a streaming token-timing surface for transcription output, but
+  FluidAudio still does not expose a Unified vocabulary-rescoring hook equivalent
+  to the TDT-plus-CTC path.
 - FluidAudio's CTC model source explicitly warns that greedy CTC decoding is not
   the product path: `ctc110m` greedy is blank-dominant at about 113% WER, while
   the recommended approach is TDT transcription plus CTC vocabulary scoring
@@ -91,8 +92,8 @@ The MacParakeet constraints that matter for Phase 1:
 - All Parakeet TDT inference is wrapped in `ANEInferenceGate` to avoid macOS 14
   concurrent CoreML/ANE SIGBUS crashes (`STT/README.md`, lines 196-204;
   `ANEInferenceGate.swift`, lines 3-31 and 54-70).
-- Unified offline/live calls are also gated and return no word timings through
-  the wrapper (`ParakeetUnifiedEngine.swift`, lines 57-104 and 150-180).
+- Unified live/final calls are also gated and now return token-derived word
+  timings through the wrapper (`ParakeetUnifiedEngine.swift`).
 
 No hard vocabulary count cap surfaced in the source. FluidAudio has size-aware
 policy thresholds instead: small, large, and extra-large vocabulary configs. At
@@ -304,11 +305,11 @@ user-visible switch to CTC greedy transcription. TDT v3 OOV recall improved from
 22% without vocab to 84% with FluidAudio's default gate and 74% with the stricter
 gate, with result rows showing real replacements such as `MAC Parakeet` ->
 `MacParakeet`. This proves custom vocabulary can be a property of the default
-TDT engine path. It does not currently work on the Unified offline path available
-to MacParakeet: Unified no-vocab and vocab-requested hypotheses were identical
+TDT engine path. It does not currently work on the Unified path available to
+MacParakeet: Unified no-vocab and vocab-requested hypotheses were identical
 for all 50 OOV rows, recall stayed 26%, and every vocab-requested row was marked
-unsupported because FluidAudio's public Unified batch API returns no token
-timings to rescore. The CTC-only kill switch is not triggered for TDT, and the
+unsupported because FluidAudio does not expose a Unified vocabulary-rescoring
+hook. The CTC-only kill switch is not triggered for TDT, and the
 110M CTC model should not be exposed as its own transcription variant based on
 this evidence.
 

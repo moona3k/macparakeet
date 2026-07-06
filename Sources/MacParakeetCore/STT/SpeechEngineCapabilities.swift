@@ -192,7 +192,7 @@ public enum SpeechEngineCapabilityRegistry {
                 key: .parakeet(variant),
                 supportsNativeLiveDictation: variant.usesUnifiedEngine,
                 supportsTailPreview: !variant.usesUnifiedEngine,
-                providesWordTimestamps: !variant.usesUnifiedEngine,
+                providesWordTimestamps: true,
                 supportedLanguages: variant.isEnglishOnly ? .fixed("en") : .automatic(),
                 supportsCustomVocabulary: !variant.usesUnifiedEngine,
                 modelLifecycle: SpeechEngineModelLifecycle(

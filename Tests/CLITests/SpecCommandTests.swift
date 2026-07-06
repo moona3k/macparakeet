@@ -308,7 +308,7 @@ final class SpecCommandTests: XCTestCase {
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
-            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English without timestamps."
+            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
         )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")

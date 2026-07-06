@@ -239,7 +239,7 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         )
         XCTAssertEqual(
             ParakeetModelVariant.unified.coverageSummary,
-            "Readable English with live preview. No word timestamps for exports."
+            "Readable English with live preview. Includes word timestamps for exports."
         )
         XCTAssertEqual(
             NemotronModelVariant.multilingual1120.coverageSummary,

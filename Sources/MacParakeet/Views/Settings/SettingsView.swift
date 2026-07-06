@@ -2112,7 +2112,7 @@ struct SettingsView: View {
     /// English-only Unified build). Only shown when Parakeet is the active
     /// engine — symmetric to the Whisper Language card. English-only builds fix
     /// the v3 auto-detect mis-firing English as another language (issues #311,
-    /// #398); Unified is the punctuated English offline build (issue #520).
+    /// #398); Unified is the punctuated English streaming build (issue #520).
     @ViewBuilder
     private var engineParakeetModelCard: some View {
         if viewModel.engine.speechEnginePreference == .parakeet {

@@ -55,7 +55,7 @@ sitting at a keyboard, it lives in the .app.
 
 - **Local Parakeet speech-to-text** on Apple Silicon, with v3 for English plus
   supported European languages, v2 for English timestamped transcripts, and
-  Unified for readable English without word timestamps. Runs on the Neural Engine.
+  Unified for readable English timestamped transcripts. Runs on the Neural Engine.
   No cloud, no API keys, no per-minute charges.
 - **Audio + video file transcription** -- accepts MP3 / WAV / MP4 / MOV /
   WebM / etc. via the bundled FFmpeg, with sequential folder/multi-file batch
@@ -203,10 +203,10 @@ temporary when `--no-history` is set.
 
 Parakeet is the default local engine for compatibility with existing scripts:
 use v3 for English plus supported European languages, v2 for English timestamped
-transcripts, or Unified for readable English output when word timestamps are not
-needed. Use Nemotron Beta when streaming preview matters, Whisper for
-broad-language files/media/retranscription, and Cohere only for local batch plain
-text with an explicit language.
+transcripts, or Unified for readable English with word timestamps. Use Nemotron
+Beta when streaming preview matters, Whisper for broad-language
+files/media/retranscription, and Cohere only for local batch plain text with an
+explicit language.
 
 Nemotron, Cohere, and Whisper require local model downloads before first use:
 
