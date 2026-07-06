@@ -124,7 +124,7 @@ Speed and memory, same Apple M4 Pro micro-benchmark:
 | Whisper large-v3 turbo | 2.29 s | ~14x realtime | 274 MB |
 | Cohere Transcribe q8 | ~73 s | ~11x realtime | ~11.6 GB |
 
-Cohere is the most accurate on-device engine in this benchmark, but its statistically clear wins are noisy English and Japanese. Clean English, Korean, and Chinese are ties with the best alternative under the paired-bootstrap test. Parakeet remains the default because it is fast, low-memory, timestamped, and strong on supported languages. Cohere is opt-in for accuracy-critical batch work on 16 GB+ Macs. The committed Cohere speed/memory row is still the older FluidAudio reference measurement; rerun the MacParakeet CLI Cohere path before making release or Settings claims from those numbers.
+Cohere is the most accurate on-device engine in this benchmark, but its statistically clear wins are noisy English and Japanese. Clean English, Korean, and Chinese are ties with the best alternative under the paired-bootstrap test. Parakeet remains the default because it is fast, low-memory, timestamped, and strong on supported languages. Cohere is opt-in for accuracy-critical batch work on 16 GB+ Macs. The Cohere speed/memory row is a reference measurement; see [`benchmarks/asr/`](benchmarks/asr/) for method notes.
 
 ## Get it
 
