@@ -105,6 +105,10 @@ public final class InProcessModelManagerViewModel {
     }
 
     public func enableLocalAI() async {
+        guard let downloader, let configStore, let llmClient else {
+            state = .failed(reason: "Local AI setup is not configured yet.", recoverable: true)
+            return
+        }
         guard isRuntimeAvailable else {
             state = .failed(
                 reason:
@@ -119,10 +123,6 @@ public final class InProcessModelManagerViewModel {
                     "Local AI needs \(minimumMemoryDescription). Use a cloud provider or bring your own local server instead.",
                 recoverable: false
             )
-            return
-        }
-        guard let downloader, let configStore, let llmClient else {
-            state = .failed(reason: "Local AI setup is not configured yet.", recoverable: true)
             return
         }
 
