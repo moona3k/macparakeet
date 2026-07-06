@@ -90,12 +90,22 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testFirstInstallEscalatesToSubcopyAfterDelay() async throws {
-        let harness = try makeHarness(isReady: false, transcribeDelayMs: 140, hasCompletedFirstDictation: false)
+        // Hold the transcription open with a gate so the escalation timer is
+        // guaranteed to fire before processing can finish, regardless of how
+        // slowly a loaded CI runner schedules the timer task.
+        let transcribeGate = AsyncGate()
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 0,
+            hasCompletedFirstDictation: false,
+            transcribeGate: transcribeGate
+        )
 
         try await harness.startAndStop()
 
-        let escalated = await harness.captionSignal.wait(for: .preparingExtended)
+        let escalated = await harness.captionSignal.wait(for: .preparingExtended, timeout: .seconds(3))
         XCTAssertTrue(escalated)
+        await transcribeGate.release()
     }
 
     func testSubsequentColdLaunchDoesNotEscalate() async throws {
