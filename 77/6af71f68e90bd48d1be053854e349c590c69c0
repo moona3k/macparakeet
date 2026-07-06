@@ -1,0 +1,29 @@
+spec/11-llm-integration.md
+  s_59a9482afd4f9d::t_309d0044061b44 28
+plans/active/2026-06-27-on-device-local-llm-phase0-eval.md
+  s_59a9482afd4f9d::t_309d0044061b44 3,10-11,27-28
+THIRD_PARTY_LICENSES.md
+  s_59a9482afd4f9d::t_309d0044061b44 61-78,132-140
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_59a9482afd4f9d::t_309d0044061b44 34,50,64,66,117-119,179,181
+plans/active/2026-06-27-on-device-local-llm.md
+  s_59a9482afd4f9d::t_309d0044061b44 3,48,107-114,138,140
+Package.swift
+  s_59a9482afd4f9d::t_309d0044061b44 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "776af71f68e90bd48d1be053854e349c590c69c0",
+  "prompts": {},
+  "sessions": {
+    "s_59a9482afd4f9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f352d-c2b6-7db1-b321-acc634ace2c1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
