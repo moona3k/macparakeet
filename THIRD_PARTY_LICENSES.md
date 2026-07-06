@@ -58,7 +58,24 @@ This project bundles or downloads third-party software components. The following
 
 - License: Apache License 2.0
 - Source: <https://github.com/huggingface/swift-transformers>
-- Used for: WhisperKit model/tokenizer support
+- Used for: WhisperKit model/tokenizer support. In `MACPARAKEET_ENABLE_MLX_LOCAL_LLM` builds, MacParakeet also uses the `Tokenizers` product for local-directory tokenizer loading.
+- Local MLX pin: `Package.swift` allows `1.1.6..<1.2.0`; the current lockfile resolves `1.1.9`.
+
+### mlx-swift-lm
+
+- Version: 3.31.4
+- License: MIT License
+- Source: <https://github.com/ml-explore/mlx-swift-lm>
+- Build scope: Only present in `MACPARAKEET_ENABLE_MLX_LOCAL_LLM` builds
+- Used for: Developer-gated in-process Local MLX model loading and generation (`MLXLLM`, `MLXLMCommon`, `MLXHuggingFace`)
+
+### mlx-swift
+
+- Version: 0.31.4
+- License: MIT License
+- Source: <https://github.com/ml-explore/mlx-swift>
+- Build scope: Only present in `MACPARAKEET_ENABLE_MLX_LOCAL_LLM` builds
+- Used for: MLX tensor/runtime support for the developer-gated in-process Local MLX path; directly pinned so `mlx-swift-lm` resolves the Swift-5.9-compatible MLX version
 
 ### swift-jinja
 
@@ -112,3 +129,12 @@ This project bundles or downloads third-party software components. The following
 - License: MIT License
 - Provider: OpenAI Whisper model family, distributed through WhisperKit model downloads
 - Bundling status: Not bundled in the app; downloaded at runtime when the user installs a Whisper model
+
+## Qwen3 4B Instruct DDWQ Local MLX Model
+
+- License: Apache License 2.0
+- Provider/source: `mlx-community/Qwen3-4B-Instruct-2507-DDWQ` on Hugging Face
+- Base model: `Qwen/Qwen3-4B-Instruct-2507`
+- Pinned revision: `88033de44951ebedb96e0adb68cc037443aab93a`
+- Bundling status: Not bundled in the app; downloaded from Hugging Face at setup time by the developer-gated Local MLX setup flow, verified against MacParakeet's SHA-256 manifest, and run locally afterward
+- Used for: Default model for the developer-gated in-process Local MLX provider

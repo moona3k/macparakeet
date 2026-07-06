@@ -1,13 +1,14 @@
 # On-Device Local LLM — Phase 0 Eval Design
 
-Status: **PROPOSED** (research + eval design; no code)
+Status: **PROPOSED** (research + eval design; dev-gated foundation code exists, public product gate not passed)
 Date: 2026-06-27
 Companion to: [`2026-06-27-on-device-local-llm.md`](./2026-06-27-on-device-local-llm.md) §8 Phase 0
 Issues: #439 (integrated local cleanup), relates #265, #550, #460, #563, #408
 
 > The parent plan commits to a Phase 0 spike + evaluation gate. This doc is the
 > execution detail for the **evaluation** half: what "good" means for on-device
-> transcript cleanup, and how to measure it before any inference code ships. For
+> transcript cleanup, and how to measure it before any public setup, default,
+> recommendation, or ungated product promise ships. For
 > an open-ended editing task there is no single ground truth, so defining the
 > measurement *is* the hard part of Phase 0.
 >
@@ -23,6 +24,8 @@ Issues: #439 (integrated local cleanup), relates #265, #550, #460, #563, #408
 > Single-transcript cleanup, summary, or Q&A may pass before broader library
 > intelligence does. Cross-meeting / whole-library analysis and tool-calling are
 > not presumed viable just because a local model can answer one transcript.
+> Dev-gated runtime/downloader/setup code may exist before this gate; Phase 0
+> decides the public promise and scope, not whether foundation code is allowed.
 
 ---
 

@@ -26,6 +26,7 @@ let packageDependencies: [Package.Dependency] = [
     // Opt-in only. mlx-swift-lm currently needs Swift tools 6.1 and Xcode-built
     // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
+    // Direct pin holds mlx-swift-lm's transitive MLX dependency at the Swift-5.9-compatible version.
     .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.31.4"),
     // Only the Tokenizers product is used (local-directory tokenizer loading).
     // Held to 1.1.x because argmax-oss-swift (WhisperKit) cannot resolve
