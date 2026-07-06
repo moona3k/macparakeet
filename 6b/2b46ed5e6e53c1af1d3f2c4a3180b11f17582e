@@ -1,0 +1,31 @@
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_8d7bee4f6f44cb::t_ada347115cc535 285-286,288,297,299
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_8d7bee4f6f44cb::t_a7b7a0221dfd19 24-25
+  s_8d7bee4f6f44cb::t_e2069f285b009a 521-522,529,541,543
+  s_8d7bee4f6f44cb::t_514418fc296475 100-101
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_8d7bee4f6f44cb::t_41ce11974bbdf1 1104-1105
+Sources/CLI/Commands/HistoryCommand.swift
+  s_8d7bee4f6f44cb::t_1b0aa608013426 438
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_8d7bee4f6f44cb::t_701d9e1f960388 40-42
+Tests/MacParakeetTests/App/MeetingAudioRetentionSweepCoordinatorTests.swift
+  s_8d7bee4f6f44cb::t_41ce11974bbdf1 167-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6b2b46ed5e6e53c1af1d3f2c4a3180b11f17582e",
+  "prompts": {},
+  "sessions": {
+    "s_8d7bee4f6f44cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b5061b8-2de8-4a5e-a0e7-978f0587bf9f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
