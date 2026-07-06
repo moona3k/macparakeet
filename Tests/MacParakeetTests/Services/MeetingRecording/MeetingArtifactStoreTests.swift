@@ -98,8 +98,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(markdown.contains("transcriptPath: \"\(snapshot.transcriptPath)\""))
         XCTAssertTrue(markdown.contains("notesPath: \"\(MeetingNotesFile.fileURL(for: folderURL).path)\""))
         XCTAssertTrue(markdown.contains("playbackAudioPath: \"\(transcription.filePath!)\""))
-        XCTAssertTrue(markdown.contains("rawMicrophoneAudioPath: \"\(folderURL.appendingPathComponent("microphone-raw.m4a").path)\""))
-        XCTAssertTrue(markdown.contains("rawSystemAudioPath: \"\(folderURL.appendingPathComponent("system-raw.m4a").path)\""))
+        XCTAssertTrue(
+            markdown.contains("rawMicrophoneAudioPath: \"\(folderURL.appendingPathComponent("microphone-raw.m4a").path)\""))
+        XCTAssertTrue(
+            markdown.contains("rawSystemAudioPath: \"\(folderURL.appendingPathComponent("system-raw.m4a").path)\""))
         XCTAssertTrue(markdown.contains("metadataPath: \"\(MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)\""))
         XCTAssertTrue(markdown.contains("speakerLabelsIncluded: true"))
         XCTAssertTrue(markdown.contains("promptResultCount: 1"))
@@ -141,7 +143,9 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let files = try XCTUnwrap(manifest["files"] as? [String: Any])
         XCTAssertEqual(files["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(files["playbackAudioPath"] as? String, transcription.filePath)
-        XCTAssertEqual(files["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
+        XCTAssertEqual(
+            files["rawMicrophoneAudioPath"] as? String,
+            folderURL.appendingPathComponent("microphone-raw.m4a").path)
         XCTAssertEqual(files["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
         XCTAssertNil(files["cleanedMicrophoneAudioPath"] as? String)
         XCTAssertEqual(files["metadataPath"] as? String, MeetingRecordingMetadataStore.metadataURL(for: folderURL).path)

@@ -156,12 +156,14 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
 
         if metadata.sourceAlignment.microphone != nil,
            !hasFile(at: microphoneAudioURL, fileManager: fileManager) {
-            throw MeetingAudioError.storageFailed("Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)")
+            throw MeetingAudioError.storageFailed(
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)")
         }
 
         if metadata.sourceAlignment.system != nil,
            !hasFile(at: systemAudioURL, fileManager: fileManager) {
-            throw MeetingAudioError.storageFailed("Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)")
+            throw MeetingAudioError.storageFailed(
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)")
         }
 
         return MeetingRecordingOutput(

@@ -442,7 +442,8 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             to: systemURL,
             fileManager: .default
         )
-        try FileManager.default.copyItem(at: microphoneURL, to: folderURL.appendingPathComponent("meeting-playback.m4a"))
+        try FileManager.default.copyItem(
+            at: microphoneURL, to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
         let track = MeetingSourceAlignment.Track(
             firstHostTime: nil,

@@ -434,10 +434,18 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
         XCTAssertEqual(snapshot["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
         XCTAssertEqual(snapshot["markdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
-        XCTAssertEqual(snapshot["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
-        XCTAssertEqual(snapshot["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
-        XCTAssertEqual(snapshot["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
-        XCTAssertEqual(snapshot["playbackAudioPath"] as? String, folderURL.appendingPathComponent("meeting-playback.m4a").path)
+        XCTAssertEqual(
+            snapshot["rawMicrophoneAudioPath"] as? String,
+            folderURL.appendingPathComponent("microphone-raw.m4a").path)
+        XCTAssertEqual(
+            snapshot["cleanedMicrophoneAudioPath"] as? String,
+            folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
+        XCTAssertEqual(
+            snapshot["rawSystemAudioPath"] as? String,
+            folderURL.appendingPathComponent("system-raw.m4a").path)
+        XCTAssertEqual(
+            snapshot["playbackAudioPath"] as? String,
+            folderURL.appendingPathComponent("meeting-playback.m4a").path)
         XCTAssertEqual(snapshot["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
         XCTAssertEqual(snapshot["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
         XCTAssertEqual(snapshot["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
@@ -469,10 +477,18 @@ final class MeetingsCommandTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any]
         )
         XCTAssertEqual(exportPayload["artifactMarkdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
-        XCTAssertEqual(exportPayload["rawMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-raw.m4a").path)
-        XCTAssertEqual(exportPayload["cleanedMicrophoneAudioPath"] as? String, folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
-        XCTAssertEqual(exportPayload["rawSystemAudioPath"] as? String, folderURL.appendingPathComponent("system-raw.m4a").path)
-        XCTAssertEqual(exportPayload["playbackAudioPath"] as? String, folderURL.appendingPathComponent("meeting-playback.m4a").path)
+        XCTAssertEqual(
+            exportPayload["rawMicrophoneAudioPath"] as? String,
+            folderURL.appendingPathComponent("microphone-raw.m4a").path)
+        XCTAssertEqual(
+            exportPayload["cleanedMicrophoneAudioPath"] as? String,
+            folderURL.appendingPathComponent("microphone-cleaned.m4a").path)
+        XCTAssertEqual(
+            exportPayload["rawSystemAudioPath"] as? String,
+            folderURL.appendingPathComponent("system-raw.m4a").path)
+        XCTAssertEqual(
+            exportPayload["playbackAudioPath"] as? String,
+            folderURL.appendingPathComponent("meeting-playback.m4a").path)
     }
 
     func testMarkdownExportMatchesMaterializedMeetingMarkdown() async throws {

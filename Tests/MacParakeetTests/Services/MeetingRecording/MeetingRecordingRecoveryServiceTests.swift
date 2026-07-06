@@ -71,9 +71,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(audioConverter.mixes.count, 1)
-        XCTAssertEqual(audioConverter.mixes.first?.output, fixture.folderURL.appendingPathComponent("meeting-playback.m4a"))
+        XCTAssertEqual(
+            audioConverter.mixes.first?.output,
+            fixture.folderURL.appendingPathComponent("meeting-playback.m4a"))
         XCTAssertFalse(
-            FileManager.default.fileExists(atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path),
+            FileManager.default.fileExists(
+                atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path),
             "failed playback mix should not block source-based transcription"
         )
     }
