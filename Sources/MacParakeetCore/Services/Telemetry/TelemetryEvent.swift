@@ -882,19 +882,19 @@ public enum TelemetryEventSpec: Sendable {
         notesLengthBucket: String?,
         errorType: String?
     )
-    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource, phases: String)
-    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource, phases: String)
+    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
+    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
     case meetingRecoveryCompleted(
         count: Int,
         durationSeconds: Double,
         source: TelemetryMeetingRecoverySource,
-        phases: String
+        phases: [MeetingRecordingLockState]
     )
-    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource, phases: String)
+    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
     case meetingRecoveryFailed(
         count: Int,
         source: TelemetryMeetingRecoverySource,
-        phases: String,
+        phases: [MeetingRecordingLockState],
         errorType: String,
         errorDetail: String? = nil
     )
@@ -1613,32 +1613,32 @@ extension TelemetryEventSpec {
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
-                "phases": Self.safeMeetingRecoveryPhases(phases),
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
         case .meetingRecoveryStarted(let count, let source, let phases):
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
-                "phases": Self.safeMeetingRecoveryPhases(phases),
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
         case .meetingRecoveryCompleted(let count, let durationSeconds, let source, let phases):
             return [
                 "count": "\(count)",
                 "duration_seconds": Self.format(durationSeconds),
                 "source": source.rawValue,
-                "phases": Self.safeMeetingRecoveryPhases(phases),
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
         case .meetingRecoveryDiscarded(let count, let source, let phases):
             return [
                 "count": "\(count)",
                 "source": source.rawValue,
-                "phases": Self.safeMeetingRecoveryPhases(phases),
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
         case .meetingRecoveryFailed(let count, let source, let phases, let errorType, let errorDetail):
             var props = [
                 "count": "\(count)",
                 "source": source.rawValue,
-                "phases": Self.safeMeetingRecoveryPhases(phases),
+                "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
                 "error_type": errorType,
             ]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
@@ -1760,10 +1760,6 @@ extension TelemetryEventSpec {
         return String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
     }
 
-    private static func safeMeetingRecoveryPhases(_ phases: String) -> String {
-        let trimmed = phases.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? TelemetryMeetingRecoveryPhases.unknown : trimmed
-    }
 
     private static func safeEngineVariant(_ variant: String?) -> String? {
         guard let variant,

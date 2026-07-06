@@ -183,9 +183,11 @@ final class MeetingRecoveryCoordinator {
         recoveryService: MeetingRecordingRecoveryServicing,
         source: TelemetryMeetingRecoverySource
     ) async {
+        var lastDiscardedIndex = -1
         do {
-            for recovery in recoveries {
+            for (index, recovery) in recoveries.enumerated() {
                 try await recoveryService.discard(recovery)
+                lastDiscardedIndex = index
             }
             Telemetry.send(.meetingRecoveryDiscarded(
                 count: recoveries.count,
@@ -194,10 +196,11 @@ final class MeetingRecoveryCoordinator {
             ))
             settingsViewModel.refreshPendingMeetingRecoveries()
         } catch {
+            let pending = Array(recoveries.dropFirst(lastDiscardedIndex + 1))
             Telemetry.send(.meetingRecoveryFailed(
-                count: recoveries.count,
+                count: pending.count,
                 source: source,
-                phases: Self.telemetryPhases(for: recoveries),
+                phases: Self.telemetryPhases(for: pending),
                 errorType: TelemetryErrorClassifier.classify(error),
                 errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
@@ -240,7 +243,7 @@ final class MeetingRecoveryCoordinator {
         return alert.runModal()
     }
 
-    nonisolated static func telemetryPhases(for recoveries: [MeetingRecordingLockFile]) -> String {
-        TelemetryMeetingRecoveryPhases.aggregate(lockStates: recoveries.map(\.state))
+    nonisolated static func telemetryPhases(for recoveries: [MeetingRecordingLockFile]) -> [MeetingRecordingLockState] {
+        recoveries.map(\.state)
     }
 }

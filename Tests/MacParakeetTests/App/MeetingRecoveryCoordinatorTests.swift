@@ -13,7 +13,9 @@ final class MeetingRecoveryCoordinatorTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            MeetingRecoveryCoordinator.telemetryPhases(for: recoveries),
+            TelemetryMeetingRecoveryPhases.aggregate(
+                lockStates: MeetingRecoveryCoordinator.telemetryPhases(for: recoveries)
+            ),
             "recording:2,awaitingTranscription:1"
         )
     }
