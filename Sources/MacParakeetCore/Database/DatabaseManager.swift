@@ -6,6 +6,12 @@ import Darwin
 public final class DatabaseManager: Sendable {
     public let dbQueue: DatabaseQueue
 
+    /// Identifiers of every migration this build knows, in registration order.
+    /// Derived from the migrator itself so it can never drift from `migrate()`.
+    public static var registeredMigrationIdentifiers: [String] {
+        makeMigrator().migrations
+    }
+
     #if DEBUG
     private static let sqlTraceEnvKey = "MACPARAKEET_DEBUG_SQL"
     #endif
@@ -25,6 +31,45 @@ public final class DatabaseManager: Sendable {
         dbQueue = try DatabaseQueue(configuration: config)
         try migrate()
     }
+
+    public func appliedMigrationIdentifiers() throws -> [String] {
+        try Self.appliedMigrationIdentifiers(in: dbQueue)
+    }
+
+    public static func appliedMigrationIdentifiers(at path: String) throws -> [String] {
+        let queue = try DatabaseQueue(path: path, configuration: makeConfiguration())
+        return try appliedMigrationIdentifiers(in: queue)
+    }
+
+    public static func unknownAppliedMigrationIdentifiers(at path: String) throws -> [String] {
+        let registered = Set(registeredMigrationIdentifiers)
+        return try appliedMigrationIdentifiers(at: path)
+            .filter { !registered.contains($0) }
+            .sorted()
+    }
+
+    private static func appliedMigrationIdentifiers(in queue: DatabaseQueue) throws -> [String] {
+        try queue.read { db in
+            guard try db.tableExists("grdb_migrations") else {
+                return []
+            }
+            return try String.fetchAll(
+                db,
+                sql: "SELECT identifier FROM grdb_migrations ORDER BY rowid"
+            )
+        }
+    }
+
+    #if DEBUG
+    func recordAppliedMigrationIdentifierForTesting(_ identifier: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
+                arguments: [identifier]
+            )
+        }
+    }
+    #endif
 
     private static func makeConfiguration() -> Configuration {
         var config = Configuration()
@@ -55,6 +100,12 @@ public final class DatabaseManager: Sendable {
     #endif
 
     private func migrate() throws {
+        try Self.makeMigrator().migrate(dbQueue)
+        try reconcileBuiltInPrompts()
+        try reconcileBuiltInQuickPrompts()
+    }
+
+    private static func makeMigrator() -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
 
         // v0.1 — Dictations table + FTS5
@@ -1068,9 +1119,7 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        try migrator.migrate(dbQueue)
-        try reconcileBuiltInPrompts()
-        try reconcileBuiltInQuickPrompts()
+        return migrator
     }
 
     private static func withMigrationLock<T>(forDatabasePath path: String, _ body: () throws -> T) throws -> T {

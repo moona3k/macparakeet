@@ -286,10 +286,9 @@ private extension CLISpecCommand {
             ["models", "delete"],
             summary: "Delete one downloaded speech model.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("model-id", summary: "Model ID from models list.")],
             options: [CLISpecParameter.flag("--force", summary: "Delete even when the model is currently in use.")],
-            output: "Human-readable deletion confirmation or no-op line."
+            output: "ModelDeleteResult for --json; human-readable deletion confirmation or no-op line otherwise."
         ),
         CLISpecCommand(
             ["models", "warm-up"],
@@ -311,8 +310,7 @@ private extension CLISpecCommand {
             ["models", "clear"],
             summary: "Delete cached speech and speaker models.",
             readOnly: false,
-            jsonMode: "none",
-            output: "Human-readable cache clear confirmation."
+            output: "ModelCacheClearResult for --json; human-readable cache clear confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "dictations"],
@@ -356,36 +354,32 @@ private extension CLISpecCommand {
             ["history", "delete-dictation"],
             summary: "Delete one saved dictation and its owned dictation audio.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Dictation UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable deletion confirmation."
+            output: "Delete result with kind and id for --json; human-readable deletion confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "delete-transcription"],
             summary: "Delete one saved transcription and owned local assets.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable deletion confirmation."
+            output: "Delete result with kind and id for --json; human-readable deletion confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "delete-meeting-audio"],
             summary: "Detach and delete stored audio for one meeting transcript while keeping the transcript row; removed audio cannot be used for re-transcription or speaker detection/backfill.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Meeting transcription UUID, UUID prefix, or file name.")],
             options: [databaseOption],
-            output: "Human-readable deletion or no-op confirmation."
+            output: "Meeting audio delete result for --json; human-readable deletion or no-op confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "clear-meeting-audio"],
             summary: "Delete all managed meeting audio while keeping saved meeting transcripts.",
             readOnly: false,
-            jsonMode: "none",
             options: [databaseOption],
-            output: "Human-readable deletion confirmation."
+            output: "Meeting audio clear result with deletedCount and ids for --json; human-readable deletion confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "favorites"],
@@ -769,10 +763,9 @@ private extension CLISpecCommand {
             ["vocab", "words", "delete"],
             summary: "Delete a custom word by UUID prefix.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Word UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable delete confirmation."
+            output: "Delete result with id and label for --json; human-readable delete confirmation otherwise."
         ),
         CLISpecCommand(
             ["vocab", "snippets", "list"],
@@ -810,10 +803,9 @@ private extension CLISpecCommand {
             ["vocab", "snippets", "delete"],
             summary: "Delete a text snippet by UUID prefix.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Snippet UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable delete confirmation."
+            output: "Delete result with id and label for --json; human-readable delete confirmation otherwise."
         ),
         CLISpecCommand(
             ["vocab", "export"],
@@ -870,6 +862,18 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--filter", valueName: "link|participants|all", summary: "Meeting trigger filter."),
             ],
             output: "Array of CalendarEvent objects when --json is used."
+        ),
+        CLISpecCommand(
+            ["feedback"],
+            summary: "Submit user feedback to MacParakeet support.",
+            readOnly: false,
+            jsonMode: "none",
+            arguments: [.argument("message", summary: "Feedback message.")],
+            options: [
+                CLISpecParameter.option("--category", valueName: "bug|feature|other", summary: "Feedback category."),
+                CLISpecParameter.option("--email", valueName: "EMAIL", summary: "Optional follow-up email."),
+            ],
+            output: "Human-readable submission progress."
         ),
         CLISpecCommand(
             ["meetings", "list"],

@@ -280,7 +280,29 @@ final class VocabCommandTests: XCTestCase {
         }
     }
 
-    func testVocabSnippetsDeletePreservesLegacyShortPrefixLookup() async throws {
+    func testVocabWordsDeleteJSONReportsDeletedID() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "k8s", replacement: "Kubernetes")
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.DeleteWord.parse([
+            String(word.id.uuidString.prefix(8)),
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["id"] as? String, word.id.uuidString)
+        XCTAssertEqual(decoded["label"] as? String, "k8s")
+        XCTAssertNil(try repo.fetch(id: word.id))
+    }
+
+    func testVocabSnippetsDeleteRejectsShortPrefix() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
         let snippet = TextSnippet(
@@ -300,13 +322,40 @@ final class VocabCommandTests: XCTestCase {
             "a",
             "--database", dbPath,
         ])
+
+        do {
+            try await cmd.run()
+            XCTFail("Expected short ID prefix to be rejected")
+        } catch is ValidationError {
+            // Expected.
+        } catch {
+            XCTFail("Expected ValidationError, got \(type(of: error))")
+        }
+
+        XCTAssertNotNil(try repo.fetch(id: snippet.id))
+        XCTAssertNotNil(try repo.fetch(id: other.id))
+    }
+
+    func testVocabSnippetsDeleteJSONReportsDeletedID() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Original")
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.DeleteSnippet.parse([
+            String(snippet.id.uuidString.prefix(8)),
+            "--database", dbPath,
+            "--json",
+        ])
         let output = try await capturingStdout {
             try await cmd.run()
         }
 
-        XCTAssertTrue(output.contains("Deleted: \"my sig\""))
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["id"] as? String, snippet.id.uuidString)
+        XCTAssertEqual(decoded["label"] as? String, "my sig")
         XCTAssertNil(try repo.fetch(id: snippet.id))
-        XCTAssertNotNil(try repo.fetch(id: other.id))
     }
 
     // MARK: - Schema

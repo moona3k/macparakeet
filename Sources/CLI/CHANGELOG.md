@@ -89,8 +89,23 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [2.12.0] -- 2026-07-06
+
 ### Added
 
+- `health --json` now reports `database.status: "schema_skew"` with a clear
+  upgrade message when the shared SQLite database contains migration
+  identifiers unknown to this CLI build. This turns stale-CLI/newer-app
+  database skew into an actionable `macparakeet-cli` upgrade prompt instead of
+  a generic GRDB decode/read error.
+- Destructive local mutators now support `--json` success output: `history
+  delete-dictation`, `history delete-transcription`, `history
+  delete-meeting-audio`, `history clear-meeting-audio`, `models delete`,
+  `models clear`, `vocab words delete`, and `vocab snippets delete`. The new
+  payloads report affected record/model IDs and/or counts while preserving the
+  existing human-readable output when `--json` is omitted.
+- `spec --json` now documents the registered `feedback` command and the new
+  JSON modes for the destructive mutators above.
 - `config get|set|list` now includes `meeting-speaker-detection`, the saved
   app-default speaker-detection setting used for meeting recording and meeting
   retranscription.
@@ -166,6 +181,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- `vocab snippets delete <id>` now enforces the documented minimum
+  four-character UUID prefix, matching `vocab words delete` and the CLI lookup
+  contract. One-character snippet delete prefixes were a legacy loophole, not a
+  documented surface.
 - `transcribe --format json` now shields native STT diagnostics emitted
   directly to stdout during inference and teardown, then restores stdout before
   printing the payload. This keeps CoreML/E5RT runtime warnings from corrupting

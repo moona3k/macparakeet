@@ -79,6 +79,10 @@ with human progress/status kept off stdout.
   processing. Unsupported engines and empty vocabularies keep the previous
   unboosted path; human `vocab words list` support text is not a JSON
   contract.
+- Destructive local mutators that advertise `--json` return a single success
+  object with `ok: true` plus affected IDs, counts, or model/cache names. Use
+  `macparakeet-cli spec --json` for each command's documented JSON mode and
+  output summary.
 
 ## Failure Envelope
 
@@ -129,6 +133,8 @@ breaking contract change and requires explicit version/changelog treatment.
 - `MeetingVADSimCommandTests`
 - `TranscribeCommandTests`
 - `ConfigCommandTests`
+- `HistoryCommandTests`
+- `ModelLifecycleCommandTests`
 - `QuickPromptsCommandTests`
 - `TransformsCommandTests`
 - `VocabCommandTests`

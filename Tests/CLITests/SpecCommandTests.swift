@@ -104,6 +104,7 @@ final class SpecCommandTests: XCTestCase {
                 "calendar",
                 "config",
                 "export",
+                "feedback",
                 "health",
                 "history",
                 "llm",
@@ -185,6 +186,7 @@ final class SpecCommandTests: XCTestCase {
             ["stats"],
             ["export"],
             ["calendar", "upcoming"],
+            ["feedback"],
         ] {
             XCTAssertTrue(paths.contains(path), "\(path.joined(separator: " ")) missing from spec catalog")
         }
@@ -369,13 +371,41 @@ final class SpecCommandTests: XCTestCase {
 
         let modelsDelete = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["models", "delete"] })
         XCTAssertEqual(modelsDelete["readOnly"] as? Bool, false)
+        XCTAssertEqual(modelsDelete["jsonMode"] as? String, "--json")
         let options = try XCTUnwrap(modelsDelete["options"] as? [[String: Any]])
         XCTAssertTrue(options.contains { ($0["name"] as? String) == "--force" })
+
+        let modelsClear = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["models", "clear"] })
+        XCTAssertEqual(modelsClear["jsonMode"] as? String, "--json")
 
         let health = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["health"] })
         XCTAssertEqual(health["readOnly"] as? Bool, false)
         let healthOptions = try XCTUnwrap(health["options"] as? [[String: Any]])
         XCTAssertTrue(healthOptions.contains { ($0["name"] as? String) == "--repair-attempts" })
+
+        let feedback = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["feedback"] })
+        XCTAssertEqual(feedback["readOnly"] as? Bool, false)
+        XCTAssertEqual(feedback["jsonMode"] as? String, "none")
+    }
+
+    func testSpecDocumentsJSONForDestructiveMutators() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+
+        for path in [
+            ["history", "delete-dictation"],
+            ["history", "delete-transcription"],
+            ["history", "delete-meeting-audio"],
+            ["history", "clear-meeting-audio"],
+            ["models", "delete"],
+            ["models", "clear"],
+            ["vocab", "words", "delete"],
+            ["vocab", "snippets", "delete"],
+        ] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == path })
+            XCTAssertEqual(command["readOnly"] as? Bool, false)
+            XCTAssertEqual(command["jsonMode"] as? String, "--json")
+        }
     }
 
     func testSpecDocumentsMeetingNotesAndExportSurface() throws {

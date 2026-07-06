@@ -181,23 +181,28 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The UUID (or prefix) of the snippet to delete.")
         var id: String
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func run() async throws {
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
-            let snippets = try repo.fetchAll()
-            let snippet = try VocabSnippetsCommand.resolveSnippet(
-                id: id,
-                snippets: snippets,
-                minimumPrefixLength: 1
-            )
+                let snippets = try repo.fetchAll()
+                let snippet = try VocabSnippetsCommand.resolveSnippet(id: id, snippets: snippets)
 
-            _ = try repo.delete(id: snippet.id)
-            print("Deleted: \"\(snippet.trigger)\"")
+                _ = try repo.delete(id: snippet.id)
+                if json {
+                    try printJSON(VocabSnippetDeleteResult(ok: true, id: snippet.id, label: snippet.trigger))
+                } else {
+                    print("Deleted: \"\(snippet.trigger)\"")
+                }
+            }
         }
     }
 
@@ -230,4 +235,10 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
 private struct VocabSnippetWriteResult: Encodable {
     let ok: Bool
     let snippet: TextSnippet
+}
+
+private struct VocabSnippetDeleteResult: Encodable {
+    let ok: Bool
+    let id: UUID
+    let label: String
 }

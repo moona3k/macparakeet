@@ -177,20 +177,29 @@ struct VocabWordsCommand: AsyncParsableCommand {
         @Argument(help: "The UUID (or prefix) of the word to delete.")
         var id: String
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func run() async throws {
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
 
-            // Resolve through the shared lookup so delete enforces the same
-            // trimming and minimum-prefix guard as `set` — an empty or too-short
-            // id must not silently match (and delete) the only word in the list.
-            let word = try VocabWordsCommand.resolveWord(id: id, words: try repo.fetchAll())
-            _ = try repo.delete(id: word.id)
-            print("Deleted: \(word.word)")
+                // Resolve through the shared lookup so delete enforces the same
+                // trimming and minimum-prefix guard as `set` — an empty or too-short
+                // id must not silently match (and delete) the only word in the list.
+                let word = try VocabWordsCommand.resolveWord(id: id, words: try repo.fetchAll())
+                _ = try repo.delete(id: word.id)
+                if json {
+                    try printJSON(VocabDeleteResult(ok: true, id: word.id, label: word.word))
+                } else {
+                    print("Deleted: \(word.word)")
+                }
+            }
         }
     }
 
@@ -232,4 +241,10 @@ enum VocabError: Error, LocalizedError {
 private struct VocabWordWriteResult: Encodable {
     let ok: Bool
     let word: CustomWord
+}
+
+private struct VocabDeleteResult: Encodable {
+    let ok: Bool
+    let id: UUID
+    let label: String
 }

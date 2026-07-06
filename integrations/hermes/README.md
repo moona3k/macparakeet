@@ -24,11 +24,18 @@ macparakeet-cli --version   # confirm the installed release
 macparakeet-cli health --json
 ```
 
+Minimum CLI for the command set shown here is `2.12.0`; `spec --json` itself
+requires `macparakeet-cli >= 2.4.0`.
+
 If MacParakeet.app is already installed, the bundled CLI is also available at
 `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
 Parakeet, Nemotron, and Cohere CoreML caches are managed by FluidAudio.
 WhisperKit model downloads live under
 `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+
+The reusable agent skill lives in
+[`../skill/macparakeet-stt/SKILL.md`](../skill/macparakeet-stt/SKILL.md);
+adapt that directory when packaging this integration for Hermes.
 
 ## Suggested skill bindings (sketch)
 

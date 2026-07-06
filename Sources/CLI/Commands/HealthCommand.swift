@@ -81,19 +81,7 @@ struct HealthCommand: AsyncParsableCommand {
         }
 
         // 3. Database
-        let database: HealthReport.Database
-        if FileManager.default.fileExists(atPath: AppPaths.databasePath) {
-            do {
-                let dbManager = try DatabaseManager(path: AppPaths.databasePath)
-                let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
-                let transcriptions = try TranscriptionRepository(dbQueue: dbManager.dbQueue).fetchAll(limit: nil)
-                database = .init(status: "ok", dictations: dictStats.totalCount, transcriptions: transcriptions.count, error: nil)
-            } catch {
-                database = .init(status: "error", dictations: nil, transcriptions: nil, error: error.localizedDescription)
-            }
-        } else {
-            database = .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
-        }
+        let database = probeHealthDatabase(at: AppPaths.databasePath)
         report.database = database
         if !json {
             print("Database:")
@@ -104,6 +92,8 @@ struct HealthCommand: AsyncParsableCommand {
                 print("  Transcriptions: \(database.transcriptions ?? 0)")
             case "missing":
                 print("  Status: Not created yet (will be created on first use)")
+            case "schema_skew":
+                print("  Status: SCHEMA SKEW — \(database.error ?? "upgrade macparakeet-cli")")
             default:
                 print("  Status: ERROR — \(database.error ?? "unknown")")
             }
@@ -253,13 +243,56 @@ struct HealthCommand: AsyncParsableCommand {
     }
 }
 
+func probeHealthDatabase(at path: String) -> HealthDatabaseReport {
+    guard FileManager.default.fileExists(atPath: path) else {
+        return .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
+    }
+
+    do {
+        let unknownMigrations = try DatabaseManager.unknownAppliedMigrationIdentifiers(at: path)
+        if !unknownMigrations.isEmpty {
+            return .init(
+                status: "schema_skew",
+                dictations: nil,
+                transcriptions: nil,
+                error: databaseSchemaSkewMessage(unknownMigrations: unknownMigrations)
+            )
+        }
+
+        let dbManager = try DatabaseManager(path: path)
+        let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
+        let transcriptions = try TranscriptionRepository(dbQueue: dbManager.dbQueue).fetchAll(limit: nil)
+        return .init(
+            status: "ok",
+            dictations: dictStats.totalCount,
+            transcriptions: transcriptions.count,
+            error: nil
+        )
+    } catch {
+        return .init(status: "error", dictations: nil, transcriptions: nil, error: error.localizedDescription)
+    }
+}
+
+private func databaseSchemaSkewMessage(unknownMigrations: [String]) -> String {
+    let migrationList = unknownMigrations.prefix(3).joined(separator: ", ")
+    let suffix = unknownMigrations.count > 3 ? ", ..." : ""
+    return "This database has been migrated by a newer MacParakeet app than this macparakeet-cli build understands (\(migrationList)\(suffix)). Upgrade macparakeet-cli and retry."
+}
+
+struct HealthDatabaseReport: Encodable, Equatable {
+    let status: String  // "ok" | "missing" | "schema_skew" | "error"
+    let dictations: Int?
+    let transcriptions: Int?
+    let error: String?
+}
+
 // Health JSON payload. Local to the CLI so adding diagnostic fields here
 // doesn't require touching the Core layer.
 private struct HealthReport: Encodable {
     var paths: Paths = .empty
     var directoriesOK: Bool = false
     var directoriesError: String?
-    var database: Database?
+    var database: HealthDatabaseReport?
     var audioInput: AudioInput?
     var speechStack: SpeechStackPayload?
     var repair: Repair?
@@ -274,13 +307,6 @@ private struct HealthReport: Encodable {
         let bin: String
         let ytDlp: String
         static let empty = Paths(appSupport: "", database: "", temp: "", bin: "", ytDlp: "")
-    }
-
-    struct Database: Encodable {
-        let status: String  // "ok" | "missing" | "error"
-        let dictations: Int?
-        let transcriptions: Int?
-        let error: String?
     }
 
     struct AudioInput: Encodable {

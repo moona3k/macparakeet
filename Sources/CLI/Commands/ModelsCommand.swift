@@ -290,65 +290,98 @@ extension ModelsCommand {
         @Flag(name: .long, help: "Delete even the model currently in use (it will re-download on next use).")
         var force: Bool = false
 
-        func run() async throws {
-            let defaults = macParakeetAppDefaults()
-            let target = try resolveModelDeletionTarget(id, defaults: defaults)
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
 
-            if isModelInUse(target, defaults: defaults) {
-                guard force else {
-                    throw ValidationError(
-                        "\(target.displayName) is the model currently in use. Switch to another model first, "
-                            + "or pass --force to delete it anyway (it re-downloads on next use)."
+        func run() async throws {
+            try emitJSONOrRethrow(json: json) {
+                let defaults = macParakeetAppDefaults()
+                let target = try resolveModelDeletionTarget(id, defaults: defaults)
+
+                if isModelInUse(target, defaults: defaults) {
+                    guard force else {
+                        throw ValidationError(
+                            "\(target.displayName) is the model currently in use. Switch to another model first, "
+                                + "or pass --force to delete it anyway (it re-downloads on next use)."
+                        )
+                    }
+                    // --force overrides the guard; make the consequence explicit since
+                    // there's no interactive confirmation on the CLI.
+                    printErr("Warning: deleting \(target.displayName), the model currently in use. It will re-download on next use.")
+                }
+
+                switch target.kind {
+                case .parakeet(let variant):
+                    let lifecycle = speechModelLifecycle(for: .parakeet(variant))
+                    guard isParakeetVariantCached(variant) else {
+                        let message = "\(lifecycle.modelName) is not downloaded — nothing to delete."
+                        try printModelDeleteResult(
+                            ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: false, message: message),
+                            json: json
+                        )
+                        return
+                    }
+                    let removed = deleteParakeetVariant(variant)
+                    guard removed else {
+                        throw ModelDeletionError.deleteFailed("Could not delete \(lifecycle.modelName). It may be missing or in use by another process.")
+                    }
+                    let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
+                    try printModelDeleteResult(
+                        ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: true, message: "Deleted \(target.displayName) · freed \(size)."),
+                        json: json
+                    )
+                case .nemotron(let variant):
+                    let lifecycle = speechModelLifecycle(for: .nemotron(variant))
+                    let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: nil)
+                    guard removed else {
+                        let message = "\(lifecycle.modelName) is not downloaded — nothing to delete."
+                        try printModelDeleteResult(
+                            ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: false, message: message),
+                            json: json
+                        )
+                        return
+                    }
+                    let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
+                    try printModelDeleteResult(
+                        ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: true, message: "Deleted \(target.displayName) · freed \(size)."),
+                        json: json
+                    )
+                case .whisper(let variant):
+                    guard WhisperEngine.isModelDownloaded(model: variant) else {
+                        let message = "Whisper \(SpeechEnginePreference.friendlyVariantName(variant)) is not downloaded — nothing to delete."
+                        try printModelDeleteResult(
+                            ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: false, message: message),
+                            json: json
+                        )
+                        return
+                    }
+                    let removed = STTRuntime.deleteWhisperModel(variant: variant, defaults: defaults)
+                    guard removed else {
+                        throw ModelDeletionError.deleteFailed("Could not delete Whisper \(SpeechEnginePreference.friendlyVariantName(variant)). It may be missing or in use by another process.")
+                    }
+                    let freed = whisperModelSizeLabel(for: variant).map { " · freed \($0)" } ?? ""
+                    try printModelDeleteResult(
+                        ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: true, message: "Deleted \(target.displayName)\(freed)."),
+                        json: json
+                    )
+                case .cohere:
+                    guard CohereTranscribeEngine.hasModelCacheDirectory() else {
+                        let message = "\(cohereModelName) is not downloaded — nothing to delete."
+                        try printModelDeleteResult(
+                            ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: false, message: message),
+                            json: json
+                        )
+                        return
+                    }
+                    let removed = CohereTranscribeEngine.deleteModel()
+                    guard removed else {
+                        throw ModelDeletionError.deleteFailed("Could not delete \(cohereModelName). It may be missing or in use by another process.")
+                    }
+                    try printModelDeleteResult(
+                        ModelDeleteResult(ok: true, id: id, displayName: target.displayName, deleted: true, message: "Deleted \(target.displayName) · freed \(cohereModelSize)."),
+                        json: json
                     )
                 }
-                // --force overrides the guard; make the consequence explicit since
-                // there's no interactive confirmation on the CLI.
-                printErr("Warning: deleting \(target.displayName), the model currently in use. It will re-download on next use.")
-            }
-
-            switch target.kind {
-            case .parakeet(let variant):
-                let lifecycle = speechModelLifecycle(for: .parakeet(variant))
-                guard isParakeetVariantCached(variant) else {
-                    print("\(lifecycle.modelName) is not downloaded — nothing to delete.")
-                    return
-                }
-                let removed = deleteParakeetVariant(variant)
-                guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete \(lifecycle.modelName). It may be missing or in use by another process.")
-                }
-                let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
-                print("Deleted \(target.displayName) · freed \(size).")
-            case .nemotron(let variant):
-                let lifecycle = speechModelLifecycle(for: .nemotron(variant))
-                let removed = STTRuntime.deleteNemotronModel(modelVariant: variant, language: nil)
-                guard removed else {
-                    print("\(lifecycle.modelName) is not downloaded — nothing to delete.")
-                    return
-                }
-                let size = lifecycle.approximateDownloadSize ?? variant.approximateDownloadSize
-                print("Deleted \(target.displayName) · freed \(size).")
-            case .whisper(let variant):
-                guard WhisperEngine.isModelDownloaded(model: variant) else {
-                    print("Whisper \(SpeechEnginePreference.friendlyVariantName(variant)) is not downloaded — nothing to delete.")
-                    return
-                }
-                let removed = STTRuntime.deleteWhisperModel(variant: variant, defaults: defaults)
-                guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete Whisper \(SpeechEnginePreference.friendlyVariantName(variant)). It may be missing or in use by another process.")
-                }
-                let freed = whisperModelSizeLabel(for: variant).map { " · freed \($0)" } ?? ""
-                print("Deleted \(target.displayName)\(freed).")
-            case .cohere:
-                guard CohereTranscribeEngine.hasModelCacheDirectory() else {
-                    print("\(cohereModelName) is not downloaded — nothing to delete.")
-                    return
-                }
-                let removed = CohereTranscribeEngine.deleteModel()
-                guard removed else {
-                    throw ModelDeletionError.deleteFailed("Could not delete \(cohereModelName). It may be missing or in use by another process.")
-                }
-                print("Deleted \(target.displayName) · freed \(cohereModelSize).")
             }
         }
     }
@@ -359,11 +392,56 @@ extension ModelsCommand {
             abstract: "Delete cached speech and speaker models."
         )
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         func run() async throws {
-            let sttClient = makeParakeetSTTClient()
-            await sttClient.clearModelCache()
-            DiarizationService.clearModelCache()
-            try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+            try await clearModelCachesForCLI(json: json)
+        }
+    }
+}
+
+private struct ModelDeleteResult: Encodable {
+    let ok: Bool
+    let id: String
+    let displayName: String
+    let deleted: Bool
+    let message: String
+}
+
+private struct ModelCacheClearResult: Encodable {
+    let ok: Bool
+    let clearedCacheCount: Int
+    let caches: [String]
+}
+
+private func printModelDeleteResult(_ result: ModelDeleteResult, json: Bool) throws {
+    if json {
+        try printJSON(result)
+    } else {
+        print(result.message)
+    }
+}
+
+func clearModelCachesForCLI(
+    json: Bool,
+    sttClient: STTClientProtocol = makeParakeetSTTClient(),
+    clearSpeakerCache: @Sendable () -> Void = { DiarizationService.clearModelCache() },
+    clearWhisperModels: @Sendable () -> Void = {
+        try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+    }
+) async throws {
+    try await emitJSONOrRethrow(json: json) {
+        await sttClient.clearModelCache()
+        clearSpeakerCache()
+        clearWhisperModels()
+        if json {
+            try printJSON(ModelCacheClearResult(
+                ok: true,
+                clearedCacheCount: 3,
+                caches: ["speech", "speaker", "whisper"]
+            ))
+        } else {
             print("Local speech and speaker model caches cleared")
         }
     }

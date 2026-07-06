@@ -1,5 +1,6 @@
 import ArgumentParser
 import CoreAudio
+import Foundation
 import XCTest
 @testable import MacParakeetCore
 @testable import CLI
@@ -21,6 +22,29 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertTrue(command.repairModels)
         XCTAssertEqual(command.repairAttempts, 6)
         XCTAssertTrue(command.repairBinaries)
+    }
+
+    func testRegisteredMigrationIdentifiersMatchFreshLedger() throws {
+        let db = try DatabaseManager()
+        XCTAssertEqual(
+            try db.appliedMigrationIdentifiers(),
+            DatabaseManager.registeredMigrationIdentifiers
+        )
+    }
+
+    func testHealthDatabaseProbeReportsSchemaSkewForFutureMigration() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        try db.recordAppliedMigrationIdentifierForTesting("v99.0-future-app-migration")
+
+        let report = probeHealthDatabase(at: dbURL.path)
+
+        XCTAssertEqual(report.status, "schema_skew")
+        XCTAssertNil(report.dictations)
+        XCTAssertNil(report.transcriptions)
+        XCTAssertTrue(report.error?.contains("Upgrade macparakeet-cli") == true)
+        XCTAssertTrue(report.error?.contains("v99.0-future-app-migration") == true)
     }
 
     func testResolveWhisperDownloadModelRequiresWhisperPrefix() throws {
@@ -719,6 +743,27 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
     }
 
+    func testModelsClearJSONReportsCacheFamiliesWithInjectedCaches() async throws {
+        let stt = StubSTTClient()
+        await stt.setReady(true)
+
+        let output = try await captureStandardOutput {
+            try await clearModelCachesForCLI(
+                json: true,
+                sttClient: stt,
+                clearSpeakerCache: {},
+                clearWhisperModels: {}
+            )
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["clearedCacheCount"] as? Int, 3)
+        XCTAssertEqual(decoded["caches"] as? [String], ["speech", "speaker", "whisper"])
+        let sttReady = await stt.isReady()
+        XCTAssertFalse(sttReady)
+    }
+
     func testWarmUpRetriesConfiguredAttempts() async {
         let stt = StubSTTClient()
         let diarization = StubDiarizationService()
@@ -955,6 +1000,11 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertEqual(diagnostics.storedSelectedUID, "usb-mic")
         XCTAssertEqual(diagnostics.selectedDevice?.uid, "usb-mic")
         XCTAssertEqual(diagnostics.fallbackOrder.map(\.uid), ["usb-mic", "conference-mic"])
+    }
+
+    private func temporaryDatabaseURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-\(UUID().uuidString).db")
     }
 }
 
