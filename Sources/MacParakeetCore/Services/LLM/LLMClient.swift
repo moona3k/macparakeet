@@ -3,6 +3,8 @@ import Foundation
 // MARK: - Protocol
 
 public protocol LLMClientProtocol: Sendable {
+    var supportsInProcessLocalLLM: Bool { get }
+
     func chatCompletion(
         messages: [ChatMessage],
         context: LLMExecutionContext,
@@ -22,6 +24,8 @@ public protocol LLMClientProtocol: Sendable {
 }
 
 public extension LLMClientProtocol {
+    var supportsInProcessLocalLLM: Bool { false }
+
     func chatCompletion(
         messages: [ChatMessage],
         config: LLMProviderConfig,

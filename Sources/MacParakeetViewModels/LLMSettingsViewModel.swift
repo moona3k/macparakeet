@@ -333,7 +333,33 @@ public final class LLMSettingsViewModel {
     }
 
     public var shouldShowInProcessLocalSetup: Bool {
-        AppFeatures.isInProcessLocalLLMVisible(defaults: defaults)
+        AppFeatures.isInProcessLocalLLMVisible(
+            defaults: defaults,
+            runtimeAvailable: isInProcessLocalLLMRuntimeAvailable
+        )
+    }
+
+    public var shouldShowInProcessLocalUnavailableExplanation: Bool {
+        AppFeatures.shouldShowInProcessLocalLLMUnavailableExplanation(
+            defaults: defaults,
+            runtimeAvailable: isInProcessLocalLLMRuntimeAvailable
+        )
+    }
+
+    public var inProcessLocalUnavailableMessage: String? {
+        guard shouldShowInProcessLocalUnavailableExplanation else { return nil }
+        return
+            "Local AI is enabled by a developer override, but this app build does not include the MLX runtime. Build with MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1 to test it. The model download is disabled for this build."
+    }
+
+    public var selectableProviderIDs: [LLMProviderID] {
+        LLMProviderID.userSelectableProviderIDs(
+            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup
+        )
+    }
+
+    private var isInProcessLocalLLMRuntimeAvailable: Bool {
+        llmClient?.supportsInProcessLocalLLM == true
     }
 
     public var validationMessage: String? {

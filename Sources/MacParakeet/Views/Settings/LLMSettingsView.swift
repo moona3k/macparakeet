@@ -42,6 +42,10 @@ struct LLMSettingsView: View {
                 Divider()
 
                 localAISetupSection
+            } else if viewModel.shouldShowInProcessLocalUnavailableExplanation {
+                Divider()
+
+                localAIUnavailableSection
             }
 
             if viewModel.selectedProviderID != nil {
@@ -260,9 +264,31 @@ struct LLMSettingsView: View {
     }
 
     private var providerOrder: [LLMProviderID] {
-        LLMProviderID.userSelectableProviderIDs(
-            inProcessLocalLLMVisible: viewModel.shouldShowInProcessLocalSetup
-        )
+        viewModel.selectableProviderIDs
+    }
+
+    private var localAIUnavailableSection: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text("Local AI")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text("Unavailable in this build")
+                        .font(DesignSystem.Typography.micro.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+                }
+                Text(viewModel.inProcessLocalUnavailableMessage ?? "")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+        }
+        .id("ai.localAIUnavailable")
     }
 
     @ViewBuilder

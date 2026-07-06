@@ -18,6 +18,10 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         self.inProcessClient = inProcessClient
     }
 
+    public var supportsInProcessLocalLLM: Bool {
+        inProcessClient.supportsInProcessLocalLLM
+    }
+
     public func chatCompletion(
         messages: [ChatMessage],
         context: LLMExecutionContext,
