@@ -1,0 +1,24 @@
+README.md
+  s_a5122f049a75b8::t_e1e17035deb2ec 58,66-67,88,93-128,170-181,187-195,205-216
+spec/README.md
+  s_a5122f049a75b8::t_e1e17035deb2ec 53,65-66,130
+spec/06-stt-engine.md
+  s_a5122f049a75b8::t_e1e17035deb2ec 17-19,195-199
+  s_a5122f049a75b8::t_16a5497308642b 499,511,518-523,525,529-535,541-543
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6d5830160c62e3090cbf01cdaebccab5a712bdf9",
+  "prompts": {},
+  "sessions": {
+    "s_a5122f049a75b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3660-8066-74d0-9df0-f11b654a6381",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
