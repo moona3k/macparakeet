@@ -4,6 +4,7 @@ import XCTest
 // MARK: - Mocks
 
 final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
+    var supportsInProcessLocalLLM = true
     var capturedMessages: [ChatMessage] = []
     var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?

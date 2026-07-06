@@ -19,6 +19,8 @@ public actor MLXLocalLLMRuntime: LocalLLMRuntime {
 
     public init() {}
 
+    public nonisolated var isAvailable: Bool { true }
+
     public func load(model: LocalLLMModelReference) async throws {
         try Task.checkCancellation()
         await drainGenerationIfNeeded()

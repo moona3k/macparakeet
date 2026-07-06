@@ -100,8 +100,37 @@ final class LLMProviderDescriptorTests: XCTestCase {
 
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertTrue(AppFeatures.inProcessLocalLLMDeveloperOverrideEnabled(defaults: defaults, arguments: []))
-        XCTAssertTrue(AppFeatures.isInProcessLocalLLMVisible(defaults: defaults, arguments: []))
+        XCTAssertTrue(
+            AppFeatures.isInProcessLocalLLMProductVisible(defaults: defaults, arguments: [])
+        )
+        XCTAssertTrue(
+            AppFeatures.isInProcessLocalLLMVisible(defaults: defaults, arguments: [], runtimeAvailable: true)
+        )
         XCTAssertTrue(LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: true).contains(.inProcessLocal))
+    }
+
+    func testDeveloperOverrideDoesNotExposeInProcessLocalProviderWhenRuntimeUnavailable() {
+        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
+
+        XCTAssertTrue(
+            AppFeatures.isInProcessLocalLLMProductVisible(defaults: defaults, arguments: [])
+        )
+        XCTAssertFalse(
+            AppFeatures.isInProcessLocalLLMVisible(defaults: defaults, arguments: [], runtimeAvailable: false)
+        )
+        XCTAssertTrue(
+            AppFeatures.shouldShowInProcessLocalLLMUnavailableExplanation(
+                defaults: defaults,
+                arguments: [],
+                runtimeAvailable: false
+            )
+        )
+        XCTAssertFalse(
+            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false).contains(.inProcessLocal))
     }
 
     func testDeveloperLaunchArgumentCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
@@ -114,6 +143,23 @@ final class LLMProviderDescriptorTests: XCTestCase {
             AppFeatures.inProcessLocalLLMDeveloperOverrideEnabled(
                 defaults: defaults,
                 arguments: [AppFeatures.inProcessLocalLLMDeveloperLaunchArgument]
+            ))
+        XCTAssertTrue(
+            AppFeatures.isInProcessLocalLLMProductVisible(
+                defaults: defaults,
+                arguments: [AppFeatures.inProcessLocalLLMDeveloperLaunchArgument]
+            ))
+        XCTAssertFalse(
+            AppFeatures.isInProcessLocalLLMVisible(
+                defaults: defaults,
+                arguments: [AppFeatures.inProcessLocalLLMDeveloperLaunchArgument],
+                runtimeAvailable: false
+            ))
+        XCTAssertTrue(
+            AppFeatures.isInProcessLocalLLMVisible(
+                defaults: defaults,
+                arguments: [AppFeatures.inProcessLocalLLMDeveloperLaunchArgument],
+                runtimeAvailable: true
             ))
     }
 }

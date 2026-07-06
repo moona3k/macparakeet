@@ -25,6 +25,7 @@ public final class InProcessModelManagerViewModel {
     private var llmClient: (any LLMClientProtocol)?
     private var onConfigurationChanged: (() -> Void)?
     private var physicalMemoryBytes: UInt64
+    private var isRuntimeAvailable = false
     private var setupTask: Task<Void, Never>?
 
     public init(physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory) {
@@ -42,6 +43,7 @@ public final class InProcessModelManagerViewModel {
         self.configStore = configStore
         self.llmClient = llmClient
         self.physicalMemoryBytes = physicalMemoryBytes
+        self.isRuntimeAvailable = llmClient.supportsInProcessLocalLLM
         self.onConfigurationChanged = onConfigurationChanged
         refreshSelectionState()
     }
@@ -103,6 +105,14 @@ public final class InProcessModelManagerViewModel {
     }
 
     public func enableLocalAI() async {
+        guard isRuntimeAvailable else {
+            state = .failed(
+                reason:
+                    "Local AI is enabled by a developer override, but this app build does not include the MLX runtime. Use a gated MLX build to test it.",
+                recoverable: false
+            )
+            return
+        }
         guard meetsMemoryRequirement else {
             state = .failed(
                 reason:

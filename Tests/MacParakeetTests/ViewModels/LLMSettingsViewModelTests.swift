@@ -45,6 +45,38 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
+    func testInProcessLocalSetupHiddenWithoutProductVisibility() {
+        mockClient.supportsInProcessLocalLLM = true
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertFalse(viewModel.shouldShowInProcessLocalSetup)
+        XCTAssertFalse(viewModel.shouldShowInProcessLocalUnavailableExplanation)
+        XCTAssertNil(viewModel.inProcessLocalUnavailableMessage)
+        XCTAssertFalse(viewModel.selectableProviderIDs.contains(.inProcessLocal))
+    }
+
+    func testInProcessLocalSetupVisibleOnlyWhenProductGateAndRuntimeAreAvailable() {
+        defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
+        mockClient.supportsInProcessLocalLLM = true
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertTrue(viewModel.shouldShowInProcessLocalSetup)
+        XCTAssertFalse(viewModel.shouldShowInProcessLocalUnavailableExplanation)
+        XCTAssertNil(viewModel.inProcessLocalUnavailableMessage)
+        XCTAssertTrue(viewModel.selectableProviderIDs.contains(.inProcessLocal))
+    }
+
+    func testDeveloperOverrideShowsUnavailableExplanationWhenRuntimeMissing() {
+        defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
+        mockClient.supportsInProcessLocalLLM = false
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertFalse(viewModel.shouldShowInProcessLocalSetup)
+        XCTAssertTrue(viewModel.shouldShowInProcessLocalUnavailableExplanation)
+        XCTAssertTrue(viewModel.inProcessLocalUnavailableMessage?.contains("does not include the MLX runtime") == true)
+        XCTAssertFalse(viewModel.selectableProviderIDs.contains(.inProcessLocal))
+    }
+
     // MARK: - AI Formatter: dictation routing toggle (#408)
 
     func testAIFormatterEnabledForDictationDefaultsToFalse() {

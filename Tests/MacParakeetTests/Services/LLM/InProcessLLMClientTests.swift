@@ -495,7 +495,7 @@ final class InProcessLLMClientTests: XCTestCase {
 
     func testConnectionReleasesLeaseAndSchedulesImmediateUnload() async throws {
         let modelDirectory = temporaryModelDirectory()
-        let runtime = FakeLocalLLMRuntime(eventPlans: [])
+        let runtime = FakeLocalLLMRuntime(eventPlans: [[.text("ok")]])
         let client = InProcessLLMClient(
             runtime: runtime,
             modelDirectoryResolver: { _ in modelDirectory },
@@ -515,6 +515,51 @@ final class InProcessLLMClientTests: XCTestCase {
         XCTAssertEqual(unloadCount, 1)
     }
 
+    func testConnectionRunsBoundedGenerationSmoke() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [[.text("OK")]])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            idleUnloadDelaySeconds: 60
+        )
+
+        try await client.testConnection(
+            context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "smoke-test"))
+        )
+
+        let requestContents = await runtime.requestContents()
+        let requestOptions = await runtime.requestOptions()
+        XCTAssertEqual(requestContents.count, 1)
+        XCTAssertTrue(requestContents[0].contains("Reply with OK."))
+        XCTAssertEqual(requestOptions.first?.temperature, 0)
+        XCTAssertEqual(requestOptions.first?.maxTokens, 4)
+    }
+
+    func testConnectionFailsWhenGenerationSmokeProducesNoText() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [[.metrics(LLMGenerationMetrics())]])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            idleUnloadDelaySeconds: 60
+        )
+
+        do {
+            try await client.testConnection(
+                context: LLMExecutionContext(providerConfig: .inProcessLocal(model: "smoke-failure"))
+            )
+            XCTFail("Expected smoke test to fail without generated text")
+        } catch let error as LLMError {
+            guard case .providerError(let message) = error else {
+                return XCTFail("Expected providerError, got \(error)")
+            }
+            XCTAssertTrue(message.contains("generation smoke test produced no text"))
+        } catch {
+            XCTFail("Expected LLMError.providerError, got \(error)")
+        }
+    }
+
     private func temporaryModelDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -528,6 +573,7 @@ private actor FakeLocalLLMRuntime: LocalLLMRuntime {
     private var loadCalls: [LocalLLMModelReference] = []
     private var unloadCalls = 0
     private var requests: [[ChatMessage]] = []
+    private var optionsRequests: [ChatCompletionOptions] = []
     private var latestMetricsValue: LLMGenerationMetrics?
     private var requestCountWaiters: [CountWaiter] = []
     private var unloadCountWaiters: [CountWaiter] = []
@@ -541,6 +587,8 @@ private actor FakeLocalLLMRuntime: LocalLLMRuntime {
         self.delayNanoseconds = delayNanoseconds
         self.unloadGate = unloadGate
     }
+
+    nonisolated var isAvailable: Bool { true }
 
     func load(model: LocalLLMModelReference) async throws {
         loadCalls.append(model)
@@ -559,6 +607,7 @@ private actor FakeLocalLLMRuntime: LocalLLMRuntime {
         options: ChatCompletionOptions
     ) async throws -> AsyncThrowingStream<LocalLLMRuntimeEvent, Error> {
         requests.append(messages)
+        optionsRequests.append(options)
         resumeSatisfiedWaiters(&requestCountWaiters, currentCount: requests.count)
         let events = eventPlans.isEmpty ? [.text("fallback")] : eventPlans.removeFirst()
         latestMetricsValue =
@@ -660,6 +709,10 @@ private actor FakeLocalLLMRuntime: LocalLLMRuntime {
         requests.map { request in
             request.map(\.content).joined(separator: "\n\n")
         }
+    }
+
+    func requestOptions() -> [ChatCompletionOptions] {
+        optionsRequests
     }
 
     private func resumeSatisfiedWaiters(

@@ -30,6 +30,31 @@ final class InProcessModelManagerViewModelTests: XCTestCase {
         XCTAssertNil(configStore.config)
     }
 
+    func testEnableLocalAIGatedWhenRuntimeUnavailable() async {
+        let downloader = FakeInProcessModelDownloader()
+        let configStore = MockLLMConfigStore()
+        let client = MockLLMClient()
+        client.supportsInProcessLocalLLM = false
+        let viewModel = InProcessModelManagerViewModel()
+        viewModel.configure(
+            downloader: downloader,
+            configStore: configStore,
+            llmClient: client,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        await viewModel.enableLocalAI()
+
+        guard case .failed(let reason, let recoverable) = viewModel.state else {
+            return XCTFail("Expected failed state")
+        }
+        XCTAssertTrue(reason.contains("does not include the MLX runtime"))
+        XCTAssertFalse(recoverable)
+        let downloadCallCount = await downloader.downloadCallCount()
+        XCTAssertEqual(downloadCallCount, 0)
+        XCTAssertNil(configStore.config)
+    }
+
     func testEnableLocalAIDownloadsVerifiesTestsAndSavesProvider() async {
         let downloader = FakeInProcessModelDownloader()
         let configStore = MockLLMConfigStore()

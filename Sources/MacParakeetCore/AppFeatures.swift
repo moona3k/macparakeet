@@ -139,12 +139,36 @@ public enum AppFeatures {
             || arguments.contains(inProcessLocalLLMDeveloperLaunchArgument)
     }
 
-    public static func isInProcessLocalLLMVisible(
+    public static func isInProcessLocalLLMProductVisible(
         defaults: UserDefaults = .standard,
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         inProcessLocalLLMEnabled
             || inProcessLocalLLMDeveloperOverrideEnabled(
+                defaults: defaults,
+                arguments: arguments
+            )
+    }
+
+    public static func isInProcessLocalLLMVisible(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        runtimeAvailable: Bool = false
+    ) -> Bool {
+        runtimeAvailable
+            && isInProcessLocalLLMProductVisible(
+                defaults: defaults,
+                arguments: arguments
+            )
+    }
+
+    public static func shouldShowInProcessLocalLLMUnavailableExplanation(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        runtimeAvailable: Bool
+    ) -> Bool {
+        !runtimeAvailable
+            && inProcessLocalLLMDeveloperOverrideEnabled(
                 defaults: defaults,
                 arguments: arguments
             )

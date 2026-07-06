@@ -10,12 +10,14 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     public static let defaultChunkCharacterThreshold = 24_000
     public static let defaultChunkCharacterLimit = 12_000
     public static let defaultIdleUnloadDelaySeconds: TimeInterval = 300
+    public static let defaultSmokeTestTimeoutSeconds: TimeInterval = 15
 
     private let runtime: any LocalLLMRuntime
     private let modelDirectoryResolver: LocalLLMModelDirectoryResolver
     private let chunkCharacterThreshold: Int
     private let chunkCharacterLimit: Int
     private let idleUnloadDelayNanoseconds: UInt64
+    private let smokeTestTimeoutNanoseconds: UInt64
     private let lifetimeCoordinator = LocalLLMLifetimeCoordinator()
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "InProcessLLMClient")
 
@@ -26,7 +28,8 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         },
         chunkCharacterThreshold: Int = InProcessLLMClient.defaultChunkCharacterThreshold,
         chunkCharacterLimit: Int = InProcessLLMClient.defaultChunkCharacterLimit,
-        idleUnloadDelaySeconds: TimeInterval = InProcessLLMClient.defaultIdleUnloadDelaySeconds
+        idleUnloadDelaySeconds: TimeInterval = InProcessLLMClient.defaultIdleUnloadDelaySeconds,
+        smokeTestTimeoutSeconds: TimeInterval = InProcessLLMClient.defaultSmokeTestTimeoutSeconds
     ) {
         self.runtime = runtime
         self.modelDirectoryResolver = modelDirectoryResolver
@@ -34,6 +37,12 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         self.chunkCharacterLimit = max(1, chunkCharacterLimit)
         let boundedDelay = max(0, idleUnloadDelaySeconds)
         self.idleUnloadDelayNanoseconds = UInt64(boundedDelay * 1_000_000_000)
+        let boundedSmokeTestTimeout = max(0, smokeTestTimeoutSeconds)
+        self.smokeTestTimeoutNanoseconds = UInt64(boundedSmokeTestTimeout * 1_000_000_000)
+    }
+
+    public var supportsInProcessLocalLLM: Bool {
+        runtime.isAvailable
     }
 
     public func chatCompletion(
@@ -82,9 +91,14 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     }
 
     public func testConnection(context: LLMExecutionContext) async throws {
+        guard context.providerConfig.id == .inProcessLocal else {
+            throw LLMError.providerError("InProcessLLMClient received \(context.providerConfig.id.rawValue).")
+        }
+
         try await withGenerationLease(delayNanoseconds: 0) {
             try Task.checkCancellation()
-            try await loadRuntime(for: context.providerConfig)
+            let model = try modelReference(for: context.providerConfig)
+            try await runtime.smokeTest(model: model, timeoutNanoseconds: smokeTestTimeoutNanoseconds)
         }
     }
 
@@ -194,12 +208,14 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
     }
 
     private func loadRuntime(for config: LLMProviderConfig) async throws {
+        try await runtime.load(model: try modelReference(for: config))
+    }
+
+    private func modelReference(for config: LLMProviderConfig) throws -> LocalLLMModelReference {
         let directory = try modelDirectoryResolver(config)
-        try await runtime.load(
-            model: LocalLLMModelReference(
-                modelName: config.modelName,
-                directory: directory
-            )
+        return LocalLLMModelReference(
+            modelName: config.modelName,
+            directory: directory
         )
     }
 
