@@ -48,7 +48,7 @@ assets or hardware that cannot be produced in a sandbox.
   `microphone-cleaned.m4a` only when the render completes before the deadline and
   the artifact is non-empty and decodable; timeout, invalid output, missing
   reference, missing assets, render failure, or untrusted recovered alignment
-  select raw `microphone.m4a` with a diagnostic reason. A global RMS/energy gate
+  select raw `microphone-raw.m4a` with a diagnostic reason. A global RMS/energy gate
   is deliberately NOT used — on a real meeting it cannot distinguish good echo
   removal (mic that was mostly bleed -> correctly quiet) from a model that mutes
   near-end voice; that near-end-fidelity risk is owned by model selection
@@ -75,7 +75,7 @@ assets or hardware that cannot be produced in a sandbox.
 - **U3/U4 are inert when shipped builds lack AEC assets** — production resolves
   to `PassthroughMicConditioner`, so the scheduled cleaned-mic render reports
   `rawNoAECAssets`, removes any stale candidate/stable cleaned file, and final
-  STT reads raw `microphone.m4a`. With release assets present, final STT can wait
+  STT reads raw `microphone-raw.m4a`. With release assets present, final STT can wait
   for and use the cleaned artifact through the readiness gate above.
 - **U6/U9 — REMAINING.** U6: optional WebRTC AEC3 benchmark or skip-decision
   record. U9: real no-headphones speaker-mode QA closes #605.
@@ -95,8 +95,8 @@ assets or hardware that cannot be produced in a sandbox.
 ### Summary
 
 MacParakeet already captures microphone and system audio separately, and it has a `MicConditioning` seam plus optional LocalVQE-compatible runtime loading.
-The remaining bug is that production still behaves like raw mic passthrough unless private echo assets are present, and final meeting transcription still reads `microphone.m4a` instead of a cleaned mic source.
-This plan turns the scaffold into a source-aware AEC product path while preserving raw `microphone.m4a` and `system.m4a` as truth.
+The remaining bug is that production still behaves like raw mic passthrough unless private echo assets are present, and final meeting transcription still reads `microphone-raw.m4a` instead of a cleaned mic source.
+This plan turns the scaffold into a source-aware AEC product path while preserving raw `microphone-raw.m4a` and `system-raw.m4a` as truth.
 
 ### Problem Frame
 
@@ -108,7 +108,7 @@ The shipped measurement harness proved that reference alignment is load-bearing:
 
 **Source trust**
 
-- R1. Preserve raw `microphone.m4a` and `system.m4a` for every meeting source mode that records them.
+- R1. Preserve raw `microphone-raw.m4a` and `system-raw.m4a` for every meeting source mode that records them.
 - R2. Produce a cleaned microphone path for final meeting transcription when system reference and echo runtime are available.
 - R3. Keep VPIO as an explicit experimental mic mode only; do not make VPIO the default fix for speaker-mode meetings.
 
@@ -125,7 +125,7 @@ The shipped measurement harness proved that reference alignment is load-bearing:
 - R9. Prefer the cleaned mic path for the final `Me` stream only after readiness
   and decodability gates pass.
 - R10. Retain any `microphone-cleaned.m4a` derived artifact under the same retention and deletion rules as other meeting source audio.
-- R11. Keep `meeting.m4a` as playback/export output and avoid treating it as the final STT input.
+- R11. Keep `meeting-playback.m4a` as playback/export output and avoid treating it as the final STT input.
 
 **Verification and closure**
 
@@ -169,8 +169,8 @@ The shipped measurement harness proved that reference alignment is load-bearing:
 
 ```mermaid
 flowchart TB
-  Mic[Microphone capture] --> RawMic[microphone.m4a]
-  Sys[ScreenCaptureKit system audio] --> RawSys[system.m4a]
+  Mic[Microphone capture] --> RawMic[microphone-raw.m4a]
+  Sys[ScreenCaptureKit system audio] --> RawSys[system-raw.m4a]
   Mic --> Pair[CaptureOrchestrator paired samples]
   Sys --> Pair
   Pair --> Delay[Delay estimator and reference quality gate]
@@ -291,7 +291,7 @@ flowchart TB
   - Dual-source meeting with available cleaner writes `microphone-cleaned.m4a` and records metadata pointing to it.
   - Microphone-only and system-only meetings skip cleaned rendering without error.
   - Missing/unreadable runtime assets skip cleaned rendering and preserve raw recording completion.
-  - Renderer failure leaves `microphone.m4a`, `system.m4a`, and `meeting.m4a` intact.
+  - Renderer failure leaves `microphone-raw.m4a`, `system-raw.m4a`, and `meeting-playback.m4a` intact.
   - Recovery reconstructs output correctly when raw files exist but cleaned artifact is absent.
   - Meeting audio retention/deletion removes `microphone-cleaned.m4a` together with other retained meeting source audio.
 - **Verification:** Meeting recording, recovery, artifact-store, and retention tests prove cleaned artifact lifecycle without regressing raw artifact preservation.
@@ -308,7 +308,7 @@ flowchart TB
   - `Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptSourceReconcilerTests.swift`
   - `Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptFinalizerTests.swift`
-- **Approach:** Update `transcribeMeetingSources` so `AudioSource.microphone` resolves to the cleaned mic candidate when readiness/decodability gates pass and raw mic otherwise. Keep system STT on `system.m4a`. Keep `MeetingTranscriptSourceReconciler` as a safety net for residual overlap, not the primary AEC mechanism.
+- **Approach:** Update `transcribeMeetingSources` so `AudioSource.microphone` resolves to the cleaned mic candidate when readiness/decodability gates pass and raw mic otherwise. Keep system STT on `system-raw.m4a`. Keep `MeetingTranscriptSourceReconciler` as a safety net for residual overlap, not the primary AEC mechanism.
 - **Health gates:** the cleaned render completes before the bounded deadline,
   the candidate output can be atomically published, and the published file is
   non-empty and decodable. Processor diagnostics and RMS ratio are emitted for
@@ -317,8 +317,8 @@ flowchart TB
 - **Patterns to follow:** Existing source alignment offsets and vocabulary application in `TranscriptionService`; source reconciliation in `MeetingTranscriptFinalizer`.
 - **Test scenarios:**
   - When cleaned mic is healthy, final microphone STT receives the cleaned file path.
-  - When cleaned mic is missing, corrupt, too short, or mostly fallback frames, final microphone STT receives raw `microphone.m4a`.
-  - System source STT remains `system.m4a` in both paths.
+  - When cleaned mic is missing, corrupt, too short, or mostly fallback frames, final microphone STT receives raw `microphone-raw.m4a`.
+  - System source STT remains `system-raw.m4a` in both paths.
   - Final transcript still merges microphone/system words by `MeetingSourceAlignment`.
   - Residual simultaneous echo words are still removed by `MeetingTranscriptSourceReconciler`.
   - Cohere batch-only meeting finalize continues to work when word timestamps are unavailable.
@@ -499,7 +499,7 @@ test skips when the env vars are unset, so CI stays green without the private as
   - `docs/research/2026-06-meeting-aec-open-issues-prior-art.md`
   - `plans/active/2026-06-28-meeting-aec-full-close.md`
   - Optional evidence artifacts under an appropriate private/local QA location, not committed if they contain audio/transcript content.
-- **Approach:** Run real speaker-mode recordings with no headset, using Zoom/Meet/Teams or equivalent far-end playback. Capture diagnostic metadata and inspect raw mic, system, cleaned mic, final transcript, and `meeting.m4a`. Do not close the issue from synthetic tests alone.
+- **Approach:** Run real speaker-mode recordings with no headset, using Zoom/Meet/Teams or equivalent far-end playback. Capture diagnostic metadata and inspect raw mic, system, cleaned mic, final transcript, and `meeting-playback.m4a`. Do not close the issue from synthetic tests alone.
 - **QA scenarios:**
   - Far-end-only: remote speech plays through speakers while local user is silent.
   - Near-end-only: local user speaks while system reference is silent.
@@ -573,7 +573,7 @@ test skips when the env vars are unset, so CI stays green without the private as
 - U1-U8 are implemented with focused tests and full `swift test` passing.
 - Release bundle verification proves echo assets are present and valid when the build claims AEC support.
 - Final meeting STT uses cleaned mic for the `Me` stream when readiness/decodability gates pass and raw mic when they fail.
-- Raw `microphone.m4a` and `system.m4a` remain preserved and recoverable.
+- Raw `microphone-raw.m4a` and `system-raw.m4a` remain preserved and recoverable.
 - `microphone-cleaned.m4a` or the equivalent derived cleaned input follows meeting audio retention/deletion rules.
 - Diagnostic logs distinguish loaded, skipped, failed, and fallback AEC states.
 - Specs, contracts, distribution docs, and human QA guide describe the new artifact and behavior.

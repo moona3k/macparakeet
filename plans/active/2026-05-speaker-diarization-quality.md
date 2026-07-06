@@ -709,7 +709,7 @@ Manual validation:
 2. Transcribe the same file with `--speakers 2`.
 3. Compare requested hint, detected speaker count, assignment coverage, and
    source-only rate.
-4. Retranscribe a meeting with isolated `system.m4a` and confirm the hint
+4. Retranscribe a meeting with isolated `system-raw.m4a` and confirm the hint
    applies only to remote/system speakers.
 5. Rename a speaker and confirm exports show the display label while JSON still
    preserves the raw speaker ID and label source.

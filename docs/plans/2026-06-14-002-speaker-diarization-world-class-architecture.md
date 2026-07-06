@@ -25,7 +25,7 @@ anonymous, local, final-pass diarization foundation:
   module interface.
 - File/URL transcription runs ASR, runs diarization when requested, and merges
   word timestamps with speaker segments.
-- Meeting recording preserves `microphone.m4a` and `system.m4a`, finalizes from
+- Meeting recording preserves `microphone-raw.m4a` and `system-raw.m4a`, finalizes from
   those source files, and only uses system-side diarization additively.
 - The UI supports per-transcript speaker label renaming.
 - CLI, JSON, artifacts, exports, LLM context, and meeting records already carry
@@ -517,7 +517,7 @@ without repair tools creates more apparent intelligence than real trust.
 
 - Do not add Python WhisperX or pyannote runtime to the app core.
 - Do not use cloud diarization as the main architecture.
-- Do not diarize mixed `meeting.m4a` when source files are available.
+- Do not diarize mixed `meeting-playback.m4a` when source files are available.
 - Do not add identity/profile fields directly into `SpeakerInfo` until it
   becomes a leaky pseudo-profile.
 - Do not default to mic-side diarization for meetings; the microphone source is

@@ -366,7 +366,7 @@ from local retrieval.
   - `MeetingAutomationHookRunner` environment values as proof that artifact
     folder and manifest paths are already automation surfaces.
 - **Test scenarios:**
-  - A meeting with existing folder but missing `meeting.m4a` exposes artifact
+  - A meeting with existing folder but missing `meeting-playback.m4a` exposes artifact
     availability and keeps audio actions unavailable.
   - A meeting without `filePath` but with a durable artifact folder exposes
     artifact actions and keeps audio actions unavailable.

@@ -69,7 +69,7 @@ Keep the implementation boring and obvious:
 ## Current State
 
 - ADR-014 defines meeting recording as source-separated capture. Final STT uses
-  the retained source files; `meeting.m4a` is playback/export, not the
+  the retained source files; `meeting-playback.m4a` is playback/export, not the
   authoritative STT input.
 - `MeetingRecordingServiceProtocol` exposes `micLevel`, `systemLevel`,
   `captureMode`, `isMicrophoneMuted`, and `transcriptUpdates`. It does not yet
@@ -141,8 +141,8 @@ Keep the implementation boring and obvious:
 
 - The `transcriptions` row remains canonical. Artifacts are refreshed views and
   automation inputs.
-- Source-separated files remain the truth: `microphone.m4a`, `system.m4a`, and
-  optional `microphone-cleaned.m4a`; `meeting.m4a` remains playback/export.
+- Source-separated files remain the truth: `microphone-raw.m4a`, `system-raw.m4a`, and
+  optional `microphone-cleaned.m4a`; `meeting-playback.m4a` remains playback/export.
 - A missing or failed health signal must never stop recording by itself.
   Recording continues unless the existing capture pipeline already fails.
 - A source health warning must not imply the transcript is unrecoverable.
@@ -332,9 +332,9 @@ artifactFolderPath: "/..."
 manifestPath: "/.../manifest.json"
 transcriptPath: "/.../transcript.json"
 notesPath: "/.../notes.md"
-mixedAudioPath: "/.../meeting.m4a"
-microphoneAudioPath: "/.../microphone.m4a"
-systemAudioPath: "/.../system.m4a"
+playbackAudioPath: "/.../meeting-playback.m4a"
+rawMicrophoneAudioPath: "/.../microphone-raw.m4a"
+rawSystemAudioPath: "/.../system-raw.m4a"
 cleanedMicrophoneAudioPath: "/.../microphone-cleaned.m4a"
 promptResultCount: 2
 ---
