@@ -1,0 +1,45 @@
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_798194fd96b515::t_36bbefa61c45a5 58-59,77-81,83-85
+Sources/CLI/MacParakeetCLI.swift
+  s_798194fd96b515::t_36bbefa61c45a5 15-16
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_798194fd96b515::t_36bbefa61c45a5 66-67,150-151,180-181,254-255,336-337,372-373,379-381,397-398,502-505,516-517,536-537,544-545,595-596
+Tests/CLITests/VocabCommandTests.swift
+  s_798194fd96b515::t_36bbefa61c45a5 395,457,472-476,530
+Sources/CLI/Commands/HealthCommand.swift
+  s_798194fd96b515::t_36bbefa61c45a5 158-159,280-281
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_798194fd96b515::t_36bbefa61c45a5 135-141,144-166,207-211,225-229,270-275,314-318,325-326,343-344,355-359,405-408,434-437,487-493,534-536,540-543,550-552,560-563,695-709,721,828-833,910-917,1013-1029,1041-1052,1068-1079,1094-1103,1107,1191-1195,1274-1286,1324,1342,1347,1352,1362-1363
+Sources/CLI/Commands/HistoryCommand.swift
+  s_798194fd96b515::t_36bbefa61c45a5 99-104,212-213,215-221,387-393,447-452,489-495
+Sources/CLI/Commands/SpecCommand.swift
+  s_798194fd96b515::t_36bbefa61c45a5 153-159,175-176,180-184,197-199,202-242,246-247,251-252,256,259-264,267-296,300-301,311-317,441-442,453-454,484-485,521-523,551-552,555-556,574,584-585,596-597,624-625,680-681,691-692,731-732,764-768,823-824,833-837,907-908,918-919,956-957,991-992,1000-1001,1069-1070,1073-1077,1092-1093,1103-1104,1108-1109
+Sources/CLI/Commands/ModelsCommand.swift
+  s_798194fd96b515::t_36bbefa61c45a5 74-75,137-140,166-167,292-295,318-320,329-330,337-338,342-344,353-354,361-363,368-369,371-372,379-381,385-387,394-395,402-403,406-408,466-471,574-576,579-580,691-717,785-788,792-795,798-799,944-945,968-971,1146-1147,1168-1170,1175-1177,1235-1237
+Tests/CLITests/HistoryCommandTests.swift
+  s_798194fd96b515::t_36bbefa61c45a5 207-210,566-568
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_798194fd96b515::t_36bbefa61c45a5 85-168,407-408,675-676,693-694,704-707,727-728,744-747,750-753
+Tests/CLITests/SpecCommandTests.swift
+  s_798194fd96b515::t_36bbefa61c45a5 60-68,77-85,100-103,204-208,261-262,269-270,273-274
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_798194fd96b515::t_36bbefa61c45a5 36-38,290-291,294-295,508-513,544-551,605-613,643-645,661-667,800-802,823-827,911-913
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_798194fd96b515::t_36bbefa61c45a5 440-441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1df4b27fa53f5fb18758bac97c06a53db07345c8",
+  "prompts": {},
+  "sessions": {
+    "s_798194fd96b515": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d869cd4-bb13-48fe-82e4-06156639d08a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
