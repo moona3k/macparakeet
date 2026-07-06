@@ -142,8 +142,15 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let metadata = try MeetingRecordingMetadataStore.load(
             from: folderURL,
             fileManager: fileManager)
-        let microphoneAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
-        let systemAudioURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
+        let playbackAudio = MeetingArtifactAudioFileNames.resolvePlaybackURL(
+            in: folderURL,
+            fileManager: fileManager)
+        let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
+            in: folderURL,
+            fileManager: fileManager)
+        let systemAudio = MeetingArtifactAudioFileNames.resolveRawSystemURL(
+            in: folderURL,
+            fileManager: fileManager)
         let cleanedURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
         // Keep archive loading cheap; this is called from UI list/reopen paths.
@@ -155,24 +162,26 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             : nil
 
         if metadata.sourceAlignment.microphone != nil,
-           !hasFile(at: microphoneAudioURL, fileManager: fileManager) {
+           !microphoneAudio.exists {
             throw MeetingAudioError.storageFailed(
-                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)")
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)"
+                    + " or \(MeetingArtifactAudioFileNames.legacyRawMicrophone)")
         }
 
         if metadata.sourceAlignment.system != nil,
-           !hasFile(at: systemAudioURL, fileManager: fileManager) {
+           !systemAudio.exists {
             throw MeetingAudioError.storageFailed(
-                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)")
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)"
+                    + " or \(MeetingArtifactAudioFileNames.legacyRawSystem)")
         }
 
         return MeetingRecordingOutput(
             sessionID: UUID(),
             displayName: displayName,
             folderURL: folderURL,
-            mixedAudioURL: mixedAudioURL,
-            microphoneAudioURL: microphoneAudioURL,
-            systemAudioURL: systemAudioURL,
+            mixedAudioURL: playbackAudio.url,
+            microphoneAudioURL: microphoneAudio.url,
+            systemAudioURL: systemAudio.url,
             cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
             durationSeconds: durationSeconds,
             sourceAlignment: metadata.sourceAlignment,

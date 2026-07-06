@@ -29,7 +29,7 @@ public enum TranscriptionAssetCleanup {
         subsystem: "com.macparakeet.core",
         category: "TranscriptionAssetCleanup"
     )
-    private static let standardMeetingAudioFileNames = MeetingArtifactAudioFileNames.managedCurrent
+    private static let standardMeetingAudioFileNames = MeetingArtifactAudioFileNames.managedReadCompatible
     private static let managedMeetingAudioExtensions: Set<String> = [
         "aac",
         "caf",

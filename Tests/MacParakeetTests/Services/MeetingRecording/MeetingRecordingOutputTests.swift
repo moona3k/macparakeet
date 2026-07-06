@@ -374,6 +374,28 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
     }
 
+    func testLoadArchivedReadsLegacyMeetingAudioFileNames() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: dualSourceAlignment()),
+            folderURL: dir
+        )
+        try writeM4A(to: dir.appendingPathComponent("microphone.m4a"))
+        try writeM4A(to: dir.appendingPathComponent("system.m4a"))
+        try writeM4A(to: dir.appendingPathComponent("meeting.m4a"))
+
+        let output = try MeetingRecordingOutput.loadArchived(
+            displayName: "Archived",
+            mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a"),
+            durationSeconds: 12
+        )
+
+        XCTAssertEqual(output.mixedAudioURL.lastPathComponent, "meeting.m4a")
+        XCTAssertEqual(output.microphoneAudioURL.lastPathComponent, "microphone.m4a")
+        XCTAssertEqual(output.systemAudioURL.lastPathComponent, "system.m4a")
+    }
+
     func testLoadArchivedPreservesCalendarSnapshotFromMetadata() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

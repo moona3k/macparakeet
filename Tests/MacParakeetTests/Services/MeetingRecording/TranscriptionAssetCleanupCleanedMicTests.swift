@@ -13,6 +13,9 @@ final class TranscriptionAssetCleanupCleanedMicTests: XCTestCase {
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("microphone-raw.m4a"))
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("system-raw.m4a"))
         XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("meeting-playback.m4a"))
+        XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("microphone.m4a"))
+        XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("system.m4a"))
+        XCTAssertTrue(TranscriptionAssetCleanup.isStandardMeetingAudioFileName("meeting.m4a"))
         XCTAssertEqual(
             "microphone-cleaned.m4a",
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName,
@@ -26,7 +29,15 @@ final class TranscriptionAssetCleanupCleanedMicTests: XCTestCase {
         try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let audioFiles = ["meeting-playback.m4a", "microphone-raw.m4a", "system-raw.m4a", "microphone-cleaned.m4a"]
+        let audioFiles = [
+            "meeting-playback.m4a",
+            "microphone-raw.m4a",
+            "system-raw.m4a",
+            "microphone-cleaned.m4a",
+            "meeting.m4a",
+            "microphone.m4a",
+            "system.m4a",
+        ]
         for name in audioFiles {
             try Data([0x00]).write(to: session.appendingPathComponent(name))
         }

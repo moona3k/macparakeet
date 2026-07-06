@@ -180,6 +180,28 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(Double(microphone.writtenFrameCount), 44_100, accuracy: 2_000)
     }
 
+    func testRecoverReadsLegacySourceNamesAndWritesCurrentPlaybackName() async throws {
+        let fixture = try makeLegacyRecoverableSession()
+
+        let pending = try await recoveryService.discoverPendingRecoveries()
+        XCTAssertEqual(pending.map(\.sessionId), [fixture.lock.sessionId])
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertTrue(recovered.recoveredFromCrash)
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        XCTAssertEqual(recording.microphoneAudioURL.lastPathComponent, "microphone.m4a")
+        XCTAssertEqual(recording.systemAudioURL.lastPathComponent, "system.m4a")
+        XCTAssertEqual(recording.mixedAudioURL.lastPathComponent, "meeting-playback.m4a")
+        XCTAssertEqual(
+            audioConverter.mixes.first?.inputs.map(\.lastPathComponent),
+            ["microphone.m4a", "system.m4a"])
+        XCTAssertEqual(audioConverter.mixes.first?.output.lastPathComponent, "meeting-playback.m4a")
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path))
+    }
+
     func testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists() async throws {
         let fixture = try makeRecoverableSession(
             lockState: .awaitingTranscription,
@@ -203,6 +225,41 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
         let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
         XCTAssertEqual(notesContent, "# Recovered Team Sync\n\nexisting transcript note\n")
+    }
+
+    func testRecoverSettlesCompletedLegacyPlaybackRow() async throws {
+        let sessionID = UUID()
+        let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let legacyMixedURL = folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: legacyMixedURL.path, contents: Data("mixed".utf8))
+        let existing = Transcription(
+            fileName: "Recovered Team Sync",
+            filePath: legacyMixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(existing)
+        let lock = MeetingRecordingLockFile(
+            sessionId: sessionID,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            pid: 42,
+            displayName: "Recovered Team Sync",
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        )
+        try lockStore.write(lock, folderURL: folderURL)
+
+        let pending = try await recoveryService.discoverPendingRecoveries()
+        XCTAssertEqual(pending.map(\.sessionId), [sessionID])
+
+        let recovered = try await recoveryService.recover(lock)
+
+        XCTAssertEqual(recovered.id, existing.id)
+        XCTAssertFalse(recovered.recoveredFromCrash)
+        XCTAssertNil(try lockStore.read(folderURL: folderURL))
+        XCTAssertTrue(audioConverter.mixes.isEmpty)
+        XCTAssertTrue(transcriptionService.recordings.isEmpty)
     }
 
     func testRecoverUpdatesExistingAwaitingTranscriptionStub() async throws {
@@ -708,6 +765,27 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             displayName: "Recovered Team Sync",
             state: lockState,
             notes: notes,
+            folderURL: folderURL
+        )
+        try lockStore.write(lock, folderURL: folderURL)
+        return (folderURL, lock)
+    }
+
+    private func makeLegacyRecoverableSession() throws -> (
+        folderURL: URL,
+        lock: MeetingRecordingLockFile
+    ) {
+        let sessionID = UUID()
+        let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try writeM4A(to: folderURL.appendingPathComponent("microphone.m4a"))
+        try writeM4A(to: folderURL.appendingPathComponent("system.m4a"))
+
+        let lock = MeetingRecordingLockFile(
+            sessionId: sessionID,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            pid: 42,
+            displayName: "Recovered Team Sync",
             folderURL: folderURL
         )
         try lockStore.write(lock, folderURL: folderURL)

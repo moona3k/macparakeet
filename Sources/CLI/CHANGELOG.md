@@ -135,9 +135,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `meeting-playback.m4a`. Paths surfaced through `MeetingArtifactSnapshot` and
   meeting JSON output (`rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
   `rawSystemAudioPath`, `playbackAudioPath`, and `filePath` for playback) use
-  the new names. There is deliberately no backward compatibility with
-  old-name recordings: the meeting artifact contract is pre-hardening, so this
-  rename ships without a version bump.
+  the new names for newly captured recordings. Archive loading, retranscription,
+  recovery, and cleanup continue to read the old filenames for recordings
+  created by earlier releases.
 - `retranscribe --kind meeting --speaker-detection app-default` now follows
   the saved meeting speaker-detection preference. `transcribe` and
   transcription retranscription continue to follow the saved file/URL

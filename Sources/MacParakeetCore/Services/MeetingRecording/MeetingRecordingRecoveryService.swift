@@ -151,8 +151,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     private func canOfferRecovery(for lock: MeetingRecordingLockFile) throws -> Bool {
         guard let folderURL = lock.folderURL else { return false }
-        let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
-        if try existingCompletedTranscription(for: mixedURL) != nil {
+        if try existingCompletedTranscription(in: folderURL) != nil {
             return true
         }
         return hasViableAudio(in: lock)
@@ -160,8 +159,14 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     private func hasViableAudio(in lock: MeetingRecordingLockFile) -> Bool {
         guard let folderURL = lock.folderURL else { return false }
-        let micSize = fileSize(at: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone))
-        let sysSize = fileSize(at: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem))
+        let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
+            in: folderURL,
+            fileManager: fileManager)
+        let systemAudio = MeetingArtifactAudioFileNames.resolveRawSystemURL(
+            in: folderURL,
+            fileManager: fileManager)
+        let micSize = microphoneAudio.exists ? fileSize(at: microphoneAudio.url) : 0
+        let sysSize = systemAudio.exists ? fileSize(at: systemAudio.url) : 0
         return max(micSize, sysSize) >= Self.minViableAudioBytes
     }
 
@@ -173,23 +178,27 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             throw MeetingRecordingRecoveryError.missingSessionFolder
         }
 
-        let microphoneURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
-        let systemURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
+        let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
+            in: folderURL,
+            fileManager: fileManager)
+        let systemAudio = MeetingArtifactAudioFileNames.resolveRawSystemURL(
+            in: folderURL,
+            fileManager: fileManager)
         let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
 
-        if let existing = try existingCompletedTranscription(for: mixedURL) {
+        if let existing = try existingCompletedTranscription(in: folderURL) {
             await writeNotesSidecar(for: lock, folderURL: folderURL)
             return try await completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
         }
-        let incompleteRows = try existingIncompleteTranscriptions(for: mixedURL)
+        let incompleteRows = try existingIncompleteTranscriptions(in: folderURL)
         let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
         try deleteDuplicateIncompleteTranscriptions(incompleteRows, keeping: rowToUpdate?.id)
 
         var recoveredSources: [RecoverableSource] = []
-        for (source, url) in [(AudioSource.microphone, microphoneURL), (.system, systemURL)] {
-            guard fileManager.fileExists(atPath: url.path), fileSize(at: url) > 0 else { continue }
+        for (source, audio) in [(AudioSource.microphone, microphoneAudio), (.system, systemAudio)] {
+            guard audio.exists, fileSize(at: audio.url) > 0 else { continue }
             do {
-                let repaired = try await repairIfNeeded(url)
+                let repaired = try await repairIfNeeded(audio.url)
                 recoveredSources.append(
                     RecoverableSource(
                         source: source,
@@ -250,8 +259,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             displayName: lock.displayName,
             folderURL: folderURL,
             mixedAudioURL: mixedURL,
-            microphoneAudioURL: microphoneURL,
-            systemAudioURL: systemURL,
+            microphoneAudioURL: microphoneAudio.url,
+            systemAudioURL: systemAudio.url,
             cleanedMicrophoneAudioURL: cleanedMicrophoneReadiness.outputURL,
             cleanedMicrophoneReadiness: cleanedMicrophoneReadiness,
             durationSeconds: duration,
@@ -283,8 +292,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     public func discard(_ lock: MeetingRecordingLockFile) async throws {
         guard let folderURL = lock.folderURL else { return }
         if fileManager.fileExists(atPath: folderURL.path) {
-            let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
-            if let completed = try existingCompletedTranscription(for: mixedURL) {
+            if let completed = try existingCompletedTranscription(in: folderURL) {
                 try await settlement.settleCompletedTranscription(
                     folderURL: folderURL,
                     transcriptionID: completed.id,
@@ -366,27 +374,32 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         }
     }
 
-    private func existingCompletedTranscription(for mixedURL: URL) throws -> Transcription? {
-        try existingTranscriptions(for: mixedURL).first {
+    private func existingCompletedTranscription(in folderURL: URL) throws -> Transcription? {
+        try existingTranscriptions(in: folderURL).first {
             $0.sourceType == .meeting
                 && $0.status == .completed
         }
     }
 
-    private func existingTranscriptions(for mixedURL: URL) throws -> [Transcription] {
+    private func existingTranscriptions(in folderURL: URL) throws -> [Transcription] {
         var seenIDs = Set<UUID>()
         var transcriptions: [Transcription] = []
-        for path in MeetingArtifactPathAliases.aliases(for: mixedURL) {
-            for transcription in try transcriptionRepo.fetchByFilePath(path, sourceType: .meeting) {
-                guard seenIDs.insert(transcription.id).inserted else { continue }
-                transcriptions.append(transcription)
+        for url in MeetingArtifactAudioFileNames.playbackCandidates(in: folderURL) {
+            for path in MeetingArtifactPathAliases.aliases(for: url) {
+                let matches = try transcriptionRepo.fetchByFilePath(
+                    path,
+                    sourceType: .meeting)
+                for transcription in matches {
+                    guard seenIDs.insert(transcription.id).inserted else { continue }
+                    transcriptions.append(transcription)
+                }
             }
         }
         return transcriptions
     }
 
-    private func existingIncompleteTranscriptions(for mixedURL: URL) throws -> [Transcription] {
-        try existingTranscriptions(for: mixedURL)
+    private func existingIncompleteTranscriptions(in folderURL: URL) throws -> [Transcription] {
+        try existingTranscriptions(in: folderURL)
             .filter { $0.status != .completed }
     }
 
