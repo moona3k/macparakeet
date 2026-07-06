@@ -1,0 +1,61 @@
+Tests/MacParakeetTests/STT/ModelDeletionTests.swift
+  s_f9028d506e4a6a::t_f8853351c0a091 21-37
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_f9028d506e4a6a::t_fc326f72577482 1761,1779,1806-1808,2178
+  s_f9028d506e4a6a::t_d7ad9115521db1 1399,1428-1435
+  s_f9028d506e4a6a::t_e7d3aac9a13264 1760,1762-1764
+  s_f9028d506e4a6a::t_d190ad5cfc2cbc 1436-1437
+Sources/MacParakeetCore/STT/NemotronEngine.swift
+  s_f9028d506e4a6a::t_81b856f0f4e4a1 218,348,364
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  s_f9028d506e4a6a::t_3348b0980766c1 758
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingVADService.swift
+  s_f9028d506e4a6a::t_ec4e457652b329 95-98,113,128-131
+docs/cli-testing.md
+  s_f9028d506e4a6a::t_65a2efc9a428cf 552-556
+Sources/MacParakeetCore/STT/CustomVocabularyBoosting.swift
+  s_f9028d506e4a6a::t_832d631fb15ce6 420-421
+Sources/MacParakeetCore/STT/NemotronEnglishEngine.swift
+  s_f9028d506e4a6a::t_a4f89ca60d9e4b 243,331,336
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_f9028d506e4a6a::t_2b86891dc5764f 169
+  s_f9028d506e4a6a::t_aa455aad6c4cfb 136-147
+  s_f9028d506e4a6a::t_6535c3b15c9625 190,192,194,196
+  s_f9028d506e4a6a::t_d8ffc7569d263f 156-159,175-189,191,193,195,197-198
+  s_f9028d506e4a6a::t_499e9e67e08e6d 1,123-135,148-155,160-168,170-174
+  s_842a01125ecac4::t_8ce06878a215b1 199
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_f9028d506e4a6a::t_055f8d58495e31 79,194
+Sources/MacParakeetCore/STT/ParakeetUnifiedEngine.swift
+  s_f9028d506e4a6a::t_e37b214c2a1b57 232,340,346
+Tests/MacParakeetTests/Services/AppPathsTests.swift
+  s_f9028d506e4a6a::t_2acf299b6a0dbb 88
+  s_f9028d506e4a6a::t_0984aa4308e08f 44
+  s_f9028d506e4a6a::t_c7d0582b2580fe 87
+  s_f9028d506e4a6a::t_05ca7a1a6782a9 2,41-43,45-47,76-86,89-94
+  s_f9028d506e4a6a::t_d640f17e6fc5de 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8086525948145f4930ff1e582212bc18bab5e80e",
+  "prompts": {},
+  "sessions": {
+    "s_842a01125ecac4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d556fa1-0bf7-4eab-a521-9472c53e78e4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f9028d506e4a6a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3642-5185-75a0-b5c4-a5057a70e629",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
