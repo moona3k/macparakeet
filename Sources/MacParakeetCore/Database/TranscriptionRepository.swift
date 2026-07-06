@@ -21,7 +21,8 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func updateFilePath(id: UUID, filePath: String?) throws
     func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
-    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws
+    @discardableResult
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID]
     func updateFavorite(id: UUID, isFavorite: Bool) throws
     func fetchFavorites() throws -> [Transcription]
 }
@@ -96,7 +97,8 @@ extension TranscriptionRepositoryProtocol {
         )
     }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
-    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {}
+    @discardableResult
+    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] { [] }
     public func updateFileName(id: UUID, fileName: String) throws {}
     public func updateTitleOverride(id: UUID, titleOverride: String?) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
@@ -516,13 +518,15 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
-    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {
+    @discardableResult
+    public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] {
         try dbQueue.write { db in
             let now = Date()
             let meetings = try Transcription
                 .filter(Transcription.Columns.sourceType == Transcription.SourceType.meeting.rawValue)
                 .fetchAll(db)
 
+            var clearedIDs: [UUID] = []
             for var transcription in meetings {
                 guard let filePath = transcription.filePath,
                       Self.isFilePath(filePath, underDirectory: directoryPath) else {
@@ -534,7 +538,9 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 transcription.filePath = nil
                 transcription.updatedAt = now
                 try transcription.update(db)
+                clearedIDs.append(transcription.id)
             }
+            return clearedIDs
         }
     }
 

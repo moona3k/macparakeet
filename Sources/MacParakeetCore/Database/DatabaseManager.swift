@@ -37,7 +37,9 @@ public final class DatabaseManager: Sendable {
     }
 
     public static func appliedMigrationIdentifiers(at path: String) throws -> [String] {
-        let queue = try DatabaseQueue(path: path, configuration: makeConfiguration())
+        var config = makeConfiguration()
+        config.readonly = true
+        let queue = try DatabaseQueue(path: path, configuration: config)
         return try appliedMigrationIdentifiers(in: queue)
     }
 

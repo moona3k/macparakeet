@@ -434,14 +434,8 @@ struct ClearMeetingAudioSubcommand: ParsableCommand {
             }
 
             try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            let affectedIDs = try repo.fetchBySourceType(.meeting)
-                .filter { transcription in
-                    guard let filePath = transcription.filePath else { return false }
-                    return isFilePath(filePath, underDirectory: dir)
-                }
-                .map(\.id)
             try TranscriptionAssetCleanup.removeManagedMeetingAudioFiles(under: dir, fileManager: fm)
-            try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
+            let affectedIDs = try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
 
             if json {
                 try printJSON(HistoryMeetingAudioClearResult(
@@ -466,12 +460,6 @@ struct ClearMeetingAudioSubcommand: ParsableCommand {
         throw ValidationError("--meeting-recordings-directory is only available in debug/test builds.")
         #endif
     }
-}
-
-private func isFilePath(_ filePath: String, underDirectory directoryPath: String) -> Bool {
-    let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
-    let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
-    return target == root || target.hasPrefix(root + "/")
 }
 
 struct FavoritesSubcommand: ParsableCommand {

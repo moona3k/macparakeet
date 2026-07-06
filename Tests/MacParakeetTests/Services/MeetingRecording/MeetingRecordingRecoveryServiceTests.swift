@@ -1101,7 +1101,8 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
     func clearStoredAudioPathsForURLTranscriptions() throws {}
-    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {}
+    @discardableResult
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] { [] }
     func updateFavorite(id: UUID, isFavorite: Bool) throws {}
     func fetchFavorites() throws -> [Transcription] { [] }
 }

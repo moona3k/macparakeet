@@ -282,8 +282,10 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
-    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {
+    @discardableResult
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] {
         let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
+        var clearedIDs: [UUID] = []
         for i in transcriptions.indices {
             guard transcriptions[i].sourceType == .meeting,
                   let filePath = transcriptions[i].filePath else { continue }
@@ -292,7 +294,9 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
             transcriptions[i].meetingArtifactFolderPath = transcriptions[i].meetingArtifactFolderPath
                 ?? URL(fileURLWithPath: filePath).deletingLastPathComponent().standardizedFileURL.path
             transcriptions[i].filePath = nil
+            clearedIDs.append(transcriptions[i].id)
         }
+        return clearedIDs
     }
 
     func updateFavorite(id: UUID, isFavorite: Bool) throws {
