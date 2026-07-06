@@ -417,9 +417,9 @@ public actor FluidAudioCustomVocabularyRescorer: CustomVocabularyRescoring {
 
     private static func loadCtcResources() async throws -> CtcResources {
         try Task.checkCancellation()
-        let models = try await CtcModels.downloadAndLoad(variant: .ctc110m)
+        let modelDirectory = AppPaths.fluidAudioModelDirectory(for: CtcModelVariant.ctc110m.repo)
+        let models = try await CtcModels.downloadAndLoad(to: modelDirectory, variant: .ctc110m)
         try Task.checkCancellation()
-        let modelDirectory = CtcModels.defaultCacheDirectory(for: models.variant)
         let tokenizer = try await CtcTokenizer.load(from: modelDirectory)
         try Task.checkCancellation()
         let resources = CtcResources(

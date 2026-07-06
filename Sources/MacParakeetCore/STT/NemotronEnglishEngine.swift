@@ -240,15 +240,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
     /// `loadModels(to:)` resolves when no directory is passed.
     nonisolated static func modelsBaseDirectory() -> URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
+        AppPaths.fluidAudioModelsDirURL
     }
 
     /// The 1120 ms tier directory (`…/Models/nemotron-streaming/1120ms`).
@@ -336,12 +328,12 @@ public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
         let loadedInteractiveManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
         let loadedBackgroundManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
         try await loadedInteractiveManager.loadModels(
-            to: nil,
+            to: Self.modelsBaseDirectory(),
             configuration: nil,
             progressHandler: progressHandler
         )
         try await loadedBackgroundManager.loadModels(
-            to: nil,
+            to: Self.modelsBaseDirectory(),
             configuration: nil,
             progressHandler: progressHandler
         )

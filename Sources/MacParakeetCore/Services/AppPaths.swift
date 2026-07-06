@@ -1,3 +1,4 @@
+import FluidAudio
 import Foundation
 
 /// Centralized path management for MacParakeet runtime files.
@@ -117,6 +118,83 @@ public enum AppPaths {
     /// Verified opt-in local LLM model cache.
     public static var llmModelsDir: String {
         "\(appSupportDir)/LLMModels"
+    }
+
+    /// FluidAudio model cache base.
+    ///
+    /// Production intentionally delegates to FluidAudio's own default resolver.
+    /// Debug/test runs with `MACPARAKEET_DEBUG_APP_STATE_DIR` keep FluidAudio
+    /// models inside the same throwaway state root as the rest of MacParakeet.
+    public static var fluidAudioModelsDir: String {
+        fluidAudioModelsDirURL.path
+    }
+
+    public static var fluidAudioModelsDirURL: URL {
+        resolvedFluidAudioModelsDir(environment: ProcessInfo.processInfo.environment)
+    }
+
+    static var hasDebugAppStateDirOverride: Bool {
+        hasDebugAppStateDirOverride(environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func hasDebugAppStateDirOverride(environment: [String: String]) -> Bool {
+        #if DEBUG
+        debugAppStateDir(environment: environment) != nil
+        #else
+        false
+        #endif
+    }
+
+    static var fluidAudioBaseDirURL: URL {
+        fluidAudioModelsDirURL.deletingLastPathComponent()
+    }
+
+    static func fluidAudioModelDirectory(for repo: Repo) -> URL {
+        fluidAudioModelsDirURL.appendingPathComponent(repo.folderName, isDirectory: true)
+    }
+
+    static func fluidAudioModelDirectory(forASRVersion version: AsrModelVersion) -> URL {
+        fluidAudioModelDirectory(for: fluidAudioRepo(forASRVersion: version))
+    }
+
+    static func resolvedFluidAudioModelsDir(environment: [String: String]) -> URL {
+        #if DEBUG
+        if let override = debugAppStateDir(environment: environment) {
+            return URL(fileURLWithPath: override, isDirectory: true)
+                .appendingPathComponent("FluidAudio", isDirectory: true)
+                .appendingPathComponent("Models", isDirectory: true)
+                .standardizedFileURL
+        }
+        #endif
+        return MLModelConfigurationUtils.defaultModelsDirectory()
+    }
+
+    static func resolvedFluidAudioModelDirectory(for repo: Repo, environment: [String: String]) -> URL {
+        resolvedFluidAudioModelsDir(environment: environment)
+            .appendingPathComponent(repo.folderName, isDirectory: true)
+    }
+
+    static func resolvedFluidAudioModelDirectory(
+        forASRVersion version: AsrModelVersion,
+        environment: [String: String]
+    ) -> URL {
+        resolvedFluidAudioModelDirectory(
+            for: fluidAudioRepo(forASRVersion: version),
+            environment: environment
+        )
+    }
+
+    private static func fluidAudioRepo(forASRVersion version: AsrModelVersion) -> Repo {
+        switch version {
+        case .v2:
+            return .parakeetV2
+        case .v3:
+            return .parakeetV3
+        case .tdtCtc110m:
+            return .parakeetTdtCtc110m
+        case .tdtJa:
+            return .parakeetJa
+        }
     }
 
     /// WhisperKit CoreML model cache base.

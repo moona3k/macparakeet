@@ -755,18 +755,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
     /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
     /// download/load resolves against, shared with the Parakeet/Nemotron engines.
     nonisolated static func modelsBaseDirectory() -> URL {
-        let appSupport =
-            FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            ).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return
-            appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
+        AppPaths.fluidAudioModelsDirURL
     }
 
     /// `…/Models/cohere-transcribe/q8` — `DownloadUtils.downloadRepo` strips the

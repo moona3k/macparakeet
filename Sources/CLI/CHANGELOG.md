@@ -147,6 +147,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- In DEBUG builds with `MACPARAKEET_DEBUG_APP_STATE_DIR` set, FluidAudio
+  speech/speaker models now resolve under that throwaway state root, and
+  `models clear` removes only that root instead of FluidAudio's global cache.
+  Destructive model commands (`models delete`, `models clear`) therefore no
+  longer touch the real user cache during scoped test runs. Release builds and
+  runs without the override are unchanged.
 - Meeting artifact audio filenames are now role-explicit: `microphone.m4a` →
   `microphone-raw.m4a`, `system.m4a` → `system-raw.m4a`, and `meeting.m4a` →
   `meeting-playback.m4a`. Paths surfaced through `MeetingArtifactSnapshot` and

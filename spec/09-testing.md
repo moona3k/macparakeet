@@ -142,7 +142,7 @@ timing instead of ignoring it.
 - `transforms` saved-prompt CRUD/run JSON envelopes and local history commands
 - `vocab` process/words/snippets command parsing and JSON output
 
-**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. For DEBUG app-level smoke runs, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory before launching the app so the database, meeting artifacts, AppPaths-managed helper caches, and logs stay away from real user state.
+**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. For DEBUG app-level smoke runs, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory before launching the app so the database, meeting artifacts, AppPaths-managed helper caches, the FluidAudio speech/speaker model cache, and logs stay away from real user state — including destructive `models delete`/`models clear` runs.
 
 ### LLM Metadata + Transforms Tests
 

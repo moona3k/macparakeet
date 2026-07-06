@@ -559,6 +559,11 @@ Parakeet build, the Nemotron Beta model, Cohere Transcribe, or the Whisper
 variant - and protects the active model plus Parakeet's configured build unless `--force` is passed;
 `models clear` still wipes everything.
 
+When running DEBUG builds with `MACPARAKEET_DEBUG_APP_STATE_DIR` set, CLI state
+is scoped to that throwaway directory. This includes MacParakeet's app support
+files and FluidAudio's speech/speaker model cache, so destructive model commands
+such as `models delete` and `models clear` do not touch the real user cache.
+
 ## Text Pipeline
 
 ```bash

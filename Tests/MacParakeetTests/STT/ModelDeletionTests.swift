@@ -18,6 +18,23 @@ final class ModelDeletionTests: XCTestCase {
         if let tempRoot { try? FileManager.default.removeItem(at: tempRoot) }
     }
 
+    #if DEBUG
+    func testClearFluidAudioModelCachesUsesDebugScopedModelsRoot() throws {
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: tempRoot.path]
+        let modelsRoot = AppPaths.resolvedFluidAudioModelsDir(environment: environment)
+        try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        try "model".write(
+            to: modelsRoot.appendingPathComponent("sentinel.mlmodelc", isDirectory: false),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        STTRuntime.clearFluidAudioModelCaches(environment: environment)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: modelsRoot.path))
+    }
+    #endif
+
     // MARK: - Parakeet build file removal
 
     func testRemoveParakeetModelFilesDeletesPopulatedDirectory() throws {

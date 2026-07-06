@@ -1,4 +1,5 @@
 import XCTest
+import FluidAudio
 @testable import MacParakeetCore
 
 final class AppPathsTests: XCTestCase {
@@ -37,6 +38,13 @@ final class AppPathsTests: XCTestCase {
         XCTAssertTrue(AppPaths.defaultMeetingRecordingsDir.hasSuffix("meeting-recordings"))
     }
 
+    func testFluidAudioModelsDirUsesFluidAudioDefaultWithoutDebugOverride() {
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelsDir(environment: [:]),
+            MLModelConfigurationUtils.defaultModelsDirectory()
+        )
+    }
+
     func testMeetingRecordingsDirCanBeConfiguredFromDefaults() {
         let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -63,6 +71,26 @@ final class AppPathsTests: XCTestCase {
 
         XCTAssertEqual(AppPaths.resolvedAppSupportDir(environment: environment), root.path)
         XCTAssertEqual(AppPaths.defaultMeetingRecordingsDir(environment: environment), root.appendingPathComponent("meeting-recordings").path)
+    }
+
+    func testDebugAppStateDirScopesFluidAudioModelsInsideThrowawayRoot() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+        let expectedModelsDir = root
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+
+        XCTAssertEqual(AppPaths.resolvedFluidAudioModelsDir(environment: environment), expectedModelsDir)
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelDirectory(forASRVersion: .v3, environment: environment),
+            expectedModelsDir.appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)
+        )
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelDirectory(for: .vad, environment: environment),
+            expectedModelsDir.appendingPathComponent(Repo.vad.folderName, isDirectory: true)
+        )
     }
 
     func testDebugAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {

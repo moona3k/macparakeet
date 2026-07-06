@@ -76,7 +76,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
     ) {
         self.init(
             manager: OfflineDiarizerManager(config: config),
-            modelsDirectory: modelsDirectory ?? OfflineDiarizerModels.defaultModelsDirectory()
+            modelsDirectory: modelsDirectory ?? AppPaths.fluidAudioModelsDirURL
         )
     }
 
@@ -191,7 +191,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
     }
 
     nonisolated static func modelCacheDirectory(directory: URL? = nil) -> URL {
-        let baseDirectory = (directory ?? OfflineDiarizerModels.defaultModelsDirectory()).standardizedFileURL
+        let baseDirectory = (directory ?? AppPaths.fluidAudioModelsDirURL).standardizedFileURL
         return baseDirectory.appendingPathComponent(Repo.diarizer.folderName, isDirectory: true)
     }
 

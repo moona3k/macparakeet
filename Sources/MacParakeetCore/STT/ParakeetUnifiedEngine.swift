@@ -229,15 +229,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
     /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
     /// `loadModels(to:)` resolves when no directory is passed.
     nonisolated static func modelsBaseDirectory() -> URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
+        AppPaths.fluidAudioModelsDirURL
     }
 
     /// `.../Models/parakeet-unified-en-0.6b` - keyed off FluidAudio's own
@@ -345,13 +337,13 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         let loadedBackgroundManager = StreamingUnifiedAsrManager(encoderPrecision: Self.encoderPrecision)
         do {
             try await loadedInteractiveManager.loadModels(
-                to: nil,
+                to: Self.modelsBaseDirectory(),
                 configuration: nil,
                 progressHandler: progressHandler
             )
             try Task.checkCancellation()
             try await loadedBackgroundManager.loadModels(
-                to: nil,
+                to: Self.modelsBaseDirectory(),
                 configuration: nil,
                 progressHandler: progressHandler
             )

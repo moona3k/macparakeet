@@ -92,7 +92,10 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
             return nil
         }
         do {
-            let manager = try await VadManager(config: VadConfig(computeUnits: computeUnits))
+            let manager = try await VadManager(
+                config: VadConfig(computeUnits: computeUnits),
+                modelDirectory: AppPaths.fluidAudioBaseDirURL
+            )
             guard await manager.isAvailable else {
                 logger.error("meeting_vad_init_unavailable — model loaded but not available")
                 return nil
@@ -107,7 +110,7 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
     /// `true` when every required Silero VAD model file already exists in the
     /// shared FluidAudio model cache.
     static func isModelCached() -> Bool {
-        let directory = MLModelConfigurationUtils.defaultModelsDirectory(for: .vad)
+        let directory = AppPaths.fluidAudioModelDirectory(for: .vad)
         return ModelNames.VAD.requiredModels.allSatisfy { modelName in
             FileManager.default.fileExists(
                 atPath: directory.appendingPathComponent(modelName, isDirectory: false).path
@@ -122,7 +125,10 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
     /// on download/compile failure. FluidAudio's `VadManager` init handles the
     /// cached-or-download decision internally.
     static func downloadModel(computeUnits: MLComputeUnits = .cpuOnly) async throws {
-        _ = try await VadManager(config: VadConfig(computeUnits: computeUnits))
+        _ = try await VadManager(
+            config: VadConfig(computeUnits: computeUnits),
+            modelDirectory: AppPaths.fluidAudioBaseDirURL
+        )
     }
 
     func makeStreamState() async -> MeetingVADStreamState {

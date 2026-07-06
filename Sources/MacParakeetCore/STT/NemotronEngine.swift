@@ -215,16 +215,7 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
     }
 
     public nonisolated static func defaultCacheRoot() -> URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
-            .appendingPathComponent(Repo.nemotronMultilingual.folderName, isDirectory: true)
+        AppPaths.fluidAudioModelDirectory(for: .nemotronMultilingual)
     }
 
     public nonisolated static func defaultVariantDirectory(
@@ -354,6 +345,7 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
         return try await StreamingNemotronMultilingualAsrManager.downloadVariant(
             languageCode: SpeechEnginePreference.normalizeNemotronLanguage(language) ?? "auto",
             chunkMs: modelVariant.chunkMilliseconds,
+            to: AppPaths.fluidAudioModelsDirURL,
             progressHandler: progressHandler
         )
     }
@@ -369,6 +361,7 @@ public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
         let shared = try await StreamingNemotronMultilingualAsrManager.downloadAndPreloadShared(
             languageCode: languageCode,
             chunkMs: modelVariant.chunkMilliseconds,
+            to: AppPaths.fluidAudioModelsDirURL,
             progressHandler: progressHandler
         )
 

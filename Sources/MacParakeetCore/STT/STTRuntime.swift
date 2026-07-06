@@ -1396,7 +1396,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         let activeSpeechEngine = speechEngine
         let engineVariant = telemetryEngineVariant(for: activeSpeechEngine)
         await shutdown()
-        DownloadUtils.clearAllModelCaches()
+        Self.clearFluidAudioModelCaches()
         try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
         _ = Self.removeNemotronModelFiles(at: NemotronEngine.defaultCacheRoot())
         // The English build caches under its own family root
@@ -1423,6 +1423,16 @@ public actor STTRuntime: STTRuntimeProtocol {
             durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
             errorType: nil
         ))
+    }
+
+    nonisolated static func clearFluidAudioModelCaches(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        if AppPaths.hasDebugAppStateDirOverride(environment: environment) {
+            try? FileManager.default.removeItem(at: AppPaths.resolvedFluidAudioModelsDir(environment: environment))
+            return
+        }
+        DownloadUtils.clearAllModelCaches()
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
@@ -1747,7 +1757,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws {
         let progressHandler = makeDownloadProgressHandler(onProgress)
-        _ = try await AsrModels.download(version: version, progressHandler: progressHandler)
+        _ = try await AsrModels.download(
+            to: AppPaths.fluidAudioModelDirectory(forASRVersion: version),
+            version: version,
+            progressHandler: progressHandler
+        )
     }
 
     public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
@@ -1762,7 +1776,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
-        let cacheDir = AsrModels.defaultCacheDirectory(for: version)
+        let cacheDir = AppPaths.fluidAudioModelDirectory(forASRVersion: version)
         return AsrModels.modelsExist(at: cacheDir, version: version)
     }
 
@@ -1789,7 +1803,9 @@ public actor STTRuntime: STTRuntimeProtocol {
     @discardableResult
     public nonisolated static func deleteParakeetModel(version: AsrModelVersion) -> Bool {
         let operationContext = Observability.childOperationContext()
-        let removed = removeParakeetModelFiles(at: AsrModels.defaultCacheDirectory(for: version))
+        let removed = removeParakeetModelFiles(
+            at: AppPaths.fluidAudioModelDirectory(forASRVersion: version)
+        )
         Telemetry.send(.modelOperation(
             operationID: operationContext.operationID,
             operationContext: operationContext,
@@ -2159,6 +2175,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             let progressHandler = Self.makeDownloadProgressHandler(warmUpProgressHandler)
 
             let downloadedModels = try await AsrModels.downloadAndLoad(
+                to: AppPaths.fluidAudioModelDirectory(forASRVersion: version),
                 version: version,
                 progressHandler: progressHandler
             )
