@@ -25,10 +25,23 @@ struct LLMSettingsView: View {
     @State private var selectedSmartDefaultCategory: TelemetryAppCategory?
     @State private var aiFormatterAppIcons: [String: NSImage] = [:]
     @State private var aiFormatterAppIconLoadingIDs: Set<String> = []
+    @State private var pendingLocalAIModelRemoval: LocalAIModelRemoval?
 
     private static let smartDefaultGridColumns = [
         GridItem(.adaptive(minimum: 168), spacing: DesignSystem.Spacing.sm)
     ]
+
+    private enum LocalAIModelRemoval: Identifiable, Equatable {
+        case downloaded
+        case partial
+
+        var id: String {
+            switch self {
+            case .downloaded: "downloaded"
+            case .partial: "partial"
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
@@ -189,6 +202,23 @@ struct LLMSettingsView: View {
                 await viewModel.inProcessModelManager.refresh()
             }
         }
+        .alert(
+            localAIModelRemovalAlertTitle,
+            isPresented: Binding(
+                get: { pendingLocalAIModelRemoval != nil },
+                set: { if !$0 { pendingLocalAIModelRemoval = nil } }
+            ),
+            presenting: pendingLocalAIModelRemoval
+        ) { _ in
+            Button("Cancel", role: .cancel) { pendingLocalAIModelRemoval = nil }
+            Button("Remove", role: .destructive) {
+                let manager = viewModel.inProcessModelManager
+                pendingLocalAIModelRemoval = nil
+                Task { await manager.deleteModel() }
+            }
+        } message: { removal in
+            Text(localAIModelRemovalMessage(for: removal))
+        }
     }
 
     @ViewBuilder
@@ -331,11 +361,22 @@ struct LLMSettingsView: View {
     private var localAIActionButtons: some View {
         let manager = viewModel.inProcessModelManager
         HStack(spacing: DesignSystem.Spacing.xs) {
-            if manager.isModelDownloaded || manager.hasModelArtifacts {
+            if manager.isModelDownloaded {
                 Button {
-                    Task { await manager.deleteModel() }
+                    pendingLocalAIModelRemoval = .downloaded
                 } label: {
-                    Label(manager.isModelDownloaded ? "Delete model" : "Delete partial download", systemImage: "trash")
+                    Label(
+                        "Remove downloaded model (\(manager.modelCacheSizeDescription))",
+                        systemImage: "trash"
+                    )
+                }
+                .parakeetAction(.secondary)
+                .disabled(manager.isWorking)
+            } else if manager.hasModelArtifacts {
+                Button {
+                    pendingLocalAIModelRemoval = .partial
+                } label: {
+                    Label("Delete partial download", systemImage: "trash")
                 }
                 .parakeetAction(.secondary)
                 .disabled(manager.isWorking)
@@ -355,7 +396,7 @@ struct LLMSettingsView: View {
             } label: {
                 Label(
                     localAIPrimaryButtonTitle,
-                    systemImage: manager.isModelDownloaded ? "checkmark.circle" : "arrow.down.circle")
+                    systemImage: localAIPrimaryButtonIcon)
             }
             .parakeetAction(.secondary)
             .disabled(!manager.meetsMemoryRequirement || manager.isWorking)
@@ -365,10 +406,21 @@ struct LLMSettingsView: View {
 
     private var localAIPrimaryButtonTitle: String {
         let manager = viewModel.inProcessModelManager
+        if case .failed(_, let recoverable) = manager.state, recoverable {
+            return "Retry setup"
+        }
         if manager.isModelDownloaded {
             return manager.isLocalAISelected ? "Test local AI" : "Use local AI"
         }
         return "Enable local AI"
+    }
+
+    private var localAIPrimaryButtonIcon: String {
+        let manager = viewModel.inProcessModelManager
+        if case .failed(_, let recoverable) = manager.state, recoverable {
+            return "arrow.clockwise"
+        }
+        return manager.isModelDownloaded ? "checkmark.circle" : "arrow.down.circle"
     }
 
     @ViewBuilder
@@ -455,6 +507,28 @@ struct LLMSettingsView: View {
             return "\(completed) of \(total) - \(currentFile)"
         }
         return "\(completed) of \(total)"
+    }
+
+    private var localAIModelRemovalAlertTitle: String {
+        switch pendingLocalAIModelRemoval {
+        case .downloaded:
+            return "Remove downloaded local AI model?"
+        case .partial:
+            return "Delete partial local AI download?"
+        case nil:
+            return "Remove local AI files?"
+        }
+    }
+
+    private func localAIModelRemovalMessage(for removal: LocalAIModelRemoval) -> String {
+        let manager = viewModel.inProcessModelManager
+        switch removal {
+        case .downloaded:
+            return
+                "This frees \(manager.modelCacheSizeDescription). You can download \(manager.modelDisplayName) again at any time."
+        case .partial:
+            return "This removes incomplete local AI model files from this Mac. You can restart setup at any time."
+        }
     }
 
     private var localNetworkHTTPSection: some View {

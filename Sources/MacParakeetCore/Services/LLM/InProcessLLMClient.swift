@@ -106,6 +106,19 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         [context.providerConfig.modelName].filter { !$0.isEmpty }
     }
 
+    public func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws {
+        try Task.checkCancellation()
+        let lease = try await lifetimeCoordinator.beginGeneration()
+        do {
+            await runtime.unload()
+            try await operation()
+            await lifetimeCoordinator.endExclusiveOperation(lease)
+        } catch {
+            await lifetimeCoordinator.endExclusiveOperation(lease)
+            throw error
+        }
+    }
+
     public static func environmentModelDirectory(for config: LLMProviderConfig) throws -> URL {
         guard let rawPath = ProcessInfo.processInfo.environment[modelDirectoryEnvironmentVariable],
             !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -570,6 +583,19 @@ private actor LocalLLMLifetimeCoordinator {
 
         activeGenerationID = nil
         scheduleUnload(runtime: runtime, delayNanoseconds: delayNanoseconds)
+    }
+
+    func endExclusiveOperation(_ lease: LocalLLMGenerationLease) {
+        guard activeGenerationID == lease.id else { return }
+
+        if !waitingGenerations.isEmpty {
+            let next = waitingGenerations.removeFirst()
+            activeGenerationID = next.lease.id
+            next.continuation.resume(returning: next.lease)
+            return
+        }
+
+        activeGenerationID = nil
     }
 
     private func cancelWaitingGeneration(id: UUID) {

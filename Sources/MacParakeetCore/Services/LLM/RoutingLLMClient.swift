@@ -46,6 +46,10 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         try await client(for: context).listModels(context: context)
     }
 
+    public func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws {
+        try await inProcessClient.withInProcessLocalModelRemoval(operation)
+    }
+
     private func client(for context: LLMExecutionContext) -> any LLMClientProtocol {
         switch context.providerConfig.id {
         case .localCLI:

@@ -17,6 +17,9 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var testConnectionError: Error?
     var testConnectionDelayNs: UInt64 = 0
     var chatCompletionError: Error?
+    var holdInProcessModelRemoval = false
+    var inProcessModelRemovalCallCount = 0
+    private var inProcessModelRemovalContinuation: CheckedContinuation<Void, Never>?
 
     func chatCompletion(
         messages: [ChatMessage],
@@ -73,6 +76,22 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedContext = context
         if let error = listModelsError { throw error }
         return modelsList
+    }
+
+    func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws {
+        inProcessModelRemovalCallCount += 1
+        if holdInProcessModelRemoval {
+            await withCheckedContinuation { continuation in
+                inProcessModelRemovalContinuation = continuation
+            }
+        }
+        try await operation()
+    }
+
+    func releaseInProcessModelRemoval() {
+        holdInProcessModelRemoval = false
+        inProcessModelRemovalContinuation?.resume()
+        inProcessModelRemovalContinuation = nil
     }
 }
 

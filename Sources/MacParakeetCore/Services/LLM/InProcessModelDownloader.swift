@@ -64,9 +64,19 @@ public protocol InProcessModelDownloading: Sendable {
     func defaultModelDirectory() -> URL
     func isDefaultModelDownloaded() async -> Bool
     func hasDefaultModelArtifacts() async -> Bool
+    func defaultModelCacheSizeBytes() async -> UInt64
+    func remainingDefaultModelDownloadBytes() async throws -> UInt64
     func verifyDefaultModel() async throws -> URL
     func downloadDefaultModel(progress: @escaping InProcessModelDownloadProgressHandler) async throws -> URL
     func deleteDefaultModel() async throws
+}
+
+public extension InProcessModelDownloading {
+    func defaultModelCacheSizeBytes() async -> UInt64 { 0 }
+
+    func remainingDefaultModelDownloadBytes() async throws -> UInt64 {
+        InProcessLocalModelCatalog.defaultManifest.totalBytes
+    }
 }
 
 public enum InProcessModelDownloaderError: LocalizedError, Equatable {
@@ -474,6 +484,46 @@ public actor InProcessModelDownloader: InProcessModelDownloading {
         return !contents.isEmpty
     }
 
+    public func defaultModelCacheSizeBytes() async -> UInt64 {
+        directorySize(at: modelDirectory())
+    }
+
+    public func remainingDefaultModelDownloadBytes() async throws -> UInt64 {
+        try Task.checkCancellation()
+        let directory = modelDirectory()
+        if try InProcessLocalModelCatalog.hasValidVerificationMarker(
+            for: manifest,
+            in: directory,
+            fileManager: fileManager
+        ) {
+            return 0
+        }
+
+        var remaining: UInt64 = 0
+        for file in manifest.files {
+            try Task.checkCancellation()
+            if try isFileVerified(file, in: directory) {
+                continue
+            }
+
+            let destination = try InProcessLocalModelCatalog.fileURL(
+                for: file,
+                in: directory,
+                fileManager: fileManager
+            )
+            let partial = InProcessLocalModelCatalog.partialURL(for: destination)
+            let partialSize = try InProcessLocalModelCatalog.fileSize(at: partial, fileManager: fileManager) ?? 0
+            if partialSize == file.sizeBytes, try isVerified(file: file, at: partial) {
+                continue
+            } else if partialSize > 0, partialSize < file.sizeBytes {
+                remaining += file.sizeBytes - partialSize
+            } else {
+                remaining += file.sizeBytes
+            }
+        }
+        return remaining
+    }
+
     @discardableResult
     public func verifyDefaultModel() async throws -> URL {
         try Task.checkCancellation()
@@ -543,6 +593,7 @@ public actor InProcessModelDownloader: InProcessModelDownloading {
     public func deleteDefaultModel() async throws {
         try Task.checkCancellation()
         let directory = modelDirectory()
+        try assertManagedModelDirectory(directory)
         if fileManager.fileExists(atPath: directory.path) {
             try fileManager.removeItem(at: directory)
         }
@@ -550,6 +601,55 @@ public actor InProcessModelDownloader: InProcessModelDownloading {
 
     private nonisolated func modelDirectory() -> URL {
         InProcessLocalModelCatalog.modelDirectory(for: manifest.modelID, cacheRoot: cacheRoot)
+    }
+
+    private nonisolated func assertManagedModelDirectory(_ directory: URL) throws {
+        let expectedName = InProcessLocalModelCatalog.sanitizedDirectoryName(for: manifest.modelID)
+        guard directory.lastPathComponent == expectedName,
+            directory.deletingLastPathComponent().path == cacheRoot.path
+        else {
+            throw InProcessModelDownloaderError.manifestPathEscapesCache(directory.path)
+        }
+    }
+
+    private func directorySize(at url: URL) -> UInt64 {
+        guard fileManager.fileExists(atPath: url.path) else { return 0 }
+        var total: UInt64 = 0
+
+        if let rootValues = try? url.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
+        ) {
+            if rootValues.isSymbolicLink == true {
+                return 0
+            }
+            if rootValues.isRegularFile == true {
+                return UInt64(max(0, rootValues.fileSize ?? 0))
+            }
+        }
+
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
+            )
+        else {
+            return 0
+        }
+
+        for case let childURL as URL in enumerator {
+            guard
+                let values = try? childURL.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
+                ),
+                values.isSymbolicLink != true,
+                values.isRegularFile == true
+            else {
+                continue
+            }
+            total += UInt64(max(0, values.fileSize ?? 0))
+        }
+
+        return total
     }
 
     private func download(
