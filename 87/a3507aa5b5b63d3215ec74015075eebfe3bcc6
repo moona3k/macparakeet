@@ -1,0 +1,19 @@
+.no-mistakes.yaml
+  s_9f40763b5cb5d5::t_912b759db7a7ae 8-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "87a3507aa5b5b63d3215ec74015075eebfe3bcc6",
+  "prompts": {},
+  "sessions": {
+    "s_9f40763b5cb5d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced68f09-ea3e-4027-85aa-238060fb2e55",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
