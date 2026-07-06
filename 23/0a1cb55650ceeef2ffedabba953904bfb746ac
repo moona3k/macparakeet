@@ -1,0 +1,61 @@
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_bc740eb53dbd79::t_780c916dc2bf7e 49-52
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_bc740eb53dbd79::t_4d2cd833073c7c 67-68,74-81,487-515,519-526,596,606-607,610,612-620,628-629,636-653
+  s_bc740eb53dbd79::t_76e265e77ff8bc 630-635
+  s_bc740eb53dbd79::t_4c7bd076b7cd61 608-609,611
+  s_bc740eb53dbd79::t_53eca9938b85fa 516-518,621-627
+  s_5a82fff34e6718::t_5cc333f2dee2c7 654
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_bc740eb53dbd79::t_1b3f4be3f32c82 1857-1858
+  s_bc740eb53dbd79::t_77c9f4f32a67e7 69-92,1811-1856
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_bc740eb53dbd79::t_1fbd2e85449753 109-121,588-599
+  s_5a82fff34e6718::t_d7e4bcdb32c46c 600
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_bc740eb53dbd79::t_275c39b1231bda 24-28,65-67
+  s_5a82fff34e6718::t_69da4ecec13abe 68
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_bc740eb53dbd79::t_101ec0ee046496 39-40,54,56,70
+  s_bc740eb53dbd79::t_0ae0fd9d86e3c8 207-211,213
+  s_bc740eb53dbd79::t_76e265e77ff8bc 265-266,290-291,293-294
+  s_bc740eb53dbd79::t_24d69814a1f368 4-27,46,55,69,77,96-100,115,120,168-169,177,193,195,197,212,216,230-264,267-275,282-289,292,295-297
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  s_bc740eb53dbd79::t_a39d1fcaaca38f 159-176,207-227
+  s_bc740eb53dbd79::t_f73d993fb415e4 141-154,157-158,177-206,228-229,352-376,386
+  s_bc740eb53dbd79::t_2cdae8011c4d53 155-156
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_bc740eb53dbd79::t_76e265e77ff8bc 527-528
+  s_bc740eb53dbd79::t_453d3cccf53275 28,34-45,205-221,364-375,377,379,399,409-411,418-425,512-526,529-532
+  s_bc740eb53dbd79::t_e873c60ce1e90e 533
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_bc740eb53dbd79::t_da6a027fcb8274 95
+  s_bc740eb53dbd79::t_1c511308a36cd1 20-22,80-94
+Tests/MacParakeetTests/ViewModels/InProcessModelManagerViewModelTests.swift
+  s_bc740eb53dbd79::t_6f97b410965b53 86-90,94-99,101-105,107-170,191-215,335-357,360-363,366-387,411,430-437,465-475,478-480,496-503,514-516,519-520,536
+  s_bc740eb53dbd79::t_370cad50cca8b3 91-93,100,106,358-359,364-365,388-410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "230a1cb55650ceeef2ffedabba953904bfb746ac",
+  "prompts": {},
+  "sessions": {
+    "s_5a82fff34e6718": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3527-41bb-7e02-98b1-d839ec9cb366",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bc740eb53dbd79": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3548-808d-7d02-92e2-e0407200fd11",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
