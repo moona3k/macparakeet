@@ -10,6 +10,9 @@ journal/
 # Codex agent tooling / evidence artifacts
 .codex/
 
+# no-mistakes local evidence artifacts
+.no-mistakes/evidence/
+
 # Xcode
 .build/
 .build-swift6-no-whisper/

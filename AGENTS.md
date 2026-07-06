@@ -36,12 +36,20 @@ scripts/dev/format.sh
 scripts/dev/ci_local.sh
 scripts/dev/greptile_review.sh [BaseBranch]
 scripts/dev/run_app.sh
+no-mistakes doctor
+no-mistakes init
+no-mistakes axi
 swift run macparakeet-cli --help
 swift run macparakeet-cli health
 ```
 
-Use focused tests while iterating; run `swift test` before declaring code-change
-work complete unless the user explicitly scopes verification differently.
+Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
+areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
+task, as the final gate before declaring code-change work complete — never
+per iteration. The suite is 4,300+ tests including CPU-heavy AEC/DSP
+simulations; full-suite-per-iteration turns a 10-minute review into an
+hour. Exception only when the user explicitly scopes verification
+differently.
 
 ## Worktrees
 
@@ -126,6 +134,19 @@ fixes need focused verification; substantial changes benefit from branch-first
 PRs, CI, local Greptile CLI review, and independent review until findings
 converge. Greptile CLI reviews committed branch changes only; uncommitted
 changes are ignored, so run it from the clean worktree/branch that owns the PR.
+
+MacParakeet adopts `no-mistakes` as the preferred gate for non-trivial
+agent-authored branches when it is installed. Initialize once per checkout with
+`no-mistakes init`; it adds the local `no-mistakes` remote and installs the
+user-level `/no-mistakes` skill for Claude Code and Codex. The committed
+[`.no-mistakes.yaml`](./.no-mistakes.yaml) keeps the gate deterministic:
+`swift test` is the baseline test command, `swift-format lint` is the lint
+command, automatic review fixing is off by default, in-repo evidence artifacts
+stay disabled, and transcript-based intent extraction is disabled so agents
+should pass explicit intent. For substantial ready-to-review work, prefer
+`/no-mistakes <task>` from the agent or `git push no-mistakes <branch>` from the
+terminal over a direct `git push origin`. If the tool is unavailable, continue
+with the documented PR workflow and say so in the handoff or PR notes.
 
 Commit messages should help a future reader understand the change. The rich
 format in [`docs/commit-guidelines.md`](./docs/commit-guidelines.md) is a tool

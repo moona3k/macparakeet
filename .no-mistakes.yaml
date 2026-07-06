@@ -1,0 +1,29 @@
+# MacParakeet no-mistakes gate config.
+# Code-executing fields are read from the trusted default-branch copy of this
+# file; keep per-branch command overrides disabled for contribution safety.
+allow_repo_commands: false
+
+commands:
+  test: "swift test"
+  lint: "xcrun swift-format lint --recursive --configuration .swift-format Sources Tests"
+
+ignore_patterns:
+  - ".build*"
+  - ".claude/**"
+  - ".codex/**"
+  - "dist/**"
+  - "journal/**"
+  - "diagnostics/**"
+  - "logs/**"
+  - ".no-mistakes/evidence/**"
+
+auto_fix:
+  review: 0
+
+intent:
+  enabled: false
+
+test:
+  evidence:
+    store_in_repo: false
+    dir: .no-mistakes/evidence

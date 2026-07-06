@@ -48,12 +48,23 @@ trust.
    merge. (We learned this the awkward way.)
 2. **Define the context zone** before coding: in-scope behavior, must-not-
    change invariants, out-of-scope. (`spec/10-ai-coding-method.md`.)
-3. **Open the PR with an audience-friendly description** (see below). CI runs;
+3. **Gate through no-mistakes when available.** After task changes are committed
+   on the feature branch, prefer `/no-mistakes <task>` from Claude Code/Codex
+   or `git push no-mistakes <branch>` from the terminal over direct
+   `git push origin`. The committed `.no-mistakes.yaml` makes the baseline
+   gate run `swift test` plus `swift-format lint`, keeps review auto-fix at a
+   human decision point, and disables implicit transcript-based intent
+   extraction. Agents should pass explicit intent that captures the user's goal,
+   constraints, and notable tradeoffs. If no-mistakes is unavailable for a
+   change, say so and continue with the rest of this loop.
+4. **Open the PR with an audience-friendly description** (see below). If
+   no-mistakes opened or updated it, use that PR and improve the description if
+   needed. CI runs, and
    the GitHub review bots (**Greptile**, **Gemini Code Assist**, **Copilot**)
    review on push. They re-review on new commits; if one goes quiet, re-trigger
    it (`/gemini review`, or re-request the reviewer) — and watch for it landing
    rather than assuming silence means approval.
-4. **Run local Greptile CLI review** from the PR worktree after the relevant
+5. **Run local Greptile CLI review** from the PR worktree after the relevant
    changes are committed:
 
    ```bash
@@ -64,16 +75,16 @@ trust.
    is easy for agents to read. Install/login once with `npm i -g greptile`,
    `greptile login`, and confirm with `greptile whoami`. Greptile CLI reviews
    committed branch changes only; uncommitted changes are ignored.
-5. **Run fresh-eye agent review in parallel** on the exact diff — independent
+6. **Run fresh-eye agent review in parallel** on the exact diff — independent
    of the bots. Pick lenses by what the diff touches (see "Agent review").
-6. **Drive to LGTM** — address every *valid* finding (with judgment, next
+7. **Drive to LGTM** — address every *valid* finding (with judgment, next
    section), re-push, let reviewers re-review. Greptile's confidence score is
    the headline bar (target **5/5**); treat all the bots' inline comments —
    Greptile, Gemini, Copilot — as input, not orders.
-7. **Converge.** Loop until findings are trivial/duplicative (the readiness
+8. **Converge.** Loop until findings are trivial/duplicative (the readiness
    signal). Reviewers contradicting each other or themselves = you're done
    deciding, not them.
-8. **Merge** into `main` with a clean message. Delete the branch.
+9. **Merge** into `main` with a clean message. Delete the branch.
 
 ## Addressing review comments: judgment, not obedience
 
@@ -134,6 +145,8 @@ Write it for a smart reader who wasn't in the room.
 ## Merge-ready checklist
 
 - [ ] Branch off `origin/main`; real PR open
+- [ ] no-mistakes used for substantial agent-authored work, or unavailable path
+      noted
 - [ ] `swift test` green; build clean (Swift 6 language mode)
 - [ ] Tests cover the new behavior *and* its failure modes
 - [ ] Local Greptile CLI review run from the PR worktree on committed changes
@@ -151,6 +164,8 @@ Write it for a smart reader who wasn't in the room.
 
 - **Ship-then-review.** Pushing to `main` first and retrofitting a review PR.
   Branch first.
+- **Bypass by habit.** Direct-pushing substantial agent-authored work to
+  `origin` when the checkout is initialized for no-mistakes.
 - **Bot obedience.** Implementing every suggestion to chase a score, including
   wrong or robustness-reducing ones.
 - **Bikeshedding past convergence.** Once findings are trivial, stop — re-
