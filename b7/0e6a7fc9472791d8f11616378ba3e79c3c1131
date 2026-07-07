@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_8345c0eadaf10c::t_e7912bc284759f 99-102,115-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b70e6a7fc9472791d8f11616378ba3e79c3c1131",
+  "prompts": {},
+  "sessions": {
+    "s_8345c0eadaf10c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a0ef3db-2c02-46a8-88d2-770aaa91afd5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
