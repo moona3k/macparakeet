@@ -1,0 +1,27 @@
+Sources/CLI/Commands/ModelsCommand.swift
+  s_3bc661aed8b123::t_3f29275753ccf6 461-462,466-471
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_3bc661aed8b123::t_32148d363185cf 1428-1458
+Sources/CLI/CHANGELOG.md
+  s_3bc661aed8b123::t_7f32f941c02d4a 109-113
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_3bc661aed8b123::t_130a4dbb523f6b 802-803
+  s_3bc661aed8b123::t_15c41670303a98 817-854
+  s_3bc661aed8b123::t_ffa443f9a125f2 779-780
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f56a31a4778a095be0bf3acd4fd45d81c73a75f",
+  "prompts": {},
+  "sessions": {
+    "s_3bc661aed8b123": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bead6d1c-a904-403a-9905-007d7ba2f819",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
