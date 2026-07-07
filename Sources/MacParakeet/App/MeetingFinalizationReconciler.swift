@@ -7,10 +7,12 @@ enum MeetingFinalizationReconciler {
 
     @discardableResult
     static func reconcileStaleProcessingRows(
-        repository: TranscriptionRepositoryProtocol
+        repository: TranscriptionRepositoryProtocol,
+        excludingTranscriptionIDs protectedIDs: Set<UUID> = []
     ) async throws -> [UUID] {
         try await Task.detached(priority: .utility) {
             let staleRows = try repository.fetchMeetings(withStatus: .processing)
+                .filter { !protectedIDs.contains($0.id) }
             for row in staleRows {
                 try repository.updateStatus(
                     id: row.id,

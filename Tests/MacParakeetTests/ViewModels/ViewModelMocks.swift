@@ -139,6 +139,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
     var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
     var fetchMeetingsWithStatusCalls: [Transcription.TranscriptionStatus] = []
+    var fetchAllCalls: [Int?] = []
     var fetchAllError: Error?
     var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
     var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
@@ -164,6 +165,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 
     func fetchAll(limit: Int?) throws -> [Transcription] {
+        fetchAllCalls.append(limit)
         if let fetchAllError {
             throw fetchAllError
         }

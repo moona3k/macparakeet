@@ -211,6 +211,43 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
     }
 
+    func testCancelledFinalizationCanBeRetriedFromSameRow() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "Cancelled Retry")
+        try persistProcessingRows([item], in: transcriptionRepo)
+        try createAudioFile(for: item)
+        await transcriptionService.cancel(transcriptionID: item.transcriptionID)
+
+        queue.enqueue(item)
+        await queue.waitUntilIdle()
+
+        let cancelled = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
+        XCTAssertEqual(cancelled.status, .cancelled)
+        XCTAssertNil(cancelled.errorMessage)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
+
+        await transcriptionService.clearFailures(transcriptionID: item.transcriptionID)
+        queue.enqueue(item)
+        await queue.waitUntilIdle()
+
+        let retried = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
+        XCTAssertEqual(retried.status, .completed)
+        XCTAssertNil(retried.errorMessage)
+        XCTAssertEqual(transcriptionRepo.transcriptions.map(\.id), [item.transcriptionID])
+        let finalizedIDs = await transcriptionService.snapshot()
+        XCTAssertEqual(finalizedIDs, [item.transcriptionID, item.transcriptionID])
+    }
+
     func testQueueDropsDuplicateRetryWhileItemIsActive() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
@@ -370,6 +407,7 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     private let transcriptionRepo: MockTranscriptionRepository
     private(set) var finalizedIDs: [UUID] = []
     private var failingIDs: Set<UUID> = []
+    private var cancellationIDs: Set<UUID> = []
     private var settlementMismatchIDs: Set<UUID> = []
     var holdFinalization = false
     private var finalizationWaiters: [CheckedContinuation<Void, Never>] = []
@@ -388,6 +426,15 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
 
     func fail(transcriptionID: UUID) {
         failingIDs.insert(transcriptionID)
+    }
+
+    func cancel(transcriptionID: UUID) {
+        cancellationIDs.insert(transcriptionID)
+    }
+
+    func clearFailures(transcriptionID: UUID) {
+        failingIDs.remove(transcriptionID)
+        cancellationIDs.remove(transcriptionID)
     }
 
     func mismatchSettlementPaths(transcriptionID: UUID) {
@@ -453,6 +500,9 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
             await withCheckedContinuation { continuation in
                 finalizationWaiters.append(continuation)
             }
+        }
+        if cancellationIDs.contains(transcriptionID) {
+            throw CancellationError()
         }
         if failingIDs.contains(transcriptionID) {
             throw QueueTestError.failed

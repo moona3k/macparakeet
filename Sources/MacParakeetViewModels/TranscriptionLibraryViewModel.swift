@@ -241,7 +241,7 @@ public final class TranscriptionLibraryViewModel {
     @discardableResult
     public func retryMeetingTranscription(_ transcription: Transcription) -> Task<Void, Never> {
         guard transcription.sourceType == .meeting,
-            transcription.status == .error,
+            Self.isRetryableMeetingTranscription(transcription),
             !retryingMeetingTranscriptionIDs.contains(transcription.id)
         else {
             return Task {}
@@ -252,11 +252,6 @@ public final class TranscriptionLibraryViewModel {
         }
 
         retryingMeetingTranscriptionIDs.insert(transcription.id)
-        setLoadedStatus(
-            id: transcription.id,
-            status: .processing,
-            errorMessage: nil
-        )
 
         return Task { @MainActor [weak self] in
             guard let self else { return }
@@ -265,9 +260,8 @@ public final class TranscriptionLibraryViewModel {
             }
             do {
                 try await retry(transcription)
-                self.cancelActiveLoad()
                 do {
-                    try self.reloadLoadedWindow()
+                    try self.refreshLoadedTranscription(id: transcription.id)
                 } catch {
                     self.logger.error(
                         "Retried meeting transcription but failed to refresh Library: \(error.localizedDescription, privacy: .private)"
@@ -278,11 +272,7 @@ public final class TranscriptionLibraryViewModel {
                 self.logger.error(
                     "Failed to retry meeting transcription: \(error.localizedDescription, privacy: .private)")
                 self.errorMessage = "Failed to retry meeting transcription: \(error.localizedDescription)"
-                self.setLoadedStatus(
-                    id: transcription.id,
-                    status: .error,
-                    errorMessage: error.localizedDescription
-                )
+                try? self.refreshLoadedTranscription(id: transcription.id)
             }
         }
     }
@@ -547,6 +537,23 @@ public final class TranscriptionLibraryViewModel {
         publishLoadedItems(page.items, hasMore: page.hasMore)
     }
 
+    private func refreshLoadedTranscription(id: UUID) throws {
+        guard let repo = transcriptionRepo else { return }
+        guard let index = transcriptions.firstIndex(where: { $0.id == id }) else { return }
+        // An in-flight load would later publish a snapshot fetched before this
+        // refresh, resurrecting the row's pre-retry status. Invalidate it; the
+        // generation bump makes any late publish a no-op.
+        if loadTask != nil {
+            cancelActiveLoad()
+        }
+        guard let refreshed = try repo.fetch(id: id) else {
+            removeLoadedTranscriptions(withIDs: [id])
+            return
+        }
+        transcriptions[index] = refreshed
+        publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
     private func cancelActiveLoad() {
         loadTask?.cancel()
         loadTask = nil
@@ -705,6 +712,10 @@ public final class TranscriptionLibraryViewModel {
         transcriptions[index].errorMessage = errorMessage
         transcriptions[index].updatedAt = Date()
         publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    nonisolated private static func isRetryableMeetingTranscription(_ transcription: Transcription) -> Bool {
+        transcription.status == .error || transcription.status == .cancelled
     }
 
     private func restoreFailedSelectionIfCurrent(_ failedIDs: [UUID], operationGeneration: Int) {

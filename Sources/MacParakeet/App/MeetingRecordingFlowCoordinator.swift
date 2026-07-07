@@ -25,7 +25,7 @@ private enum MeetingFinalizationRetryError: LocalizedError, Sendable {
         case .alreadyCompleted:
             return "This meeting has already been transcribed."
         case .notRetryable:
-            return "Only failed meeting transcriptions can be retried."
+            return "Only failed or stopped meeting transcriptions can be retried."
         case .missingArtifactFolder:
             return "The saved meeting folder is no longer available."
         }
@@ -1396,6 +1396,10 @@ final class MeetingRecordingFlowCoordinator {
         meetingTranscriptionQueue.enqueue(item)
     }
 
+    var queuedMeetingTranscriptionIDs: Set<UUID> {
+        meetingTranscriptionQueue.queuedTranscriptionIDs
+    }
+
     private func hideMeetingPanel() {
         panelController?.hide()
     }
@@ -1441,7 +1445,7 @@ final class MeetingRecordingFlowCoordinator {
             guard latest.sourceType == .meeting else {
                 throw MeetingFinalizationRetryError.notMeeting
             }
-            guard latest.status == .error else {
+            guard latest.status == .error || latest.status == .cancelled else {
                 if latest.status == .processing {
                     throw MeetingFinalizationRetryError.alreadyProcessing
                 }

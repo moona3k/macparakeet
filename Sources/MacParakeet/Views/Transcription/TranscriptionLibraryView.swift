@@ -359,7 +359,7 @@ struct TranscriptionLibraryView: View {
 
             Divider()
 
-            if transcription.status == .error {
+            if transcription.status == .error || transcription.status == .cancelled {
                 Button {
                     viewModel.retryMeetingTranscription(transcription)
                 } label: {
