@@ -7,6 +7,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
     func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
+    func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription]
     func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
@@ -47,6 +48,12 @@ extension TranscriptionRepositoryProtocol {
         }
     }
 
+    public func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        try fetchAll(limit: nil).filter {
+            $0.sourceType == .meeting && $0.status == status
+        }
+    }
+
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
     public func count() throws -> Int { try fetchAll(limit: nil).count }
     public func search(query: String, limit: Int?) throws -> [Transcription] { [] }
@@ -54,7 +61,10 @@ extension TranscriptionRepositoryProtocol {
         var results = try fetchAll(limit: nil)
 
         if !query.includeProcessing {
-            results = results.filter { $0.status != .processing }
+            results = results.filter {
+                $0.status != .processing
+                    || (query.includeProcessingMeetings && $0.sourceType == .meeting)
+            }
         }
         if let sourceType = query.sourceType {
             results = results.filter { $0.sourceType == sourceType }
@@ -166,8 +176,14 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
             var arguments: [any DatabaseValueConvertible] = []
 
             if !query.includeProcessing {
-                whereClauses.append("status != ?")
-                arguments.append(Transcription.TranscriptionStatus.processing.rawValue)
+                if query.includeProcessingMeetings {
+                    whereClauses.append("(status != ? OR sourceType = ?)")
+                    arguments.append(Transcription.TranscriptionStatus.processing.rawValue)
+                    arguments.append(Transcription.SourceType.meeting.rawValue)
+                } else {
+                    whereClauses.append("status != ?")
+                    arguments.append(Transcription.TranscriptionStatus.processing.rawValue)
+                }
             }
             if let sourceType = query.sourceType {
                 whereClauses.append("sourceType = ?")
@@ -341,6 +357,16 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 request = request.filter(Transcription.Columns.sourceType == sourceType.rawValue)
             }
             return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        try dbQueue.read { db in
+            try Transcription
+                .filter(Transcription.Columns.sourceType == Transcription.SourceType.meeting.rawValue)
+                .filter(Transcription.Columns.status == status.rawValue)
+                .order(Transcription.Columns.createdAt.desc)
+                .fetchAll(db)
         }
     }
 

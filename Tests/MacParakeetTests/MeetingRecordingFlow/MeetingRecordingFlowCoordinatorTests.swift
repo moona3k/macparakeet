@@ -60,6 +60,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(coordinator.stopRecording(operationTrigger: .autoStop))
         await coordinator.testHook_waitForActionTask()
+        try await waitForMeetingFinalizeCall(on: transcriptionService)
 
         let recordingSnapshot = await recordingService.snapshot()
         let transcriptionSnapshot = await transcriptionService.meetingFlowSnapshot()
@@ -88,6 +89,105 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.durationSeconds, output.durationSeconds)
         XCTAssertEqual(operation.microphoneTrackPresent, true)
         XCTAssertEqual(operation.systemTrackPresent, true)
+    }
+
+    func testQueuedFinalizationFailurePersistsRetryableRowAndPostsOneNotification() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.configureMeetingFinalization(error: FlowTestError.finalizationFailed)
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+
+        var retryNotifications: [TranscriptionCompletionNotifier.Content] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            onQueuedTranscriptionFailed: { content in
+                retryNotifications.append(content)
+            }
+        )
+        coordinator.testHook_enterRecording()
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        let rows = try settlementHarness.transcriptionRepo.fetchAll(limit: nil)
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(row.status, .error)
+        XCTAssertEqual(row.sourceType, .meeting)
+        XCTAssertEqual(row.errorMessage, FlowTestError.finalizationFailed.localizedDescription)
+        XCTAssertEqual(retryNotifications, [TranscriptionCompletionNotifier.meetingNeedsRetryContent()])
+        XCTAssertTrue(settlementHarness.lockStore.deletes.isEmpty)
+    }
+
+    func testRetryMeetingFinalizationReusesPersistedRowAndAudioFolder() async throws {
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let folderURL = try makeArchivedRetryFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let playbackURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+        let failed = Transcription(
+            id: UUID(),
+            fileName: "Retry meeting",
+            filePath: playbackURL.path,
+            meetingArtifactFolderPath: folderURL.path,
+            durationMs: 12_000,
+            status: .error,
+            errorMessage: "Previous failure",
+            sourceType: .meeting
+        )
+        try settlementHarness.transcriptionRepo.save(failed)
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        try await coordinator.retryMeetingFinalization(failed)
+        try await waitForTranscriptionStatus(
+            id: failed.id,
+            in: settlementHarness.transcriptionRepo,
+            status: .processing
+        )
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        let completed = try XCTUnwrap(settlementHarness.transcriptionRepo.fetch(id: failed.id))
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertNil(completed.errorMessage)
+        XCTAssertEqual(settlementHarness.transcriptionRepo.transcriptions.map(\.id), [failed.id])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: playbackURL.path))
+        XCTAssertEqual(settlementHarness.lockStore.deletes, [folderURL.standardizedFileURL])
+
+        let snapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
+        XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
+        XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
+        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
+        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
     }
 
     func testCaptureFailureSignalUsesStopTranscribeFlowExactlyOnce() async throws {
@@ -398,10 +498,12 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(conversationRepo.conversations.count, 1)
         let savedConversation = try XCTUnwrap(conversationRepo.conversations.first)
         XCTAssertEqual(savedConversation.title, "What did I miss?")
-        XCTAssertEqual(savedConversation.messages, [
-            ChatMessage(role: .user, content: "What did I miss?"),
-            ChatMessage(role: .assistant, content: "Answer saved"),
-        ])
+        XCTAssertEqual(
+            savedConversation.messages,
+            [
+                ChatMessage(role: .user, content: "What did I miss?"),
+                ChatMessage(role: .assistant, content: "Answer saved"),
+            ])
 
         await transcriptionService.releaseMeetingFinalization()
         await coordinator.testHook_waitForMeetingTranscriptionQueue()
@@ -495,11 +597,12 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
         await coordinator.testHook_waitForActionTask()
-        for _ in 0..<20 {
+        let startedAt = ContinuousClock.now
+        while startedAt.duration(to: .now) <= .seconds(1) {
             if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewUnsupported(engine: .cohere) {
                 break
             }
-            await Task.yield()
+            try await Task.sleep(for: .milliseconds(20))
         }
 
         let panelViewModel = try XCTUnwrap(coordinator.testHook_panelViewModel)
@@ -718,6 +821,46 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         }
     }
 
+    private func waitForMeetingFinalizeCall(
+        on service: MockTranscriptionService,
+        expectedCount: Int = 1
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while true {
+            let snapshot = await service.meetingFlowSnapshot()
+            if snapshot.finalizeMeetingCallCount >= expectedCount {
+                return
+            }
+            if startedAt.duration(to: .now) > .seconds(1) {
+                XCTFail("Expected queued meeting finalization to start.")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForTranscriptionStatus(
+        id: UUID,
+        in repo: MockTranscriptionRepository,
+        status: Transcription.TranscriptionStatus
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while true {
+            let transcription = try XCTUnwrap(repo.fetch(id: id))
+            if transcription.status == status {
+                XCTAssertNil(transcription.errorMessage)
+                return
+            }
+            if startedAt.duration(to: .now) > .seconds(1) {
+                XCTFail(
+                    "Timed out waiting for transcription \(id) status \(status); latest status: \(transcription.status)"
+                )
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func makeRecordingOutput() -> MeetingRecordingOutput {
         let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -742,6 +885,37 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
                 system: track
             )
         )
+    }
+
+    private func makeArchivedRetryFolder() throws -> URL {
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("meeting-retry-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let playbackURL = folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+        try Data("audio".utf8).write(to: playbackURL)
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: MeetingSourceAlignment(
+                    meetingOriginHostTime: nil,
+                    microphone: nil,
+                    system: nil
+                )
+            ),
+            folderURL: folder
+        )
+        return folder
+    }
+}
+
+private enum FlowTestError: LocalizedError {
+    case finalizationFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .finalizationFailed:
+            return "Finalization failed"
+        }
     }
 }
 
@@ -797,12 +971,13 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws {
         startCallCount += 1
-        startCalls.append(StartCall(
-            title: title,
-            sourceMode: sourceMode,
-            startContext: startContext,
-            calendarEventSnapshot: calendarEventSnapshot
-        ))
+        startCalls.append(
+            StartCall(
+                title: title,
+                sourceMode: sourceMode,
+                startContext: startContext,
+                calendarEventSnapshot: calendarEventSnapshot
+            ))
         startTitles.append(title)
         calendarEventSnapshots.append(calendarEventSnapshot)
         paused = false
@@ -1016,21 +1191,23 @@ private struct MeetingOperationPayload: Equatable {
 
 private extension TelemetryEventSpec {
     var meetingOperationPayload: MeetingOperationPayload? {
-        guard case .meetingOperation(
-            _,
-            _,
-            let outcome,
-            let trigger,
-            _,
-            let durationSeconds,
-            _,
-            _,
-            let microphoneTrackPresent,
-            let systemTrackPresent,
-            _,
-            _,
-            _
-        ) = self else {
+        guard
+            case .meetingOperation(
+                _,
+                _,
+                let outcome,
+                let trigger,
+                _,
+                let durationSeconds,
+                _,
+                _,
+                let microphoneTrackPresent,
+                let systemTrackPresent,
+                _,
+                _,
+                _
+            ) = self
+        else {
             return nil
         }
 

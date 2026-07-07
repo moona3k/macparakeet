@@ -28,14 +28,16 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.transcriptions.count, 2)
     }
 
-    func testLoadTranscriptionsExcludesProcessingRows() async throws {
-        try repo.save(Transcription(fileName: "done.mp3", status: .completed))
-        try repo.save(Transcription(fileName: "working.mp3", status: .processing))
+    func testLoadTranscriptionsIncludesProcessingMeetingRowsOnly() async throws {
+        try repo.save(Transcription(fileName: "done.mp3", status: .completed, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-file.mp3", status: .processing, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-video.mp3", status: .processing, sourceType: .youtube))
+        try repo.save(Transcription(fileName: "working-meeting.m4a", status: .processing, sourceType: .meeting))
 
         await load()
 
-        XCTAssertEqual(vm.transcriptions.map(\.fileName), ["done.mp3"])
-        XCTAssertEqual(vm.filteredTranscriptions.map(\.fileName), ["done.mp3"])
+        XCTAssertEqual(Set(vm.transcriptions.map(\.fileName)), ["done.mp3", "working-meeting.m4a"])
+        XCTAssertEqual(Set(vm.filteredTranscriptions.map(\.fileName)), ["done.mp3", "working-meeting.m4a"])
     }
 
     func testLoadTranscriptionsIncludesCancelledAndErrorRows() async throws {
@@ -134,11 +136,16 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         meetingVM.configure(transcriptionRepo: repo)
 
         try repo.save(Transcription(fileName: "meeting.mp3", status: .completed, sourceType: .meeting))
+        try repo.save(Transcription(fileName: "processing meeting.mp3", status: .processing, sourceType: .meeting))
+        try repo.save(Transcription(fileName: "failed meeting.mp3", status: .error, sourceType: .meeting))
         try repo.save(Transcription(fileName: "local.mp3", status: .completed, sourceType: .file))
 
         await load(meetingVM)
 
-        XCTAssertEqual(meetingVM.filteredTranscriptions.map(\.fileName), ["meeting.mp3"])
+        XCTAssertEqual(
+            Set(meetingVM.filteredTranscriptions.map(\.fileName)),
+            ["meeting.mp3", "processing meeting.mp3", "failed meeting.mp3"]
+        )
     }
 
     func testMeetingsScopeComposesWithFavoritesAndConflictingFilters() async throws {
@@ -399,6 +406,43 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.filteredTranscriptions.isEmpty)
         XCTAssertFalse(try repo.fetch(id: favorite.id)?.isFavorite ?? true)
+    }
+
+    // MARK: - Retry
+
+    func testRetryMeetingTranscriptionReloadsSameRowAfterCallback() async throws {
+        let failed = Transcription(
+            fileName: "Design Review",
+            status: .error,
+            errorMessage: "decoder failed",
+            sourceType: .meeting
+        )
+        try repo.save(failed)
+        await load()
+
+        var retriedIDs: [UUID] = []
+        vm.onRetryMeetingTranscription = { transcription in
+            retriedIDs.append(transcription.id)
+            try self.repo.updateStatus(
+                id: transcription.id,
+                status: .completed,
+                errorMessage: nil
+            )
+        }
+
+        let retryTask = vm.retryMeetingTranscription(failed)
+
+        XCTAssertTrue(vm.isRetryingMeetingTranscription(failed))
+        XCTAssertEqual(vm.transcriptions.first?.status, .processing)
+
+        await retryTask.value
+
+        XCTAssertEqual(retriedIDs, [failed.id])
+        XCTAssertFalse(vm.isRetryingMeetingTranscription(failed))
+        XCTAssertEqual(vm.transcriptions.map(\.id), [failed.id])
+        XCTAssertEqual(vm.transcriptions.first?.status, .completed)
+        XCTAssertNil(vm.transcriptions.first?.errorMessage)
+        XCTAssertEqual(try repo.count(), 1)
     }
 
     // MARK: - Bulk Selection

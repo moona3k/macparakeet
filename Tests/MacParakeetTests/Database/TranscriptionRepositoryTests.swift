@@ -469,6 +469,20 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "working.mp3"])
     }
 
+    func testFetchLibraryPageCanIncludeProcessingMeetingsOnly() throws {
+        try repo.save(Transcription(fileName: "done.mp3", status: .completed, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-file.mp3", status: .processing, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-video.mp3", status: .processing, sourceType: .youtube))
+        try repo.save(Transcription(fileName: "working-meeting.m4a", status: .processing, sourceType: .meeting))
+
+        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+            limit: 10,
+            includeProcessingMeetings: true
+        ))
+
+        XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "working-meeting.m4a"])
+    }
+
     func testFetchLibraryPageFiltersBySourceType() throws {
         let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
         let youtube = Transcription(fileName: "video.mp3", status: .completed, sourceType: .youtube)

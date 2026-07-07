@@ -96,7 +96,10 @@ final class MeetingAudioFileTests: XCTestCase {
 
     // MARK: - state
 
-    func testStateReturnsNotMeetingWhenStatusIsProcessing() throws {
+    func testStateReturnsSavedWhenStatusIsProcessing() throws {
+        // Processing meetings are visible rows with durably saved audio; the
+        // capture contract ("audio is saved") must hold before transcription
+        // completes, so their audio state is .saved, not hidden.
         let directory = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let audioURL = directory.appendingPathComponent("meeting-playback.m4a")
@@ -109,8 +112,8 @@ final class MeetingAudioFileTests: XCTestCase {
             status: .processing
         )
 
-        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .notMeeting)
-        XCTAssertFalse(MeetingAudioFile.isAvailable(for: transcription))
+        XCTAssertEqual(MeetingAudioFile.state(for: transcription), .saved)
+        XCTAssertTrue(MeetingAudioFile.isAvailable(for: transcription))
     }
 
     func testStateReturnsNotMeetingForNonMeetingSource() {

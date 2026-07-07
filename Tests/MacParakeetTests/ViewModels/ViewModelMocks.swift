@@ -138,8 +138,10 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
     var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
+    var fetchMeetingsWithStatusCalls: [Transcription.TranscriptionStatus] = []
     var fetchAllError: Error?
     var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
+    var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
     var updateTitleOverrideError: Error?
     var updateFilePathError: Error?
     var updateSpeakersError: Error?
@@ -171,6 +173,17 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         let sorted = transcriptions.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
         return sorted
+    }
+
+    func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        fetchMeetingsWithStatusCalls.append(status)
+        if let fetchMeetingsWithStatusHandler {
+            return try fetchMeetingsWithStatusHandler(status)
+        }
+        return
+            transcriptions
+            .filter { $0.sourceType == .meeting && $0.status == status }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? {
@@ -400,6 +413,7 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var transcribeResult: Transcription?
     var transcribeError: Error?
+    var meetingFinalizationError: Error?
     var transcribeCallCount = 0
     var lastFileURL: URL?
     var lastSource: TelemetryTranscriptionSource?
@@ -416,6 +430,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var preparedMeetingRecordings: [MeetingRecordingOutput] = []
     var finalizedMeetingRecordings: [MeetingRecordingOutput] = []
     var finalizedMeetingTranscriptionIDs: [UUID] = []
+    private var preparedMeetingSaveHook: (@Sendable (Transcription) -> Void)?
     private var finalizedMeetingSaveHook: (@Sendable (Transcription) -> Void)?
     private var meetingFinalizationHeld = false
     private var meetingFinalizationContinuations: [CheckedContinuation<Void, Never>] = []
@@ -441,6 +456,10 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.transcribeResult = nil
     }
 
+    func configureMeetingFinalization(error: Error?) {
+        meetingFinalizationError = error
+    }
+
     func configureURLProgress(phases: [TranscriptionProgress]) {
         self.transcribeURLProgressPhases = phases
     }
@@ -462,6 +481,9 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     }
 
     func persistFinalizedMeetings(to repository: MockTranscriptionRepository) {
+        preparedMeetingSaveHook = { transcription in
+            try? repository.save(transcription)
+        }
         finalizedMeetingSaveHook = { transcription in
             try? repository.save(transcription)
         }
@@ -563,14 +585,17 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             throw error
         }
 
-        return Transcription(
+        let transcription = Transcription(
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: recording.folderURL.path,
             durationMs: Int((recording.durationSeconds * 1000).rounded()),
             rawTranscript: nil,
             status: .processing,
             sourceType: .meeting
         )
+        preparedMeetingSaveHook?(transcription)
+        return transcription
     }
 
     func finalizeMeetingTranscription(
@@ -598,7 +623,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             try await Task.sleep(nanoseconds: transcribeDelayMs * 1_000_000)
         }
 
-        if let error = transcribeError {
+        if let error = meetingFinalizationError ?? transcribeError {
             throw error
         }
 

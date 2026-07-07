@@ -25,6 +25,10 @@ enum TranscriptionCompletionPresenter {
         postBanner(content)
     }
 
+    static func presentNotification(_ content: TranscriptionCompletionNotifier.Content) {
+        postBanner(content)
+    }
+
     private static func postBanner(_ content: TranscriptionCompletionNotifier.Content) {
         Task {
             guard await CalendarNotificationAuthorization.requestIfNeeded() else {

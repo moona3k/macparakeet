@@ -1890,7 +1890,7 @@ struct SettingsView: View {
                             buttonTitle: "Clear…",
                             accessibilityLabel: "Clear meeting audio",
                             confirmationTitle: "Clear Meeting Audio?",
-                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. This cannot be undone.",
+                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. Any meeting that hasn't been transcribed yet will lose its retry source permanently. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearMeetingAudio
                         )

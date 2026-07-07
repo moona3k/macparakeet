@@ -9,35 +9,35 @@ struct MeetingRowCard<MenuContent: View>: View {
     var searchText: String = ""
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
+    var isRetrying: Bool = false
     var onTap: () -> Void
+    var onRetry: (() -> Void)? = nil
     @ViewBuilder var menuContent: () -> MenuContent
 
     @State private var hovered = false
+    @State private var showsErrorDetail = false
 
     var body: some View {
-        Button(action: onTap) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                if showsSelectionControls {
-                    selectionBadge
-                        .padding(.top, 1)
+                rowActivationButton
+
+                if showsRetryButton {
+                    retryButton
+                        .padding(.top, 4)
                 }
-                contentColumn
-                trailingColumn
             }
-            .padding(.horizontal, DesignSystem.Spacing.lg)
-            .padding(.vertical, 12)
-            .frame(minHeight: 64, alignment: .top)
-            .contentShape(Rectangle())
-            .background(rowBackground)
+
+            errorDetailDisclosure
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, 12)
+        .frame(minHeight: 64, alignment: .top)
+        .background(rowBackground)
         .help(hoverTooltip)
         .onHover { hovered = $0 }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
         .contextMenu { menuContent() }
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
-        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
     }
 
     // MARK: - Backgrounds
@@ -82,6 +82,25 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     // MARK: - Content
+
+    private var rowActivationButton: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    selectionBadge
+                        .padding(.top, 1)
+                }
+                contentColumn
+                metadataColumn
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
+        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
+    }
 
     private var contentColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -146,15 +165,17 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         } else if transcription.status == .processing {
-            Text("Transcribing…")
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                ParakeetSpinner(.inline)
+                    .scaleEffect(0.85)
+                    .frame(width: 12, height: 12)
+                Text(statusLine("Transcribing"))
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
         } else if transcription.status == .error {
-            Text(statusLine("Transcription failed"))
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(DesignSystem.Colors.errorRed.opacity(0.85))
-                .lineLimit(1)
+            failedHeadlineRow
         } else if transcription.status == .cancelled {
             // Keep-Audio outcome of the stop-transcription flow (issue #487):
             // the audio is intact and retranscribable from the detail view.
@@ -165,9 +186,47 @@ struct MeetingRowCard<MenuContent: View>: View {
         }
     }
 
+    private var failedHeadlineRow: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+            Text(failedHeadline)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var errorDetailDisclosure: some View {
+        if transcription.status == .error, let detail = errorDetail {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    Color.clear
+                        .frame(width: 18, height: 1)
+                }
+                DisclosureGroup(isExpanded: $showsErrorDetail) {
+                    Text(detail)
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                        .padding(.top, 1)
+                } label: {
+                    Text("Details")
+                        .font(DesignSystem.Typography.micro.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                }
+                .disclosureGroupStyle(.automatic)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     // MARK: - Trailing
 
-    private var trailingColumn: some View {
+    private var metadataColumn: some View {
         VStack(alignment: .trailing, spacing: 3) {
             if let durationMs = transcription.durationMs {
                 Text(durationMs.formattedDurationCompact)
@@ -186,6 +245,40 @@ struct MeetingRowCard<MenuContent: View>: View {
         .fixedSize()
     }
 
+    private var retryButton: some View {
+        Button {
+            onRetry?()
+        } label: {
+            HStack(spacing: 5) {
+                if isRetrying {
+                    ParakeetSpinner(.inline)
+                        .scaleEffect(0.85)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(isRetrying ? "Retrying" : "Retry")
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+            }
+            .foregroundStyle(retryButtonForeground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(DesignSystem.Colors.border.opacity(0.8), lineWidth: 0.6)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRetrying || onRetry == nil || audioState != .saved)
+        .help(retryHelp)
+        .accessibilityLabel(isRetrying ? "Retrying transcription" : "Retry transcription")
+    }
+
     // MARK: - Derived display values
 
     private var displayedTitle: String {
@@ -196,7 +289,8 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var displayedSnippet: String? {
-        if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty {
+        if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty
+        {
             return derived
         }
         return legacySnippet
@@ -206,7 +300,8 @@ struct MeetingRowCard<MenuContent: View>: View {
         guard let text = transcription.cleanTranscript ?? transcription.rawTranscript, !text.isEmpty else {
             return nil
         }
-        let cleaned = text
+        let cleaned =
+            text
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return nil }
@@ -220,6 +315,51 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     private var audioState: MeetingAudioFile.State {
         MeetingAudioFile.state(for: transcription)
+    }
+
+    private var errorDetail: String? {
+        guard let detail = transcription.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !detail.isEmpty
+        else {
+            return nil
+        }
+        return detail
+    }
+
+    private var failedHeadline: String {
+        switch audioState {
+        case .saved:
+            return "Transcription failed — audio is saved"
+        case .removed:
+            return "Transcription failed — audio removed"
+        case .missing:
+            return "Transcription failed — audio missing"
+        case .notMeeting:
+            return "Transcription failed"
+        }
+    }
+
+    private var showsRetryButton: Bool {
+        transcription.sourceType == .meeting && transcription.status == .error
+    }
+
+    private var retryButtonForeground: Color {
+        if isRetrying || onRetry == nil || audioState != .saved {
+            return DesignSystem.Colors.textTertiary
+        }
+        return DesignSystem.Colors.accent
+    }
+
+    private var retryHelp: String {
+        if isRetrying {
+            return "Retry is already in progress"
+        }
+        guard onRetry != nil else {
+            return "Retry is not available"
+        }
+        return audioState == .saved
+            ? "Retry transcription from saved meeting audio"
+            : "Saved meeting audio is required before retrying transcription"
     }
 
     private var showsAudioInline: Bool {

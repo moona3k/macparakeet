@@ -14,6 +14,7 @@ public struct TranscriptionLibraryQuery: Sendable, Equatable {
     public var limit: Int
     public var offset: Int
     public var includeProcessing: Bool
+    public var includeProcessingMeetings: Bool
 
     public init(
         sourceType: Transcription.SourceType? = nil,
@@ -22,7 +23,8 @@ public struct TranscriptionLibraryQuery: Sendable, Equatable {
         sortOrder: TranscriptionLibrarySortOrder = .dateDescending,
         limit: Int = 100,
         offset: Int = 0,
-        includeProcessing: Bool = false
+        includeProcessing: Bool = false,
+        includeProcessingMeetings: Bool = false
     ) {
         self.sourceType = sourceType
         self.favoritesOnly = favoritesOnly
@@ -31,6 +33,7 @@ public struct TranscriptionLibraryQuery: Sendable, Equatable {
         self.limit = limit
         self.offset = offset
         self.includeProcessing = includeProcessing
+        self.includeProcessingMeetings = includeProcessingMeetings
     }
 }
 

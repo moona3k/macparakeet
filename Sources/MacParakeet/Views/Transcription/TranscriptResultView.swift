@@ -695,7 +695,12 @@ struct TranscriptResultView: View {
                 deleteMeetingAudioFromActionBar()
             }
         } message: {
-            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .library))
+            Text(
+                MeetingDeletionCopy.singleAudioOnlyMessage(
+                    surface: .library,
+                    status: activeTranscription.status
+                )
+            )
         }
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)

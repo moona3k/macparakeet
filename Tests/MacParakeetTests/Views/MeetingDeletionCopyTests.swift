@@ -1,6 +1,7 @@
 import XCTest
 
 @testable import MacParakeet
+@testable import MacParakeetCore
 
 final class MeetingDeletionCopyTests: XCTestCase {
     func testAudioOnlyCopyKeepsMeetingAndNamesOptionalArtifacts() {
@@ -20,6 +21,37 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("permanently deletes \"Roadmap sync\""))
         XCTAssertTrue(message.contains("including its transcript and saved audio"))
         XCTAssertTrue(message.contains("Notes, AI results, and chats for this meeting are also deleted if they exist"))
+    }
+
+    func testAudioOnlyCopyWarnsWhenMeetingIsNotCompleted() {
+        let message = MeetingDeletionCopy.singleAudioOnlyMessage(
+            surface: .library,
+            status: .processing
+        )
+
+        XCTAssertTrue(
+            message.hasPrefix("This meeting hasn't been transcribed yet — deleting the audio makes that permanent."))
+        XCTAssertTrue(message.contains("permanently deletes the saved audio"))
+    }
+
+    func testCompletedAudioOnlyCopyDoesNotShowRetentionWarning() {
+        let message = MeetingDeletionCopy.singleAudioOnlyMessage(
+            surface: .library,
+            status: .completed
+        )
+
+        XCTAssertFalse(message.contains("hasn't been transcribed yet"))
+    }
+
+    func testFullDeleteCopyWarnsWhenMeetingIsNotCompleted() {
+        let message = MeetingDeletionCopy.singleFullDeleteMessage(
+            title: "Roadmap sync",
+            status: .error
+        )
+
+        XCTAssertTrue(
+            message.hasPrefix("This meeting hasn't been transcribed yet — deleting the audio makes that permanent."))
+        XCTAssertTrue(message.contains("permanently deletes \"Roadmap sync\""))
     }
 
     func testBulkFullDeleteCopyUsesSingularMeetingCopy() {
@@ -66,6 +98,18 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("2 selected meetings"))
         XCTAssertTrue(message.contains("1 selected meeting already has no saved audio"))
         XCTAssertTrue(message.contains("it will be skipped"))
+    }
+
+    func testBulkDeleteCopyWarnsWhenAnySelectedMeetingIsNotCompleted() {
+        let message = MeetingDeletionCopy.bulkFullDeleteMessage(
+            count: 2,
+            hasNonCompletedMeeting: true
+        )
+
+        XCTAssertTrue(
+            message.hasPrefix(
+                "At least one selected meeting hasn't been transcribed yet — deleting the audio makes that permanent."))
+        XCTAssertTrue(message.contains("permanently deletes 2 meetings"))
     }
 
     // Mixed Library selection (the surface where the miscount bug appeared):
