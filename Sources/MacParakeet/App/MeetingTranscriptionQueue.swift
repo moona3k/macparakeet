@@ -70,6 +70,14 @@ final class MeetingTranscriptionQueue {
         Snapshot(activeItem: activeItem, pendingCount: pendingItems.count)
     }
 
+    var queuedTranscriptionIDs: Set<UUID> {
+        var ids = Set(pendingItems.map(\.transcriptionID))
+        if let activeID = activeItem?.transcriptionID {
+            ids.insert(activeID)
+        }
+        return ids
+    }
+
     func enqueue(_ item: Item) {
         guard !containsQueuedTranscription(id: item.transcriptionID) else {
             logger.info(

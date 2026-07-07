@@ -433,7 +433,7 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         let retryTask = vm.retryMeetingTranscription(failed)
 
         XCTAssertTrue(vm.isRetryingMeetingTranscription(failed))
-        XCTAssertEqual(vm.transcriptions.first?.status, .processing)
+        XCTAssertEqual(vm.transcriptions.first?.status, .error)
 
         await retryTask.value
 
@@ -443,6 +443,115 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.transcriptions.first?.status, .completed)
         XCTAssertNil(vm.transcriptions.first?.errorMessage)
         XCTAssertEqual(try repo.count(), 1)
+    }
+
+    func testRetryMeetingTranscriptionAcceptsCancelledMeetingRows() async throws {
+        let cancelled = Transcription(
+            fileName: "Interrupted Design Review",
+            status: .cancelled,
+            sourceType: .meeting
+        )
+        try repo.save(cancelled)
+        await load()
+
+        var retriedIDs: [UUID] = []
+        vm.onRetryMeetingTranscription = { transcription in
+            retriedIDs.append(transcription.id)
+            try self.repo.updateStatus(
+                id: transcription.id,
+                status: .completed,
+                errorMessage: nil
+            )
+        }
+
+        let retryTask = vm.retryMeetingTranscription(cancelled)
+        await retryTask.value
+
+        XCTAssertEqual(retriedIDs, [cancelled.id])
+        XCTAssertFalse(vm.isRetryingMeetingTranscription(cancelled))
+        XCTAssertEqual(vm.transcriptions.map(\.id), [cancelled.id])
+        XCTAssertEqual(vm.transcriptions.first?.status, .completed)
+    }
+
+    func testRetryMeetingTranscriptionRefreshesRowWhenLoadedWindowReloadWouldFail() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        let failed = Transcription(
+            fileName: "Refresh Failure Meeting",
+            status: .error,
+            errorMessage: "Previous failure",
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [failed]
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await load(viewModel)
+
+        mockRepo.fetchAllError = LibraryRenameTestError.reloadFailed
+        viewModel.onRetryMeetingTranscription = { transcription in
+            try mockRepo.updateStatus(
+                id: transcription.id,
+                status: .completed,
+                errorMessage: nil
+            )
+        }
+
+        let retryTask = viewModel.retryMeetingTranscription(failed)
+        await retryTask.value
+
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [failed.id])
+        XCTAssertEqual(viewModel.transcriptions.first?.status, .completed)
+        XCTAssertNil(viewModel.transcriptions.first?.errorMessage)
+    }
+
+    func testRetryMeetingTranscriptionRefreshesOnlyAffectedRowAndPreservesLoadedWindow() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = 2
+        let first = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 300),
+            fileName: "First",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let second = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            fileName: "Second",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let failed = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            fileName: "Third",
+            status: .error,
+            errorMessage: "Previous failure",
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [first, second, failed]
+        viewModel.configure(transcriptionRepo: mockRepo)
+
+        await load(viewModel)
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [first.id, second.id])
+        XCTAssertTrue(viewModel.hasMore)
+        await viewModel.loadMoreTranscriptions()?.value
+        let loadedIDs = viewModel.transcriptions.map(\.id)
+        let fetchAllCallCount = mockRepo.fetchAllCalls.count
+
+        viewModel.onRetryMeetingTranscription = { transcription in
+            try mockRepo.updateStatus(
+                id: transcription.id,
+                status: .completed,
+                errorMessage: nil
+            )
+        }
+
+        let retryTask = viewModel.retryMeetingTranscription(failed)
+        await retryTask.value
+
+        XCTAssertEqual(mockRepo.fetchAllCalls.count, fetchAllCallCount)
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), loadedIDs)
+        XCTAssertFalse(viewModel.hasMore)
+        XCTAssertEqual(viewModel.transcriptions.last?.status, .completed)
+        XCTAssertNil(viewModel.transcriptions.last?.errorMessage)
     }
 
     // MARK: - Bulk Selection

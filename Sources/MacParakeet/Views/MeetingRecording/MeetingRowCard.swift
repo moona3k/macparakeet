@@ -340,7 +340,8 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var showsRetryButton: Bool {
-        transcription.sourceType == .meeting && transcription.status == .error
+        transcription.sourceType == .meeting
+            && (transcription.status == .error || transcription.status == .cancelled)
     }
 
     private var retryButtonForeground: Color {

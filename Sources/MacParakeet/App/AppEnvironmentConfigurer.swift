@@ -384,8 +384,10 @@ final class AppEnvironmentConfigurer {
 
         Task { [weak self] in
             do {
+                let protectedIDs = meetingCoordinator.queuedMeetingTranscriptionIDs
                 let reconciled = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
-                    repository: env.transcriptionRepo
+                    repository: env.transcriptionRepo,
+                    excludingTranscriptionIDs: protectedIDs
                 )
                 guard !reconciled.isEmpty, let self else { return }
                 self.libraryViewModel.loadTranscriptions()
