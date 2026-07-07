@@ -1,7 +1,7 @@
 import Foundation
 @testable import MacParakeetCore
 
-public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching {
+public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineTelemetryAttributing {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -45,6 +45,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var previewSamples: [[Float]] = []
     public var previewSelections: [SpeechEngineSelection] = []
     public var liveEnabled = false
+    public var telemetryAttribution: SpeechEngineTelemetryAttribution?
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -59,6 +60,14 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
 
     public init() {}
+
+    public func configureTelemetryAttribution(_ attribution: SpeechEngineTelemetryAttribution?) {
+        telemetryAttribution = attribution
+    }
+
+    public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution? {
+        telemetryAttribution
+    }
 
     public func configure(result: STTResult) {
         self.transcribeResult = result

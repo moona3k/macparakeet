@@ -2,6 +2,37 @@ import XCTest
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
+private final class DictationHistoryTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 @MainActor
 final class DictationHistoryViewModelTests: XCTestCase {
     var viewModel: DictationHistoryViewModel!
@@ -10,6 +41,13 @@ final class DictationHistoryViewModelTests: XCTestCase {
     override func setUp() {
         mockRepo = MockDictationRepository()
         viewModel = DictationHistoryViewModel()
+    }
+
+    override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
+        viewModel = nil
+        mockRepo = nil
+        super.tearDown()
     }
 
     // MARK: - Fetching
@@ -137,6 +175,32 @@ final class DictationHistoryViewModelTests: XCTestCase {
         viewModel.loadDictations()
 
         XCTAssertTrue(viewModel.groupedDictations.isEmpty, "No results for unmatched search")
+    }
+
+    func testSearchTelemetryEmitsOnceAfterDebouncedSearchWithoutQueryText() async {
+        let telemetry = DictationHistoryTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockRepo.dictations = [
+            Dictation(durationMs: 1000, rawTranscript: "project plan"),
+            Dictation(durationMs: 1000, rawTranscript: "project status"),
+            Dictation(durationMs: 1000, rawTranscript: "grocery list"),
+        ]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.searchText = "pro"
+        viewModel.searchText = "proj"
+        viewModel.searchText = "project"
+
+        XCTAssertTrue(historySearchEvents(in: telemetry.snapshot()).isEmpty)
+
+        await waitForCondition("debounced history search telemetry") {
+            self.historySearchEvents(in: telemetry.snapshot()).count == 1
+        }
+
+        let event = historySearchEvents(in: telemetry.snapshot()).first
+        XCTAssertEqual(event?.props?["result_count"], "2_5")
+        XCTAssertNil(event?.props?["query"])
+        XCTAssertFalse(event?.props?.values.contains("project") ?? false)
     }
 
     // MARK: - Delete
@@ -615,6 +679,10 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
     private func totalDictationCount() -> Int {
         viewModel.groupedDictations.reduce(0) { $0 + $1.1.count }
+    }
+
+    private func historySearchEvents(in events: [TelemetryEventSpec]) -> [TelemetryEventSpec] {
+        events.filter { $0.name == .historySearched }
     }
 
     private func waitForCondition(

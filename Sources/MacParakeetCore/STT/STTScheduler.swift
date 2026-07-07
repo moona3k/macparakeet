@@ -23,7 +23,7 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 /// meeting and file work share an explicitly prioritized background path.
 public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing,
     STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding,
-    SpeechEngineSessionManaging
+    SpeechEngineSessionManaging, SpeechEngineTelemetryAttributing
 {
     private struct ScheduledJob: Sendable {
         let id: UUID
@@ -169,6 +169,16 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
     public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
         await runtime.currentSpeechEngineSelection()
+    }
+
+    public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution? {
+        let selection = await runtime.currentSpeechEngineSelection()
+        let capabilities = await runtime.currentSpeechEngineCapabilities()
+        return SpeechEngineTelemetryAttribution(
+            speechEngine: selection.engine,
+            engineVariant: capabilities.telemetryIdentity.engineVariant.value(),
+            language: selection.language
+        )
     }
 
     public func transcribe(

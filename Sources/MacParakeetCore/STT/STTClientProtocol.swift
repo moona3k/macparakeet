@@ -69,6 +69,26 @@ public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
     ) async throws -> STTResult
 }
 
+public struct SpeechEngineTelemetryAttribution: Equatable, Sendable {
+    public let speechEngine: SpeechEnginePreference
+    public let engineVariant: String?
+    public let language: String?
+
+    public init(
+        speechEngine: SpeechEnginePreference,
+        engineVariant: String?,
+        language: String?
+    ) {
+        self.speechEngine = speechEngine
+        self.engineVariant = engineVariant
+        self.language = language
+    }
+}
+
+public protocol SpeechEngineTelemetryAttributing: Sendable {
+    func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution?
+}
+
 public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async

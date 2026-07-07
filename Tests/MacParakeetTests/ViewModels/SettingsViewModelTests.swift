@@ -331,7 +331,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey))
         XCTAssertEqual(notificationCount, 2)
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.meetingAutoStop, .meetingAutoStop])
@@ -359,7 +359,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey))
         XCTAssertEqual(notificationCount, 2)
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.meetingRecordingPill, .meetingRecordingPill])
@@ -377,7 +377,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey))
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
@@ -414,7 +414,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(microphoneNotificationCount, 0)
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.instantDictation])
@@ -442,7 +442,7 @@ final class SettingsViewModelTests: XCTestCase {
             true
         )
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(
@@ -463,7 +463,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey))
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.liveDictationPreview, .liveDictationPreview])
@@ -482,7 +482,7 @@ final class SettingsViewModelTests: XCTestCase {
             DictationPreviewTextSize.large.rawValue
         )
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.liveDictationPreview])
@@ -501,10 +501,52 @@ final class SettingsViewModelTests: XCTestCase {
             DictationUndoCountdown.off.rawValue
         )
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.dictationUndoCountdown])
+    }
+
+    func testSettingChangedTelemetryIncludesSafeBooleanAndEnumValues() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.meetingAutoStopEnabled = true
+        viewModel.appAppearanceMode = .dark
+        viewModel.meetingAudioSourceMode = .systemOnly
+
+        let props = settingChangedProps(in: telemetry.snapshot())
+        XCTAssertTrue(props.contains {
+            $0["setting"] == TelemetrySettingName.meetingAutoStop.rawValue
+                && $0["value"] == "true"
+        })
+        XCTAssertTrue(props.contains {
+            $0["setting"] == TelemetrySettingName.appAppearance.rawValue
+                && $0["value"] == AppAppearanceMode.dark.rawValue
+        })
+        XCTAssertTrue(props.contains {
+            $0["setting"] == TelemetrySettingName.meetingAudioSourceMode.rawValue
+                && $0["value"] == MeetingAudioSourceMode.systemOnly.rawValue
+        })
+    }
+
+    func testSettingChangedTelemetryOmitsValueForOpenOrUserAuthoredSettings() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.selectedMicrophoneDeviceUID = "USB-Mic-User-Device"
+        viewModel.calendarExcludedIdentifiers = ["calendar-user-id"]
+
+        let props = settingChangedProps(in: telemetry.snapshot())
+        let microphone = props.last { $0["setting"] == TelemetrySettingName.microphoneSelection.rawValue }
+        XCTAssertNotNil(microphone)
+        XCTAssertNil(microphone?["value"])
+        XCTAssertFalse(microphone?.values.contains("USB-Mic-User-Device") ?? false)
+
+        let calendars = props.last { $0["setting"] == TelemetrySettingName.calendarIncludedCalendars.rawValue }
+        XCTAssertNotNil(calendars)
+        XCTAssertNil(calendars?["value"])
+        XCTAssertFalse(calendars?.values.contains("calendar-user-id") ?? false)
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
@@ -569,7 +611,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(microphoneNotificationCount, 2)
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.microphoneSelection, .microphoneSelection])
@@ -816,7 +858,7 @@ final class SettingsViewModelTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(testDefaults.string(forKey: AppPreferences.appearanceModeKey), AppAppearanceMode.dark.rawValue)
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.appAppearance])
@@ -842,7 +884,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey))
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.keepDictationOnClipboard])
@@ -859,7 +901,7 @@ final class SettingsViewModelTests: XCTestCase {
             DictationInsertionStyle.inline.rawValue
         )
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.dictationInsertionStyle])
@@ -901,7 +943,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey))
         XCTAssertEqual(notificationCount, 1)
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.meetingAudioRetention])
@@ -987,7 +1029,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.speakerDiarization = false
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.meetingSpeakerDiarization, .speakerDiarization])
@@ -1099,7 +1141,7 @@ final class SettingsViewModelTests: XCTestCase {
             return "\(surface.rawValue):\(kind.rawValue)"
         }
         let hotkeySettingEvents = events.filter { event in
-            guard case .settingChanged(let setting) = event else { return false }
+            guard case .settingChanged(let setting, _) = event else { return false }
             return [
                 .meetingHotkey,
                 .fileTranscriptionHotkey,
@@ -1773,7 +1815,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults))
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.whisperDefaultLanguage, .whisperDefaultLanguage])
@@ -2322,6 +2364,13 @@ final class SettingsViewModelTests: XCTestCase {
                 errorType: errorType,
                 wasCold: wasCold
             )
+        }
+    }
+
+    private func settingChangedProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
+        events.compactMap { event in
+            guard event.name == .settingChanged else { return nil }
+            return event.props ?? [:]
         }
     }
 

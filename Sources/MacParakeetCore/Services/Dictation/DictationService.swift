@@ -125,6 +125,7 @@ public actor DictationService: DictationServiceProtocol {
     private var recordingStartedAt: Date?
     private var currentOperationID: String?
     private var currentOperationTelemetryContext = DictationTelemetryContext()
+    private var currentOperationSpeechEngineAttribution: SpeechEngineTelemetryAttribution?
     private var currentObservabilityOperationContext: ObservabilityOperationContext?
     private var currentAIFormatterStartContext: AppPromptContext?
     private var currentAIFormatterFinishContext: AppPromptContext?
@@ -258,6 +259,7 @@ public actor DictationService: DictationServiceProtocol {
     ) async throws {
         logger.debug("dictation_start_requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         let operationContext = ObservabilityOperationContext()
+        let speechEngineAttribution = await currentSpeechEngineTelemetryAttribution()
         if let entitlements {
             do {
                 try await entitlements.assertCanTranscribe(now: Date())
@@ -267,6 +269,7 @@ public actor DictationService: DictationServiceProtocol {
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
                     telemetryContext: context,
+                    speechEngineAttribution: speechEngineAttribution,
                     outcome: .unavailable,
                     errorType: Self.errorType(for: error),
                     device: device
@@ -315,6 +318,7 @@ public actor DictationService: DictationServiceProtocol {
         clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTelemetryContext = context
+        currentOperationSpeechEngineAttribution = speechEngineAttribution
         currentObservabilityOperationContext = operationContext
         _state = .recording
         let liveSampleSink = await beginLiveDictationTranscriptionIfAvailable(
@@ -390,6 +394,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             let operationID = currentOperationID
             let telemetryContext = currentOperationTelemetryContext
+            let speechEngineAttribution = currentOperationSpeechEngineAttribution
             let observabilityOperationContext = currentObservabilityOperationContext
             _state = .idle
             recordingStartedAt = nil
@@ -397,6 +402,7 @@ public actor DictationService: DictationServiceProtocol {
                 operationID: operationID,
                 operationContext: observabilityOperationContext,
                 telemetryContext: telemetryContext,
+                speechEngineAttribution: speechEngineAttribution,
                 outcome: .failure,
                 errorType: Self.errorType(for: error),
                 device: device
@@ -1406,6 +1412,7 @@ public actor DictationService: DictationServiceProtocol {
     private func clearCurrentOperation() {
         currentOperationID = nil
         currentOperationTelemetryContext = DictationTelemetryContext()
+        currentOperationSpeechEngineAttribution = nil
         currentObservabilityOperationContext = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
@@ -1417,6 +1424,7 @@ public actor DictationService: DictationServiceProtocol {
         operationID: String? = nil,
         operationContext: ObservabilityOperationContext? = nil,
         telemetryContext: DictationTelemetryContext? = nil,
+        speechEngineAttribution: SpeechEngineTelemetryAttribution? = nil,
         outcome: ObservabilityOutcome,
         durationSeconds: Double? = nil,
         wordCount: Int? = nil,
@@ -1429,6 +1437,7 @@ public actor DictationService: DictationServiceProtocol {
     ) {
         guard let id = operationID ?? currentOperationID else { return }
         let context = telemetryContext ?? currentOperationTelemetryContext
+        let attribution = speechEngineAttribution ?? currentOperationSpeechEngineAttribution
         let observabilityContext = operationContext ?? currentObservabilityOperationContext
         Telemetry.send(.dictationOperation(
             operationID: id,
@@ -1440,12 +1449,19 @@ public actor DictationService: DictationServiceProtocol {
             wordCount: wordCount,
             errorType: errorType,
             cancelReason: cancelReason,
-            speechEngine: speechEngine,
-            engineVariant: engineVariant,
-            language: language,
+            speechEngine: speechEngine ?? attribution?.speechEngine.rawValue,
+            engineVariant: engineVariant ?? attribution?.engineVariant,
+            language: language ?? attribution?.language,
             appCategory: context.appCategory,
             device: device
         ))
+    }
+
+    private func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution? {
+        guard let attributor = sttTranscriber as? SpeechEngineTelemetryAttributing else {
+            return nil
+        }
+        return await attributor.currentSpeechEngineTelemetryAttribution()
     }
 }
 

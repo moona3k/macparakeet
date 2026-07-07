@@ -50,21 +50,21 @@ public final class SettingsViewModel {
         didSet {
             defaults.set(menuBarOnlyMode, forKey: AppPreferences.menuBarOnlyModeKey)
             NotificationCenter.default.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .menuBarOnly))
+            Telemetry.send(.settingChanged(setting: .menuBarOnly, value: Self.settingValue(menuBarOnlyMode)))
         }
     }
     public var appAppearanceMode: AppAppearanceMode {
         didSet {
             defaults.set(appAppearanceMode.rawValue, forKey: AppPreferences.appearanceModeKey)
             NotificationCenter.default.post(name: .macParakeetAppearanceModeDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .appAppearance))
+            Telemetry.send(.settingChanged(setting: .appAppearance, value: appAppearanceMode.rawValue))
         }
     }
     public var showIdlePill: Bool {
         didSet {
             defaults.set(showIdlePill, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
             NotificationCenter.default.post(name: .macParakeetShowIdlePillDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .hidePill))
+            Telemetry.send(.settingChanged(setting: .hidePill, value: Self.settingValue(!showIdlePill)))
         }
     }
     public var telemetryEnabled: Bool {
@@ -85,7 +85,10 @@ public final class SettingsViewModel {
                 notifyOnTranscriptionComplete,
                 forKey: UserDefaultsAppRuntimePreferences.notifyOnTranscriptionCompleteKey
             )
-            Telemetry.send(.settingChanged(setting: .transcriptionCompletionNotification))
+            Telemetry.send(.settingChanged(
+                setting: .transcriptionCompletionNotification,
+                value: Self.settingValue(notifyOnTranscriptionComplete)
+            ))
         }
     }
 
@@ -140,7 +143,7 @@ public final class SettingsViewModel {
     public var silenceAutoStop: Bool {
         didSet {
             defaults.set(silenceAutoStop, forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
-            Telemetry.send(.settingChanged(setting: .silenceAutoStop))
+            Telemetry.send(.settingChanged(setting: .silenceAutoStop, value: Self.settingValue(silenceAutoStop)))
         }
     }
     public var silenceDelay: Double {
@@ -152,7 +155,10 @@ public final class SettingsViewModel {
                 keepDictationOnClipboard,
                 forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey
             )
-            Telemetry.send(.settingChanged(setting: .keepDictationOnClipboard))
+            Telemetry.send(.settingChanged(
+                setting: .keepDictationOnClipboard,
+                value: Self.settingValue(keepDictationOnClipboard)
+            ))
         }
     }
     public var selectedMicrophoneDeviceUID: String {
@@ -181,7 +187,7 @@ public final class SettingsViewModel {
                 meetingAudioSourceMode.rawValue,
                 forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
             )
-            Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
+            Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
         }
     }
     public var showMeetingRecordingPill: Bool {
@@ -191,7 +197,10 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey
             )
             NotificationCenter.default.post(name: .macParakeetShowMeetingRecordingPillDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .meetingRecordingPill))
+            Telemetry.send(.settingChanged(
+                setting: .meetingRecordingPill,
+                value: Self.settingValue(showMeetingRecordingPill)
+            ))
         }
     }
     public var meetingAutoStopEnabled: Bool {
@@ -201,7 +210,7 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
             )
             NotificationCenter.default.post(name: .macParakeetMeetingAutoStopDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .meetingAutoStop))
+            Telemetry.send(.settingChanged(setting: .meetingAutoStop, value: Self.settingValue(meetingAutoStopEnabled)))
         }
     }
     public var pauseMediaDuringDictation: Bool {
@@ -210,7 +219,10 @@ public final class SettingsViewModel {
                 pauseMediaDuringDictation,
                 forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
             )
-            Telemetry.send(.settingChanged(setting: .pauseMediaDuringDictation))
+            Telemetry.send(.settingChanged(
+                setting: .pauseMediaDuringDictation,
+                value: Self.settingValue(pauseMediaDuringDictation)
+            ))
         }
     }
     public var instantDictationEnabled: Bool {
@@ -220,7 +232,7 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
             )
             NotificationCenter.default.post(name: .macParakeetInstantDictationDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .instantDictation))
+            Telemetry.send(.settingChanged(setting: .instantDictation, value: Self.settingValue(instantDictationEnabled)))
         }
     }
     public var preferBuiltInMicWhenBluetoothOutput: Bool {
@@ -229,7 +241,10 @@ public final class SettingsViewModel {
                 preferBuiltInMicWhenBluetoothOutput,
                 forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey
             )
-            Telemetry.send(.settingChanged(setting: .preferBuiltInMicBluetoothOutput))
+            Telemetry.send(.settingChanged(
+                setting: .preferBuiltInMicBluetoothOutput,
+                value: Self.settingValue(preferBuiltInMicWhenBluetoothOutput)
+            ))
         }
     }
     public var showLiveDictationPreview: Bool {
@@ -238,7 +253,10 @@ public final class SettingsViewModel {
                 showLiveDictationPreview,
                 forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
             )
-            Telemetry.send(.settingChanged(setting: .liveDictationPreview))
+            Telemetry.send(.settingChanged(
+                setting: .liveDictationPreview,
+                value: Self.settingValue(showLiveDictationPreview)
+            ))
         }
     }
 
@@ -263,7 +281,7 @@ public final class SettingsViewModel {
                 dictationUndoCountdown.rawValue,
                 forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
             )
-            Telemetry.send(.settingChanged(setting: .dictationUndoCountdown))
+            Telemetry.send(.settingChanged(setting: .dictationUndoCountdown, value: dictationUndoCountdown.rawValue))
         }
     }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
@@ -298,7 +316,7 @@ public final class SettingsViewModel {
     public var voiceReturnEnabled: Bool {
         didSet {
             defaults.set(voiceReturnEnabled, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
-            Telemetry.send(.settingChanged(setting: .voiceReturn))
+            Telemetry.send(.settingChanged(setting: .voiceReturn, value: Self.settingValue(voiceReturnEnabled)))
         }
     }
     public private(set) var voiceReturnTriggers: [String]
@@ -376,7 +394,7 @@ public final class SettingsViewModel {
                 dictationInsertionStyle.rawValue,
                 forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
             )
-            Telemetry.send(.settingChanged(setting: .dictationInsertionStyle))
+            Telemetry.send(.settingChanged(setting: .dictationInsertionStyle, value: dictationInsertionStyle.rawValue))
         }
     }
     public var customWordCount: Int = 0
@@ -394,19 +412,22 @@ public final class SettingsViewModel {
     public var saveDictationHistory: Bool {
         didSet {
             defaults.set(saveDictationHistory, forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey)
-            Telemetry.send(.settingChanged(setting: .saveHistory))
+            Telemetry.send(.settingChanged(setting: .saveHistory, value: Self.settingValue(saveDictationHistory)))
         }
     }
     public var saveAudioRecordings: Bool {
         didSet {
             defaults.set(saveAudioRecordings, forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey)
-            Telemetry.send(.settingChanged(setting: .audioRetention))
+            Telemetry.send(.settingChanged(setting: .audioRetention, value: Self.settingValue(saveAudioRecordings)))
         }
     }
     public var saveTranscriptionAudio: Bool {
         didSet {
             defaults.set(saveTranscriptionAudio, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)
-            Telemetry.send(.settingChanged(setting: .saveTranscriptionAudio))
+            Telemetry.send(.settingChanged(
+                setting: .saveTranscriptionAudio,
+                value: Self.settingValue(saveTranscriptionAudio)
+            ))
         }
     }
     public var meetingAudioRetention: MeetingAudioRetention {
@@ -417,7 +438,7 @@ public final class SettingsViewModel {
                 defaults: defaults
             )
             NotificationCenter.default.post(name: .macParakeetMeetingAudioRetentionDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .meetingAudioRetention))
+            Telemetry.send(.settingChanged(setting: .meetingAudioRetention, value: meetingAudioRetention.mode.rawValue))
         }
     }
     public var saveMeetingAudio: Bool {
@@ -434,19 +455,22 @@ public final class SettingsViewModel {
     public var youtubeAudioQuality: YouTubeAudioQuality {
         didSet {
             defaults.set(youtubeAudioQuality.rawValue, forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
-            Telemetry.send(.settingChanged(setting: .youtubeAudioQuality))
+            Telemetry.send(.settingChanged(setting: .youtubeAudioQuality, value: youtubeAudioQuality.rawValue))
         }
     }
     public var speakerDiarization: Bool {
         didSet {
             defaults.set(speakerDiarization, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
-            Telemetry.send(.settingChanged(setting: .speakerDiarization))
+            Telemetry.send(.settingChanged(setting: .speakerDiarization, value: Self.settingValue(speakerDiarization)))
         }
     }
     public var meetingSpeakerDiarization: Bool {
         didSet {
             defaults.set(meetingSpeakerDiarization, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
-            Telemetry.send(.settingChanged(setting: .meetingSpeakerDiarization))
+            Telemetry.send(.settingChanged(
+                setting: .meetingSpeakerDiarization,
+                value: Self.settingValue(meetingSpeakerDiarization)
+            ))
         }
     }
     public private(set) var pendingMeetingRecoveryCount = 0
@@ -467,7 +491,7 @@ public final class SettingsViewModel {
     public var autoSaveTranscripts: Bool {
         didSet {
             defaults.set(autoSaveTranscripts, forKey: AutoSaveService.enabledKey)
-            Telemetry.send(.settingChanged(setting: .autoSave))
+            Telemetry.send(.settingChanged(setting: .autoSave, value: Self.settingValue(autoSaveTranscripts)))
         }
     }
     public var autoSaveFormat: AutoSaveFormat {
@@ -481,7 +505,7 @@ public final class SettingsViewModel {
     public var meetingAutoSave: Bool {
         didSet {
             defaults.set(meetingAutoSave, forKey: AutoSaveScope.meeting.enabledKey)
-            Telemetry.send(.settingChanged(setting: .meetingAutoSave))
+            Telemetry.send(.settingChanged(setting: .meetingAutoSave, value: Self.settingValue(meetingAutoSave)))
         }
     }
     public var meetingAutoSaveFormat: AutoSaveFormat {
@@ -510,7 +534,7 @@ public final class SettingsViewModel {
             // telemetry — don't double-emit on sync.
             guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
+            Telemetry.send(.settingChanged(setting: .calendarAutoStartMode, value: calendarAutoStartMode.rawValue))
             // Enabling reminders requires notification authorization. The
             // Calendar grant flow requests this in tandem with Calendar
             // access, but a user who granted Calendar earlier (or via
@@ -536,7 +560,7 @@ public final class SettingsViewModel {
             defaults.set(meetingTriggerFilter.rawValue, forKey: CalendarAutoStartPreferences.triggerFilterKey)
             guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
+            Telemetry.send(.settingChanged(setting: .calendarTriggerFilter, value: meetingTriggerFilter.rawValue))
         }
     }
     public var calendarExcludedIdentifiers: Set<String> {
@@ -589,6 +613,10 @@ public final class SettingsViewModel {
             return String(format: "%.1f GB", mb / 1024)
         }
         return String(format: "%.0f MB", mb)
+    }
+
+    private static func settingValue(_ value: Bool) -> String {
+        value ? "true" : "false"
     }
 
     // Licensing / entitlements
@@ -1627,7 +1655,7 @@ public final class SettingsViewModel {
     private func applyLaunchAtLoginChange(_ enabled: Bool) {
         defaults.set(enabled, forKey: "launchAtLogin")
         launchAtLoginError = nil
-        Telemetry.send(.settingChanged(setting: .launchAtLogin))
+        Telemetry.send(.settingChanged(setting: .launchAtLogin, value: Self.settingValue(enabled)))
 
         guard let service = launchAtLoginService else { return }
 

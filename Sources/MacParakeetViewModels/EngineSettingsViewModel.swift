@@ -55,7 +55,7 @@ public final class EngineSettingsViewModel {
     public var cohereComputePolicy: CohereTranscribeEngine.ComputePolicy {
         didSet {
             cohereComputePolicy.save(to: defaults)
-            Telemetry.send(.settingChanged(setting: .cohereComputePolicy))
+            Telemetry.send(.settingChanged(setting: .cohereComputePolicy, value: cohereComputePolicy.rawValue))
         }
     }
     /// True when the selected compute policy differs from the one the engine
@@ -1012,7 +1012,7 @@ public final class EngineSettingsViewModel {
         guard let speechEngineSwitcher else {
             // No runtime wired (previews/tests): just persist the choice.
             SpeechEnginePreference.saveParakeetModelVariant(variant, defaults: defaults)
-            Telemetry.send(.settingChanged(setting: .parakeetModelVariant))
+            Telemetry.send(.settingChanged(setting: .parakeetModelVariant, value: variant.rawValue))
             return
         }
 
@@ -1042,7 +1042,7 @@ public final class EngineSettingsViewModel {
                     }
                 }
                 SpeechEnginePreference.saveParakeetModelVariant(variant, defaults: self.defaults)
-                Telemetry.send(.settingChanged(setting: .parakeetModelVariant))
+                Telemetry.send(.settingChanged(setting: .parakeetModelVariant, value: variant.rawValue))
             } catch is CancellationError {
                 self.revertParakeetModelVariant()
             } catch {
@@ -1072,7 +1072,7 @@ public final class EngineSettingsViewModel {
         guard let speechEngineSwitcher else {
             // No runtime wired (previews/tests): just persist the choice.
             SpeechEnginePreference.saveNemotronModelVariant(variant, defaults: defaults)
-            Telemetry.send(.settingChanged(setting: .nemotronModelVariant))
+            Telemetry.send(.settingChanged(setting: .nemotronModelVariant, value: variant.rawValue))
             return
         }
 
@@ -1102,7 +1102,7 @@ public final class EngineSettingsViewModel {
                     }
                 }
                 SpeechEnginePreference.saveNemotronModelVariant(variant, defaults: self.defaults)
-                Telemetry.send(.settingChanged(setting: .nemotronModelVariant))
+                Telemetry.send(.settingChanged(setting: .nemotronModelVariant, value: variant.rawValue))
             } catch is CancellationError {
                 self.revertNemotronModelVariant()
             } catch {

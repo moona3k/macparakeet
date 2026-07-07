@@ -754,7 +754,7 @@ public enum TelemetryEventSpec: Sendable {
         messageCount: Int?,
         errorType: String?
     )
-    case historySearched
+    case historySearched(resultCountBucket: String? = nil)
     case historyReplayed
     case copyToClipboard(source: TelemetryCopySource)
     case hotkeyCustomized(
@@ -767,7 +767,7 @@ public enum TelemetryEventSpec: Sendable {
     case snippetAdded
     case snippetEdited
     case snippetDeleted
-    case settingChanged(setting: TelemetrySettingName)
+    case settingChanged(setting: TelemetrySettingName, value: String? = nil)
     case telemetryOptedOut
     case onboardingCompleted(durationSeconds: Double?)
     case onboardingStep(
@@ -901,7 +901,12 @@ public enum TelemetryEventSpec: Sendable {
     case meetingAutoStopProposed(reason: TelemetryMeetingAutoStopReason)
     case meetingAutoStopConfirmed(reason: TelemetryMeetingAutoStopReason)
     case meetingAutoStopVetoed(reason: TelemetryMeetingAutoStopReason)
-    case micStallDetected(signature: TelemetryMicStallSignature, elapsedMs: Int)
+    case micStallDetected(
+        signature: TelemetryMicStallSignature? = nil,
+        elapsedMs: Int? = nil,
+        stallCount: Int? = 1,
+        totalStalledSeconds: Double? = nil
+    )
     /// Launch-time VAD model prep outcome (Phase 4.5). Only `.prepared` /
     /// `.failed` are ever sent — see `TelemetryVADModelPrepOutcome`.
     case vadModelPrep(outcome: TelemetryVADModelPrepOutcome)
@@ -1073,7 +1078,6 @@ extension TelemetryEventSpec {
     var props: [String: String]? {
         switch self {
         case .appLaunched,
-             .historySearched,
              .historyReplayed,
              .customWordAdded,
              .customWordDeleted,
@@ -1431,8 +1435,15 @@ extension TelemetryEventSpec {
             return ["source": source.rawValue]
         case .processingModeChanged(let mode):
             return ["mode": mode]
-        case .settingChanged(let setting):
-            return ["setting": setting.rawValue]
+        case .historySearched(let resultCountBucket):
+            return Self.compactProps(
+                ("result_count", resultCountBucket)
+            )
+        case .settingChanged(let setting, let value):
+            return Self.compactProps(
+                ("setting", setting.rawValue),
+                ("value", value)
+            )
         case .onboardingCompleted(let durationSeconds):
             return Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format))
@@ -1647,11 +1658,13 @@ extension TelemetryEventSpec {
              .meetingAutoStopConfirmed(let reason),
              .meetingAutoStopVetoed(let reason):
             return ["reason": reason.rawValue]
-        case .micStallDetected(let signature, let elapsedMs):
-            return [
-                "signature": signature.rawValue,
-                "elapsed_ms": "\(max(0, elapsedMs))",
-            ]
+        case .micStallDetected(let signature, let elapsedMs, let stallCount, let totalStalledSeconds):
+            return Self.compactProps(
+                ("signature", signature?.rawValue),
+                ("elapsed_ms", elapsedMs.map { "\(max(0, $0))" }),
+                ("stall_count", stallCount.map { "\(max(0, $0))" }),
+                ("total_stalled_seconds", totalStalledSeconds.map(Self.format))
+            )
         case .vadModelPrep(let outcome):
             return ["outcome": outcome.rawValue]
         case .calendarReminderShown(let mode, let leadMinutes, let hasMeetUrl):
@@ -1896,7 +1909,7 @@ public enum TelemetryImplementedContract {
         .meetingAutoStopProposed: ["reason"],
         .meetingAutoStopConfirmed: ["reason"],
         .meetingAutoStopVetoed: ["reason"],
-        .micStallDetected: ["signature", "elapsed_ms"],
+        .micStallDetected: ["stall_count"],
         .vadModelPrep: ["outcome"],
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],

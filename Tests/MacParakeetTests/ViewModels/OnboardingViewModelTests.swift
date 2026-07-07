@@ -917,7 +917,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(warmUpCallCount, 0)
 
         let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
-            guard case .settingChanged(let setting) = event else { return nil }
+            guard case .settingChanged(let setting, _) = event else { return nil }
             return setting
         }
         XCTAssertEqual(settings, [.whisperDefaultLanguage])
