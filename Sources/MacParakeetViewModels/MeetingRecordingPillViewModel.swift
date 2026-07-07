@@ -21,11 +21,34 @@ public final class MeetingRecordingPillViewModel {
     public var systemLevel: Float = 0
     public var captureHealth: MeetingCaptureHealthSummary = .notRecording
     public var backgroundTranscriptionCount: Int = 0
+    public private(set) var showsAudioSavedConfirmation = false
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
     public var onCompletionAnimationFinished: (() -> Void)?
 
+    @ObservationIgnored private var audioSavedConfirmationTask: Task<Void, Never>?
+
     public init() {}
+
+    deinit {
+        audioSavedConfirmationTask?.cancel()
+    }
+
+    public func showAudioSavedConfirmation(duration: Duration = .seconds(4)) {
+        showsAudioSavedConfirmation = true
+        audioSavedConfirmationTask?.cancel()
+        audioSavedConfirmationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.showsAudioSavedConfirmation = false
+        }
+    }
+
+    public func clearAudioSavedConfirmation() {
+        audioSavedConfirmationTask?.cancel()
+        audioSavedConfirmationTask = nil
+        showsAudioSavedConfirmation = false
+    }
 
     public var formattedElapsed: String {
         let minutes = elapsedSeconds / 60

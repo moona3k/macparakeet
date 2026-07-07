@@ -53,6 +53,16 @@ public enum TranscriptionCompletionNotifier {
         )
     }
 
+    /// Critical meeting finalization failure content. This is independent of
+    /// the completion-notification preference because it tells the user saved
+    /// audio needs action, not that background work succeeded.
+    public static func meetingNeedsRetryContent() -> Content {
+        Content(
+            title: "Meeting needs a retry",
+            body: "Your audio is saved."
+        )
+    }
+
     static func wordsLabel(_ count: Int) -> String {
         "\(count) \(count == 1 ? "word" : "words")"
     }

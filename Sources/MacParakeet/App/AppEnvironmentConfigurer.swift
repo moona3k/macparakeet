@@ -2,6 +2,14 @@ import Foundation
 import MacParakeetCore
 import MacParakeetViewModels
 
+private enum MeetingFinalizationRetryBridgeError: LocalizedError {
+    case coordinatorUnavailable
+
+    var errorDescription: String? {
+        "Meeting retry is not available right now."
+    }
+}
+
 @MainActor
 final class AppEnvironmentConfigurer {
     private final class CoordinatorRefs {
@@ -238,7 +246,8 @@ final class AppEnvironmentConfigurer {
         promptResultsViewModel.shouldMarkPromptResultUnread = { [weak self] promptResultID in
             guard let self else { return true }
             if case .result(let id) = self.transcriptionViewModel.selectedTab,
-               id == promptResultID {
+                id == promptResultID
+            {
                 return false
             }
             return true
@@ -340,6 +349,12 @@ final class AppEnvironmentConfigurer {
                     callbacks.onOpenMainWindow()
                 }
             },
+            onQueuedTranscriptionFailed: { [weak self] content in
+                guard let self else { return }
+                self.libraryViewModel.loadTranscriptions()
+                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
+                TranscriptionCompletionPresenter.presentNotification(content)
+            },
             onRecordingBegan: {
                 coordinatorRefs.dictation?.hideIdlePill()
                 isMeetingAutoStopObservingRecording = true
@@ -357,6 +372,29 @@ final class AppEnvironmentConfigurer {
         )
         coordinatorRefs.meeting = meetingCoordinator
         liveMeetingCoordinator = meetingCoordinator
+        let retryMeetingFinalization: (Transcription) async throws -> Void = {
+            [weak meetingCoordinator] transcription in
+            guard let meetingCoordinator else {
+                throw MeetingFinalizationRetryBridgeError.coordinatorUnavailable
+            }
+            try await meetingCoordinator.retryMeetingFinalization(transcription)
+        }
+        libraryViewModel.onRetryMeetingTranscription = retryMeetingFinalization
+        meetingsWorkspaceViewModel.recentMeetingsViewModel.onRetryMeetingTranscription = retryMeetingFinalization
+
+        Task { [weak self] in
+            do {
+                let reconciled = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+                    repository: env.transcriptionRepo
+                )
+                guard !reconciled.isEmpty, let self else { return }
+                self.libraryViewModel.loadTranscriptions()
+                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
+            } catch {
+                // Best-effort startup hygiene. The row remains visible on the
+                // next successful Library refresh if reconciliation fails.
+            }
+        }
 
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,

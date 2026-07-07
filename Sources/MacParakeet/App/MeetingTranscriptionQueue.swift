@@ -11,6 +11,17 @@ final class MeetingTranscriptionQueue {
         let trigger: TelemetryMeetingOperationTrigger?
         let liveWordCount: Int
         let liveTranscriptLagged: Bool
+
+        func withTranscriptionID(_ transcriptionID: UUID) -> Item {
+            Item(
+                recording: recording,
+                transcriptionID: transcriptionID,
+                operationContext: operationContext,
+                trigger: trigger,
+                liveWordCount: liveWordCount,
+                liveTranscriptLagged: liveTranscriptLagged
+            )
+        }
     }
 
     struct Snapshot: Equatable {
@@ -29,6 +40,7 @@ final class MeetingTranscriptionQueue {
 
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingTranscriptionQueue")
     private let transcriptionService: TranscriptionServiceProtocol
+    private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let meetingRecordingSettlement: MeetingRecordingSettlement
 
     private var pendingItems: [Item] = []
@@ -41,9 +53,11 @@ final class MeetingTranscriptionQueue {
 
     init(
         transcriptionService: TranscriptionServiceProtocol,
+        transcriptionRepo: TranscriptionRepositoryProtocol,
         meetingRecordingSettlement: MeetingRecordingSettlement
     ) {
         self.transcriptionService = transcriptionService
+        self.transcriptionRepo = transcriptionRepo
         self.meetingRecordingSettlement = meetingRecordingSettlement
     }
 
@@ -76,7 +90,22 @@ final class MeetingTranscriptionQueue {
         }
     }
 
-    private func process(_ item: Item) async {
+    private func process(_ originalItem: Item) async {
+        let item: Item
+        do {
+            item = try await ensureProcessingRow(for: originalItem)
+            if activeItem?.transcriptionID != item.transcriptionID {
+                activeItem = item
+                notifyStateChanged()
+            }
+        } catch {
+            logger.error(
+                "queued_meeting_transcription_prepare_failed session=\(originalItem.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+            finishActiveItem(.failure(item: originalItem, error: error))
+            return
+        }
+
         let transcription: Transcription
         do {
             transcription = try await Observability.withOperationContext(item.operationContext) {
@@ -90,6 +119,7 @@ final class MeetingTranscriptionQueue {
             logger.error(
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            await markFailed(item, error: error)
             finishActiveItem(.failure(item: item, error: error))
             return
         }
@@ -106,6 +136,61 @@ final class MeetingTranscriptionQueue {
             )
         }
         finishActiveItem(.success(item: item, transcription: transcription))
+    }
+
+    private func ensureProcessingRow(for item: Item) async throws -> Item {
+        if try await fetchTranscription(id: item.transcriptionID) != nil {
+            try await updateStatus(
+                id: item.transcriptionID,
+                status: .processing,
+                errorMessage: nil
+            )
+            return item
+        }
+
+        let prepared = try await transcriptionService.prepareMeetingTranscription(
+            recording: item.recording
+        )
+        if prepared.status != .processing {
+            try await updateStatus(
+                id: prepared.id,
+                status: .processing,
+                errorMessage: nil
+            )
+        }
+        return item.withTranscriptionID(prepared.id)
+    }
+
+    private func markFailed(_ item: Item, error: Error) async {
+        do {
+            try await updateStatus(
+                id: item.transcriptionID,
+                status: error is CancellationError ? .cancelled : .error,
+                errorMessage: error is CancellationError ? nil : error.localizedDescription
+            )
+        } catch {
+            logger.error(
+                "queued_meeting_status_update_failed id=\(item.transcriptionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func fetchTranscription(id: UUID) async throws -> Transcription? {
+        let repo = transcriptionRepo
+        return try await Task.detached(priority: .userInitiated) {
+            try repo.fetch(id: id)
+        }.value
+    }
+
+    private func updateStatus(
+        id: UUID,
+        status: Transcription.TranscriptionStatus,
+        errorMessage: String?
+    ) async throws {
+        let repo = transcriptionRepo
+        try await Task.detached(priority: .userInitiated) {
+            try repo.updateStatus(id: id, status: status, errorMessage: errorMessage)
+        }.value
     }
 
     private func finishActiveItem(_ completion: Completion) {

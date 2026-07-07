@@ -10,6 +10,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
@@ -17,6 +18,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
+        try persistProcessingRows([first, second], in: transcriptionRepo)
 
         queue.enqueue(first)
         queue.enqueue(second)
@@ -38,6 +40,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
@@ -45,6 +48,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
+        try persistProcessingRows([first, second], in: transcriptionRepo)
+        try createAudioFile(for: first)
         await transcriptionService.fail(transcriptionID: first.transcriptionID)
 
         var completions: [String] = []
@@ -65,6 +70,10 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(completions, ["failure:A", "success:B"])
         XCTAssertEqual(transcriptionSnapshot, [first.transcriptionID, second.transcriptionID])
         XCTAssertEqual(lockStore.deletes, [second.recording.folderURL])
+        let failed = try XCTUnwrap(transcriptionRepo.fetch(id: first.transcriptionID))
+        XCTAssertEqual(failed.status, .error)
+        XCTAssertNotNil(failed.errorMessage)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.recording.mixedAudioURL.path))
     }
 
     func testSettlementRefusalAfterFinalizeStillReportsSuccessAndRetainsLock() async throws {
@@ -73,12 +82,14 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
             )
         )
         let item = makeItem(name: "A")
+        try persistProcessingRows([item], in: transcriptionRepo)
         await transcriptionService.mismatchSettlementPaths(transcriptionID: item.transcriptionID)
 
         var completions: [String] = []
@@ -105,6 +116,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         await transcriptionService.setHoldFinalization(true)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
@@ -112,6 +124,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         )
         let first = makeItem(name: "A")
         let second = makeItem(name: "B")
+        try persistProcessingRows([first, second], in: transcriptionRepo)
 
         queue.enqueue(first)
         queue.enqueue(second)
@@ -127,6 +140,77 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(queue.snapshot.totalCount, 0)
     }
 
+    func testQueueCreatesProcessingRowWhenEnqueuedItemHasNoRow() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        await transcriptionService.setHoldFinalization(true)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "Missing Row")
+
+        queue.enqueue(item)
+        try await waitUntil {
+            queue.snapshot.activeItem?.transcriptionID != nil
+                && queue.snapshot.activeItem?.transcriptionID != item.transcriptionID
+        }
+
+        let preparedID = try XCTUnwrap(queue.snapshot.activeItem?.transcriptionID)
+        let prepared = try XCTUnwrap(transcriptionRepo.fetch(id: preparedID))
+        XCTAssertEqual(prepared.status, .processing)
+        XCTAssertEqual(prepared.sourceType, .meeting)
+        XCTAssertEqual(transcriptionRepo.transcriptions.count, 1)
+
+        await transcriptionService.releaseFinalization()
+        await queue.waitUntilIdle()
+
+        let finalizedIDs = await transcriptionService.snapshot()
+        XCTAssertEqual(finalizedIDs, [preparedID])
+        XCTAssertEqual(transcriptionRepo.transcriptions.map(\.id), [preparedID])
+        XCTAssertEqual(transcriptionRepo.transcriptions.first?.status, .completed)
+    }
+
+    func testQueueRetryReusesFailedRowAndDoesNotDuplicate() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "Retry")
+        let failed = Transcription(
+            id: item.transcriptionID,
+            fileName: item.recording.displayName,
+            filePath: item.recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: item.recording.folderURL.path,
+            status: .error,
+            errorMessage: "Previous failure",
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(failed)
+        try createAudioFile(for: item)
+
+        queue.enqueue(item)
+        await queue.waitUntilIdle()
+
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertNil(fetched.errorMessage)
+        XCTAssertEqual(transcriptionRepo.transcriptions.map(\.id), [item.transcriptionID])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
+    }
+
     private func makeItem(name: String) -> MeetingTranscriptionQueue.Item {
         let output = makeRecordingOutput(displayName: name)
         return MeetingTranscriptionQueue.Item(
@@ -137,6 +221,35 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             liveWordCount: 0,
             liveTranscriptLagged: false
         )
+    }
+
+    private func persistProcessingRows(
+        _ items: [MeetingTranscriptionQueue.Item],
+        in repo: MockTranscriptionRepository
+    ) throws {
+        for item in items {
+            try repo.save(
+                Transcription(
+                    id: item.transcriptionID,
+                    fileName: item.recording.displayName,
+                    filePath: item.recording.mixedAudioURL.path,
+                    meetingArtifactFolderPath: item.recording.folderURL.path,
+                    status: .processing,
+                    sourceType: .meeting
+                ))
+        }
+    }
+
+    private func createAudioFile(for item: MeetingTranscriptionQueue.Item) throws {
+        try FileManager.default.createDirectory(
+            at: item.recording.folderURL,
+            withIntermediateDirectories: true
+        )
+        XCTAssertTrue(
+            FileManager.default.createFile(
+                atPath: item.recording.mixedAudioURL.path,
+                contents: Data("audio".utf8)
+            ))
     }
 
     private func makeRecordingOutput(displayName: String) -> MeetingRecordingOutput {
@@ -246,12 +359,15 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     }
 
     func prepareMeetingTranscription(recording: MeetingRecordingOutput) async throws -> Transcription {
-        Transcription(
+        let transcription = Transcription(
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: recording.folderURL.path,
             status: .processing,
             sourceType: .meeting
         )
+        try transcriptionRepo.save(transcription)
+        return transcription
     }
 
     func finalizeMeetingTranscription(

@@ -9,6 +9,23 @@ enum MeetingRecordingQuitState {
     case finishing
 }
 
+private enum MeetingFinalizationRetryError: LocalizedError, Sendable {
+    case notMeeting
+    case alreadyProcessing
+    case missingArtifactFolder
+
+    var errorDescription: String? {
+        switch self {
+        case .notMeeting:
+            return "Only meeting transcriptions can be retried from saved meeting audio."
+        case .alreadyProcessing:
+            return "This meeting is already being transcribed."
+        case .missingArtifactFolder:
+            return "The saved meeting folder is no longer available."
+        }
+    }
+}
+
 @MainActor
 final class MeetingRecordingFlowCoordinator {
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingRecordingFlow")
@@ -67,6 +84,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
+    private let onQueuedTranscriptionFailed: (TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
@@ -134,6 +152,7 @@ final class MeetingRecordingFlowCoordinator {
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
+        onQueuedTranscriptionFailed: ((TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
@@ -158,6 +177,7 @@ final class MeetingRecordingFlowCoordinator {
             meetingTranscriptionQueue
             ?? MeetingTranscriptionQueue(
                 transcriptionService: transcriptionService,
+                transcriptionRepo: transcriptionRepo,
                 meetingRecordingSettlement: meetingRecordingSettlement
             )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
@@ -165,6 +185,10 @@ final class MeetingRecordingFlowCoordinator {
         self.onQueuedTranscriptionReady =
             onQueuedTranscriptionReady ?? { transcription, _ in
                 onTranscriptionReady(transcription)
+            }
+        self.onQueuedTranscriptionFailed =
+            onQueuedTranscriptionFailed ?? { content in
+                TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
         self.onRecordingStopping = onRecordingStopping
@@ -255,7 +279,8 @@ final class MeetingRecordingFlowCoordinator {
         pendingTitle = title
         pendingAudioSourceMode = sourceMode
         pendingStartContext = makeStartContext(trigger: resolvedTrigger, sourceMode: sourceMode)
-        pendingCalendarEventSnapshot = (resolvedTrigger != .calendarAutoStart && title == nil)
+        pendingCalendarEventSnapshot =
+            (resolvedTrigger != .calendarAutoStart && title == nil)
             ? probableCalendarSnapshotProvider()
             : nil
         currentMeetingOperationContext = ObservabilityOperationContext()
@@ -612,7 +637,8 @@ final class MeetingRecordingFlowCoordinator {
             let title = pendingTitle
             let calendarEventSnapshot = pendingCalendarEventSnapshot
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
-            let startContext = pendingStartContext
+            let startContext =
+                pendingStartContext
                 ?? makeStartContext(trigger: trigger ?? .manual, sourceMode: sourceMode)
             pendingTrigger = nil
             pendingTitle = nil
@@ -910,6 +936,7 @@ final class MeetingRecordingFlowCoordinator {
             // its live-Ask chat persisted (in .stopRecordingAndTranscribe), so
             // tear it down now; the floating pill alone carries the celebration.
             meetingDurablySaved = true
+            pillViewModel.showAudioSavedConfirmation()
             teardownMeetingPanel()
             // The Metatron resolves to the checkmark once its minimum bloom has
             // also elapsed, then the pill self-dismisses. Interruptible: a
@@ -1000,6 +1027,7 @@ final class MeetingRecordingFlowCoordinator {
         savedCompletionDismissTask = nil
         meetingDurablySaved = false
         metatronBloomSettled = false
+        pillViewModel.clearAudioSavedConfirmation()
     }
 
     /// Tear down the floating pill + panel and return the pill view model to
@@ -1301,9 +1329,9 @@ final class MeetingRecordingFlowCoordinator {
         guard let speechEngineSelectionProvider else { return }
         Task { @MainActor [weak self, weak panelViewModel] in
             guard let self,
-                  let panelViewModel,
-                  self.panelViewModel === panelViewModel,
-                  let selection = await speechEngineSelectionProvider()
+                let panelViewModel,
+                self.panelViewModel === panelViewModel,
+                let selection = await speechEngineSelectionProvider()
             else { return }
             guard selection.engine == .cohere else { return }
             panelViewModel.updateLiveTranscriptStatus(.previewUnsupported(engine: selection.engine))
@@ -1357,6 +1385,11 @@ final class MeetingRecordingFlowCoordinator {
         showMeetingPanel()
     }
 
+    func retryMeetingFinalization(_ transcription: Transcription) async throws {
+        let item = try await makeRetryQueueItem(from: transcription)
+        meetingTranscriptionQueue.enqueue(item)
+    }
+
     private func hideMeetingPanel() {
         panelController?.hide()
     }
@@ -1391,7 +1424,46 @@ final class MeetingRecordingFlowCoordinator {
                 liveTranscriptLagged: item.liveTranscriptLagged,
                 errorType: TelemetryErrorClassifier.classify(error)
             )
+            onQueuedTranscriptionFailed(TranscriptionCompletionNotifier.meetingNeedsRetryContent())
         }
+    }
+
+    private func makeRetryQueueItem(from transcription: Transcription) async throws -> MeetingTranscriptionQueue.Item {
+        let repo = transcriptionRepo
+        return try await Task.detached(priority: .userInitiated) {
+            let latest = try repo.fetch(id: transcription.id) ?? transcription
+            guard latest.sourceType == .meeting else {
+                throw MeetingFinalizationRetryError.notMeeting
+            }
+            guard latest.status != .processing else {
+                throw MeetingFinalizationRetryError.alreadyProcessing
+            }
+            guard let folderURL = MeetingArtifactStore.sessionFolderURL(for: latest)?.standardizedFileURL else {
+                throw MeetingFinalizationRetryError.missingArtifactFolder
+            }
+            let mixedAudioURL =
+                MeetingAudioFile.mixedAudioURL(for: latest)
+                ?? folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+            let durationSeconds = latest.durationMs.map { max(0, Double($0) / 1000.0) } ?? 0
+            let recording = try MeetingRecordingOutput.loadArchived(
+                displayName: latest.effectiveDisplayTitle,
+                mixedAudioURL: mixedAudioURL,
+                durationSeconds: durationSeconds
+            )
+            try repo.updateStatus(
+                id: latest.id,
+                status: .processing,
+                errorMessage: nil
+            )
+            return MeetingTranscriptionQueue.Item(
+                recording: recording,
+                transcriptionID: latest.id,
+                operationContext: ObservabilityOperationContext(),
+                trigger: nil,
+                liveWordCount: 0,
+                liveTranscriptLagged: false
+            )
+        }.value
     }
 
     private func persistLiveAskConversationIfNeeded(transcriptionID: UUID) {

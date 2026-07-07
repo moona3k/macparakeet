@@ -103,7 +103,12 @@ struct MeetingsView: View {
                 }
             }
         } message: {
-            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .meetings))
+            Text(
+                MeetingDeletionCopy.singleAudioOnlyMessage(
+                    surface: .meetings,
+                    status: pendingDeleteAudio?.status ?? .completed
+                )
+            )
         }
         .alert(
             MeetingDeletionCopy.fullDeleteAlertTitle,
@@ -123,7 +128,7 @@ struct MeetingsView: View {
             }
         } message: {
             if let pendingDeleteMeeting {
-                Text(MeetingDeletionCopy.singleFullDeleteMessage(title: pendingDeleteMeeting.fileName))
+                Text(MeetingDeletionCopy.singleFullDeleteMessage(for: pendingDeleteMeeting))
             }
         }
         .alert(
@@ -531,6 +536,7 @@ struct MeetingsView: View {
                         searchText: viewModel.recentMeetingsViewModel.searchText,
                         isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
                         showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
+                        isRetrying: viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription),
                         onTap: {
                             if viewModel.recentMeetingsViewModel.isBulkOperationInProgress {
                                 return
@@ -540,6 +546,9 @@ struct MeetingsView: View {
                             } else {
                                 onSelectMeeting(transcription)
                             }
+                        },
+                        onRetry: {
+                            viewModel.recentMeetingsViewModel.retryMeetingTranscription(transcription)
                         },
                         menuContent: { recentMeetingMenu(for: transcription) }
                     )
@@ -572,6 +581,17 @@ struct MeetingsView: View {
         let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
 
         Divider()
+
+        if transcription.status == .error {
+            Button {
+                viewModel.recentMeetingsViewModel.retryMeetingTranscription(transcription)
+            } label: {
+                Label("Retry Transcription", systemImage: "arrow.clockwise")
+            }
+            .disabled(viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+
+            Divider()
+        }
 
         Button {
             MeetingArtifactActions.openFolder(for: transcription)
@@ -772,11 +792,15 @@ struct MeetingsView: View {
             return MeetingDeletionCopy.bulkAudioOnlyMessage(
                 count: operation.targetCount,
                 skippedCount: operation.skippedCount,
-                surface: .meetings
+                surface: .meetings,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
             )
         }
 
-        return MeetingDeletionCopy.bulkFullDeleteMessage(count: operation.targetCount)
+        return MeetingDeletionCopy.bulkFullDeleteMessage(
+            count: operation.targetCount,
+            hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+        )
     }
 
     private func handleRecentMeetingsSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {

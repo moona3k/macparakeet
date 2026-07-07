@@ -92,4 +92,14 @@ final class MeetingRecordingTileTests: XCTestCase {
             "Unmute microphone"
         )
     }
+
+    func testAudioSavedConfirmationAutoClears() async throws {
+        let viewModel = MeetingRecordingPillViewModel()
+
+        viewModel.showAudioSavedConfirmation(duration: .milliseconds(10))
+
+        XCTAssertTrue(viewModel.showsAudioSavedConfirmation)
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertFalse(viewModel.showsAudioSavedConfirmation)
+    }
 }

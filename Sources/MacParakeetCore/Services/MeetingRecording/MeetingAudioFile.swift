@@ -28,14 +28,15 @@ public enum MeetingAudioFile {
     public static func mixedAudioURL(for transcription: Transcription) -> URL? {
         guard transcription.sourceType == .meeting else { return nil }
         guard let path = transcription.filePath,
-              !path.trimmingCharacters(in: .whitespaces).isEmpty else {
+            !path.trimmingCharacters(in: .whitespaces).isEmpty
+        else {
             return nil
         }
         return URL(fileURLWithPath: path)
     }
 
-    /// Whether finalized meeting audio is reachable on disk. Returns false for
-    /// non-meeting rows, actively processing rows, and missing audio files.
+    /// Whether meeting audio is reachable on disk. Returns false for
+    /// non-meeting rows and missing audio files.
     public static func isAvailable(
         for transcription: Transcription,
         fileManager: FileManager = .default
@@ -53,8 +54,7 @@ public enum MeetingAudioFile {
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) -> State {
-        guard transcription.sourceType == .meeting,
-              transcription.status != .processing else {
+        guard transcription.sourceType == .meeting else {
             return .notMeeting
         }
         guard let url = mixedAudioURL(for: transcription) else { return .removed }
@@ -125,7 +125,8 @@ public enum MeetingAudioFile {
     ///   name (`"Meeting May 11, 2026 at 1:32 PM"`); appending another
     ///   date would just create noise.
     public static func suggestedExportStem(for transcription: Transcription) -> String {
-        let derived = transcription.derivedTitle?
+        let derived =
+            transcription.derivedTitle?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !derived.isEmpty {
             let datePart = isoDateFormatter.string(from: transcription.createdAt)
@@ -164,14 +165,16 @@ public enum MeetingAudioFile {
         var disallowed = CharacterSet(charactersIn: "/:\\\"")
         disallowed.formUnion(.controlCharacters)
 
-        let cleaned = input
+        let cleaned =
+            input
             .components(separatedBy: disallowed)
             .joined(separator: " ")
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        let capped = cleaned.count <= maxStemLength
+        let capped =
+            cleaned.count <= maxStemLength
             ? cleaned
             : String(cleaned.prefix(maxStemLength))
                 .trimmingCharacters(in: .whitespacesAndNewlines)

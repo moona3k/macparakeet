@@ -69,4 +69,13 @@ final class TranscriptionCompletionNotifierTests: XCTestCase {
         XCTAssertEqual(content?.title, "Transcriptions finished with errors")
         XCTAssertEqual(content?.body, "38 transcribed \u{00B7} 2 failed")
     }
+
+    // MARK: - Meeting retry
+
+    func testMeetingNeedsRetryContentIsIndependentFailureCopy() {
+        let content = TranscriptionCompletionNotifier.meetingNeedsRetryContent()
+
+        XCTAssertEqual(content.title, "Meeting needs a retry")
+        XCTAssertEqual(content.body, "Your audio is saved.")
+    }
 }

@@ -155,6 +155,7 @@ struct MeetingRecordingTile: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .lineLimit(2)
+                audioSavedConfirmationBadge
                 backgroundTranscriptionBadge
             }
 
@@ -214,6 +215,7 @@ struct MeetingRecordingTile: View {
                         MeetingSourceHealthInlineBadge(chip: warning)
                     }
                 }
+                audioSavedConfirmationBadge
                 backgroundTranscriptionBadge
             }
 
@@ -225,6 +227,18 @@ struct MeetingRecordingTile: View {
                 }
                 stopButton
             }
+        }
+    }
+
+    @ViewBuilder
+    private var audioSavedConfirmationBadge: some View {
+        if viewModel.showsAudioSavedConfirmation {
+            Label("Audio saved", systemImage: "checkmark.circle.fill")
+                .font(DesignSystem.Typography.micro.weight(.medium))
+                .foregroundStyle(DesignSystem.Colors.successGreen)
+                .lineLimit(1)
+                .transition(.opacity)
+                .accessibilityLabel("Audio saved")
         }
     }
 
@@ -290,7 +304,7 @@ struct MeetingRecordingTile: View {
                 Text("Saved to Library")
                     .font(DesignSystem.Typography.sectionTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Your meeting is ready.")
+                Text("Audio saved")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .lineLimit(1)
@@ -433,9 +447,10 @@ private struct StartRecordingButton: View {
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
         .accessibilityLabel(permissionState.isReady ? "Start recording" : "Enable meeting recording")
-        .accessibilityHint(permissionState.isReady
-            ? "Captures system audio and microphone, then transcribes locally."
-            : "Opens the required macOS permission flow before recording.")
+        .accessibilityHint(
+            permissionState.isReady
+                ? "Captures system audio and microphone, then transcribes locally."
+                : "Opens the required macOS permission flow before recording.")
     }
 }
 
@@ -482,9 +497,11 @@ private struct TilePauseResumeButton: View {
             .padding(.vertical, 7)
             .background(
                 Capsule()
-                    .fill(isHovered
-                        ? DesignSystem.Colors.warningAmber.opacity(0.12)
-                        : DesignSystem.Colors.surfaceElevated.opacity(0.7))
+                    .fill(
+                        isHovered
+                            ? DesignSystem.Colors.warningAmber.opacity(0.12)
+                            : DesignSystem.Colors.surfaceElevated.opacity(0.7)
+                    )
                     .overlay(
                         Capsule()
                             .stroke(

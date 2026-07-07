@@ -182,7 +182,12 @@ struct TranscriptionLibraryView: View {
                 }
             }
         } message: {
-            Text(MeetingDeletionCopy.singleAudioOnlyMessage(surface: .library))
+            Text(
+                MeetingDeletionCopy.singleAudioOnlyMessage(
+                    surface: .library,
+                    status: pendingDeleteAudio?.status ?? .completed
+                )
+            )
         }
         .alert(
             bulkOperationTitle,
@@ -294,6 +299,7 @@ struct TranscriptionLibraryView: View {
                             searchText: viewModel.searchText,
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            isRetrying: viewModel.isRetryingMeetingTranscription(transcription),
                             onTap: {
                                 if viewModel.isBulkOperationInProgress || bulkExportInProgress {
                                     return
@@ -303,6 +309,9 @@ struct TranscriptionLibraryView: View {
                                 } else {
                                     onSelect(transcription)
                                 }
+                            },
+                            onRetry: {
+                                viewModel.retryMeetingTranscription(transcription)
                             },
                             menuContent: { libraryMenuItems(for: transcription) }
                         )
@@ -349,6 +358,17 @@ struct TranscriptionLibraryView: View {
             let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
 
             Divider()
+
+            if transcription.status == .error {
+                Button {
+                    viewModel.retryMeetingTranscription(transcription)
+                } label: {
+                    Label("Retry Transcription", systemImage: "arrow.clockwise")
+                }
+                .disabled(viewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+
+                Divider()
+            }
 
             Button {
                 MeetingArtifactActions.openFolder(for: transcription)
@@ -892,17 +912,22 @@ struct TranscriptionLibraryView: View {
             return MeetingDeletionCopy.bulkAudioOnlyMessage(
                 count: operation.targetCount,
                 skippedCount: operation.skippedCount,
-                surface: .library
+                surface: .library,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
             )
         }
 
         if operation.meetingCount > 0 {
             if operation.meetingCount == operation.targetCount {
-                return MeetingDeletionCopy.bulkFullDeleteMessage(count: operation.targetCount)
+                return MeetingDeletionCopy.bulkFullDeleteMessage(
+                    count: operation.targetCount,
+                    hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+                )
             }
             return MeetingDeletionCopy.mixedBulkFullDeleteMessage(
                 totalCount: operation.targetCount,
-                meetingCount: operation.meetingCount
+                meetingCount: operation.meetingCount,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
             )
         }
 
@@ -919,7 +944,7 @@ struct TranscriptionLibraryView: View {
 
     private func singleDeleteMessage(for transcription: Transcription) -> String {
         if transcription.sourceType == .meeting {
-            return MeetingDeletionCopy.singleFullDeleteMessage(title: transcription.fileName)
+            return MeetingDeletionCopy.singleFullDeleteMessage(for: transcription)
         }
         return "\"\(transcription.fileName)\" will be permanently deleted. Original local source files are not removed."
     }

@@ -87,6 +87,15 @@ public enum BulkTranscriptionOperation: Sendable {
         }
     }
 
+    public var hasNonCompletedMeeting: Bool {
+        switch self {
+        case .deleteItems(let targets), .deleteAudioOnly(let targets, _):
+            return targets.contains { transcription in
+                transcription.sourceType == .meeting && transcription.status != .completed
+            }
+        }
+    }
+
     public var isDeleteAudioOnly: Bool {
         if case .deleteAudioOnly = self { return true }
         return false
@@ -123,6 +132,8 @@ public final class TranscriptionLibraryViewModel {
     public private(set) var isBulkSelectionModeEnabled = false
     public private(set) var isBulkOperationInProgress = false
     public private(set) var pendingBulkOperation: BulkTranscriptionOperation?
+    public private(set) var retryingMeetingTranscriptionIDs: Set<UUID> = []
+    public var onRetryMeetingTranscription: ((Transcription) async throws -> Void)?
 
     /// Override for tests; production code uses `Date()`.
     public var nowProvider: @Sendable () -> Date = { Date() }
@@ -184,7 +195,8 @@ public final class TranscriptionLibraryViewModel {
             bucketed[group, default: []].append(item)
         }
 
-        return encounterOrder
+        return
+            encounterOrder
             .sorted { $0.sortKey < $1.sortKey }
             .map { group in (group: group, items: bucketed[group] ?? []) }
     }
@@ -219,6 +231,59 @@ public final class TranscriptionLibraryViewModel {
         } catch {
             logger.error("Failed to update transcription favorite: \(error.localizedDescription, privacy: .private)")
             errorMessage = "Failed to update favorite: \(error.localizedDescription)"
+        }
+    }
+
+    public func isRetryingMeetingTranscription(_ transcription: Transcription) -> Bool {
+        retryingMeetingTranscriptionIDs.contains(transcription.id)
+    }
+
+    @discardableResult
+    public func retryMeetingTranscription(_ transcription: Transcription) -> Task<Void, Never> {
+        guard transcription.sourceType == .meeting,
+            transcription.status == .error,
+            !retryingMeetingTranscriptionIDs.contains(transcription.id)
+        else {
+            return Task {}
+        }
+        guard let retry = onRetryMeetingTranscription else {
+            errorMessage = "Meeting retry is not available."
+            return Task {}
+        }
+
+        retryingMeetingTranscriptionIDs.insert(transcription.id)
+        setLoadedStatus(
+            id: transcription.id,
+            status: .processing,
+            errorMessage: nil
+        )
+
+        return Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.retryingMeetingTranscriptionIDs.remove(transcription.id)
+            }
+            do {
+                try await retry(transcription)
+                self.cancelActiveLoad()
+                do {
+                    try self.reloadLoadedWindow()
+                } catch {
+                    self.logger.error(
+                        "Retried meeting transcription but failed to refresh Library: \(error.localizedDescription, privacy: .private)"
+                    )
+                    self.errorMessage = "Retried meeting, but failed to refresh Library: \(error.localizedDescription)"
+                }
+            } catch {
+                self.logger.error(
+                    "Failed to retry meeting transcription: \(error.localizedDescription, privacy: .private)")
+                self.errorMessage = "Failed to retry meeting transcription: \(error.localizedDescription)"
+                self.setLoadedStatus(
+                    id: transcription.id,
+                    status: .error,
+                    errorMessage: error.localizedDescription
+                )
+            }
         }
     }
 
@@ -353,7 +418,8 @@ public final class TranscriptionLibraryViewModel {
             if !result.failedIDs.isEmpty {
                 isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
-                errorMessage = Self.bulkDeleteFailureMessage(succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
+                errorMessage = Self.bulkDeleteFailureMessage(
+                    succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
             } else {
                 isBulkOperationInProgress = false
                 finishBulkSelection()
@@ -420,7 +486,8 @@ public final class TranscriptionLibraryViewModel {
                 return
             }
             if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[idx].meetingArtifactFolderPath = transcriptions[idx].meetingArtifactFolderPath
+                transcriptions[idx].meetingArtifactFolderPath =
+                    transcriptions[idx].meetingArtifactFolderPath
                     ?? MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore)
@@ -436,7 +503,8 @@ public final class TranscriptionLibraryViewModel {
         guard transcription.sourceType == .file else { return false }
         guard let repo = transcriptionRepo else { return false }
         guard let normalizedTitle = Transcription.normalizedTitleOverride(from: title),
-              normalizedTitle != transcription.effectiveDisplayTitle else {
+            normalizedTitle != transcription.effectiveDisplayTitle
+        else {
             return false
         }
 
@@ -453,7 +521,9 @@ public final class TranscriptionLibraryViewModel {
         do {
             try reloadLoadedWindow()
         } catch {
-            logger.error("Renamed transcription title but failed to refresh Library: \(error.localizedDescription, privacy: .private)")
+            logger.error(
+                "Renamed transcription title but failed to refresh Library: \(error.localizedDescription, privacy: .private)"
+            )
             errorMessage = "Renamed transcription, but failed to refresh Library: \(error.localizedDescription)"
         }
         return true
@@ -580,7 +650,8 @@ public final class TranscriptionLibraryViewModel {
             sortOrder: sortOrder,
             limit: pageSize,
             offset: offset,
-            includeProcessing: false
+            includeProcessing: false,
+            includeProcessingMeetings: true
         )
     }
 
@@ -616,10 +687,23 @@ public final class TranscriptionLibraryViewModel {
 
     private func clearLoadedMeetingAudio(forIDs ids: Set<UUID>) {
         for index in transcriptions.indices where ids.contains(transcriptions[index].id) {
-            transcriptions[index].meetingArtifactFolderPath = transcriptions[index].meetingArtifactFolderPath
+            transcriptions[index].meetingArtifactFolderPath =
+                transcriptions[index].meetingArtifactFolderPath
                 ?? MeetingArtifactStore.sessionFolderURL(for: transcriptions[index])?.standardizedFileURL.path
             transcriptions[index].filePath = nil
         }
+        publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    private func setLoadedStatus(
+        id: UUID,
+        status: Transcription.TranscriptionStatus,
+        errorMessage: String?
+    ) {
+        guard let index = transcriptions.firstIndex(where: { $0.id == id }) else { return }
+        transcriptions[index].status = status
+        transcriptions[index].errorMessage = errorMessage
+        transcriptions[index].updatedAt = Date()
         publishLoadedItems(transcriptions, hasMore: hasMore)
     }
 
@@ -693,7 +777,10 @@ public final class TranscriptionLibraryViewModel {
             parts.append("Deleted audio for \(succeeded) \(succeeded == 1 ? "meeting" : "meetings").")
         }
         if failed > 0 {
-            parts.append(failed == 1 ? "1 meeting audio file could not be deleted." : "\(failed) meeting audio files could not be deleted.")
+            parts.append(
+                failed == 1
+                    ? "1 meeting audio file could not be deleted."
+                    : "\(failed) meeting audio files could not be deleted.")
         }
         if skipped > 0 {
             parts.append(skipped == 1 ? "1 selected item was skipped." : "\(skipped) selected items were skipped.")
