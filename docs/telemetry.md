@@ -230,7 +230,7 @@ the UI. Setup **step views** remain a separate 24h funnel (`onboarding`).
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt; engine/language attribution is attached on success, empty, cancelled, unavailable, and failure outcomes when the active engine is known |
 | `dictation_first_load_caption_shown` | `first_install` | How often the first model-load caption is shown |
 | `dictation_first_load_caption_duration` | `duration_ms`, `outcome` | How long the first model-load caption stays visible, and whether it resolves, extends, or fails |
 
@@ -320,7 +320,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `llm_provider_unavailable` | `provider`, `error_type`, `feature`, `source` | Provider setup/config drift distinct from true LLM request failures |
 | `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
-| `history_searched` | — | Is search useful? |
+| `history_searched` | `result_count` (`0`, `1`, `2_5`, `6_20`, `21_50`, `51_plus`) | Is search useful? Emitted once per debounced executed search, never per keystroke, and never includes the query text. |
 | `history_replayed` | — | Do people re-listen to audio? |
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
 | `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
@@ -387,7 +387,7 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, dictation_insertion_style, dictation_undo_countdown, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. Appearance changes log only that the setting changed, not the selected light/dark/system value. The dictation insertion-style picker logs only that the control changed, not the selected style or dictated text. The Parakeet and Nemotron model pickers, Whisper and Cohere language pickers, Cohere compute picker (GPU vs Neural Engine), and CJK first-run setup emit only the setting name; selected speech engine details are observed from actual STT usage rows. Meeting audio retention logs only that the policy changed, not the selected retention window. Meeting recording pill and meeting auto-stop log only that the toggles changed; they do not include app bundle IDs, audio, transcript content, or meeting state. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, dictation_insertion_style, dictation_undo_countdown, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -424,7 +424,7 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `mic_stall_detected` | `signature` (`mic_missing`, `mic_silent`, `mic_gap`), `elapsed_ms` | Which confirmed mic-health failure pattern occurred while system audio was active, and how long the coarse stall signal had persisted |
+| `mic_stall_detected` | First row per recording: `signature` (`mic_missing`, `mic_silent`, `mic_gap`), `elapsed_ms`, `stall_count`. Summary rows: `stall_count`, `total_stalled_seconds`. | Which confirmed mic-health failure pattern first occurred while system audio was active, with repeated stalls suppressed into periodic/final summaries so noisy sessions do not flood production telemetry |
 
 ### 6. Licensing — "Is the business working?"
 
@@ -642,7 +642,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
 
 ### Event Name Allowlist
 
-The worker maintains a hardcoded allowlist of valid event names. Any event not on the list is rejected. This prevents:
+The worker maintains a hardcoded allowlist of valid event names. Any event not on the list is rejected. Event props are stored as JSON and are not allowlisted server-side, so adding props to an existing event does not require a website deploy. This prevents:
 - Endpoint abuse / data poisoning from reverse-engineering
 - Accidental typos in event names going undetected
 

@@ -84,7 +84,7 @@ Transcription content, audio, file paths, YouTube URLs, LLM prompts/responses, c
 ### Risks
 
 - **Endpoint abuse** — Mitigated with event name allowlist, rate limiting, field validation
-- **Schema evolution** — Props are JSON, so new event types don't require D1 migrations. But every new `TelemetryEventName` must also be added to the `ALLOWED_EVENTS` allowlist in the **separate** `macparakeet-website` repo: the Worker rejects an entire batch if it contains any unknown event, silently dropping co-batched events until the allowlist is redeployed. This has bitten us more than once; a CI guard that diffs the Swift enum against the website allowlist is planned (`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`).
+- **Schema evolution** — Props are JSON, so new props and new event shapes on an existing event name do not require D1 migrations or website allowlist changes. Every new `TelemetryEventName` still must be added to the `ALLOWED_EVENTS` allowlist in the **separate** `macparakeet-website` repo: the Worker rejects an entire batch if it contains any unknown event, silently dropping co-batched events until the allowlist is redeployed. This has bitten us more than once; a CI guard that diffs the Swift enum against the website allowlist is planned (`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`).
 
 ## References
 

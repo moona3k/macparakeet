@@ -776,11 +776,12 @@ final class TelemetryServiceTests: XCTestCase {
         let props = try XCTUnwrap(json["props"] as? [String: String])
 
         XCTAssertEqual(props["setting"], "cohere_language")
+        XCTAssertNil(props["value"])
     }
 
-    func testSettingChangedSerializesMeetingRecordingPillSetting() throws {
+    func testSettingChangedSerializesSafeValueWhenProvided() throws {
         let event = TelemetryEvent(
-            spec: .settingChanged(setting: .meetingRecordingPill),
+            spec: .settingChanged(setting: .meetingRecordingPill, value: "true"),
             appVer: "0.4.2",
             osVer: "15.3",
             locale: "en-US",
@@ -795,6 +796,7 @@ final class TelemetryServiceTests: XCTestCase {
         let props = try XCTUnwrap(json["props"] as? [String: String])
 
         XCTAssertEqual(props["setting"], "meeting_recording_pill")
+        XCTAssertEqual(props["value"], "true")
     }
 
     func testDictationOperationSerializesCancelReason() throws {
@@ -1267,7 +1269,40 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(event.event, "mic_stall_detected")
         XCTAssertEqual(event.props?["signature"], "mic_silent")
         XCTAssertEqual(event.props?["elapsed_ms"], "3250")
-        XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["signature", "elapsed_ms"])
+        XCTAssertEqual(event.props?["stall_count"], "1")
+        XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["signature", "elapsed_ms", "stall_count"])
+    }
+
+    func testMicStallDetectedSerializesSummaryShape() {
+        let event = TelemetryEvent(
+            spec: .micStallDetected(stallCount: 245, totalStalledSeconds: 73.6),
+            appVer: "0.6.9",
+            osVer: "15.4",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "session"
+        )
+
+        XCTAssertEqual(event.event, "mic_stall_detected")
+        XCTAssertNil(event.props?["signature"])
+        XCTAssertNil(event.props?["elapsed_ms"])
+        XCTAssertEqual(event.props?["stall_count"], "245")
+        XCTAssertEqual(event.props?["total_stalled_seconds"], "73.6")
+    }
+
+    func testHistorySearchedSerializesResultCountBucketOnly() {
+        let event = TelemetryEvent(
+            spec: .historySearched(resultCountBucket: "2_5"),
+            appVer: "0.6.9",
+            osVer: "15.4",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "session"
+        )
+
+        XCTAssertEqual(event.event, "history_searched")
+        XCTAssertEqual(event.props?["result_count"], "2_5")
+        XCTAssertNil(event.props?["query"])
     }
 
     func testFeedbackOperationSerializesAttachmentFlags() {
@@ -1570,7 +1605,7 @@ final class TelemetryServiceTests: XCTestCase {
                 messageCount: 3,
                 errorType: nil
             ),
-            .historySearched,
+            .historySearched(resultCountBucket: "2_5"),
             .historyReplayed,
             .copyToClipboard(source: .transcription),
             .hotkeyCustomized(surface: .dictation, kind: .modifier),
@@ -1583,7 +1618,7 @@ final class TelemetryServiceTests: XCTestCase {
             .promptCreated,
             .promptUpdated,
             .promptDeleted,
-            .settingChanged(setting: .saveHistory),
+            .settingChanged(setting: .saveHistory, value: "true"),
             .telemetryOptedOut,
             .onboardingCompleted(durationSeconds: 10.0),
             .licenseActivated,

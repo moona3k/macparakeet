@@ -367,20 +367,36 @@ private final class EventSink: @unchecked Sendable {
 }
 
 private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
+    private struct StallSummary: Sendable {
+        let stallCount: Int
+        let totalStalledMs: Int
+
+        var totalStalledSeconds: Double {
+            Double(totalStalledMs) / 1000.0
+        }
+    }
+
+    private enum StallTelemetryEmission: Sendable {
+        case full(
+            signature: MeetingMicHealthMonitor.StallSignature,
+            elapsedMs: Int,
+            summary: StallSummary
+        )
+        case summary(StallSummary)
+    }
+
+    private static let summaryInterval = 100
+
     private let lock = NSLock()
     private let config: MeetingMicHealthMonitor.Config
     private let nowProvider: @Sendable () -> Date
     private let featureEnabled: Bool
     private var monitor: MeetingMicHealthMonitor
     private var isObserving = false
-    /// ADR-025 Phase A specifies `mic_stall_detected` is "fired once per confirmed
-    /// stall trip" so the field can confirm *which* signatures occur. But the monitor
-    /// re-trips every time a near-silent mic momentarily crosses the non-silent
-    /// threshold — i.e. a participant who is listening, not speaking — so a single
-    /// recording re-detects the same signature continuously. We dedup to once per
-    /// recording per signature: enough to learn the signature's field incidence (the
-    /// Phase A goal) without the per-buffer firehose. Reset on every `start`.
-    private var reportedSignatures: Set<MeetingMicHealthMonitor.StallSignature> = []
+    private var didReportFirstStall = false
+    private var stallCount = 0
+    private var totalStalledMs = 0
+    private var lastSummaryStallCount = 0
 
     init(
         config: MeetingMicHealthMonitor.Config = .default,
@@ -396,16 +412,21 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
     func start(observing sourceIncludesMicrophone: Bool) {
         lock.withLock {
             monitor = MeetingMicHealthMonitor(config: config)
-            reportedSignatures.removeAll()
+            resetTelemetryCountersLocked()
             isObserving = featureEnabled && sourceIncludesMicrophone
         }
     }
 
     func stop() {
-        lock.withLock {
+        let summary = lock.withLock {
+            let summary = pendingSummaryLocked()
             monitor.reset()
-            reportedSignatures.removeAll()
+            resetTelemetryCountersLocked()
             isObserving = false
+            return summary
+        }
+        if let summary {
+            sendSummary(summary)
         }
     }
 
@@ -434,31 +455,74 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
         systemSignal: MeetingMicHealthMonitor.AudioSignal?
     ) -> [MeetingMicHealthMonitor.HealthEvent] {
         let now = nowProvider()
-        // Resolve which signatures are newly reported *inside* the lock (the monitor
-        // state and the dedup set are both mutated from the audio callback thread),
-        // then emit telemetry outside it so `Telemetry.send` never runs under the lock.
+        // Resolve emissions inside the lock (the monitor state and counters are both
+        // mutated from the audio callback thread), then emit telemetry outside it so
+        // `Telemetry.send` never runs under the lock.
         let observed = lock.withLock {
             guard isObserving else {
-                return (events: [MeetingMicHealthMonitor.HealthEvent](), freshStalls: [(MeetingMicHealthMonitor.StallSignature, Int)]())
+                return (
+                    events: [MeetingMicHealthMonitor.HealthEvent](),
+                    emissions: [StallTelemetryEmission]()
+                )
             }
             let events = monitor.ingest(micSignal: micSignal, systemSignal: systemSignal, now: now)
-            var fresh: [(MeetingMicHealthMonitor.StallSignature, Int)] = []
+            var emissions: [StallTelemetryEmission] = []
             for event in events {
                 // ADR-025 Phase A emits only detection telemetry; warning and recovery
                 // surfaces consume `.recovered` in later phases.
-                guard case let .stallSuspected(signature, elapsedMs) = event else { continue }
-                // First occurrence of this signature in the current recording only.
-                if reportedSignatures.insert(signature).inserted {
-                    fresh.append((signature, elapsedMs))
+                guard case let .stallSuspected(signature, rawElapsedMs) = event else { continue }
+                let elapsedMs = max(0, rawElapsedMs)
+                stallCount += 1
+                totalStalledMs += elapsedMs
+                let summary = StallSummary(stallCount: stallCount, totalStalledMs: totalStalledMs)
+                if !didReportFirstStall {
+                    didReportFirstStall = true
+                    emissions.append(.full(signature: signature, elapsedMs: elapsedMs, summary: summary))
+                } else if stallCount.isMultiple(of: Self.summaryInterval) {
+                    lastSummaryStallCount = stallCount
+                    emissions.append(.summary(summary))
                 }
             }
-            return (events, fresh)
+            return (events, emissions)
         }
 
-        for (signature, elapsedMs) in observed.freshStalls {
-            Telemetry.send(.micStallDetected(signature: .init(signature), elapsedMs: elapsedMs))
+        for emission in observed.emissions {
+            send(emission)
         }
         return observed.events
+    }
+
+    private func pendingSummaryLocked() -> StallSummary? {
+        guard stallCount > 1, lastSummaryStallCount != stallCount else { return nil }
+        lastSummaryStallCount = stallCount
+        return StallSummary(stallCount: stallCount, totalStalledMs: totalStalledMs)
+    }
+
+    private func resetTelemetryCountersLocked() {
+        didReportFirstStall = false
+        stallCount = 0
+        totalStalledMs = 0
+        lastSummaryStallCount = 0
+    }
+
+    private func send(_ emission: StallTelemetryEmission) {
+        switch emission {
+        case .full(let signature, let elapsedMs, let summary):
+            Telemetry.send(.micStallDetected(
+                signature: .init(signature),
+                elapsedMs: elapsedMs,
+                stallCount: summary.stallCount
+            ))
+        case .summary(let summary):
+            sendSummary(summary)
+        }
+    }
+
+    private func sendSummary(_ summary: StallSummary) {
+        Telemetry.send(.micStallDetected(
+            stallCount: summary.stallCount,
+            totalStalledSeconds: summary.totalStalledSeconds
+        ))
     }
 }
 

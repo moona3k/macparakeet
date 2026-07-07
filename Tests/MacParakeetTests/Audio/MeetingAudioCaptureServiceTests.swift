@@ -287,6 +287,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events.first?.props?["signature"], "mic_missing")
         XCTAssertEqual(events.first?.props?["elapsed_ms"], "0")
+        XCTAssertEqual(events.first?.props?["stall_count"], "1")
     }
 
     func testMicHealthTelemetryReportsFlappingSilentMicOnce() async throws {
@@ -310,9 +311,6 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         _ = try await service.start()
-        // Async teardown so XCTest awaits stop() before the next test (no detached
-        // Task-in-defer race — this file has a history of timing-sensitive tests).
-        addTeardownBlock { await service.stop() }
 
         let silent = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0, 0, 0, 0]))
         let loud = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, 0.25, 0.25, 0.25]))
@@ -332,6 +330,18 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let events = telemetry.snapshot().filter { $0.name == .micStallDetected }
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events.first?.props?["signature"], "mic_silent")
+        XCTAssertEqual(events.first?.props?["stall_count"], "1")
+        XCTAssertNil(events.first?.props?["total_stalled_seconds"])
+
+        await service.stop()
+
+        let stoppedEvents = telemetry.snapshot().filter { $0.name == .micStallDetected }
+        XCTAssertEqual(stoppedEvents.count, 2)
+        let summary = try XCTUnwrap(stoppedEvents.last)
+        XCTAssertNil(summary.props?["signature"])
+        XCTAssertNil(summary.props?["elapsed_ms"])
+        XCTAssertNotNil(summary.props?["total_stalled_seconds"])
+        XCTAssertGreaterThan(Int(summary.props?["stall_count"] ?? "0") ?? 0, 1)
     }
 
     func testMicHealthTelemetryDoesNotRunInSystemOnlyMode() async throws {

@@ -48,6 +48,7 @@ protocol STTRuntimeProtocol: Sendable {
     ) async throws
     func currentSpeechEngineSelection() async -> SpeechEngineSelection
     func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities
+    func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution
 }
 
 extension STTRuntimeProtocol {
@@ -1773,6 +1774,15 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     public func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
         capabilities(for: speechEngine)
+    }
+
+    public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution {
+        let engine = speechEngine
+        return SpeechEngineTelemetryAttribution(
+            speechEngine: engine,
+            engineVariant: telemetryEngineVariant(for: engine),
+            language: defaultLanguage(for: engine)
+        )
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
