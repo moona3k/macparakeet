@@ -10,9 +10,7 @@ enum MeetingFinalizationReconciler {
         repository: TranscriptionRepositoryProtocol
     ) async throws -> [UUID] {
         try await Task.detached(priority: .utility) {
-            let staleRows = try repository.fetchAll(limit: nil).filter {
-                $0.sourceType == .meeting && $0.status == .processing
-            }
+            let staleRows = try repository.fetchMeetings(withStatus: .processing)
             for row in staleRows {
                 try repository.updateStatus(
                     id: row.id,

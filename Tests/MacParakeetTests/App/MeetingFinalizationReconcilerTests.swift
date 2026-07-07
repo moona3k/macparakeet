@@ -29,6 +29,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
             repository: repo
         )
 
+        XCTAssertEqual(repo.fetchMeetingsWithStatusCalls, [.processing])
         XCTAssertEqual(reconciledIDs, [staleMeeting.id])
         let reconciled = try XCTUnwrap(repo.fetch(id: staleMeeting.id))
         XCTAssertEqual(reconciled.status, .error)

@@ -7,6 +7,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
     func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
+    func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription]
     func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
@@ -44,6 +45,12 @@ extension TranscriptionRepositoryProtocol {
                 && !($0.filePath?.isEmpty ?? true)
                 && $0.status == .completed
                 && $0.createdAt <= cutoff
+        }
+    }
+
+    public func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        try fetchAll(limit: nil).filter {
+            $0.sourceType == .meeting && $0.status == status
         }
     }
 
@@ -350,6 +357,16 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 request = request.filter(Transcription.Columns.sourceType == sourceType.rawValue)
             }
             return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        try dbQueue.read { db in
+            try Transcription
+                .filter(Transcription.Columns.sourceType == Transcription.SourceType.meeting.rawValue)
+                .filter(Transcription.Columns.status == status.rawValue)
+                .order(Transcription.Columns.createdAt.desc)
+                .fetchAll(db)
         }
     }
 

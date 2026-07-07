@@ -138,8 +138,10 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
     var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
+    var fetchMeetingsWithStatusCalls: [Transcription.TranscriptionStatus] = []
     var fetchAllError: Error?
     var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
+    var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
     var updateTitleOverrideError: Error?
     var updateFilePathError: Error?
     var updateSpeakersError: Error?
@@ -171,6 +173,17 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         let sorted = transcriptions.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
         return sorted
+    }
+
+    func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        fetchMeetingsWithStatusCalls.append(status)
+        if let fetchMeetingsWithStatusHandler {
+            return try fetchMeetingsWithStatusHandler(status)
+        }
+        return
+            transcriptions
+            .filter { $0.sourceType == .meeting && $0.status == status }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? {

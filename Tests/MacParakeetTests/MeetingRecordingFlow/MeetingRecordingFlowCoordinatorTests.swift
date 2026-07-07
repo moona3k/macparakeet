@@ -166,10 +166,11 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         )
 
         try await coordinator.retryMeetingFinalization(failed)
-
-        let processing = try XCTUnwrap(settlementHarness.transcriptionRepo.fetch(id: failed.id))
-        XCTAssertEqual(processing.status, .processing)
-        XCTAssertNil(processing.errorMessage)
+        try await waitForTranscriptionStatus(
+            id: failed.id,
+            in: settlementHarness.transcriptionRepo,
+            status: .processing
+        )
 
         await transcriptionService.releaseMeetingFinalization()
         await coordinator.testHook_waitForMeetingTranscriptionQueue()
@@ -832,6 +833,28 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             }
             if startedAt.duration(to: .now) > .seconds(1) {
                 XCTFail("Expected queued meeting finalization to start.")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForTranscriptionStatus(
+        id: UUID,
+        in repo: MockTranscriptionRepository,
+        status: Transcription.TranscriptionStatus
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while true {
+            let transcription = try XCTUnwrap(repo.fetch(id: id))
+            if transcription.status == status {
+                XCTAssertNil(transcription.errorMessage)
+                return
+            }
+            if startedAt.duration(to: .now) > .seconds(1) {
+                XCTFail(
+                    "Timed out waiting for transcription \(id) status \(status); latest status: \(transcription.status)"
+                )
                 return
             }
             try await Task.sleep(for: .milliseconds(20))

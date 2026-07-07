@@ -12,6 +12,8 @@ enum MeetingRecordingQuitState {
 private enum MeetingFinalizationRetryError: LocalizedError, Sendable {
     case notMeeting
     case alreadyProcessing
+    case alreadyCompleted
+    case notRetryable
     case missingArtifactFolder
 
     var errorDescription: String? {
@@ -20,6 +22,10 @@ private enum MeetingFinalizationRetryError: LocalizedError, Sendable {
             return "Only meeting transcriptions can be retried from saved meeting audio."
         case .alreadyProcessing:
             return "This meeting is already being transcribed."
+        case .alreadyCompleted:
+            return "This meeting has already been transcribed."
+        case .notRetryable:
+            return "Only failed meeting transcriptions can be retried."
         case .missingArtifactFolder:
             return "The saved meeting folder is no longer available."
         }
@@ -1435,8 +1441,14 @@ final class MeetingRecordingFlowCoordinator {
             guard latest.sourceType == .meeting else {
                 throw MeetingFinalizationRetryError.notMeeting
             }
-            guard latest.status != .processing else {
-                throw MeetingFinalizationRetryError.alreadyProcessing
+            guard latest.status == .error else {
+                if latest.status == .processing {
+                    throw MeetingFinalizationRetryError.alreadyProcessing
+                }
+                if latest.status == .completed {
+                    throw MeetingFinalizationRetryError.alreadyCompleted
+                }
+                throw MeetingFinalizationRetryError.notRetryable
             }
             guard let folderURL = MeetingArtifactStore.sessionFolderURL(for: latest)?.standardizedFileURL else {
                 throw MeetingFinalizationRetryError.missingArtifactFolder
@@ -1449,11 +1461,6 @@ final class MeetingRecordingFlowCoordinator {
                 displayName: latest.effectiveDisplayTitle,
                 mixedAudioURL: mixedAudioURL,
                 durationSeconds: durationSeconds
-            )
-            try repo.updateStatus(
-                id: latest.id,
-                status: .processing,
-                errorMessage: nil
             )
             return MeetingTranscriptionQueue.Item(
                 recording: recording,

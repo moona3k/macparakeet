@@ -211,6 +211,71 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
     }
 
+    func testQueueDropsDuplicateRetryWhileItemIsActive() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        await transcriptionService.setHoldFinalization(true)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "Duplicate Retry")
+        try persistRow(status: .error, item: item, in: transcriptionRepo)
+        try createAudioFile(for: item)
+
+        queue.enqueue(item)
+        queue.enqueue(item)
+        try await waitUntil {
+            queue.snapshot.activeItem?.transcriptionID == item.transcriptionID
+        }
+        XCTAssertEqual(queue.snapshot.pendingCount, 0)
+
+        await transcriptionService.releaseFinalization()
+        await queue.waitUntilIdle()
+
+        let transcriptionSnapshot = await transcriptionService.snapshot()
+        XCTAssertEqual(transcriptionSnapshot, [item.transcriptionID])
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertEqual(transcriptionRepo.transcriptions.map(\.id), [item.transcriptionID])
+    }
+
+    func testQueueDoesNotRegressCompletedRowBackToProcessing() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            )
+        )
+        let item = makeItem(name: "Already Done")
+        try persistRow(status: .completed, item: item, in: transcriptionRepo)
+
+        var completions: [MeetingTranscriptionQueue.Completion] = []
+        queue.onCompletion = { completion in
+            completions.append(completion)
+        }
+
+        queue.enqueue(item)
+        await queue.waitUntilIdle()
+
+        XCTAssertTrue(completions.isEmpty)
+        let transcriptionSnapshot = await transcriptionService.snapshot()
+        XCTAssertEqual(transcriptionSnapshot, [])
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertNil(fetched.errorMessage)
+    }
+
     private func makeItem(name: String) -> MeetingTranscriptionQueue.Item {
         let output = makeRecordingOutput(displayName: name)
         return MeetingTranscriptionQueue.Item(
@@ -228,16 +293,24 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         in repo: MockTranscriptionRepository
     ) throws {
         for item in items {
-            try repo.save(
-                Transcription(
-                    id: item.transcriptionID,
-                    fileName: item.recording.displayName,
-                    filePath: item.recording.mixedAudioURL.path,
-                    meetingArtifactFolderPath: item.recording.folderURL.path,
-                    status: .processing,
-                    sourceType: .meeting
-                ))
+            try persistRow(status: .processing, item: item, in: repo)
         }
+    }
+
+    private func persistRow(
+        status: Transcription.TranscriptionStatus,
+        item: MeetingTranscriptionQueue.Item,
+        in repo: MockTranscriptionRepository
+    ) throws {
+        try repo.save(
+            Transcription(
+                id: item.transcriptionID,
+                fileName: item.recording.displayName,
+                filePath: item.recording.mixedAudioURL.path,
+                meetingArtifactFolderPath: item.recording.folderURL.path,
+                status: status,
+                sourceType: .meeting
+            ))
     }
 
     private func createAudioFile(for item: MeetingTranscriptionQueue.Item) throws {

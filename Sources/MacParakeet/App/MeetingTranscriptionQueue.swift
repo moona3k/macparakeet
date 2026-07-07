@@ -38,6 +38,11 @@ final class MeetingTranscriptionQueue {
         case failure(item: Item, error: Error)
     }
 
+    private enum ProcessingAdmission {
+        case admitted(Item)
+        case alreadyCompleted(Transcription)
+    }
+
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingTranscriptionQueue")
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
@@ -66,6 +71,12 @@ final class MeetingTranscriptionQueue {
     }
 
     func enqueue(_ item: Item) {
+        guard !containsQueuedTranscription(id: item.transcriptionID) else {
+            logger.info(
+                "queued_meeting_transcription_duplicate_dropped id=\(item.transcriptionID.uuidString, privacy: .public)"
+            )
+            return
+        }
         pendingItems.append(item)
         notifyStateChanged()
         startNextIfNeeded()
@@ -93,7 +104,16 @@ final class MeetingTranscriptionQueue {
     private func process(_ originalItem: Item) async {
         let item: Item
         do {
-            item = try await ensureProcessingRow(for: originalItem)
+            switch try await ensureProcessingRow(for: originalItem) {
+            case .admitted(let admittedItem):
+                item = admittedItem
+            case .alreadyCompleted(let transcription):
+                logger.info(
+                    "queued_meeting_transcription_already_completed id=\(transcription.id.uuidString, privacy: .public)"
+                )
+                finishActiveItem(nil)
+                return
+            }
             if activeItem?.transcriptionID != item.transcriptionID {
                 activeItem = item
                 notifyStateChanged()
@@ -138,19 +158,27 @@ final class MeetingTranscriptionQueue {
         finishActiveItem(.success(item: item, transcription: transcription))
     }
 
-    private func ensureProcessingRow(for item: Item) async throws -> Item {
-        if try await fetchTranscription(id: item.transcriptionID) != nil {
-            try await updateStatus(
-                id: item.transcriptionID,
-                status: .processing,
-                errorMessage: nil
-            )
-            return item
+    private func ensureProcessingRow(for item: Item) async throws -> ProcessingAdmission {
+        if let existing = try await fetchTranscription(id: item.transcriptionID) {
+            guard existing.status != .completed else {
+                return .alreadyCompleted(existing)
+            }
+            if existing.status != .processing || existing.errorMessage != nil {
+                try await updateStatus(
+                    id: item.transcriptionID,
+                    status: .processing,
+                    errorMessage: nil
+                )
+            }
+            return .admitted(item)
         }
 
         let prepared = try await transcriptionService.prepareMeetingTranscription(
             recording: item.recording
         )
+        guard prepared.status != .completed else {
+            return .alreadyCompleted(prepared)
+        }
         if prepared.status != .processing {
             try await updateStatus(
                 id: prepared.id,
@@ -158,7 +186,7 @@ final class MeetingTranscriptionQueue {
                 errorMessage: nil
             )
         }
-        return item.withTranscriptionID(prepared.id)
+        return .admitted(item.withTranscriptionID(prepared.id))
     }
 
     private func markFailed(_ item: Item, error: Error) async {
@@ -193,10 +221,16 @@ final class MeetingTranscriptionQueue {
         }.value
     }
 
-    private func finishActiveItem(_ completion: Completion) {
+    private func containsQueuedTranscription(id: UUID) -> Bool {
+        activeItem?.transcriptionID == id || pendingItems.contains { $0.transcriptionID == id }
+    }
+
+    private func finishActiveItem(_ completion: Completion?) {
         activeTask = nil
         activeItem = nil
-        onCompletion?(completion)
+        if let completion {
+            onCompletion?(completion)
+        }
         notifyStateChanged()
         resumeIdleWaitersIfNeeded()
         startNextIfNeeded()

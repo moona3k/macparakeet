@@ -18,28 +18,26 @@ struct MeetingRowCard<MenuContent: View>: View {
     @State private var showsErrorDetail = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            if showsSelectionControls {
-                selectionBadge
-                    .padding(.top, 1)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                rowActivationButton
+
+                if showsRetryButton {
+                    retryButton
+                        .padding(.top, 4)
+                }
             }
-            contentColumn
-            trailingColumn
+
+            errorDetailDisclosure
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, 12)
         .frame(minHeight: 64, alignment: .top)
-        .contentShape(Rectangle())
         .background(rowBackground)
-        .onTapGesture(perform: onTap)
         .help(hoverTooltip)
         .onHover { hovered = $0 }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
         .contextMenu { menuContent() }
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
-        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
-        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Backgrounds
@@ -84,6 +82,25 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     // MARK: - Content
+
+    private var rowActivationButton: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    selectionBadge
+                        .padding(.top, 1)
+                }
+                contentColumn
+                metadataColumn
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
+        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
+    }
 
     private var contentColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -158,7 +175,7 @@ struct MeetingRowCard<MenuContent: View>: View {
                     .lineLimit(1)
             }
         } else if transcription.status == .error {
-            failedStatusContent
+            failedHeadlineRow
         } else if transcription.status == .cancelled {
             // Keep-Audio outcome of the stop-transcription flow (issue #487):
             // the audio is intact and retranscribable from the detail view.
@@ -169,19 +186,26 @@ struct MeetingRowCard<MenuContent: View>: View {
         }
     }
 
-    private var failedStatusContent: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.warningAmber)
-                Text(failedHeadline)
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .lineLimit(1)
-            }
+    private var failedHeadlineRow: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+            Text(failedHeadline)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+        }
+    }
 
-            if let detail = errorDetail {
+    @ViewBuilder
+    private var errorDetailDisclosure: some View {
+        if transcription.status == .error, let detail = errorDetail {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    Color.clear
+                        .frame(width: 18, height: 1)
+                }
                 DisclosureGroup(isExpanded: $showsErrorDetail) {
                     Text(detail)
                         .font(DesignSystem.Typography.micro)
@@ -202,7 +226,7 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     // MARK: - Trailing
 
-    private var trailingColumn: some View {
+    private var metadataColumn: some View {
         VStack(alignment: .trailing, spacing: 3) {
             if let durationMs = transcription.durationMs {
                 Text(durationMs.formattedDurationCompact)
@@ -217,11 +241,6 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .monospacedDigit()
                 .lineLimit(1)
-
-            if showsRetryButton {
-                retryButton
-                    .padding(.top, 4)
-            }
         }
         .fixedSize()
     }
