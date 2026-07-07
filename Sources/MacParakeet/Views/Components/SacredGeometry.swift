@@ -120,10 +120,15 @@ struct SpinnerRingView: View {
     }
 
     private func resetAnimationState() {
-        rotationCW = 0
-        rotationCCW = 0
-        centerPulse = 0.3
-        vertexPulse = 0.6
+        // A plain state write does not cancel an attached `.repeatForever`
+        // animation; the zero-duration override does, so the spinner stops
+        // costing CPU once `animate` flips off (e.g. Reduce Motion enabled).
+        withAnimation(.linear(duration: 0)) {
+            rotationCW = 0
+            rotationCCW = 0
+            centerPulse = 0.3
+            vertexPulse = 0.6
+        }
     }
 }
 
