@@ -424,7 +424,7 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `mic_stall_detected` | First row per recording: `signature` (`mic_missing`, `mic_silent`, `mic_gap`), `elapsed_ms`, `stall_count`, `total_stalled_seconds`. Summary rows: `stall_count`, `total_stalled_seconds`. | Which confirmed mic-health failure pattern first occurred while system audio was active, with repeated stalls suppressed into periodic/final summaries so noisy sessions do not flood production telemetry |
+| `mic_stall_detected` | First row per recording: `signature` (`mic_missing`, `mic_silent`, `mic_gap`), `elapsed_ms`, `stall_count`. Summary rows: `stall_count`, `total_stalled_seconds`. | Which confirmed mic-health failure pattern first occurred while system audio was active, with repeated stalls suppressed into periodic/final summaries so noisy sessions do not flood production telemetry |
 
 ### 6. Licensing — "Is the business working?"
 

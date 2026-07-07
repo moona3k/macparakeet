@@ -511,8 +511,7 @@ private final class MeetingMicHealthTelemetryObserver: @unchecked Sendable {
             Telemetry.send(.micStallDetected(
                 signature: .init(signature),
                 elapsedMs: elapsedMs,
-                stallCount: summary.stallCount,
-                totalStalledSeconds: summary.totalStalledSeconds
+                stallCount: summary.stallCount
             ))
         case .summary(let summary):
             sendSummary(summary)

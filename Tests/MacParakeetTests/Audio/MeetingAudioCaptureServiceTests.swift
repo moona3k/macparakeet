@@ -331,6 +331,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events.first?.props?["signature"], "mic_silent")
         XCTAssertEqual(events.first?.props?["stall_count"], "1")
+        XCTAssertNil(events.first?.props?["total_stalled_seconds"])
 
         await service.stop()
 

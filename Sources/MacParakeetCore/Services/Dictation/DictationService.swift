@@ -259,12 +259,12 @@ public actor DictationService: DictationServiceProtocol {
     ) async throws {
         logger.debug("dictation_start_requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         let operationContext = ObservabilityOperationContext()
-        let speechEngineAttribution = await currentSpeechEngineTelemetryAttribution()
         if let entitlements {
             do {
                 try await entitlements.assertCanTranscribe(now: Date())
             } catch {
                 let device = await audioProcessor.recordingDeviceInfo
+                let speechEngineAttribution = await currentSpeechEngineTelemetryAttribution()
                 sendDictationOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
@@ -318,7 +318,7 @@ public actor DictationService: DictationServiceProtocol {
         clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTelemetryContext = context
-        currentOperationSpeechEngineAttribution = speechEngineAttribution
+        currentOperationSpeechEngineAttribution = nil
         currentObservabilityOperationContext = operationContext
         _state = .recording
         let liveSampleSink = await beginLiveDictationTranscriptionIfAvailable(
@@ -326,6 +326,8 @@ public actor DictationService: DictationServiceProtocol {
         )
         let previewSampleSink = beginDisplayPreviewIfAvailable(sessionID: requestedSessionID)
         let sampleSink = Self.combinedSampleSink(liveSampleSink, previewSampleSink)
+        let speechEngineAttribution = await currentSpeechEngineTelemetryAttribution()
+        currentOperationSpeechEngineAttribution = speechEngineAttribution
         do {
             try await audioProcessor.startCapture(sampleSink: sampleSink)
             // Guard against reentrancy: cancel or replacement may have run during the await above.

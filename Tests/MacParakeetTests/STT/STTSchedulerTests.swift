@@ -87,6 +87,26 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
     }
 
+    func testTelemetryAttributionUsesSingleRuntimeSnapshot() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .whisper, language: "en"),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let maybeAttribution = await scheduler.currentSpeechEngineTelemetryAttribution()
+        let attribution = try XCTUnwrap(maybeAttribution)
+        let readCounts = await runtime.readCounts()
+
+        XCTAssertEqual(attribution.speechEngine, .whisper)
+        XCTAssertEqual(attribution.engineVariant, WhisperModelVariant.largeV3Turbo632MB.rawValue)
+        XCTAssertEqual(attribution.language, "en")
+        XCTAssertEqual(readCounts.telemetryAttribution, 1)
+        XCTAssertEqual(readCounts.selection, 0)
+        XCTAssertEqual(readCounts.capabilities, 0)
+    }
+
     func testLiveDictationBeginRejectsParakeetTDTCapabilityBeforeRuntimeBegin() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(
@@ -1403,6 +1423,9 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var shouldBlockNextSelectionRead = false
     private var selectionReadContinuation: CheckedContinuation<Void, Never>?
     private(set) var heldSelectionReadCount = 0
+    private(set) var selectionReadCount = 0
+    private(set) var capabilitiesReadCount = 0
+    private(set) var telemetryAttributionReadCount = 0
     private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
     private var liveDictationSessionID: UUID?
     private(set) var liveDictationSamples: [[Float]] = []
@@ -1697,6 +1720,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {
+        selectionReadCount += 1
         if shouldBlockNextSelectionRead {
             shouldBlockNextSelectionRead = false
             heldSelectionReadCount += 1
@@ -1708,7 +1732,25 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     }
 
     func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
-        capabilities
+        capabilitiesReadCount += 1
+        return capabilities
+    }
+
+    func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution {
+        telemetryAttributionReadCount += 1
+        return SpeechEngineTelemetryAttribution(
+            speechEngine: selection.engine,
+            engineVariant: capabilities.telemetryIdentity.engineVariant.value(),
+            language: selection.language
+        )
+    }
+
+    func readCounts() -> (selection: Int, capabilities: Int, telemetryAttribution: Int) {
+        (
+            selection: selectionReadCount,
+            capabilities: capabilitiesReadCount,
+            telemetryAttribution: telemetryAttributionReadCount
+        )
     }
 
     func setCurrentSelection(

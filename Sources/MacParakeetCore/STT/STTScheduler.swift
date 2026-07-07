@@ -172,13 +172,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     }
 
     public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution? {
-        let selection = await runtime.currentSpeechEngineSelection()
-        let capabilities = await runtime.currentSpeechEngineCapabilities()
-        return SpeechEngineTelemetryAttribution(
-            speechEngine: selection.engine,
-            engineVariant: capabilities.telemetryIdentity.engineVariant.value(),
-            language: selection.language
-        )
+        await runtime.currentSpeechEngineTelemetryAttribution()
     }
 
     public func transcribe(
