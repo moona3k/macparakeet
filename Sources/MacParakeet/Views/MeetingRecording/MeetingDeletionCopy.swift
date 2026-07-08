@@ -122,10 +122,10 @@ enum MeetingDeletionCopy {
     }
 
     static func audioRemovalUnavailableHelp(
-        state: MeetingAudioFile.State,
-        status: Transcription.TranscriptionStatus
+        for transcription: Transcription,
+        state: MeetingAudioFile.State
     ) -> String {
-        if status == .processing && state == .saved {
+        if state == .saved && MeetingAudioFile.isFinalizationInProgress(for: transcription) {
             return TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
         }
         return audioUnavailableHelp(for: state)

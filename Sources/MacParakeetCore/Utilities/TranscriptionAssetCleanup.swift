@@ -94,7 +94,7 @@ public enum TranscriptionAssetCleanup {
             try repository.updateFilePath(id: transcription.id, filePath: nil)
             return result
         }
-        guard transcription.sourceType != .meeting || transcription.status != .processing else {
+        guard !MeetingAudioFile.isFinalizationInProgress(for: transcription, fileManager: fileManager) else {
             throw TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress
         }
         guard let removalPlan = try meetingAudioRemovalPlan(for: transcription, fileManager: fileManager) else {

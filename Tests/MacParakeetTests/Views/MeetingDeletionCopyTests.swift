@@ -100,6 +100,37 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("it will be skipped"))
     }
 
+    func testAudioRemovalUnavailableHelpTreatsLockedSavedAudioAsFinalizing() throws {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-deletion-copy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 99,
+                displayName: "Recovering Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+
+        XCTAssertEqual(
+            MeetingDeletionCopy.audioRemovalUnavailableHelp(for: transcription, state: .saved),
+            TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
+        )
+    }
+
     func testBulkDeleteCopyWarnsWhenAnySelectedMeetingIsNotCompleted() {
         let message = MeetingDeletionCopy.bulkFullDeleteMessage(
             count: 2,

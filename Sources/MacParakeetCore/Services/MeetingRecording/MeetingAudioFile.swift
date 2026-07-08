@@ -52,8 +52,38 @@ public enum MeetingAudioFile {
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard transcription.status != .processing else { return false }
-        return isAvailable(for: transcription, fileManager: fileManager)
+        isRemovable(
+            for: transcription,
+            state: state(for: transcription, fileManager: fileManager),
+            fileManager: fileManager
+        )
+    }
+
+    /// Whether a caller can detach the meeting audio for an already-resolved
+    /// audio state. Use this overload when UI code already computed `state`.
+    public static func isRemovable(
+        for transcription: Transcription,
+        state: State,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard state == .saved else { return false }
+        guard !isFinalizationInProgress(for: transcription, fileManager: fileManager) else { return false }
+        return true
+    }
+
+    /// Whether meeting audio is still owned by an active finalization or
+    /// recovery lock and should not be detached yet.
+    public static func isFinalizationInProgress(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard transcription.sourceType == .meeting else { return false }
+        if transcription.status == .processing { return true }
+        guard let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL else {
+            return false
+        }
+        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+        return fileManager.fileExists(atPath: lockURL.path)
     }
 
     /// User-facing availability state for a meeting's stored audio.

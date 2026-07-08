@@ -117,6 +117,36 @@ final class MeetingAudioFileTests: XCTestCase {
         XCTAssertFalse(MeetingAudioFile.isRemovable(for: transcription))
     }
 
+    func testLockedErrorMeetingAudioIsAvailableButNotRemovable() throws {
+        let directory = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let audioURL = directory.appendingPathComponent("meeting-playback.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 99,
+                displayName: "Recovering Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: directory
+        )
+
+        let transcription = makeTranscription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            sourceType: .meeting,
+            status: .error
+        )
+        let state = MeetingAudioFile.state(for: transcription)
+
+        XCTAssertEqual(state, .saved)
+        XCTAssertTrue(MeetingAudioFile.isAvailable(for: transcription))
+        XCTAssertTrue(MeetingAudioFile.isFinalizationInProgress(for: transcription))
+        XCTAssertFalse(MeetingAudioFile.isRemovable(for: transcription, state: state))
+    }
+
     func testStateReturnsNotMeetingForNonMeetingSource() {
         let transcription = makeTranscription(
             fileName: "lecture.mp3",
