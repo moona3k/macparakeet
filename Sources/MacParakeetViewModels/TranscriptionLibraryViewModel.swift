@@ -168,7 +168,7 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public var selectedMeetingAudioCount: Int {
-        selectedLoadedTranscriptions.filter(Self.hasAvailableMeetingAudio).count
+        selectedLoadedTranscriptions.filter(Self.hasRemovableMeetingAudio).count
     }
 
     public var selectedLoadedTranscriptionsForExport: [Transcription] {
@@ -342,12 +342,12 @@ public final class TranscriptionLibraryViewModel {
     public func requestDeleteSelectedMeetingAudio() {
         guard !isBulkOperationInProgress else { return }
         // Scope to meetings: "Remove Audio" only applies to meeting rows, so the
-        // skipped count must be meetings-without-saved-audio, not every selected
-        // non-meeting item. Counting all non-targets here mislabels videos/
-        // podcasts/local files as "meetings already with no saved audio" in the
-        // confirmation copy (which is meeting-only by design).
+        // skipped count must be meetings-without-removable-audio, not every
+        // selected non-meeting item. Counting all non-targets here mislabels
+        // videos/podcasts/local files as skipped meetings in the confirmation
+        // copy, which is meeting-only by design.
         let meetings = selectedLoadedTranscriptions.filter { $0.sourceType == .meeting }
-        let targets = meetings.filter(Self.hasAvailableMeetingAudio)
+        let targets = meetings.filter(Self.hasRemovableMeetingAudio)
         guard !targets.isEmpty else {
             return
         }
@@ -482,6 +482,8 @@ public final class TranscriptionLibraryViewModel {
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore)
             }
+        } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
+            errorMessage = TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
         } catch {
             logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
             errorMessage = "Failed to delete meeting audio: \(error.localizedDescription)"
@@ -678,8 +680,8 @@ public final class TranscriptionLibraryViewModel {
         filteredTranscriptions.filter { selectedTranscriptionIDs.contains($0.id) }
     }
 
-    nonisolated private static func hasAvailableMeetingAudio(_ transcription: Transcription) -> Bool {
-        MeetingAudioFile.isAvailable(for: transcription)
+    nonisolated private static func hasRemovableMeetingAudio(_ transcription: Transcription) -> Bool {
+        MeetingAudioFile.isRemovable(for: transcription)
     }
 
     private func pruneSelectionToLoadedItems() {

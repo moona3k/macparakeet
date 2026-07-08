@@ -44,6 +44,18 @@ public enum MeetingAudioFile {
         state(for: transcription, fileManager: fileManager) == .saved
     }
 
+    /// Whether saved meeting audio can be removed without breaking active
+    /// meeting finalization. Processing rows may expose saved audio for playback,
+    /// export, and retry-source visibility, but the audio remains owned by the
+    /// finalization queue until the row reaches a terminal state.
+    public static func isRemovable(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard transcription.status != .processing else { return false }
+        return isAvailable(for: transcription, fileManager: fileManager)
+    }
+
     /// User-facing availability state for a meeting's stored audio.
     ///
     /// `removed` means the DB no longer points at meeting audio, usually

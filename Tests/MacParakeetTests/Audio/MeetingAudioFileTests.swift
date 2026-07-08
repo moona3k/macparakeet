@@ -114,6 +114,7 @@ final class MeetingAudioFileTests: XCTestCase {
 
         XCTAssertEqual(MeetingAudioFile.state(for: transcription), .saved)
         XCTAssertTrue(MeetingAudioFile.isAvailable(for: transcription))
+        XCTAssertFalse(MeetingAudioFile.isRemovable(for: transcription))
     }
 
     func testStateReturnsNotMeetingForNonMeetingSource() {
@@ -159,6 +160,7 @@ final class MeetingAudioFileTests: XCTestCase {
         )
 
         XCTAssertEqual(MeetingAudioFile.state(for: transcription), .saved)
+        XCTAssertTrue(MeetingAudioFile.isRemovable(for: transcription))
     }
 
     // MARK: - suggestedExportStem
