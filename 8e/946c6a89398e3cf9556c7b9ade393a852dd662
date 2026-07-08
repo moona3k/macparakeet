@@ -1,0 +1,47 @@
+Tests/MacParakeetTests/Views/MeetingDeletionCopyTests.swift
+  s_156d733c33acd3::t_2bf609dd588522 103-133
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_156d733c33acd3::t_09eb86137216d9 120-149
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_156d733c33acd3::t_cdb19b44d8f47b 171-207
+  s_a8d058591b416b::t_2f3ee3a9d375ec 166-170
+Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift
+  s_156d733c33acd3::t_0b91faef0f90d6 97
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_156d733c33acd3::t_fecc03a2e4d9c6 358
+  s_156d733c33acd3::t_c0573785b4d7f2 425-426
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_156d733c33acd3::t_d11bdd7217041a 55-86
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_156d733c33acd3::t_fecc03a2e4d9c6 581
+  s_156d733c33acd3::t_c0573785b4d7f2 642-643
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_156d733c33acd3::t_fecc03a2e4d9c6 563
+  s_156d733c33acd3::t_c0573785b4d7f2 587-588
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_156d733c33acd3::t_09deb95450efd6 125-126,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8e946c6a89398e3cf9556c7b9ade393a852dd662",
+  "prompts": {},
+  "sessions": {
+    "s_156d733c33acd3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ffc-7e72-7b01-9421-378fd237e31e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a8d058591b416b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3fff-35fc-7273-80d8-41466137d19c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
