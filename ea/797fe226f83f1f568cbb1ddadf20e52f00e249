@@ -1,0 +1,49 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 563,583-589
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 171,345-348,350,683-684
+  s_156d733c33acd3::t_0f973f09341fc8 485-486
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 47-58
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_156d733c33acd3::t_f8c03c2b8ad721 732-767
+  s_156d733c33acd3::t_59d60b60076bcb 968,970,976,978,988-993,1002,1008,1012-1013,1018-1020
+Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 6,12-13,30-31
+  s_156d733c33acd3::t_dd6ffa90facec3 97-98
+  s_156d733c33acd3::t_f8bf8888e1afb4 99
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_156d733c33acd3::t_f8c03c2b8ad721 139-160,164-170
+  s_156d733c33acd3::t_255f4fe39a464b 161-163
+Tests/MacParakeetTests/Views/MeetingDeletionCopyTests.swift
+  s_156d733c33acd3::t_bb45c5100468fc 118
+  s_156d733c33acd3::t_f8c03c2b8ad721 76,99,129
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_156d733c33acd3::t_7025ae0d990624 823-824
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_156d733c33acd3::t_f8c03c2b8ad721 117,163
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 57,60,124-127,129-131
+  s_156d733c33acd3::t_e9a7b76b0b47a4 128
+  s_156d733c33acd3::t_ba09b05221e2e8 132-133
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 581,638-639,641-644
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_156d733c33acd3::t_2bc1cecbe03325 358,421-422,424-427
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea797fe226f83f1f568cbb1ddadf20e52f00e249",
+  "prompts": {},
+  "sessions": {
+    "s_156d733c33acd3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ffc-7e72-7b01-9421-378fd237e31e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
