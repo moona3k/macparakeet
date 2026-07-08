@@ -3,11 +3,14 @@ import os
 
 public enum TranscriptionAssetCleanupError: Error, LocalizedError {
     case removalFailed(path: String, reason: String)
+    case meetingAudioFinalizationInProgress
 
     public var errorDescription: String? {
         switch self {
         case .removalFailed(_, let reason):
             return "Could not remove app-owned audio: \(reason)"
+        case .meetingAudioFinalizationInProgress:
+            return TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
         }
     }
 }
@@ -24,6 +27,8 @@ public struct MeetingAudioDetachResult: Sendable {
 public enum TranscriptionAssetCleanup {
     public static let unmanagedMeetingAudioMessage =
         "Meeting audio is not stored in MacParakeet's managed recordings folder."
+    public static let meetingAudioFinalizationInProgressMessage =
+        "Meeting audio can be removed after transcription finishes or stops."
 
     private static let logger = Logger(
         subsystem: "com.macparakeet.core",
@@ -88,6 +93,9 @@ public enum TranscriptionAssetCleanup {
             let result = MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: false)
             try repository.updateFilePath(id: transcription.id, filePath: nil)
             return result
+        }
+        guard !MeetingAudioFile.isFinalizationInProgress(for: transcription, fileManager: fileManager) else {
+            throw TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress
         }
         guard let removalPlan = try meetingAudioRemovalPlan(for: transcription, fileManager: fileManager) else {
             return MeetingAudioDetachResult(removedOwnedAudio: false, hadAudioPath: true)

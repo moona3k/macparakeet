@@ -73,7 +73,7 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("permanently deletes saved audio from 1 meeting"))
         XCTAssertTrue(message.contains("meeting stays in Meetings"))
         XCTAssertTrue(message.contains("detect or backfill speakers for this recording"))
-        XCTAssertTrue(message.contains("2 selected meetings already have no saved audio"))
+        XCTAssertTrue(message.contains("2 selected meetings cannot have their audio removed right now"))
     }
 
     func testBulkAudioOnlyCopyOmitsSelectionPrefixWhenNothingIsSkipped() {
@@ -96,8 +96,39 @@ final class MeetingDeletionCopyTests: XCTestCase {
         )
 
         XCTAssertTrue(message.contains("2 selected meetings"))
-        XCTAssertTrue(message.contains("1 selected meeting already has no saved audio"))
+        XCTAssertTrue(message.contains("1 selected meeting cannot have its audio removed right now"))
         XCTAssertTrue(message.contains("it will be skipped"))
+    }
+
+    func testAudioRemovalUnavailableHelpTreatsLockedSavedAudioAsFinalizing() throws {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-deletion-copy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 99,
+                displayName: "Recovering Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+
+        XCTAssertEqual(
+            MeetingDeletionCopy.audioRemovalUnavailableHelp(for: transcription, state: .saved),
+            TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
+        )
     }
 
     func testBulkDeleteCopyWarnsWhenAnySelectedMeetingIsNotCompleted() {
@@ -115,7 +146,7 @@ final class MeetingDeletionCopyTests: XCTestCase {
     // Mixed Library selection (the surface where the miscount bug appeared):
     // the skipped count is meeting-scoped, so the rendered copy only ever talks
     // about meetings and stays consistent with the Delete dialog's meeting count
-    // — e.g. 7 meetings selected, 2 with saved audio, 5 already removed.
+    // — e.g. 7 meetings selected, 2 with removable audio, 5 not removable.
     func testBulkAudioOnlyCopyForLibrarySurfaceOnlyCountsMeetings() {
         let message = MeetingDeletionCopy.bulkAudioOnlyMessage(
             count: 2,
@@ -126,6 +157,6 @@ final class MeetingDeletionCopyTests: XCTestCase {
         XCTAssertTrue(message.contains("7 selected meetings"))
         XCTAssertTrue(message.contains("permanently deletes saved audio from 2 meetings"))
         XCTAssertTrue(message.contains("meetings stay in Library"))
-        XCTAssertTrue(message.contains("5 selected meetings already have no saved audio"))
+        XCTAssertTrue(message.contains("5 selected meetings cannot have their audio removed right now"))
     }
 }

@@ -355,6 +355,7 @@ struct TranscriptionLibraryView: View {
         if transcription.sourceType == .meeting {
             let audioState = MeetingAudioFile.state(for: transcription)
             let audioAvailable = audioState == .saved
+            let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
             let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
 
             Divider()
@@ -417,10 +418,13 @@ struct TranscriptionLibraryView: View {
             } label: {
                 Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
             }
-            .disabled(!audioAvailable)
-            .help(audioAvailable
+            .disabled(!audioRemovable)
+            .help(audioRemovable
                   ? "Remove the saved meeting audio while keeping the meeting"
-                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+                  : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                      for: transcription,
+                      state: audioState
+                  ))
         }
 
         Divider()

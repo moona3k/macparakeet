@@ -729,6 +729,42 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
     }
 
+    func testDeleteMeetingAudioRefusesProcessingMeeting() async throws {
+        try AppPaths.ensureDirectories()
+        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent("library-processing-meeting-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = folder.appendingPathComponent("microphone-raw.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("mic".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let t = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(t)
+        await load()
+
+        XCTAssertTrue(MeetingAudioFile.isAvailable(for: t))
+        XCTAssertFalse(MeetingAudioFile.isRemovable(for: t))
+        vm.deleteMeetingAudio(t)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: t.id))
+        XCTAssertEqual(fetched.filePath, audioURL.path)
+        XCTAssertNil(fetched.meetingArtifactFolderPath)
+        XCTAssertEqual(vm.transcriptions.first?.filePath, audioURL.path)
+        XCTAssertEqual(
+            vm.errorMessage,
+            TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: microphoneURL.path))
+    }
+
     func testConfirmBulkOperationRunsAfterPendingClearedByAlertDismissal() async throws {
         // Reproduces the alert race: tapping the destructive confirm button
         // dismisses the alert, whose isPresented setter nils pendingBulkOperation
@@ -929,15 +965,17 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     func testRequestDeleteAudioOnlySkipCountExcludesNonMeetings() async throws {
         // Mixed Library selection: meetings and non-meetings together. The
-        // "Remove Audio" skipped count must reflect meetings-without-saved-audio
+        // "Remove Audio" skipped count must reflect meetings-without-removable-audio
         // only, so the confirmation copy never mislabels videos/podcasts/local
-        // files as "selected meetings already with no saved audio."
+        // files as skipped meetings.
         try AppPaths.ensureDirectories()
         let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent("library-mixed-skip-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
+        let processingAudioURL = folder.appendingPathComponent("processing-meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: processingAudioURL.path, contents: Data("audio".utf8)))
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let meetingWithAudio = Transcription(
@@ -947,6 +985,12 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
             sourceType: .meeting
         )
         let meetingWithoutAudio = Transcription(fileName: "No Audio", status: .completed, sourceType: .meeting)
+        let processingMeeting = Transcription(
+            fileName: "Processing",
+            filePath: processingAudioURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
         let youtube = Transcription(
             fileName: "video",
             status: .completed,
@@ -955,24 +999,25 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         )
         let podcast = Transcription(fileName: "episode", status: .completed, sourceType: .podcast)
         let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
-        for transcription in [meetingWithAudio, meetingWithoutAudio, youtube, podcast, local] {
+        for transcription in [meetingWithAudio, meetingWithoutAudio, processingMeeting, youtube, podcast, local] {
             try repo.save(transcription)
         }
         await load()
 
         vm.beginBulkSelection(startingWith: meetingWithAudio)
-        for transcription in [meetingWithoutAudio, youtube, podcast, local] {
+        for transcription in [meetingWithoutAudio, processingMeeting, youtube, podcast, local] {
             vm.toggleSelection(for: transcription)
         }
 
-        XCTAssertEqual(vm.selectedTranscriptionCount, 5)
+        XCTAssertEqual(vm.selectedTranscriptionCount, 6)
+        XCTAssertEqual(vm.selectedMeetingAudioCount, 1)
         vm.requestDeleteSelectedMeetingAudio()
         let operation = try XCTUnwrap(vm.pendingBulkOperation)
         XCTAssertTrue(operation.isDeleteAudioOnly)
         XCTAssertEqual(operation.targetCount, 1)
-        // Only the audio-less meeting is skipped — the three non-meeting items
-        // are not counted (the old behavior reported 4).
-        XCTAssertEqual(operation.skippedCount, 1)
+        // Only the audio-less and still-processing meetings are skipped — the
+        // three non-meeting items are not counted (the old behavior reported 5).
+        XCTAssertEqual(operation.skippedCount, 2)
     }
 }
 

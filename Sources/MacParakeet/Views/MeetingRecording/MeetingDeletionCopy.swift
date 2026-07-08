@@ -54,10 +54,10 @@ enum MeetingDeletionCopy {
             + "\(prefix)This permanently deletes saved audio from \(count) \(meetingWord). \(meetingSubject) in \(surface.name) with \(transcriptObject). Notes, AI results, and chats stay too if they exist. Playback and re-transcription will no longer be available, and MacParakeet will not be able to detect or backfill speakers for \(recordingObject)."
         if skippedCount > 0 {
             if skippedCount == 1 {
-                message += " 1 selected meeting already has no saved audio, so it will be skipped."
+                message += " 1 selected meeting cannot have its audio removed right now, so it will be skipped."
             } else {
                 message +=
-                    " \(skippedCount) selected meetings already have no saved audio, so they will be skipped."
+                    " \(skippedCount) selected meetings cannot have their audio removed right now, so they will be skipped."
             }
         }
         return message
@@ -119,6 +119,16 @@ enum MeetingDeletionCopy {
         case .notMeeting:
             return "Meeting audio is not available"
         }
+    }
+
+    static func audioRemovalUnavailableHelp(
+        for transcription: Transcription,
+        state: MeetingAudioFile.State
+    ) -> String {
+        if state == .saved && MeetingAudioFile.isFinalizationInProgress(for: transcription) {
+            return TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
+        }
+        return audioUnavailableHelp(for: state)
     }
 
     private static func nonCompletedWarning(status: Transcription.TranscriptionStatus) -> String {

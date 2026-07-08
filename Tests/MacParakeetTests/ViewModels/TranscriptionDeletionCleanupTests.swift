@@ -136,6 +136,80 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: folderURL.path))
     }
 
+    func testDetachMeetingAudioRefusesProcessingMeeting() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+
+        XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        )) { error in
+            guard case TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress = error else {
+                return XCTFail("Expected finalization-in-progress error, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+        XCTAssertTrue(repo.updateFilePathCalls.isEmpty)
+        XCTAssertTrue(repo.updateMeetingArtifactFolderPathCalls.isEmpty)
+    }
+
+    func testDetachMeetingAudioRefusesLockedErrorMeeting() throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8)))
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 99,
+                displayName: "Recovering Meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+
+        let transcription = Transcription(
+            fileName: "Meeting",
+            filePath: mixedURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        let repo = MockTranscriptionRepository()
+        repo.transcriptions = [transcription]
+
+        XCTAssertThrowsError(try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+            for: transcription,
+            repository: repo
+        )) { error in
+            guard case TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress = error else {
+                return XCTFail("Expected finalization-in-progress error, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertEqual(repo.transcriptions.first?.filePath, mixedURL.path)
+        XCTAssertTrue(repo.updateFilePathCalls.isEmpty)
+        XCTAssertTrue(repo.updateMeetingArtifactFolderPathCalls.isEmpty)
+    }
+
     func testMeetingDeletionRemovesArtifactFolderAfterAudioWasDetached() throws {
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

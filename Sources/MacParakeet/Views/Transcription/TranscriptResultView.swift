@@ -560,6 +560,7 @@ struct TranscriptResultView: View {
             if activeTranscription.sourceType == .meeting {
                 let audioState = MeetingAudioFile.state(for: activeTranscription)
                 let audioAvailable = audioState == .saved
+                let audioRemovable = MeetingAudioFile.isRemovable(for: activeTranscription, state: audioState)
                 Menu {
                     Button {
                         MeetingAudioActions.revealInFinder(activeTranscription)
@@ -579,6 +580,13 @@ struct TranscriptResultView: View {
                     } label: {
                         Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
                     }
+                    .disabled(!audioRemovable)
+                    .help(audioRemovable
+                          ? "Remove the saved meeting audio while keeping the meeting"
+                          : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                              for: activeTranscription,
+                              state: audioState
+                          ))
                 } label: {
                     Label("Audio", systemImage: "waveform")
                 }

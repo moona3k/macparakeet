@@ -820,6 +820,8 @@ public final class TranscriptionViewModel {
             if clearExistingErrorOnSuccess {
                 clearError()
             }
+        } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
+            setError(message: TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage)
         } catch {
             logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
             setError(message: "Failed to delete meeting audio: \(error.localizedDescription)")
