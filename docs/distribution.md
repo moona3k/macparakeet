@@ -171,6 +171,9 @@ Before building, verify the codebase is ready:
 # All tests must pass
 swift test
 
+# Fresh SwiftPM checkouts must be able to update package submodules.
+git submodule --help >/dev/null
+
 # Distribution privacy/entitlement guard runs after signing, but this source
 # file is the expected entitlement surface for the final app.
 plutil -p scripts/dist/MacParakeet.entitlements
@@ -266,17 +269,17 @@ sparkle:edSignature="..." length="..."
 
 ### Step 5: Update appcast.xml
 
-Edit `~/code/macparakeet-website/public/appcast.xml`. **Prepend** a new `<item>` at the top of the channel (keep all previous items — Sparkle shows release notes for ALL versions newer than the user's installed version, so users who skip versions see the full changelog).
+Edit `~/code/macparakeet-website/public/appcast.xml`. **Prepend** a new `<item>` at the top of the channel and keep previous items for compatibility/fallback metadata. Sparkle 2 shows the selected newest item's `<description>` only; it does not concatenate descriptions from skipped intermediate releases. Write the newest item's release notes so they stand on their own for users upgrading from any older supported build.
 
 New item needs:
 - `sparkle:version` = build number from `dist/MacParakeet.app/Contents/Info.plist` (`CFBundleVersion`)
 - `sparkle:shortVersionString` = version from Info.plist (`CFBundleShortVersionString`)
 - `sparkle:edSignature` and `length` from Step 4
 - `pubDate` in RFC 2822 format: `date -R`
-- Release notes in `<description>` CDATA block — only what's new in THIS version (don't duplicate notes from previous items)
+- Release notes in `<description>` CDATA block — standalone notes for this update, including the important user-facing changes since the previous public release
 - **Enclosure URL must include a cache-busting query param:** `?v={BUILD_NUMBER}`. Cloudflare CDN caches by full URL including query params, so without this Sparkle may download a stale cached DMG and fail with "improperly signed". R2 ignores query params and serves the correct object.
 
-Keep ~10 most recent items. Prune older ones when the list gets long. Only the newest item's enclosure URL is used for download — old items just provide their release notes.
+Keep ~10 most recent items. Prune older ones when the list gets long. Only the selected newest item's enclosure URL is used for download; older items preserve compatibility metadata and historical notes, but their descriptions are not shown to skip-version users.
 
 Get build info:
 ```bash
@@ -355,7 +358,7 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 # → cd ~/code/macparakeet-website && git add -A && git commit && git push
 # → npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main
 # → Verify: curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version
-# → Upload/copy the GitHub release asset as MacParakeet-X.Y.Z.dmg for Homebrew
+# → Upload/copy the GitHub release asset as MacParakeet.dmg for Homebrew
 ```
 
 ### Common pitfalls
@@ -365,9 +368,10 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 | App crashes at launch (dyld) | Sparkle.framework missing from bundle | Build script should catch this. If bypassed, re-run `build_app_bundle.sh` |
 | "Improperly signed" update error | R2 file doesn't match appcast signature, OR Cloudflare CDN cached an old DMG | Re-upload the **exact same DMG** you ran `sign_update` on. Verify sizes match. **Always use `?v={BUILD_NUMBER}` in the appcast enclosure URL** to bust Cloudflare's CDN cache |
 | Appcast not updating | Cloudflare Pages cache / build not triggered | Deploy manually: `npx wrangler pages deploy dist --project-name macparakeet-website` |
-| Homebrew cask stays behind appcast | GitHub release is missing `MacParakeet-X.Y.Z.dmg`, even if `MacParakeet.dmg` exists | Upload the exact shipped DMG to the GitHub release with the versioned filename, then wait for BrewTestBot's autobump cycle |
+| Homebrew cask stays behind appcast | GitHub release is missing `MacParakeet.dmg` on the new `vX.Y.Z` tag | Upload the exact shipped DMG to the GitHub release with the plain filename `MacParakeet.dmg`, then wait for BrewTestBot's autobump cycle |
 | `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
 | Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
+| Fresh SwiftPM dependency checkout fails with `git: 'submodule' is not a git command` | The active Git executable cannot find its helper commands | Fix the Xcode/Command Line Tools install, or export `GIT_EXEC_PATH=/Library/Developer/CommandLineTools/usr/libexec/git-core` before running SwiftPM/release commands if that helper directory exists |
 | `notarytool` bus error / crash | Using `--wait` flag | **Never use `xcrun notarytool submit --wait`.** Submit without `--wait`, then poll with `xcrun notarytool info <submission-id>`. See gotcha #1 below. |
 | `notarytool` stays `In Progress` beyond the normal window | Apple accepted upload but the submission is likely stale/stuck | Stop local pollers, discard release artifacts, rebuild/sign from scratch, and submit a fresh archive. Do not continue from orphaned `In Progress` submissions. See gotcha #1a below. |
 | TCC permissions silently fail | User ran app from DMG volume instead of /Applications | DMG must include Applications symlink. See gotcha #3 below. |
@@ -540,7 +544,7 @@ Template for a new item (prepend to existing items in `appcast.xml`):
     </item>
 ```
 
-**Important:** Don't replace existing items — prepend the new one. Sparkle shows all items newer than the user's installed version. Keep ~10 items for users who skip versions.
+**Important:** Don't replace existing items — prepend the new one. Sparkle 2 shows only the selected newest item's description, so the new item's notes must stand on their own for users who skip versions. Keep ~10 items for compatibility/fallback metadata and release history.
 
 ### Signing an update
 
