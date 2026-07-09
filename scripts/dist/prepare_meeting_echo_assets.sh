@@ -15,7 +15,8 @@ DEFAULT_LOCALVQE_FETCH_REF="refs/heads/main"
 DEFAULT_MODEL_URL="https://huggingface.co/LocalAI-io/LocalVQE/resolve/main/${DEFAULT_MEETING_ECHO_MODEL_NAME}"
 
 ASSETS_DIR="${MACPARAKEET_MEETING_ECHO_ASSETS_DIR:-$ROOT_DIR/.build/meeting-echo-assets}"
-SOURCE_DIR="${LOCALVQE_SOURCE_DIR:-$ROOT_DIR/.build/localvqe-src}"
+DEFAULT_SOURCE_DIR="$ROOT_DIR/.build/localvqe-src"
+SOURCE_DIR="${LOCALVQE_SOURCE_DIR:-$DEFAULT_SOURCE_DIR}"
 BUILD_DIR="${LOCALVQE_BUILD_DIR:-$ASSETS_DIR/build}"
 LIB_DIR="$ASSETS_DIR/lib"
 MODEL_DIR="$ASSETS_DIR/model"
@@ -44,6 +45,10 @@ require_tool cmake
 require_tool curl
 require_tool shasum
 
+is_positive_integer() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
 if [[ "$MODEL_NAME" == */* || "$(printf '%s' "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')" != *.gguf ]]; then
   echo "Error: MACPARAKEET_MEETING_ECHO_MODEL_NAME must be a GGUF filename, not a path." >&2
   exit 1
@@ -63,6 +68,23 @@ else
 fi
 
 mkdir -p "$ASSETS_DIR" "$LIB_DIR" "$MODEL_DIR"
+
+reset_generated_source_dir_if_locked() {
+  local lock_path="$SOURCE_DIR/.git/index.lock"
+  [[ -e "$lock_path" ]] || return 0
+
+  case "$SOURCE_DIR" in
+    "$DEFAULT_SOURCE_DIR" | "$DEFAULT_SOURCE_DIR/")
+      echo "Removing generated LocalVQE source cache because a Git lock exists: $lock_path" >&2
+      rm -rf "$SOURCE_DIR"
+      ;;
+    *)
+      echo "Error: LocalVQE source checkout is locked: $lock_path" >&2
+      echo "Remove the lock manually after confirming no Git process is using LOCALVQE_SOURCE_DIR." >&2
+      exit 1
+      ;;
+  esac
+}
 
 ensure_localvqe_source() {
   if [[ -d "$SOURCE_DIR/.git" ]]; then
@@ -157,8 +179,19 @@ ensure_model() {
   echo "Meeting echo model SHA256 verified: $actual_sha"
 }
 
-build_localvqe_runtime() {
-  echo "Building LocalVQE runtime from ${LOCALVQE_REF}"
+localvqe_cmake_jobs() {
+  local jobs="${LOCALVQE_CMAKE_BUILD_JOBS:-}"
+  if [[ -z "$jobs" ]]; then
+    jobs="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+  fi
+  if ! is_positive_integer "$jobs"; then
+    echo "Error: LOCALVQE_CMAKE_BUILD_JOBS must be a positive integer." >&2
+    exit 1
+  fi
+  printf '%s\n' "$jobs"
+}
+
+configure_localvqe_runtime() {
   local cmake_build_type_upper
   cmake_build_type_upper="$(printf '%s' "$CMAKE_BUILD_TYPE" | tr '[:lower:]' '[:upper:]')"
   local cmake_args=(
@@ -179,10 +212,27 @@ build_localvqe_runtime() {
   fi
 
   cmake "${cmake_args[@]}"
+}
+
+build_localvqe_runtime() {
+  echo "Building LocalVQE runtime from ${LOCALVQE_REF}"
+  configure_localvqe_runtime
 
   local jobs
-  jobs="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-  cmake --build "$BUILD_DIR" --target localvqe_shared -j"$jobs"
+  jobs="$(localvqe_cmake_jobs)"
+  echo "Building LocalVQE runtime with ${jobs} CMake job(s)"
+  if cmake --build "$BUILD_DIR" --target localvqe_shared -j"$jobs"; then
+    return 0
+  fi
+
+  if [[ "$jobs" == "1" ]]; then
+    return 1
+  fi
+
+  echo "Warning: parallel LocalVQE build failed; retrying once with LOCALVQE_CMAKE_BUILD_JOBS=1." >&2
+  reset_build_dir
+  configure_localvqe_runtime
+  cmake --build "$BUILD_DIR" --target localvqe_shared -j1
 }
 
 runtime_stamp_value() {
@@ -218,6 +268,7 @@ ensure_localvqe_runtime() {
 
   rm -f "$RUNTIME_STAMP" "$RUNTIME_MANIFEST"
   reset_build_dir
+  reset_generated_source_dir_if_locked
   if localvqe_source_is_current; then
     echo "LocalVQE source already pinned: $SOURCE_DIR"
   else

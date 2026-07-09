@@ -35,6 +35,7 @@ set -euo pipefail
 #   REQUIRE_MEETING_ECHO_ASSETS (default: 0) fail if echo assets are not bundled
 #   MACPARAKEET_MEETING_ECHO_AUTO_PREPARE (default: 1) build/download pinned default echo assets when paths are unset
 #   MACPARAKEET_MEETING_ECHO_ASSETS_DIR (default: .build/meeting-echo-assets) prepared asset output/cache
+#   LOCALVQE_CMAKE_BUILD_JOBS optional CMake parallelism for auto-prepared echo runtime; failed parallel builds retry once with -j1
 #   MACPARAKEET_MEETING_ECHO_LIBRARY source dylib for meeting echo suppression
 #   MACPARAKEET_MEETING_ECHO_DYLIB_DIR optional directory of dependent dylibs to copy into Frameworks
 #   MACPARAKEET_MEETING_ECHO_MODEL source GGUF model for meeting echo suppression

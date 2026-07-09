@@ -52,6 +52,21 @@ It is roughly 2.9 MB before compression. The source-built runtime is copied to
 exactly one GGUF model so asset verification and runtime model resolution cannot
 drift.
 
+The native CMake build uses host parallelism by default; if that build fails,
+the script cleans the build directory and retries once with `-j1`. If an
+interrupted prior build leaves a Git index lock in the default generated
+LocalVQE source checkout under `.build/`, the prep script discards that generated
+checkout and clones it again. Custom `LOCALVQE_SOURCE_DIR` checkouts are left in
+place and require manual cleanup on lock errors.
+
+For a deliberately serialized release build, set:
+
+```bash
+export LOCALVQE_CMAKE_BUILD_JOBS=1
+export REQUIRE_MEETING_ECHO_ASSETS=1
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
 To use prebuilt assets instead of the pinned auto-prep path, set both source
 paths explicitly:
 
