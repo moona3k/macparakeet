@@ -8,53 +8,44 @@ final class MenuBarCoordinatorTests: XCTestCase {
         let presentation = MenuBarCoordinator.meetingRecordingMenuPresentation(
             environmentReady: true,
             isMeetingRecordingActive: false,
-            canOpenLiveMeetingPanel: false,
-            showFloatingMeetingControls: true
+            canOpenLiveMeetingPanel: false
         )
 
         XCTAssertEqual(presentation.recordingTitle, "Start Recording")
         XCTAssertTrue(presentation.recordingEnabled)
         XCTAssertTrue(presentation.openLiveMeetingPanelHidden)
         XCTAssertFalse(presentation.openLiveMeetingPanelEnabled)
-        XCTAssertTrue(presentation.showFloatingMeetingControlsEnabled)
-        XCTAssertEqual(presentation.showFloatingMeetingControlsState, .on)
     }
 
-    func testMeetingRecordingMenuPresentationWhileRecordingWithPillHidden() {
+    func testMeetingRecordingMenuPresentationWhileRecording() {
         let presentation = MenuBarCoordinator.meetingRecordingMenuPresentation(
             environmentReady: true,
             isMeetingRecordingActive: true,
-            canOpenLiveMeetingPanel: true,
-            showFloatingMeetingControls: false
+            canOpenLiveMeetingPanel: true
         )
 
         XCTAssertEqual(presentation.recordingTitle, "Stop Recording")
         XCTAssertTrue(presentation.recordingEnabled)
         XCTAssertFalse(presentation.openLiveMeetingPanelHidden)
         XCTAssertTrue(presentation.openLiveMeetingPanelEnabled)
-        XCTAssertTrue(presentation.showFloatingMeetingControlsEnabled)
-        XCTAssertEqual(presentation.showFloatingMeetingControlsState, .off)
     }
 
     func testMeetingRecordingMenuPresentationDisablesActionsBeforeEnvironmentIsReady() {
         let presentation = MenuBarCoordinator.meetingRecordingMenuPresentation(
             environmentReady: false,
             isMeetingRecordingActive: true,
-            canOpenLiveMeetingPanel: true,
-            showFloatingMeetingControls: false
+            canOpenLiveMeetingPanel: true
         )
 
         XCTAssertFalse(presentation.recordingEnabled)
         XCTAssertFalse(presentation.openLiveMeetingPanelEnabled)
-        XCTAssertFalse(presentation.showFloatingMeetingControlsEnabled)
     }
 
     func testMeetingRecordingMenuPresentationKeepsPanelActionDisabledUntilPanelExists() {
         let presentation = MenuBarCoordinator.meetingRecordingMenuPresentation(
             environmentReady: true,
             isMeetingRecordingActive: true,
-            canOpenLiveMeetingPanel: false,
-            showFloatingMeetingControls: false
+            canOpenLiveMeetingPanel: false
         )
 
         XCTAssertFalse(presentation.openLiveMeetingPanelHidden)

@@ -514,7 +514,7 @@ Default-on floating pill that appears during meeting recording unless the user d
 - **Stays visible** during concurrent dictation — dictation overlay appears separately
 - **Hides** idle pill while visible (meeting pill replaces it)
 - **Disappears** when recording stops (transitions to transcription in library)
-- **Status menu fallback** exposes Stop Recording, Open Live Meeting Panel, and the Show Floating Meeting Controls toggle so hidden-pill recordings remain controllable
+- **Status menu fallback** exposes Stop Recording and Open Live Meeting Panel so hidden-pill recordings remain controllable
 
 ### Panel: `NSPanel` (non-activating)
 

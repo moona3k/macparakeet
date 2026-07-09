@@ -98,7 +98,10 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testMeetingPillQueriesFindFloatingControlsSetting() {
-        let queries = ["floating controls", "meeting pill", "hide meeting", "recording ui"]
+        let queries = [
+            "floating", "pill", "meeting controls", "floating controls",
+            "meeting pill", "hide meeting", "recording ui"
+        ]
 
         for query in queries {
             let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
