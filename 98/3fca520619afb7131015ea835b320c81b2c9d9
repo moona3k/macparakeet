@@ -1,0 +1,19 @@
+public/appcast.xml
+  s_d83ed5a0631a14::t_8e7123bba1a0af 39-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "983fca520619afb7131015ea835b320c81b2c9d9",
+  "prompts": {},
+  "sessions": {
+    "s_d83ed5a0631a14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4657-90da-7992-9e5f-6aab084b389b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
