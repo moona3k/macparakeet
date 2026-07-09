@@ -215,13 +215,19 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         storedLanguage: String?,
         storedNemotronLanguage: String? = nil,
         storedCohereLanguage: String? = nil,
-        explicitLanguage: String?
+        explicitLanguage: String?,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
     ) -> SpeechEngineSelection {
         let preference: SpeechEnginePreference
         let language: String?
         switch engine {
         case .appDefault:
-            preference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            let storedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            preference = shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: engine,
+                storedEngine: storedEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            ) ? .parakeet : storedPreference
             language = switch preference {
             case .parakeet:
                 nil
@@ -246,6 +252,32 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             language = explicitLanguage ?? storedCohereLanguage
         }
         return SpeechEngineSelection(engine: preference, language: language)
+    }
+
+    static func shouldFallbackCohereAppDefaultToParakeet(
+        requestedEngine: TranscribeSpeechEngine,
+        storedEngine: String?,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> Bool {
+        guard requestedEngine == .appDefault,
+              SpeechEnginePreference(rawValue: storedEngine ?? "") == .cohere else {
+            return false
+        }
+        let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+            for: .cohere,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
+        return !status.isSatisfied
+    }
+
+    static func validateSpeechEngineMemoryRequirement(
+        _ speechEngine: SpeechEngineSelection,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) throws {
+        try validateCLISpeechEngineMemoryRequirement(
+            for: speechEngine.engine,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
     }
 
     static func validateCohereLanguageOverride(
@@ -465,13 +497,33 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
             let promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
             let defaults = macParakeetAppDefaults()
+            let storedSpeechEngine = defaults.string(forKey: SpeechEnginePreference.defaultsKey)
+            let physicalMemoryBytes = ProcessInfo.processInfo.physicalMemory
             let speechEngine = Self.resolveSpeechEngine(
                 self.engine,
-                storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
+                storedEngine: storedSpeechEngine,
                 storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
                 storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
                 storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
-                explicitLanguage: self.language
+                explicitLanguage: self.language,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
+            if Self.shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: self.engine,
+                storedEngine: storedSpeechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            ) {
+                let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+                    for: .cohere,
+                    physicalMemoryBytes: physicalMemoryBytes
+                )
+                printErr(
+                    "\(status.insufficientMemoryMessage ?? "Cohere Transcribe cannot run on this Mac because it does not meet the memory requirement.") Using Parakeet for this transcription."
+                )
+            }
+            try Self.validateSpeechEngineMemoryRequirement(
+                speechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
             )
             try Self.validateCohereLanguageOverride(self.language, speechEngine: speechEngine)
             let resolvedSpeakerDetection = Self.resolveSpeakerDetection(

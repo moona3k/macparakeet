@@ -386,7 +386,12 @@ struct ConfigCommand: ParsableCommand {
     /// Writes the value and returns the canonical normalized form actually persisted
     /// (e.g. "on"/"off" for booleans).
     @discardableResult
-    static func write(key: String, value: String, defaults: UserDefaults? = nil) throws -> String {
+    static func write(
+        key: String,
+        value: String,
+        defaults: UserDefaults? = nil,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) throws -> String {
         let store = defaults ?? macParakeetAppDefaults()
         switch try canonicalKey(key) {
         case "telemetry":
@@ -399,6 +404,10 @@ struct ConfigCommand: ParsableCommand {
             return mode.rawValue
         case "speech-engine":
             let engine = try parseSpeechEngine(value)
+            try validateCLISpeechEngineMemoryRequirement(
+                for: engine,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
             engine.save(to: store)
             return engine.rawValue
         case "parakeet-model":

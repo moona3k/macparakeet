@@ -132,6 +132,30 @@ public struct SpeechEngineCapabilities: Equatable, Sendable {
     public let telemetryIdentity: SpeechEngineTelemetryIdentity
 }
 
+public struct SpeechEngineMemoryRequirementStatus: Equatable, Sendable {
+    public let key: SpeechEngineVariantKey
+    public let modelName: String
+    public let minimumMemoryBytes: UInt64?
+    public let physicalMemoryBytes: UInt64
+
+    public var isSatisfied: Bool {
+        guard let minimumMemoryBytes else { return true }
+        return physicalMemoryBytes >= minimumMemoryBytes
+    }
+
+    public var minimumMemoryDescription: String? {
+        guard let minimumMemoryBytes else { return nil }
+        let gib: UInt64 = 1024 * 1024 * 1024
+        let roundedUp = (minimumMemoryBytes + (gib - 1)) / gib
+        return "\(roundedUp) GB"
+    }
+
+    public var insufficientMemoryMessage: String? {
+        guard !isSatisfied, let minimumMemoryDescription else { return nil }
+        return "\(modelName) needs \(minimumMemoryDescription) of memory or more — this Mac has less."
+    }
+}
+
 public enum SpeechEngineCapabilityRegistry {
     public static let cohereMinimumMemoryBytes: UInt64 = 16 * 1024 * 1024 * 1024
 
@@ -149,6 +173,26 @@ public enum SpeechEngineCapabilityRegistry {
             preconditionFailure("Missing SpeechEngineCapabilities row for \(key)")
         }
         return capabilities
+    }
+
+    public static func memoryRequirementStatus(
+        for key: SpeechEngineVariantKey,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> SpeechEngineMemoryRequirementStatus {
+        let capabilities = capabilities(for: key)
+        return SpeechEngineMemoryRequirementStatus(
+            key: key,
+            modelName: capabilities.modelLifecycle.modelName,
+            minimumMemoryBytes: capabilities.modelLifecycle.minimumMemoryBytes,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
+    }
+
+    public static func satisfiesMemoryRequirement(
+        for key: SpeechEngineVariantKey,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> Bool {
+        memoryRequirementStatus(for: key, physicalMemoryBytes: physicalMemoryBytes).isSatisfied
     }
 
     public static func variantKey(
@@ -184,6 +228,40 @@ public enum SpeechEngineCapabilityRegistry {
             return nil
         }
         return capabilities(for: key)
+    }
+
+    public static func memoryRequirementStatus(
+        for engine: SpeechEnginePreference,
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.defaultParakeetModelVariant,
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> SpeechEngineMemoryRequirementStatus? {
+        guard let key = variantKey(
+            for: engine,
+            parakeetModelVariant: parakeetModelVariant,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant
+        ) else {
+            return nil
+        }
+        return memoryRequirementStatus(for: key, physicalMemoryBytes: physicalMemoryBytes)
+    }
+
+    public static func satisfiesMemoryRequirement(
+        for engine: SpeechEnginePreference,
+        parakeetModelVariant: ParakeetModelVariant = SpeechEnginePreference.defaultParakeetModelVariant,
+        nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> Bool {
+        memoryRequirementStatus(
+            for: engine,
+            parakeetModelVariant: parakeetModelVariant,
+            nemotronModelVariant: nemotronModelVariant,
+            whisperModelVariant: whisperModelVariant,
+            physicalMemoryBytes: physicalMemoryBytes
+        )?.isSatisfied ?? true
     }
 
     private static func makeParakeetRows() -> [SpeechEngineCapabilities] {

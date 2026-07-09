@@ -89,6 +89,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Fixed
+
+- Cohere Transcribe CLI paths now enforce the same 16 GB memory floor recorded
+  in the speech-engine capability registry. `config set speech-engine cohere`,
+  `models download cohere-transcribe`, `models select cohere-transcribe`, and
+  explicit Cohere transcription/retranscription fail through the existing
+  validation-error path on unsupported Macs; `--engine app-default` falls back
+  to Parakeet with a stderr warning when a stale saved Cohere default cannot
+  run on the current machine.
+
 ## [2.12.0] -- 2026-07-06
 
 ### Added

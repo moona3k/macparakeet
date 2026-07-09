@@ -583,11 +583,33 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 defaults: defaults,
                 isNemotronModelDownloaded: { _, _ in true },
                 isWhisperModelDownloaded: { _ in true },
-                isCohereModelDownloaded: { false }
+                isCohereModelDownloaded: { false },
+                physicalMemoryBytes: 32 * 1024 * 1024 * 1024
             )
         ) { error in
             XCTAssertTrue(error is ValidationError)
             XCTAssertTrue(String(describing: error).contains("models download cohere-transcribe"))
+        }
+    }
+
+    func testValidateSelectableSpeechModelDownloadRejectsCohereBelowMemoryFloor() throws {
+        let suiteName = "com.macparakeet.tests.cli.model-select-cohere-memory.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertThrowsError(
+            try validateSelectableSpeechModelDownload(
+                SelectableSpeechModelSelection(engine: .cohere, whisperVariant: nil),
+                defaults: defaults,
+                isNemotronModelDownloaded: { _, _ in true },
+                isWhisperModelDownloaded: { _ in true },
+                isCohereModelDownloaded: { true },
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("16 GB"), String(describing: error))
         }
     }
 
@@ -603,7 +625,8 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 defaults: defaults,
                 isNemotronModelDownloaded: { _, _ in false },
                 isWhisperModelDownloaded: { _ in false },
-                isCohereModelDownloaded: { true }
+                isCohereModelDownloaded: { true },
+                physicalMemoryBytes: 32 * 1024 * 1024 * 1024
             )
         )
     }

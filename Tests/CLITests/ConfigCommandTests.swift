@@ -156,7 +156,15 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "nemotron", defaults: defaults), "nemotron")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.nemotron.rawValue)
 
-        XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "cohere", defaults: defaults), "cohere")
+        XCTAssertEqual(
+            try ConfigCommand.write(
+                key: "speech-engine",
+                value: "cohere",
+                defaults: defaults,
+                physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+            ),
+            "cohere"
+        )
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.cohere.rawValue)
 
         XCTAssertEqual(try ConfigCommand.write(key: "nemotron-language", value: "en_US", defaults: defaults), "en-US")
@@ -242,6 +250,21 @@ final class ConfigCommandTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey),
             YouTubeAudioQuality.bestAvailable.rawValue
         )
+    }
+
+    func testWriteSpeechEngineRejectsCohereBelowMemoryFloor() {
+        XCTAssertThrowsError(
+            try ConfigCommand.write(
+                key: "speech-engine",
+                value: "cohere",
+                defaults: defaults,
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("16 GB"), String(describing: error))
+        }
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.defaultsKey))
     }
 
     func testWriteCanonicalizesUnderscoreKeys() throws {

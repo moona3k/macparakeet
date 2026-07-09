@@ -226,11 +226,32 @@ final class TranscribeCommandTests: XCTestCase {
             storedLanguage: "ko",
             storedNemotronLanguage: "en_US",
             storedCohereLanguage: "fr",
-            explicitLanguage: nil
+            explicitLanguage: nil,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
 
         XCTAssertEqual(selection.engine, .cohere)
         XCTAssertEqual(selection.language, "fr")
+    }
+
+    func testResolveSpeechEngineFallsBackFromStoredCohereBelowMemoryFloor() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "fr",
+            explicitLanguage: nil,
+            physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+        )
+
+        XCTAssertEqual(selection, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertTrue(
+            TranscribeCommand.shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: .appDefault,
+                storedEngine: SpeechEnginePreference.cohere.rawValue,
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        )
     }
 
     func testResolveSpeechEngineExplicitLanguageOverridesStoredCohereLanguage() {
@@ -239,7 +260,8 @@ final class TranscribeCommandTests: XCTestCase {
             storedEngine: SpeechEnginePreference.cohere.rawValue,
             storedLanguage: "ko",
             storedCohereLanguage: "fr",
-            explicitLanguage: "ja"
+            explicitLanguage: "ja",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
 
         XCTAssertEqual(selection.engine, .cohere)
@@ -252,7 +274,8 @@ final class TranscribeCommandTests: XCTestCase {
             storedEngine: SpeechEnginePreference.whisper.rawValue,
             storedLanguage: "ko",
             storedCohereLanguage: "zh",
-            explicitLanguage: nil
+            explicitLanguage: nil,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
         XCTAssertEqual(storedSelection.engine, .cohere)
         XCTAssertEqual(storedSelection.language, "zh")
@@ -262,10 +285,25 @@ final class TranscribeCommandTests: XCTestCase {
             storedEngine: SpeechEnginePreference.whisper.rawValue,
             storedLanguage: "ko",
             storedCohereLanguage: "zh",
-            explicitLanguage: "ja"
+            explicitLanguage: "ja",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
         XCTAssertEqual(explicitSelection.engine, .cohere)
         XCTAssertEqual(explicitSelection.language, "ja")
+    }
+
+    func testValidateSpeechEngineMemoryRequirementRejectsExplicitCohereBelowFloor() {
+        let selection = SpeechEngineSelection(engine: .cohere)
+
+        XCTAssertThrowsError(
+            try TranscribeCommand.validateSpeechEngineMemoryRequirement(
+                selection,
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("16 GB"), String(describing: error))
+        }
     }
 
     func testValidateCohereLanguageOverrideRejectsExplicitAuto() {
@@ -274,7 +312,8 @@ final class TranscribeCommandTests: XCTestCase {
             storedEngine: SpeechEnginePreference.parakeet.rawValue,
             storedLanguage: nil,
             storedCohereLanguage: "fr",
-            explicitLanguage: "auto"
+            explicitLanguage: "auto",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
 
         XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
@@ -294,7 +333,8 @@ final class TranscribeCommandTests: XCTestCase {
             storedEngine: SpeechEnginePreference.parakeet.rawValue,
             storedLanguage: nil,
             storedCohereLanguage: "fr",
-            explicitLanguage: "zh_CN"
+            explicitLanguage: "zh_CN",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
         )
 
         try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)

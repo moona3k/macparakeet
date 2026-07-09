@@ -219,7 +219,30 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                 try validateDictationOnlyOptions()
             }
 
-            let speechEngine = resolveSpeechEngine(defaults: defaults)
+            let storedSpeechEngine = defaults.string(forKey: SpeechEnginePreference.defaultsKey)
+            let physicalMemoryBytes = ProcessInfo.processInfo.physicalMemory
+            let speechEngine = resolveSpeechEngine(
+                defaults: defaults,
+                storedEngine: storedSpeechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
+            if TranscribeCommand.shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: engine,
+                storedEngine: storedSpeechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            ) {
+                let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+                    for: .cohere,
+                    physicalMemoryBytes: physicalMemoryBytes
+                )
+                printErr(
+                    "\(status.insufficientMemoryMessage ?? "Cohere Transcribe cannot run on this Mac because it does not meet the memory requirement.") Using Parakeet for this retranscription."
+                )
+            }
+            try TranscribeCommand.validateSpeechEngineMemoryRequirement(
+                speechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
             try TranscribeCommand.validateCohereLanguageOverride(language, speechEngine: speechEngine)
             let parakeetVariant = TranscribeCommand.resolveParakeetModelVariant(
                 parakeetModel,
@@ -293,14 +316,19 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         }
     }
 
-    private func resolveSpeechEngine(defaults: UserDefaults) -> SpeechEngineSelection {
+    private func resolveSpeechEngine(
+        defaults: UserDefaults,
+        storedEngine: String? = nil,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> SpeechEngineSelection {
         TranscribeCommand.resolveSpeechEngine(
             engine,
-            storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
+            storedEngine: storedEngine ?? defaults.string(forKey: SpeechEnginePreference.defaultsKey),
             storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
             storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
             storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
-            explicitLanguage: language
+            explicitLanguage: language,
+            physicalMemoryBytes: physicalMemoryBytes
         )
     }
 
