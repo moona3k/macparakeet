@@ -1,0 +1,52 @@
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  s_91c4f4fd4d70db::t_df4afe67af6495 104-171
+Sources/CLI/Commands/ConfigCommand.swift
+  s_91c4f4fd4d70db::t_5c3cee846b01d5 389-394,407-410
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_91c4f4fd4d70db::t_7cc1147ee098ee 211,241,255,279,284-285,357-358,364,552,1209,1348,1453-1454,1777,1779-1780,1785,1789,2351-2374
+  s_91c4f4fd4d70db::t_42d216a401290d 280
+  s_91c4f4fd4d70db::t_307cd14d650c2a 1778
+  s_91c4f4fd4d70db::t_4aa2caf283f556 2375
+Sources/CLI/Commands/ModelsCommand.swift
+  s_91c4f4fd4d70db::t_99567a00e8f422 180,981-982,1007-1010
+Tests/CLITests/ConfigCommandTests.swift
+  s_91c4f4fd4d70db::t_5df1b5438ef629 159-167,255-267
+  s_91c4f4fd4d70db::t_f2503d0fc9e1dd 268-269
+Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift
+  s_91c4f4fd4d70db::t_535175bc9b4338 135-158,178-195,233-265
+  s_91c4f4fd4d70db::t_d14c9c444a7288 196-197
+  s_91c4f4fd4d70db::t_6d40a1762140e8 266
+Tests/CLITests/TranscribeCommandTests.swift
+  s_91c4f4fd4d70db::t_ac70a828e98050 229-230,237-256,263-264,277-278,288-289,295-308,315-316,336-337
+Sources/CLI/Commands/CLIHelpers.swift
+  s_91c4f4fd4d70db::t_d64c5a749e2643 18-33
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_91c4f4fd4d70db::t_5079207d1522b5 222-245,319-323,326,330-331
+Sources/CLI/CHANGELOG.md
+  s_91c4f4fd4d70db::t_037cd584be376c 92-101
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_91c4f4fd4d70db::t_122ff0a542b763 586-587,595-615,628-629
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_91c4f4fd4d70db::t_bbe019105cfea6 112-113,122-125
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_91c4f4fd4d70db::t_cc41eac86e6137 218-219,225-230,257-262,264-265,270-282,500-501,504,508-515,520-526
+  s_91c4f4fd4d70db::t_c22372e62820bb 263,266-269,516-519
+Sources/MacParakeetCore/STT/README.md
+  s_91c4f4fd4d70db::t_bf21312707a4c1 69-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2df95f6f64584dee989ea13e168dc38d794fef7e",
+  "prompts": {},
+  "sessions": {
+    "s_91c4f4fd4d70db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4552-0751-7c82-a0aa-8a141dbc298c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
