@@ -248,9 +248,9 @@ public enum SettingsSearchIndex {
             title: "Show floating meeting controls",
             subtitle: "in Meeting Recording",
             keywords: [
-                "floating", "pill", "meeting controls", "floating controls",
-                "meeting pill", "recording pill", "hide meeting", "hide recording",
-                "recording ui", "menu bar", "overlay"
+                "floating controls", "meeting pill", "recording pill",
+                "hide meeting", "hide recording", "recording ui", "menu bar",
+                "overlay"
             ],
             cardAnchor: "meeting"
         ),
