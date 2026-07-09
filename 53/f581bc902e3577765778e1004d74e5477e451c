@@ -1,0 +1,50 @@
+Tests/MacParakeetTests/Services/System/CommandLineToolInstallServiceTests.swift
+  s_a594c6fcd7b3e4::t_ff13b1e722c16b 1-158
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_a594c6fcd7b3e4::t_3ba2ccb8186cf4 132
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_a594c6fcd7b3e4::t_ff13b1e722c16b 845-930
+Sources/MacParakeet/AppDelegate.swift
+  s_a594c6fcd7b3e4::t_a93b36cfc96e3a 273-275
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_a594c6fcd7b3e4::t_f83ab6a601a900 181,193,642-658,952,986-1018
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_a594c6fcd7b3e4::t_ff13b1e722c16b 66-76
+integrations/README.md
+  s_a594c6fcd7b3e4::t_2db4c59cbe8cc6 108-111
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_a594c6fcd7b3e4::t_a93b36cfc96e3a 22,70,93,153-160,590-591
+  s_a594c6fcd7b3e4::t_d3882996241a88 592-593
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_a594c6fcd7b3e4::t_b3d97401e6093b 432-441
+  s_a594c6fcd7b3e4::t_c12524db9e758e 431
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_a594c6fcd7b3e4::t_75ce433367fd80 49-111,702,1120,1136,1148
+  s_a594c6fcd7b3e4::t_7bab972899e51e 1189-1252
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_a594c6fcd7b3e4::t_a93b36cfc96e3a 100-101
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_a594c6fcd7b3e4::t_3ba2ccb8186cf4 49,177
+Sources/MacParakeetCore/Services/System/README.md
+  s_a594c6fcd7b3e4::t_3ba2ccb8186cf4 26-27
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_a594c6fcd7b3e4::t_ff13b1e722c16b 413-444
+Sources/MacParakeetCore/Services/System/CommandLineToolInstallService.swift
+  s_a594c6fcd7b3e4::t_cd02eb99108963 1-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "53f581bc902e3577765778e1004d74e5477e451c",
+  "prompts": {},
+  "sessions": {
+    "s_a594c6fcd7b3e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4638-5887-7022-807b-4904e370996a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
