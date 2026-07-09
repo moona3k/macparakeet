@@ -16,7 +16,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let youtubeTranscriptionHotkeyTriggerProvider: () -> HotkeyTrigger
     private let meetingRecordingActiveProvider: () -> Bool
     private let liveMeetingPanelAvailableProvider: () -> Bool
-    private let showFloatingMeetingControlsProvider: () -> Bool
     private let dictationCaptureActiveProvider: () -> Bool
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
@@ -25,7 +24,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let onStartDictation: () -> Void
     private let onToggleMeetingRecording: () -> Void
     private let onOpenLiveMeetingPanel: () -> Void
-    private let onToggleFloatingMeetingControls: () -> Void
     private let onCreateTransform: () -> Void
     private let onQuit: () -> Void
     private let onShowAboutPanel: () -> Void
@@ -40,7 +38,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private var recentTransformsMenuItem: NSMenuItem?
     private var recordMeetingMenuItems: [NSMenuItem] = []
     private var openLiveMeetingPanelMenuItem: NSMenuItem?
-    private var showFloatingMeetingControlsMenuItem: NSMenuItem?
     private var transcribeFileMenuItems: [NSMenuItem] = []
     private var transcribeYouTubeMenuItems: [NSMenuItem] = []
     private var hotkeyMenuItem: NSMenuItem?
@@ -53,8 +50,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         let recordingEnabled: Bool
         let openLiveMeetingPanelHidden: Bool
         let openLiveMeetingPanelEnabled: Bool
-        let showFloatingMeetingControlsEnabled: Bool
-        let showFloatingMeetingControlsState: NSControl.StateValue
     }
 
     init(
@@ -68,7 +63,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         youtubeTranscriptionHotkeyTriggerProvider: @escaping () -> HotkeyTrigger,
         meetingRecordingActiveProvider: @escaping () -> Bool,
         liveMeetingPanelAvailableProvider: @escaping () -> Bool,
-        showFloatingMeetingControlsProvider: @escaping () -> Bool,
         dictationCaptureActiveProvider: @escaping () -> Bool,
         onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
@@ -77,7 +71,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         onStartDictation: @escaping () -> Void,
         onToggleMeetingRecording: @escaping () -> Void,
         onOpenLiveMeetingPanel: @escaping () -> Void,
-        onToggleFloatingMeetingControls: @escaping () -> Void,
         onCreateTransform: @escaping () -> Void,
         onQuit: @escaping () -> Void,
         onShowAboutPanel: @escaping () -> Void
@@ -92,7 +85,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.youtubeTranscriptionHotkeyTriggerProvider = youtubeTranscriptionHotkeyTriggerProvider
         self.meetingRecordingActiveProvider = meetingRecordingActiveProvider
         self.liveMeetingPanelAvailableProvider = liveMeetingPanelAvailableProvider
-        self.showFloatingMeetingControlsProvider = showFloatingMeetingControlsProvider
         self.dictationCaptureActiveProvider = dictationCaptureActiveProvider
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
@@ -101,7 +93,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.onStartDictation = onStartDictation
         self.onToggleMeetingRecording = onToggleMeetingRecording
         self.onOpenLiveMeetingPanel = onOpenLiveMeetingPanel
-        self.onToggleFloatingMeetingControls = onToggleFloatingMeetingControls
         self.onCreateTransform = onCreateTransform
         self.onQuit = onQuit
         self.onShowAboutPanel = onShowAboutPanel
@@ -122,16 +113,13 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     static func meetingRecordingMenuPresentation(
         environmentReady: Bool,
         isMeetingRecordingActive: Bool,
-        canOpenLiveMeetingPanel: Bool,
-        showFloatingMeetingControls: Bool
+        canOpenLiveMeetingPanel: Bool
     ) -> MeetingRecordingMenuPresentation {
         MeetingRecordingMenuPresentation(
             recordingTitle: isMeetingRecordingActive ? "Stop Recording" : "Start Recording",
             recordingEnabled: environmentReady,
             openLiveMeetingPanelHidden: !isMeetingRecordingActive,
-            openLiveMeetingPanelEnabled: environmentReady && canOpenLiveMeetingPanel,
-            showFloatingMeetingControlsEnabled: environmentReady,
-            showFloatingMeetingControlsState: showFloatingMeetingControls ? .on : .off
+            openLiveMeetingPanelEnabled: environmentReady && canOpenLiveMeetingPanel
         )
     }
 
@@ -460,15 +448,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             openLiveMeetingPanelItem.target = self
             menu.addItem(openLiveMeetingPanelItem)
             openLiveMeetingPanelMenuItem = openLiveMeetingPanelItem
-
-            let showFloatingMeetingControlsItem = NSMenuItem(
-                title: "Show Floating Meeting Controls",
-                action: #selector(toggleFloatingMeetingControlsFromMenu),
-                keyEquivalent: ""
-            )
-            showFloatingMeetingControlsItem.target = self
-            menu.addItem(showFloatingMeetingControlsItem)
-            showFloatingMeetingControlsMenuItem = showFloatingMeetingControlsItem
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -733,17 +712,12 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         onOpenLiveMeetingPanel()
     }
 
-    @objc private func toggleFloatingMeetingControlsFromMenu() {
-        onToggleFloatingMeetingControls()
-    }
-
     func menuNeedsUpdate(_ menu: NSMenu) {
         let environmentReady = environmentProvider() != nil
         let meetingPresentation = Self.meetingRecordingMenuPresentation(
             environmentReady: environmentReady,
             isMeetingRecordingActive: meetingRecordingActiveProvider(),
-            canOpenLiveMeetingPanel: liveMeetingPanelAvailableProvider(),
-            showFloatingMeetingControls: showFloatingMeetingControlsProvider()
+            canOpenLiveMeetingPanel: liveMeetingPanelAvailableProvider()
         )
         newTranscriptionMenuItem?.isEnabled = environmentReady
         startDictationMenuItem?.isEnabled = environmentReady && !dictationCaptureActiveProvider()
@@ -756,8 +730,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         }
         openLiveMeetingPanelMenuItem?.isHidden = meetingPresentation.openLiveMeetingPanelHidden
         openLiveMeetingPanelMenuItem?.isEnabled = meetingPresentation.openLiveMeetingPanelEnabled
-        showFloatingMeetingControlsMenuItem?.isEnabled = meetingPresentation.showFloatingMeetingControlsEnabled
-        showFloatingMeetingControlsMenuItem?.state = meetingPresentation.showFloatingMeetingControlsState
 
         updateCohereLanguageMenu()
 

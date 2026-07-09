@@ -261,9 +261,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         liveMeetingPanelAvailableProvider: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.canPresentLiveMeetingPanel == true
         },
-        showFloatingMeetingControlsProvider: { [weak self] in
-            self?.settingsViewModel.showMeetingRecordingPill ?? true
-        },
         dictationCaptureActiveProvider: { [weak self] in
             self?.dictationFlowCoordinator?.isCapturingAudio == true
         },
@@ -288,9 +285,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onOpenLiveMeetingPanel: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.presentLiveMeetingPanel()
-        },
-        onToggleFloatingMeetingControls: { [weak self] in
-            self?.settingsViewModel.showMeetingRecordingPill.toggle()
         },
         onCreateTransform: { [weak self] in
             self?.mainWindowState.beginCreatingTransform()
