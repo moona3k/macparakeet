@@ -1,0 +1,26 @@
+Sources/CLI/CHANGELOG.md
+  s_83880deed1ba53::t_3967a8a5c3a38d 101-104
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_83880deed1ba53::t_3967a8a5c3a38d 226-246,421-454
+  s_83880deed1ba53::t_c44605b97467d6 455
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingMarkdownRenderer.swift
+  s_83880deed1ba53::t_3967a8a5c3a38d 87-94,107-108
+spec/contracts/meeting-artifacts-v1.md
+  s_83880deed1ba53::t_3967a8a5c3a38d 79-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2275fbf9c77ba1fd8e49f8edd3f3f922743ba582",
+  "prompts": {},
+  "sessions": {
+    "s_83880deed1ba53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "739c7882-d4fa-4372-9a38-82050c3c65f6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
