@@ -1,0 +1,27 @@
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_b8327d68d78cce::t_46ff0af1c832ef 116,122,720
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_b8327d68d78cce::t_1b6dc21e81221d 251-253
+Tests/MacParakeetTests/App/MenuBarCoordinatorTests.swift
+  s_b8327d68d78cce::t_f490ea73f5f0e5 11,20,24,37,48
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_b8327d68d78cce::t_662d4a92622dfc 101-104
+spec/04-ui-patterns.md
+  s_b8327d68d78cce::t_0f7f10baa2cb12 517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e0e6115caed0f041addf70ec8818763e08959d65",
+  "prompts": {},
+  "sessions": {
+    "s_b8327d68d78cce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44bc-f891-71e1-ab86-7a8eb2627084",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
