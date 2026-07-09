@@ -210,6 +210,8 @@ public actor STTRuntime: STTRuntimeProtocol {
     private let defaults: UserDefaults
     private let physicalMemoryBytes: @Sendable () -> UInt64
     private var activeTranscriptionCount = 0
+    /// One-shot guard so polling read sites do not repeat the fallback warning.
+    private var hasLoggedCohereMemoryFallback = false
     private var liveDictationSession: LiveDictationSessionState? {
         didSet {
             guard liveDictationSession == nil, !liveDictationSessionWaiters.isEmpty else { return }
@@ -2350,7 +2352,10 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     private func effectiveSpeechEnginePreference() -> SpeechEnginePreference {
         if speechEngine == .cohere, !memoryRequirementStatus(for: .cohere).isSatisfied {
-            logger.warning("cohere_memory_gate_fallback active=cohere fallback=parakeet")
+            if !hasLoggedCohereMemoryFallback {
+                hasLoggedCohereMemoryFallback = true
+                logger.warning("cohere_memory_gate_fallback active=cohere fallback=parakeet")
+            }
             return .parakeet
         }
         return speechEngine
