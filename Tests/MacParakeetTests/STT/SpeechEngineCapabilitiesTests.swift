@@ -101,6 +101,74 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
         XCTAssertEqual(cohere.telemetryIdentity.engineVariant, .cohereComputePolicy)
     }
 
+    func testMemoryRequirementStatusReadsCapabilityRegistryFloor() {
+        let gib: UInt64 = 1024 * 1024 * 1024
+
+        let below = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+            for: .cohere,
+            physicalMemoryBytes: 15 * gib
+        )
+        XCTAssertEqual(below.minimumMemoryBytes, 16 * gib)
+        XCTAssertFalse(below.isSatisfied)
+        XCTAssertEqual(
+            below.insufficientMemoryMessage,
+            "Cohere Transcribe needs 16 GB of memory or more — this Mac has less."
+        )
+
+        XCTAssertTrue(
+            SpeechEngineCapabilityRegistry.satisfiesMemoryRequirement(
+                for: .cohere,
+                physicalMemoryBytes: 16 * gib
+            )
+        )
+    }
+
+    func testMemoryRequirementStatusLeavesEnginesWithoutFloorsUnaffected() {
+        let tinyMemory: UInt64 = 1
+        XCTAssertTrue(
+            SpeechEngineCapabilityRegistry.satisfiesMemoryRequirement(
+                for: .parakeet(.v3),
+                physicalMemoryBytes: tinyMemory
+            )
+        )
+        XCTAssertTrue(
+            SpeechEngineCapabilityRegistry.satisfiesMemoryRequirement(
+                for: .nemotron(.multilingual1120),
+                physicalMemoryBytes: tinyMemory
+            )
+        )
+        XCTAssertTrue(
+            SpeechEngineCapabilityRegistry.satisfiesMemoryRequirement(
+                for: .whisper(.largeV3Turbo632MB),
+                physicalMemoryBytes: tinyMemory
+            )
+        )
+    }
+
+    func testRuntimeFallsBackFromPersistedCohereWhenMemoryIsBelowFloor() async {
+        let runtime = STTRuntime(
+            speechEngine: .cohere,
+            physicalMemoryBytes: { 8 * 1024 * 1024 * 1024 }
+        )
+
+        let selection = await runtime.currentSpeechEngineSelection()
+        let capabilities = await runtime.currentSpeechEngineCapabilities()
+
+        XCTAssertEqual(selection, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertEqual(capabilities.key, .parakeet(.v3))
+    }
+
+    func testRuntimeRejectsExplicitCohereSwitchWhenMemoryIsBelowFloor() async {
+        let runtime = STTRuntime(physicalMemoryBytes: { 8 * 1024 * 1024 * 1024 })
+
+        do {
+            try await runtime.setSpeechEngine(.cohere)
+            XCTFail("Expected Cohere switch to fail below the memory floor")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("16 GB"), error.localizedDescription)
+        }
+    }
+
     func testWhisperVariantSetIsClosed() {
         XCTAssertEqual(WhisperModelVariant.allCases, [.largeV3Turbo632MB])
         XCTAssertEqual(

@@ -208,7 +208,10 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// (no live dictation / preview path).
     private var cohereEngine: CohereTranscribeEngine?
     private let defaults: UserDefaults
+    private let physicalMemoryBytes: @Sendable () -> UInt64
     private var activeTranscriptionCount = 0
+    /// One-shot guard so polling read sites do not repeat the fallback warning.
+    private var hasLoggedCohereMemoryFallback = false
     private var liveDictationSession: LiveDictationSessionState? {
         didSet {
             guard liveDictationSession == nil, !liveDictationSessionWaiters.isEmpty else { return }
@@ -237,6 +240,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
         defaults: UserDefaults = .standard,
         inferenceGate: ANEInferenceGate = .shared,
+        physicalMemoryBytes: @escaping @Sendable () -> UInt64 = { ProcessInfo.processInfo.physicalMemory },
         customVocabularyProvider: (any CustomVocabularyBoostingTermProviding)? = nil,
         customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil
     ) {
@@ -250,6 +254,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
         self.defaults = defaults
         self.inferenceGate = inferenceGate
+        self.physicalMemoryBytes = physicalMemoryBytes
         self.customVocabularyProvider = customVocabularyProvider
         self.customVocabularyRescorer = customVocabularyRescorer ?? FluidAudioCustomVocabularyRescorer()
     }
@@ -273,12 +278,13 @@ public actor STTRuntime: STTRuntimeProtocol {
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        try await transcribe(
+        let activeSpeechEngine = effectiveSpeechEnginePreference()
+        return try await transcribe(
             audioPath: audioPath,
             job: job,
             speechEngine: SpeechEngineSelection(
-                engine: speechEngine,
-                language: defaultLanguage(for: speechEngine)
+                engine: activeSpeechEngine,
+                language: defaultLanguage(for: activeSpeechEngine)
             ),
             onProgress: onProgress
         )
@@ -350,13 +356,14 @@ public actor STTRuntime: STTRuntimeProtocol {
         guard liveDictationSession == nil else {
             throw STTError.engineBusy
         }
-        let capabilities = capabilities(for: speechEngine)
+        let activeSpeechEngine = effectiveSpeechEnginePreference()
+        let capabilities = capabilities(for: activeSpeechEngine)
         guard capabilities.supportsNativeLiveDictation else {
             throw STTLiveDictationTranscriptionError.unsupportedEngine(capabilities.key.engine)
         }
         let engine: any NativeLiveDictating
         let language: String?
-        switch speechEngine {
+        switch activeSpeechEngine {
         case .parakeet where currentParakeetVariant.usesUnifiedEngine:
             guard let unifiedEngine = parakeetUnifiedEngine else {
                 throw STTLiveDictationTranscriptionError.modelNotReady
@@ -544,6 +551,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// always reusable. Cohere job serialization lives in `STTScheduler`, so
     /// construction only needs this actor's normal single-threaded mutation.
     private func ensureCohereEngine() throws -> CohereTranscribeEngine {
+        try validateMemoryRequirement(for: .cohere)
         if let cohereEngine {
             return cohereEngine
         }
@@ -1200,7 +1208,7 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         let start = ContinuousClock.now
         let operationContext = Observability.childOperationContext()
-        let activeSpeechEngine = speechEngine
+        let activeSpeechEngine = effectiveSpeechEnginePreference()
         let modelKind = telemetryModelKind(for: activeSpeechEngine)
         let engineVariant = telemetryEngineVariant(for: activeSpeechEngine)
         do {
@@ -1339,7 +1347,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func isReady() async -> Bool {
-        switch capabilities(for: speechEngine).key {
+        switch capabilities(for: effectiveSpeechEnginePreference()).key {
         case .nemotron(let variant):
             if variant.isEnglishOnly {
                 return await nemotronEnglishEngine?.isReady() ?? false
@@ -1444,6 +1452,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         _ preference: SpeechEnginePreference,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
+        try validateMemoryRequirement(for: preference)
+
         guard preference != speechEngine else {
             preference.save(to: defaults)
             return
@@ -1766,18 +1776,19 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
-        SpeechEngineSelection(
-            engine: speechEngine,
-            language: defaultLanguage(for: speechEngine)
+        let engine = effectiveSpeechEnginePreference()
+        return SpeechEngineSelection(
+            engine: engine,
+            language: defaultLanguage(for: engine)
         )
     }
 
     public func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
-        capabilities(for: speechEngine)
+        capabilities(for: effectiveSpeechEnginePreference())
     }
 
     public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution {
-        let engine = speechEngine
+        let engine = effectiveSpeechEnginePreference()
         return SpeechEngineTelemetryAttribution(
             speechEngine: engine,
             engineVariant: telemetryEngineVariant(for: engine),
@@ -2337,6 +2348,34 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     private func capabilities(for engine: SpeechEnginePreference) -> SpeechEngineCapabilities {
         SpeechEngineCapabilityRegistry.capabilities(for: variantKey(for: engine))
+    }
+
+    private func effectiveSpeechEnginePreference() -> SpeechEnginePreference {
+        if speechEngine == .cohere, !memoryRequirementStatus(for: .cohere).isSatisfied {
+            if !hasLoggedCohereMemoryFallback {
+                hasLoggedCohereMemoryFallback = true
+                logger.warning("cohere_memory_gate_fallback active=cohere fallback=parakeet")
+            }
+            return .parakeet
+        }
+        return speechEngine
+    }
+
+    private func validateMemoryRequirement(for engine: SpeechEnginePreference) throws {
+        let status = memoryRequirementStatus(for: engine)
+        guard status.isSatisfied else {
+            throw STTError.engineStartFailed(
+                status.insufficientMemoryMessage
+                    ?? "\(status.modelName) cannot run on this Mac because it does not meet the memory requirement."
+            )
+        }
+    }
+
+    private func memoryRequirementStatus(for engine: SpeechEnginePreference) -> SpeechEngineMemoryRequirementStatus {
+        SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+            for: variantKey(for: engine),
+            physicalMemoryBytes: physicalMemoryBytes()
+        )
     }
 
     private func variantKey(for engine: SpeechEnginePreference) -> SpeechEngineVariantKey {

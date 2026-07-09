@@ -177,6 +177,7 @@ extension ModelsCommand {
             }
 
             if isCohereModelID(lowered) {
+                try validateCLISpeechEngineMemoryRequirement(for: .cohere)
                 print("Cohere: downloading \(cohereModelName)...")
                 let lastMessage = OSAllocatedUnfairLock(initialState: "")
                 _ = try await CohereTranscribeEngine.downloadModel { message in
@@ -977,7 +978,8 @@ func validateSelectableSpeechModelDownload(
     defaults: UserDefaults = macParakeetAppDefaults(),
     isNemotronModelDownloaded: ((NemotronModelVariant, String?) -> Bool)? = nil,
     isWhisperModelDownloaded: ((String) -> Bool)? = nil,
-    isCohereModelDownloaded: (() -> Bool)? = nil
+    isCohereModelDownloaded: (() -> Bool)? = nil,
+    physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
 ) throws {
     if let nemotronVariant = selection.nemotronVariant {
         let language = SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
@@ -1002,6 +1004,10 @@ func validateSelectableSpeechModelDownload(
     }
 
     if selection.engine == .cohere {
+        try validateCLISpeechEngineMemoryRequirement(
+            for: .cohere,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
         let downloaded = (isCohereModelDownloaded ?? { CohereTranscribeEngine.isModelCached() })()
         guard downloaded else {
             throw ValidationError(

@@ -15,6 +15,22 @@ func macParakeetAppDefaults() -> UserDefaults {
     UserDefaults(suiteName: macParakeetAppDefaultsSuiteName) ?? .standard
 }
 
+func validateCLISpeechEngineMemoryRequirement(
+    for engine: SpeechEnginePreference,
+    physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+) throws {
+    guard let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+        for: engine,
+        physicalMemoryBytes: physicalMemoryBytes
+    ), !status.isSatisfied else {
+        return
+    }
+    throw ValidationError(
+        status.insufficientMemoryMessage
+            ?? "\(status.modelName) cannot run on this Mac because it does not meet the memory requirement."
+    )
+}
+
 func expandTilde(_ path: String) -> String {
     (path as NSString).expandingTildeInPath
 }

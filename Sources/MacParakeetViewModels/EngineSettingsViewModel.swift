@@ -109,8 +109,8 @@ public final class EngineSettingsViewModel {
     }
     /// Cohere's CoreML model has a large runtime footprint; on a low-memory Mac
     /// it risks an OS jetsam kill mid-transcription that no `catch` can recover.
-    /// Selecting Cohere or downloading its model is gated to machines with at
-    /// least ``cohereMinimumMemoryBytes`` of RAM.
+    /// Selecting Cohere or downloading its model is gated through the shared
+    /// capability-registry memory floor.
     public static let cohereMinimumMemoryBytes: UInt64 = {
         SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
             .modelLifecycle.minimumMemoryBytes
@@ -119,7 +119,10 @@ public final class EngineSettingsViewModel {
     public static let cohereInsufficientMemoryMessage =
         "Cohere Transcribe needs 16 GB of memory or more — this Mac has less."
     public var cohereMeetsMemoryRequirement: Bool {
-        physicalMemoryBytes() >= Self.cohereMinimumMemoryBytes
+        SpeechEngineCapabilityRegistry.satisfiesMemoryRequirement(
+            for: .cohere,
+            physicalMemoryBytes: physicalMemoryBytes()
+        )
     }
     public var whisperModelVariant: WhisperModelVariant {
         WhisperModelVariant.normalize(SpeechEnginePreference.whisperModelVariant(defaults: defaults))

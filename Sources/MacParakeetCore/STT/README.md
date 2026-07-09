@@ -66,8 +66,9 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   meetings degrade to plain text. Loads only an explicitly downloaded model
   cache; it does not download from normal transcription/warm-up paths. Its
   CoreML model has a large runtime footprint, so Settings gates both selecting
-  Cohere and downloading its model to machines with at least
-  `EngineSettingsViewModel.cohereMinimumMemoryBytes` (16 GB) of RAM.
+  Cohere and downloading its model through the shared capability-registry
+  memory floor (`SpeechEngineCapabilityRegistry`, 16 GB); Core runtime and CLI
+  entry points enforce the same gate before constructing or selecting Cohere.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.
