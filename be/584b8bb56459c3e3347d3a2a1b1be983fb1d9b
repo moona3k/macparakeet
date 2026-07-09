@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_83880deed1ba53::t_12734adf48f49c 41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be584b8bb56459c3e3347d3a2a1b1be983fb1d9b",
+  "prompts": {},
+  "sessions": {
+    "s_83880deed1ba53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "739c7882-d4fa-4372-9a38-82050c3c65f6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
