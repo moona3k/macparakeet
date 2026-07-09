@@ -89,6 +89,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Fixed
+
+- Regenerated meeting artifact manifests and Markdown now populate
+  `rawMicrophoneAudioPath` and `rawSystemAudioPath` for retained meeting folders
+  that still use the legacy `microphone.m4a` and `system.m4a` raw-audio
+  filenames.
+
 ## [2.12.0] -- 2026-07-06
 
 ### Added

@@ -84,8 +84,14 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
             MeetingArtifactStore.promptResultsDirectoryName,
             isDirectory: true
         )
-        let microphoneURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
-        let systemURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem)
+        let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
+            in: folderURL,
+            fileManager: fileManager
+        )
+        let systemAudio = MeetingArtifactAudioFileNames.resolveRawSystemURL(
+            in: folderURL,
+            fileManager: fileManager
+        )
         let cleanedMicrophoneURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName
         )
@@ -98,8 +104,8 @@ public struct MeetingMarkdownArtifactPaths: Sendable, Equatable {
             transcriptPath: transcriptURL.path,
             notesPath: normalizedNonEmptyText(transcription.userNotes) == nil ? nil : notesURL.path,
             playbackAudioPath: transcription.filePath,
-            rawMicrophoneAudioPath: fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil,
-            rawSystemAudioPath: fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil,
+            rawMicrophoneAudioPath: microphoneAudio.exists ? microphoneAudio.url.path : nil,
+            rawSystemAudioPath: systemAudio.exists ? systemAudio.url.path : nil,
             cleanedMicrophoneAudioPath: MeetingRecordingOutput.isViableCleanedMicrophoneFile(
                 at: cleanedMicrophoneURL,
                 fileManager: fileManager

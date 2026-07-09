@@ -76,6 +76,14 @@ The v1 folder can contain these stable filenames:
 - `prompt-results/*.md`: filenames use a stable two-digit 1-based index prefix
   plus sanitized prompt-result name.
 
+New recordings write the role-explicit audio filenames above. For read
+compatibility with folders created before the in-place v1 audio filename
+rename, readers and artifact materializers must also resolve legacy
+`microphone.m4a` and `system.m4a` when the current raw-audio filename is absent.
+Regenerated `manifest.json` and `meeting.md` path fields point to the actual
+existing current or legacy raw-audio file. New captures must not create legacy
+raw-audio filenames.
+
 ## Stable JSON Fields
 
 `MeetingArtifactSnapshot` and CLI artifact output keep these fields stable:
