@@ -31,9 +31,10 @@ public struct CustomVocabularyBoostingSupportPresentation: Equatable, Sendable {
 }
 
 public enum CustomVocabularyBoostingPresentation {
-    public static func status(for capabilities: SpeechEngineCapabilities?)
-        -> CustomVocabularyBoostingSupportPresentation
-    {
+    public static func status(
+        for capabilities: SpeechEngineCapabilities?,
+        recognitionBoostingEnabled: Bool = true
+    ) -> CustomVocabularyBoostingSupportPresentation {
         guard let capabilities else {
             return CustomVocabularyBoostingSupportPresentation(
                 title: "Clean corrections only",
@@ -41,12 +42,21 @@ public enum CustomVocabularyBoostingPresentation {
                     "This engine does not support recognition-time vocabulary boosting; enabled rules still run after transcription."
             )
         }
-        return status(for: capabilities)
+        return status(for: capabilities, recognitionBoostingEnabled: recognitionBoostingEnabled)
     }
 
-    public static func status(for capabilities: SpeechEngineCapabilities) -> CustomVocabularyBoostingSupportPresentation
-    {
+    public static func status(
+        for capabilities: SpeechEngineCapabilities,
+        recognitionBoostingEnabled: Bool = true
+    ) -> CustomVocabularyBoostingSupportPresentation {
         if capabilities.supportsCustomVocabulary {
+            guard recognitionBoostingEnabled else {
+                return CustomVocabularyBoostingSupportPresentation(
+                    title: "Clean corrections only",
+                    detail:
+                        "Recognition boosting is paused; enabled rules still run after transcription."
+                )
+            }
             return CustomVocabularyBoostingSupportPresentation(
                 title: "Recognition boosting on",
                 detail:

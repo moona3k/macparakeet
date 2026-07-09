@@ -108,9 +108,21 @@ final class VocabCommandTests: XCTestCase {
         SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
         XCTAssertTrue(
             VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+                .contains("Recognition boosting is paused")
+        )
+
+        defaults.set(
+            true,
+            forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+        )
+        XCTAssertTrue(
+            VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
                 .contains("Recognition boosting on")
         )
 
+        defaults.removeObject(
+            forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+        )
         SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         let unifiedLine = VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
         XCTAssertTrue(unifiedLine.contains("Clean corrections only"))

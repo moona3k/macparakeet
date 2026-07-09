@@ -25,6 +25,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var pauseMediaDuringDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
     var preferBuiltInMicWhenBluetoothOutput: Bool { get }
+    var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
     var dictationUndoCountdown: DictationUndoCountdown { get }
@@ -530,6 +531,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// first; this only changes the system-default path or the fallback behind
     /// a failed explicit attempt.
     public static let preferBuiltInMicWhenBluetoothOutputKey = "preferBuiltInMicWhenBluetoothOutput"
+    public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
     public static let dictationUndoCountdownKey = "dictationUndoCountdown"
@@ -687,6 +689,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var preferBuiltInMicWhenBluetoothOutput: Bool {
         defaults.object(forKey: Self.preferBuiltInMicWhenBluetoothOutputKey) as? Bool ?? true
+    }
+
+    public var customVocabularyRecognitionBoostingEnabled: Bool {
+        defaults.object(forKey: Self.customVocabularyRecognitionBoostingEnabledKey) as? Bool ?? false
     }
 
     public var showLiveDictationPreview: Bool {

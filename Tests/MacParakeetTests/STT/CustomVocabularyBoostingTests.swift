@@ -81,6 +81,23 @@ final class CustomVocabularyBoostingTests: XCTestCase {
         XCTAssertEqual(requestCount, 0)
     }
 
+    func testDisabledRecognitionBoostingSkipsSidecarInvocation() async throws {
+        let rescorer = FakeCustomVocabularyRescorer()
+        let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(
+            transcript: "MAC Parakeet",
+            tokenTimings: Self.tokenTimings,
+            audioSamples: [0.1, 0.2, 0.3],
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            vocabulary: CustomVocabularyBoostingVocabulary(terms: ["MacParakeet"]),
+            rescorer: rescorer,
+            recognitionBoostingEnabled: false
+        )
+
+        XCTAssertEqual(result.text, "MAC Parakeet")
+        let requestCount = await rescorer.requestCount()
+        XCTAssertEqual(requestCount, 0)
+    }
+
     func testDictationUnpreparedVocabularyReturnsUnboostedAndStartsBackgroundPreparation() async throws {
         let rescorer = FakeCustomVocabularyRescorer(text: "MacParakeet", isPrepared: false)
         let result = try await STTRuntime.applyCustomVocabularyBoostingForTesting(

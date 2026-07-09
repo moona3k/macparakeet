@@ -168,6 +168,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private let inferenceGate: ANEInferenceGate
     private let customVocabularyProvider: (any CustomVocabularyBoostingTermProviding)?
     private let customVocabularyRescorer: any CustomVocabularyRescoring
+    private let customVocabularyRecognitionBoostingEnabled: @Sendable () -> Bool
 
     private var interactiveManager: AsrManager?
     private var backgroundManager: AsrManager?
@@ -242,7 +243,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         inferenceGate: ANEInferenceGate = .shared,
         physicalMemoryBytes: @escaping @Sendable () -> UInt64 = { ProcessInfo.processInfo.physicalMemory },
         customVocabularyProvider: (any CustomVocabularyBoostingTermProviding)? = nil,
-        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil
+        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil,
+        customVocabularyRecognitionBoostingEnabled: @escaping @Sendable () -> Bool = { false }
     ) {
         self.currentParakeetVariant = parakeetModelVariant
         // `.unified` has no TDT version; the TDT path is never taken for it, so a
@@ -257,6 +259,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.physicalMemoryBytes = physicalMemoryBytes
         self.customVocabularyProvider = customVocabularyProvider
         self.customVocabularyRescorer = customVocabularyRescorer ?? FluidAudioCustomVocabularyRescorer()
+        self.customVocabularyRecognitionBoostingEnabled = customVocabularyRecognitionBoostingEnabled
     }
 
     #if DEBUG
@@ -807,6 +810,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         preparationMode: CustomVocabularyBoostingPreparationMode,
         loadAudioSamples: () throws -> [Float]
     ) async throws -> ASRResult {
+        guard customVocabularyRecognitionBoostingEnabled() else { return result }
         guard let customVocabularyProvider else { return result }
         try Task.checkCancellation()
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(currentParakeetVariant))
@@ -838,9 +842,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         inferenceGate: ANEInferenceGate,
         preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation,
         logger: Logger? = nil,
-        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil
+        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil,
+        recognitionBoostingEnabled: Bool = true
     ) async throws -> ASRResult {
         try Task.checkCancellation()
+        guard recognitionBoostingEnabled else { return result }
         guard capabilities.supportsCustomVocabulary,
               !vocabulary.isEmpty,
               !audioSamples.isEmpty,
@@ -1128,7 +1134,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         rescorer: any CustomVocabularyRescoring,
         inferenceGate: ANEInferenceGate = ANEInferenceGate(serializationRequired: false),
         preparationMode: CustomVocabularyBoostingPreparationMode = .awaitPreparation,
-        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil
+        backgroundPreparationTaskRegistered: (@Sendable () async -> Void)? = nil,
+        recognitionBoostingEnabled: Bool = true
     ) async throws -> ASRResult {
         let result = ASRResult(
             text: transcript,
@@ -1145,7 +1152,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             rescorer: rescorer,
             inferenceGate: inferenceGate,
             preparationMode: preparationMode,
-            backgroundPreparationTaskRegistered: backgroundPreparationTaskRegistered
+            backgroundPreparationTaskRegistered: backgroundPreparationTaskRegistered,
+            recognitionBoostingEnabled: recognitionBoostingEnabled
         )
     }
     #endif

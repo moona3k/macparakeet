@@ -39,6 +39,19 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testCustomVocabularyRecognitionBoostingDefaultsOffAndReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+
+        XCTAssertFalse(preferences.customVocabularyRecognitionBoostingEnabled)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey)
+
+        XCTAssertTrue(preferences.customVocabularyRecognitionBoostingEnabled)
+    }
+
     func testShowMeetingRecordingPillDefaultsToTrueAndReadsStoredValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

@@ -400,12 +400,19 @@ public final class SettingsViewModel {
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
     public var customVocabularyRecognitionStatus: CustomVocabularyBoostingSupportPresentation {
-        CustomVocabularyBoostingPresentation.status(for: SpeechEngineCapabilityRegistry.capabilities(
+        guard let capabilities = SpeechEngineCapabilityRegistry.capabilities(
             for: engine.speechEnginePreference,
             parakeetModelVariant: engine.parakeetModelVariant,
             nemotronModelVariant: engine.nemotronModelVariant,
             whisperModelVariant: engine.whisperModelVariant.rawValue
-        ))
+        ) else {
+            return CustomVocabularyBoostingPresentation.status(for: Optional<SpeechEngineCapabilities>.none)
+        }
+        let runtimePreferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        return CustomVocabularyBoostingPresentation.status(
+            for: capabilities,
+            recognitionBoostingEnabled: runtimePreferences.customVocabularyRecognitionBoostingEnabled
+        )
     }
 
     // Storage

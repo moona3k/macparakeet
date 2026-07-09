@@ -17,10 +17,15 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
         defaults: UserDefaults = .standard,
         customWordRepository: (any CustomWordRepositoryProtocol)? = nil,
-        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil
+        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil,
+        customVocabularyRecognitionBoostingEnabled: (@Sendable () -> Bool)? = nil
     ) {
         let customVocabularyProvider = customWordRepository.map {
             RepositoryCustomVocabularyBoostingTermProvider(repository: $0)
+        }
+        let runtimePreferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        let recognitionBoostingEnabled = customVocabularyRecognitionBoostingEnabled ?? {
+            runtimePreferences.customVocabularyRecognitionBoostingEnabled
         }
         let runtime = STTRuntime(
             parakeetModelVariant: parakeetModelVariant,
@@ -29,7 +34,8 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
             whisperModelVariant: whisperModelVariant,
             defaults: defaults,
             customVocabularyProvider: customVocabularyProvider,
-            customVocabularyRescorer: customVocabularyRescorer
+            customVocabularyRescorer: customVocabularyRescorer,
+            customVocabularyRecognitionBoostingEnabled: recognitionBoostingEnabled
         )
         self.scheduler = STTScheduler(runtime: runtime)
     }

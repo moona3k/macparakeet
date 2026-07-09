@@ -24,7 +24,11 @@ struct VocabWordsCommand: AsyncParsableCommand {
             nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         )
-        let status = CustomVocabularyBoostingPresentation.status(for: capabilities)
+        let runtimePreferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        let status = CustomVocabularyBoostingPresentation.status(
+            for: capabilities,
+            recognitionBoostingEnabled: runtimePreferences.customVocabularyRecognitionBoostingEnabled
+        )
         return "Custom vocabulary: \(status.title) - \(status.detail)"
     }
 

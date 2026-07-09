@@ -90,7 +90,10 @@ final class AppEnvironment {
             speechEngine: SpeechEnginePreference.current(),
             nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(),
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant(),
-            customVocabularyProvider: RepositoryCustomVocabularyBoostingTermProvider(repository: customWordRepo)
+            customVocabularyProvider: RepositoryCustomVocabularyBoostingTermProvider(repository: customWordRepo),
+            customVocabularyRecognitionBoostingEnabled: { [runtimePreferences] in
+                runtimePreferences.customVocabularyRecognitionBoostingEnabled
+            }
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
         // Ship raw meeting mic capture by default. VPIO remains available for

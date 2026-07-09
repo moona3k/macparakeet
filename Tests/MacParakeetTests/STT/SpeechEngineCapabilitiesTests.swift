@@ -43,10 +43,18 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
 
     func testCustomVocabularyPresentationReadsCapabilitySupport() {
         let tdtStatus = CustomVocabularyBoostingPresentation.status(
-            for: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+            for: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            recognitionBoostingEnabled: true
         )
         XCTAssertEqual(tdtStatus.title, "Recognition boosting on")
         XCTAssertTrue(tdtStatus.detail.contains("Parakeet TDT"))
+
+        let pausedTDTStatus = CustomVocabularyBoostingPresentation.status(
+            for: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            recognitionBoostingEnabled: false
+        )
+        XCTAssertEqual(pausedTDTStatus.title, "Clean corrections only")
+        XCTAssertTrue(pausedTDTStatus.detail.contains("paused"))
 
         let unifiedStatus = CustomVocabularyBoostingPresentation.status(
             for: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
