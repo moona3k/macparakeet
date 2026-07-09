@@ -223,6 +223,27 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(markdown.contains("cleanedMicrophoneAudioPath: \"\(cleanedURL.path)\""))
     }
 
+    func testMaterializeKeepsCurrentRawAudioPathsForRegeneratedMarkdownAndManifest() async throws {
+        try await assertMaterializedRawAudioPaths(
+            microphoneURL: folderURL.appendingPathComponent("microphone-raw.m4a"),
+            systemURL: folderURL.appendingPathComponent("system-raw.m4a")
+        )
+    }
+
+    func testMaterializeResolvesLegacyRawAudioPathsForRegeneratedMarkdownAndManifest() async throws {
+        try FileManager.default.removeItem(at: folderURL.appendingPathComponent("microphone-raw.m4a"))
+        try FileManager.default.removeItem(at: folderURL.appendingPathComponent("system-raw.m4a"))
+        let legacyMicrophoneURL = folderURL.appendingPathComponent("microphone.m4a")
+        let legacySystemURL = folderURL.appendingPathComponent("system.m4a")
+        try Data("legacy mic".utf8).write(to: legacyMicrophoneURL)
+        try Data("legacy system".utf8).write(to: legacySystemURL)
+
+        try await assertMaterializedRawAudioPaths(
+            microphoneURL: legacyMicrophoneURL,
+            systemURL: legacySystemURL
+        )
+    }
+
     func testMaterializeWritesCalendarSnapshotIntoArtifactMetadata() async throws {
         let calendarSnapshot = makeCalendarSnapshot(confidence: .confirmed)
         let transcription = makeMeeting(
@@ -394,6 +415,41 @@ final class MeetingArtifactStoreTests: XCTestCase {
             engine: "parakeet",
             engineVariant: "v3",
             calendarEventSnapshot: calendarEventSnapshot
+        )
+    }
+
+    private func assertMaterializedRawAudioPaths(
+        microphoneURL: URL,
+        systemURL: URL,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let transcription = makeMeeting(notes: nil)
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        XCTAssertEqual(snapshot.rawMicrophoneAudioPath, microphoneURL.path, file: file, line: line)
+        XCTAssertEqual(snapshot.rawSystemAudioPath, systemURL.path, file: file, line: line)
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let files = try XCTUnwrap(manifest["files"] as? [String: Any], file: file, line: line)
+        XCTAssertEqual(files["rawMicrophoneAudioPath"] as? String, microphoneURL.path, file: file, line: line)
+        XCTAssertEqual(files["rawSystemAudioPath"] as? String, systemURL.path, file: file, line: line)
+
+        let markdownPath = try XCTUnwrap(snapshot.markdownPath, file: file, line: line)
+        let markdown = try String(contentsOfFile: markdownPath, encoding: .utf8)
+        XCTAssertTrue(
+            markdown.contains("rawMicrophoneAudioPath: \"\(microphoneURL.path)\""),
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            markdown.contains("rawSystemAudioPath: \"\(systemURL.path)\""),
+            file: file,
+            line: line
         )
     }
 
