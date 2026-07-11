@@ -143,6 +143,32 @@ final class SearchCommandTests: XCTestCase {
         }
     }
 
+    func testSearchDateOnlyBoundsUseInjectedLocalCalendarDay() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let expectedStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 10))
+        )
+        let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: expectedStart))
+        let expectedEnd = Date(
+            timeIntervalSinceReferenceDate: nextDay.timeIntervalSinceReferenceDate.nextDown
+        )
+
+        let since = try parseSearchDate("2026-07-10", boundary: .since, timeZone: timeZone)
+        let until = try parseSearchDate("2026-07-10", boundary: .until, timeZone: timeZone)
+
+        XCTAssertEqual(since, expectedStart)
+        XCTAssertEqual(until, expectedEnd)
+
+        let explicitValues = ["2026-07-10T00:00:00Z", "2026-07-10T00:00:00-04:00"]
+        for explicitValue in explicitValues {
+            let explicit = try parseSearchDate(explicitValue, boundary: .since, timeZone: timeZone)
+            let expectedExplicit = try XCTUnwrap(ISO8601DateFormatter().date(from: explicitValue))
+            XCTAssertEqual(explicit, expectedExplicit, "explicit timestamp zones must not be converted to local midnight")
+        }
+    }
+
     func testCJKSearchJSONUsesNullRankAndSafeSnippet() async throws {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-search-cjk-\(UUID().uuidString).db").path

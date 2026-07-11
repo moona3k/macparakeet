@@ -120,6 +120,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- `search --since/--until` now interprets bare `yyyy-MM-dd` values as local
+  calendar days: `--since` uses local start of day and `--until` includes the
+  full local day. Explicit ISO-8601 offsets and `Z` remain unchanged.
 - New file and URL transcriptions now persist durable `transcriptSegments`
   alongside word timestamps. Retranscription replaces the affected recording's
   normalized segments so search results cannot retain the previous transcript.

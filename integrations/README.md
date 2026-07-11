@@ -324,6 +324,9 @@ macparakeet-cli search '重要な会議' --since 2026-01-01 --json
 optional `startMs`/speaker, a character-safe snippet, and FTS rank. FTS5 phrase,
 prefix, and `AND`/`OR` syntax passes through unchanged. Han/Kana/Thai queries
 automatically use an exact substring fallback and return `rank: null`.
+Bare `yyyy-MM-dd` values use the user's local day (`--since` at its start,
+`--until` through its end); timestamps with `Z` or an explicit offset retain
+that zone.
 
 Existing libraries need one deterministic local rebuild after upgrading:
 

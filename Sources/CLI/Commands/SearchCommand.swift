@@ -18,10 +18,10 @@ struct SearchCommand: AsyncParsableCommand {
     @Argument(help: "FTS5 query (phrase, prefix, and AND/OR syntax are supported).")
     var query: String
 
-    @Option(help: "Only recordings at or after this ISO-8601 date/time.")
+    @Option(help: "Only recordings at or after this ISO-8601 timestamp or local date (start of day).")
     var since: String?
 
-    @Option(help: "Only recordings at or before this ISO-8601 date/time.")
+    @Option(help: "Only recordings at or before this ISO-8601 timestamp or local date (end of day).")
     var until: String?
 
     @Option(help: "Filter source: meeting, file, or url.")
@@ -48,8 +48,8 @@ struct SearchCommand: AsyncParsableCommand {
         }
         guard limit >= 0 else { throw ValidationError("--limit must be >= 0.") }
         try validateJSONEnvelopeFlags(json: json, envelope: envelope)
-        _ = try since.map { try parseSearchDate($0, option: "--since") }
-        _ = try until.map { try parseSearchDate($0, option: "--until") }
+        _ = try since.map { try parseSearchDate($0, boundary: .since) }
+        _ = try until.map { try parseSearchDate($0, boundary: .until) }
     }
 
     func run() async throws {
@@ -59,8 +59,8 @@ struct SearchCommand: AsyncParsableCommand {
             let hits = try repository.search(
                 SegmentSearchQuery(
                     query: query,
-                    since: try since.map { try parseSearchDate($0, option: "--since") },
-                    until: try until.map { try parseSearchDate($0, option: "--until") },
+                    since: try since.map { try parseSearchDate($0, boundary: .since) },
+                    until: try until.map { try parseSearchDate($0, boundary: .until) },
                     source: source,
                     speaker: speaker,
                     limit: limit
@@ -120,16 +120,67 @@ struct SearchReindexCommand: AsyncParsableCommand {
     }
 }
 
-private func parseSearchDate(_ value: String, option: String) throws -> Date {
+enum SearchDateBoundary {
+    case since
+    case until
+
+    fileprivate var option: String {
+        switch self {
+        case .since: "--since"
+        case .until: "--until"
+        }
+    }
+}
+
+func parseSearchDate(
+    _ value: String,
+    boundary: SearchDateBoundary,
+    timeZone: TimeZone = .current
+) throws -> Date {
+    if let day = localSearchDay(value, timeZone: timeZone) {
+        switch boundary {
+        case .since:
+            return day.start
+        case .until:
+            return Date(
+                timeIntervalSinceReferenceDate: day.end.timeIntervalSinceReferenceDate.nextDown
+            )
+        }
+    }
+
     let formatter = ISO8601DateFormatter()
     if let date = formatter.date(from: value) { return date }
-    let dayFormatter = DateFormatter()
-    dayFormatter.locale = Locale(identifier: "en_US_POSIX")
-    dayFormatter.calendar = Calendar(identifier: .gregorian)
-    dayFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-    dayFormatter.dateFormat = "yyyy-MM-dd"
-    if let date = dayFormatter.date(from: value) { return date }
-    throw ValidationError("\(option) must be ISO-8601 (for example 2026-07-10 or 2026-07-10T18:30:00Z).")
+    throw ValidationError(
+        "\(boundary.option) must be ISO-8601 (for example 2026-07-10 or 2026-07-10T18:30:00Z)."
+    )
+}
+
+private func localSearchDay(_ value: String, timeZone: TimeZone) -> DateInterval? {
+    let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+    guard parts.count == 3,
+        parts[0].count == 4,
+        parts[1].count == 2,
+        parts[2].count == 2,
+        let year = Int(parts[0]),
+        let month = Int(parts[1]),
+        let day = Int(parts[2])
+    else {
+        return nil
+    }
+
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let components = DateComponents(
+        calendar: calendar,
+        timeZone: timeZone,
+        year: year,
+        month: month,
+        day: day
+    )
+    guard let date = calendar.date(from: components) else { return nil }
+    let resolved = calendar.dateComponents([.year, .month, .day], from: date)
+    guard resolved.year == year, resolved.month == month, resolved.day == day else { return nil }
+    return calendar.dateInterval(of: .day, for: date)
 }
 
 private func formatSearchDate(_ date: Date) -> String {

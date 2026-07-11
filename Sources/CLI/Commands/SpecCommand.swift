@@ -305,8 +305,12 @@ private extension CLISpecCommand {
             summary: "Search indexed meeting and file/URL transcript segments with FTS5 query syntax.",
             arguments: [.argument("query", summary: "FTS5 query; supports phrases, prefixes, and AND/OR.")],
             options: [
-                CLISpecParameter.option("--since", valueName: "ISO-8601", summary: "Minimum recording date/time."),
-                CLISpecParameter.option("--until", valueName: "ISO-8601", summary: "Maximum recording date/time."),
+                CLISpecParameter.option(
+                    "--since", valueName: "ISO-8601",
+                    summary: "Minimum recording time; date-only values use local start of day."),
+                CLISpecParameter.option(
+                    "--until", valueName: "ISO-8601",
+                    summary: "Maximum recording time; date-only values use local end of day."),
                 CLISpecParameter.option("--source", valueName: "meeting|file|url", summary: "Recording source filter."),
                 CLISpecParameter.option("--speaker", valueName: "NAME", summary: "Speaker-label substring filter."),
                 CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum segment hits."),
