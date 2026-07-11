@@ -38,6 +38,13 @@ with human progress/status kept off stdout.
 - JSON uses ISO-8601 dates, sorted keys, and pretty printing through the shared
   encoder.
 - `macparakeet-cli spec --json` is the machine-readable command catalog.
+- `search --json` returns an array of segment hits with `transcriptionId`,
+  `title`, ISO-8601 `recordedAt`, `source`, `seq`, nullable `startMs` and
+  `speaker`, `snippet`, and nullable `rank`. CJK substring-fallback hits use
+  `rank: null`.
+- `transcript --json` returns one object with transcription metadata and an
+  ordered `segments` array. Segment objects contain `seq`, nullable timing and
+  speaker fields, `text`, and `segmenterVersion`.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
   change an existing command's plain `--json` success shape.
 - Commands that expose both `--json` and `--envelope` reject the combination.
@@ -137,6 +144,7 @@ breaking contract change and requires explicit version/changelog treatment.
 - `ModelLifecycleCommandTests`
 - `QuickPromptsCommandTests`
 - `TransformsCommandTests`
+- `SearchCommandTests`
 - `VocabCommandTests`
 
 Focused coverage pins spec conventions, failure-envelope fields, exit code

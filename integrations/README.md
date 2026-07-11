@@ -312,6 +312,37 @@ macparakeet-cli history transcriptions --json
 macparakeet-cli history search-transcriptions "design review" --json
 ```
 
+### Search the transcript knowledge layer
+
+```bash
+macparakeet-cli search '"cache busting" OR sparkle*' --json
+macparakeet-cli search 'decision AND parser' --source meeting --speaker Dana --limit 20 --json
+macparakeet-cli search '重要な会議' --since 2026-01-01 --json
+```
+
+`search` returns citation-ready segment hits with recording metadata, `seq`,
+optional `startMs`/speaker, a character-safe snippet, and FTS rank. FTS5 phrase,
+prefix, and `AND`/`OR` syntax passes through unchanged. Han/Kana/Thai queries
+automatically use an exact substring fallback and return `rank: null`.
+
+Existing libraries need one deterministic local rebuild after upgrading:
+
+```bash
+macparakeet-cli search-reindex --json
+```
+
+Drill into either a meeting or file/URL transcription without loading the
+whole transcript:
+
+```bash
+macparakeet-cli transcript <id> --around 00:12:30 --window 30s --json
+macparakeet-cli transcript <id> --around-seq 18 --context 2 --json
+```
+
+Legacy/no-timing rows remain searchable. Their segments have `startMs: null`,
+so sequence-based context is the precise citation path; timestamp reads degrade
+to the first sequence context instead of failing.
+
 ### Search past dictations
 
 ```bash

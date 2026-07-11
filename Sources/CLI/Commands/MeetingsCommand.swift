@@ -797,11 +797,6 @@ private struct MeetingResultRepositories {
     let promptResults: PromptResultRepositoryProtocol
 }
 
-private func makeDatabaseManager(database: String?) throws -> DatabaseManager {
-    try AppPaths.ensureDirectories()
-    return try DatabaseManager(path: resolvedDatabasePath(database))
-}
-
 private func makeMeetingResultRepositories(database: String?) throws -> MeetingResultRepositories {
     let dbManager = try makeDatabaseManager(database: database)
     return MeetingResultRepositories(
@@ -813,12 +808,6 @@ private func makeMeetingResultRepositories(database: String?) throws -> MeetingR
 private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
     let dbManager = try makeDatabaseManager(database: database)
     return TranscriptionRepository(dbQueue: dbManager.dbQueue)
-}
-
-private func validateJSONEnvelopeFlags(json: Bool, envelope: Bool) throws {
-    if json && envelope {
-        throw ValidationError("--json and --envelope are mutually exclusive.")
-    }
 }
 
 private func materializeMeetingArtifact(

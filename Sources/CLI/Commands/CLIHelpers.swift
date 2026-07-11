@@ -48,6 +48,17 @@ func resolvedDatabasePath(_ database: String?) -> String {
     return AppPaths.databasePath
 }
 
+func makeDatabaseManager(database: String?) throws -> DatabaseManager {
+    try AppPaths.ensureDirectories()
+    return try DatabaseManager(path: resolvedDatabasePath(database))
+}
+
+func validateJSONEnvelopeFlags(json: Bool, envelope: Bool) throws {
+    if json && envelope {
+        throw ValidationError("--json and --envelope are mutually exclusive.")
+    }
+}
+
 // MARK: - Lookup Errors
 
 enum CLILookupError: Error, LocalizedError {

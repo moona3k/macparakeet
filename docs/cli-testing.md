@@ -33,6 +33,11 @@ macparakeet-cli
 │       --speaker-detection app-default|on|off
 │       [--speaker-count N | --speaker-min N [--speaker-max N] | --speaker-max N]
 │       --media-audio-quality app-default|m4a|best-available
+├── search <query> [--since ISO-8601] [--until ISO-8601]
+│   │                  [--source meeting|file|url] [--speaker NAME] [--limit N] [--json]
+├── search-reindex [--json]               Rebuild derived segments + FTS5
+├── transcript <id> [--around TIME --window DUR]
+│                    [--around-seq N --context K] [--json]
 ├── history                              View and manage history
 │   ├── dictations [--limit] [--json]    List recent dictations (default)
 │   ├── transcriptions [--limit] [--json]  List recent transcriptions
@@ -439,6 +444,19 @@ swift run macparakeet-cli stats
 ```
 
 Shows dictation stats (total, words, duration, WPM, streak, equivalents) and transcription counts.
+
+## Transcript Segment Search
+
+```bash
+swift run macparakeet-cli search '"design review" OR parser*' --json
+swift run macparakeet-cli search-reindex --json
+swift run macparakeet-cli transcript <ID> --around 00:05:00 --window 30s --json
+swift run macparakeet-cli transcript <ID> --around-seq 12 --context 2 --json
+```
+
+Search query text is passed to FTS5. Han/Kana/Thai queries automatically use
+the substring fallback. `search-reindex` is idempotent derived-state
+maintenance and never mutates canonical transcript text.
 
 ## History Management
 

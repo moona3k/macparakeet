@@ -103,6 +103,27 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   that still use the legacy `microphone.m4a` and `system.m4a` raw-audio
   filenames.
 
+## [2.13.0] -- 2026-07-10
+
+### Added
+
+- New top-level `search <query>` searches normalized meeting and file/URL
+  transcript segments with FTS5 `bm25` ranking and recency tie-breaking. It
+  supports date/source/speaker filters, JSON envelopes, quoted phrases, prefix
+  terms, and `AND`/`OR`. Han/Kana/Thai queries automatically use an unranked
+  substring fallback.
+- `search-reindex` deterministically rebuilds the derived segment table and
+  external-content FTS index from canonical saved transcription JSON/text.
+- New top-level `transcript <id>` reads indexed segment slices for meetings and
+  file/URL captures with `--around`/`--window` or
+  `--around-seq`/`--context`, plus JSON and envelope output.
+
+### Changed
+
+- New file and URL transcriptions now persist durable `transcriptSegments`
+  alongside word timestamps. Retranscription replaces the affected recording's
+  normalized segments so search results cannot retain the previous transcript.
+
 ## [2.12.0] -- 2026-07-06
 
 ### Added
