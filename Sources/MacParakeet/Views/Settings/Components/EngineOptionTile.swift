@@ -201,7 +201,7 @@ struct EngineOptionTile: View {
                 return StatusInfo(
                     color: DesignSystem.Colors.successGreen,
                     label: "Downloaded",
-                    detail: "Loads in seconds"
+                    detail: "Loading may take 1–2 min"
                 )
             case .notDownloaded:
                 return StatusInfo(
