@@ -1154,6 +1154,57 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.27 — Derived, rebuildable transcript retrieval segments and their
+        // external-content FTS5 index. Raw SQL is intentional: historical
+        // migrations must never depend on the evolving Codable row models.
+        migrator.registerMigration("v0.27-segments-fts") { db in
+            try db.execute(sql: """
+                CREATE TABLE segments (
+                    id INTEGER PRIMARY KEY,
+                    transcriptionId TEXT NOT NULL
+                        REFERENCES transcriptions(id) ON DELETE CASCADE,
+                    seq INTEGER NOT NULL,
+                    startMs INTEGER,
+                    endMs INTEGER,
+                    speaker TEXT,
+                    text TEXT NOT NULL,
+                    segmenterVersion INTEGER NOT NULL,
+                    UNIQUE(transcriptionId, seq)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_segments_transcription
+                ON segments(transcriptionId, seq)
+                """)
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE segments_fts USING fts5(
+                    text, speaker UNINDEXED,
+                    content='segments', content_rowid='id',
+                    tokenize='unicode61 remove_diacritics 2'
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER segments_ai AFTER INSERT ON segments BEGIN
+                    INSERT INTO segments_fts(rowid, text, speaker)
+                    VALUES (new.id, new.text, new.speaker);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER segments_ad AFTER DELETE ON segments BEGIN
+                    INSERT INTO segments_fts(segments_fts, rowid, text, speaker)
+                    VALUES ('delete', old.id, old.text, old.speaker);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER segments_au AFTER UPDATE ON segments BEGIN
+                    INSERT INTO segments_fts(segments_fts, rowid, text, speaker)
+                    VALUES ('delete', old.id, old.text, old.speaker);
+                    INSERT INTO segments_fts(rowid, text, speaker)
+                    VALUES (new.id, new.text, new.speaker);
+                END
+                """)
+        }
+
         return migrator
     }
 

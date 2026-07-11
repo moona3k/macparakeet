@@ -18,6 +18,7 @@ process.
 - One repository per table:
   - `DictationRepository.swift` — dictation history + lifetime stats.
   - `TranscriptionRepository.swift` — file/YouTube/meeting transcriptions.
+  - `SegmentRepository.swift` — derived transcript segments, FTS5 search, slicing, and deterministic rebuilds.
   - `CustomWordRepository.swift` — vocabulary entries.
   - `TextSnippetRepository.swift` — snippets (text + action).
   - `PromptRepository.swift` — prompt-library entries.
@@ -55,8 +56,20 @@ database migrated by a newer app.
 **One repository per table. Don't combine tables in one repo.**
 Each repository implements a `…Protocol` so callers can be tested
 against a mock. The repository owns CRUD plus any table-specific
-helpers (FTS search, stats aggregation). Cross-table joins live at
-the service layer, not in repositories.
+helpers (FTS search, stats aggregation). Cross-table writes and workflow
+orchestration live at the service layer. A table-owned read-model query may
+join immutable metadata when SQL-level filtering or ranking requires it; for
+example, segment search joins transcription dates, sources, and titles.
+
+**Segments are derived retrieval state, not new source-of-truth transcript
+data.** `segments` normalizes meeting and file/URL transcript JSON for search;
+`segments_fts` is an external-content FTS5 index kept in sync by triggers.
+Both can be rebuilt with `macparakeet-cli search-reindex` from
+`transcriptions`. Dictations are excluded. `KnowledgeSegmenter.currentVersion`
+freezes the derivation rules: pseudo-segmentation is a pure function of text
+using explicit scalar rules, with no locale or NaturalLanguage framework
+dependency. Any rule change that can alter `(transcriptionId, seq)` citations
+must bump the version.
 
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a

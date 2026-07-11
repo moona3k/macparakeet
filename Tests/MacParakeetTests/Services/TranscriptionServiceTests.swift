@@ -276,6 +276,7 @@ final class TranscriptionServiceTests: XCTestCase {
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
     var transcriptionRepo: TranscriptionRepository!
+    var segmentRepo: SegmentRepository!
     var promptResultRepo: PromptResultRepository!
     var llmRunRepo: LLMRunRepository!
 
@@ -284,6 +285,7 @@ final class TranscriptionServiceTests: XCTestCase {
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
         transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
         llmRunRepo = LLMRunRepository(dbQueue: dbManager.dbQueue)
         Telemetry.configure(NoOpTelemetryService())
@@ -291,7 +293,8 @@ final class TranscriptionServiceTests: XCTestCase {
         service = TranscriptionService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
-            transcriptionRepo: transcriptionRepo
+            transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo
         )
     }
 
@@ -320,6 +323,8 @@ final class TranscriptionServiceTests: XCTestCase {
         let fetched = try transcriptionRepo.fetch(id: result.id)
         XCTAssertNotNil(fetched)
         XCTAssertEqual(fetched?.status, .completed)
+        XCTAssertEqual(fetched?.transcriptSegments?.map(\.text), ["This is a transcription"])
+        XCTAssertEqual(try segmentRepo.fetch(transcriptionId: result.id).map(\.text), ["This is a transcription"])
     }
 
     func testTranscribeFilePersistsDetectedLanguage() async throws {
@@ -1306,6 +1311,10 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "microphone", "system", "system"])
         XCTAssertEqual(result.wordTimestamps?.map(\.startMs), [50, 300, 920, 1220])
+        XCTAssertEqual(
+            try segmentRepo.fetch(transcriptionId: result.id).map(\.text),
+            result.transcriptSegments?.map(\.text)
+        )
         XCTAssertEqual(sttCallCount, 2)
         XCTAssertEqual(jobs, [.meetingFinalize, .meetingFinalize])
         XCTAssertEqual(convertCallCount, 2)
@@ -2062,6 +2071,7 @@ final class TranscriptionServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             meetingArtifactStore: nil,
             meetingAutomationHookRunner: nil
         )
@@ -2079,6 +2089,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: original.id))
         XCTAssertEqual(fetched.transcriptSegments?.first?.id, segment.id)
         XCTAssertNotEqual(fetched.transcriptSegments?.first?.id, oldSegmentID)
+        XCTAssertEqual(try segmentRepo.fetch(transcriptionId: original.id).map(\.text), ["Fresh segment"])
     }
 
     func testTranscribeMeetingFailsWhenCapturedSpeechEngineCannotBeRouted() async throws {
@@ -2673,6 +2684,8 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].isFavorite, true)
         XCTAssertEqual(all[0].sourceType, .youtube)
         XCTAssertEqual(all[0].status, .completed)
+        XCTAssertEqual(all[0].transcriptSegments?.map(\.text), ["New transcript"])
+        XCTAssertEqual(try segmentRepo.fetch(transcriptionId: original.id).map(\.text), ["New transcript"])
     }
 
     func testRetranscribeExistingFileFailureLeavesOriginalRowIntact() async throws {

@@ -493,6 +493,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
             let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
             let promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
@@ -612,6 +613,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 audioProcessor: audioProcessor,
                 sttTranscriber: sttTranscriber,
                 transcriptionRepo: transcriptionRepo,
+                segmentRepo: segmentRepo,
                 promptResultRepo: promptResultRepo,
                 entitlements: entitlementsService,
                 customWordRepo: customWordRepo,

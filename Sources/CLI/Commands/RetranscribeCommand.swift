@@ -204,6 +204,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
             let dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
             let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
@@ -284,6 +285,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                         transcription,
                         speechEngine: speechEngine,
                         transcriptionRepo: transcriptionRepo,
+                        segmentRepo: segmentRepo,
                         promptResultRepo: promptResultRepo,
                         customWordRepo: customWordRepo,
                         snippetRepo: snippetRepo,
@@ -295,6 +297,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                         transcription,
                         speechEngine: speechEngine,
                         transcriptionRepo: transcriptionRepo,
+                        segmentRepo: segmentRepo,
                         promptResultRepo: promptResultRepo,
                         customWordRepo: customWordRepo,
                         snippetRepo: snippetRepo,
@@ -419,6 +422,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         _ original: Transcription,
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
+        segmentRepo: SegmentRepository,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -429,6 +433,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         let service = makeTranscriptionService(
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -454,6 +459,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         _ original: Transcription,
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
+        segmentRepo: SegmentRepository,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -464,6 +470,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         let service = makeTranscriptionService(
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -499,6 +506,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
     private func makeTranscriptionService(
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepository,
+        segmentRepo: SegmentRepository,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -521,6 +529,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             audioProcessor: AudioProcessor(),
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,

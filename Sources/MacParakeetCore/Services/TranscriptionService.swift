@@ -217,6 +217,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
     private let transcriptionRepo: TranscriptionRepositoryProtocol
+    private let segmentRepo: SegmentRepositoryProtocol?
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
@@ -248,6 +249,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        segmentRepo: SegmentRepositoryProtocol? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
@@ -277,6 +279,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             audioProcessor: audioProcessor,
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             promptResultRepo: promptResultRepo,
             entitlements: entitlements,
             customWordRepo: customWordRepo,
@@ -309,6 +312,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        segmentRepo: SegmentRepositoryProtocol? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
@@ -338,6 +342,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
         self.transcriptionRepo = transcriptionRepo
+        self.segmentRepo = segmentRepo
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
@@ -1816,6 +1821,16 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             excluding: transcription.derivedTitle
         ) ?? ""
 
+        if source != .meeting,
+           let words = transcription.wordTimestamps,
+           !words.isEmpty {
+            let durableSegments = KnowledgeSegmenter.materializeFileTranscriptSegments(
+                words: words,
+                speakers: transcription.speakers
+            )
+            transcription.transcriptSegments = durableSegments.isEmpty ? nil : durableSegments
+        }
+
         if persistResult, source == .meeting,
            let generatedTitle = try await generateMeetingTitleIfNeeded(
                transcriptText: derivationSource,
@@ -1829,6 +1844,15 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.updatedAt = Date()
         if persistResult {
             try transcriptionRepo.save(transcription)
+            do {
+                try segmentRepo?.replaceSegments(for: transcription)
+            } catch {
+                // The index is derived and repairable via `search-reindex`.
+                // Never turn a successfully persisted transcript into an error
+                // row solely because retrieval maintenance failed.
+                let transcriptionID = transcription.id
+                logger.error("segment_materialization_failed id=\(transcriptionID, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            }
             await llmRunRecorder.record(formatterOutcome.run)
         }
 

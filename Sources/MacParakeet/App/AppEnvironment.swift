@@ -12,6 +12,7 @@ final class AppEnvironment {
     let databaseManager: DatabaseManager
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
+    let segmentRepo: SegmentRepository
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
@@ -60,6 +61,7 @@ final class AppEnvironment {
         // Repositories
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
+        segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
@@ -349,6 +351,7 @@ final class AppEnvironment {
             audioProcessor: audioProcessor,
             sttTranscriber: sttScheduler,
             transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
             promptResultRepo: promptResultRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,

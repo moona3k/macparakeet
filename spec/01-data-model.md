@@ -153,7 +153,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 
 **Notes:**
 - `wordTimestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
-- `transcriptSegments` is a JSON text column populated for finalized meeting recordings. Each segment has a UUID, start/end times, speaker/source label, text, and a half-open `wordRange` (`startIndex`, `endIndexExclusive`) into the persisted `wordTimestamps` array. Segment IDs are stable for that transcript version; retranscribing a meeting replaces the transcript version and may mint new segment IDs. Non-meeting transcriptions leave this `NULL`.
+- `transcriptSegments` is a JSON text column populated for finalized meeting, file, and URL recordings when timings exist. Each segment has a UUID, start/end times, speaker/source label, text, and a half-open `wordRange` (`startIndex`, `endIndexExclusive`) into the persisted `wordTimestamps` array. Segment IDs are stable for that transcript version; retranscription replaces the transcript version and may mint new segment IDs. Legacy and no-timing rows may leave this `NULL` and use deterministic derived pseudo-segments instead.
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
@@ -179,8 +179,42 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
 - `diarizationSegments`: JSON array of raw diarization segments (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). Used for accurate speaking time analytics. Nil if diarization not run or failed.
 - Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.
-- `transcriptSegments`: JSON array of durable meeting transcript segments derived from the persisted word array with `TranscriptSegmenter`. Readers should use this array for citations instead of re-segmenting words. Nil for legacy rows and non-meeting transcriptions.
+- `transcriptSegments`: JSON array of durable transcript segments derived from the persisted word array. Readers should use this array for citations instead of re-segmenting words. Nil for legacy/no-timing rows.
 - All diarization fields are nullable. If diarization fails, ASR result is still persisted with these fields as nil.
+
+---
+
+### `segments` + `segments_fts` (v0.27)
+
+Normalized retrieval units for completed meeting and file/URL transcriptions.
+The table and external-content FTS5 index are derived and rebuildable; the
+canonical transcript remains the `transcriptions` row.
+
+```sql
+CREATE TABLE segments (
+    id INTEGER PRIMARY KEY,
+    transcriptionId TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+    seq INTEGER NOT NULL,
+    startMs INTEGER,
+    endMs INTEGER,
+    speaker TEXT,
+    text TEXT NOT NULL,
+    segmenterVersion INTEGER NOT NULL,
+    UNIQUE(transcriptionId, seq)
+);
+CREATE INDEX idx_segments_transcription ON segments(transcriptionId, seq);
+CREATE VIRTUAL TABLE segments_fts USING fts5(
+    text, speaker UNINDEXED,
+    content='segments', content_rowid='id',
+    tokenize='unicode61 remove_diacritics 2'
+);
+```
+
+INSERT/UPDATE/DELETE triggers keep the external-content index synchronized.
+`KnowledgeSegmenter.currentVersion` freezes deterministic derivation rules;
+legacy/no-timing pseudo-segmentation uses explicit Unicode-scalar boundaries
+without locale or NaturalLanguage dependencies. Dictations are not populated.
+`macparakeet-cli search-reindex` rebuilds both layers outside migrations.
 
 ---
 
@@ -1143,6 +1177,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.24 — transcriptions.meetingStartContext
 // v0.25 — transcriptions.calendarEventSnapshot (raw SQL additive column)
 // v0.26 — transcriptions.titleOverride (raw SQL additive column)
+// v0.27 — derived segments + external-content segments_fts (raw SQL)
 ```
 
 ### Migration Rules
@@ -1167,6 +1202,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
 | `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
+| `segments` / `segments_fts` | v0.27 | Derived, rebuildable meeting + file/URL retrieval segments and external-content FTS5 index; dictations excluded |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |
