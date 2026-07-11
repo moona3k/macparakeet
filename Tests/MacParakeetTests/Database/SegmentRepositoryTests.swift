@@ -30,16 +30,20 @@ final class SegmentRepositoryTests: XCTestCase {
     }
 
     func testTimedFileAndURLRowsDeriveSentenceSizedSegmentsWithSpeakers() throws {
-        for source in [Transcription.SourceType.file, .youtube, .podcast] {
+        let sources: [Transcription.SourceType] = [.file, .youtube, .podcast]
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Alpha", startMs: 0, endMs: 100, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "beta", startMs: 120, endMs: 200, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "gamma.", startMs: 220, endMs: 350, confidence: 1, speakerId: "S1"),
+        ]
+        let speakers: [SpeakerInfo] = [SpeakerInfo(id: "S1", label: "Riley")]
+
+        for source in sources {
             let transcription = completedTranscription(
                 source: source,
                 text: "Alpha beta gamma.",
-                words: [
-                    WordTimestamp(word: "Alpha", startMs: 0, endMs: 100, confidence: 1, speakerId: "S1"),
-                    WordTimestamp(word: "beta", startMs: 120, endMs: 200, confidence: 1, speakerId: "S1"),
-                    WordTimestamp(word: "gamma.", startMs: 220, endMs: 350, confidence: 1, speakerId: "S1"),
-                ],
-                speakers: [SpeakerInfo(id: "S1", label: "Riley")]
+                words: words,
+                speakers: speakers
             )
             try transcriptions.save(transcription)
             try segments.replaceSegments(for: transcription)
@@ -74,7 +78,8 @@ final class SegmentRepositoryTests: XCTestCase {
     }
 
     func testLegacyAndNoTimingRowsUseDeterministicPseudoSegments() throws {
-        for source in [Transcription.SourceType.meeting, .file] {
+        let sources: [Transcription.SourceType] = [.meeting, .file]
+        for source in sources {
             let transcription = completedTranscription(
                 source: source,
                 text: "First deterministic sentence. Second deterministic sentence!"
@@ -173,10 +178,9 @@ final class SegmentRepositoryTests: XCTestCase {
         let transcriptionRepo = TranscriptionRepository(dbQueue: rebuildManager.dbQueue)
         let appTranscriptionRepo = TranscriptionRepository(dbQueue: appManager.dbQueue)
         let repository = SegmentRepository(dbQueue: rebuildManager.dbQueue)
-        let recordings = [
-            completedTranscription(source: .file, text: "new canonical alpha"),
-            completedTranscription(source: .file, text: "new canonical beta"),
-        ]
+        let alpha: Transcription = completedTranscription(source: .file, text: "new canonical alpha")
+        let beta: Transcription = completedTranscription(source: .file, text: "new canonical beta")
+        let recordings: [Transcription] = [alpha, beta]
         for (index, recording) in recordings.enumerated() {
             try transcriptionRepo.save(recording)
             var old = recording
@@ -232,50 +236,54 @@ final class SegmentRepositoryTests: XCTestCase {
         try segments.replaceSegments(for: recent)
         try segments.replaceSegments(for: url)
 
-        let all = try segments.search(SegmentSearchQuery(query: "sparkle", limit: 10))
-        XCTAssertEqual(Set(all.map(\.transcriptionId)), [old.id, recent.id, url.id])
+        let allQuery = SegmentSearchQuery(query: "sparkle", limit: 10)
+        let all: [SegmentSearchHit] = try segments.search(allQuery)
+        let actualIDs: Set<UUID> = Set(all.map(\.transcriptionId))
+        let expectedIDs: Set<UUID> = Set([old.id, recent.id, url.id])
+        XCTAssertEqual(actualIDs, expectedIDs)
         XCTAssertEqual(all.first?.transcriptionId, old.id, "higher term frequency should improve bm25 rank")
         XCTAssertNotNil(all.first?.rank)
-        XCTAssertEqual(try segments.search(SegmentSearchQuery(query: "sparkle", limit: 1)).count, 1)
+        let limitedQuery = SegmentSearchQuery(query: "sparkle", limit: 1)
+        let limited: [SegmentSearchHit] = try segments.search(limitedQuery)
+        XCTAssertEqual(limited.count, 1)
 
-        let filtered = try segments.search(
-            SegmentSearchQuery(
-                query: "sparkle",
-                since: Date(timeIntervalSince1970: 1_750_000_000),
-                source: .meeting,
-                speaker: "Dana",
-                limit: 10
-            ))
-        XCTAssertEqual(filtered.map(\.transcriptionId), [recent.id])
-        XCTAssertEqual(
-            try segments.search(
-                SegmentSearchQuery(
-                    query: "sparkle",
-                    until: Date(timeIntervalSince1970: 1_725_000_000),
-                    source: .file,
-                    limit: 10
-                )
-            ).map(\.transcriptionId),
-            [old.id]
+        let meetingQuery = SegmentSearchQuery(
+            query: "sparkle",
+            since: Date(timeIntervalSince1970: 1_750_000_000),
+            source: .meeting,
+            speaker: "Dana",
+            limit: 10
         )
-        XCTAssertEqual(
-            try segments.search(
-                SegmentSearchQuery(query: "sparkle", source: .url, limit: 10)
-            ).map(\.transcriptionId),
-            [url.id]
+        let meetingIDs: [UUID] = try searchIDs(meetingQuery)
+        XCTAssertEqual(meetingIDs, [recent.id])
+
+        let oldFileQuery = SegmentSearchQuery(
+            query: "sparkle",
+            until: Date(timeIntervalSince1970: 1_725_000_000),
+            source: .file,
+            limit: 10
         )
+        let oldFileIDs: [UUID] = try searchIDs(oldFileQuery)
+        XCTAssertEqual(oldFileIDs, [old.id])
+
+        let urlQuery = SegmentSearchQuery(query: "sparkle", source: .url, limit: 10)
+        let urlIDs: [UUID] = try searchIDs(urlQuery)
+        XCTAssertEqual(urlIDs, [url.id])
 
         var row = try XCTUnwrap(segments.fetch(transcriptionId: recent.id).first)
         row.text = "Updated retrieval token."
         try manager.dbQueue.write { db in try row.update(db) }
-        XCTAssertTrue(
-            try segments.search(SegmentSearchQuery(query: "sparkle", limit: 10))
-                .allSatisfy { $0.transcriptionId != recent.id })
-        XCTAssertEqual(
-            try segments.search(SegmentSearchQuery(query: "updated", limit: 10)).first?.transcriptionId, recent.id)
+        let sparkleAfterUpdate: [SegmentSearchHit] = try segments.search(allQuery)
+        let recentStillMatches = sparkleAfterUpdate.contains { $0.transcriptionId == recent.id }
+        XCTAssertFalse(recentStillMatches)
+
+        let updatedQuery = SegmentSearchQuery(query: "updated", limit: 10)
+        let updated: [SegmentSearchHit] = try segments.search(updatedQuery)
+        XCTAssertEqual(updated.first?.transcriptionId, recent.id)
 
         try manager.dbQueue.write { db in _ = try row.delete(db) }
-        XCTAssertTrue(try segments.search(SegmentSearchQuery(query: "updated", limit: 10)).isEmpty)
+        let afterDelete: [SegmentSearchHit] = try segments.search(updatedQuery)
+        XCTAssertTrue(afterDelete.isEmpty)
     }
 
     func testCJKFallbackAndGraphemeSafeSnippet() throws {
@@ -289,7 +297,9 @@ final class SegmentRepositoryTests: XCTestCase {
         try transcriptions.save(transcription)
         try segments.replaceSegments(for: transcription)
 
-        let hit = try XCTUnwrap(segments.search(SegmentSearchQuery(query: "重要な会議", limit: 10)).first)
+        let query = SegmentSearchQuery(query: "重要な会議", limit: 10)
+        let hits: [SegmentSearchHit] = try segments.search(query)
+        let hit = try XCTUnwrap(hits.first)
         XCTAssertNil(hit.rank)
         XCTAssertTrue(hit.snippet.contains("重要な会議"))
         XCTAssertTrue(hit.snippet.contains("🙂") || hit.snippet.contains("🚀"))
@@ -302,8 +312,9 @@ final class SegmentRepositoryTests: XCTestCase {
         XCTAssertTrue(truncated.contains("重要な会議"))
         XCTAssertLessThanOrEqual(truncated.count, 14, "up to two ellipsis graphemes may surround the snippet")
 
+        let mixedText = String(repeating: "prefix ", count: 20) + "tanaka 会議 decision"
         let mixedCase = SegmentRepository.characterSafeSnippet(
-            String(repeating: "prefix ", count: 20) + "tanaka 会議 decision",
+            mixedText,
             matching: "Tanaka 会議",
             maximumCharacters: 24
         )
@@ -324,19 +335,26 @@ final class SegmentRepositoryTests: XCTestCase {
         try transcriptions.save(transcription)
         try segments.replaceSegments(for: transcription)
 
-        XCTAssertEqual(
-            try segments.fetchSlice(transcriptionId: transcription.id, aroundMs: 5_000, windowMs: 1_000).map(\.seq),
-            [1]
+        let timedRows = try segments.fetchSlice(
+            transcriptionId: transcription.id,
+            aroundMs: 5_000,
+            windowMs: 1_000
         )
-        XCTAssertEqual(
-            try segments.fetchSlice(transcriptionId: transcription.id, aroundSeq: 1, context: 1).map(\.seq),
-            [0, 1, 2]
+        let timedSequences: [Int] = timedRows.map(\.seq)
+        XCTAssertEqual(timedSequences, [1])
+
+        let contextRows = try segments.fetchSlice(
+            transcriptionId: transcription.id,
+            aroundSeq: 1,
+            context: 1
         )
+        let contextSequences: [Int] = contextRows.map(\.seq)
+        XCTAssertEqual(contextSequences, [0, 1, 2])
     }
 
     private func deterministicRows() throws -> [[String]] {
         try manager.dbQueue.read { db in
-            try Row.fetchAll(
+            let rows: [Row] = try Row.fetchAll(
                 db,
                 sql: """
                     SELECT hex(transcriptionId) AS transcriptionId, seq, startMs, endMs,
@@ -344,18 +362,23 @@ final class SegmentRepositoryTests: XCTestCase {
                     FROM segments
                     ORDER BY transcriptionId, seq
                     """
-            ).map { row in
-                [
-                    row["transcriptionId"],
-                    String(row["seq"] as Int),
-                    (row["startMs"] as Int?).map(String.init) ?? "nil",
-                    (row["endMs"] as Int?).map(String.init) ?? "nil",
-                    row["speaker"],
-                    row["text"],
-                    String(row["segmenterVersion"] as Int),
-                ]
+            )
+            return rows.map { row -> [String] in
+                let transcriptionID: String = row["transcriptionId"]
+                let sequence = String(row["seq"] as Int)
+                let start = (row["startMs"] as Int?).map(String.init) ?? "nil"
+                let end = (row["endMs"] as Int?).map(String.init) ?? "nil"
+                let speaker: String = row["speaker"]
+                let text: String = row["text"]
+                let version = String(row["segmenterVersion"] as Int)
+                return [transcriptionID, sequence, start, end, speaker, text, version]
             }
         }
+    }
+
+    private func searchIDs(_ query: SegmentSearchQuery) throws -> [UUID] {
+        let hits: [SegmentSearchHit] = try segments.search(query)
+        return hits.map(\.transcriptionId)
     }
 
     private func completedTranscription(

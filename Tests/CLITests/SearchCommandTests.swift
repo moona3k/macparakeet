@@ -3,6 +3,13 @@ import XCTest
 @testable import MacParakeetCore
 
 final class SearchCommandTests: XCTestCase {
+    private static let searchHitKeys: Set<String> = [
+        "transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank",
+    ]
+    private static let transcriptSegmentKeys: Set<String> = [
+        "seq", "startMs", "endMs", "speaker", "text", "segmenterVersion",
+    ]
+
     func testSearchAndTranscriptCommandsAreRegisteredAtTopLevel() {
         XCTAssertTrue(CLI.configuration.subcommands.contains { $0 == SearchCommand.self })
         XCTAssertTrue(CLI.configuration.subcommands.contains { $0 == SearchReindexCommand.self })
@@ -18,12 +25,10 @@ final class SearchCommandTests: XCTestCase {
             "--database", fixture.path,
         ])
         let output = try await captureStandardOutput { try await command.run() }
-        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [[String: Any]])
+        let payload: [[String: Any]] = try decodeJSON(output)
         let hit = try XCTUnwrap(payload.first)
-        XCTAssertEqual(
-            Set(hit.keys),
-            ["transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank"]
-        )
+        let actualKeys: Set<String> = Set(hit.keys)
+        XCTAssertEqual(actualKeys, Self.searchHitKeys)
         XCTAssertEqual(hit["transcriptionId"] as? String, fixture.meetingID.uuidString)
         XCTAssertEqual(hit["source"] as? String, "meeting")
         XCTAssertEqual(hit["speaker"] as? String, "Dana")
@@ -33,7 +38,7 @@ final class SearchCommandTests: XCTestCase {
             "cache", "--envelope", "--database", fixture.path,
         ])
         let envelopeOutput = try await captureStandardOutput { try await envelopeCommand.run() }
-        let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(envelopeOutput.utf8)) as? [String: Any])
+        let envelope: [String: Any] = try decodeJSON(envelopeOutput)
         XCTAssertEqual(envelope["ok"] as? Bool, true)
         XCTAssertEqual(envelope["command"] as? String, "search")
         XCTAssertNotNil(envelope["data"] as? [[String: Any]])
@@ -47,9 +52,9 @@ final class SearchCommandTests: XCTestCase {
             "--json", "--database", fixture.path,
         ])
         let firstOutput = try await captureStandardOutput { try await command.run() }
-        let first = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(firstOutput.utf8)) as? [String: Any])
+        let first: [String: Any] = try decodeJSON(firstOutput)
         let secondOutput = try await captureStandardOutput { try await command.run() }
-        let second = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(secondOutput.utf8)) as? [String: Any])
+        let second: [String: Any] = try decodeJSON(secondOutput)
         XCTAssertEqual(first["transcriptionsIndexed"] as? Int, 2)
         XCTAssertEqual(first["segmentsIndexed"] as? Int, 2)
         XCTAssertEqual(first as NSDictionary, second as NSDictionary)
@@ -72,7 +77,7 @@ final class SearchCommandTests: XCTestCase {
             "--database", fixture.path,
         ])
         let output = try await captureStandardOutput { try await command.run() }
-        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        let payload: [String: Any] = try decodeJSON(output)
         XCTAssertEqual(payload["transcriptionId"] as? String, fixture.fileID.uuidString)
         XCTAssertEqual(payload["source"] as? String, "file")
         let segments = try XCTUnwrap(payload["segments"] as? [[String: Any]])
@@ -104,12 +109,10 @@ final class SearchCommandTests: XCTestCase {
             "legacy", "--json", "--database", path,
         ])
         let searchOutput = try await captureStandardOutput { try await search.run() }
-        let hits = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(searchOutput.utf8)) as? [[String: Any]])
+        let hits: [[String: Any]] = try decodeJSON(searchOutput)
         let hit = try XCTUnwrap(hits.first)
-        XCTAssertEqual(
-            Set(hit.keys),
-            ["transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank"]
-        )
+        let searchKeys: Set<String> = Set(hit.keys)
+        XCTAssertEqual(searchKeys, Self.searchHitKeys)
         XCTAssertTrue(hit["startMs"] is NSNull)
         XCTAssertTrue(hit["speaker"] is NSNull)
 
@@ -117,15 +120,11 @@ final class SearchCommandTests: XCTestCase {
             transcription.id.uuidString, "--json", "--database", path,
         ])
         let transcriptOutput = try await captureStandardOutput { try await transcript.run() }
-        let payload = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(transcriptOutput.utf8)) as? [String: Any]
-        )
+        let payload: [String: Any] = try decodeJSON(transcriptOutput)
         let rows = try XCTUnwrap(payload["segments"] as? [[String: Any]])
         let row = try XCTUnwrap(rows.first)
-        XCTAssertEqual(
-            Set(row.keys),
-            ["seq", "startMs", "endMs", "speaker", "text", "segmenterVersion"]
-        )
+        let transcriptKeys: Set<String> = Set(row.keys)
+        XCTAssertEqual(transcriptKeys, Self.transcriptSegmentKeys)
         XCTAssertTrue(row["startMs"] is NSNull)
         XCTAssertTrue(row["endMs"] is NSNull)
         XCTAssertTrue(row["speaker"] is NSNull)
@@ -138,8 +137,8 @@ final class SearchCommandTests: XCTestCase {
         XCTAssertThrowsError(try TranscriptCommand.parse(["id", "--around", "1", "--around-seq", "1"])) { error in
             XCTAssertEqual(CLI.normalizedExitCode(for: error).rawValue, 2)
         }
-        XCTAssertThrowsError(try TranscriptCommand.parse(["id", "--window", String(repeating: "9", count: 100)])) {
-            error in
+        let oversizedDuration = String(repeating: "9", count: 100)
+        XCTAssertThrowsError(try TranscriptCommand.parse(["id", "--window", oversizedDuration])) { error in
             XCTAssertEqual(CLI.normalizedExitCode(for: error).rawValue, 2)
         }
     }
@@ -161,12 +160,10 @@ final class SearchCommandTests: XCTestCase {
             "重要な会議", "--json", "--database", path,
         ])
         let output = try await captureStandardOutput { try await command.run() }
-        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [[String: Any]])
+        let payload: [[String: Any]] = try decodeJSON(output)
         let hit = try XCTUnwrap(payload.first)
-        XCTAssertEqual(
-            Set(hit.keys),
-            ["transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank"]
-        )
+        let actualKeys: Set<String> = Set(hit.keys)
+        XCTAssertEqual(actualKeys, Self.searchHitKeys)
         XCTAssertTrue(hit["startMs"] is NSNull)
         XCTAssertTrue(hit["speaker"] is NSNull)
         XCTAssertTrue(hit["rank"] is NSNull)
@@ -180,33 +177,35 @@ final class SearchCommandTests: XCTestCase {
         let manager = try DatabaseManager(path: path)
         let transcriptions = TranscriptionRepository(dbQueue: manager.dbQueue)
         let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        let meetingSegments: [TranscriptSegmentRecord] = [
+            TranscriptSegmentRecord(
+                startMs: 3_000,
+                endMs: 4_000,
+                speakerId: "S1",
+                speakerLabel: "Dana",
+                text: "Dana discussed cache invalidation.",
+                wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+            )
+        ]
         let meeting = Transcription(
             createdAt: Date(timeIntervalSince1970: 1_800_000_000),
             fileName: "Cache Review",
             rawTranscript: "Dana discussed cache invalidation.",
-            transcriptSegments: [
-                TranscriptSegmentRecord(
-                    startMs: 3_000,
-                    endMs: 4_000,
-                    speakerId: "S1",
-                    speakerLabel: "Dana",
-                    text: "Dana discussed cache invalidation.",
-                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
-                )
-            ],
+            transcriptSegments: meetingSegments,
             status: .completed,
             sourceType: .meeting
         )
+        let fileWords: [WordTimestamp] = [
+            WordTimestamp(word: "Local", startMs: 0, endMs: 100, confidence: 1),
+            WordTimestamp(word: "file", startMs: 120, endMs: 200, confidence: 1),
+            WordTimestamp(word: "cache", startMs: 220, endMs: 300, confidence: 1),
+            WordTimestamp(word: "notes.", startMs: 320, endMs: 500, confidence: 1),
+        ]
         let file = Transcription(
             createdAt: Date(timeIntervalSince1970: 1_700_000_000),
             fileName: "notes.m4a",
             rawTranscript: "Local file cache notes.",
-            wordTimestamps: [
-                WordTimestamp(word: "Local", startMs: 0, endMs: 100, confidence: 1),
-                WordTimestamp(word: "file", startMs: 120, endMs: 200, confidence: 1),
-                WordTimestamp(word: "cache", startMs: 220, endMs: 300, confidence: 1),
-                WordTimestamp(word: "notes.", startMs: 320, endMs: 500, confidence: 1),
-            ],
+            wordTimestamps: fileWords,
             status: .completed,
             sourceType: .file
         )
@@ -217,6 +216,12 @@ final class SearchCommandTests: XCTestCase {
             try segments.replaceSegments(for: file)
         }
         return Fixture(path: path, meetingID: meeting.id, fileID: file.id)
+    }
+
+    private func decodeJSON<T>(_ output: String) throws -> T {
+        let data = Data(output.utf8)
+        let object: Any = try JSONSerialization.jsonObject(with: data)
+        return try XCTUnwrap(object as? T)
     }
 }
 

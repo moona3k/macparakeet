@@ -83,16 +83,20 @@ final class DatabaseManagerTests: XCTestCase {
                 db,
                 sql: "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'segments'"
             )
-            XCTAssertEqual(Set(triggerNames), ["segments_ai", "segments_ad", "segments_au"])
-            XCTAssertNoThrow(try Int.fetchOne(
+            let actualTriggerNames: Set<String> = Set(triggerNames)
+            let expectedTriggerNames: Set<String> = ["segments_ai", "segments_ad", "segments_au"]
+            XCTAssertEqual(actualTriggerNames, expectedTriggerNames)
+            let matchedRows = try Int.fetchOne(
                 db,
                 sql: "SELECT count(*) FROM segments_fts WHERE segments_fts MATCH 'cafe'"
-            ))
+            )
+            XCTAssertNotNil(matchedRows)
         }
+        let repository = SegmentRepository(dbQueue: manager.dbQueue)
+        let query = SegmentSearchQuery(query: "o", limit: 1)
+        let hits: [SegmentSearchHit] = try repository.search(query)
         XCTAssertEqual(
-            try SegmentRepository(dbQueue: manager.dbQueue)
-                .search(SegmentSearchQuery(query: "o", limit: 1))
-                .first?.transcriptionId,
+            hits.first?.transcriptionId,
             transcription.id,
             "remove_diacritics 2 must fold a character with multiple diacritics"
         )
