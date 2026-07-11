@@ -1843,15 +1843,26 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.status = .completed
         transcription.updatedAt = Date()
         if persistResult {
+            do {
+                // Invalidate before publishing the new completed transcript.
+                // A crash or replacement failure can temporarily remove search
+                // results, but can never expose segments from the old text as if
+                // they belonged to the new canonical transcript.
+                try segmentRepo?.deleteSegments(transcriptionId: transcription.id)
+            } catch {
+                let transcriptionID = transcription.id
+                logger.error("segment_invalidation_failed id=\(transcriptionID, privacy: .public) reindex_needed=true action=search-reindex error=\(error.localizedDescription, privacy: .public)")
+                throw error
+            }
             try transcriptionRepo.save(transcription)
             do {
                 try segmentRepo?.replaceSegments(for: transcription)
             } catch {
-                // The index is derived and repairable via `search-reindex`.
-                // Never turn a successfully persisted transcript into an error
-                // row solely because retrieval maintenance failed.
+                // Old rows were invalidated before the canonical save, so this
+                // failure leaves search incomplete but never stale. The derived
+                // index is repairable with `search-reindex`.
                 let transcriptionID = transcription.id
-                logger.error("segment_materialization_failed id=\(transcriptionID, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                logger.error("segment_materialization_failed id=\(transcriptionID, privacy: .public) reindex_needed=true action=search-reindex error=\(error.localizedDescription, privacy: .public)")
             }
             await llmRunRecorder.record(formatterOutcome.run)
         }

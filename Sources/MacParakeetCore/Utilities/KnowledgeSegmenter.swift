@@ -14,21 +14,24 @@ public enum KnowledgeSegmenter {
         speakers: [SpeakerInfo]? = nil,
         idGenerator: () -> UUID = { UUID() }
     ) -> [TranscriptSegmentRecord] {
-        guard !words.isEmpty else { return [] }
+        let usableIndices = words.indices.filter { usableText(words[$0].word) != nil }
+        guard let firstUsableIndex = usableIndices.first else { return [] }
         var labels: [String: String] = [:]
         for speaker in speakers ?? [] where labels[speaker.id] == nil {
             labels[speaker.id] = speaker.label
         }
         var result: [TranscriptSegmentRecord] = []
-        var startIndex = 0
+        var startPosition = 0
         var currentWords: [String] = []
         var currentScalarCount = 0
-        var currentSpeaker = words[0].speakerId
+        var currentSpeaker = words[firstUsableIndex].speakerId
 
-        func append(endIndexExclusive: Int) {
+        func append(endPositionExclusive: Int) {
             guard !currentWords.isEmpty else { return }
-            let first = words[startIndex]
-            let last = words[endIndexExclusive - 1]
+            let firstIndex = usableIndices[startPosition]
+            let lastIndex = usableIndices[endPositionExclusive - 1]
+            let first = words[firstIndex]
+            let last = words[lastIndex]
             let speakerLabel: String
             if let currentSpeaker {
                 speakerLabel =
@@ -47,38 +50,43 @@ public enum KnowledgeSegmenter {
                     speakerLabel: speakerLabel,
                     text: currentWords.joined(separator: " "),
                     wordRange: TranscriptSegmentWordRange(
-                        startIndex: startIndex,
-                        endIndexExclusive: endIndexExclusive
+                        startIndex: firstIndex,
+                        endIndexExclusive: lastIndex + 1
                     )
                 ))
         }
 
-        for index in words.indices {
+        for position in usableIndices.indices {
+            let index = usableIndices[position]
             let word = words[index]
+            guard let wordText = usableText(word.word) else { continue }
             let speakerChanged = word.speakerId != nil && word.speakerId != currentSpeaker
-            let wordScalarCount = word.word.unicodeScalars.count
+            let wordScalarCount = wordText.unicodeScalars.count
             let candidateCount = currentScalarCount + (currentWords.isEmpty ? 0 : 1) + wordScalarCount
             if !currentWords.isEmpty && (speakerChanged || candidateCount > targetMaximumScalars) {
-                append(endIndexExclusive: index)
+                append(endPositionExclusive: position)
                 currentWords.removeAll(keepingCapacity: true)
                 currentScalarCount = 0
-                startIndex = index
+                startPosition = position
                 currentSpeaker = word.speakerId
             }
 
-            currentWords.append(word.word)
+            currentWords.append(wordText)
             currentScalarCount += (currentWords.count == 1 ? 0 : 1) + wordScalarCount
             if let speakerId = word.speakerId { currentSpeaker = speakerId }
-            let sentenceEnded = word.word.unicodeScalars.last.map(isSentenceTerminator) ?? false
-            let longGap = index + 1 < words.count && words[index + 1].startMs - word.endMs > 1_500
-            let isLast = index == words.index(before: words.endIndex)
+            let sentenceEnded = wordText.unicodeScalars.last.map(isSentenceTerminator) ?? false
+            let nextPosition = position + 1
+            let longGap =
+                nextPosition < usableIndices.count
+                && words[usableIndices[nextPosition]].startMs - word.endMs > 1_500
+            let isLast = nextPosition == usableIndices.count
             if isLast || longGap || (sentenceEnded && currentScalarCount >= targetMinimumScalars) {
-                append(endIndexExclusive: index + 1)
+                append(endPositionExclusive: nextPosition)
                 currentWords.removeAll(keepingCapacity: true)
                 currentScalarCount = 0
                 if !isLast {
-                    startIndex = index + 1
-                    currentSpeaker = words[index + 1].speakerId ?? currentSpeaker
+                    startPosition = nextPosition
+                    currentSpeaker = words[usableIndices[nextPosition]].speakerId ?? currentSpeaker
                 }
             }
         }
@@ -88,10 +96,19 @@ public enum KnowledgeSegmenter {
     public static func deriveSegments(for transcription: Transcription) -> [Segment] {
         guard transcription.status == .completed else { return [] }
 
+        let storedSegments = (transcription.transcriptSegments ?? []).compactMap {
+            source -> TranscriptSegmentRecord? in
+            guard let text = usableText(source.text) else { return nil }
+            var normalized = source
+            normalized.text = text
+            return normalized
+        }
         let durableSegments: [TranscriptSegmentRecord]
-        if let stored = transcription.transcriptSegments, !stored.isEmpty {
-            durableSegments = stored
-        } else if let words = transcription.wordTimestamps, !words.isEmpty {
+        if !storedSegments.isEmpty {
+            durableSegments = storedSegments
+        } else if let words = transcription.wordTimestamps,
+            words.contains(where: { usableText($0.word) != nil })
+        {
             durableSegments = materializeFileTranscriptSegments(
                 words: words,
                 speakers: transcription.speakers
@@ -114,7 +131,10 @@ public enum KnowledgeSegmenter {
             }
         }
 
-        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        let text =
+            usableText(transcription.cleanTranscript)
+            ?? usableText(transcription.rawTranscript)
+            ?? ""
         return pseudoSegment(text).enumerated().map { seq, chunk in
             Segment(
                 transcriptionId: transcription.id,
@@ -189,6 +209,15 @@ public enum KnowledgeSegmenter {
             }
         }
         return String(output)
+    }
+
+    private static func usableText(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !trimmed.isEmpty
+        else {
+            return nil
+        }
+        return trimmed
     }
 
     private static func isExplicitWhitespace(_ scalar: UnicodeScalar) -> Bool {

@@ -69,7 +69,10 @@ Both can be rebuilt with `macparakeet-cli search-reindex` from
 freezes the derivation rules: pseudo-segmentation is a pure function of text
 using explicit scalar rules, with no locale or NaturalLanguage framework
 dependency. Any rule change that can alter `(transcriptionId, seq)` citations
-must bump the version.
+must bump the version. Rebuilds replace one transcription per write transaction
+so normal app writes can interleave, and retranscription invalidates old derived
+rows before publishing a newly completed transcript so stale text is never
+searchable under the new canonical row.
 
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a

@@ -103,6 +103,46 @@ final class SegmentRepositoryTests: XCTestCase {
         XCTAssertTrue(rows.allSatisfy { $0.startMs == nil && $0.endMs == nil })
     }
 
+    func testPopulationCascadeFiltersBlankStagesAndResequencesUsableContent() {
+        let blankRecord = segmentRecord(text: " \n ", startMs: 0, speaker: "S1")
+        let usableRecord = segmentRecord(text: "  Durable decision.  ", startMs: 500, speaker: "S1")
+        let mixedStored = completedTranscription(
+            source: .meeting,
+            text: "Raw fallback must not win.",
+            words: [WordTimestamp(word: "Word", startMs: 0, endMs: 100, confidence: 1)],
+            transcriptSegments: [blankRecord, usableRecord, blankRecord]
+        )
+
+        let durable = KnowledgeSegmenter.deriveSegments(for: mixedStored)
+        XCTAssertEqual(durable.map(\.seq), [0])
+        XCTAssertEqual(durable.map(\.text), ["Durable decision."])
+
+        let blankStoredWithWords = completedTranscription(
+            source: .file,
+            text: "Raw fallback must not win.",
+            words: [
+                WordTimestamp(word: " \t", startMs: 0, endMs: 50, confidence: 1),
+                WordTimestamp(word: " usable ", startMs: 100, endMs: 200, confidence: 1),
+            ],
+            transcriptSegments: [blankRecord]
+        )
+        let fromWords = KnowledgeSegmenter.deriveSegments(for: blankStoredWithWords)
+        XCTAssertEqual(fromWords.map(\.text), ["usable"])
+        XCTAssertEqual(fromWords.map(\.startMs), [100])
+
+        var blankClean = completedTranscription(source: .file, text: "  Raw fallback.  ")
+        blankClean.cleanTranscript = " \n "
+        blankClean.wordTimestamps = [WordTimestamp(word: " ", startMs: 0, endMs: 1, confidence: 1)]
+        blankClean.transcriptSegments = [blankRecord]
+        XCTAssertEqual(KnowledgeSegmenter.deriveSegments(for: blankClean).map(\.text), ["Raw fallback."])
+
+        var allBlank = completedTranscription(source: .file, text: " \n ")
+        allBlank.cleanTranscript = "\t"
+        allBlank.wordTimestamps = [WordTimestamp(word: " ", startMs: 0, endMs: 1, confidence: 1)]
+        allBlank.transcriptSegments = [blankRecord]
+        XCTAssertTrue(KnowledgeSegmenter.deriveSegments(for: allBlank).isEmpty)
+    }
+
     func testBackfillTwiceConvergesToIdenticalDerivedRows() throws {
         let meeting = completedTranscription(
             source: .meeting,
@@ -121,6 +161,49 @@ final class SegmentRepositoryTests: XCTestCase {
         XCTAssertEqual(firstResult.transcriptionsIndexed, 2)
         XCTAssertEqual(secondResult.transcriptionsIndexed, 2)
         XCTAssertEqual(first, second)
+    }
+
+    func testRebuildAllowsAppWriteBetweenPerTranscriptionTransactions() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("segments_cooperative_rebuild_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: path) }
+        let rebuildManager = try DatabaseManager(path: path)
+        let appManager = try DatabaseManager(path: path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: rebuildManager.dbQueue)
+        let appTranscriptionRepo = TranscriptionRepository(dbQueue: appManager.dbQueue)
+        let repository = SegmentRepository(dbQueue: rebuildManager.dbQueue)
+        let recordings = [
+            completedTranscription(source: .file, text: "new canonical alpha"),
+            completedTranscription(source: .file, text: "new canonical beta"),
+        ]
+        for (index, recording) in recordings.enumerated() {
+            try transcriptionRepo.save(recording)
+            var old = recording
+            old.rawTranscript = "legacy searchable marker \(index)"
+            try repository.replaceSegments(for: old)
+        }
+
+        let interleaved = Transcription(
+            fileName: "app-write.m4a",
+            rawTranscript: "A normal app write during maintenance.",
+            status: .processing,
+            sourceType: .file
+        )
+        let result = try repository.rebuildAll { completedCount in
+            guard completedCount == 1 else { return }
+            XCTAssertEqual(
+                try repository.search(SegmentSearchQuery(query: "legacy", limit: 10)).count,
+                1,
+                "the next recording's old searchable rows remain until its replacement commits"
+            )
+            try appTranscriptionRepo.save(interleaved)
+        }
+
+        XCTAssertEqual(result.transcriptionsIndexed, 2)
+        XCTAssertNotNil(try appTranscriptionRepo.fetch(id: interleaved.id))
+        XCTAssertTrue(try repository.search(SegmentSearchQuery(query: "legacy", limit: 10)).isEmpty)
+        XCTAssertEqual(try repository.search(SegmentSearchQuery(query: "canonical", limit: 10)).count, 2)
     }
 
     func testFTSSearchRankingFiltersAndTriggerSynchronization() throws {
@@ -197,6 +280,8 @@ final class SegmentRepositoryTests: XCTestCase {
 
     func testCJKFallbackAndGraphemeSafeSnippet() throws {
         XCTAssertTrue(SegmentRepository.requiresSubstringFallback("\u{20000}"))
+        XCTAssertTrue(SegmentRepository.requiresSubstringFallback("\u{FF76}"), "halfwidth Katakana")
+        XCTAssertTrue(SegmentRepository.requiresSubstringFallback("\u{1B000}"), "supplementary kana")
         let transcription = completedTranscription(
             source: .file,
             text: "前置き🙂これは重要な会議の結論です🚀次の話題"
@@ -216,6 +301,14 @@ final class SegmentRepositoryTests: XCTestCase {
         )
         XCTAssertTrue(truncated.contains("重要な会議"))
         XCTAssertLessThanOrEqual(truncated.count, 14, "up to two ellipsis graphemes may surround the snippet")
+
+        let mixedCase = SegmentRepository.characterSafeSnippet(
+            String(repeating: "prefix ", count: 20) + "tanaka 会議 decision",
+            matching: "Tanaka 会議",
+            maximumCharacters: 24
+        )
+        XCTAssertTrue(mixedCase.contains("tanaka 会議"))
+        XCTAssertFalse(mixedCase.contains("prefix prefix prefix"))
     }
 
     func testSegmentSliceSupportsTimeAndSequenceContext() throws {
@@ -295,5 +388,11 @@ final class SegmentRepositoryTests: XCTestCase {
             text: text,
             wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
         )
+    }
+
+    private func cleanupDatabaseFiles(atPath path: String) {
+        for suffix in ["", "-shm", "-wal", ".migration.lock"] {
+            try? FileManager.default.removeItem(atPath: path + suffix)
+        }
     }
 }

@@ -86,6 +86,51 @@ final class SearchCommandTests: XCTestCase {
             ]))
     }
 
+    func testUntimedSearchAndTranscriptJSONEmitExplicitNullKeys() async throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-search-null-contract-\(UUID().uuidString).db").path
+        defer { Fixture(path: path, meetingID: UUID(), fileID: UUID()).cleanup() }
+        let manager = try DatabaseManager(path: path)
+        let transcription = Transcription(
+            fileName: "legacy.m4a",
+            rawTranscript: "Legacy untimed evidence.",
+            status: .completed,
+            sourceType: .file
+        )
+        try TranscriptionRepository(dbQueue: manager.dbQueue).save(transcription)
+        try SegmentRepository(dbQueue: manager.dbQueue).replaceSegments(for: transcription)
+
+        let search = try SearchCommand.parse([
+            "legacy", "--json", "--database", path,
+        ])
+        let searchOutput = try await captureStandardOutput { try await search.run() }
+        let hits = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(searchOutput.utf8)) as? [[String: Any]])
+        let hit = try XCTUnwrap(hits.first)
+        XCTAssertEqual(
+            Set(hit.keys),
+            ["transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank"]
+        )
+        XCTAssertTrue(hit["startMs"] is NSNull)
+        XCTAssertTrue(hit["speaker"] is NSNull)
+
+        let transcript = try TranscriptCommand.parse([
+            transcription.id.uuidString, "--json", "--database", path,
+        ])
+        let transcriptOutput = try await captureStandardOutput { try await transcript.run() }
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(transcriptOutput.utf8)) as? [String: Any]
+        )
+        let rows = try XCTUnwrap(payload["segments"] as? [[String: Any]])
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(
+            Set(row.keys),
+            ["seq", "startMs", "endMs", "speaker", "text", "segmenterVersion"]
+        )
+        XCTAssertTrue(row["startMs"] is NSNull)
+        XCTAssertTrue(row["endMs"] is NSNull)
+        XCTAssertTrue(row["speaker"] is NSNull)
+    }
+
     func testSearchValidationUsesPublicMisuseExitCode() {
         XCTAssertThrowsError(try SearchCommand.parse(["query", "--limit", "-1"])) { error in
             XCTAssertEqual(CLI.normalizedExitCode(for: error).rawValue, 2)
@@ -118,6 +163,12 @@ final class SearchCommandTests: XCTestCase {
         let output = try await captureStandardOutput { try await command.run() }
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [[String: Any]])
         let hit = try XCTUnwrap(payload.first)
+        XCTAssertEqual(
+            Set(hit.keys),
+            ["transcriptionId", "title", "recordedAt", "source", "seq", "startMs", "speaker", "snippet", "rank"]
+        )
+        XCTAssertTrue(hit["startMs"] is NSNull)
+        XCTAssertTrue(hit["speaker"] is NSNull)
         XCTAssertTrue(hit["rank"] is NSNull)
         XCTAssertTrue((hit["snippet"] as? String)?.contains("重要な会議") == true)
     }

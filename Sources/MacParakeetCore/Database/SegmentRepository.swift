@@ -54,8 +54,16 @@ public struct SegmentSearchHit: Encodable, Sendable, Equatable {
         try container.encode(recordedAt, forKey: .recordedAt)
         try container.encode(source, forKey: .source)
         try container.encode(seq, forKey: .seq)
-        try container.encodeIfPresent(startMs, forKey: .startMs)
-        try container.encodeIfPresent(speaker, forKey: .speaker)
+        if let startMs {
+            try container.encode(startMs, forKey: .startMs)
+        } else {
+            try container.encodeNil(forKey: .startMs)
+        }
+        if let speaker {
+            try container.encode(speaker, forKey: .speaker)
+        } else {
+            try container.encodeNil(forKey: .speaker)
+        }
         try container.encode(snippet, forKey: .snippet)
         if let rank {
             try container.encode(rank, forKey: .rank)
@@ -71,6 +79,7 @@ public struct SegmentReindexResult: Codable, Sendable, Equatable {
 }
 
 public protocol SegmentRepositoryProtocol: Sendable {
+    func deleteSegments(transcriptionId: UUID) throws
     func replaceSegments(for transcription: Transcription) throws
 }
 
@@ -81,9 +90,23 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         self.dbQueue = dbQueue
     }
 
-    public func replaceSegments(for transcription: Transcription) throws {
+    public func deleteSegments(transcriptionId: UUID) throws {
         try dbQueue.write { db in
-            try Self.replaceSegments(for: transcription, in: db)
+            _ =
+                try Segment
+                .filter(Segment.Columns.transcriptionId == transcriptionId)
+                .deleteAll(db)
+        }
+    }
+
+    public func replaceSegments(for transcription: Transcription) throws {
+        let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
+        try dbQueue.write { db in
+            try Self.replaceSegments(
+                derived,
+                transcriptionId: transcription.id,
+                in: db
+            )
         }
     }
 
@@ -97,27 +120,63 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
     }
 
     public func rebuildAll() throws -> SegmentReindexResult {
-        try dbQueue.write { db in
-            let transcriptions =
-                try Transcription
-                .filter(Transcription.Columns.status == Transcription.TranscriptionStatus.completed.rawValue)
-                .fetchCursor(db)
-            _ = try Segment.deleteAll(db)
-            var transcriptionCount = 0
-            var segmentCount = 0
-            while let transcription = try transcriptions.next() {
-                let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
-                for var segment in derived { try segment.insert(db) }
-                transcriptionCount += 1
-                segmentCount += derived.count
-            }
-            // Canonical convergence repair for any historical trigger drift.
-            try db.execute(sql: "INSERT INTO segments_fts(segments_fts) VALUES('rebuild')")
-            return SegmentReindexResult(
-                transcriptionsIndexed: transcriptionCount,
-                segmentsIndexed: segmentCount
+        try rebuildAll(afterEachTranscription: nil)
+    }
+
+    /// Test seam for proving that each recording commits independently. The
+    /// callback runs after the write transaction closes, so another process can
+    /// acquire the database write lock before the next recording starts.
+    func rebuildAll(
+        afterEachTranscription: ((Int) throws -> Void)?
+    ) throws -> SegmentReindexResult {
+        let transcriptionIDs = try dbQueue.read { db in
+            try UUID.fetchAll(
+                db,
+                sql: "SELECT id FROM transcriptions WHERE status = ? ORDER BY id",
+                arguments: [Transcription.TranscriptionStatus.completed.rawValue]
             )
         }
+        let indexedIDs = try dbQueue.read { db in
+            try UUID.fetchAll(
+                db,
+                sql: "SELECT DISTINCT transcriptionId FROM segments"
+            )
+        }
+
+        // Remove derived rows that no longer belong to a completed recording,
+        // one short transaction at a time. Completed recordings retain their
+        // old searchable rows until their replacement transaction commits.
+        let completedIDs = Set(transcriptionIDs)
+        for staleID in Set(indexedIDs).subtracting(completedIDs) {
+            try deleteSegments(transcriptionId: staleID)
+        }
+
+        var transcriptionCount = 0
+        var segmentCount = 0
+        for transcriptionID in transcriptionIDs {
+            guard
+                let transcription = try dbQueue.read({ db in
+                    try Transcription.fetchOne(db, key: transcriptionID)
+                })
+            else {
+                continue
+            }
+            let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
+            try dbQueue.write { db in
+                try Self.replaceSegments(
+                    derived,
+                    transcriptionId: transcriptionID,
+                    in: db
+                )
+            }
+            transcriptionCount += 1
+            segmentCount += derived.count
+            try afterEachTranscription?(transcriptionCount)
+        }
+        return SegmentReindexResult(
+            transcriptionsIndexed: transcriptionCount,
+            segmentsIndexed: segmentCount
+        )
     }
 
     public func search(_ query: SegmentSearchQuery) throws -> [SegmentSearchHit] {
@@ -182,12 +241,16 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         }
     }
 
-    private static func replaceSegments(for transcription: Transcription, in db: Database) throws {
+    private static func replaceSegments(
+        _ segments: [Segment],
+        transcriptionId: UUID,
+        in db: Database
+    ) throws {
         _ =
             try Segment
-            .filter(Segment.Columns.transcriptionId == transcription.id)
+            .filter(Segment.Columns.transcriptionId == transcriptionId)
             .deleteAll(db)
-        for var segment in KnowledgeSegmenter.deriveSegments(for: transcription) {
+        for var segment in segments {
             try segment.insert(db)
         }
     }
@@ -269,7 +332,7 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
             case .file:
                 predicates.append("t.sourceType = 'file'")
             case .url:
-                predicates.append("t.sourceType IN ('youtube', 'podcast')")
+                predicates.append("t.sourceType IN (\(urlSourceTypeLiterals))")
             }
         }
         if let speaker = query.speaker?.trimmingCharacters(in: .whitespacesAndNewlines), !speaker.isEmpty {
@@ -300,18 +363,7 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
     }
 
     public static func requiresSubstringFallback(_ text: String) -> Bool {
-        text.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x0E00...0x0E7F,  // Thai
-                0x3040...0x30FF,  // Hiragana + Katakana
-                0x31F0...0x31FF,  // Katakana extensions
-                0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF,  // Han BMP
-                0x20000...0x2EBEF, 0x2F800...0x2FA1F, 0x30000...0x3134F:  // Han supplementary planes
-                true
-            default:
-                false
-            }
-        }
+        text.unicodeScalars.contains(where: isSubstringFallbackScalar)
     }
 
     public static func characterSafeSnippet(
@@ -325,7 +377,9 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         var matchStart = 0
         if !needle.isEmpty, needle.count <= characters.count {
             for index in 0...(characters.count - needle.count)
-            where Array(characters[index..<(index + needle.count)]) == needle {
+            where zip(characters[index..<(index + needle.count)], needle)
+                .allSatisfy(asciiCaseInsensitiveEqual)
+            {
                 matchStart = index
                 break
             }
@@ -345,6 +399,39 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
             .replacingOccurrences(of: "_", with: "\\_")
     }
 
+    private static func isSubstringFallbackScalar(_ scalar: UnicodeScalar) -> Bool {
+        switch scalar.value {
+        case 0x0E00...0x0E7F,  // Thai
+            0x3040...0x30FF,  // Hiragana + Katakana
+            0x31F0...0x31FF,  // Katakana extensions
+            0xFF65...0xFF9F,  // Halfwidth Katakana
+            0x1AFF0...0x1AFFF,  // Kana Extended-B
+            0x1B000...0x1B16F,  // Kana Supplement, Extended-A, and Small Kana
+            0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF,  // Han BMP
+            0x20000...0x2EBEF, 0x2F800...0x2FA1F, 0x30000...0x3134F:  // Han supplementary planes
+            true
+        default:
+            false
+        }
+    }
+
+    private static func asciiCaseInsensitiveEqual(_ lhs: Character, _ rhs: Character) -> Bool {
+        guard let lhsScalar = lhs.unicodeScalars.first,
+            lhs.unicodeScalars.count == 1,
+            let rhsScalar = rhs.unicodeScalars.first,
+            rhs.unicodeScalars.count == 1,
+            lhsScalar.isASCII,
+            rhsScalar.isASCII
+        else {
+            return lhs == rhs
+        }
+        return asciiLowercased(lhsScalar.value) == asciiLowercased(rhsScalar.value)
+    }
+
+    private static func asciiLowercased(_ value: UInt32) -> UInt32 {
+        (0x41...0x5A).contains(value) ? value + 0x20 : value
+    }
+
     private static let titleExpression = """
         CASE
             WHEN t.sourceType = 'meeting' THEN t.fileName
@@ -356,10 +443,15 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         END
         """
 
+    private static let urlSourceTypeLiterals = [
+        Transcription.SourceType.youtube,
+        .podcast,
+    ].map { "'\($0.rawValue)'" }.joined(separator: ", ")
+
     private static let sourceExpression = """
         CASE
             WHEN t.sourceType = 'meeting' THEN 'meeting'
-            WHEN t.sourceType IN ('youtube', 'podcast') THEN 'url'
+            WHEN t.sourceType IN (\(urlSourceTypeLiterals)) THEN 'url'
             ELSE 'file'
         END
         """

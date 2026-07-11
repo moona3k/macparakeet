@@ -271,6 +271,26 @@ private struct FailingEntitlements: EntitlementsChecking {
     }
 }
 
+private enum SegmentReplacementTestError: Error {
+    case replacementFailed
+}
+
+private final class FailingReplaceSegmentRepository: SegmentRepositoryProtocol, @unchecked Sendable {
+    private let delegate: SegmentRepository
+
+    init(delegate: SegmentRepository) {
+        self.delegate = delegate
+    }
+
+    func deleteSegments(transcriptionId: UUID) throws {
+        try delegate.deleteSegments(transcriptionId: transcriptionId)
+    }
+
+    func replaceSegments(for transcription: Transcription) throws {
+        throw SegmentReplacementTestError.replacementFailed
+    }
+}
+
 final class TranscriptionServiceTests: XCTestCase {
     var service: TranscriptionService!
     var mockAudio: MockAudioProcessor!
@@ -2686,6 +2706,48 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].status, .completed)
         XCTAssertEqual(all[0].transcriptSegments?.map(\.text), ["New transcript"])
         XCTAssertEqual(try segmentRepo.fetch(transcriptionId: original.id).map(\.text), ["New transcript"])
+    }
+
+    func testRetranscribeReplacementFailureNeverLeavesOldSegmentsDiscoverable() async throws {
+        let original = Transcription(
+            id: UUID(),
+            fileName: "lecture.mp3",
+            filePath: "/tmp/lecture.mp3",
+            rawTranscript: "stale searchable transcript",
+            status: .completed,
+            sourceType: .file
+        )
+        try transcriptionRepo.save(original)
+        try segmentRepo.replaceSegments(for: original)
+        XCTAssertEqual(
+            try segmentRepo.search(SegmentSearchQuery(query: "stale", limit: 10)).map(\.transcriptionId),
+            [original.id]
+        )
+        await mockSTT.configure(result: STTResult(
+            text: "fresh canonical transcript",
+            words: [
+                TimestampedWord(word: "fresh", startMs: 0, endMs: 100, confidence: 1),
+                TimestampedWord(word: "canonical", startMs: 110, endMs: 220, confidence: 1),
+                TimestampedWord(word: "transcript", startMs: 230, endMs: 340, confidence: 1),
+            ]
+        ))
+        let failingIndexService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            segmentRepo: FailingReplaceSegmentRepository(delegate: segmentRepo)
+        )
+
+        let result = try await failingIndexService.retranscribe(
+            existing: original,
+            fileURL: URL(fileURLWithPath: "/tmp/lecture.mp3"),
+            source: .file
+        )
+
+        XCTAssertEqual(result.rawTranscript, "fresh canonical transcript")
+        XCTAssertEqual(try transcriptionRepo.fetch(id: original.id)?.rawTranscript, "fresh canonical transcript")
+        XCTAssertTrue(try segmentRepo.search(SegmentSearchQuery(query: "stale", limit: 10)).isEmpty)
+        XCTAssertTrue(try segmentRepo.fetch(transcriptionId: original.id).isEmpty)
     }
 
     func testRetranscribeExistingFileFailureLeavesOriginalRowIntact() async throws {

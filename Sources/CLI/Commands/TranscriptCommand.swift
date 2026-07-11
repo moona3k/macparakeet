@@ -113,6 +113,32 @@ private struct TranscriptSliceSegment: Encodable {
         text = segment.text
         segmenterVersion = segment.segmenterVersion
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case seq, startMs, endMs, speaker, text, segmenterVersion
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(seq, forKey: .seq)
+        if let startMs {
+            try container.encode(startMs, forKey: .startMs)
+        } else {
+            try container.encodeNil(forKey: .startMs)
+        }
+        if let endMs {
+            try container.encode(endMs, forKey: .endMs)
+        } else {
+            try container.encodeNil(forKey: .endMs)
+        }
+        if let speaker {
+            try container.encode(speaker, forKey: .speaker)
+        } else {
+            try container.encodeNil(forKey: .speaker)
+        }
+        try container.encode(text, forKey: .text)
+        try container.encode(segmenterVersion, forKey: .segmenterVersion)
+    }
 }
 
 private func parseTranscriptPosition(_ value: String) throws -> Int {
