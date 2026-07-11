@@ -55,6 +55,28 @@ final class SegmentRepositoryTests: XCTestCase {
         }
     }
 
+    func testWordTimestampMaterializationHandlesBothWhitespaceTokenStyles() {
+        XCTAssertEqual(KnowledgeSegmenter.currentVersion, 2)
+        let wordStyle = ["That's", "incredible.", "I", "will", "be", "honest"]
+        let tokenizerStyle = ["That's", " incredible", ".", " I", " will", " be", "honest"]
+
+        for tokens in [wordStyle, tokenizerStyle] {
+            let words = tokens.enumerated().map { index, token in
+                WordTimestamp(
+                    word: token,
+                    startMs: index * 100,
+                    endMs: index * 100 + 80,
+                    confidence: 1
+                )
+            }
+
+            XCTAssertEqual(
+                KnowledgeSegmenter.materializeFileTranscriptSegments(words: words).map(\.text),
+                ["That's incredible. I will be honest"]
+            )
+        }
+    }
+
     func testFileMaterializationTargetsTwoHundredToFiveHundredCharacters() {
         let words = (0..<180).map { index in
             WordTimestamp(
