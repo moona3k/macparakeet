@@ -1,0 +1,20 @@
+public/dev/2026-07-10-meeting-knowledge-layer/index.html
+  s_439d34a3abb92f::t_0d4627347cc628 479-503
+  s_439d34a3abb92f::t_85972d33c50fa9 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "4bfde645a46a5476ecdf5714c59091c557634c1f",
+  "prompts": {},
+  "sessions": {
+    "s_439d34a3abb92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "024dece0-da41-4cac-93fa-813a3a1f8028",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
