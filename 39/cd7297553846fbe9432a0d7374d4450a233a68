@@ -1,0 +1,19 @@
+scripts/dev/ci_local.sh
+  s_439d34a3abb92f::t_b7bc6ed56acc77 5-16,18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "39cd7297553846fbe9432a0d7374d4450a233a68",
+  "prompts": {},
+  "sessions": {
+    "s_439d34a3abb92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "024dece0-da41-4cac-93fa-813a3a1f8028",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
