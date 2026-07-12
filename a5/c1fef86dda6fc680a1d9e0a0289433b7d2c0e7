@@ -1,0 +1,19 @@
+docs/research/2026-07-11-mlx-qwen3-asr-deep-dive.md
+  s_6d003b5aa50f4c::t_6aa81108fb7432 1-345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a5c1fef86dda6fc680a1d9e0a0289433b7d2c0e7",
+  "prompts": {},
+  "sessions": {
+    "s_6d003b5aa50f4c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f54dd-7849-7922-b4f7-f5d2c107d42a",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
