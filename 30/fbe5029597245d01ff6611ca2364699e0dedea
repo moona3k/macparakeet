@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_502c8a15acbb3c::t_54b2e0b98c9eb2 14,18-24,143,147-168,170-171,173
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_502c8a15acbb3c::t_ab1c3969a2e443 207-228,231-237,239-244,246-259,415-430
+  s_502c8a15acbb3c::t_54b2e0b98c9eb2 229-230,238,245
+  s_502c8a15acbb3c::t_8dcb11c9b136e3 431
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_502c8a15acbb3c::t_54b2e0b98c9eb2 89,120
+  s_502c8a15acbb3c::t_ab1c3969a2e443 5-9,65-88,90-119,121-123,425-451
+  s_502c8a15acbb3c::t_00c37fff209dca 452-453
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_502c8a15acbb3c::t_54b2e0b98c9eb2 195,197-204,237-250,252-281,288-302,304,1274-1277
+  s_502c8a15acbb3c::t_c0ede01db4aff0 7-9,19-21,32-34,157-158,282-287,345-346,360-365,440-445,467-469,523-529,598-603,648-649,700-709,758-764,766-774,796-798,835-836,861-866,868-872,898-900,938-939,944-945,964-970,972-977,1033-1034,1058-1063,1065-1069,1150-1151,1207-1208,1240,1280-1298,1370-1371,1389-1390
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_502c8a15acbb3c::t_c0ede01db4aff0 604-605,890-891,899-900,1088-1108,1132-1141,1145-1149,1151-1154,1175-1191,1293,1482-1483,1511-1517,1677-1678,1717-1720,1760-1762,1800-1801,1808-1817,1858-1860,1877-1883,1916-1918,1920-1923
+  s_502c8a15acbb3c::t_54b2e0b98c9eb2 347,757-760,1427-1430,1446-1449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "30fbe5029597245d01ff6611ca2364699e0dedea",
+  "prompts": {},
+  "sessions": {
+    "s_502c8a15acbb3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f53e4-e7ad-7320-bfab-9ea1736a43ca",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
