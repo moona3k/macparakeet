@@ -66,6 +66,5 @@ struct ParakeetSpinner: View {
         .accessibilityElement()
         .accessibilityLabel("Loading")
         .accessibilityValue("In progress")
-        .accessibilityAddTraits(.updatesFrequently)
     }
 }

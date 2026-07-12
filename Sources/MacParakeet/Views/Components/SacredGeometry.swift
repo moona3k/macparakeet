@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Triangle Shape
@@ -26,109 +27,389 @@ struct TriangleShape: Shape {
 /// Merkaba-inspired spinner — two counter-rotating triangles with glowing vertices
 /// and a pulsing center. Used in dictation overlay processing state (26x26).
 ///
-/// Uses `.shadow()` instead of `.blur()` for vertex/center glow — shadow is
-/// CA-cacheable and avoids per-frame Gaussian rasterization inside rotating layers.
+/// Core Animation owns the continuous motion so displaying this spinner does not
+/// re-evaluate its surrounding SwiftUI hierarchy every frame.
 struct SpinnerRingView: View {
     var size: CGFloat = 26
     var revolutionDuration: Double = 3.0
     var tintColor: Color = .white
     var animate: Bool = true
 
-    @State private var rotationCW: Double = 0
-    @State private var rotationCCW: Double = 0
-    @State private var centerPulse: Double = 0.3
-    @State private var vertexPulse: Double = 0.6
-
-    private var radius: CGFloat { size * 0.423 }
-    private var displayedRotationCW: Double { animate ? rotationCW : 0 }
-    private var displayedRotationCCW: Double { animate ? rotationCCW : 60 }
-    private var displayedCenterPulse: Double { animate ? centerPulse : 0.7 }
-    private var displayedVertexPulse: Double { animate ? vertexPulse : 0.85 }
-
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(tintColor.opacity(0.05), lineWidth: 0.5)
-                .frame(width: size, height: size)
-
-            triangleLayer(rotation: displayedRotationCW, opacity: 0.7, vertexOpacity: displayedVertexPulse)
-            triangleLayer(rotation: displayedRotationCCW, opacity: 0.4, vertexOpacity: displayedVertexPulse * 0.7)
-
-            // Center nexus — shadow for glow instead of blur
-            Circle()
-                .fill(tintColor.opacity(displayedCenterPulse))
-                .frame(width: size * 0.115, height: size * 0.115)
-                .shadow(color: tintColor.opacity(displayedCenterPulse * 0.5), radius: size * 0.154)
-        }
+        SpinnerRingRepresentable(
+            size: size,
+            revolutionDuration: revolutionDuration,
+            tint: NSColor(tintColor),
+            animate: animate
+        )
         .frame(width: size, height: size)
-        .drawingGroup()
-        .onAppear {
-            if animate {
-                startAnimation()
-            } else {
-                resetAnimationState()
+    }
+}
+
+private struct SpinnerRingRepresentable: NSViewRepresentable {
+    let size: CGFloat
+    let revolutionDuration: Double
+    let tint: NSColor
+    let animate: Bool
+
+    func makeNSView(context: Context) -> SpinnerRingNSView {
+        SpinnerRingNSView()
+    }
+
+    func updateNSView(_ nsView: SpinnerRingNSView, context: Context) {
+        nsView.update(
+            size: size,
+            revolutionDuration: revolutionDuration,
+            tint: tint,
+            animate: animate
+        )
+    }
+
+    static func dismantleNSView(_ nsView: SpinnerRingNSView, coordinator: Void) {
+        nsView.dismantle()
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: SpinnerRingNSView,
+        context: Context
+    ) -> CGSize? {
+        CGSize(width: size, height: size)
+    }
+}
+
+/// Layer-backed renderer for `SpinnerRingView`.
+///
+/// SwiftUI owns configuration and accessibility; Core Animation interpolates
+/// rotations and pulses on the render server.
+final class SpinnerRingNSView: NSView {
+    private let ringLayer = CAShapeLayer()
+    private let clockwiseLayer = CALayer()
+    private let clockwiseTriangleLayer = CAShapeLayer()
+    private let clockwiseVerticesLayer = CAShapeLayer()
+    private let counterclockwiseLayer = CALayer()
+    private let counterclockwiseTriangleLayer = CAShapeLayer()
+    private let counterclockwiseVerticesLayer = CAShapeLayer()
+    private let centerLayer = CAShapeLayer()
+
+    private var spinnerSize: CGFloat = 26
+    private var revolutionDuration: Double = 3
+    private var tint = NSColor.white
+    private var isAnimating = false
+    private var didBuildLayers = false
+    private var laidOutSize: CGFloat?
+
+    override var isFlipped: Bool { true }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: spinnerSize, height: spinnerSize)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
+
+    override func layout() {
+        super.layout()
+        buildLayersIfNeeded()
+        layoutLayers()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        guard didBuildLayers else { return }
+        applyTint()
+    }
+
+    func update(size: CGFloat, revolutionDuration: Double, tint: NSColor, animate: Bool) {
+        buildLayersIfNeeded()
+
+        let sizeChanged = spinnerSize != size
+        if sizeChanged {
+            spinnerSize = size
+            invalidateIntrinsicContentSize()
+            needsLayout = true
+        }
+
+        if sizeChanged || !self.tint.isEqual(tint) {
+            self.tint = tint
+            applyTint()
+        }
+
+        let timingChanged = self.revolutionDuration != revolutionDuration
+        self.revolutionDuration = revolutionDuration
+        let animationStateChanged = isAnimating != animate
+        isAnimating = animate
+
+        if animate && animationStateChanged {
+            startAnimations()
+        } else if animate && timingChanged {
+            retimeRotationAnimations()
+        } else if animationStateChanged {
+            stopAnimations()
+        }
+    }
+
+    func dismantle() {
+        removeAnimations()
+        isAnimating = false
+    }
+
+    var testHook_hasRenderableGeometry: Bool {
+        ringLayer.path != nil
+            && clockwiseTriangleLayer.path != nil
+            && counterclockwiseTriangleLayer.path != nil
+            && clockwiseVerticesLayer.path != nil
+            && counterclockwiseVerticesLayer.path != nil
+            && centerLayer.path != nil
+    }
+
+    var testHook_activeAnimationKeys: [String] {
+        var keys: [String] = []
+        if clockwiseLayer.animation(forKey: "spin") != nil { keys.append("clockwise.spin") }
+        if counterclockwiseLayer.animation(forKey: "spin") != nil { keys.append("counterclockwise.spin") }
+        if centerLayer.animation(forKey: "pulse") != nil { keys.append("center.pulse") }
+        if clockwiseVerticesLayer.animation(forKey: "pulse") != nil
+            || counterclockwiseVerticesLayer.animation(forKey: "pulse") != nil
+        {
+            keys.append("vertices.pulse")
+        }
+        return keys.sorted()
+    }
+
+    var testHook_animationDurations: [String: Double] {
+        [
+            "center.pulse": centerLayer.animation(forKey: "pulse")?.duration,
+            "clockwise.spin": clockwiseLayer.animation(forKey: "spin")?.duration,
+            "counterclockwise.spin": counterclockwiseLayer.animation(forKey: "spin")?.duration,
+            "vertices.pulse": clockwiseVerticesLayer.animation(forKey: "pulse")?.duration,
+        ].compactMapValues { $0 }
+    }
+
+    private func buildLayersIfNeeded() {
+        guard !didBuildLayers, let rootLayer = layer else { return }
+        didBuildLayers = true
+
+        rootLayer.masksToBounds = false
+        ringLayer.fillColor = NSColor.clear.cgColor
+        ringLayer.lineWidth = 0.5
+        rootLayer.addSublayer(ringLayer)
+
+        configureTriangle(clockwiseLayer, shape: clockwiseTriangleLayer, vertices: clockwiseVerticesLayer)
+        configureTriangle(
+            counterclockwiseLayer,
+            shape: counterclockwiseTriangleLayer,
+            vertices: counterclockwiseVerticesLayer
+        )
+        rootLayer.addSublayer(clockwiseLayer)
+        rootLayer.addSublayer(counterclockwiseLayer)
+
+        centerLayer.strokeColor = nil
+        rootLayer.addSublayer(centerLayer)
+        applyTint()
+    }
+
+    private func configureTriangle(_ container: CALayer, shape: CAShapeLayer, vertices: CAShapeLayer) {
+        container.masksToBounds = false
+        shape.fillColor = NSColor.clear.cgColor
+        shape.lineWidth = 0.8
+        shape.lineJoin = .round
+        vertices.strokeColor = nil
+        container.addSublayer(shape)
+        container.addSublayer(vertices)
+    }
+
+    private func layoutLayers() {
+        guard laidOutSize != spinnerSize else { return }
+        laidOutSize = spinnerSize
+
+        let bounds = CGRect(origin: .zero, size: CGSize(width: spinnerSize, height: spinnerSize))
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let radius = spinnerSize * 0.423
+        let trianglePath = makeTrianglePath(center: center, radius: radius)
+        let vertexPath = makeVertexPath(center: center, radius: radius)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        ringLayer.frame = bounds
+        ringLayer.path = CGPath(ellipseIn: bounds, transform: nil)
+
+        clockwiseLayer.setAffineTransform(.identity)
+        counterclockwiseLayer.setAffineTransform(.identity)
+        for container in [clockwiseLayer, counterclockwiseLayer] {
+            container.frame = bounds
+        }
+        for triangle in [clockwiseTriangleLayer, counterclockwiseTriangleLayer] {
+            triangle.frame = bounds
+            triangle.path = trianglePath
+        }
+        for vertices in [clockwiseVerticesLayer, counterclockwiseVerticesLayer] {
+            vertices.frame = bounds
+            vertices.path = vertexPath
+            vertices.shadowPath = vertexPath
+        }
+
+        let centerDiameter = spinnerSize * 0.115
+        let centerPath = CGPath(
+            ellipseIn: CGRect(
+                x: center.x - centerDiameter / 2,
+                y: center.y - centerDiameter / 2,
+                width: centerDiameter,
+                height: centerDiameter
+            ),
+            transform: nil
+        )
+        centerLayer.frame = bounds
+        centerLayer.path = centerPath
+        centerLayer.shadowPath = centerPath
+
+        applyModelState(animated: isAnimating)
+        CATransaction.commit()
+    }
+
+    private func makeTrianglePath(center: CGPoint, radius: CGFloat) -> CGPath {
+        TriangleShape().path(
+            in: CGRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+        ).cgPath
+    }
+
+    private func makeVertexPath(center: CGPoint, radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        let diameter = spinnerSize * 0.096
+        for index in 0..<3 {
+            let angle = (CGFloat(index) * 120 - 90) * .pi / 180
+            let point = CGPoint(
+                x: center.x + cos(angle) * radius,
+                y: center.y + sin(angle) * radius
+            )
+            path.addEllipse(
+                in: CGRect(
+                    x: point.x - diameter / 2,
+                    y: point.y - diameter / 2,
+                    width: diameter,
+                    height: diameter
+                ))
+        }
+        return path
+    }
+
+    private func applyTint() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            ringLayer.strokeColor = tint.withAlphaComponent(tint.alphaComponent * 0.05).cgColor
+            clockwiseTriangleLayer.strokeColor = tint.withAlphaComponent(tint.alphaComponent * 0.35).cgColor
+            counterclockwiseTriangleLayer.strokeColor = tint.withAlphaComponent(tint.alphaComponent * 0.2).cgColor
+            clockwiseVerticesLayer.fillColor = tint.cgColor
+            counterclockwiseVerticesLayer.fillColor = tint.cgColor
+            centerLayer.fillColor = tint.cgColor
+
+            for vertices in [clockwiseVerticesLayer, counterclockwiseVerticesLayer] {
+                vertices.shadowColor = tint.cgColor
+                vertices.shadowOpacity = 0.4
+                vertices.shadowRadius = spinnerSize * 0.115
             }
-        }
-        .onChange(of: animate) { _, shouldAnimate in
-            if shouldAnimate {
-                startAnimation()
-            } else {
-                resetAnimationState()
-            }
+            centerLayer.shadowColor = tint.cgColor
+            centerLayer.shadowOpacity = 0.5
+            centerLayer.shadowRadius = spinnerSize * 0.154
+            CATransaction.commit()
         }
     }
 
-    private func triangleLayer(rotation: Double, opacity: Double, vertexOpacity: Double) -> some View {
-        ZStack {
-            TriangleShape()
-                .stroke(tintColor.opacity(opacity * 0.5), lineWidth: 0.8)
-                .frame(width: radius * 2, height: radius * 2)
-
-            ForEach(0..<3, id: \.self) { i in
-                vertexDot(index: i, vertexOpacity: vertexOpacity)
-            }
-        }
-        .rotationEffect(.degrees(rotation))
+    private func applyModelState(animated: Bool) {
+        clockwiseLayer.setAffineTransform(.identity)
+        counterclockwiseLayer.setAffineTransform(
+            animated ? .identity : CGAffineTransform(rotationAngle: .pi / 3)
+        )
+        centerLayer.opacity = animated ? 0.3 : 0.7
+        clockwiseVerticesLayer.opacity = animated ? 0.6 : 0.85
+        counterclockwiseVerticesLayer.opacity = animated ? 0.42 : 0.595
     }
 
-    private func vertexDot(index: Int, vertexOpacity: Double) -> some View {
-        let angle = (Double(index) * 120.0 - 90.0) * .pi / 180.0
-        let x = Foundation.cos(angle) * radius
-        let y = Foundation.sin(angle) * radius
+    private func startAnimations() {
+        removeAnimations()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        applyModelState(animated: true)
+        CATransaction.commit()
 
-        return Circle()
-            .fill(tintColor.opacity(vertexOpacity))
-            .frame(width: size * 0.096, height: size * 0.096)
-            .shadow(color: tintColor.opacity(vertexOpacity * 0.4), radius: size * 0.115)
-            .offset(x: x, y: y)
+        clockwiseLayer.add(rotationAnimation(from: 0, to: .pi * 2), forKey: "spin")
+        counterclockwiseLayer.add(rotationAnimation(from: 0, to: -.pi * 2), forKey: "spin")
+        centerLayer.add(pulseAnimation(from: 0.3, to: 0.9, duration: 1.4), forKey: "pulse")
+        clockwiseVerticesLayer.add(pulseAnimation(from: 0.6, to: 1, duration: 1), forKey: "pulse")
+        counterclockwiseVerticesLayer.add(pulseAnimation(from: 0.42, to: 0.7, duration: 1), forKey: "pulse")
     }
 
-    private func startAnimation() {
-        resetAnimationState()
-        withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
-            rotationCW = 360
-        }
-        withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
-            rotationCCW = -360
-        }
-        withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-            centerPulse = 0.9
-        }
-        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-            vertexPulse = 1.0
+    private func retimeRotationAnimations() {
+        let clockwiseRotation = presentationRotation(of: clockwiseLayer)
+        let counterclockwiseRotation = presentationRotation(of: counterclockwiseLayer)
+
+        clockwiseLayer.add(
+            rotationAnimation(from: clockwiseRotation, to: clockwiseRotation + .pi * 2),
+            forKey: "spin"
+        )
+        counterclockwiseLayer.add(
+            rotationAnimation(from: counterclockwiseRotation, to: counterclockwiseRotation - .pi * 2),
+            forKey: "spin"
+        )
+    }
+
+    private func stopAnimations() {
+        removeAnimations()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        applyModelState(animated: false)
+        CATransaction.commit()
+    }
+
+    private func removeAnimations() {
+        for layer in [
+            clockwiseLayer,
+            counterclockwiseLayer,
+            centerLayer,
+            clockwiseVerticesLayer,
+            counterclockwiseVerticesLayer,
+        ] {
+            layer.removeAllAnimations()
         }
     }
 
-    private func resetAnimationState() {
-        // A plain state write does not cancel an attached `.repeatForever`
-        // animation; the zero-duration override does, so the spinner stops
-        // costing CPU once `animate` flips off (e.g. Reduce Motion enabled).
-        withAnimation(.linear(duration: 0)) {
-            rotationCW = 0
-            rotationCCW = 0
-            centerPulse = 0.3
-            vertexPulse = 0.6
-        }
+    private func presentationRotation(of layer: CALayer) -> CGFloat {
+        let transform = (layer.presentation() ?? layer).transform
+        return atan2(transform.m12, transform.m11)
+    }
+
+    private func rotationAnimation(from start: CGFloat, to end: CGFloat) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+        animation.fromValue = start
+        animation.toValue = end
+        animation.duration = revolutionDuration
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .linear)
+        return animation
+    }
+
+    private func pulseAnimation(from: Float, to: Float, duration: Double) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = from
+        animation.toValue = to
+        animation.duration = duration
+        animation.autoreverses = true
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        return animation
     }
 }
 
