@@ -1,0 +1,19 @@
+plans/active/2026-07-10-meeting-knowledge-layer.md
+  s_16db06542650a1::t_1b08f250bfcfd2 374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "da3db690d4ef5e333b9ce1ddf1a1a46f0837435a",
+  "prompts": {},
+  "sessions": {
+    "s_16db06542650a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f584a-d9fd-7bc0-bb87-b67b4af7286d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
