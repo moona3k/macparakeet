@@ -108,11 +108,13 @@ final class SpinnerRingNSView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        layerContentsRedrawPolicy = .never
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
+        layerContentsRedrawPolicy = .never
     }
 
     override func layout() {
