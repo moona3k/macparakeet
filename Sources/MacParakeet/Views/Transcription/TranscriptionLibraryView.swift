@@ -254,11 +254,7 @@ struct TranscriptionLibraryView: View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.md) {
                 LazyVGrid(
-                    columns: [
-                        GridItem(
-                            .adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth),
-                            spacing: DesignSystem.Spacing.md)
-                    ],
+                    columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
                     spacing: DesignSystem.Spacing.md
                 ) {
                     ForEach(viewModel.filteredTranscriptions) { transcription in
@@ -387,10 +383,9 @@ struct TranscriptionLibraryView: View {
                 Label("Open Meeting Folder", systemImage: "folder")
             }
             .disabled(!artifactAvailable)
-            .help(
-                artifactAvailable
-                    ? "Open the meeting artifact folder in Finder"
-                    : "Meeting artifact folder is not available")
+            .help(artifactAvailable
+                  ? "Open the meeting artifact folder in Finder"
+                  : "Meeting artifact folder is not available")
 
             Button {
                 MeetingArtifactActions.copyFolderPath(for: transcription)
@@ -398,10 +393,9 @@ struct TranscriptionLibraryView: View {
                 Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
             }
             .disabled(!artifactAvailable)
-            .help(
-                artifactAvailable
-                    ? "Copy the meeting artifact folder path"
-                    : "Meeting artifact folder is not available")
+            .help(artifactAvailable
+                  ? "Copy the meeting artifact folder path"
+                  : "Meeting artifact folder is not available")
 
             Divider()
 
@@ -411,10 +405,9 @@ struct TranscriptionLibraryView: View {
                 Label("Show Audio in Finder", systemImage: "waveform")
             }
             .disabled(!audioAvailable)
-            .help(
-                audioAvailable
-                    ? "Reveal the meeting audio file in Finder"
-                    : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+            .help(audioAvailable
+                  ? "Reveal the meeting audio file in Finder"
+                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button {
                 saveMeetingAudio(transcription)
@@ -422,10 +415,9 @@ struct TranscriptionLibraryView: View {
                 Label("Save Audio As…", systemImage: "square.and.arrow.down")
             }
             .disabled(!audioAvailable)
-            .help(
-                audioAvailable
-                    ? "Save a copy of the meeting audio to a chosen location"
-                    : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+            .help(audioAvailable
+                  ? "Save a copy of the meeting audio to a chosen location"
+                  : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button(role: .destructive) {
                 pendingDeleteAudio = transcription
@@ -433,13 +425,12 @@ struct TranscriptionLibraryView: View {
                 Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
             }
             .disabled(!audioRemovable)
-            .help(
-                audioRemovable
-                    ? "Remove the saved meeting audio while keeping the meeting"
-                    : MeetingDeletionCopy.audioRemovalUnavailableHelp(
-                        state: audioState,
-                        isRemovable: audioRemovable
-                    ))
+            .help(audioRemovable
+                  ? "Remove the saved meeting audio while keeping the meeting"
+                  : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                      state: audioState,
+                      isRemovable: audioRemovable
+                  ))
         }
 
         Divider()
@@ -458,9 +449,7 @@ struct TranscriptionLibraryView: View {
         Button(role: .destructive) {
             pendingDelete = transcription
         } label: {
-            Label(
-                transcription.sourceType == .meeting ? MeetingDeletionCopy.fullDeleteMenuTitle : "Delete",
-                systemImage: "trash")
+            Label(transcription.sourceType == .meeting ? MeetingDeletionCopy.fullDeleteMenuTitle : "Delete", systemImage: "trash")
         }
     }
 
@@ -541,8 +530,8 @@ struct TranscriptionLibraryView: View {
     private static let bulkExportFormatOrder: [TranscriptExportFormat] = {
         let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
         precondition(
-            preferredOrder.count == TranscriptExportFormat.allCases.count
-                && Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
+            preferredOrder.count == TranscriptExportFormat.allCases.count &&
+                Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
             "Bulk export format order must include every TranscriptExportFormat case"
         )
         return preferredOrder
@@ -570,7 +559,9 @@ struct TranscriptionLibraryView: View {
     }
 
     private var isBulkExportActionDisabled: Bool {
-        selectedBulkExportTargets.isEmpty || bulkExportInProgress || viewModel.isBulkOperationInProgress
+        selectedBulkExportTargets.isEmpty ||
+            bulkExportInProgress ||
+            viewModel.isBulkOperationInProgress
     }
 
     private var bulkExportOptionsPopover: some View {
@@ -852,21 +843,17 @@ struct TranscriptionLibraryView: View {
             Image(systemName: emptyStateIcon)
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
-            Text(
-                viewModel.searchText.isEmpty
-                    ? emptyStateTitle
-                    : "No matching transcriptions"
-            )
-            .font(DesignSystem.Typography.body)
-            .foregroundStyle(DesignSystem.Colors.textSecondary)
-            Text(
-                viewModel.searchText.isEmpty
-                    ? emptyStateMessage
-                    : "Try different words or clear your search."
-            )
-            .font(DesignSystem.Typography.bodySmall)
-            .foregroundStyle(DesignSystem.Colors.textTertiary)
-            .multilineTextAlignment(.center)
+            Text(viewModel.searchText.isEmpty
+                 ? emptyStateTitle
+                 : "No matching transcriptions")
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            Text(viewModel.searchText.isEmpty
+                 ? emptyStateMessage
+                 : "Try different words or clear your search.")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .multilineTextAlignment(.center)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -954,8 +941,7 @@ struct TranscriptionLibraryView: View {
             )
         }
 
-        return
-            "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
+        return "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
     }
 
     private func singleDeleteTitle(for transcription: Transcription) -> String {

@@ -160,23 +160,17 @@ struct MeetingsView: View {
                 Text(recentMeetingsBulkOperationMessage(for: operation))
             }
         }
-        .sheet(
-            isPresented: $showingAskPromptsSheet,
-            onDismiss: {
-                viewModel.quickPromptsViewModel.cancelCreating()
-                viewModel.quickPromptsViewModel.editingPrompt = nil
-                viewModel.refreshQuickPrompts()
-            }
-        ) {
+        .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
+            viewModel.quickPromptsViewModel.cancelCreating()
+            viewModel.quickPromptsViewModel.editingPrompt = nil
+            viewModel.refreshQuickPrompts()
+        }) {
             AskPromptsSheet(viewModel: viewModel.quickPromptsViewModel)
         }
-        .sheet(
-            isPresented: $showingPromptLibrary,
-            onDismiss: {
-                viewModel.promptsViewModel.editingPrompt = nil
-                viewModel.refreshAutoNotes()
-            }
-        ) {
+        .sheet(isPresented: $showingPromptLibrary, onDismiss: {
+            viewModel.promptsViewModel.editingPrompt = nil
+            viewModel.refreshAutoNotes()
+        }) {
             PromptLibraryView(viewModel: viewModel.promptsViewModel)
         }
     }
@@ -404,8 +398,7 @@ struct MeetingsView: View {
                 MeetingsInlineState(
                     icon: "sparkles",
                     title: "Set up AI for auto-notes",
-                    detail:
-                        "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
+                    detail: "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
                     actionTitle: "Set Up AI",
                     actionIcon: "gearshape",
                     action: onOpenAISettings
@@ -498,8 +491,7 @@ struct MeetingsView: View {
                 }
 
                 if viewModel.recentMeetingsViewModel.isLoading
-                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
-                {
+                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
                     MeetingsLoadingRow(title: "Loading meetings")
                 } else if viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
                     MeetingsInlineState(
@@ -604,8 +596,7 @@ struct MeetingsView: View {
             } label: {
                 Label("Retry Transcription", systemImage: "arrow.clockwise")
             }
-            .disabled(
-                viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+            .disabled(viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
 
             Divider()
         }
@@ -632,10 +623,9 @@ struct MeetingsView: View {
             Label("Show Audio in Finder", systemImage: "waveform")
         }
         .disabled(!audioAvailable)
-        .help(
-            audioAvailable
-                ? "Reveal the meeting audio file in Finder"
-                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+        .help(audioAvailable
+              ? "Reveal the meeting audio file in Finder"
+              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button {
             saveMeetingAudio(transcription)
@@ -643,10 +633,9 @@ struct MeetingsView: View {
             Label("Save Audio As…", systemImage: "square.and.arrow.down")
         }
         .disabled(!audioAvailable)
-        .help(
-            audioAvailable
-                ? "Save a copy of the meeting audio to a chosen location"
-                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+        .help(audioAvailable
+              ? "Save a copy of the meeting audio to a chosen location"
+              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button(role: .destructive) {
             pendingDeleteAudio = transcription
@@ -654,13 +643,12 @@ struct MeetingsView: View {
             Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
         }
         .disabled(!audioRemovable)
-        .help(
-            audioRemovable
-                ? "Remove the saved meeting audio while keeping the meeting"
-                : MeetingDeletionCopy.audioRemovalUnavailableHelp(
-                    state: audioState,
-                    isRemovable: audioRemovable
-                ))
+        .help(audioRemovable
+              ? "Remove the saved meeting audio while keeping the meeting"
+              : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                  state: audioState,
+                  isRemovable: audioRemovable
+              ))
 
         Divider()
 
@@ -753,6 +741,7 @@ struct MeetingsView: View {
             sourceMode: viewModel.settingsViewModel.meetingAudioSourceMode
         )
     }
+
 
     private var recentMeetingsSearchText: String {
         viewModel.recentMeetingsViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1594,10 +1583,9 @@ private struct AutoNoteChip: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(
-                        isOn
-                            ? DesignSystem.Colors.accent.opacity(0.12)
-                            : DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                    .fill(isOn
+                          ? DesignSystem.Colors.accent.opacity(0.12)
+                          : DesignSystem.Colors.surfaceElevated.opacity(0.72))
             )
             .overlay(
                 Capsule()
@@ -1613,9 +1601,6 @@ private struct AutoNoteChip: View {
         .accessibilityLabel("\(title) auto-note")
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-        .help(
-            isOn
-                ? "Generated automatically after meetings — click to turn off"
-                : "Click to generate this automatically after meetings")
+        .help(isOn ? "Generated automatically after meetings — click to turn off" : "Click to generate this automatically after meetings")
     }
 }
