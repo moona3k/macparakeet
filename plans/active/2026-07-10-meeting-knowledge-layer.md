@@ -22,8 +22,11 @@
 
 ## Status
 
-- **State**: **EXECUTOR-READY (Phase 1)** — all §8 design questions answered
-  by Daniel 2026-07-10; Phase 1 implementation dispatched.
+- **State**: **PARTIAL — Phases 1+2 SHIPPED.** Phase 1 = PR #781 (merged
+  2026-07-11). Phase 2 (cards) = PR #784 (merged 2026-07-12; Greptile
+  converged 4/5→3/5→4/5→5/5 + fresh-eye 6-MAJOR round, all fixed).
+  Remaining: Phase 3 (trace-run refinement; + two noted efficiency
+  short-circuits in CardRepository), Phase 4 (MCP wrapper, publish seam).
 - **Priority**: P1 (north-star work: "make the local library more useful,
   expose it safely to the user and their agents" — ADR-027)
 - **Effort**: L (staged; Phase 1 is M and ships standalone)
@@ -109,11 +112,16 @@ trap.
    **Nuance**: use the raw timed/speaker AI context
    (`TextProcessing/TranscriptAIContextFormatter.swift:16`) as extraction
    input, not the flat `cleanTranscript` (the cleaned-XOR-speakers collision).
-4. **Calendar attendees are already persisted** per meeting:
-   `transcriptions.calendarEventSnapshot` decodes title, schedule, attendees,
-   organizer, URL/service, confidence
+4. **Calendar attendees are persisted in code — but empty in practice.** The
+   `transcriptions.calendarEventSnapshot` column decodes title, schedule,
+   attendees, organizer, URL/service, confidence
    (`Models/MeetingCalendarSnapshot.swift:3`,
-   `Database/DatabaseManager.swift:1138`). Deterministic card fields are free.
+   `Database/DatabaseManager.swift:1138`) — but the 2026-07-10 census found
+   **0 of 289 real meetings** carry a snapshot (calendar auto-start defaults
+   off). Consequence: attendee card fields and attendee filters are
+   speculative until calendar integration is actually used; design keeps the
+   join but must not depend on it. Investigate separately whether this is
+   purely the default-off setting or a persistence gap.
 5. **CLI agent conventions exist**: JSON stdout / human stderr, ISO-8601,
    sorted keys, structured failure envelopes (`CLI/Commands/CLIHelpers.swift:238`,
    `:525`). New verbs follow them. `meetings show` resolves UUID prefix;
@@ -148,12 +156,16 @@ CREATE TABLE segments (
 CREATE INDEX idx_segments_transcription ON segments(transcriptionId, seq);
 ```
 
-Population rules:
-- **Meetings (new + backfill)**: decode existing `transcriptSegments` JSON.
-- **File/URL (new)**: materialize segments at finalization (new behavior at
-  `TranscriptionService.swift:1558` area) from `wordTimestamps` + speaker
-  attribution; sentence-ish chunking, target 200–500 chars.
-- **File/URL (backfill)** : same derivation from stored JSON.
+Population rules — applied in priority order per row (census 2026-07-10:
+only 12/289 meetings have `transcriptSegments` JSON; 265/382 rows have
+`wordTimestamps` only, so **word-timestamp derivation is the dominant
+backfill path for meetings too**, not just file/URL):
+- **`transcriptSegments` JSON present**: decode it.
+- **`wordTimestamps` present** (most meetings + file/URL): derive segments
+  from word timestamps + speaker attribution; sentence-ish chunking, target
+  200–500 chars. New file/URL captures also materialize this at finalization
+  (new behavior at `TranscriptionService.swift:1558` area).
+- **Empty transcript** (66 rows in the census): skip; no segment rows.
 - **Legacy / no-timing rows**: deterministic pseudo-segmentation of the best
   available text (sentence-boundary chunks, `startMs = NULL`). Search works;
   `--around <timestamp>` degrades to `--around-seq` gracefully.
@@ -345,7 +357,21 @@ core bets. Adopted into this plan:
   related-meeting retrieval via recurrence, shared attendees
   (`calendarEventSnapshot`), and date adjacency — cheap, no LLM. Goes on the
   Phase 3 trace-run candidate list, not v1.
-- **Cautionary tale reinforcing §4 rules** (Anarlog): their Tantivy indexer
+- **Obsidian Copilot (audited 2026-07-10, same journal dir): the
+  embeddings-first counterexample that retreated.** v2 Vault QA was
+  embedding-required single-shot RAG (Orama index + HyDE); v3's *default* is
+  now index-free lexical retrieval (optional LLM query expansion → grep
+  candidate recall → ephemeral BM25 ranking) with embeddings off by default,
+  after production failures: 2.2 GB indexes that can't reload (their #2325),
+  freezes/rebuilds at 1,400 notes (#2365), provider-change index breakage
+  (#2377). Their paid tier monetizes agent orchestration and ingestion, not
+  corpus search. Strongly validates defer-embeddings (as *defer*, not
+  *never* — tripwire stands). Their time-query design bug — natural-language
+  date ranges that silently DROP the topical predicate and treat
+  edit-time as authorship — is an anti-lesson for our `search`
+  `--since/--until`: time bounds must always compose with the text query,
+  never replace it.
+- **Cautionary tale reinforcing §4 rules (Anarlog):** its Tantivy indexer
   references a field absent from the canonical schema, so transcript text
   silently never gets indexed, and change-listeners miss updates — production
   silent-recall failure. Our external-content FTS + trigger sync + rebuild

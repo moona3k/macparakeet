@@ -25,6 +25,8 @@
 
 ## Status
 
+- **State**: **ON HOLD** — shipped work stays as-is; remaining architecture and
+  layout work waits for the future transcript UI revamp.
 - **Priority**: P2
 - **Effort**: L (staged; Phase 1 is S)
 - **Risk**: MED overall — LOW for Phase 1, MED for the find-bar and the
@@ -50,6 +52,40 @@
   GUI focus).
 - **Remaining**: U3 (one quiet rail in every mode), U5 (finish god-file
   decomposition).
+
+### Architecture decision — 2026-07-09
+
+**Keep the current implementation as-is. Do not execute U3 or U5 as a
+standalone architecture refactor.** A fresh deep-module review found real
+locality friction in `TranscriptResultView`: find navigation, playback
+following, scroll arbitration, and derived transcript caches still coordinate
+inside the view. It did not find a current correctness problem that justifies
+paying the migration risk now.
+
+A broader transcript UI revamp is expected later. Refactoring the current
+interaction shape before that design exists would likely create two migrations:
+first into an abstraction shaped around today's UI, then again around the new
+UI. The meaningful time to revisit the seam is when the revamp defines the next
+reader interaction model.
+
+When that work starts:
+
+- Re-run the drift check and characterize the existing find, seek, active-line,
+  auto-scroll, manual-scroll-pause, and transcript-change behavior first.
+- Prefer one concrete internal transcript-navigation module only if the new UI
+  needs it. Do not begin with a protocol hierarchy, generic reader framework,
+  or speculative adapters.
+- Keep the candidate seam narrow: find/playback/auto-scroll/cache coordination.
+  Prompt results, chat, export, editing, retranscription, STT, persistence, and
+  meeting finalization remain outside it.
+- Require a deletion-test win: the change must materially remove state and
+  coordination knowledge from `TranscriptResultView`, not merely relocate the
+  same code behind a wider interface.
+- Ship the architecture change with the UI slice that needs it, in small
+  behavior-preserving steps with focused tests.
+
+This is a deferral decision, not a rejection of the future transcript revamp or
+of eventual decomposition. The shipped U1/U2/U4 behavior remains supported.
 
 ## Why this matters
 
