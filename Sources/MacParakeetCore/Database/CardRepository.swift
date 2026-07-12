@@ -11,9 +11,17 @@ public protocol CardRepositoryProtocol: Sendable {
 
 public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
     private let dbQueue: DatabaseQueue
+    private let listBatchSize: Int
 
     public init(dbQueue: DatabaseQueue) {
         self.dbQueue = dbQueue
+        self.listBatchSize = 200
+    }
+
+    init(dbQueue: DatabaseQueue, listBatchSize: Int) {
+        precondition(listBatchSize > 0)
+        self.dbQueue = dbQueue
+        self.listBatchSize = listBatchSize
     }
 
     public func save(_ card: Card) throws {
@@ -132,35 +140,37 @@ public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
                 predicates.append(Self.sourcePredicate(for: source))
             }
 
-            var sql = "SELECT c.* FROM cards c JOIN transcriptions t ON t.id = c.transcriptionId"
+            var sql = "SELECT c.*, t.* FROM cards c JOIN transcriptions t ON t.id = c.transcriptionId"
             if !predicates.isEmpty {
                 sql += " WHERE " + predicates.joined(separator: " AND ")
             }
-            sql += " ORDER BY t.createdAt DESC, c.transcriptionId ASC"
+            sql += " ORDER BY t.createdAt DESC, c.transcriptionId ASC LIMIT ? OFFSET ?"
 
-            let storedCards = try Card.fetchAll(
-                db,
-                sql: sql,
-                arguments: StatementArguments(arguments)
-            )
-            let transcriptions = try Transcription.fetchAll(
-                db,
-                keys: storedCards.map(\.transcriptionId)
-            )
-            let transcriptionsByID = Dictionary(
-                uniqueKeysWithValues: transcriptions.map { ($0.id, $0) }
-            )
-            let currentItems: [CardListItem] = storedCards.compactMap {
-                card -> CardListItem? in
-                guard let transcription = transcriptionsByID[card.transcriptionId] else {
-                    return nil
+            var currentItems: [CardListItem] = []
+            var offset = 0
+            while currentItems.count < query.limit {
+                var batchArguments = arguments
+                batchArguments.append(listBatchSize)
+                batchArguments.append(offset)
+                let rows = try Row.fetchAll(
+                    db,
+                    sql: sql,
+                    arguments: StatementArguments(batchArguments)
+                )
+                guard !rows.isEmpty else { break }
+                for row in rows {
+                    let card = try Card(row: row)
+                    let transcription = try Transcription(row: row)
+                    guard Self.isCurrent(card: card, transcription: transcription) else {
+                        continue
+                    }
+                    currentItems.append(Self.listItem(card: card, transcription: transcription))
+                    if currentItems.count == query.limit { break }
                 }
-                guard Self.isCurrent(card: card, transcription: transcription) else {
-                    return nil
-                }
-                return Self.listItem(card: card, transcription: transcription)
+                offset += rows.count
+                if rows.count < listBatchSize { break }
             }
-            return Array(currentItems.prefix(query.limit))
+            return currentItems
         }
     }
 

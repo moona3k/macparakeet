@@ -2,6 +2,11 @@ import XCTest
 @testable import MacParakeetCore
 
 final class CardGenerationServiceTests: XCTestCase {
+    override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
+        super.tearDown()
+    }
+
     func testLLMServiceRequestsKnowledgeCardJSONSchemaRoundTrip() async throws {
         let client = MockLLMClient()
         client.responseContent = Self.validMeetingJSON
@@ -55,6 +60,65 @@ final class CardGenerationServiceTests: XCTestCase {
         let userPrompt = try XCTUnwrap(client.capturedMessages.last?.content)
         XCTAssertTrue(userPrompt.contains("<untrusted_transcript_data>"))
         XCTAssertTrue(userPrompt.contains("</untrusted_transcript_data>"))
+    }
+
+    func testKnowledgeCardGenerationEmitsSuccessfulLLMOperationWithRetryAndTokenUsage() async throws {
+        let telemetry = CardTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let client = MockLLMClient()
+        client.responseContents = ["not json", Self.validMeetingJSON]
+        client.responseUsage = TokenUsage(promptTokens: 12, completionTokens: 8)
+        let service = LLMService(
+            client: client,
+            contextResolver: StaticLLMExecutionContextResolver(
+                context: LLMExecutionContext(
+                    providerConfig: .anthropic(apiKey: "test", model: "claude-test")
+                )
+            )
+        )
+
+        _ = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+
+        let operation = try XCTUnwrap(telemetry.llmOperationProps.first)
+        XCTAssertEqual(telemetry.llmOperationProps.count, 1)
+        XCTAssertEqual(operation["feature"], "knowledge_card")
+        XCTAssertEqual(operation["provider"], "anthropic")
+        XCTAssertEqual(operation["outcome"], "success")
+        XCTAssertEqual(operation["streaming"], "false")
+        XCTAssertEqual(operation["input_chars"], "18")
+        XCTAssertEqual(operation["output_chars"], String(Self.validMeetingJSON.count))
+        XCTAssertEqual(operation["input_truncated"], "false")
+        XCTAssertEqual(operation["message_count"], "2")
+        XCTAssertEqual(operation["prompt_tokens"], "24")
+        XCTAssertEqual(operation["completion_tokens"], "16")
+        XCTAssertEqual(operation["retry_count"], "1")
+        XCTAssertNotNil(operation["duration_seconds"])
+    }
+
+    func testKnowledgeCardGenerationEmitsFailedLLMOperationAfterInvalidResponseRetry() async throws {
+        let telemetry = CardTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let client = MockLLMClient()
+        client.responseContents = ["not json", "still not json"]
+        let service = LLMService(
+            client: client,
+            contextResolver: StaticLLMExecutionContextResolver(
+                context: LLMExecutionContext(
+                    providerConfig: .anthropic(apiKey: "test", model: "claude-test")
+                )
+            )
+        )
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+        }
+
+        let operation = try XCTUnwrap(telemetry.llmOperationProps.first)
+        XCTAssertEqual(telemetry.llmOperationProps.count, 1)
+        XCTAssertEqual(operation["feature"], "knowledge_card")
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], "LLMError.invalidResponse")
+        XCTAssertEqual(operation["retry_count"], "1")
     }
 
     func testLLMServiceBoundsKnowledgeCardInputToProviderContext() async throws {
@@ -356,6 +420,35 @@ final class CardGenerationServiceTests: XCTestCase {
         ]
         return String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
     }
+}
+
+private final class CardTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    var llmOperationProps: [[String: String]] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events.compactMap { event in
+            guard case .llmOperation = event else { return nil }
+            return event.props ?? [:]
+        }
+    }
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func clearQueue() {}
+    func flushForTermination() {}
 }
 
 private final class StubCardCompletionProvider: CardCompletionProviding, @unchecked Sendable {

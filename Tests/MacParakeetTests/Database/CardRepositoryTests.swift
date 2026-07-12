@@ -204,6 +204,59 @@ final class CardRepositoryTests: XCTestCase {
         XCTAssertEqual(rows.map(\.transcriptionId), [recentMeeting.id])
     }
 
+    func testListFetchesAcrossBoundedJoinBatchesLargerThanBatchSize() throws {
+        let batchedCards = CardRepository(dbQueue: manager.dbQueue, listBatchSize: 2)
+        var transcriptionsToSave: [Transcription] = []
+        for index in 0..<5 {
+            transcriptionsToSave.append(
+                makeTranscription(
+                    source: .meeting,
+                    createdAt: Date(timeIntervalSince1970: TimeInterval(500 - index))
+                ))
+        }
+        for transcription in transcriptionsToSave {
+            try transcriptions.save(transcription)
+            try cards.save(try makeCard(transcriptionId: transcription.id))
+        }
+        for transcription in transcriptionsToSave.prefix(2) {
+            var changed = transcription
+            changed.rawTranscript = "Changed after card generation."
+            try transcriptions.save(changed)
+        }
+
+        let rows = try batchedCards.list(CardListQuery(limit: 2))
+
+        let expectedIDs = transcriptionsToSave.dropFirst(2).prefix(2).map(\.id)
+        XCTAssertEqual(rows.map(\.transcriptionId), expectedIDs)
+    }
+
+    func testListPushesLimitIntoJoinedSQLQuery() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        try cards.save(try makeCard(transcriptionId: transcription.id))
+        let trace = SQLTraceRecorder()
+        manager.dbQueue.writeWithoutTransaction { db in
+            db.trace { event in
+                guard case .statement(let statement) = event else { return }
+                trace.append(statement.sql)
+            }
+        }
+        defer {
+            manager.dbQueue.writeWithoutTransaction { db in
+                db.trace(options: [])
+            }
+        }
+
+        _ = try cards.list(CardListQuery(limit: 1))
+
+        let listStatements = trace.statements.filter {
+            $0.contains("FROM cards c JOIN transcriptions t")
+        }
+        XCTAssertFalse(listStatements.isEmpty)
+        XCTAssertTrue(listStatements.allSatisfy { $0.contains("LIMIT ? OFFSET ?") })
+        XCTAssertTrue(listStatements.allSatisfy { $0.hasPrefix("SELECT c.*, t.*") })
+    }
+
     func testCompletedTranscriptionIDsExcludeInProgressRows() throws {
         let completed = makeTranscription(source: .meeting)
         var processing = makeTranscription(source: .file)
@@ -357,5 +410,22 @@ final class CardRepositoryTests: XCTestCase {
                 arguments: [query]
             ) ?? 0
         }
+    }
+}
+
+private final class SQLTraceRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var statements: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ statement: String) {
+        lock.lock()
+        storage.append(statement)
+        lock.unlock()
     }
 }
