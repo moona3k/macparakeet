@@ -218,6 +218,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let sttTranscriber: STTTranscribing
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let segmentRepo: SegmentRepositoryProtocol?
+    private let knowledgeLayerMutator: KnowledgeLayerMutating?
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
@@ -250,6 +251,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         segmentRepo: SegmentRepositoryProtocol? = nil,
+        knowledgeLayerMutator: KnowledgeLayerMutating? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
@@ -280,6 +282,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             entitlements: entitlements,
             customWordRepo: customWordRepo,
@@ -313,6 +316,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         segmentRepo: SegmentRepositoryProtocol? = nil,
+        knowledgeLayerMutator: KnowledgeLayerMutating? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
@@ -343,6 +347,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.sttTranscriber = sttTranscriber
         self.transcriptionRepo = transcriptionRepo
         self.segmentRepo = segmentRepo
+        self.knowledgeLayerMutator = knowledgeLayerMutator
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
@@ -1856,7 +1861,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
             try transcriptionRepo.save(transcription)
             do {
-                try segmentRepo?.replaceSegments(for: transcription)
+                if let knowledgeLayerMutator {
+                    try knowledgeLayerMutator.replaceSegmentsAndInvalidateCard(
+                        for: transcription
+                    )
+                } else {
+                    try segmentRepo?.replaceSegments(for: transcription)
+                }
             } catch {
                 // Old rows were invalidated before the canonical save, so this
                 // failure leaves search incomplete but never stale. The derived

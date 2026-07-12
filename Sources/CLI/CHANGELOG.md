@@ -98,6 +98,26 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   validation-error path on unsupported Macs; `--engine app-default` falls back
   to Parakeet with a stderr warning when a stale saved Cohere default cannot
   run on the current machine.
+
+## [2.14.0] — 2026-07-11
+
+### Added
+
+- `cards list [--since --until --source --limit] [--json|--ndjson]` exposes
+  compact per-recording knowledge cards with provenance and deterministic
+  title/date/duration/source/attendee joins. Nullable public fields are emitted
+  explicitly as `null`; date-only bounds follow the existing local-day search
+  convention and compose with source filters.
+- `cards generate [--all|--stale|<id>] [--json]` backfills cards through the
+  configured LLM provider, reports progress on stderr, preserves JSON stdout,
+  aggregates provider token usage, exits `1` when any selected recording fails,
+  and leaves `estimatedCostUSD: null` because the provider layer does not
+  maintain a trustworthy live price table.
+- CLI version `2.14.0` adds the cards command family without changing existing
+  command output shapes.
+- Card listing suppresses stale provenance, `cards generate --stale` reports
+  only its prefiltered stale/missing subset as selected, and card backfill
+  rebuilds the synopsis/topic FTS index for integrity recovery.
 - Regenerated meeting artifact manifests and Markdown now populate
   `rawMicrophoneAudioPath` and `rawSystemAudioPath` for retained meeting folders
   that still use the legacy `microphone.m4a` and `system.m4a` raw-audio

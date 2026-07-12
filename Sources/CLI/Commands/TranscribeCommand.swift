@@ -614,6 +614,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 sttTranscriber: sttTranscriber,
                 transcriptionRepo: transcriptionRepo,
                 segmentRepo: segmentRepo,
+                knowledgeLayerMutator: KnowledgeLayerMutationService(
+                    dbQueue: dbManager.dbQueue
+                ),
                 promptResultRepo: promptResultRepo,
                 entitlements: entitlementsService,
                 customWordRepo: customWordRepo,

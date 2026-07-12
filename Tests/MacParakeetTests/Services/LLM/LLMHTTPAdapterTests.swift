@@ -76,6 +76,40 @@ final class LLMHTTPAdapterTests: XCTestCase {
         )
     }
 
+    func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: .openai(apiKey: "sk-golden", model: "gpt-4o"),
+            options: ChatCompletionOptions(
+                responseFormat: LLMService.knowledgeCardResponseFormat
+            )
+        )
+
+        let request = try XCTUnwrap(capturedRequest)
+        let body = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(bodyData(from: request)))
+                as? [String: Any]
+        )
+        let responseFormat = try XCTUnwrap(body["response_format"] as? [String: Any])
+        let schemaSpec = try XCTUnwrap(responseFormat["json_schema"] as? [String: Any])
+        let schema = try XCTUnwrap(schemaSpec["schema"] as? [String: Any])
+        let properties = try XCTUnwrap(schema["properties"] as? [String: Any])
+        let actions = try XCTUnwrap(properties["actions"] as? [String: Any])
+        let items = try XCTUnwrap(actions["items"] as? [String: Any])
+        let actionProperties = try XCTUnwrap(items["properties"] as? [String: Any])
+        let owner = try XCTUnwrap(actionProperties["owner"] as? [String: Any])
+
+        XCTAssertEqual(owner["type"] as? [String], ["string", "null"])
+        XCTAssertTrue(try XCTUnwrap(items["required"] as? [String]).contains("owner"))
+    }
+
     func testAnthropicAdapterBuildsGoldenRequest() async throws {
         var capturedRequest: URLRequest?
 
@@ -103,6 +137,17 @@ final class LLMHTTPAdapterTests: XCTestCase {
             """
             {"max_tokens":123,"messages":[{"content":"Hello","role":"user"}],"model":"claude-sonnet-4-6","stream":false,"system":"System","temperature":0.25}
             """
+        )
+    }
+
+    func testAnthropicAdapterDeclaresPromptEmbeddedStructuredOutput() {
+        XCTAssertEqual(
+            anthropicAdapter.structuredOutputCapability,
+            .promptEmbeddedJSONSchema
+        )
+        XCTAssertEqual(
+            openAIAdapter.structuredOutputCapability,
+            .nativeJSONSchema
         )
     }
 

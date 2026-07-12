@@ -655,6 +655,9 @@ public final class TranscriptionViewModel {
                 updatedResult.updatedAt = Date()
                 do {
                     try transcriptionRepo?.save(updatedResult)
+                    promptResultsViewModel?.generateKnowledgeCard(
+                        transcriptionId: updatedResult.id
+                    )
                     // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
                     completeSuccessfulTranscription(taskID: taskID, result: updatedResult, runAutoPrompts: false)
                 } catch {

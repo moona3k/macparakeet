@@ -289,23 +289,30 @@ private final class FailingReplaceSegmentRepository: SegmentRepositoryProtocol, 
     func replaceSegments(for transcription: Transcription) throws {
         throw SegmentReplacementTestError.replacementFailed
     }
+
+    func fetch(transcriptionId: UUID) throws -> [Segment] {
+        try delegate.fetch(transcriptionId: transcriptionId)
+    }
 }
 
 final class TranscriptionServiceTests: XCTestCase {
+    var dbManager: DatabaseManager!
     var service: TranscriptionService!
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
     var transcriptionRepo: TranscriptionRepository!
     var segmentRepo: SegmentRepository!
+    var cardRepo: CardRepository!
     var promptResultRepo: PromptResultRepository!
     var llmRunRepo: LLMRunRepository!
 
     override func setUp() async throws {
-        let dbManager = try DatabaseManager()
+        dbManager = try DatabaseManager()
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
         transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
+        cardRepo = CardRepository(dbQueue: dbManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
         llmRunRepo = LLMRunRepository(dbQueue: dbManager.dbQueue)
         Telemetry.configure(NoOpTelemetryService())
@@ -314,7 +321,8 @@ final class TranscriptionServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
-            segmentRepo: segmentRepo
+            segmentRepo: segmentRepo,
+            knowledgeLayerMutator: KnowledgeLayerMutationService(dbQueue: dbManager.dbQueue)
         )
     }
 
@@ -2708,6 +2716,47 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].transcriptSegments?.map(\.text), ["New transcript"])
         let indexedText: [String] = try segmentRepo.fetch(transcriptionId: original.id).map(\.text)
         XCTAssertEqual(indexedText, ["New transcript"])
+    }
+
+    func testRetranscribeAtomicallyInvalidatesOldCardBeforeListingNewTranscript() async throws {
+        let original = Transcription(
+            fileName: "meeting.m4a",
+            filePath: "/tmp/meeting.m4a",
+            rawTranscript: "Old decision that must not remain discoverable.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(original)
+        try segmentRepo.replaceSegments(for: original)
+        try cardRepo.save(
+            Card(
+                transcriptionId: original.id,
+                cardSchemaVersion: Card.currentSchemaVersion,
+                transcriptHash: CardContentFingerprint.transcriptHash(for: original),
+                segmenterVersion: KnowledgeSegmenter.currentVersion,
+                promptVersion: Card.currentPromptVersion,
+                model: "old-model",
+                generatedAt: Date(),
+                synopsis: "Old decision that must not remain discoverable.",
+                topics: ["obsolete"],
+                decisions: [],
+                actions: []
+            )
+        )
+        await mockSTT.configure(result: STTResult(text: "Entirely new canonical transcript."))
+
+        _ = try await service.retranscribe(
+            existing: original,
+            fileURL: URL(fileURLWithPath: "/tmp/meeting.m4a"),
+            source: .meeting
+        )
+
+        XCTAssertNil(try cardRepo.fetch(transcriptionId: original.id))
+        XCTAssertTrue(try cardRepo.list(CardListQuery(limit: 10)).isEmpty)
+        XCTAssertEqual(
+            try segmentRepo.fetch(transcriptionId: original.id).map(\.text),
+            ["Entirely new canonical transcript."]
+        )
     }
 
     func testRetranscribeReplacementFailureNeverLeavesOldSegmentsDiscoverable() async throws {

@@ -135,6 +135,116 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testCardsMigrationCreatesTableFTSAndTriggers() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("cards"))
+            XCTAssertTrue(try db.tableExists("cards_fts"))
+            XCTAssertTrue(try db.tableExists("cards_search_content"))
+            XCTAssertEqual(
+                Set(try db.columns(in: "cards").map(\.name)),
+                [
+                    "transcriptionId", "cardSchemaVersion", "transcriptHash",
+                    "segmenterVersion", "promptVersion", "model", "generatedAt",
+                    "synopsis", "topics", "decisions", "actions",
+                ]
+            )
+            let triggers = Set(
+                try String.fetchAll(
+                    db,
+                    sql: "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'cards'"
+                )
+            )
+            XCTAssertEqual(triggers, ["cards_ai", "cards_ad", "cards_au"])
+        }
+    }
+
+    func testCardsMigrationPreservesExistingTranscriptionRows() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("cards_migration_\(UUID().uuidString).db").path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let transcription = Transcription(
+            fileName: "Existing meeting",
+            rawTranscript: "Keep this transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let manager1 = try DatabaseManager(path: dbPath)
+        try TranscriptionRepository(dbQueue: manager1.dbQueue).save(transcription)
+        try manager1.dbQueue.write { db in
+            try db.execute(sql: "DROP TABLE cards_fts")
+            try db.execute(sql: "DROP TABLE cards_search_content")
+            try db.execute(sql: "DROP TABLE cards")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.28-cards"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        let preserved = try TranscriptionRepository(dbQueue: manager2.dbQueue).fetch(id: transcription.id)
+        XCTAssertEqual(preserved?.rawTranscript, "Keep this transcript")
+        XCTAssertTrue(try manager2.dbQueue.read { try $0.tableExists("cards") })
+        XCTAssertEqual(try manager2.dbQueue.read { try Card.fetchCount($0) }, 0)
+    }
+
+    func testPostV027MaintenanceRebuildsPersistedVersionOneSegmentsPerRecording() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cards_v027_segment_maintenance_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let original = try DatabaseManager(path: dbPath)
+        let transcription = Transcription(
+            fileName: "Installed recording",
+            rawTranscript: "Current deterministic transcript.",
+            status: .completed,
+            sourceType: .file
+        )
+        try TranscriptionRepository(dbQueue: original.dbQueue).save(transcription)
+        try original.dbQueue.write { db in
+            var legacy = Segment(
+                transcriptionId: transcription.id,
+                seq: 0,
+                startMs: nil,
+                endMs: nil,
+                speaker: nil,
+                text: "Legacy version one text.",
+                segmenterVersion: 1
+            )
+            try legacy.insert(db)
+            try db.execute(sql: "DROP TABLE cards_fts")
+            try db.execute(sql: "DROP TABLE cards_search_content")
+            try db.execute(sql: "DROP TABLE cards")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.28-cards"]
+            )
+        }
+
+        let migrated = try DatabaseManager(path: dbPath)
+        let repository = SegmentRepository(dbQueue: migrated.dbQueue)
+        XCTAssertEqual(
+            try repository.fetch(transcriptionId: transcription.id).map(\.segmenterVersion),
+            [1],
+            "the schema migration itself must remain non-blocking"
+        )
+
+        let result = try repository.rebuildOutdated()
+
+        XCTAssertEqual(result.transcriptionsIndexed, 1)
+        XCTAssertEqual(
+            try repository.fetch(transcriptionId: transcription.id).map(\.segmenterVersion),
+            [KnowledgeSegmenter.currentVersion]
+        )
+        XCTAssertEqual(
+            try repository.fetch(transcriptionId: transcription.id).map(\.text),
+            ["Current deterministic transcript."]
+        )
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")

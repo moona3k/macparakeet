@@ -107,6 +107,7 @@ final class SpecCommandTests: XCTestCase {
             documentedTopLevelCommands,
             [
                 "calendar",
+                "cards",
                 "config",
                 "export",
                 "feedback",

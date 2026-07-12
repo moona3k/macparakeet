@@ -13,6 +13,8 @@ final class AppEnvironment {
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
     let segmentRepo: SegmentRepository
+    let cardRepo: CardRepository
+    let knowledgeLayerMutator: KnowledgeLayerMutationService
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
@@ -52,6 +54,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let cardGenerationService: CardGenerationService
     let runtimePreferences: AppRuntimePreferencesProtocol
     let derivedFieldsBackfill: DerivedFieldsBackfillService
 
@@ -62,6 +65,8 @@ final class AppEnvironment {
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
         segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
+        cardRepo = CardRepository(dbQueue: databaseManager.dbQueue)
+        knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
@@ -297,6 +302,12 @@ final class AppEnvironment {
                 cliConfigStore: LocalCLIConfigStore()
             )
         )
+        cardGenerationService = CardGenerationService(
+            transcriptionRepository: transcriptionRepo,
+            segmentRepository: segmentRepo,
+            cardRepository: cardRepo,
+            completionProvider: llmService
+        )
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
@@ -352,6 +363,7 @@ final class AppEnvironment {
             sttTranscriber: sttScheduler,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
@@ -380,6 +392,24 @@ final class AppEnvironment {
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()
+
+        let segmentMaintenanceRepository = segmentRepo
+        Task.detached(priority: .utility) {
+            do {
+                let result = try segmentMaintenanceRepository.rebuildOutdated()
+                if result.transcriptionsIndexed > 0 {
+                    Logger(subsystem: "com.macparakeet.app", category: "KnowledgeLayer")
+                        .notice(
+                            "Rebuilt outdated transcript segments recordings=\(result.transcriptionsIndexed, privacy: .public) segments=\(result.segmentsIndexed, privacy: .public)"
+                        )
+                }
+            } catch {
+                Logger(subsystem: "com.macparakeet.app", category: "KnowledgeLayer")
+                    .error(
+                        "Outdated segment maintenance failed error=\(error.localizedDescription, privacy: .public)"
+                    )
+            }
+        }
     }
 
     nonisolated static func shouldAttemptLiveDictationTranscription(
