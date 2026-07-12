@@ -123,16 +123,6 @@ public struct MeetingRowFileState: Equatable, Sendable {
     public let audioState: MeetingAudioFile.State
     public let isAudioRemovable: Bool
     public let isArtifactFolderAvailable: Bool
-
-    public init(
-        audioState: MeetingAudioFile.State,
-        isAudioRemovable: Bool,
-        isArtifactFolderAvailable: Bool
-    ) {
-        self.audioState = audioState
-        self.isAudioRemovable = isAudioRemovable
-        self.isArtifactFolderAvailable = isArtifactFolderAvailable
-    }
 }
 
 @MainActor @Observable
@@ -508,11 +498,7 @@ public final class TranscriptionLibraryViewModel {
                     transcriptions[idx].meetingArtifactFolderPath
                     ?? MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
                 transcriptions[idx].filePath = nil
-                meetingRowFileStates[transcription.id] = MeetingRowFileState(
-                    audioState: .removed,
-                    isAudioRemovable: false,
-                    isArtifactFolderAvailable: true
-                )
+                markMeetingAudioRemoved(for: transcription.id)
                 publishLoadedItems(transcriptions, hasMore: hasMore)
             }
         } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
@@ -749,13 +735,17 @@ public final class TranscriptionLibraryViewModel {
                 transcriptions[index].meetingArtifactFolderPath
                 ?? MeetingArtifactStore.sessionFolderURL(for: transcriptions[index])?.standardizedFileURL.path
             transcriptions[index].filePath = nil
-            meetingRowFileStates[transcriptions[index].id] = MeetingRowFileState(
-                audioState: .removed,
-                isAudioRemovable: false,
-                isArtifactFolderAvailable: true
-            )
+            markMeetingAudioRemoved(for: transcriptions[index].id)
         }
         publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    private func markMeetingAudioRemoved(for id: UUID) {
+        meetingRowFileStates[id] = MeetingRowFileState(
+            audioState: .removed,
+            isAudioRemovable: false,
+            isArtifactFolderAvailable: true
+        )
     }
 
     nonisolated private static func resolveMeetingRowFileStates(
@@ -808,8 +798,10 @@ public final class TranscriptionLibraryViewModel {
                 isArtifactFolderAvailable: false
             )
         }
+        let hasStoredAudioPath =
+            transcription.filePath?.trimmingCharacters(in: .whitespaces).isEmpty == false
         return MeetingRowFileState(
-            audioState: transcription.filePath == nil ? .removed : .missing,
+            audioState: hasStoredAudioPath ? .missing : .removed,
             isAudioRemovable: false,
             isArtifactFolderAvailable: false
         )

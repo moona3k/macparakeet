@@ -261,6 +261,7 @@ struct TranscriptionLibraryView: View {
                         let fileState = viewModel.meetingRowFileState(for: transcription)
                         TranscriptionThumbnailCard(
                             transcription: transcription,
+                            meetingAudioState: fileState.audioState,
                             searchText: viewModel.searchText,
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled

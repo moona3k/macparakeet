@@ -6,6 +6,7 @@ private let sharedThumbnailCache = ThumbnailCacheService.shared
 /// Thumbnail card for displaying a transcription in a grid layout.
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
+    let meetingAudioState: MeetingAudioFile.State
     var searchText: String = ""
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
@@ -149,9 +150,8 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             }
             .overlay(alignment: .bottomLeading) {
                 if transcription.sourceType == .meeting {
-                    let state = MeetingAudioFile.state(for: transcription)
-                    if state != .notMeeting {
-                        MeetingAudioStateChip(state: state)
+                    if meetingAudioState != .notMeeting {
+                        MeetingAudioStateChip(state: meetingAudioState)
                             .padding(8)
                     }
                 }
