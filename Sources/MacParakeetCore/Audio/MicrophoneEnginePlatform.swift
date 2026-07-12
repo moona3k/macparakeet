@@ -104,12 +104,13 @@ private final class MutableMicrophoneTapHandler: @unchecked Sendable {
 public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
     public typealias DeviceAttemptsBuilder = @Sendable () -> [MeetingInputDeviceAttempt]
     public typealias InputDeviceSetter = @Sendable (AudioDeviceID, AVAudioEngine) -> Bool
-    typealias EngineStarter = @Sendable (
-        AVAudioEngine,
-        Bool,
-        AVAudioFrameCount,
-        @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
-    ) throws -> Void
+    typealias EngineStarter =
+        @Sendable (
+            AVAudioEngine,
+            Bool,
+            AVAudioFrameCount,
+            @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+        ) throws -> Void
 
     private let logger = Logger(
         subsystem: "com.macparakeet.core",
@@ -314,15 +315,24 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 )
                 return
             }
+            // Observe before touching the engine. Core Audio may reconfigure
+            // while device selection, format negotiation, tap installation, or
+            // AVAudioEngine.prepare() is in flight; that entire window must be
+            // covered before the result can be published as reusable.
+            installConfigurationChangeObserverLocked()
+            let preparationConfigurationGeneration = configurationChangeGeneration.withLock { $0 }
             do {
                 try configureAndStartLocked(
                     vpioEnabled: vpioEnabled,
                     bufferSize: bufferSize,
                     tapHandler: tapHandler,
                     startNow: false,
-                    attemptsOverride: prewarmAttempts
+                    attemptsOverride: prewarmAttempts,
+                    preparationConfigurationGeneration: preparationConfigurationGeneration
                 )
-                preparedRouteSnapshot = routeSnapshot
+                if prepared {
+                    preparedRouteSnapshot = routeSnapshot
+                }
             } catch {
                 prepared = false
                 preparedRouteSnapshot = nil
@@ -368,7 +378,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void,
         startNow: Bool = true,
-        attemptsOverride: [MeetingInputDeviceAttempt]? = nil
+        attemptsOverride: [MeetingInputDeviceAttempt]? = nil,
+        preparationConfigurationGeneration: UInt64? = nil
     ) throws {
         lastStartRequestLocked = nil
         let currentRouteSnapshot = startNow ? deviceAttemptsBuilder?() : nil
@@ -431,11 +442,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     tapHandler: tapHandler
                 )
             } else {
-                markPreparedLocked(
-                    attempt: nil,
-                    vpioEnabled: vpioEnabled,
-                    bufferSize: bufferSize
-                )
+                guard let preparationConfigurationGeneration else { return }
+                guard
+                    markPreparedLocked(
+                        attempt: nil,
+                        vpioEnabled: vpioEnabled,
+                        bufferSize: bufferSize,
+                        startingConfigurationGeneration: preparationConfigurationGeneration
+                    )
+                else { return }
             }
             return
         }
@@ -489,11 +504,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                         tapHandler: tapHandler
                     )
                 } else {
-                    markPreparedLocked(
-                        attempt: attempt,
-                        vpioEnabled: vpioEnabled,
-                        bufferSize: bufferSize
-                    )
+                    guard let preparationConfigurationGeneration else { return }
+                    guard
+                        markPreparedLocked(
+                            attempt: attempt,
+                            vpioEnabled: vpioEnabled,
+                            bufferSize: bufferSize,
+                            startingConfigurationGeneration: preparationConfigurationGeneration
+                        )
+                    else { return }
                 }
                 logger.info(
                     "shared_mic_engine_input_device_\(startNow ? "started" : "prepared") source=\(attempt.source.logValue, privacy: .public) transport=\(transport, privacy: .public) vpio=\(vpioEnabled, privacy: .public)"
@@ -721,17 +740,25 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private func markPreparedLocked(
         attempt: MeetingInputDeviceAttempt?,
         vpioEnabled: Bool,
-        bufferSize: AVAudioFrameCount
-    ) {
+        bufferSize: AVAudioFrameCount,
+        startingConfigurationGeneration: UInt64
+    ) -> Bool {
+        let currentConfigurationGeneration = configurationChangeGeneration.withLock { $0 }
+        guard currentConfigurationGeneration == startingConfigurationGeneration else {
+            AudioCaptureDiagnostics.append(
+                "shared_mic_engine_prepared_discarded reason=configuration_changed_during_prepare"
+            )
+            tearDownLocked()
+            installRouteChangeObserversLocked()
+            return false
+        }
         prepared = true
         preparedAttempt = attempt
         preparedVPIO = vpioEnabled
         preparedBufferSize = bufferSize
-        preparedConfigurationGeneration = configurationChangeGeneration.withLock { generation in
-            installConfigurationChangeObserverLocked()
-            return generation
-        }
+        preparedConfigurationGeneration = currentConfigurationGeneration
         installRouteChangeObserversLocked()
+        return true
     }
 
     /// Start a prepared engine (only the `audioEngine.start()` cost). Returns

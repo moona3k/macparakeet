@@ -172,6 +172,50 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
     }
 
+    /// The observer must cover the preparation work itself, not only the idle
+    /// interval after preparation completes. Simulate Core Audio renegotiating
+    /// immediately after device selection and verify the result is never
+    /// published as reusable.
+    func testConfigurationChangeDuringPreparationDiscardsEngine() throws {
+        platform.stopEngine()
+
+        let builtInDeviceID = AudioDeviceManager.builtInMicrophone()
+        let deviceID = builtInDeviceID ?? AudioDeviceManager.defaultInputDevice()
+        guard let deviceID else {
+            throw XCTSkip("Need a resolved input device for stopped-engine preparation.")
+        }
+        guard AudioDeviceManager.bluetoothInputState(deviceID) == false else {
+            throw XCTSkip(
+                "Stopped-engine preparation is intentionally disabled for Bluetooth or unresolved inputs."
+            )
+        }
+        let source: MeetingInputDeviceAttempt.Source = builtInDeviceID == nil ? .systemDefault : .builtIn
+        let attempt = MeetingInputDeviceAttempt(source: source, deviceID: deviceID)
+        platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] in [attempt] },
+            inputDeviceSetter: { deviceID, engine in
+                guard AudioDeviceManager.setInputDevice(deviceID, on: engine) else { return false }
+                NotificationCenter.default.post(
+                    name: .AVAudioEngineConfigurationChange,
+                    object: engine
+                )
+                return true
+            }
+        )
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: { _, _ in }
+        )
+        _ = platform.isEngineRunning  // flush queued observer work
+
+        XCTAssertFalse(
+            platform.preparedEngineStateForTesting.prepared,
+            "A configuration change during preparation must prevent prepared-engine reuse."
+        )
+    }
+
     /// Mismatch case: a prepared tap must be torn down before falling back to
     /// full configuration, otherwise AVAudioEngine rejects the second tap.
     func testPreparedStartWithDifferentBufferSizeFallsBackCleanly() async throws {
@@ -411,7 +455,7 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
 
         guard let originalDefault = AudioDeviceManager.defaultInputDevice(),
-              let alternate = alternateInputDevice(excluding: originalDefault)
+            let alternate = alternateInputDevice(excluding: originalDefault)
         else {
             throw XCTSkip("Need at least two input devices to run default-input mutation.")
         }
