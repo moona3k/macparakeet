@@ -255,6 +255,27 @@ final class CardGenerationServiceTests: XCTestCase {
         XCTAssertNotNil(provider.lastResponseFormat)
     }
 
+    func testNullActionOwnerDecodesAndPersistsAsNil() async throws {
+        let response = """
+            {
+              "synopsis": "Release readiness review.",
+              "topics": ["release"],
+              "decisions": [],
+              "actions": [
+                {"text":"Verify the appcast","owner":null,"quote":"verify the appcast before Friday","startMs":3000,"endMs":4000}
+              ]
+            }
+            """
+        let fixture = try Fixture(source: .meeting)
+        let service = fixture.service(provider: StubCardCompletionProvider(response: response))
+
+        let outcome = try await service.generate(transcriptionId: fixture.transcription.id, force: false)
+        let card = try XCTUnwrap(outcome.card)
+
+        XCTAssertEqual(card.actions.map(\.text), ["Verify the appcast"])
+        XCTAssertNil(card.actions.first?.owner)
+    }
+
     func testMalformedResponseDoesNotPersistCard() async throws {
         let fixture = try Fixture(source: .meeting)
         let service = fixture.service(provider: StubCardCompletionProvider(response: "not json"))

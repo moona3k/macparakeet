@@ -111,7 +111,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             "endMs": ChatJSONSchemaProperty(type: "integer"),
         ]
         let actionProperties = citationProperties.merging([
-            "owner": ChatJSONSchemaProperty(type: "string")
+            "owner": ChatJSONSchemaProperty(type: "string", nullable: true)
         ]) { current, _ in current }
         return .jsonSchema(
             name: "knowledge_card",
