@@ -1,0 +1,92 @@
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_ff75e1c7379231::t_f541e59dd7957e 292-295
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_ff75e1c7379231::t_5a4700cdbf67a9 215-216
+  s_ff75e1c7379231::t_64b2a8602dc632 501-504
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_ff75e1c7379231::t_bfedab515706e6 105-110,112-116,118-120
+  s_ff75e1c7379231::t_2798aa10e34928 187-193
+  s_ff75e1c7379231::t_07d440ce991b12 69,137-138
+  s_ff75e1c7379231::t_dcfc36ede6238d 1-4,54-68,70-96,99-104,111,117,121-127,132-136,139-151,154-186,194-195,238-331,350-415
+  s_ff75e1c7379231::t_d55fe11101ed30 97-98,128-131,152-153,332-349
+  s_ff75e1c7379231::t_488a8341e63de8 5-31
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 32-38,40-53
+  s_ff75e1c7379231::t_85251787d15f4a 39
+  s_ff75e1c7379231::t_023e99eb69bbe5 196-237
+Sources/MacParakeetCore/Database/README.md
+  s_ff75e1c7379231::t_263c0f1557fe65 22
+  s_ff75e1c7379231::t_fba7f2498f62b4 78-85
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 206-210,212
+  s_ff75e1c7379231::t_a0da718e56d893 100-144,188-205,211,213-224
+  s_ff75e1c7379231::t_2d1743438550cd 225-226
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_ff75e1c7379231::t_559dcf7f6078dd 138-187,189-190
+  s_ff75e1c7379231::t_82ca859e27b1bd 188
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_ff75e1c7379231::t_07d440ce991b12 248,250,256,259-260,264-267
+  s_ff75e1c7379231::t_3bdceb239e4e59 88,231,241,284
+  s_ff75e1c7379231::t_60ecfd37ffc00b 1-55,57-87,89-101,113-123,126-160,170-230,232-240,242-247,251-252,255,268-271,278-280,282-283,285-318
+  s_ff75e1c7379231::t_64b2a8602dc632 102,108-110
+  s_ff75e1c7379231::t_7c91536a2a87cc 56,161-169
+  s_ff75e1c7379231::t_2798aa10e34928 103-107,111-112,124-125
+  s_ff75e1c7379231::t_023e99eb69bbe5 249,253-254,257-258,261-263,272-277,281
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 369,371-380
+  s_ff75e1c7379231::t_559dcf7f6078dd 88,170,180,186-189,192,368,370,381-382
+  s_ff75e1c7379231::t_26a887859b5634 383
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_ff75e1c7379231::t_60ecfd37ffc00b 31,33,35-54
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_ff75e1c7379231::t_263c0f1557fe65 1-18,20,22-41,52-80,90-97,108-138
+  s_ff75e1c7379231::t_3bdceb239e4e59 81-87,89,98
+  s_ff75e1c7379231::t_5a4700cdbf67a9 19,21
+  s_ff75e1c7379231::t_df3b9159bdf4f6 88
+  s_ff75e1c7379231::t_2798aa10e34928 99-107
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 42-51
+Sources/MacParakeetCore/Models/Card.swift
+  s_ff75e1c7379231::t_fba7f2498f62b4 241-255,259,276,283-284,295-303
+  s_ff75e1c7379231::t_3bdceb239e4e59 153-160,260-262,277,279-282,285-294
+  s_ff75e1c7379231::t_df3b9159bdf4f6 256-258,263-265,269-275,278
+  s_ff75e1c7379231::t_64b2a8602dc632 37-49,74-87,183,194-239
+  s_ff75e1c7379231::t_50653155eb5762 266-267
+  s_ff75e1c7379231::t_263c0f1557fe65 1-36,50-73,88-152,161-182,184-193,240
+  s_ff75e1c7379231::t_66043b9aed32da 268
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_ff75e1c7379231::t_bfedab515706e6 194-209
+  s_ff75e1c7379231::t_2798aa10e34928 24-38,60-64,66-70,173-179
+  s_ff75e1c7379231::t_df3b9159bdf4f6 89-114
+  s_ff75e1c7379231::t_488a8341e63de8 39-59,65,71-86
+  s_ff75e1c7379231::t_64b2a8602dc632 148
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 184-193
+  s_ff75e1c7379231::t_2b4a78bd440e73 1-23,87-88,115-147,149-172,180-183,210-278
+spec/01-data-model.md
+  s_ff75e1c7379231::t_c0ea0fe1f50926 22,225-265,1229,1255
+  s_ff75e1c7379231::t_488a8341e63de8 52-58
+Sources/MacParakeetCore/Database/SegmentRepository.swift
+  s_ff75e1c7379231::t_60ecfd37ffc00b 84
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_ff75e1c7379231::t_44ef69d0056436 1028
+  s_ff75e1c7379231::t_559dcf7f6078dd 673-701,1022-1027,1029-1030
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_ff75e1c7379231::t_eb65bea4a96c95 1208-1256
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_ff75e1c7379231::t_5a4700cdbf67a9 16,56,67,303-307
+  s_ff75e1c7379231::t_4c053c86adc225 308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "cdc1ac00637048ee251a61e1d42b2a8cd6e1cb2e",
+  "prompts": {},
+  "sessions": {
+    "s_ff75e1c7379231": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5027-5ae6-7d63-ba03-1ef49d9286b2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
