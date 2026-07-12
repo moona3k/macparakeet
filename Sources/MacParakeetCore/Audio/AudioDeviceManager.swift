@@ -308,19 +308,42 @@ public enum AudioDeviceManager {
             || transport == kAudioDeviceTransportTypeBluetoothLE
     }
 
-    /// True when the device captures over Bluetooth. For aggregate devices,
+    /// Whether the device captures over Bluetooth. For aggregate devices,
     /// scans every active sub-device — Bluetooth headsets can surface behind
     /// a CoreAudio aggregate, and an aggregate holds all of its sub-devices'
     /// input streams open, so any Bluetooth member pins the headset.
-    public static func isBluetoothInput(_ deviceID: AudioDeviceID) -> Bool {
-        let transport = transportType(deviceID)
-        let subTransports = transport == kAudioDeviceTransportTypeAggregate
-            ? activeSubDeviceIDs(deviceID).map(transportType)
-            : []
-        return isBluetoothInput(
+    ///
+    /// Returns `nil` when the transport or aggregate topology cannot be
+    /// resolved. Callers that acquire a microphone while idle should treat
+    /// that state as risky and fail closed until Core Audio settles.
+    static func bluetoothInputState(_ deviceID: AudioDeviceID) -> Bool? {
+        guard let transport = resolvedTransportType(deviceID) else { return nil }
+
+        let subTransports: [UInt32]?
+        if transport == kAudioDeviceTransportTypeAggregate {
+            guard let subDeviceIDs = activeSubDeviceIDsIfAvailable(deviceID) else { return nil }
+            var resolvedSubTransports: [UInt32] = []
+            resolvedSubTransports.reserveCapacity(subDeviceIDs.count)
+            for subDeviceID in subDeviceIDs {
+                guard let subTransport = resolvedTransportType(subDeviceID) else { return nil }
+                resolvedSubTransports.append(subTransport)
+            }
+            subTransports = resolvedSubTransports
+        } else {
+            subTransports = []
+        }
+
+        return bluetoothRouteState(
             transport: transport,
             activeSubDeviceTransports: subTransports
         )
+    }
+
+    /// True when the device is known to capture over Bluetooth. Unresolved
+    /// routes preserve the historical `false` result for ordinary capture;
+    /// safety-sensitive idle acquisition uses `bluetoothInputState(_:)`.
+    public static func isBluetoothInput(_ deviceID: AudioDeviceID) -> Bool {
+        bluetoothInputState(deviceID) == true
     }
 
     /// Pure decision behind `isBluetoothInput(_:)` — exposed for tests.

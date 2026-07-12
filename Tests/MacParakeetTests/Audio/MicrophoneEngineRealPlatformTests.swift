@@ -102,22 +102,26 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
     func testPreparedStartDeliversBuffers() async throws {
         platform.stopEngine()
         platform = try makePreparablePlatform()
-        let counter = OSAllocatedUnfairLock(initialState: 0)
-        let handler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
-            counter.withLock { $0 += 1 }
+        let preparedHandlerCounter = OSAllocatedUnfairLock(initialState: 0)
+        let activeHandlerCounter = OSAllocatedUnfairLock(initialState: 0)
+        let preparedHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
+            preparedHandlerCounter.withLock { $0 += 1 }
+        }
+        let activeHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
+            activeHandlerCounter.withLock { $0 += 1 }
         }
 
         platform.prepare(
             vpioEnabled: false,
             bufferSize: Self.bufferSize,
-            tapHandler: handler
+            tapHandler: preparedHandler
         )
 
         let configureStartedAt = ContinuousClock.now
         try platform.configureAndStart(
             vpioEnabled: false,
             bufferSize: Self.bufferSize,
-            tapHandler: handler
+            tapHandler: activeHandler
         )
         let configureDuration = configureStartedAt.duration(to: .now)
         XCTAssertLessThan(
@@ -127,11 +131,45 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
 
         let count = try await awaitCounterIncrease(
-            counter: counter,
+            counter: activeHandlerCounter,
             from: 0,
             timeout: Self.firstBufferDeadline
         )
         XCTAssertGreaterThan(count, 0, "A matching prepared start should deliver microphone buffers.")
+        XCTAssertEqual(
+            preparedHandlerCounter.withLock { $0 },
+            0,
+            "Prepared starts must dispatch through the latest configureAndStart handler."
+        )
+    }
+
+    /// Core Audio can renegotiate the input chain while a stopped engine is
+    /// waiting for key-down. The configuration observer must discard that
+    /// preparation so the next start cannot reuse a stale tap format.
+    func testConfigurationChangeDiscardsPreparedEngine() throws {
+        platform.stopEngine()
+        platform = try makePreparablePlatform()
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: { _, _ in }
+        )
+        let before = platform.preparedEngineStateForTesting
+        XCTAssertTrue(before.prepared)
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: before.engine
+        )
+        _ = platform.isEngineRunning  // queue sync flushes observer invalidation
+
+        let after = platform.preparedEngineStateForTesting
+        XCTAssertFalse(after.prepared)
+        XCTAssertFalse(
+            before.engine === after.engine,
+            "A configuration change must replace the stale prepared engine."
+        )
     }
 
     /// Mismatch case: a prepared tap must be torn down before falling back to
@@ -490,11 +528,10 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         guard let deviceID else {
             throw XCTSkip("Need a resolved input device for stopped-engine preparation.")
         }
-        let transport = AudioDeviceManager.transportType(deviceID)
-        guard transport != kAudioDeviceTransportTypeBluetooth,
-            transport != kAudioDeviceTransportTypeBluetoothLE
-        else {
-            throw XCTSkip("Stopped-engine preparation is intentionally disabled for Bluetooth inputs.")
+        guard AudioDeviceManager.bluetoothInputState(deviceID) == false else {
+            throw XCTSkip(
+                "Stopped-engine preparation is intentionally disabled for Bluetooth or unresolved inputs."
+            )
         }
         let source: MeetingInputDeviceAttempt.Source = builtInDeviceID == nil ? .systemDefault : .builtIn
         let attempt = MeetingInputDeviceAttempt(source: source, deviceID: deviceID)

@@ -1,4 +1,3 @@
-import CoreAudio
 import XCTest
 @testable import MacParakeetCore
 
@@ -12,8 +11,8 @@ final class MicrophoneEnginePrewarmRoutingTests: XCTestCase {
 
         let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
             from: attempts,
-            transportType: { deviceID in
-                deviceID == 2 ? kAudioDeviceTransportTypeBluetooth : kAudioDeviceTransportTypeBuiltIn
+            bluetoothInputState: { deviceID in
+                deviceID == 2
             }
         )
 
@@ -28,7 +27,7 @@ final class MicrophoneEnginePrewarmRoutingTests: XCTestCase {
 
         let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
             from: attempts,
-            transportType: { _ in kAudioDeviceTransportTypeBuiltIn }
+            bluetoothInputState: { _ in false }
         )
 
         XCTAssertTrue(result.isEmpty)
@@ -39,7 +38,7 @@ final class MicrophoneEnginePrewarmRoutingTests: XCTestCase {
 
         let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
             from: attempts,
-            transportType: { _ in kAudioDeviceTransportTypeUSB }
+            bluetoothInputState: { _ in false }
         )
 
         XCTAssertEqual(result.count, 1)
@@ -55,9 +54,31 @@ final class MicrophoneEnginePrewarmRoutingTests: XCTestCase {
 
         let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
             from: attempts,
-            transportType: { _ in kAudioDeviceTransportTypeBuiltIn }
+            bluetoothInputState: { _ in false }
         )
 
         XCTAssertEqual(result, [MeetingInputDeviceAttempt(source: .selected(uid: "preferred"), deviceID: 5)])
+    }
+
+    func testPrewarmPrefixFailsClosedForUnknownTransportState() {
+        let attempts = [MeetingInputDeviceAttempt(source: .selected(uid: "preferred"), deviceID: 7)]
+
+        let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
+            from: attempts,
+            bluetoothInputState: { _ in nil }
+        )
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testPrewarmPrefixRejectsAggregateBackedByBluetooth() {
+        let attempts = [MeetingInputDeviceAttempt.implicitSystemDefault(resolvedDeviceID: 8)]
+
+        let result = AVAudioEngineMicrophonePlatform.prewarmAttemptPrefix(
+            from: attempts,
+            bluetoothInputState: { _ in true }
+        )
+
+        XCTAssertTrue(result.isEmpty)
     }
 }

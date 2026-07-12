@@ -126,8 +126,10 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         XCTAssertEqual(platform.prepareCalls.count, 1)
 
         stream.refreshIdlePrewarm()
-        try await Task.sleep(for: .milliseconds(10))
-        await stream.unsubscribe(SharedMicrophoneStream.SubscriberToken())
+        let deadline = ContinuousClock.now + .seconds(1)
+        while platform.prepareCalls.count < 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
 
         XCTAssertEqual(platform.stopEngineCallCount, 1)
         XCTAssertEqual(platform.prepareCalls.count, 2)

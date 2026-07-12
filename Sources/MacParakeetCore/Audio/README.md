@@ -199,9 +199,9 @@ non-VPIO stream configuration and can consume the prepared engine too;
 an explicit VPIO request or different buffer size discards it and does
 a full configure. Idle microphone-route changes trailing-debounce a
 fresh preparation before the next capture. Like the warm hold, prepare
-is **suppressed on Bluetooth
-inputs**: pre-acquiring a Bluetooth mic would pin HFP/SCO even while
-stopped, so the platform declines and that press pays the full cold
+is **suppressed on Bluetooth or unresolved inputs**: pre-acquiring a
+Bluetooth mic would pin HFP/SCO even while stopped, so the platform
+declines and that press pays the full cold
 path. This is the no-warm-window path: instant first words after
 key-down without holding the mic open.
 
