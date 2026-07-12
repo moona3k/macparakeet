@@ -160,17 +160,23 @@ struct MeetingsView: View {
                 Text(recentMeetingsBulkOperationMessage(for: operation))
             }
         }
-        .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
-            viewModel.quickPromptsViewModel.cancelCreating()
-            viewModel.quickPromptsViewModel.editingPrompt = nil
-            viewModel.refreshQuickPrompts()
-        }) {
+        .sheet(
+            isPresented: $showingAskPromptsSheet,
+            onDismiss: {
+                viewModel.quickPromptsViewModel.cancelCreating()
+                viewModel.quickPromptsViewModel.editingPrompt = nil
+                viewModel.refreshQuickPrompts()
+            }
+        ) {
             AskPromptsSheet(viewModel: viewModel.quickPromptsViewModel)
         }
-        .sheet(isPresented: $showingPromptLibrary, onDismiss: {
-            viewModel.promptsViewModel.editingPrompt = nil
-            viewModel.refreshAutoNotes()
-        }) {
+        .sheet(
+            isPresented: $showingPromptLibrary,
+            onDismiss: {
+                viewModel.promptsViewModel.editingPrompt = nil
+                viewModel.refreshAutoNotes()
+            }
+        ) {
             PromptLibraryView(viewModel: viewModel.promptsViewModel)
         }
     }
@@ -398,7 +404,8 @@ struct MeetingsView: View {
                 MeetingsInlineState(
                     icon: "sparkles",
                     title: "Set up AI for auto-notes",
-                    detail: "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
+                    detail:
+                        "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
                     actionTitle: "Set Up AI",
                     actionIcon: "gearshape",
                     action: onOpenAISettings
@@ -491,7 +498,8 @@ struct MeetingsView: View {
                 }
 
                 if viewModel.recentMeetingsViewModel.isLoading
-                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
+                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
+                {
                     MeetingsLoadingRow(title: "Loading meetings")
                 } else if viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
                     MeetingsInlineState(
@@ -533,8 +541,10 @@ struct MeetingsView: View {
             ForEach(viewModel.recentMeetingsViewModel.groupedTranscriptions, id: \.group) { section in
                 MeetingDateGroupHeader(group: section.group)
                 ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
+                    let fileState = viewModel.recentMeetingsViewModel.meetingRowFileState(for: transcription)
                     MeetingRowCard(
                         transcription: transcription,
+                        audioState: fileState.audioState,
                         searchText: viewModel.recentMeetingsViewModel.searchText,
                         isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
                         showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
@@ -552,7 +562,7 @@ struct MeetingsView: View {
                         onRetry: {
                             viewModel.recentMeetingsViewModel.retryMeetingTranscription(transcription)
                         },
-                        menuContent: { recentMeetingMenu(for: transcription) }
+                        menuContent: { recentMeetingMenu(for: transcription, fileState: fileState) }
                     )
                     if idx < section.items.count - 1 {
                         MeetingRowHairline()
@@ -563,7 +573,10 @@ struct MeetingsView: View {
     }
 
     @ViewBuilder
-    private func recentMeetingMenu(for transcription: Transcription) -> some View {
+    private func recentMeetingMenu(
+        for transcription: Transcription,
+        fileState: MeetingRowFileState
+    ) -> some View {
         Button {
             onSelectMeeting(transcription)
         } label: {
@@ -578,10 +591,10 @@ struct MeetingsView: View {
             }
         }
 
-        let audioState = MeetingAudioFile.state(for: transcription)
+        let audioState = fileState.audioState
         let audioAvailable = audioState == .saved
-        let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
-        let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+        let audioRemovable = fileState.isAudioRemovable
+        let artifactAvailable = fileState.isArtifactFolderAvailable
 
         Divider()
 
@@ -591,7 +604,8 @@ struct MeetingsView: View {
             } label: {
                 Label("Retry Transcription", systemImage: "arrow.clockwise")
             }
-            .disabled(viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+            .disabled(
+                viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
 
             Divider()
         }
@@ -618,9 +632,10 @@ struct MeetingsView: View {
             Label("Show Audio in Finder", systemImage: "waveform")
         }
         .disabled(!audioAvailable)
-        .help(audioAvailable
-              ? "Reveal the meeting audio file in Finder"
-              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+        .help(
+            audioAvailable
+                ? "Reveal the meeting audio file in Finder"
+                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button {
             saveMeetingAudio(transcription)
@@ -628,9 +643,10 @@ struct MeetingsView: View {
             Label("Save Audio As…", systemImage: "square.and.arrow.down")
         }
         .disabled(!audioAvailable)
-        .help(audioAvailable
-              ? "Save a copy of the meeting audio to a chosen location"
-              : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
+        .help(
+            audioAvailable
+                ? "Save a copy of the meeting audio to a chosen location"
+                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button(role: .destructive) {
             pendingDeleteAudio = transcription
@@ -638,12 +654,13 @@ struct MeetingsView: View {
             Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
         }
         .disabled(!audioRemovable)
-        .help(audioRemovable
-              ? "Remove the saved meeting audio while keeping the meeting"
-              : MeetingDeletionCopy.audioRemovalUnavailableHelp(
-                  for: transcription,
-                  state: audioState
-              ))
+        .help(
+            audioRemovable
+                ? "Remove the saved meeting audio while keeping the meeting"
+                : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                    state: audioState,
+                    isRemovable: audioRemovable
+                ))
 
         Divider()
 
@@ -736,7 +753,6 @@ struct MeetingsView: View {
             sourceMode: viewModel.settingsViewModel.meetingAudioSourceMode
         )
     }
-
 
     private var recentMeetingsSearchText: String {
         viewModel.recentMeetingsViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1578,9 +1594,10 @@ private struct AutoNoteChip: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(isOn
-                          ? DesignSystem.Colors.accent.opacity(0.12)
-                          : DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                    .fill(
+                        isOn
+                            ? DesignSystem.Colors.accent.opacity(0.12)
+                            : DesignSystem.Colors.surfaceElevated.opacity(0.72))
             )
             .overlay(
                 Capsule()
@@ -1596,6 +1613,9 @@ private struct AutoNoteChip: View {
         .accessibilityLabel("\(title) auto-note")
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-        .help(isOn ? "Generated automatically after meetings — click to turn off" : "Click to generate this automatically after meetings")
+        .help(
+            isOn
+                ? "Generated automatically after meetings — click to turn off"
+                : "Click to generate this automatically after meetings")
     }
 }

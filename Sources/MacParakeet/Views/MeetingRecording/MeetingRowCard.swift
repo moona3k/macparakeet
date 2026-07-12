@@ -6,6 +6,7 @@ import SwiftUI
 /// (recovered dot, speaker count) appear only when they carry signal.
 struct MeetingRowCard<MenuContent: View>: View {
     let transcription: Transcription
+    let audioState: MeetingAudioFile.State
     var searchText: String = ""
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
@@ -311,10 +312,6 @@ struct MeetingRowCard<MenuContent: View>: View {
     private var displayedSpeakerCount: Int? {
         let count = transcription.speakerCount ?? transcription.speakers?.count ?? 0
         return count >= 2 ? count : nil
-    }
-
-    private var audioState: MeetingAudioFile.State {
-        MeetingAudioFile.state(for: transcription)
     }
 
     private var errorDetail: String? {

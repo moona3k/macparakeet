@@ -114,6 +114,27 @@ public struct BulkOperationResult: Sendable, Equatable {
     }
 }
 
+/// Filesystem-backed values needed to render one meeting row and its menus.
+///
+/// The library resolves this snapshot off the main actor when rows load. Views
+/// must read this value instead of consulting `FileManager` during `body` or
+/// eager menu evaluation.
+public struct MeetingRowFileState: Equatable, Sendable {
+    public let audioState: MeetingAudioFile.State
+    public let isAudioRemovable: Bool
+    public let isArtifactFolderAvailable: Bool
+
+    public init(
+        audioState: MeetingAudioFile.State,
+        isAudioRemovable: Bool,
+        isArtifactFolderAvailable: Bool
+    ) {
+        self.audioState = audioState
+        self.isAudioRemovable = isAudioRemovable
+        self.isArtifactFolderAvailable = isArtifactFolderAvailable
+    }
+}
+
 @MainActor @Observable
 public final class TranscriptionLibraryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionLibrary")
@@ -144,6 +165,7 @@ public final class TranscriptionLibraryViewModel {
     private var searchDebounceTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var bulkSelectionGeneration = 0
+    private var meetingRowFileStates: [UUID: MeetingRowFileState] = [:]
     public let scope: TranscriptionLibraryScope
 
     public init(scope: TranscriptionLibraryScope = .all) {
@@ -168,11 +190,17 @@ public final class TranscriptionLibraryViewModel {
     }
 
     public var selectedMeetingAudioCount: Int {
-        selectedLoadedTranscriptions.filter(Self.hasRemovableMeetingAudio).count
+        selectedLoadedTranscriptions.filter { meetingRowFileState(for: $0).isAudioRemovable }.count
     }
 
     public var selectedLoadedTranscriptionsForExport: [Transcription] {
         selectedLoadedTranscriptions
+    }
+
+    /// Cached row state. This accessor is intentionally filesystem-free because
+    /// SwiftUI may evaluate it many times while rendering rows and menus.
+    public func meetingRowFileState(for transcription: Transcription) -> MeetingRowFileState {
+        meetingRowFileStates[transcription.id] ?? Self.conservativeMeetingRowFileState(for: transcription)
     }
 
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
@@ -261,7 +289,7 @@ public final class TranscriptionLibraryViewModel {
             do {
                 try await retry(transcription)
                 do {
-                    try self.refreshLoadedTranscription(id: transcription.id)
+                    try await self.refreshLoadedTranscription(id: transcription.id)
                 } catch {
                     self.logger.error(
                         "Retried meeting transcription but failed to refresh Library: \(error.localizedDescription, privacy: .private)"
@@ -272,7 +300,7 @@ public final class TranscriptionLibraryViewModel {
                 self.logger.error(
                     "Failed to retry meeting transcription: \(error.localizedDescription, privacy: .private)")
                 self.errorMessage = "Failed to retry meeting transcription: \(error.localizedDescription)"
-                try? self.refreshLoadedTranscription(id: transcription.id)
+                try? await self.refreshLoadedTranscription(id: transcription.id)
             }
         }
     }
@@ -347,7 +375,7 @@ public final class TranscriptionLibraryViewModel {
         // videos/podcasts/local files as skipped meetings in the confirmation
         // copy, which is meeting-only by design.
         let meetings = selectedLoadedTranscriptions.filter { $0.sourceType == .meeting }
-        let targets = meetings.filter(Self.hasRemovableMeetingAudio)
+        let targets = meetings.filter { meetingRowFileState(for: $0).isAudioRemovable }
         guard !targets.isEmpty else {
             return
         }
@@ -480,6 +508,11 @@ public final class TranscriptionLibraryViewModel {
                     transcriptions[idx].meetingArtifactFolderPath
                     ?? MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
                 transcriptions[idx].filePath = nil
+                meetingRowFileStates[transcription.id] = MeetingRowFileState(
+                    audioState: .removed,
+                    isAudioRemovable: false,
+                    isArtifactFolderAvailable: true
+                )
                 publishLoadedItems(transcriptions, hasMore: hasMore)
             }
         } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
@@ -539,20 +572,28 @@ public final class TranscriptionLibraryViewModel {
         publishLoadedItems(page.items, hasMore: page.hasMore)
     }
 
-    private func refreshLoadedTranscription(id: UUID) throws {
+    private func refreshLoadedTranscription(id: UUID) async throws {
         guard let repo = transcriptionRepo else { return }
-        guard let index = transcriptions.firstIndex(where: { $0.id == id }) else { return }
+        guard transcriptions.contains(where: { $0.id == id }) else { return }
         // An in-flight load would later publish a snapshot fetched before this
         // refresh, resurrecting the row's pre-retry status. Invalidate it; the
         // generation bump makes any late publish a no-op.
         if loadTask != nil {
             cancelActiveLoad()
         }
-        guard let refreshed = try repo.fetch(id: id) else {
+        let refreshedResult: (Transcription, MeetingRowFileState)? = try await Task.detached(
+            priority: .userInitiated
+        ) {
+            guard let refreshed = try repo.fetch(id: id) else { return nil }
+            return (refreshed, Self.resolveMeetingRowFileState(for: refreshed))
+        }.value
+        guard let (refreshed, fileState) = refreshedResult else {
             removeLoadedTranscriptions(withIDs: [id])
             return
         }
+        guard let index = transcriptions.firstIndex(where: { $0.id == id }) else { return }
         transcriptions[index] = refreshed
+        meetingRowFileStates[id] = fileState
         publishLoadedItems(transcriptions, hasMore: hasMore)
     }
 
@@ -599,12 +640,15 @@ public final class TranscriptionLibraryViewModel {
 
         let task = Task { @MainActor [weak self, repo, query] in
             do {
-                let page = try await Task.detached(priority: .userInitiated) {
-                    try repo.fetchLibraryPage(query: query)
+                let (page, loadedFileStates) = try await Task.detached(priority: .userInitiated) {
+                    let page = try repo.fetchLibraryPage(query: query)
+                    return (page, Self.resolveMeetingRowFileStates(for: page.items))
                 }.value
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
                 let items = append ? self.transcriptions + page.items : page.items
-                self.publishLoadedItems(items, hasMore: page.hasMore)
+                var fileStates = append ? self.meetingRowFileStates : [:]
+                fileStates.merge(loadedFileStates) { _, refreshed in refreshed }
+                self.publishLoadedItems(items, hasMore: page.hasMore, meetingRowFileStates: fileStates)
                 self.isLoading = false
             } catch {
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
@@ -664,11 +708,20 @@ public final class TranscriptionLibraryViewModel {
         )
     }
 
-    private func publishLoadedItems(_ items: [Transcription], hasMore: Bool) {
+    private func publishLoadedItems(
+        _ items: [Transcription],
+        hasMore: Bool,
+        meetingRowFileStates refreshedFileStates: [UUID: MeetingRowFileState]? = nil
+    ) {
         transcriptions = items
         filteredTranscriptions = items
         groupedTranscriptions = groupByDate(items)
         self.hasMore = hasMore
+        if let refreshedFileStates {
+            meetingRowFileStates = refreshedFileStates
+        }
+        let loadedIDs = Set(items.map(\.id))
+        meetingRowFileStates = meetingRowFileStates.filter { loadedIDs.contains($0.key) }
         pruneSelectionToLoadedItems()
     }
 
@@ -678,10 +731,6 @@ public final class TranscriptionLibraryViewModel {
 
     private var selectedLoadedTranscriptions: [Transcription] {
         filteredTranscriptions.filter { selectedTranscriptionIDs.contains($0.id) }
-    }
-
-    nonisolated private static func hasRemovableMeetingAudio(_ transcription: Transcription) -> Bool {
-        MeetingAudioFile.isRemovable(for: transcription)
     }
 
     private func pruneSelectionToLoadedItems() {
@@ -700,8 +749,70 @@ public final class TranscriptionLibraryViewModel {
                 transcriptions[index].meetingArtifactFolderPath
                 ?? MeetingArtifactStore.sessionFolderURL(for: transcriptions[index])?.standardizedFileURL.path
             transcriptions[index].filePath = nil
+            meetingRowFileStates[transcriptions[index].id] = MeetingRowFileState(
+                audioState: .removed,
+                isAudioRemovable: false,
+                isArtifactFolderAvailable: true
+            )
         }
         publishLoadedItems(transcriptions, hasMore: hasMore)
+    }
+
+    nonisolated private static func resolveMeetingRowFileStates(
+        for transcriptions: [Transcription]
+    ) -> [UUID: MeetingRowFileState] {
+        var states: [UUID: MeetingRowFileState] = [:]
+        for transcription in transcriptions where transcription.sourceType == .meeting {
+            states[transcription.id] = resolveMeetingRowFileState(for: transcription)
+        }
+        return states
+    }
+
+    nonisolated private static func resolveMeetingRowFileState(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> MeetingRowFileState {
+        let audioState = MeetingAudioFile.state(for: transcription, fileManager: fileManager)
+        let isAudioRemovable = MeetingAudioFile.isRemovable(
+            for: transcription,
+            state: audioState,
+            fileManager: fileManager
+        )
+
+        let isArtifactFolderAvailable: Bool
+        if let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription) {
+            var isDirectory: ObjCBool = false
+            isArtifactFolderAvailable =
+                fileManager.fileExists(
+                    atPath: folderURL.path,
+                    isDirectory: &isDirectory
+                ) && isDirectory.boolValue
+        } else {
+            isArtifactFolderAvailable = false
+        }
+
+        return MeetingRowFileState(
+            audioState: audioState,
+            isAudioRemovable: isAudioRemovable,
+            isArtifactFolderAvailable: isArtifactFolderAvailable
+        )
+    }
+
+    nonisolated private static func conservativeMeetingRowFileState(
+        for transcription: Transcription
+    ) -> MeetingRowFileState {
+        guard transcription.sourceType == .meeting else {
+            return MeetingRowFileState(
+                audioState: .notMeeting,
+                isAudioRemovable: false,
+                isArtifactFolderAvailable: false
+            )
+        }
+        return MeetingRowFileState(
+            audioState: transcription.filePath == nil ? .removed : .missing,
+            isAudioRemovable: false,
+            isArtifactFolderAvailable: false
+        )
     }
 
     private func setLoadedStatus(

@@ -131,6 +131,17 @@ enum MeetingDeletionCopy {
         return audioUnavailableHelp(for: state)
     }
 
+    /// Filesystem-free variant for eagerly evaluated row menus.
+    static func audioRemovalUnavailableHelp(
+        state: MeetingAudioFile.State,
+        isRemovable: Bool
+    ) -> String {
+        if state == .saved && !isRemovable {
+            return TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
+        }
+        return audioUnavailableHelp(for: state)
+    }
+
     private static func nonCompletedWarning(status: Transcription.TranscriptionStatus) -> String {
         guard status != .completed else { return "" }
         return "This meeting hasn't been transcribed yet — deleting the audio makes that permanent. "

@@ -55,17 +55,28 @@ struct ParakeetSpinner: View {
         }
     }
 
+    private var shouldAnimate: Bool {
+        guard !reduceMotion else { return false }
+        switch size {
+        case .inline:
+            // Inline spinners sit inside list rows and other deep view trees.
+            // Keep the Merkaba identity but avoid repeat-forever invalidation
+            // driving whole-window layout and accessibility updates.
+            return false
+        case .card, .hero:
+            return true
+        }
+    }
+
     var body: some View {
         SpinnerRingView(
             size: size.points,
             revolutionDuration: size.revolutionDuration,
             tintColor: resolvedTint,
-            animate: !reduceMotion
+            animate: shouldAnimate
         )
         .frame(width: size.points, height: size.points)
         .accessibilityElement()
         .accessibilityLabel("Loading")
-        .accessibilityValue("In progress")
-        .accessibilityAddTraits(.updatesFrequently)
     }
 }

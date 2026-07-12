@@ -53,16 +53,53 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(Set(vm.filteredTranscriptions.map(\.fileName)), ["done.mp3", "cancelled.mp3", "failed.mp3"])
     }
 
+    func testMeetingRowFileStateIsCachedUntilLoadedStatusRefresh() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-row-state-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let meeting = Transcription(
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(meeting)
+        await load()
+
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        let cached = vm.meetingRowFileState(for: loaded)
+        XCTAssertEqual(cached.audioState, .saved)
+        XCTAssertFalse(cached.isAudioRemovable)
+        XCTAssertTrue(cached.isArtifactFolderAvailable)
+
+        try FileManager.default.removeItem(at: audioURL)
+
+        // Rendering reads the snapshot rather than re-statting the filesystem.
+        XCTAssertEqual(vm.meetingRowFileState(for: loaded), cached)
+
+        try repo.updateStatus(id: meeting.id, status: .completed, errorMessage: nil)
+        await load()
+
+        let refreshed = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertEqual(vm.meetingRowFileState(for: refreshed).audioState, .missing)
+        XCTAssertFalse(vm.meetingRowFileState(for: refreshed).isAudioRemovable)
+    }
+
     // MARK: - Filter
 
     func testFilterAll() async throws {
         try repo.save(Transcription(fileName: "local.mp3", status: .completed))
-        try repo.save(Transcription(
-            fileName: "youtube.mp3",
-            status: .completed,
-            sourceURL: "https://youtube.com/watch?v=abc",
-            sourceType: .youtube
-        ))
+        try repo.save(
+            Transcription(
+                fileName: "youtube.mp3",
+                status: .completed,
+                sourceURL: "https://youtube.com/watch?v=abc",
+                sourceType: .youtube
+            ))
 
         vm.filter = .all
         await load()
@@ -71,12 +108,13 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     func testFilterYouTube() async throws {
         try repo.save(Transcription(fileName: "local.mp3", status: .completed))
-        try repo.save(Transcription(
-            fileName: "youtube.mp3",
-            status: .completed,
-            sourceURL: "https://youtube.com/watch?v=abc",
-            sourceType: .youtube
-        ))
+        try repo.save(
+            Transcription(
+                fileName: "youtube.mp3",
+                status: .completed,
+                sourceURL: "https://youtube.com/watch?v=abc",
+                sourceType: .youtube
+            ))
 
         vm.filter = .youtube
         await load()
@@ -86,13 +124,17 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     func testFilterPodcast() async throws {
         try repo.save(Transcription(fileName: "local.mp3", status: .completed, sourceType: .file))
-        try repo.save(Transcription(fileName: "youtube.mp3", status: .completed, sourceURL: "https://youtube.com/watch?v=abc", sourceType: .youtube))
-        try repo.save(Transcription(
-            fileName: "episode.mp3",
-            status: .completed,
-            sourceURL: "https://podcasts.apple.com/us/podcast/x/id1?i=2",
-            sourceType: .podcast
-        ))
+        try repo.save(
+            Transcription(
+                fileName: "youtube.mp3", status: .completed, sourceURL: "https://youtube.com/watch?v=abc",
+                sourceType: .youtube))
+        try repo.save(
+            Transcription(
+                fileName: "episode.mp3",
+                status: .completed,
+                sourceURL: "https://podcasts.apple.com/us/podcast/x/id1?i=2",
+                sourceType: .podcast
+            ))
 
         vm.filter = .podcast
         await load()
@@ -103,7 +145,10 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
     func testFilterLocal() async throws {
         try repo.save(Transcription(fileName: "local.mp3", status: .completed, sourceType: .file))
         try repo.save(Transcription(fileName: "meeting.mp3", status: .completed, sourceType: .meeting))
-        try repo.save(Transcription(fileName: "youtube.mp3", status: .completed, sourceURL: "https://youtube.com/watch?v=abc", sourceType: .youtube))
+        try repo.save(
+            Transcription(
+                fileName: "youtube.mp3", status: .completed, sourceURL: "https://youtube.com/watch?v=abc",
+                sourceType: .youtube))
 
         vm.filter = .local
         await load()
@@ -152,7 +197,8 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         let meetingVM = TranscriptionLibraryViewModel(scope: .meetings)
         meetingVM.configure(transcriptionRepo: repo)
 
-        try repo.save(Transcription(fileName: "fav meeting.mp3", status: .completed, isFavorite: true, sourceType: .meeting))
+        try repo.save(
+            Transcription(fileName: "fav meeting.mp3", status: .completed, isFavorite: true, sourceType: .meeting))
         try repo.save(Transcription(fileName: "normal meeting.mp3", status: .completed, sourceType: .meeting))
         try repo.save(Transcription(fileName: "fav local.mp3", status: .completed, isFavorite: true, sourceType: .file))
 
@@ -191,12 +237,13 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
     }
 
     func testSearchByChannel() async throws {
-        try repo.save(Transcription(
-            fileName: "Video",
-            status: .completed,
-            sourceURL: "https://youtube.com/watch?v=abc",
-            channelName: "TechChannel"
-        ))
+        try repo.save(
+            Transcription(
+                fileName: "Video",
+                status: .completed,
+                sourceURL: "https://youtube.com/watch?v=abc",
+                channelName: "TechChannel"
+            ))
         try repo.save(Transcription(fileName: "Other", status: .completed))
 
         vm.searchText = "techchannel"
@@ -586,9 +633,12 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     func testSelectLoadedVisibleTranscriptionsExcludesUnloadedRows() async throws {
         vm.pageSize = 2
-        try repo.save(Transcription(createdAt: Date(timeIntervalSince1970: 3), fileName: "third.mp3", status: .completed))
-        try repo.save(Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "second.mp3", status: .completed))
-        try repo.save(Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "first.mp3", status: .completed))
+        try repo.save(
+            Transcription(createdAt: Date(timeIntervalSince1970: 3), fileName: "third.mp3", status: .completed))
+        try repo.save(
+            Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "second.mp3", status: .completed))
+        try repo.save(
+            Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "first.mp3", status: .completed))
 
         await load()
 
@@ -620,7 +670,8 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     func testSelectedLoadedTranscriptionsForExportFollowsVisibleOrder() async throws {
         let first = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "first.mp3", status: .completed)
-        let second = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "second.mp3", status: .completed)
+        let second = Transcription(
+            createdAt: Date(timeIntervalSince1970: 1), fileName: "second.mp3", status: .completed)
         try repo.save(second)
         try repo.save(first)
 
@@ -723,6 +774,10 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.transcriptions.first?.id, t.id)
         XCTAssertNil(vm.transcriptions.first?.filePath)
         XCTAssertEqual(vm.transcriptions.first?.meetingArtifactFolderPath, folder.standardizedFileURL.path)
+        let rowState = vm.meetingRowFileState(for: try XCTUnwrap(vm.transcriptions.first))
+        XCTAssertEqual(rowState.audioState, .removed)
+        XCTAssertFalse(rowState.isAudioRemovable)
+        XCTAssertTrue(rowState.isArtifactFolderAvailable)
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: microphoneURL.path))
