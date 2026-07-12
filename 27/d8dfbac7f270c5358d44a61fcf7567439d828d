@@ -1,0 +1,53 @@
+plans/active/2026-06-28-transcript-detail-refresh.md
+  s_1fe041aaed252e::t_b38f384a4ea888 28-29,56-88
+  s_1fe041aaed252e::t_c57d4b19edb516 89
+plans/README.md
+  s_16db06542650a1::t_b9e72a4dc6689c 33
+  s_1fe041aaed252e::t_b38f384a4ea888 75
+plans/active/2026-07-10-meeting-knowledge-layer.md
+  s_439d34a3abb92f::t_b298dc4e1a9906 159-168
+  s_439d34a3abb92f::t_290303e69c643e 35-36
+  s_439d34a3abb92f::t_e118cf657d9ad9 199-218
+  s_439d34a3abb92f::t_9e093befd8c9e2 174-179
+  s_439d34a3abb92f::t_fcb09dffaf51c0 360-373
+  s_439d34a3abb92f::t_fe5929898315b3 379,381-388
+  s_439d34a3abb92f::t_3383c53ca7528b 273-278
+  s_439d34a3abb92f::t_3617e78dd764f7 1-24,30-34,37-114,118,125-158,169-173,180-198,219-272,279-300,305-310,320-333,380,389-412
+  s_439d34a3abb92f::t_04a041764863ac 311-319
+  s_439d34a3abb92f::t_936d134c517253 25-29
+  s_439d34a3abb92f::t_da6e60e89c0ee7 115-117,119-124
+  s_439d34a3abb92f::t_09004731e7f170 301-304
+  s_439d34a3abb92f::t_bdb8777898b48c 334-359,374-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "27d8dfbac7f270c5358d44a61fcf7567439d828d",
+  "prompts": {},
+  "sessions": {
+    "s_16db06542650a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f584a-d9fd-7bc0-bb87-b67b4af7286d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_1fe041aaed252e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49fc-bc40-7472-83c4-003797dc2e23",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_439d34a3abb92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "024dece0-da41-4cac-93fa-813a3a1f8028",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
