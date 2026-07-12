@@ -982,7 +982,7 @@ struct TranscriptionLibraryView: View {
 
     private var emptyStateMessage: String {
         isMeetingListMode
-            ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
+            ? "Press Record Meeting on the Transcribe tab to capture meeting audio and transcribe it locally."
             : emptyMessage
     }
 }

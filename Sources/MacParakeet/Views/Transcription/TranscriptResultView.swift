@@ -2288,7 +2288,7 @@ struct TranscriptResultView: View {
                     .frame(width: 20, height: 20)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Turn on AI for summaries and action items")
+                    Text("Enable AI for summaries and action items")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
 
@@ -2722,10 +2722,10 @@ struct TranscriptResultView: View {
                 .foregroundStyle(DesignSystem.Colors.accent)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Turn on AI for summaries and chat")
+                Text("Enable AI for summaries and chat")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Transcription still works without this.")
+                Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Transcription still works without AI.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }

@@ -327,7 +327,7 @@ struct MeetingRecordingPanelView: View {
     private var footer: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             FooterButton(
-                label: viewModel.showCopiedConfirmation ? "Copied" : "Copy",
+                label: viewModel.showCopiedConfirmation ? "Transcript copied" : "Copy transcript",
                 icon: viewModel.showCopiedConfirmation ? "checkmark" : "doc.on.doc",
                 activeColor: viewModel.showCopiedConfirmation
                     ? DesignSystem.Colors.successGreen
@@ -342,7 +342,7 @@ struct MeetingRecordingPanelView: View {
             FooterIconButton(
                 icon: autoScroll ? "chevron.down.circle.fill" : "chevron.down.circle",
                 activeColor: autoScroll ? DesignSystem.Colors.accent : nil,
-                tooltip: "Auto-scroll"
+                tooltip: "Auto-scroll transcript"
             ) {
                 autoScroll.toggle()
             }

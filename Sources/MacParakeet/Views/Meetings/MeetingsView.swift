@@ -360,8 +360,8 @@ struct MeetingsView: View {
                 MeetingsInlineState(
                     icon: "sparkles",
                     title: "AI not configured",
-                    detail: "Summaries and meeting chat stay off until you choose a provider.",
-                    actionTitle: "Set Up AI",
+                    detail: "Summaries and meeting chat are disabled until you choose a provider.",
+                    actionTitle: "Set up AI",
                     actionIcon: "gearshape",
                     action: onOpenAISettings
                 )
@@ -399,7 +399,7 @@ struct MeetingsView: View {
                     icon: "sparkles",
                     title: "Set up AI for auto-notes",
                     detail: "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
-                    actionTitle: "Set Up AI",
+                    actionTitle: "Set up AI",
                     actionIcon: "gearshape",
                     action: onOpenAISettings
                 )
@@ -756,7 +756,7 @@ struct MeetingsView: View {
 
     private var recentMeetingsEmptyDetail: String {
         recentMeetingsSearchText.isEmpty
-            ? "Use Record Meeting above to capture system audio and transcribe locally."
+            ? "Use Record Meeting above to capture meeting audio and transcribe it locally."
             : "Try different words or clear your search."
     }
 

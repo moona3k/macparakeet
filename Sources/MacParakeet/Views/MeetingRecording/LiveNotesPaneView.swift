@@ -230,7 +230,7 @@ struct LiveNotesPaneView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
                 .accessibilityHidden(true)
-            Text("Summary will start trimming notes past ~8,000 words.")
+            Text("Summary generation starts trimming notes after about 8,000 words.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
             Spacer(minLength: 0)
@@ -245,6 +245,6 @@ struct LiveNotesPaneView: View {
         // count are announced together when the footer appears (otherwise
         // VoiceOver users get no signal that the soft cap is active).
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Notes approaching soft cap: \(viewModel.wordCount) words. Summary will start trimming past 8,000 words.")
+        .accessibilityLabel("Notes approaching soft cap: \(viewModel.wordCount) words. Summary generation starts trimming notes after about 8,000 words.")
     }
 }

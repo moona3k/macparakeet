@@ -273,11 +273,11 @@ struct LiveAskPaneView: View {
                 .padding(.bottom, 4)
                 .accessibilityHidden(true)
 
-            Text("Turn on AI for meeting Ask")
+            Text("Enable AI for meeting Q&A")
                 .font(DesignSystem.Typography.body.weight(.medium))
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-            Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Recording works without this.")
+            Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Recording and transcript generation still work without AI.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .multilineTextAlignment(.center)
