@@ -62,6 +62,97 @@ final class CardGenerationServiceTests: XCTestCase {
         XCTAssertTrue(userPrompt.contains("</untrusted_transcript_data>"))
     }
 
+    func testPromptEmbeddedCardValidationAcceptsNullActionOwner() async throws {
+        let response = """
+            {
+              "synopsis": "Release readiness review.",
+              "topics": ["release"],
+              "decisions": [],
+              "actions": [
+                {"text":"Verify the appcast","owner":null,"quote":"verify the appcast","startMs":3000,"endMs":4000}
+              ]
+            }
+            """
+        let (service, client) = Self.promptEmbeddedService(response: response)
+
+        let result = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+
+        XCTAssertEqual(result.output, response)
+        XCTAssertEqual(client.chatCompletionCallCount, 1)
+    }
+
+    func testPromptEmbeddedCardValidationAcceptsAbsentActionOwner() async throws {
+        let response = """
+            {
+              "synopsis": "Release readiness review.",
+              "topics": ["release"],
+              "decisions": [],
+              "actions": [
+                {"text":"Verify the appcast","quote":"verify the appcast","startMs":3000,"endMs":4000}
+              ]
+            }
+            """
+        let (service, client) = Self.promptEmbeddedService(response: response)
+
+        let result = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+
+        XCTAssertEqual(result.output, response)
+        XCTAssertEqual(client.chatCompletionCallCount, 1)
+    }
+
+    func testPromptEmbeddedCardValidationAcceptsExtraTopLevelKey() async throws {
+        let response = """
+            {
+              "synopsis": "Release readiness review.",
+              "topics": ["release"],
+              "decisions": [],
+              "actions": [],
+              "confidence": 0.9
+            }
+            """
+        let (service, client) = Self.promptEmbeddedService(response: response)
+
+        let result = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+
+        XCTAssertEqual(result.output, response)
+        XCTAssertEqual(client.chatCompletionCallCount, 1)
+    }
+
+    func testPromptEmbeddedCardValidationRejectsMissingRequiredKey() async throws {
+        let response = """
+            {
+              "topics": ["release"],
+              "decisions": [],
+              "actions": []
+            }
+            """
+        let (service, client) = Self.promptEmbeddedService(response: response)
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+        }
+
+        XCTAssertEqual(client.chatCompletionCallCount, 2)
+    }
+
+    func testPromptEmbeddedCardValidationRejectsMistypedRequiredField() async throws {
+        let response = """
+            {
+              "synopsis": "Release readiness review.",
+              "topics": "release",
+              "decisions": [],
+              "actions": []
+            }
+            """
+        let (service, client) = Self.promptEmbeddedService(response: response)
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.generateKnowledgeCard(transcript: "Meeting transcript", source: .meeting)
+        }
+
+        XCTAssertEqual(client.chatCompletionCallCount, 2)
+    }
+
     func testKnowledgeCardGenerationEmitsSuccessfulLLMOperationWithRetryAndTokenUsage() async throws {
         let telemetry = CardTelemetrySpy()
         Telemetry.configure(telemetry)
@@ -405,6 +496,20 @@ final class CardGenerationServiceTests: XCTestCase {
           ]
         }
         """
+
+    private static func promptEmbeddedService(response: String) -> (LLMService, MockLLMClient) {
+        let client = MockLLMClient()
+        client.responseContent = response
+        let service = LLMService(
+            client: client,
+            contextResolver: StaticLLMExecutionContextResolver(
+                context: LLMExecutionContext(
+                    providerConfig: .anthropic(apiKey: "test", model: "claude-test")
+                )
+            )
+        )
+        return (service, client)
+    }
 
     private static func responseJSON(
         synopsis: String,

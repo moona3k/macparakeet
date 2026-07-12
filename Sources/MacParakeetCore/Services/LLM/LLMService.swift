@@ -326,7 +326,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         guard let data = output.data(using: .utf8),
             let object = try? JSONSerialization.jsonObject(with: data),
             let card = object as? [String: Any],
-            Set(card.keys) == ["synopsis", "topics", "decisions", "actions"],
+            Set(["synopsis", "topics", "decisions", "actions"]).isSubset(of: Set(card.keys)),
             card["synopsis"] is String,
             let topics = card["topics"] as? [Any],
             topics.allSatisfy({ $0 is String }),
@@ -342,11 +342,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     private static func isValidCitationObject(_ value: Any, includesOwner: Bool) -> Bool {
         guard let item = value as? [String: Any] else { return false }
-        let requiredKeys: Set<String> =
-            includesOwner
-            ? ["text", "owner", "quote", "startMs", "endMs"]
-            : ["text", "quote", "startMs", "endMs"]
-        guard Set(item.keys) == requiredKeys,
+        let requiredKeys: Set<String> = ["text", "quote", "startMs", "endMs"]
+        guard requiredKeys.isSubset(of: Set(item.keys)),
             item["text"] is String,
             item["quote"] is String,
             item["startMs"] is Int,
@@ -354,7 +351,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         else {
             return false
         }
-        return !includesOwner || item["owner"] is String
+        guard includesOwner, let owner = item["owner"] else { return true }
+        return owner is String || owner is NSNull
     }
 
     public func chat(
