@@ -1205,6 +1205,55 @@ public final class DatabaseManager: Sendable {
                 """)
         }
 
+        // v0.28 — Derived per-recording knowledge cards and their small
+        // external-content FTS5 index. Raw SQL is intentional: historical
+        // migrations must never depend on evolving Codable card models.
+        migrator.registerMigration("v0.28-cards") { db in
+            try db.execute(sql: """
+                CREATE TABLE cards (
+                    transcriptionId TEXT PRIMARY KEY
+                        REFERENCES transcriptions(id) ON DELETE CASCADE,
+                    cardSchemaVersion INTEGER NOT NULL,
+                    transcriptHash TEXT NOT NULL,
+                    segmenterVersion INTEGER NOT NULL,
+                    promptVersion TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    generatedAt TEXT NOT NULL,
+                    synopsis TEXT NOT NULL,
+                    topics TEXT NOT NULL,
+                    decisions TEXT NOT NULL,
+                    actions TEXT NOT NULL
+                )
+                """)
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE cards_fts USING fts5(
+                    synopsis, topics,
+                    content='cards', content_rowid='rowid',
+                    tokenize='unicode61 remove_diacritics 2'
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER cards_ai AFTER INSERT ON cards BEGIN
+                    INSERT INTO cards_fts(rowid, synopsis, topics)
+                    VALUES (new.rowid, new.synopsis, new.topics);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER cards_ad AFTER DELETE ON cards BEGIN
+                    INSERT INTO cards_fts(cards_fts, rowid, synopsis, topics)
+                    VALUES ('delete', old.rowid, old.synopsis, old.topics);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER cards_au AFTER UPDATE ON cards BEGIN
+                    INSERT INTO cards_fts(cards_fts, rowid, synopsis, topics)
+                    VALUES ('delete', old.rowid, old.synopsis, old.topics);
+                    INSERT INTO cards_fts(rowid, synopsis, topics)
+                    VALUES (new.rowid, new.synopsis, new.topics);
+                END
+                """)
+        }
+
         return migrator
     }
 

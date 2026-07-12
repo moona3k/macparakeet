@@ -289,6 +289,10 @@ private final class FailingReplaceSegmentRepository: SegmentRepositoryProtocol, 
     func replaceSegments(for transcription: Transcription) throws {
         throw SegmentReplacementTestError.replacementFailed
     }
+
+    func fetch(transcriptionId: UUID) throws -> [Segment] {
+        try delegate.fetch(transcriptionId: transcriptionId)
+    }
 }
 
 final class TranscriptionServiceTests: XCTestCase {

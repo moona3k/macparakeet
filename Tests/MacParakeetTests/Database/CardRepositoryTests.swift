@@ -1,0 +1,278 @@
+import GRDB
+import XCTest
+@testable import MacParakeetCore
+
+final class CardRepositoryTests: XCTestCase {
+    private var manager: DatabaseManager!
+    private var transcriptions: TranscriptionRepository!
+    private var cards: CardRepository!
+
+    override func setUpWithError() throws {
+        manager = try DatabaseManager()
+        transcriptions = TranscriptionRepository(dbQueue: manager.dbQueue)
+        cards = CardRepository(dbQueue: manager.dbQueue)
+    }
+
+    func testSaveRoundTripsJSONFieldsAndStalenessTuple() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let card = makeCard(transcriptionId: transcription.id)
+
+        try cards.save(card)
+
+        XCTAssertEqual(try cards.fetch(transcriptionId: transcription.id), card)
+        XCTAssertFalse(
+            try cards.isStale(
+                transcriptionId: transcription.id,
+                current: card.provenance
+            ))
+        XCTAssertTrue(
+            try cards.isStale(
+                transcriptionId: transcription.id,
+                current: CardProvenance(
+                    transcriptHash: "changed",
+                    segmenterVersion: card.segmenterVersion,
+                    promptVersion: card.promptVersion,
+                    cardSchemaVersion: card.cardSchemaVersion
+                )
+            ))
+        let staleTuples = [
+            CardProvenance(
+                transcriptHash: card.transcriptHash,
+                segmenterVersion: 99,
+                promptVersion: card.promptVersion,
+                cardSchemaVersion: card.cardSchemaVersion
+            ),
+            CardProvenance(
+                transcriptHash: card.transcriptHash,
+                segmenterVersion: card.segmenterVersion,
+                promptVersion: "changed-prompt",
+                cardSchemaVersion: card.cardSchemaVersion
+            ),
+            CardProvenance(
+                transcriptHash: card.transcriptHash,
+                segmenterVersion: card.segmenterVersion,
+                promptVersion: card.promptVersion,
+                cardSchemaVersion: 99
+            ),
+        ]
+        for provenance in staleTuples {
+            XCTAssertTrue(
+                try cards.isStale(
+                    transcriptionId: transcription.id,
+                    current: provenance
+                ))
+        }
+        XCTAssertTrue(
+            try cards.isStale(
+                transcriptionId: UUID(),
+                current: card.provenance
+            ))
+    }
+
+    func testSaveEnforcesCardTextBudgetAtRepositoryBoundary() throws {
+        let transcription = makeTranscription(source: .file)
+        try transcriptions.save(transcription)
+        var card = makeCard(transcriptionId: transcription.id)
+        card.topics = (0..<500).map { "topic\($0)" }
+
+        try cards.save(card)
+
+        let stored = try XCTUnwrap(cards.fetch(transcriptionId: transcription.id))
+        XCTAssertLessThan(stored.topics.count, card.topics.count)
+        XCTAssertLessThanOrEqual(
+            CardTextBudget.estimatedTokenCount(stored),
+            CardTextBudget.maximumTokens
+        )
+    }
+
+    func testBudgetPreservesSynopsisWhenCandidateFieldsAloneAreTooLarge() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        var card = makeCard(transcriptionId: transcription.id)
+        card.actions = (0..<100).map { index in
+            CardAction(
+                text: String(repeating: "oversized action \(index) ", count: 20),
+                owner: nil,
+                seqStart: index,
+                seqEnd: index,
+                startMs: nil,
+                endMs: nil
+            )
+        }
+
+        try cards.save(card)
+
+        let stored = try XCTUnwrap(cards.fetch(transcriptionId: transcription.id))
+        XCTAssertFalse(stored.synopsis.isEmpty)
+        XCTAssertLessThan(stored.actions.count, card.actions.count)
+        XCTAssertLessThanOrEqual(
+            CardTextBudget.estimatedTokenCount(stored),
+            CardTextBudget.maximumTokens
+        )
+    }
+
+    func testListJoinsDeterministicFieldsAndSourceConditionalAttendees() throws {
+        let attendee = MeetingCalendarPerson(name: "Dana", email: "dana@example.com")
+        let calendar = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "event",
+            title: "Planning",
+            scheduledStartAt: Date(timeIntervalSince1970: 1_800_000_000),
+            scheduledEndAt: Date(timeIntervalSince1970: 1_800_003_600),
+            attendees: [attendee]
+        )
+        let meeting = makeTranscription(
+            source: .meeting,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            durationMs: 3_600_000,
+            calendar: calendar
+        )
+        let file = makeTranscription(
+            source: .file,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            durationMs: nil
+        )
+        try transcriptions.save(meeting)
+        try transcriptions.save(file)
+        try cards.save(makeCard(transcriptionId: meeting.id))
+        try cards.save(makeCard(transcriptionId: file.id, decisions: [], actions: []))
+
+        let rows = try cards.list(CardListQuery(limit: 10))
+
+        XCTAssertEqual(rows.map(\.transcriptionId), [meeting.id, file.id])
+        XCTAssertEqual(rows[0].title, meeting.fileName)
+        XCTAssertEqual(rows[0].date, meeting.createdAt)
+        XCTAssertEqual(rows[0].durationMs, 3_600_000)
+        XCTAssertEqual(rows[0].source, .meeting)
+        XCTAssertEqual(rows[0].attendees, [CardAttendee(name: attendee.name, email: attendee.email)])
+        XCTAssertEqual(rows[1].source, .file)
+        XCTAssertNil(rows[1].attendees)
+        XCTAssertTrue(rows[1].decisions.isEmpty)
+        XCTAssertTrue(rows[1].actions.isEmpty)
+    }
+
+    func testListTimeFiltersComposeWithSourcePredicate() throws {
+        let oldMeeting = makeTranscription(
+            source: .meeting,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+        let recentMeeting = makeTranscription(
+            source: .meeting,
+            createdAt: Date(timeIntervalSince1970: 300)
+        )
+        let recentFile = makeTranscription(
+            source: .file,
+            createdAt: Date(timeIntervalSince1970: 300)
+        )
+        for transcription in [oldMeeting, recentMeeting, recentFile] {
+            try transcriptions.save(transcription)
+            try cards.save(makeCard(transcriptionId: transcription.id))
+        }
+
+        let rows = try cards.list(
+            CardListQuery(
+                since: Date(timeIntervalSince1970: 200),
+                until: Date(timeIntervalSince1970: 400),
+                source: .meeting,
+                limit: 10
+            ))
+
+        XCTAssertEqual(rows.map(\.transcriptionId), [recentMeeting.id])
+    }
+
+    func testCompletedTranscriptionIDsExcludeInProgressRows() throws {
+        let completed = makeTranscription(source: .meeting)
+        var processing = makeTranscription(source: .file)
+        processing.status = .processing
+        try transcriptions.save(completed)
+        try transcriptions.save(processing)
+
+        XCTAssertEqual(try cards.completedTranscriptionIDs(), [completed.id])
+    }
+
+    func testURLSourceFilterIncludesYouTubeAndPodcast() throws {
+        let meeting = makeTranscription(source: .meeting)
+        let youtube = makeTranscription(source: .youtube)
+        let podcast = makeTranscription(source: .podcast)
+        for transcription in [meeting, youtube, podcast] {
+            try transcriptions.save(transcription)
+            try cards.save(makeCard(transcriptionId: transcription.id))
+        }
+
+        let rows = try cards.list(CardListQuery(source: .url, limit: 10))
+
+        XCTAssertEqual(Set(rows.map(\.transcriptionId)), [youtube.id, podcast.id])
+        XCTAssertTrue(rows.allSatisfy { $0.source == .url })
+        XCTAssertTrue(rows.allSatisfy { $0.decisions.isEmpty && $0.actions.isEmpty })
+    }
+
+    func testCardsFTSStaysSynchronizedAcrossInsertUpdateDelete() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        var card = makeCard(transcriptionId: transcription.id)
+        try cards.save(card)
+        XCTAssertEqual(try ftsCount(matching: "sparkle"), 1)
+
+        card.synopsis = "Discussed release notarization."
+        card.topics = ["distribution"]
+        try cards.save(card)
+        XCTAssertEqual(try ftsCount(matching: "sparkle"), 0)
+        XCTAssertEqual(try ftsCount(matching: "notarization"), 1)
+
+        try cards.delete(transcriptionId: transcription.id)
+        XCTAssertEqual(try ftsCount(matching: "notarization"), 0)
+    }
+
+    private func makeTranscription(
+        source: Transcription.SourceType,
+        createdAt: Date = Date(timeIntervalSince1970: 1_800_000_000),
+        durationMs: Int? = 1_000,
+        calendar: MeetingCalendarSnapshot? = nil
+    ) -> Transcription {
+        Transcription(
+            createdAt: createdAt,
+            fileName: source == .meeting ? "Knowledge Review" : "notes.m4a",
+            durationMs: durationMs,
+            rawTranscript: "Discussed Sparkle cache busting.",
+            status: .completed,
+            sourceType: source,
+            calendarEventSnapshot: calendar,
+            updatedAt: createdAt
+        )
+    }
+
+    private func makeCard(
+        transcriptionId: UUID,
+        decisions: [CardDecision] = [
+            CardDecision(text: "Ship cache busting", seqStart: 0, seqEnd: 0, startMs: 100, endMs: 200)
+        ],
+        actions: [CardAction] = [
+            CardAction(text: "Verify appcast", owner: "Dana", seqStart: 1, seqEnd: 1, startMs: nil, endMs: nil)
+        ]
+    ) -> Card {
+        Card(
+            transcriptionId: transcriptionId,
+            cardSchemaVersion: 1,
+            transcriptHash: "hash",
+            segmenterVersion: 2,
+            promptVersion: "knowledge-card-v1",
+            model: "stub-model",
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_100),
+            synopsis: "Discussed Sparkle cache busting.",
+            topics: ["Sparkle", "cache invalidation"],
+            decisions: decisions,
+            actions: actions
+        )
+    }
+
+    private func ftsCount(matching query: String) throws -> Int {
+        try manager.dbQueue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT count(*) FROM cards_fts WHERE cards_fts MATCH ?",
+                arguments: [query]
+            ) ?? 0
+        }
+    }
+}

@@ -670,6 +670,35 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(llm.summarizeCallCount, 0)
     }
 
+    func testAutoGeneratePromptResultsAlsoQueuesKnowledgeCardWhenProviderIsConfigured() async {
+        for index in promptRepo.prompts.indices {
+            promptRepo.prompts[index].isAutoRun = false
+        }
+        let cardGenerator = RecordingCardGenerator()
+        let transcriptionID = UUID()
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            cardGenerator: cardGenerator
+        )
+
+        let queuedIDs = viewModel.autoGeneratePromptResults(
+            transcript: "A completed meeting transcript.",
+            transcriptionId: transcriptionID,
+            sourceType: .meeting
+        )
+
+        XCTAssertTrue(queuedIDs.isEmpty)
+        var generatedIDs: [UUID] = []
+        for _ in 0..<20 {
+            generatedIDs = await cardGenerator.transcriptionIDs
+            if !generatedIDs.isEmpty { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(generatedIDs, [transcriptionID])
+    }
+
     func testAutoGeneratePromptResultsRespectsSourceScoping() {
         // One unscoped (all sources) + one meeting-only auto-run prompt.
         promptRepo.prompts = [
@@ -990,3 +1019,12 @@ final class PromptResultsViewModelTests: XCTestCase {
 }
 
 private struct PromptAutoRunFetchError: Error {}
+
+private actor RecordingCardGenerator: CardGenerating {
+    private(set) var transcriptionIDs: [UUID] = []
+
+    func generate(transcriptionId: UUID, force _: Bool) async throws -> CardGenerationOutcome {
+        transcriptionIDs.append(transcriptionId)
+        return CardGenerationOutcome(card: nil, usage: nil, wasSkipped: true)
+    }
+}

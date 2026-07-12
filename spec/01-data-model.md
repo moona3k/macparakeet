@@ -19,6 +19,7 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 ┌──────────────────┐       ┌─────────────────────────┐
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
 │                  │◄──FK──│      summaries          │  v0.7 — Prompt results per transcript
+│                  │◄──FK──│        cards            │  v0.28 — Derived knowledge cards
 └──────────────────┘       └─────────────────────────┘
    v0.1 — File transcription records
 
@@ -48,7 +49,13 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 └───────────────────────┘
 ```
 
-Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `llm_runs` has nullable foreign-key columns back to the feature-owned source rows that triggered each LLM call. At least one `llm_runs` source link is required. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
+Tables are self-contained domains except for derived or child records:
+`chat_conversations`, `summaries`, and `cards` have foreign keys to
+`transcriptions` with cascading delete, while `llm_runs` has nullable
+foreign-key columns back to the feature-owned source rows that triggered each
+LLM call. At least one `llm_runs` source link is required. The Swift model for
+`summaries` is `PromptResult`; the table name is retained for migration
+compatibility.
 
 ---
 
@@ -215,6 +222,47 @@ INSERT/UPDATE/DELETE triggers keep the external-content index synchronized.
 legacy/no-timing pseudo-segmentation uses explicit Unicode-scalar boundaries
 without locale or NaturalLanguage dependencies. Dictations are not populated.
 `macparakeet-cli search-reindex` rebuilds both layers outside migrations.
+Version 2 fixes mixed word-token whitespace and punctuation joining; same-version
+rebuilds remain byte-identical.
+
+---
+
+### `cards` + `cards_fts` (v0.28)
+
+One compact, derived knowledge card per completed meeting or file/URL
+transcription. The transcription row remains canonical; cards are disposable
+and regenerated when their provenance tuple is stale.
+
+```sql
+CREATE TABLE cards (
+    transcriptionId TEXT PRIMARY KEY REFERENCES transcriptions(id) ON DELETE CASCADE,
+    cardSchemaVersion INTEGER NOT NULL,
+    transcriptHash TEXT NOT NULL,
+    segmenterVersion INTEGER NOT NULL,
+    promptVersion TEXT NOT NULL,
+    model TEXT NOT NULL,
+    generatedAt TEXT NOT NULL,
+    synopsis TEXT NOT NULL,
+    topics TEXT NOT NULL,
+    decisions TEXT NOT NULL,
+    actions TEXT NOT NULL
+);
+CREATE VIRTUAL TABLE cards_fts USING fts5(
+    synopsis, topics,
+    content='cards', content_rowid='rowid',
+    tokenize='unicode61 remove_diacritics 2'
+);
+```
+
+`topics`, `decisions`, and `actions` are JSON text. Meeting decisions/actions
+are candidates with resolved segment sequence ranges; unresolvable model
+citations are dropped. File/URL cards store empty decision/action arrays.
+INSERT/UPDATE/DELETE triggers synchronize `cards_fts`. Staleness compares
+`transcriptHash`, `promptVersion`, `cardSchemaVersion`, and
+`segmenterVersion`; `model` and `generatedAt` are audit provenance but do not
+independently force regeneration. Writes enforce the approximate 350-token
+card budget, removing topics before truncating synopsis, and replace the old
+row only after a new card validates.
 
 ---
 
@@ -1178,6 +1226,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.25 — transcriptions.calendarEventSnapshot (raw SQL additive column)
 // v0.26 — transcriptions.titleOverride (raw SQL additive column)
 // v0.27 — derived segments + external-content segments_fts (raw SQL)
+// v0.28 — derived cards + external-content cards_fts (raw SQL)
 ```
 
 ### Migration Rules
@@ -1203,6 +1252,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
 | `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
 | `segments` / `segments_fts` | v0.27 | Derived, rebuildable meeting + file/URL retrieval segments and external-content FTS5 index; dictations excluded |
+| `cards` / `cards_fts` | v0.28 | Derived per-recording knowledge cards with provenance, cited candidates, and synopsis/topic FTS; dictations excluded |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |

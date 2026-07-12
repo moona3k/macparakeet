@@ -19,6 +19,7 @@ process.
   - `DictationRepository.swift` — dictation history + lifetime stats.
   - `TranscriptionRepository.swift` — file/YouTube/meeting transcriptions.
   - `SegmentRepository.swift` — derived transcript segments, FTS5 search, slicing, and deterministic rebuilds.
+  - `CardRepository.swift` — derived per-recording knowledge cards, provenance staleness, deterministic joins, and card FTS sync.
   - `CustomWordRepository.swift` — vocabulary entries.
   - `TextSnippetRepository.swift` — snippets (text + action).
   - `PromptRepository.swift` — prompt-library entries.
@@ -73,6 +74,14 @@ must bump the version. Rebuilds replace one transcription per write transaction
 so normal app writes can interleave, and retranscription invalidates old derived
 rows before publishing a newly completed transcript so stale text is never
 searchable under the new canonical row.
+
+**Cards are failure-safe derived state.** `CardRepository` enforces the
+approximate 350-token persistence budget on every write. Generation validates
+JSON, resolves citations against current-version segments, and applies
+source-conditional fields before the single upsert, so a malformed, cancelled,
+or failed replacement never deletes the previous valid card. Card staleness is
+the four-field tuple `(transcriptHash, promptVersion, cardSchemaVersion,
+segmenterVersion)`; model and generation time are audit provenance only.
 
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a

@@ -212,7 +212,8 @@ final class AppEnvironmentConfigurer {
             transcriptionRepo: env.transcriptionRepo,
             meetingArtifactStore: MeetingArtifactStore(),
             configStore: env.llmConfigStore,
-            llmClient: env.llmClient
+            llmClient: env.llmClient,
+            cardGenerator: hasLLMConfig ? env.cardGenerationService : nil
         )
 
         chatViewModel.onConversationsChanged = { [weak self] transcriptionID, hasConversations in
@@ -497,7 +498,10 @@ final class AppEnvironmentConfigurer {
         let service: LLMService? = hasConfig ? env.llmService : nil
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
         chatViewModel.updateLLMService(service)
-        promptResultsViewModel.updateLLMService(service)
+        promptResultsViewModel.updateLLMService(
+            service,
+            cardGenerator: hasConfig ? env.cardGenerationService : nil
+        )
         transformsViewModel.setHasLLMProvider(hasConfig)
         liveMeetingCoordinator?.updateLLMService(service)
     }

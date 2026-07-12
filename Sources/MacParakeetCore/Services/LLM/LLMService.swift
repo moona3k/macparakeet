@@ -97,6 +97,51 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         additionalProperties: false
     )
 
+    public static let knowledgeCardResponseFormat: ChatResponseFormat = {
+        let citationProperties: [String: ChatJSONSchemaProperty] = [
+            "text": ChatJSONSchemaProperty(type: "string"),
+            "quote": ChatJSONSchemaProperty(type: "string"),
+            "startMs": ChatJSONSchemaProperty(type: "integer"),
+            "endMs": ChatJSONSchemaProperty(type: "integer"),
+        ]
+        let actionProperties = citationProperties.merging([
+            "owner": ChatJSONSchemaProperty(type: "string")
+        ]) { current, _ in current }
+        return .jsonSchema(
+            name: "knowledge_card",
+            schema: ChatJSONSchema(
+                type: "object",
+                properties: [
+                    "synopsis": ChatJSONSchemaProperty(type: "string"),
+                    "topics": ChatJSONSchemaProperty(
+                        type: "array",
+                        items: ChatJSONSchemaArrayItem(type: "string")
+                    ),
+                    "decisions": ChatJSONSchemaProperty(
+                        type: "array",
+                        items: ChatJSONSchemaArrayItem(
+                            type: "object",
+                            properties: citationProperties,
+                            required: ["text", "quote", "startMs", "endMs"],
+                            additionalProperties: false
+                        )
+                    ),
+                    "actions": ChatJSONSchemaProperty(
+                        type: "array",
+                        items: ChatJSONSchemaArrayItem(
+                            type: "object",
+                            properties: actionProperties,
+                            required: ["text", "owner", "quote", "startMs", "endMs"],
+                            additionalProperties: false
+                        )
+                    ),
+                ],
+                required: ["synopsis", "topics", "decisions", "actions"],
+                additionalProperties: false
+            )
+        )
+    }()
+
     // Context budgets (characters). Sized for 2026 model norms: every modern
     // cloud provider ships at least a 200K-token context, and local models on
     // Apple Silicon (Llama 4 / Qwen / Gemma / Mistral) routinely have 32K+
@@ -138,6 +183,45 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt).output
+    }
+
+    public func generateKnowledgeCard(transcript: String, source: CardSource) async throws -> LLMResult {
+        let startedAt = Date()
+        let context = try loadContext()
+        let sourceInstructions: String
+        switch source {
+        case .meeting:
+            sourceInstructions = "Extract synopsis, topics, candidate decisions, and candidate actions."
+        case .file, .url:
+            sourceInstructions = "Extract synopsis and topics. Return empty decisions and actions arrays."
+        }
+        let systemPrompt = """
+            Build a compact knowledge-index card from one transcript. \(sourceInstructions)
+            Optimize for findability: preserve concrete names, nouns, numbers, products, and vocabulary used.
+            Keep all card text together under about 350 tokens. Synopsis must be 2-3 concise sentences.
+            For each decision/action, include a short approximate verbatim quote and approximate startMs/endMs;
+            use -1 when no timestamp is available. Do not invent decisions, actions, owners, quotes, or times.
+            Return only JSON matching the supplied schema.
+            """
+        let assembly = buildPromptResultMessages(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            config: context.providerConfig
+        )
+        let response = try await client.chatCompletion(
+            messages: assembly.messages,
+            context: context,
+            options: ChatCompletionOptions(
+                temperature: 0.1,
+                maxTokens: 700,
+                responseFormat: Self.knowledgeCardResponseFormat
+            )
+        )
+        return LLMResult(
+            response: response,
+            provider: context.providerConfig.id,
+            latencyMs: Self.latencyMs(since: startedAt)
+        )
     }
 
     public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {

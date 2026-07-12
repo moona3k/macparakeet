@@ -135,6 +135,59 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testCardsMigrationCreatesTableFTSAndTriggers() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("cards"))
+            XCTAssertTrue(try db.tableExists("cards_fts"))
+            XCTAssertEqual(
+                Set(try db.columns(in: "cards").map(\.name)),
+                [
+                    "transcriptionId", "cardSchemaVersion", "transcriptHash",
+                    "segmenterVersion", "promptVersion", "model", "generatedAt",
+                    "synopsis", "topics", "decisions", "actions",
+                ]
+            )
+            let triggers = Set(
+                try String.fetchAll(
+                    db,
+                    sql: "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'cards'"
+                )
+            )
+            XCTAssertEqual(triggers, ["cards_ai", "cards_ad", "cards_au"])
+        }
+    }
+
+    func testCardsMigrationPreservesExistingTranscriptionRows() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("cards_migration_\(UUID().uuidString).db").path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let transcription = Transcription(
+            fileName: "Existing meeting",
+            rawTranscript: "Keep this transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let manager1 = try DatabaseManager(path: dbPath)
+        try TranscriptionRepository(dbQueue: manager1.dbQueue).save(transcription)
+        try manager1.dbQueue.write { db in
+            try db.execute(sql: "DROP TABLE cards_fts")
+            try db.execute(sql: "DROP TABLE cards")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.28-cards"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        let preserved = try TranscriptionRepository(dbQueue: manager2.dbQueue).fetch(id: transcription.id)
+        XCTAssertEqual(preserved?.rawTranscript, "Keep this transcript")
+        XCTAssertTrue(try manager2.dbQueue.read { try $0.tableExists("cards") })
+        XCTAssertEqual(try manager2.dbQueue.read { try Card.fetchCount($0) }, 0)
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")

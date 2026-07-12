@@ -13,6 +13,7 @@ final class AppEnvironment {
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
     let segmentRepo: SegmentRepository
+    let cardRepo: CardRepository
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
@@ -52,6 +53,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let cardGenerationService: CardGenerationService
     let runtimePreferences: AppRuntimePreferencesProtocol
     let derivedFieldsBackfill: DerivedFieldsBackfillService
 
@@ -62,6 +64,7 @@ final class AppEnvironment {
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
         segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
+        cardRepo = CardRepository(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
@@ -296,6 +299,12 @@ final class AppEnvironment {
                 configStore: llmConfigStore,
                 cliConfigStore: LocalCLIConfigStore()
             )
+        )
+        cardGenerationService = CardGenerationService(
+            transcriptionRepository: transcriptionRepo,
+            segmentRepository: segmentRepo,
+            cardRepository: cardRepo,
+            completionProvider: llmService
         )
 
         dictationService = DictationService(

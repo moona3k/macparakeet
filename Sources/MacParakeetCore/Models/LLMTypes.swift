@@ -28,9 +28,30 @@ public struct ChatMessage: Codable, Sendable, Equatable {
 
 public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
     public let type: String
+    public let items: ChatJSONSchemaArrayItem?
 
-    public init(type: String) {
+    public init(type: String, items: ChatJSONSchemaArrayItem? = nil) {
         self.type = type
+        self.items = items
+    }
+}
+
+public struct ChatJSONSchemaArrayItem: Codable, Sendable, Equatable {
+    public let type: String
+    public let properties: [String: ChatJSONSchemaProperty]?
+    public let required: [String]?
+    public let additionalProperties: Bool?
+
+    public init(
+        type: String,
+        properties: [String: ChatJSONSchemaProperty]? = nil,
+        required: [String]? = nil,
+        additionalProperties: Bool? = nil
+    ) {
+        self.type = type
+        self.properties = properties
+        self.required = required
+        self.additionalProperties = additionalProperties
     }
 }
 

@@ -81,6 +81,7 @@ public struct SegmentReindexResult: Codable, Sendable, Equatable {
 public protocol SegmentRepositoryProtocol: Sendable {
     func deleteSegments(transcriptionId: UUID) throws
     func replaceSegments(for transcription: Transcription) throws
+    func fetch(transcriptionId: UUID) throws -> [Segment]
 }
 
 public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Sendable {
