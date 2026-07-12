@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 public protocol CardCompletionProviding: Sendable {
@@ -23,12 +22,13 @@ public struct CardGenerationOutcome: Sendable, Equatable {
     }
 }
 
-public enum CardGenerationError: Error, LocalizedError, Sendable {
+public enum CardGenerationError: Error, LocalizedError, Sendable, Equatable {
     case transcriptionNotFound
     case transcriptionIncomplete
     case emptyTranscript
     case malformedResponse
     case emptySynopsis
+    case sourceChangedDuringGeneration
 
     public var errorDescription: String? {
         switch self {
@@ -37,6 +37,8 @@ public enum CardGenerationError: Error, LocalizedError, Sendable {
         case .emptyTranscript: "Knowledge cards require non-empty transcript content."
         case .malformedResponse: "The LLM returned a malformed knowledge card."
         case .emptySynopsis: "The LLM returned a knowledge card without a synopsis."
+        case .sourceChangedDuringGeneration:
+            "The transcript changed while its knowledge card was being generated."
         }
     }
 }
@@ -74,7 +76,7 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         guard !context.isEmpty else { throw CardGenerationError.emptyTranscript }
 
         let provenance = CardProvenance(
-            transcriptHash: Self.sha256(context),
+            transcriptHash: CardContentFingerprint.transcriptHash(for: context),
             segmenterVersion: KnowledgeSegmenter.currentVersion,
             promptVersion: Card.currentPromptVersion,
             cardSchemaVersion: Card.currentSchemaVersion
@@ -90,6 +92,19 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
             transcript: context,
             source: source
         )
+        try Task.checkCancellation()
+        guard let currentTranscription = try transcriptionRepository.fetch(id: transcriptionId),
+            currentTranscription.status == .completed
+        else {
+            throw CardGenerationError.sourceChangedDuringGeneration
+        }
+        let currentContext = TranscriptAIContextFormatter.format(transcription: currentTranscription)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !currentContext.isEmpty,
+            CardContentFingerprint.transcriptHash(for: currentContext) == provenance.transcriptHash
+        else {
+            throw CardGenerationError.sourceChangedDuringGeneration
+        }
         let draft: CardDraft
         do {
             draft = try JSONDecoder().decode(CardDraft.self, from: Data(result.output.utf8))
@@ -105,9 +120,14 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
                 $0.segmenterVersion != KnowledgeSegmenter.currentVersion
             })
         {
-            try segmentRepository.replaceSegments(for: transcription)
+            try Task.checkCancellation()
+            try segmentRepository.replaceSegments(for: currentTranscription)
             segments = try segmentRepository.fetch(transcriptionId: transcriptionId)
         }
+        let generationSnapshot = CardGenerationSnapshot(
+            transcriptHash: provenance.transcriptHash,
+            segmentsHash: CardContentFingerprint.segmentsHash(segments)
+        )
         let decisions =
             source == .meeting
             ? draft.decisions.compactMap { item -> CardDecision? in
@@ -135,7 +155,7 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
                 )
             }
             : []
-        var card = Card(
+        let card = Card(
             transcriptionId: transcriptionId,
             cardSchemaVersion: provenance.cardSchemaVersion,
             transcriptHash: provenance.transcriptHash,
@@ -148,13 +168,14 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
             decisions: decisions.filter { !$0.text.isEmpty },
             actions: actions.filter { !$0.text.isEmpty }
         )
-        card = CardTextBudget.enforce(card)
-
         // Failure-safe replacement: the previous row remains untouched until
         // parsing, citation resolution, source conditioning, and budgeting all
         // succeed. A failed save is atomic and never requires delete/restore.
-        try cardRepository.save(card)
-        return CardGenerationOutcome(card: card, usage: result.usage, wasSkipped: false)
+        try Task.checkCancellation()
+        guard let savedCard = try cardRepository.saveIfCurrent(card, expected: generationSnapshot) else {
+            throw CardGenerationError.sourceChangedDuringGeneration
+        }
+        return CardGenerationOutcome(card: savedCard, usage: result.usage, wasSkipped: false)
     }
 
     private static func resolve(item: CardDraftCitation, segments: [Segment]) -> CardCitationRange? {
@@ -182,9 +203,6 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         return trimmed
     }
 
-    private static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
 }
 
 private struct CardDraft: Decodable {
@@ -225,25 +243,25 @@ public enum CardCitationResolver {
     ) -> CardCitationRange? {
         guard !segments.isEmpty else { return nil }
         let normalizedQuote = normalize(quote)
-        if !normalizedQuote.isEmpty,
-            let matched = bestTextWindow(normalizedQuote, segments: segments)
-        {
-            return range(for: matched)
-        }
-
-        if let approximateStartMs {
-            let upper = approximateEndMs ?? approximateStartMs
-            let timed = segments.filter { segment in
-                guard let start = segment.startMs else { return false }
-                let end = segment.endMs ?? start
-                return start <= upper && end >= approximateStartMs
+        guard !normalizedQuote.isEmpty else { return nil }
+        let matches = bestTextWindows(normalizedQuote, segments: segments)
+        if matches.count == 1 { return range(for: matches[0]) }
+        guard matches.count > 1, let approximateStartMs else { return nil }
+        let upper = approximateEndMs ?? approximateStartMs
+        let timestampMatches = matches.filter { window in
+            guard let first = window.min(by: { $0.seq < $1.seq }),
+                let last = window.max(by: { $0.seq < $1.seq }),
+                let start = first.startMs
+            else {
+                return false
             }
-            if !timed.isEmpty { return range(for: timed) }
+            let end = last.endMs ?? last.startMs ?? start
+            return start <= upper && end >= approximateStartMs
         }
-        return nil
+        return timestampMatches.count == 1 ? range(for: timestampMatches[0]) : nil
     }
 
-    private static func bestTextWindow(_ quote: String, segments: [Segment]) -> [Segment]? {
+    private static func bestTextWindows(_ quote: String, segments: [Segment]) -> [[Segment]] {
         let quoteTokens = Set(tokens(quote))
         for length in 1...min(3, segments.count) {
             var exactMatches: [[Segment]] = []
@@ -254,8 +272,7 @@ public enum CardCitationResolver {
                     exactMatches.append(window)
                 }
             }
-            if exactMatches.count == 1 { return exactMatches[0] }
-            if exactMatches.count > 1 { return nil }
+            if !exactMatches.isEmpty { return exactMatches }
         }
 
         var bestScore = 0.0
@@ -278,7 +295,7 @@ public enum CardCitationResolver {
                 }
             }
         }
-        return bestMatches.count == 1 ? bestMatches[0] : nil
+        return bestMatches
     }
 
     private static func range(for matched: [Segment]) -> CardCitationRange? {

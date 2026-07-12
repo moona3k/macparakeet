@@ -1,6 +1,8 @@
 import Foundation
 
 struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
+    let structuredOutputCapability = LLMStructuredOutputCapability.nativeJSONSchema
+
     private let transport: LLMHTTPTransport
 
     init(transport: LLMHTTPTransport) {

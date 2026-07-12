@@ -1226,30 +1226,90 @@ public final class DatabaseManager: Sendable {
                 )
                 """)
             try db.execute(sql: """
+                CREATE TABLE cards_search_content (
+                    rowid INTEGER PRIMARY KEY,
+                    synopsis TEXT NOT NULL,
+                    topics TEXT NOT NULL
+                )
+                """)
+            try db.execute(sql: """
                 CREATE VIRTUAL TABLE cards_fts USING fts5(
                     synopsis, topics,
-                    content='cards', content_rowid='rowid',
+                    content='cards_search_content', content_rowid='rowid',
                     tokenize='unicode61 remove_diacritics 2'
                 )
                 """)
             try db.execute(sql: """
                 CREATE TRIGGER cards_ai AFTER INSERT ON cards BEGIN
+                    INSERT INTO cards_search_content(rowid, synopsis, topics)
+                    VALUES (
+                        new.rowid,
+                        new.synopsis,
+                        COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(new.topics)),
+                            ''
+                        )
+                    );
                     INSERT INTO cards_fts(rowid, synopsis, topics)
-                    VALUES (new.rowid, new.synopsis, new.topics);
+                    VALUES (
+                        new.rowid,
+                        new.synopsis,
+                        COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(new.topics)),
+                            ''
+                        )
+                    );
                 END
                 """)
             try db.execute(sql: """
                 CREATE TRIGGER cards_ad AFTER DELETE ON cards BEGIN
                     INSERT INTO cards_fts(cards_fts, rowid, synopsis, topics)
-                    VALUES ('delete', old.rowid, old.synopsis, old.topics);
+                    VALUES (
+                        'delete',
+                        old.rowid,
+                        old.synopsis,
+                        COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(old.topics)),
+                            ''
+                        )
+                    );
+                    DELETE FROM cards_search_content WHERE rowid = old.rowid;
                 END
                 """)
             try db.execute(sql: """
                 CREATE TRIGGER cards_au AFTER UPDATE ON cards BEGIN
                     INSERT INTO cards_fts(cards_fts, rowid, synopsis, topics)
-                    VALUES ('delete', old.rowid, old.synopsis, old.topics);
+                    VALUES (
+                        'delete',
+                        old.rowid,
+                        old.synopsis,
+                        COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(old.topics)),
+                            ''
+                        )
+                    );
+                    UPDATE cards_search_content
+                    SET synopsis = new.synopsis,
+                        topics = COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(new.topics)),
+                            ''
+                        )
+                    WHERE rowid = new.rowid;
                     INSERT INTO cards_fts(rowid, synopsis, topics)
-                    VALUES (new.rowid, new.synopsis, new.topics);
+                    VALUES (
+                        new.rowid,
+                        new.synopsis,
+                        COALESCE(
+                            (SELECT group_concat(CAST(value AS TEXT), ' ')
+                             FROM json_each(new.topics)),
+                            ''
+                        )
+                    );
                 END
                 """)
         }

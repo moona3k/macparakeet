@@ -247,9 +247,14 @@ CREATE TABLE cards (
     decisions TEXT NOT NULL,
     actions TEXT NOT NULL
 );
+CREATE TABLE cards_search_content (
+    rowid INTEGER PRIMARY KEY,
+    synopsis TEXT NOT NULL,
+    topics TEXT NOT NULL
+);
 CREATE VIRTUAL TABLE cards_fts USING fts5(
     synopsis, topics,
-    content='cards', content_rowid='rowid',
+    content='cards_search_content', content_rowid='rowid',
     tokenize='unicode61 remove_diacritics 2'
 );
 ```
@@ -257,7 +262,11 @@ CREATE VIRTUAL TABLE cards_fts USING fts5(
 `topics`, `decisions`, and `actions` are JSON text. Meeting decisions/actions
 are candidates with resolved segment sequence ranges; unresolvable model
 citations are dropped. File/URL cards store empty decision/action arrays.
-INSERT/UPDATE/DELETE triggers synchronize `cards_fts`. Staleness compares
+INSERT/UPDATE/DELETE triggers synchronize `cards_search_content` and
+`cards_fts`; the search-content row stores topics as space-joined plain text,
+while `cards.topics` remains JSON. The auxiliary external-content table makes
+FTS `rebuild` deterministic and is intended for the Phase 3 card-search verb.
+Staleness compares
 `transcriptHash`, `promptVersion`, `cardSchemaVersion`, and
 `segmenterVersion`; `model` and `generatedAt` are audit provenance but do not
 independently force regeneration. Writes enforce the approximate 350-token

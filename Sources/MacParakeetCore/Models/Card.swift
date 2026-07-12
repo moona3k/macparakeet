@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 
@@ -17,6 +18,66 @@ public struct CardProvenance: Sendable, Equatable {
         self.segmenterVersion = segmenterVersion
         self.promptVersion = promptVersion
         self.cardSchemaVersion = cardSchemaVersion
+    }
+}
+
+public struct CardGenerationSnapshot: Sendable, Equatable {
+    public var transcriptHash: String
+    public var segmentsHash: String
+
+    public init(transcriptHash: String, segmentsHash: String) {
+        self.transcriptHash = transcriptHash
+        self.segmentsHash = segmentsHash
+    }
+}
+
+public enum CardContentFingerprint {
+    public static func transcriptHash(for transcription: Transcription) -> String {
+        transcriptHash(
+            for: TranscriptAIContextFormatter.format(transcription: transcription)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    public static func transcriptHash(for context: String) -> String {
+        sha256(Data(context.utf8))
+    }
+
+    public static func segmentsHash(_ segments: [Segment]) -> String {
+        let payload = segments.sorted { lhs, rhs in
+            if lhs.seq != rhs.seq { return lhs.seq < rhs.seq }
+            return lhs.transcriptionId.uuidString < rhs.transcriptionId.uuidString
+        }.map(SegmentFingerprint.init)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(payload) else {
+            preconditionFailure("Card segment fingerprint encoding failed")
+        }
+        return sha256(data)
+    }
+
+    private static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private struct SegmentFingerprint: Encodable {
+        var transcriptionId: UUID
+        var seq: Int
+        var startMs: Int?
+        var endMs: Int?
+        var speaker: String?
+        var text: String
+        var segmenterVersion: Int
+
+        init(_ segment: Segment) {
+            transcriptionId = segment.transcriptionId
+            seq = segment.seq
+            startMs = segment.startMs
+            endMs = segment.endMs
+            speaker = segment.speaker
+            text = segment.text
+            segmenterVersion = segment.segmenterVersion
+        }
     }
 }
 
@@ -286,18 +347,55 @@ public enum CardTextBudget {
 
     private static func truncate(_ text: String, maximumTokens: Int) -> String {
         guard maximumTokens > 0 else { return "" }
-        var result = String(text.unicodeScalars.prefix(maximumTokens * 4))
-        let words = result.split(whereSeparator: { $0.isWhitespace })
-        if words.count > maximumTokens {
-            result = String(result[..<words[maximumTokens - 1].endIndex])
+        let scalars = Array(text.unicodeScalars)
+        var lower = 0
+        var upper = scalars.count
+        while lower < upper {
+            let candidate = (lower + upper + 1) / 2
+            let prefix = String(String.UnicodeScalarView(scalars.prefix(candidate)))
+            if estimatedTokenCount(prefix) <= maximumTokens {
+                lower = candidate
+            } else {
+                upper = candidate - 1
+            }
         }
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(String.UnicodeScalarView(scalars.prefix(lower)))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func estimatedTokenCount(_ text: String) -> Int {
+    static func estimatedTokenCount(_ text: String) -> Int {
         guard !text.isEmpty else { return 0 }
         let wordCount = text.split(whereSeparator: { $0.isWhitespace }).count
-        let scalarEstimate = (text.unicodeScalars.count + 3) / 4
-        return max(wordCount, scalarEstimate)
+        var denseScalars = 0
+        var sparseScalars = 0
+        for scalar in text.unicodeScalars where !CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            if isDenseTokenScalar(scalar) {
+                denseScalars += 1
+            } else {
+                sparseScalars += 1
+            }
+        }
+        let scriptAwareEstimate = denseScalars + (sparseScalars + 3) / 4
+        return max(wordCount, scriptAwareEstimate)
+    }
+
+    private static func isDenseTokenScalar(_ scalar: UnicodeScalar) -> Bool {
+        if CharacterSet.punctuationCharacters.contains(scalar)
+            || CharacterSet.symbols.contains(scalar)
+        {
+            return true
+        }
+        switch scalar.value {
+        case 0x0E00...0x0E7F,  // Thai
+            0x3040...0x30FF,  // Hiragana + Katakana
+            0x31F0...0x31FF,  // Katakana extensions
+            0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF,  // Han BMP
+            0xFF65...0xFF9F,  // Halfwidth Katakana
+            0x1AFF0...0x1AFFF, 0x1B000...0x1B16F,  // Kana supplementary planes
+            0x20000...0x2EBEF, 0x2F800...0x2FA1F, 0x30000...0x3134F:  // Han supplementary planes
+            return true
+        default:
+            return false
+        }
     }
 }

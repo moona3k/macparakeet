@@ -347,7 +347,7 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["cards", "list"],
-            summary: "List knowledge cards with joined recording metadata.",
+            summary: "List current knowledge cards with joined recording metadata.",
             jsonMode: "--json|--ndjson",
             options: [
                 CLISpecParameter.option(
@@ -362,7 +362,7 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output:
-                "Array or NDJSON stream of cards with provenance, extracted fields, and joined title/date/duration/source/attendees."
+                "Array or NDJSON stream of current, non-stale cards with provenance, extracted fields, and joined title/date/duration/source/attendees."
         ),
         CLISpecCommand(
             ["cards", "generate"],
@@ -375,7 +375,8 @@ private extension CLISpecCommand {
             ],
             options: [
                 CLISpecParameter.flag("--all", summary: "Regenerate every completed recording."),
-                CLISpecParameter.flag("--stale", summary: "Generate only missing or stale cards."),
+                CLISpecParameter.flag(
+                    "--stale", summary: "Generate only the SQL-prefiltered missing or stale subset."),
                 databaseOption,
             ],
             output:

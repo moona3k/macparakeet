@@ -88,6 +88,21 @@ final class CardsCommandTests: XCTestCase {
         XCTAssertNoThrow(try CardsGenerateCommand.parse(["abcd"]))
     }
 
+    func testCardsGenerateStaleReportsOnlyPrefilteredStaleSubsetAsSelected() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let command = try CardsGenerateCommand.parse([
+            "--stale", "--json", "--database", fixture.path,
+        ])
+
+        let output = try await captureStandardOutput { try await command.run() }
+        let report: [String: Any] = try decodeJSON(output)
+
+        XCTAssertEqual(report["selected"] as? Int, 0)
+        XCTAssertEqual(report["processed"] as? Int, 0)
+        XCTAssertEqual(report["skipped"] as? Int, 0)
+    }
+
     func testCardsGenerationReportHasExactKeysAndExplicitNulls() throws {
         var report = CardsGenerationReport(selection: "stale", selected: 3)
         let data = try JSONEncoder().encode(report)
@@ -153,10 +168,10 @@ final class CardsCommandTests: XCTestCase {
             try cards.save(
                 Card(
                     transcriptionId: transcription.id,
-                    cardSchemaVersion: 1,
-                    transcriptHash: "hash-\(transcription.id)",
-                    segmenterVersion: 2,
-                    promptVersion: "knowledge-card-v1",
+                    cardSchemaVersion: Card.currentSchemaVersion,
+                    transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+                    segmenterVersion: KnowledgeSegmenter.currentVersion,
+                    promptVersion: Card.currentPromptVersion,
                     model: "stub-model",
                     generatedAt: meetingDate,
                     synopsis: "A useful card.",

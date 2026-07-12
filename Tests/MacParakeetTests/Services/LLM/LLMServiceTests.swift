@@ -9,6 +9,8 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?
     var responseContent = "Mock response"
+    var responseContents: [String] = []
+    var chatCompletionCallCount = 0
     var responseReasoningContent: String?
     var responseFinishReason: String?
     var responseModel = "mock-model"
@@ -26,12 +28,14 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
+        chatCompletionCallCount += 1
         capturedMessages = messages
         capturedContext = context
         capturedOptions = options
         if let chatCompletionError { throw chatCompletionError }
+        let content = responseContents.isEmpty ? responseContent : responseContents.removeFirst()
         return ChatCompletionResponse(
-            content: responseContent,
+            content: content,
             reasoningContent: responseReasoningContent,
             finishReason: responseFinishReason,
             model: responseModel,

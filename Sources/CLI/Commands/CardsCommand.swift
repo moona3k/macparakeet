@@ -51,6 +51,7 @@ struct CardsListCommand: AsyncParsableCommand {
     func run() async throws {
         try emitJSONOrRethrow(json: json || ndjson) {
             let db = try makeDatabaseManager(database: database)
+            _ = try SegmentRepository(dbQueue: db.dbQueue).rebuildOutdated()
             let rows = try CardRepository(dbQueue: db.dbQueue).list(
                 CardListQuery(
                     since: try since.map { try parseSearchDate($0, boundary: .since) },
@@ -67,8 +68,9 @@ struct CardsListCommand: AsyncParsableCommand {
             } else if rows.isEmpty {
                 print("No knowledge cards found. Run `macparakeet-cli cards generate --stale`.")
             } else {
+                let dateFormatter = ISO8601DateFormatter()
                 for row in rows {
-                    print("[\(ISO8601DateFormatter().string(from: row.date))] \(row.title) (\(row.source.rawValue))")
+                    print("[\(dateFormatter.string(from: row.date))] \(row.title) (\(row.source.rawValue))")
                     print("  \(row.synopsis)")
                 }
             }
@@ -109,6 +111,8 @@ struct CardsGenerateCommand: AsyncParsableCommand {
             let db = try makeDatabaseManager(database: database)
             let transcriptions = TranscriptionRepository(dbQueue: db.dbQueue)
             let cardRepository = CardRepository(dbQueue: db.dbQueue)
+            let segmentRepository = SegmentRepository(dbQueue: db.dbQueue)
+            _ = try segmentRepository.rebuildOutdated()
             let selectedIDs: [UUID]
             let selection: String
             let force: Bool
@@ -121,12 +125,14 @@ struct CardsGenerateCommand: AsyncParsableCommand {
                 selection = transcription.id.uuidString
                 force = true
             } else {
-                selectedIDs = try cardRepository.completedTranscriptionIDs()
+                selectedIDs =
+                    try all
+                    ? cardRepository.completedTranscriptionIDs()
+                    : cardRepository.staleCompletedTranscriptionIDs()
                 selection = all ? "all" : "stale"
                 force = all
             }
 
-            let segmentRepository = SegmentRepository(dbQueue: db.dbQueue)
             let generator = CardGenerationService(
                 transcriptionRepository: transcriptions,
                 segmentRepository: segmentRepository,
@@ -163,6 +169,7 @@ struct CardsGenerateCommand: AsyncParsableCommand {
                     printErr("  failed: \(error.localizedDescription)")
                 }
             }
+            try cardRepository.rebuildFTS()
 
             if json {
                 try printJSON(report)

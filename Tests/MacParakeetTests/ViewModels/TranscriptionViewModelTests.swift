@@ -36,6 +36,15 @@ private final class SlowFirstSpeakerUpdateFailure: @unchecked Sendable {
     }
 }
 
+private actor RetranscriptionCardGenerator: CardGenerating {
+    private(set) var transcriptionIDs: [UUID] = []
+
+    func generate(transcriptionId: UUID, force _: Bool) async throws -> CardGenerationOutcome {
+        transcriptionIDs.append(transcriptionId)
+        return CardGenerationOutcome(card: nil, usage: nil, wasSkipped: true)
+    }
+}
+
 private final class SlowFirstSpeakerUpdateSuccess: @unchecked Sendable {
     private let lock = NSLock()
     private var startedFirstUpdate = false
@@ -3243,7 +3252,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty, "Should not delete anything")
     }
 
-    func testRetranscribeDoesNotFireAutoRunPrompts() async throws {
+    func testRetranscribeSkipsAutoRunPromptsButRegeneratesKnowledgeCard() async throws {
         let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-no-autorun-\(UUID().uuidString).mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: tmpFile) }
@@ -3270,10 +3279,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(promptRepo.prompts.contains(where: { $0.isAutoRun }),
                       "Test fixture must include at least one auto-run prompt for this regression to be meaningful")
         let promptResultsVM = PromptResultsViewModel()
+        let cardGenerator = RetranscriptionCardGenerator()
         promptResultsVM.configure(
             llmService: llm,
             promptRepo: promptRepo,
-            promptResultRepo: mockPromptResultRepo
+            promptResultRepo: mockPromptResultRepo,
+            cardGenerator: cardGenerator
         )
 
         viewModel.configure(
@@ -3294,6 +3305,13 @@ final class TranscriptionViewModelTests: XCTestCase {
                       "Retranscribe must not auto-queue prompt generations — that would duplicate existing tabs")
         XCTAssertEqual(llm.summarizeCallCount, 0,
                        "Retranscribe must not invoke the LLM service via auto-run")
+        var generatedIDs: [UUID] = []
+        for _ in 0..<20 {
+            generatedIDs = await cardGenerator.transcriptionIDs
+            if !generatedIDs.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(generatedIDs, [original.id])
     }
 
     func testFreshTranscribeStillFiresAutoRunPromptsForShortTranscript() async throws {

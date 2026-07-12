@@ -365,21 +365,7 @@ public final class PromptResultsViewModel {
     ) -> [UUID] {
         guard transcript.contains(where: { !$0.isWhitespace }) else { return [] }
 
-        if let cardGenerator {
-            let logger = logger
-            Task.detached(priority: .utility) {
-                do {
-                    _ = try await cardGenerator.generate(
-                        transcriptionId: transcriptionId,
-                        force: false
-                    )
-                } catch {
-                    logger.warning(
-                        "Knowledge card generation failed: \(error.localizedDescription, privacy: .private)"
-                    )
-                }
-            }
-        }
+        generateKnowledgeCard(transcriptionId: transcriptionId)
 
         let autoPrompts: [Prompt]
         do {
@@ -404,6 +390,23 @@ public final class PromptResultsViewModel {
             }
         }
         return queuedIDs
+    }
+
+    public func generateKnowledgeCard(transcriptionId: UUID) {
+        guard let cardGenerator else { return }
+        let logger = logger
+        Task.detached(priority: .utility) {
+            do {
+                _ = try await cardGenerator.generate(
+                    transcriptionId: transcriptionId,
+                    force: false
+                )
+            } catch {
+                logger.warning(
+                    "Knowledge card generation failed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+        }
     }
 
     public func cancelStreaming() {

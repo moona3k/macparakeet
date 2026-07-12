@@ -16,7 +16,7 @@ final class CardRepositoryTests: XCTestCase {
     func testSaveRoundTripsJSONFieldsAndStalenessTuple() throws {
         let transcription = makeTranscription(source: .meeting)
         try transcriptions.save(transcription)
-        let card = makeCard(transcriptionId: transcription.id)
+        let card = try makeCard(transcriptionId: transcription.id)
 
         try cards.save(card)
 
@@ -70,10 +70,33 @@ final class CardRepositoryTests: XCTestCase {
             ))
     }
 
+    func testConditionalSaveRejectsChangedSegmentSnapshot() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        try segments.replaceSegments(for: transcription)
+        let originalSegments = try segments.fetch(transcriptionId: transcription.id)
+        let expected = CardGenerationSnapshot(
+            transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments)
+        )
+        var changed = try XCTUnwrap(originalSegments.first)
+        changed.text = "Mutated citation target."
+        try manager.dbQueue.write { db in try changed.update(db) }
+
+        let saved = try cards.saveIfCurrent(
+            try makeCard(transcriptionId: transcription.id),
+            expected: expected
+        )
+
+        XCTAssertNil(saved)
+        XCTAssertNil(try cards.fetch(transcriptionId: transcription.id))
+    }
+
     func testSaveEnforcesCardTextBudgetAtRepositoryBoundary() throws {
         let transcription = makeTranscription(source: .file)
         try transcriptions.save(transcription)
-        var card = makeCard(transcriptionId: transcription.id)
+        var card = try makeCard(transcriptionId: transcription.id)
         card.topics = (0..<500).map { "topic\($0)" }
 
         try cards.save(card)
@@ -89,7 +112,7 @@ final class CardRepositoryTests: XCTestCase {
     func testBudgetPreservesSynopsisWhenCandidateFieldsAloneAreTooLarge() throws {
         let transcription = makeTranscription(source: .meeting)
         try transcriptions.save(transcription)
-        var card = makeCard(transcriptionId: transcription.id)
+        var card = try makeCard(transcriptionId: transcription.id)
         card.actions = (0..<100).map { index in
             CardAction(
                 text: String(repeating: "oversized action \(index) ", count: 20),
@@ -135,8 +158,8 @@ final class CardRepositoryTests: XCTestCase {
         )
         try transcriptions.save(meeting)
         try transcriptions.save(file)
-        try cards.save(makeCard(transcriptionId: meeting.id))
-        try cards.save(makeCard(transcriptionId: file.id, decisions: [], actions: []))
+        try cards.save(try makeCard(transcriptionId: meeting.id))
+        try cards.save(try makeCard(transcriptionId: file.id, decisions: [], actions: []))
 
         let rows = try cards.list(CardListQuery(limit: 10))
 
@@ -167,7 +190,7 @@ final class CardRepositoryTests: XCTestCase {
         )
         for transcription in [oldMeeting, recentMeeting, recentFile] {
             try transcriptions.save(transcription)
-            try cards.save(makeCard(transcriptionId: transcription.id))
+            try cards.save(try makeCard(transcriptionId: transcription.id))
         }
 
         let rows = try cards.list(
@@ -191,13 +214,30 @@ final class CardRepositoryTests: XCTestCase {
         XCTAssertEqual(try cards.completedTranscriptionIDs(), [completed.id])
     }
 
+    func testListSuppressesTranscriptStaleCardsAndStaleSelectionReturnsOnlySubset() throws {
+        var changed = makeTranscription(source: .meeting)
+        let fresh = makeTranscription(source: .file)
+        try transcriptions.save(changed)
+        try transcriptions.save(fresh)
+        try cards.save(try makeCard(transcriptionId: changed.id))
+        try cards.save(try makeCard(transcriptionId: fresh.id))
+
+        changed.rawTranscript = "The canonical transcript was replaced."
+        changed.updatedAt = Date(timeIntervalSince1970: 1_800_000_500)
+        try transcriptions.save(changed)
+
+        let listed = try cards.list(CardListQuery(limit: 10))
+        XCTAssertEqual(listed.map(\.transcriptionId), [fresh.id])
+        XCTAssertEqual(try cards.staleCompletedTranscriptionIDs(), [changed.id])
+    }
+
     func testURLSourceFilterIncludesYouTubeAndPodcast() throws {
         let meeting = makeTranscription(source: .meeting)
         let youtube = makeTranscription(source: .youtube)
         let podcast = makeTranscription(source: .podcast)
         for transcription in [meeting, youtube, podcast] {
             try transcriptions.save(transcription)
-            try cards.save(makeCard(transcriptionId: transcription.id))
+            try cards.save(try makeCard(transcriptionId: transcription.id))
         }
 
         let rows = try cards.list(CardListQuery(source: .url, limit: 10))
@@ -210,9 +250,17 @@ final class CardRepositoryTests: XCTestCase {
     func testCardsFTSStaysSynchronizedAcrossInsertUpdateDelete() throws {
         let transcription = makeTranscription(source: .meeting)
         try transcriptions.save(transcription)
-        var card = makeCard(transcriptionId: transcription.id)
+        var card = try makeCard(transcriptionId: transcription.id)
         try cards.save(card)
         XCTAssertEqual(try ftsCount(matching: "sparkle"), 1)
+        let indexedTopics: String? = try manager.dbQueue.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT topics FROM cards_fts WHERE rowid = (SELECT rowid FROM cards WHERE transcriptionId = ?)",
+                arguments: [transcription.id]
+            )
+        }
+        XCTAssertEqual(indexedTopics, "Sparkle cache invalidation")
 
         card.synopsis = "Discussed release notarization."
         card.topics = ["distribution"]
@@ -222,6 +270,40 @@ final class CardRepositoryTests: XCTestCase {
 
         try cards.delete(transcriptionId: transcription.id)
         XCTAssertEqual(try ftsCount(matching: "notarization"), 0)
+    }
+
+    func testCardsFTSRebuildRestoresTriggerDerivedPlainTopicIndex() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let card = try makeCard(transcriptionId: transcription.id)
+        try cards.save(card)
+        try manager.dbQueue.write { db in
+            let rowID = try Int64.fetchOne(
+                db,
+                sql: "SELECT rowid FROM cards WHERE transcriptionId = ?",
+                arguments: [transcription.id]
+            )
+            try db.execute(
+                sql: """
+                    INSERT INTO cards_fts(cards_fts, rowid, synopsis, topics)
+                    VALUES ('delete', ?, ?, ?)
+                    """,
+                arguments: [rowID, card.synopsis, card.topics.joined(separator: " ")]
+            )
+        }
+        XCTAssertEqual(try ftsCount(matching: "sparkle"), 0)
+
+        try cards.rebuildFTS()
+
+        XCTAssertEqual(try ftsCount(matching: "sparkle"), 1)
+        let indexedTopics: String? = try manager.dbQueue.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT topics FROM cards_fts WHERE rowid = (SELECT rowid FROM cards WHERE transcriptionId = ?)",
+                arguments: [transcription.id]
+            )
+        }
+        XCTAssertEqual(indexedTopics, "Sparkle cache invalidation")
     }
 
     private func makeTranscription(
@@ -250,11 +332,12 @@ final class CardRepositoryTests: XCTestCase {
         actions: [CardAction] = [
             CardAction(text: "Verify appcast", owner: "Dana", seqStart: 1, seqEnd: 1, startMs: nil, endMs: nil)
         ]
-    ) -> Card {
-        Card(
+    ) throws -> Card {
+        let transcription = try XCTUnwrap(transcriptions.fetch(id: transcriptionId))
+        return Card(
             transcriptionId: transcriptionId,
             cardSchemaVersion: 1,
-            transcriptHash: "hash",
+            transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
             segmenterVersion: 2,
             promptVersion: "knowledge-card-v1",
             model: "stub-model",

@@ -78,6 +78,11 @@ public enum ChatResponseFormat: Sendable, Equatable {
     case jsonSchema(name: String, schema: ChatJSONSchema)
 }
 
+public enum LLMStructuredOutputCapability: Sendable, Equatable {
+    case nativeJSONSchema
+    case promptEmbeddedJSONSchema
+}
+
 public struct ChatCompletionOptions: Sendable, Equatable {
     public let temperature: Double?
     public let maxTokens: Int?

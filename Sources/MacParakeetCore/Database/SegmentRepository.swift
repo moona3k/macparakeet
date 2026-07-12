@@ -124,6 +124,53 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         try rebuildAll(afterEachTranscription: nil)
     }
 
+    /// Repairs rows written by an older deterministic segmenter without
+    /// blocking migration startup. Each recording is replaced in its own short
+    /// transaction so normal app/CLI writes can interleave between records.
+    public func rebuildOutdated() throws -> SegmentReindexResult {
+        let transcriptionIDs = try dbQueue.read { db in
+            try UUID.fetchAll(
+                db,
+                sql: """
+                    SELECT DISTINCT s.transcriptionId
+                    FROM segments s
+                    JOIN transcriptions t ON t.id = s.transcriptionId
+                    WHERE t.status = ? AND s.segmenterVersion != ?
+                    ORDER BY s.transcriptionId
+                    """,
+                arguments: [
+                    Transcription.TranscriptionStatus.completed.rawValue,
+                    KnowledgeSegmenter.currentVersion,
+                ]
+            )
+        }
+        var transcriptionCount = 0
+        var segmentCount = 0
+        for transcriptionID in transcriptionIDs {
+            guard
+                let transcription = try dbQueue.read({ db in
+                    try Transcription.fetchOne(db, key: transcriptionID)
+                })
+            else {
+                continue
+            }
+            let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
+            try dbQueue.write { db in
+                try Self.replaceSegments(
+                    derived,
+                    transcriptionId: transcriptionID,
+                    in: db
+                )
+            }
+            transcriptionCount += 1
+            segmentCount += derived.count
+        }
+        return SegmentReindexResult(
+            transcriptionsIndexed: transcriptionCount,
+            segmentsIndexed: segmentCount
+        )
+    }
+
     /// Test seam for proving that each recording commits independently. The
     /// callback runs after the write transaction closes, so another process can
     /// acquire the database write lock before the next recording starts.
@@ -242,7 +289,7 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         }
     }
 
-    private static func replaceSegments(
+    static func replaceSegments(
         _ segments: [Segment],
         transcriptionId: UUID,
         in db: Database

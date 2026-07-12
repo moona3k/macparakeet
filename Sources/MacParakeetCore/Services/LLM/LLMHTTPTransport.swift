@@ -1,6 +1,8 @@
 import Foundation
 
 protocol LLMHTTPAdapter: Sendable {
+    var structuredOutputCapability: LLMStructuredOutputCapability { get }
+
     func chatCompletion(
         messages: [ChatMessage],
         config: LLMProviderConfig,
@@ -18,6 +20,10 @@ protocol LLMHTTPAdapter: Sendable {
 }
 
 extension LLMHTTPAdapter {
+    var structuredOutputCapability: LLMStructuredOutputCapability {
+        .promptEmbeddedJSONSchema
+    }
+
     func testConnection(config: LLMProviderConfig) async throws {
         let messages = [ChatMessage(role: .user, content: "Hi")]
         let options = ChatCompletionOptions(maxTokens: 1)

@@ -115,6 +115,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   maintain a trustworthy live price table.
 - CLI version `2.14.0` adds the cards command family without changing existing
   command output shapes.
+- Card listing suppresses stale provenance, `cards generate --stale` reports
+  only its prefiltered stale/missing subset as selected, and card backfill
+  rebuilds the synopsis/topic FTS index for integrity recovery.
 - Regenerated meeting artifact manifests and Markdown now populate
   `rawMicrophoneAudioPath` and `rawSystemAudioPath` for retained meeting folders
   that still use the legacy `microphone.m4a` and `system.m4a` raw-audio

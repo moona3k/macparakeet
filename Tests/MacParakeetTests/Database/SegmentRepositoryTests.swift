@@ -77,6 +77,33 @@ final class SegmentRepositoryTests: XCTestCase {
         }
     }
 
+    func testWordTimestampMaterializationHandlesMixedPunctuationAndDelimitersDeterministically() {
+        let cases: [([String], String)] = [
+            (["Hello", " ,", "world"], "Hello, world"),
+            (["Open", " (", "the", " door", ")", "."], "Open (the door)."),
+            (["She", " said", " \"", "ship", " it", "\"", "."], "She said \"ship it\"."),
+            (["“", "Hello", "”", ",", " world"], "“Hello”, world"),
+            (["That", "'", "s", " Dana", "'", "s", " plan", "."], "That's Dana's plan."),
+            (["Alpha", ",", " beta", ";", "gamma", " !"], "Alpha, beta; gamma!"),
+        ]
+
+        for (tokens, expected) in cases {
+            let words = tokens.enumerated().map { index, token in
+                WordTimestamp(
+                    word: token,
+                    startMs: index * 100,
+                    endMs: index * 100 + 80,
+                    confidence: 1
+                )
+            }
+            let first = KnowledgeSegmenter.materializeFileTranscriptSegments(words: words)
+            let second = KnowledgeSegmenter.materializeFileTranscriptSegments(words: words)
+            XCTAssertEqual(first.map(\.text), [expected], "tokens: \(tokens)")
+            XCTAssertEqual(first.map(\.text), second.map(\.text), "tokens: \(tokens)")
+            XCTAssertEqual(first.map(\.wordRange), second.map(\.wordRange), "tokens: \(tokens)")
+        }
+    }
+
     func testFileMaterializationTargetsTwoHundredToFiveHundredCharacters() {
         let words = (0..<180).map { index in
             WordTimestamp(

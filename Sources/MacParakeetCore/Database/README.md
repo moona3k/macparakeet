@@ -73,7 +73,9 @@ dependency. Any rule change that can alter `(transcriptionId, seq)` citations
 must bump the version. Rebuilds replace one transcription per write transaction
 so normal app writes can interleave, and retranscription invalidates old derived
 rows before publishing a newly completed transcript so stale text is never
-searchable under the new canonical row.
+searchable under the new canonical row. App launch performs a detached,
+per-recording repair of rows written by older segmenter versions; cards CLI
+entry points run the same repair before reading or generating cards.
 
 **Cards are failure-safe derived state.** `CardRepository` enforces the
 approximate 350-token persistence budget on every write. Generation validates
@@ -82,6 +84,11 @@ source-conditional fields before the single upsert, so a malformed, cancelled,
 or failed replacement never deletes the previous valid card. Card staleness is
 the four-field tuple `(transcriptHash, promptVersion, cardSchemaVersion,
 segmenterVersion)`; model and generation time are audit provenance only.
+After provider latency, generation revalidates the transcript and segment
+snapshot, and the repository repeats that comparison inside the save
+transaction. Retranscription publishes replacement segments and deletes the old
+card atomically; list queries suppress any stale card that remains after other
+canonical edits.
 
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a

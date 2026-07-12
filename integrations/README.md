@@ -362,7 +362,8 @@ macparakeet-cli cards generate <id-or-prefix> --json
 nullable calendar attendees from the canonical transcription row; those fields
 are not duplicated in card storage. Meeting cards can include cited candidate
 decisions/actions. File and URL cards always return empty decision/action
-arrays. Treat extracted decisions/actions as routing hints and verify them with
+arrays. Stale cards are suppressed rather than returned with obsolete citation
+ranges. Treat extracted decisions/actions as routing hints and verify them with
 `transcript --around-seq` before asserting them as facts.
 
 Card generation uses the provider already opted into in MacParakeet Settings.
@@ -372,6 +373,8 @@ aggregate prompt/completion/total tokens; `estimatedCostUSD` is explicitly
 `--stale` is idempotent across the transcript hash, prompt version, card schema
 version, and segmenter version. A failed regeneration keeps the prior card,
 appears in the aggregate report, and makes the command exit `1`.
+The `selected` count for `--stale` is the SQL-prefiltered stale/missing subset;
+the backfill also rebuilds the card FTS index for integrity recovery.
 
 ### Search past dictations
 

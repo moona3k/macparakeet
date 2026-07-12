@@ -106,6 +106,17 @@ final class LLMHTTPAdapterTests: XCTestCase {
         )
     }
 
+    func testAnthropicAdapterDeclaresPromptEmbeddedStructuredOutput() {
+        XCTAssertEqual(
+            anthropicAdapter.structuredOutputCapability,
+            .promptEmbeddedJSONSchema
+        )
+        XCTAssertEqual(
+            openAIAdapter.structuredOutputCapability,
+            .nativeJSONSchema
+        )
+    }
+
     func testOllamaAdapterBuildsGoldenRequest() async throws {
         var capturedRequest: URLRequest?
 

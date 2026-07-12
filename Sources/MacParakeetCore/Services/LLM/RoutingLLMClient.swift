@@ -22,6 +22,12 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         inProcessClient.supportsInProcessLocalLLM
     }
 
+    public func structuredOutputCapability(
+        context: LLMExecutionContext
+    ) -> LLMStructuredOutputCapability {
+        client(for: context).structuredOutputCapability(context: context)
+    }
+
     public func chatCompletion(
         messages: [ChatMessage],
         context: LLMExecutionContext,
