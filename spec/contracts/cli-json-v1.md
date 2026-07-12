@@ -49,6 +49,17 @@ with human progress/status kept off stdout.
 - `transcript --json` returns one object with transcription metadata and an
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`.
+- `cards list --json` returns an array; `--ndjson` returns the same card objects
+  one compact object per line. Each object has exactly `transcriptionId`,
+  `title`, `date`, nullable `durationMs`, `source`, nullable `attendees`, the
+  six provenance fields (`cardSchemaVersion`, `transcriptHash`,
+  `segmenterVersion`, `promptVersion`, `model`, `generatedAt`), `synopsis`,
+  `topics`, `decisions`, and `actions`. Nullable citation/owner/attendee fields
+  are explicit `null`. File/URL decision and action arrays are empty.
+- `cards generate --json` returns selection and progress counts, nullable
+  prompt/completion/total token totals, explicit `estimatedCostUSD: null`, and
+  per-recording failures. Human progress remains on stderr. Any failed item
+  makes the command exit `1` after emitting the aggregate report.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
   change an existing command's plain `--json` success shape.
 - Commands that expose both `--json` and `--envelope` reject the combination.
@@ -149,6 +160,7 @@ breaking contract change and requires explicit version/changelog treatment.
 - `QuickPromptsCommandTests`
 - `TransformsCommandTests`
 - `SearchCommandTests`
+- `CardsCommandTests`
 - `VocabCommandTests`
 
 Focused coverage pins spec conventions, failure-envelope fields, exit code

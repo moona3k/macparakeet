@@ -317,7 +317,8 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
-            output: "Array of segment hits with transcriptionId, title, recordedAt, source, seq, optional startMs/speaker, snippet, and optional rank."
+            output:
+                "Array of segment hits with transcriptionId, title, recordedAt, source, seq, optional startMs/speaker, snippet, and optional rank."
         ),
         CLISpecCommand(
             ["search-reindex"],
@@ -337,11 +338,48 @@ private extension CLISpecCommand {
                 CLISpecParameter.option("--around", valueName: "hh:mm:ss|ms", summary: "Center timestamp."),
                 CLISpecParameter.option("--window", valueName: "DURATION", summary: "Time on either side of --around."),
                 CLISpecParameter.option("--around-seq", valueName: "N", summary: "Center segment sequence number."),
-                CLISpecParameter.option("--context", valueName: "K", summary: "Segments on either side of --around-seq."),
+                CLISpecParameter.option(
+                    "--context", valueName: "K", summary: "Segments on either side of --around-seq."),
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "TranscriptSliceRecord with transcription metadata and ordered segment objects."
+        ),
+        CLISpecCommand(
+            ["cards", "list"],
+            summary: "List knowledge cards with joined recording metadata.",
+            jsonMode: "--json|--ndjson",
+            options: [
+                CLISpecParameter.option(
+                    "--since", valueName: "ISO-8601",
+                    summary: "Minimum recording time; date-only values use local start of day."),
+                CLISpecParameter.option(
+                    "--until", valueName: "ISO-8601",
+                    summary: "Maximum recording time; date-only values use local end of day."),
+                CLISpecParameter.option("--source", valueName: "meeting|file|url", summary: "Recording source filter."),
+                CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum cards."),
+                CLISpecParameter.flag("--ndjson", summary: "Emit one compact card object per line."),
+                databaseOption,
+            ],
+            output:
+                "Array or NDJSON stream of cards with provenance, extracted fields, and joined title/date/duration/source/attendees."
+        ),
+        CLISpecCommand(
+            ["cards", "generate"],
+            summary: "Generate or backfill cards with the configured opted-in LLM provider.",
+            readOnly: false,
+            arguments: [
+                .argument(
+                    "id", required: false,
+                    summary: "One transcription UUID, UUID prefix, or exact title to regenerate.")
+            ],
+            options: [
+                CLISpecParameter.flag("--all", summary: "Regenerate every completed recording."),
+                CLISpecParameter.flag("--stale", summary: "Generate only missing or stale cards."),
+                databaseOption,
+            ],
+            output:
+                "Generation report with selected/processed/generated/skipped/failed counts, token usage, nullable estimatedCostUSD, and failures."
         ),
         CLISpecCommand(
             ["config", "list"],

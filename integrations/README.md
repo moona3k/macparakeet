@@ -346,6 +346,33 @@ Legacy/no-timing rows remain searchable. Their segments have `startMs: null`,
 so sequence-based context is the precise citation path; timestamp reads degrade
 to the first sequence context instead of failing.
 
+### Scan and backfill knowledge cards
+
+Cards are compact, regenerable index entries for deciding which transcript to
+open and where to verify candidate decisions/actions:
+
+```bash
+macparakeet-cli cards list --since 2026-01-01 --source meeting --json
+macparakeet-cli cards list --limit 1000 --ndjson
+macparakeet-cli cards generate --stale --json
+macparakeet-cli cards generate <id-or-prefix> --json
+```
+
+`cards list` joins title, recording date, nullable duration, source, and
+nullable calendar attendees from the canonical transcription row; those fields
+are not duplicated in card storage. Meeting cards can include cited candidate
+decisions/actions. File and URL cards always return empty decision/action
+arrays. Treat extracted decisions/actions as routing hints and verify them with
+`transcript --around-seq` before asserting them as facts.
+
+Card generation uses the provider already opted into in MacParakeet Settings.
+Progress and per-recording token counts go to stderr. JSON stdout reports
+aggregate prompt/completion/total tokens; `estimatedCostUSD` is explicitly
+`null` because model pricing is not available as a reliable local contract.
+`--stale` is idempotent across the transcript hash, prompt version, card schema
+version, and segmenter version. A failed regeneration keeps the prior card,
+appears in the aggregate report, and makes the command exit `1`.
+
 ### Search past dictations
 
 ```bash
