@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  s_6df25c25183832::t_eb4863f2cbcc9c 202-209
+  s_6df25c25183832::t_e2079f07c8b052 226-245
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_6df25c25183832::t_9b6f6c9ba9c617 201-232
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_6df25c25183832::t_066e8b877eda24 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "e4c358d6448f81eff5bc8f98e54d3e86c7033559",
+  "prompts": {},
+  "sessions": {
+    "s_6df25c25183832": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45a04aa6-0054-45f6-ba27-0c2ad8521532",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
