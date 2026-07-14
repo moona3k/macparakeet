@@ -1,0 +1,121 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_63884b5a137073::t_9965a9f4443514 343,348
+Sources/CLI/CHANGELOG.md
+  s_63884b5a137073::t_508b9113b3e73c 92-98,108-127
+Sources/CLI/Commands/CardsCommand.swift
+  s_63884b5a137073::t_652c460d0246bc 1-259
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_63884b5a137073::t_c345b6cab8c231 208,290,303,429,441,468,480,517,541
+Sources/CLI/Commands/SpecCommand.swift
+  s_63884b5a137073::t_4ff43ab045243d 320-321,341-342,348-384,397
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_63884b5a137073::t_ad6fcdc1d5611f 617-619
+Sources/CLI/MacParakeetCLI.swift
+  s_63884b5a137073::t_79cb4df587e9f1 11,24
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_63884b5a137073::t_60f809bc180d90 1,17-18,58,69-70,113-115,125,141-144,298-303,359,388-417
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_63884b5a137073::t_8312c557d51ac7 215-216,501-504
+Sources/MacParakeet/Views/Components/SacredGeometry.swift
+  s_63884b5a137073::t_9ec2b21a234c80 1,30-31,38-47,49-53,55-139,141-144,146-157,161-164,166-183,185-194,197-218,220-227,230-253,255-258,260-305,307-329,333-387,390-415
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_63884b5a137073::t_23c05ac40c0838 75-76,81
+Sources/MacParakeetCore/Audio/README.md
+  s_63884b5a137073::t_f3e1bd40454d5c 229-238
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_63884b5a137073::t_4a5fa8553c31fe 1-228
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_63884b5a137073::t_1d7bb0bfd20144 1208-1316
+Sources/MacParakeetCore/Database/README.md
+  s_63884b5a137073::t_b3c31d3acb1b88 22,76-91
+Sources/MacParakeetCore/Database/SegmentRepository.swift
+  s_63884b5a137073::t_17b46e16353cd5 84,127-173,292
+Sources/MacParakeetCore/Models/Card.swift
+  s_63884b5a137073::t_61c28a0c7c82ef 1-401
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_63884b5a137073::t_193f30dfd0df85 31-32,34-96,98-100,127-131
+Sources/MacParakeetCore/Services/KnowledgeLayerMutationService.swift
+  s_63884b5a137073::t_d4ad39034e7dd6 1-31
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_63884b5a137073::t_0734a36a1bf842 1-335
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_63884b5a137073::t_fcd5f5ef65c1ba 8-11,38-48,110-116
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_63884b5a137073::t_3578870c432c04 4-5,23-26
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_63884b5a137073::t_05cb598d609492 7-9,19-21,32-34,106-150,157-158,194-363,438-443,465-467,521-527,596-601,646-647,698-707,756-762,764-772,794-796,833-834,859-864,866-870,896-898,936-937,942-943,962-968,970-975,1031-1032,1056-1061,1063-1067,1148-1149,1205-1206,1238,1272-1275,1278-1296,1368-1369,1387-1388
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_63884b5a137073::t_fb133bb633c795 4-5
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_63884b5a137073::t_950b9f0e29dcbd 25-30
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_63884b5a137073::t_449336abcf57e7 347,603-604,756-759,889-890,898-899,1087-1107,1131-1140,1144-1148,1150-1153,1174-1190,1292,1426-1429,1445-1448,1481-1482,1510-1516,1676-1677,1716-1719,1759-1761,1799-1800,1807-1816,1857-1859,1876-1882,1915-1917,1919-1922
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_63884b5a137073::t_1fffececd770a4 221,254,285,319,350,1864-1870
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_63884b5a137073::t_ddf7ad8c0a01da 5,25,30,51,65-71,73,79-85,95,161,233-281
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_63884b5a137073::t_e6a6381b45ec3c 88,170,180,186-189,192,368-369,395-411
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_63884b5a137073::t_5d71b9267a9bf0 658-660
+Tests/CLITests/CardsCommandTests.swift
+  s_63884b5a137073::t_405fdf2c4c22c0 1-203
+Tests/CLITests/ConfigCommandTests.swift
+  s_63884b5a137073::t_1667e34b76839e 129-139
+Tests/CLITests/SpecCommandTests.swift
+  s_63884b5a137073::t_4378a77aa26325 110,276-278
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_63884b5a137073::t_8b2555ce1372e7 6-30
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_63884b5a137073::t_2e9ac94764f1cc 470-472,477,483
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_63884b5a137073::t_28c9a25f45478b 1-431
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_63884b5a137073::t_d83232687e8b4a 138-247
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_63884b5a137073::t_baea682e3e94b2 58-106
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_63884b5a137073::t_c12cb4076f8c74 1-733
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_63884b5a137073::t_b2806645c7f61a 79-112,143-153
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_63884b5a137073::t_7e5597f291bc5a 12-13,31,36,38
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_63884b5a137073::t_393b48d87e2dec 292-295,299,305,310,315,324-325,2721-2761
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_63884b5a137073::t_bab225c764c85e 673-701,1022-1030
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_63884b5a137073::t_b52e51f1d7e89f 39-47,3255,3282,3286-3287,3308-3314
+Tests/MacParakeetTests/Views/SpinnerRingViewTests.swift
+  s_63884b5a137073::t_7acebad8128db7 1-56
+diagnostics/1783849190966-dictation-audio.log
+  s_63884b5a137073::t_5c7948b3f826f2 1-351
+diagnostics/1783855826833-dictation-audio.log
+  s_63884b5a137073::t_5911ebf195aa87 1-3453
+docs/cli-testing.md
+  s_63884b5a137073::t_1ae6bb08f977e3 345
+docs/research/2026-07-14-microphone-routing-first-principles.md
+  s_63884b5a137073::t_3d8c3963ee3896 1-589
+integrations/README.md
+  s_63884b5a137073::t_b61c45e144b178 349-378
+spec/01-data-model.md
+  s_63884b5a137073::t_6bc830ae7a9e14 22,52-58,225-274,1238,1264
+spec/contracts/cli-json-v1.md
+  s_63884b5a137073::t_5ba5cb8d7640fa 52-66,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e0be4ed9ab9a68b8d61357027d1d1f414ad3ff46",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
