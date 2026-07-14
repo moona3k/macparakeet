@@ -1,7 +1,8 @@
 # PR #783 Merge-Readiness Review — 2026-07-14
 
-> Status: hardening is complete locally; committed-diff and hosted checks are
-> pending. Review baseline is PR head
+> Status: hardening is complete locally. Hosted merge readiness is evaluated
+> from the live exact-head checks and review threads on PR #783 rather than
+> copied into this point-in-time audit. Review baseline is PR head
 > `6e3a9a55a95c13c56f9887dd023720fc02f636ca` against `main`. This note records
 > the blocking finding, the deliberately narrow fix boundary, and the evidence
 > required before the PR can be called merge-ready.
@@ -96,8 +97,6 @@ Completed locally:
 - `git diff --check` passed;
 - the preferred `no-mistakes` executable was unavailable, so the documented
   focused/full-test and committed-review fallback is being used.
-
-Still required on the committed head:
-
-- committed-diff review against the PR base;
-- exact-head hosted CI and unresolved-thread sweep.
+- the committed-diff invariant review passed with no findings; the local
+  Greptile CLI was unavailable, so hosted Greptile, CodeRabbit, and CI remain
+  the live source of truth for the pushed exact head.
