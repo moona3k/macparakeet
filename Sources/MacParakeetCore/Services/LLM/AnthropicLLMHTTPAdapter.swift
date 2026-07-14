@@ -6,6 +6,22 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
     /// and listModels stay in lockstep.
     static let apiVersion = "2023-06-01"
 
+    private static let temperatureCompatibleModelIDs: Set<String> = [
+        "claude-2", "claude-2.0", "claude-2.1",
+        "claude-instant", "claude-instant-1", "claude-instant-1.0",
+        "claude-instant-1.1", "claude-instant-1.2",
+        "claude-3-opus-20240229", "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307", "claude-3-5-sonnet-20240620",
+        "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022",
+        "claude-3-7-sonnet-20250219",
+        "claude-opus-4-0", "claude-opus-4-20250514",
+        "claude-opus-4-1", "claude-opus-4-1-20250805",
+        "claude-opus-4-5", "claude-opus-4-5-20251101", "claude-opus-4-6",
+        "claude-sonnet-4-0", "claude-sonnet-4-20250514",
+        "claude-sonnet-4-5", "claude-sonnet-4-5-20250929", "claude-sonnet-4-6",
+        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
+    ]
+
     private let transport: LLMHTTPTransport
 
     init(transport: LLMHTTPTransport) {
@@ -230,18 +246,7 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
     /// everything after), so unknown/new model IDs correctly default to
     /// "don't send" and never regress with a new release.
     static func modelAcceptsTemperature(_ modelName: String) -> Bool {
-        let legacyPrefixes = [
-            "claude-2",
-            "claude-3",
-            "claude-instant",
-            "claude-opus-4-0", "claude-opus-4-1", "claude-opus-4-5", "claude-opus-4-6",
-            "claude-opus-4-2025", // dated claude-opus-4-20250514
-            "claude-sonnet-4-0", "claude-sonnet-4-5", "claude-sonnet-4-6",
-            "claude-sonnet-4-2025", // dated claude-sonnet-4-20250514
-            "claude-haiku-4-5",
-        ]
-        let normalized = modelName.lowercased()
-        return legacyPrefixes.contains { normalized.hasPrefix($0) }
+        temperatureCompatibleModelIDs.contains(modelName.lowercased())
     }
 }
 
