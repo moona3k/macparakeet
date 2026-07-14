@@ -23,6 +23,8 @@ replace them with mocks.
 - `SystemMediaController.swift` -- media pause/resume bridge used before
   dictation capture.
 - `LaunchAtLoginService.swift` -- launch-at-login integration.
+- `CommandLineToolInstallService.swift` -- `/usr/local/bin/macparakeet-cli`
+  symlink status and install/replace flow for the bundled CLI.
 
 ## What To Know Before Editing
 

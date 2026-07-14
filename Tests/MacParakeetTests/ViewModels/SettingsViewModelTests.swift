@@ -805,6 +805,121 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.launchAtLoginError, LaunchAtLoginError.invalidSignature.localizedDescription)
     }
 
+    func testConfigureRefreshesCommandLineToolStatus() async throws {
+        let installer = MockCommandLineToolInstallService(status: .installed)
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            commandLineToolInstallService: installer,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { !viewModel.commandLineToolStatusChecking }
+        XCTAssertEqual(viewModel.commandLineToolStatus, .installed)
+        XCTAssertEqual(viewModel.commandLineToolStatusLabel, "Installed")
+        XCTAssertFalse(viewModel.canInstallCommandLineTool)
+    }
+
+    func testInstallCommandLineToolUpdatesStatus() async throws {
+        let installer = MockCommandLineToolInstallService(status: .notInstalled, installResult: .installed)
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            commandLineToolInstallService: installer,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { !viewModel.commandLineToolStatusChecking }
+        XCTAssertTrue(viewModel.canInstallCommandLineTool)
+
+        viewModel.installCommandLineTool()
+
+        try await waitUntil { !viewModel.commandLineToolInstallInProgress }
+        XCTAssertEqual(installer.installOverwriteCalls, [false])
+        XCTAssertEqual(viewModel.commandLineToolStatus, .installed)
+        XCTAssertNil(viewModel.commandLineToolError)
+    }
+
+    func testInstallCommandLineToolCancelsStaleStatusRefresh() async throws {
+        let installer = MockCommandLineToolInstallService(status: .notInstalled, installResult: .installed)
+        installer.currentStatusResults = [.notInstalled]
+        installer.currentStatusDelayNanoseconds = 100_000_000
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            commandLineToolInstallService: installer,
+            checkoutURL: nil
+        )
+
+        XCTAssertTrue(viewModel.commandLineToolStatusChecking)
+
+        viewModel.installCommandLineTool()
+
+        try await waitUntil { !viewModel.commandLineToolInstallInProgress }
+        XCTAssertEqual(viewModel.commandLineToolStatus, .installed)
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(
+            viewModel.commandLineToolStatus,
+            .installed,
+            "A cancelled pre-install status refresh must not overwrite the install result."
+        )
+        XCTAssertFalse(viewModel.commandLineToolStatusChecking)
+    }
+
+    func testInstallCommandLineToolRequiresConfirmForStaleSymlink() async throws {
+        let installer = MockCommandLineToolInstallService(
+            status: .staleSymlink(currentTarget: "/Applications/Old.app/Contents/MacOS/macparakeet-cli")
+        )
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            commandLineToolInstallService: installer,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { !viewModel.commandLineToolStatusChecking }
+        viewModel.installCommandLineTool()
+
+        XCTAssertEqual(
+            viewModel.pendingCommandLineToolOverwriteTarget,
+            "/Applications/Old.app/Contents/MacOS/macparakeet-cli"
+        )
+        XCTAssertTrue(installer.installOverwriteCalls.isEmpty)
+    }
+
+    func testConfirmCommandLineToolOverwriteInstallsOverStaleSymlink() async throws {
+        let installer = MockCommandLineToolInstallService(
+            status: .staleSymlink(currentTarget: "/Applications/Old.app/Contents/MacOS/macparakeet-cli"),
+            installResult: .installed
+        )
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            commandLineToolInstallService: installer,
+            checkoutURL: nil
+        )
+
+        try await waitUntil { !viewModel.commandLineToolStatusChecking }
+        viewModel.installCommandLineTool()
+        viewModel.confirmCommandLineToolOverwrite()
+
+        try await waitUntil { !viewModel.commandLineToolInstallInProgress }
+        XCTAssertEqual(installer.installOverwriteCalls, [true])
+        XCTAssertNil(viewModel.pendingCommandLineToolOverwriteTarget)
+        XCTAssertEqual(viewModel.commandLineToolStatus, .installed)
+    }
+
     func testSettingMenuBarOnlyModePersists() {
         viewModel.menuBarOnlyMode = true
 

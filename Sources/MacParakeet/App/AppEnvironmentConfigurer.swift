@@ -129,6 +129,7 @@ final class AppEnvironmentConfigurer {
             transformHistoryRepo: env.transformHistoryRepo,
             entitlementsService: env.entitlementsService,
             launchAtLoginService: env.launchAtLoginService,
+            commandLineToolInstallService: env.commandLineToolInstallService,
             checkoutURL: env.checkoutURL,
             customWordRepo: env.customWordRepo,
             snippetRepo: env.snippetRepo,

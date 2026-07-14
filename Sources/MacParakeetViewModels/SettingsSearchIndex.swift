@@ -440,6 +440,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "system.startup"
         ),
         SettingsSearchEntry(
+            id: "system.commandLineTool",
+            tab: .system,
+            title: "Command Line Tool",
+            subtitle: "Install macparakeet-cli into Terminal's PATH.",
+            keywords: [
+                "cli", "command line", "terminal", "shell", "path",
+                "symlink", "alias", "install cli", "macparakeet-cli"
+            ],
+            cardAnchor: "system.startup"
+        ),
+        SettingsSearchEntry(
             id: "system.permissions",
             tab: .system,
             title: "Permissions",

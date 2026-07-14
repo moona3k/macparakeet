@@ -63,6 +63,17 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testCommandLineToolQueriesFindInstallerSetting() {
+        for query in ["cli", "command line", "terminal", "macparakeet-cli"] {
+            let results = SettingsSearchIndex.matches(query)
+
+            XCTAssertTrue(
+                results.contains(where: { $0.id == "system.commandLineTool" }),
+                "Query \(query) should land on the command line tool installer"
+            )
+        }
+    }
+
     func testTitleMatches() {
         let results = SettingsSearchIndex.matches("Speech Recognition")
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))
