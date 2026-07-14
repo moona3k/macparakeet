@@ -1,0 +1,52 @@
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_9ef1329df2e816::t_24eb2de3e05eeb 137-140,404-413
+  s_9ef1329df2e816::t_0d04cfad34aa51 1
+  s_9ef1329df2e816::t_bfaf832890acaf 113-115,125
+  s_9ef1329df2e816::t_5e69f44345f4f4 414-415
+Sources/MacParakeetCore/Audio/README.md
+  s_9ef1329df2e816::t_bfaf832890acaf 207-216
+docs/research/2026-07-14-microphone-routing-first-principles.md
+  s_9ef1329df2e816::t_57cd5f37195fa9 326-340,365-371,374-375
+  s_9ef1329df2e816::t_25b40e01b9cf1d 420-421,435-437,446-451,453,456,459,461-464,467
+  s_9ef1329df2e816::t_a9962030cb1791 5-7,90-93,391-407
+  s_9ef1329df2e816::t_9f0074685abb69 95-96,99-118,137-148
+  s_9ef1329df2e816::t_85b634f4ad19a1 351,354-356
+  s_9ef1329df2e816::t_701aefd7a5d355 1-4,8-89,94,119-136,149-200,206-216,236-325,341-350,352-353,357-364,376-390,408-419,425-434,438-445,452,454-455,457-458,460,468-482,484-491,493-519,529-546,548,550-555
+  s_9ef1329df2e816::t_8fda84b50cb198 201-205,217-235
+  s_9ef1329df2e816::t_1d666e4664e2cc 97-98,372-373,422-424,465-466,584-589
+  s_9ef1329df2e816::t_1cd9f71bbdb613 483,492,520-528,547,549,556-583
+Tests/CLITests/SpecCommandTests.swift
+  s_9ef1329df2e816::t_ddbc4089b03f65 276-278
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_9ef1329df2e816::t_c8bf6844f59b9c 6-30
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_9ef1329df2e816::t_5b4f82cf818449 470-472,477
+  s_9ef1329df2e816::t_62e10838e919d6 483
+Tests/CLITests/ConfigCommandTests.swift
+  s_9ef1329df2e816::t_c625224b677b18 129-139
+Sources/CLI/Commands/SpecCommand.swift
+  s_9ef1329df2e816::t_ddbc4089b03f65 397
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_9ef1329df2e816::t_1645ef551639f1 75-76
+  s_9ef1329df2e816::t_bfaf832890acaf 81
+Sources/CLI/CHANGELOG.md
+  s_9ef1329df2e816::t_ddbc4089b03f65 92-98
+docs/cli-testing.md
+  s_9ef1329df2e816::t_ddbc4089b03f65 345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a46a91c49836cc9fa4d56271dad0a21c106cbcab",
+  "prompts": {},
+  "sessions": {
+    "s_9ef1329df2e816": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5fc4-d058-7790-9464-34540d231782",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
