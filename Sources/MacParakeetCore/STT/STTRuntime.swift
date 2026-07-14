@@ -85,6 +85,44 @@ enum CustomVocabularyBoostingPreparationMode {
     case backgroundIfNeeded
 }
 
+/// Tracks in-flight speech work by engine while retaining a process-wide idle
+/// signal for lifecycle operations that must not overlap any transcription.
+struct SpeechEngineActivity {
+    private var countByEngine: [SpeechEnginePreference: Int] = [:]
+
+    var totalCount: Int { countByEngine.values.reduce(0, +) }
+    var isIdle: Bool { countByEngine.isEmpty }
+
+    mutating func begin(_ engine: SpeechEnginePreference) {
+        countByEngine[engine, default: 0] += 1
+    }
+
+    mutating func end(_ engine: SpeechEnginePreference) {
+        let engineCount = count(for: engine)
+        precondition(engineCount > 0, "Speech engine activity underflow")
+
+        if engineCount == 1 {
+            countByEngine.removeValue(forKey: engine)
+        } else {
+            countByEngine[engine] = engineCount - 1
+        }
+    }
+
+    func count(for engine: SpeechEnginePreference) -> Int {
+        countByEngine[engine, default: 0]
+    }
+
+    /// A counted transcription may create its own engine when it is the only
+    /// job using that engine. Warm-up and lifecycle callers may only create or
+    /// replace an engine when no transcription is using that engine.
+    func canConstruct(
+        _ engine: SpeechEnginePreference,
+        includingCurrentJob: Bool
+    ) -> Bool {
+        count(for: engine) <= (includingCurrentJob ? 1 : 0)
+    }
+}
+
 private final class BackgroundCustomVocabularyPreparationCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var task: Task<Void, Never>?
@@ -228,7 +266,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var cohereEngine: CohereTranscribeEngine?
     private let defaults: UserDefaults
     private let physicalMemoryBytes: @Sendable () -> UInt64
-    private var activeTranscriptionCount = 0
+    private var speechEngineActivity = SpeechEngineActivity()
     /// One-shot guard so polling read sites do not repeat the fallback warning.
     private var hasLoggedCohereMemoryFallback = false
     private var liveDictationSession: LiveDictationSessionState? {
@@ -246,6 +284,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// Captured at `begin` so `append`/`finish`/`cancel` route to the same
     /// loaded engine the session started on, regardless of later preferences.
     private var liveDictationEngine: (any NativeLiveDictating)?
+    private var liveDictationSpeechEngine: SpeechEnginePreference?
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -317,8 +356,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         speechEngine selection: SpeechEngineSelection,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        activeTranscriptionCount += 1
-        defer { activeTranscriptionCount -= 1 }
+        speechEngineActivity.begin(selection.engine)
+        defer { speechEngineActivity.end(selection.engine) }
 
         switch selection.engine {
         case .parakeet:
@@ -350,8 +389,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTError.transcriptionFailed("No dictation preview samples")
         }
 
-        activeTranscriptionCount += 1
-        defer { activeTranscriptionCount -= 1 }
+        speechEngineActivity.begin(selection.engine)
+        defer { speechEngineActivity.end(selection.engine) }
 
         let capabilities = capabilities(for: selection.engine)
         guard capabilities.supportsTailPreview else {
@@ -430,16 +469,17 @@ public actor STTRuntime: STTRuntimeProtocol {
         // implementations, which own their inference-level `ANEInferenceGate`
         // calls. Gating start-of-session here would just add dictation-start
         // latency on macOS 14 with no SIGBUS to prevent.
-        activeTranscriptionCount += 1
+        speechEngineActivity.begin(activeSpeechEngine)
         do {
             try await engine.beginLiveDictation(
                 language: language,
                 onPartial: onPartial
             )
             liveDictationEngine = engine
+            liveDictationSpeechEngine = activeSpeechEngine
             liveDictationSession = .active(sessionID)
         } catch {
-            activeTranscriptionCount -= 1
+            speechEngineActivity.end(activeSpeechEngine)
             throw error
         }
     }
@@ -454,7 +494,8 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
         guard liveDictationSession == .active(sessionID),
-              let engine = liveDictationEngine else {
+              let engine = liveDictationEngine,
+              let speechEngine = liveDictationSpeechEngine else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
         liveDictationSession = .finishing(sessionID)
@@ -463,20 +504,23 @@ public actor STTRuntime: STTRuntimeProtocol {
                 liveDictationSession = nil
             }
             liveDictationEngine = nil
-            activeTranscriptionCount -= 1
+            liveDictationSpeechEngine = nil
+            speechEngineActivity.end(speechEngine)
         }
         return try await engine.finishLiveDictation()
     }
 
     func cancelLiveDictationTranscription(sessionID: UUID) async {
-        guard liveDictationSession == .active(sessionID) else { return }
+        guard liveDictationSession == .active(sessionID),
+              let speechEngine = liveDictationSpeechEngine else { return }
         liveDictationSession = .cancelling(sessionID)
         await liveDictationEngine?.cancelLiveDictation()
         liveDictationEngine = nil
+        liveDictationSpeechEngine = nil
         if liveDictationSession == .cancelling(sessionID) {
             liveDictationSession = nil
         }
-        activeTranscriptionCount -= 1
+        speechEngineActivity.end(speechEngine)
     }
 
     private func transcribeWithNemotron(
@@ -489,7 +533,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         // language is intentionally ignored (it stays persisted and applies the
         // moment the multilingual build is selected again).
         if nemotronModelVariant.isEnglishOnly {
-            let engine = try ensureNemotronEnglishEngine()
+            let engine = try ensureNemotronEnglishEngine(includingCurrentJob: true)
             return try await engine.transcribe(
                 audioURL: URL(fileURLWithPath: audioPath),
                 job: job,
@@ -497,7 +541,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             )
         }
         let language = SpeechEnginePreference.normalizeNemotronLanguage(language)
-        let engine = try await ensureNemotronEngine(language: language)
+        let engine = try await ensureNemotronEngine(
+            language: language,
+            includingCurrentJob: true
+        )
         return try await engine.transcribe(
             audioURL: URL(fileURLWithPath: audioPath),
             job: job,
@@ -541,13 +588,12 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     /// Transcription-path engine access. `warmUp()` and
     /// `performSpeechEngineSwitch()` intentionally construct `WhisperEngine`
-    /// inline instead. Warm-up is NOT gated on `activeTranscriptionCount`
+    /// inline instead. Warm-up is NOT gated on global transcription activity
     /// (background warm-up fires from launch/meeting/onboarding flows while
     /// jobs may be in flight); it stays safe because its reuse-or-construct
     /// (`whisperEngine ?? WhisperEngine(...)`) is synchronous on this actor,
     /// so it can never double-construct or orphan an engine mid-job. The
-    /// switch path runs under `setSpeechEngine`'s
-    /// `activeTranscriptionCount == 0` guard and stages into
+    /// switch path runs under `setSpeechEngine`'s global-idle guard and stages into
     /// `preparedWhisper` (prepare-then-commit, with a `language:` argument)
     /// rather than committing to `whisperEngine` up front. Routing either
     /// through this guard would change those semantics for no safety gain.
@@ -555,11 +601,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         if let whisperEngine {
             return whisperEngine
         }
-        // Mirrors ensureNemotronEngine: never construct a fresh engine while
-        // another transcription may be mid-flight on the existing one. The
-        // scheduler's single background slot already serializes Whisper jobs,
-        // but the invariant shouldn't depend on the caller (AUDIT-075).
-        guard activeTranscriptionCount <= 1 else {
+        // The current job is counted before dispatch. It may construct its own
+        // engine, but not replace an engine used by another Whisper job.
+        guard speechEngineActivity.canConstruct(.whisper, includingCurrentJob: true) else {
             throw STTError.engineBusy
         }
         let engine = WhisperEngine(model: whisperModelVariant)
@@ -591,7 +635,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         // Parakeet Unified is a separate FluidAudio runtime — delegate before
         // touching the shared TDT `AsrManager` path.
         if currentParakeetVariant.usesUnifiedEngine {
-            return try await ensureParakeetUnifiedEngine().transcribe(
+            return try await ensureParakeetUnifiedEngine(includingCurrentJob: true).transcribe(
                 audioPath: audioPath,
                 job: job,
                 onProgress: onProgress
@@ -1267,7 +1311,11 @@ public actor STTRuntime: STTRuntimeProtocol {
                 let engine = try await ensureNemotronEngine(language: selection.language)
                 try await engine.prepare(onProgress: onProgress)
             case .whisper:
-                let engine = try ensureWhisperEngine()
+                // Warm-up may run while unrelated routed work is active. Reuse
+                // or publish synchronously on this actor before preparation so
+                // no second Whisper instance can be orphaned across the await.
+                let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
+                whisperEngine = engine
                 try await engine.prepare(onProgress: onProgress)
             case .cohere:
                 let engine = try ensureCohereEngine()
@@ -1518,7 +1566,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             return
         }
 
-        guard initializationTask == nil, activeTranscriptionCount == 0 else {
+        guard initializationTask == nil, speechEngineActivity.isIdle else {
             throw STTError.engineBusy
         }
 
@@ -1638,7 +1686,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         // even though `.unified` has no `AsrModelVersion`.
         guard variant != currentParakeetVariant else { return }
 
-        guard initializationTask == nil, activeTranscriptionCount == 0 else {
+        guard initializationTask == nil, speechEngineActivity.isIdle else {
             throw STTError.engineBusy
         }
 
@@ -1729,7 +1777,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     ) async throws {
         guard variant != nemotronModelVariant else { return }
 
-        guard initializationTask == nil, activeTranscriptionCount == 0 else {
+        guard initializationTask == nil, speechEngineActivity.isIdle else {
             throw STTError.engineBusy
         }
 
@@ -2153,13 +2201,19 @@ public actor STTRuntime: STTRuntimeProtocol {
         await englishEngine?.unload()
     }
 
-    private func ensureNemotronEngine(language: String?) async throws -> NemotronEngine {
+    private func ensureNemotronEngine(
+        language: String?,
+        includingCurrentJob: Bool = false
+    ) async throws -> NemotronEngine {
         let language = SpeechEnginePreference.normalizeNemotronLanguage(language)
         if let nemotronEngine, nemotronEngineLanguage == language {
             return nemotronEngine
         }
 
-        guard activeTranscriptionCount <= 1 else {
+        guard speechEngineActivity.canConstruct(
+            .nemotron,
+            includingCurrentJob: includingCurrentJob
+        ) else {
             throw STTError.engineBusy
         }
 
@@ -2174,12 +2228,17 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// Mirrors `ensureNemotronEngine` for the English-only build. There is no
     /// language (or any other) construction key, so an existing engine is
     /// always reusable.
-    private func ensureNemotronEnglishEngine() throws -> NemotronEnglishEngine {
+    private func ensureNemotronEnglishEngine(
+        includingCurrentJob: Bool = false
+    ) throws -> NemotronEnglishEngine {
         if let nemotronEnglishEngine {
             return nemotronEnglishEngine
         }
 
-        guard activeTranscriptionCount <= 1 else {
+        guard speechEngineActivity.canConstruct(
+            .nemotron,
+            includingCurrentJob: includingCurrentJob
+        ) else {
             throw STTError.engineBusy
         }
 
@@ -2190,12 +2249,17 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     /// Mirrors `ensureNemotronEnglishEngine` for the Parakeet Unified build.
     /// There is no construction key, so an existing engine is always reusable.
-    private func ensureParakeetUnifiedEngine() throws -> ParakeetUnifiedEngine {
+    private func ensureParakeetUnifiedEngine(
+        includingCurrentJob: Bool = false
+    ) throws -> ParakeetUnifiedEngine {
         if let parakeetUnifiedEngine {
             return parakeetUnifiedEngine
         }
 
-        guard activeTranscriptionCount <= 1 else {
+        guard speechEngineActivity.canConstruct(
+            .parakeet,
+            includingCurrentJob: includingCurrentJob
+        ) else {
             throw STTError.engineBusy
         }
 

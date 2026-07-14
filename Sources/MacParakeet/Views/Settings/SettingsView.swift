@@ -403,8 +403,8 @@ struct SettingsView: View {
     /// 6. `engineLanguageCard` — which language? (Whisper only in Settings)
     /// 7. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 2–5 are mutually exclusive (one per engine), so exactly one
-    /// contextual config card sits between the selector and the models card.
+    /// Cards 3–6 appear for engines used by either workflow route, so multiple
+    /// contextual cards can coexist when dictation and transcription differ.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
@@ -1985,7 +1985,7 @@ struct SettingsView: View {
     private var engineSelectorCard: some View {
         SettingsCard(
             title: "Speech Recognition",
-            subtitle: "Choose the local engine for live dictation. Meetings and file transcription have their own route below.",
+            subtitle: "Choose the local engine for dictation. Meetings and file transcription have their own route below.",
             icon: "cpu",
             status: engineSelectorCardStatus
         ) {
@@ -2000,11 +2000,11 @@ struct SettingsView: View {
                         name: "Parakeet",
                         tagline: "Everyday local default",
                         strengths: [
-                            "Fast dictation and meetings",
-                            "Timestamps for exports",
+                            "Fast everyday dictation",
+                            "Timestamps for saved dictations",
                             "English + supported European languages"
                         ],
-                        helpText: "Choose Parakeet for fast dictation, meetings, and exports in supported languages. Use Whisper when the audio is outside Parakeet's language coverage.",
+                        helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
                         modelStatus: displayedParakeetModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .parakeet,
                         isBusy: viewModel.engine.speechEngineSwitching,
@@ -2032,13 +2032,13 @@ struct SettingsView: View {
                     EngineOptionTile(
                         icon: "globe",
                         name: "Whisper",
-                        tagline: "Files + broad languages",
+                        tagline: "Broad-language dictation",
                         strengths: [
-                            "Files, media, retranscription",
-                            "Word timestamps for subtitles",
+                            "Recorded dictation in many languages",
+                            "Word timestamps for saved dictations",
                             "Slower cold starts; no live preview"
                         ],
-                        helpText: "Choose Whisper for files, media, and saved-audio retranscription outside Parakeet or Nemotron coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
+                        helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
                         modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .whisper,
                         isBusy: viewModel.engine.speechEngineSwitching,
