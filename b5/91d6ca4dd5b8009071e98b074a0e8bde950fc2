@@ -1,0 +1,47 @@
+spec/05-audio-pipeline.md
+  s_8dc38b09f729ff::t_a4919f895bb89e 22
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_8dc38b09f729ff::t_a4919f895bb89e 189-191,198,299-302,345
+Tests/MacParakeetTests/Audio/MicrophoneEnginePrewarmRoutingTests.swift
+  s_8dc38b09f729ff::t_a4919f895bb89e 37,46-47
+Sources/MacParakeetCore/Audio/README.md
+  s_8dc38b09f729ff::t_a4919f895bb89e 191-193,209-214,236-245
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift
+  s_8dc38b09f729ff::t_8f091c62f9dbcd 119-122,571,580-587
+Sources/CLI/CHANGELOG.md
+  s_8dc38b09f729ff::t_126219d7ec95a3 92-98
+Sources/CLI/Commands/SpecCommand.swift
+  s_8dc38b09f729ff::t_f762e9e674a034 397
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_8dc38b09f729ff::t_ae549d23f097fb 1,113-115,125,141-144,408-419
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_8dc38b09f729ff::t_537470bbc3acaf 75-76,81
+Tests/CLITests/ConfigCommandTests.swift
+  s_8dc38b09f729ff::t_9305f0f6148afb 129-139
+Tests/CLITests/SpecCommandTests.swift
+  s_8dc38b09f729ff::t_0fe54d872e56d4 276-278
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_8dc38b09f729ff::t_1b463ca4cb796f 6-30
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_8dc38b09f729ff::t_98760f35878044 470-472,477,483
+docs/cli-testing.md
+  s_8dc38b09f729ff::t_1afbad194442cf 345
+docs/research/2026-07-14-microphone-routing-first-principles.md
+  s_8dc38b09f729ff::t_5361139fe48f9e 1-589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b591d6ca4dd5b8009071e98b074a0e8bde950fc2",
+  "prompts": {},
+  "sessions": {
+    "s_8dc38b09f729ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61ff-332e-7331-943c-d01a80a4b02d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
