@@ -1,0 +1,24 @@
+docs/audits/2026-07-14-pr-783-merge-readiness.md
+  s_63884b5a137073::t_bf6c24e0492f72 48-60,108-112,118-119
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_63884b5a137073::t_a23bb16bd19463 655,694-697
+  s_63884b5a137073::t_7c7d11997bda1e 656-693,698-699
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_63884b5a137073::t_6ba28baa722b19 663-677,1303-1305,1310,1313,1315,1321-1324,1328,1408-1413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6da8ed1a8581348c6c954aa15c2eec9f7bf680e0",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
