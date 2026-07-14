@@ -1,0 +1,39 @@
+Sources/CLI/CHANGELOG.md
+  s_63884b5a137073::t_956bd32b096a56 96-102
+Sources/CLI/Commands/SpecCommand.swift
+  s_63884b5a137073::t_2a0f59c11c9b35 397
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_63884b5a137073::t_f6acafae69bac7 1,113-115,125,137-140,404-415
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_63884b5a137073::t_56da7fb1fb2f63 75-76,81
+Sources/MacParakeetCore/Audio/README.md
+  s_63884b5a137073::t_c6ef83af5d9e59 207-216
+Tests/CLITests/ConfigCommandTests.swift
+  s_63884b5a137073::t_220ba539ff8245 129-139
+Tests/CLITests/SpecCommandTests.swift
+  s_63884b5a137073::t_5ad61f107bec98 276-278
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_63884b5a137073::t_b30ddd3c7af389 6-30
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_63884b5a137073::t_41f713ce3c0cb6 470-472,477,483
+docs/cli-testing.md
+  s_63884b5a137073::t_56785da61f502d 345
+docs/research/2026-07-14-microphone-routing-first-principles.md
+  s_63884b5a137073::t_896e5c1bbe2ac5 1-589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "32a03652f31b592408e84505b0c0295dfac59f50",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
