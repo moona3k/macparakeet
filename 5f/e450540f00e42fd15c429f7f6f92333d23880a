@@ -1,0 +1,119 @@
+Sources/CLI/CHANGELOG.md
+  s_70b4166a32e53c::t_81cf300c072379 92-98,108-127
+Sources/CLI/Commands/CardsCommand.swift
+  s_70b4166a32e53c::t_0327fc12bcf2f3 1-259
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_70b4166a32e53c::t_b38e6bc18de70c 208,290,303,429,441,468,480,517,541
+Sources/CLI/Commands/SpecCommand.swift
+  s_70b4166a32e53c::t_9997be0cc3c995 320-321,341-342,348-384,397
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_70b4166a32e53c::t_d3cb1e358540d8 617-619
+Sources/CLI/MacParakeetCLI.swift
+  s_70b4166a32e53c::t_c3c37935ac7860 11,24
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_70b4166a32e53c::t_0460238810a3d2 1,17-18,58,69-70,113-115,125,141-144,298-303,359,388-417
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_70b4166a32e53c::t_d8e5426a084d1e 215-216,501-504
+Sources/MacParakeet/Views/Components/SacredGeometry.swift
+  s_70b4166a32e53c::t_b3ca6192d2f09a 1,30-31,38-47,49-53,55-139,141-144,146-157,161-164,166-183,185-194,197-218,220-227,230-253,255-258,260-305,307-329,333-387,390-415
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_70b4166a32e53c::t_ebdf45c22d8806 75-76,81
+Sources/MacParakeetCore/Audio/README.md
+  s_70b4166a32e53c::t_fba53b77e76d7e 229-238
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_70b4166a32e53c::t_2312ec804022e4 1-228
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_70b4166a32e53c::t_ae9693d1ebe1ce 1208-1316
+Sources/MacParakeetCore/Database/README.md
+  s_70b4166a32e53c::t_06458d945b92d5 22,76-91
+Sources/MacParakeetCore/Database/SegmentRepository.swift
+  s_70b4166a32e53c::t_9eb80242567da2 84,127-173,292
+Sources/MacParakeetCore/Models/Card.swift
+  s_70b4166a32e53c::t_f69008954838bf 1-401
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_70b4166a32e53c::t_092bbd28819dd5 31-32,34-96,98-100,127-131
+Sources/MacParakeetCore/Services/KnowledgeLayerMutationService.swift
+  s_70b4166a32e53c::t_ca5e8f020e60f4 1-31
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_70b4166a32e53c::t_e890d3c0dbe1cd 1-335
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_70b4166a32e53c::t_329ca548ff5d3c 8-11,38-48,110-116
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_70b4166a32e53c::t_92f6c2b724fb2c 4-5,23-26
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_70b4166a32e53c::t_b6cc84764bb74d 7-9,19-21,32-34,106-150,157-158,194-363,438-443,465-467,521-527,596-601,646-647,698-707,756-762,764-772,794-796,833-834,859-864,866-870,896-898,936-937,942-943,962-968,970-975,1031-1032,1056-1061,1063-1067,1148-1149,1205-1206,1238,1272-1275,1278-1296,1368-1369,1387-1388
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_70b4166a32e53c::t_836436522bb4ad 4-5
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_70b4166a32e53c::t_dade92afab62c8 25-30
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_70b4166a32e53c::t_2bff0b766a0c6e 347,603-604,756-759,889-890,898-899,1087-1107,1131-1140,1144-1148,1150-1153,1174-1190,1292,1426-1429,1445-1448,1481-1482,1510-1516,1676-1677,1716-1719,1759-1761,1799-1800,1807-1816,1857-1859,1876-1882,1915-1917,1919-1922
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_70b4166a32e53c::t_6d261843fa7041 221,254,285,319,350,1864-1870
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_70b4166a32e53c::t_0480ceb99f5069 5,25,30,51,65-71,73,79-85,95,161,233-281
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_70b4166a32e53c::t_3255865ad07847 88,170,180,186-189,192,368-369,395-411
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_70b4166a32e53c::t_6a5e0759b43493 658-660
+Tests/CLITests/CardsCommandTests.swift
+  s_70b4166a32e53c::t_41abe4d7bacbed 1-203
+Tests/CLITests/ConfigCommandTests.swift
+  s_70b4166a32e53c::t_38a77132788398 129-139
+Tests/CLITests/SpecCommandTests.swift
+  s_70b4166a32e53c::t_9a10b4b29d96fe 110,276-278
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_70b4166a32e53c::t_1bbf1ccea2ebe3 6-30
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_70b4166a32e53c::t_6d808905072d59 470-472,477,483
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_70b4166a32e53c::t_f662de239310bc 1-431
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_70b4166a32e53c::t_2b8954ef0b4e19 138-247
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_70b4166a32e53c::t_15b2a3428e1d01 58-106
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_70b4166a32e53c::t_94d7d6da63e444 1-733
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_70b4166a32e53c::t_14e253ba3f7fc6 79-112,143-153
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_70b4166a32e53c::t_ce3ebed895bf52 12-13,31,36,38
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_70b4166a32e53c::t_545e3ff207139d 292-295,299,305,310,315,324-325,2721-2761
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_70b4166a32e53c::t_3316271a393949 673-701,1022-1030
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_70b4166a32e53c::t_6bd2846fb076d7 39-47,3255,3282,3286-3287,3308-3314
+Tests/MacParakeetTests/Views/SpinnerRingViewTests.swift
+  s_70b4166a32e53c::t_c300033dc532b3 1-56
+diagnostics/1783849190966-dictation-audio.log
+  s_70b4166a32e53c::t_dc019121307a88 1-351
+diagnostics/1783855826833-dictation-audio.log
+  s_70b4166a32e53c::t_0eafe35b5139b9 1-3453
+docs/cli-testing.md
+  s_70b4166a32e53c::t_7b89f448123a20 345
+docs/research/2026-07-14-microphone-routing-first-principles.md
+  s_70b4166a32e53c::t_e2e55958112b49 1-589
+integrations/README.md
+  s_70b4166a32e53c::t_4aaaab06b42c9c 349-378
+spec/01-data-model.md
+  s_70b4166a32e53c::t_70e2695a3607ce 22,52-58,225-274,1238,1264
+spec/contracts/cli-json-v1.md
+  s_70b4166a32e53c::t_283f5ca96b3842 52-66,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5fe450540f00e42fd15c429f7f6f92333d23880a",
+  "prompts": {},
+  "sessions": {
+    "s_70b4166a32e53c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fad8f640-747c-4544-8b2f-6b5d6c0b47f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
