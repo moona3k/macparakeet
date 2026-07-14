@@ -43,7 +43,6 @@ final class ConfigCommandTests: XCTestCase {
             "save-transcription-audio",
             "meeting-audio-retention",
             "meeting-audio-source",
-            "prefer-built-in-mic-bluetooth-output",
             "save-meeting-audio",
             "youtube-audio-quality",
             "meeting-artifacts-folder",
@@ -95,7 +94,6 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-retention", defaults: defaults), "keep-forever")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-source", defaults: defaults), "microphone-and-system")
-        XCTAssertEqual(try ConfigCommand.read(key: "prefer-built-in-mic-bluetooth-output", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "save-meeting-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), AppPaths.defaultMeetingRecordingsDir)
@@ -125,6 +123,17 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertThrowsError(try ConfigCommand.read(key: "bogus", defaults: defaults)) { error in
             XCTAssertTrue(error is ValidationError, "Expected ValidationError, got \(type(of: error))")
             XCTAssertTrue("\(error)".contains("bogus"))
+        }
+    }
+
+    func testRemovedBluetoothMicPreferenceIsRejected() {
+        let key = "prefer-built-in-mic-bluetooth-output"
+
+        XCTAssertThrowsError(try ConfigCommand.read(key: key, defaults: defaults)) { error in
+            XCTAssertTrue(error is ValidationError, "Expected ValidationError, got \(type(of: error))")
+        }
+        XCTAssertThrowsError(try ConfigCommand.write(key: key, value: "on", defaults: defaults)) { error in
+            XCTAssertTrue(error is ValidationError, "Expected ValidationError, got \(type(of: error))")
         }
     }
 
@@ -223,15 +232,6 @@ final class ConfigCommandTests: XCTestCase {
             MeetingAudioSourceMode.microphoneOnly.rawValue
         )
 
-        XCTAssertEqual(
-            try ConfigCommand.write(key: "prefer-built-in-mic-bluetooth-output", value: "off", defaults: defaults),
-            "off"
-        )
-        XCTAssertEqual(
-            defaults.object(forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey) as? Bool,
-            false
-        )
-
         XCTAssertEqual(try ConfigCommand.write(key: "save-meeting-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, false)
         XCTAssertEqual(
@@ -282,10 +282,6 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(
             try ConfigCommand.write(key: "meeting_audio_source", value: "system-only", defaults: defaults),
             "system-only"
-        )
-        XCTAssertEqual(
-            try ConfigCommand.write(key: "prefer_built_in_mic_bluetooth_output", value: "off", defaults: defaults),
-            "off"
         )
     }
 

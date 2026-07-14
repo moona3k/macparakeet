@@ -205,6 +205,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
             let segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
+            let knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: dbManager.dbQueue)
             let dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
             let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
@@ -286,6 +287,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                         speechEngine: speechEngine,
                         transcriptionRepo: transcriptionRepo,
                         segmentRepo: segmentRepo,
+                        knowledgeLayerMutator: knowledgeLayerMutator,
                         promptResultRepo: promptResultRepo,
                         customWordRepo: customWordRepo,
                         snippetRepo: snippetRepo,
@@ -298,6 +300,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                         speechEngine: speechEngine,
                         transcriptionRepo: transcriptionRepo,
                         segmentRepo: segmentRepo,
+                        knowledgeLayerMutator: knowledgeLayerMutator,
                         promptResultRepo: promptResultRepo,
                         customWordRepo: customWordRepo,
                         snippetRepo: snippetRepo,
@@ -423,6 +426,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
         segmentRepo: SegmentRepository,
+        knowledgeLayerMutator: KnowledgeLayerMutating,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -434,6 +438,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -460,6 +465,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
         segmentRepo: SegmentRepository,
+        knowledgeLayerMutator: KnowledgeLayerMutating,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -471,6 +477,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -507,6 +514,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepository,
         segmentRepo: SegmentRepository,
+        knowledgeLayerMutator: KnowledgeLayerMutating,
         promptResultRepo: PromptResultRepository,
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
@@ -530,6 +538,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             sttTranscriber: sttTranscriber,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,

@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 import MacParakeetCore
 #if MACPARAKEET_HAS_MLX_LOCAL_LLM
@@ -13,6 +14,8 @@ final class AppEnvironment {
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
     let segmentRepo: SegmentRepository
+    let cardRepo: CardRepository
+    let knowledgeLayerMutator: KnowledgeLayerMutationService
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
@@ -52,6 +55,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let cardGenerationService: CardGenerationService
     let runtimePreferences: AppRuntimePreferencesProtocol
     let derivedFieldsBackfill: DerivedFieldsBackfillService
 
@@ -62,6 +66,8 @@ final class AppEnvironment {
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
         segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
+        cardRepo = CardRepository(dbQueue: databaseManager.dbQueue)
+        knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
@@ -102,18 +108,11 @@ final class AppEnvironment {
         // explicit experiments, but enabling it during live calls can degrade
         // the outgoing mic heard by other participants.
         let meetingMicProcessingMode: MeetingMicProcessingMode = .raw
-        let preferBuiltInForBluetoothOutputProvider: @Sendable () -> Bool = { [runtimePreferences] in
-            runtimePreferences.preferBuiltInMicWhenBluetoothOutput
-        }
         // Build the device-attempt chain lazily on each engine start so a
         // user changing their mic in Settings between meetings sees the new
-        // selection. When output is routed to a Bluetooth headset and the
-        // unpinned system-default input is risky (Bluetooth, unresolved, or
-        // built-in but not pinned), the chain pins the built-in mic before
-        // that fallback so opening capture doesn't force the headset into
-        // HFP/SCO (issues #481/#541/#409); the Bluetooth-output query runs
-        // lazily, only after the cheaper input guards pass. An unresolved output
-        // route during Bluetooth churn is treated as risky at that point.
+        // selection. Output routing is intentionally unrelated: System Default
+        // remains an implicit Core Audio route, while a named mic is pinned by
+        // its resolved device ID.
         let attemptsBuilder: AVAudioEngineMicrophonePlatform.DeviceAttemptsBuilder = {
             let selectedUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
             let selectedID = selectedUID.flatMap { AudioDeviceManager.inputDeviceID(forUID: $0) }
@@ -123,10 +122,7 @@ final class AppEnvironment {
                 selectedUID: selectedUID,
                 selectedInputDeviceID: { _ in selectedID },
                 defaultInputDevice: { defaultID },
-                builtInMicrophone: { builtInID },
-                preferBuiltInWhenOutputIsBluetooth: preferBuiltInForBluetoothOutputProvider(),
-                defaultInputIsBluetooth: { AudioDeviceManager.isBluetoothInput($0) },
-                outputIsBluetooth: { AudioDeviceManager.defaultOutputBluetoothState() }
+                builtInMicrophone: { builtInID }
             )
         }
         sharedMicStream = SharedMicrophoneStream(
@@ -142,12 +138,10 @@ final class AppEnvironment {
         // Bluetooth inputs are suppressed: an idle open mic pins the headset
         // in HFP/SCO and degrades playback the whole time (issue #481).
         let warmCaptureInputIsBluetooth: @Sendable () -> Bool = {
-            // Fail closed: an unresolvable input (mid device transition —
-            // exactly when Bluetooth headsets are settling) skips the warm
-            // hold for this round. The hold is an opt-in optimization;
-            // the next refresh or post-dictation restart retries.
-            guard let deviceID = attemptsBuilder().first?.deviceID else { return true }
-            return AudioDeviceManager.isBluetoothInput(deviceID)
+            Self.shouldSuppressWarmCapture(
+                deviceAttempts: attemptsBuilder(),
+                isBluetoothInput: { AudioDeviceManager.isBluetoothInput($0) }
+            )
         }
         audioProcessor = AudioProcessor(
             sharedMicStream: sharedMicStream,
@@ -301,6 +295,12 @@ final class AppEnvironment {
                 cliConfigStore: LocalCLIConfigStore()
             )
         )
+        cardGenerationService = CardGenerationService(
+            transcriptionRepository: transcriptionRepo,
+            segmentRepository: segmentRepo,
+            cardRepository: cardRepo,
+            completionProvider: llmService
+        )
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
@@ -356,6 +356,7 @@ final class AppEnvironment {
             sttTranscriber: sttScheduler,
             transcriptionRepo: transcriptionRepo,
             segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
             promptResultRepo: promptResultRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
@@ -384,6 +385,36 @@ final class AppEnvironment {
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()
+
+        let segmentMaintenanceRepository = segmentRepo
+        Task.detached(priority: .utility) {
+            do {
+                let result = try segmentMaintenanceRepository.rebuildOutdated()
+                if result.transcriptionsIndexed > 0 {
+                    Logger(subsystem: "com.macparakeet.app", category: "KnowledgeLayer")
+                        .notice(
+                            "Rebuilt outdated transcript segments recordings=\(result.transcriptionsIndexed, privacy: .public) segments=\(result.segmentsIndexed, privacy: .public)"
+                        )
+                }
+            } catch {
+                Logger(subsystem: "com.macparakeet.app", category: "KnowledgeLayer")
+                    .error(
+                        "Outdated segment maintenance failed error=\(error.localizedDescription, privacy: .public)"
+                    )
+            }
+        }
+    }
+
+    nonisolated static func shouldSuppressWarmCapture(
+        deviceAttempts: [MeetingInputDeviceAttempt],
+        isBluetoothInput: @Sendable (AudioDeviceID) -> Bool
+    ) -> Bool {
+        // Fail closed: an unresolvable input (mid device transition — exactly
+        // when Bluetooth headsets are settling) skips the warm hold for this
+        // round. The hold is an opt-in optimization; the next refresh or
+        // post-dictation restart retries.
+        guard let deviceID = deviceAttempts.first?.deviceID else { return true }
+        return isBluetoothInput(deviceID)
     }
 
     nonisolated static func shouldAttemptLiveDictationTranscription(

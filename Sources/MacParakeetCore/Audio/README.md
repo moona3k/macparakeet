@@ -226,27 +226,16 @@ debounce (0.5 s in `AppEnvironment`, 0 = disabled for direct
 constructions) keyed by a supersession generation; superseded or
 cancelled sleepers exit before touching any engine or pre-roll state.
 
-**Capture prefers the built-in mic when output is Bluetooth (issues
-#481/#541/#409).** Opening a Bluetooth headset's microphone forces it
-out of A2DP into HFP/SCO. That both degrades the playback the user is
-hearing and races the profile switch: the engine can start before the
-SCO link delivers audio and capture reads zero or pure-silent buffers
-(the self-heal restarts the engine but rebinds to the same not-yet-ready
-endpoint, so it does not fix this). The device-attempt builder in
-`AppEnvironment` therefore consults
-`AudioDeviceManager.isDefaultOutputBluetooth()` and, when the unpinned
-system-default input is Bluetooth, unresolved, or the built-in mic itself,
-`meetingInputDeviceAttempts` pins the built-in mic before that default fallback
-(governed by the `preferBuiltInMicWhenBluetoothOutput` preference, default on;
-toggle in Settings → Dictation). With no explicit mic chosen, built-in becomes
-the primary attempt. With an explicit mic chosen, that selection remains first,
-but a failed selected attempt no longer falls through to an unpinned Bluetooth
-default before trying built-in. Non-Bluetooth system-default inputs such as USB
-desk mics are left alone, and the `outputIsBluetooth` query is skipped unless
-the rule could improve the chain. This keeps playback in A2DP and sidesteps the
-SCO race rather than fighting it. *Verify on real Bluetooth hardware before
-relying on it — the behavior is hardware-timing-dependent and is not exercised
-by the unit suite.*
+**Input routing follows the microphone selection (issue #796).** A named mic
+is attempted by its resolved Core Audio device ID. System Default is always
+attempted implicitly, so AVAudioEngine can follow macOS routing without
+pinning the same endpoint through a different setup path. The built-in mic is
+kept as a final explicit fallback when it is distinct from the resolved
+default. Audio output never rewrites this ordering. If a Bluetooth headset is
+the macOS default input and the user wants to keep its output in high-quality
+A2DP, they can explicitly select the Mac's built-in mic in Settings. The idle
+warm-capture suppression above remains separate and still prevents Instant
+Dictation from holding a Bluetooth input open between active sessions.
 
 **Diagnostics stay narrow.** The recording heartbeat in `AudioRecorder`
 remains observability-only. The first-buffer watchdog is now also a

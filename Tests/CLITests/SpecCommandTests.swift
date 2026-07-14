@@ -107,6 +107,7 @@ final class SpecCommandTests: XCTestCase {
             documentedTopLevelCommands,
             [
                 "calendar",
+                "cards",
                 "config",
                 "export",
                 "feedback",
@@ -272,9 +273,9 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(voiceReturnTriggers["valueSyntax"] as? String, "phrase[|phrase...]")
         XCTAssertNil(voiceReturnTriggers["allowedValues"] as? [String])
 
-        let bluetoothMicPreference = try XCTUnwrap(
-            configKeys.first { ($0["key"] as? String) == "prefer-built-in-mic-bluetooth-output" })
-        XCTAssertEqual(bluetoothMicPreference["allowedValues"] as? [String], ["on", "off"])
+        XCTAssertNil(
+            configKeys.first { ($0["key"] as? String) == "prefer-built-in-mic-bluetooth-output" }
+        )
 
         let meetingSpeakerDetection = try XCTUnwrap(
             configKeys.first { ($0["key"] as? String) == "meeting-speaker-detection" })

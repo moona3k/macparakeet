@@ -136,7 +136,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// trigger for the silent tap-stall under investigation.
     private var configurationChangeObserver: NSObjectProtocol?
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
-    private var defaultOutputChangeObserver: AudioObjectPropertyListenerBlock?
     /// Parameters from the most recent successful start. Used by the
     /// configuration-change observer to re-run the exact same start sequence
     /// during self-healing recovery. Cleared at the start of each configure
@@ -341,12 +340,12 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             // platform is already stopped.
             lastStartRequestLocked = nil
             let hasConfiguredEngine = running || prepared
-            let hasRouteObservers = defaultInputChangeObserver != nil || defaultOutputChangeObserver != nil
+            let hasRouteObservers = defaultInputChangeObserver != nil
             guard hasConfiguredEngine || hasRouteObservers else {
                 return
             }
             // A suppressed Bluetooth/unresolved preparation installs only the
-            // system route listeners. Remove those without asking AVAudioEngine
+            // system input-route listener. Remove it without asking AVAudioEngine
             // for its input node, which could itself touch the unsafe route.
             guard hasConfiguredEngine else {
                 removeRouteChangeObserversLocked()
@@ -990,33 +989,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             }
         }
 
-        if defaultOutputChangeObserver == nil {
-            var outputAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            let outputBlock: AudioObjectPropertyListenerBlock = { _, _ in
-                let bluetooth = AudioDeviceManager.defaultOutputBluetoothState()
-                AudioCaptureDiagnostics.append(
-                    "audio_default_output_changed bluetooth=\(String(describing: bluetooth))"
-                )
-                NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
-            }
-            let outputStatus = AudioObjectAddPropertyListenerBlock(
-                AudioObjectID(kAudioObjectSystemObject),
-                &outputAddress,
-                routeListenerQueue,
-                outputBlock
-            )
-            if outputStatus == noErr {
-                defaultOutputChangeObserver = outputBlock
-            } else {
-                AudioCaptureDiagnostics.append(
-                    "audio_default_output_listener_failed status=\(outputStatus)"
-                )
-            }
-        }
     }
 
     private func removeRouteChangeObserversLocked() {
@@ -1033,21 +1005,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 inputBlock
             )
             defaultInputChangeObserver = nil
-        }
-
-        if let outputBlock = defaultOutputChangeObserver {
-            var outputAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            AudioObjectRemovePropertyListenerBlock(
-                AudioObjectID(kAudioObjectSystemObject),
-                &outputAddress,
-                routeListenerQueue,
-                outputBlock
-            )
-            defaultOutputChangeObserver = nil
         }
     }
 }

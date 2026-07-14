@@ -334,7 +334,6 @@ swift run macparakeet-cli config set meeting-artifacts-folder ~/Documents/MacPar
 swift run macparakeet-cli config set meeting-hook-enabled off
 swift run macparakeet-cli config set voice-return-enabled on
 swift run macparakeet-cli config set voice-return-triggers "hey parakeet|okay parakeet"
-swift run macparakeet-cli config set prefer-built-in-mic-bluetooth-output on
 ```
 
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
@@ -343,8 +342,7 @@ Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `auto-meeting-titles`, `save-transcription-audio`, `meeting-audio-retention`,
 `meeting-audio-source`, `save-meeting-audio`, `youtube-audio-quality`,
 `meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
-`meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`,
-`prefer-built-in-mic-bluetooth-output`.
+`meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.
 

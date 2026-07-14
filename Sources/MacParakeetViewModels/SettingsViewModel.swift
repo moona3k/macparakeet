@@ -235,19 +235,6 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .instantDictation, value: Self.settingValue(instantDictationEnabled)))
         }
     }
-    public var preferBuiltInMicWhenBluetoothOutput: Bool {
-        didSet {
-            defaults.set(
-                preferBuiltInMicWhenBluetoothOutput,
-                forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey
-            )
-            NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
-            Telemetry.send(.settingChanged(
-                setting: .preferBuiltInMicBluetoothOutput,
-                value: Self.settingValue(preferBuiltInMicWhenBluetoothOutput)
-            ))
-        }
-    }
     public var showLiveDictationPreview: Bool {
         didSet {
             defaults.set(
@@ -764,9 +751,6 @@ public final class SettingsViewModel {
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false
-        preferBuiltInMicWhenBluetoothOutput = defaults.object(
-            forKey: UserDefaultsAppRuntimePreferences.preferBuiltInMicWhenBluetoothOutputKey
-        ) as? Bool ?? true
         showLiveDictationPreview = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey
         ) as? Bool ?? true

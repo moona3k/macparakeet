@@ -28,9 +28,76 @@ public struct ChatMessage: Codable, Sendable, Equatable {
 
 public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
     public let type: String
+    public let items: ChatJSONSchemaArrayItem?
+    public let nullable: Bool
 
-    public init(type: String) {
+    public init(
+        type: String,
+        items: ChatJSONSchemaArrayItem? = nil,
+        nullable: Bool = false
+    ) {
         self.type = type
+        self.items = items
+        self.nullable = nullable
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case items
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        items = try container.decodeIfPresent(ChatJSONSchemaArrayItem.self, forKey: .items)
+
+        if let type = try? container.decode(String.self, forKey: .type) {
+            self.type = type
+            nullable = false
+            return
+        }
+
+        let types = try container.decode([String].self, forKey: .type)
+        guard types.count == 2,
+            types.contains("null"),
+            let type = types.first(where: { $0 != "null" })
+        else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected one JSON schema type and null"
+            )
+        }
+        self.type = type
+        nullable = true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if nullable {
+            try container.encode([type, "null"], forKey: .type)
+        } else {
+            try container.encode(type, forKey: .type)
+        }
+        try container.encodeIfPresent(items, forKey: .items)
+    }
+}
+
+public struct ChatJSONSchemaArrayItem: Codable, Sendable, Equatable {
+    public let type: String
+    public let properties: [String: ChatJSONSchemaProperty]?
+    public let required: [String]?
+    public let additionalProperties: Bool?
+
+    public init(
+        type: String,
+        properties: [String: ChatJSONSchemaProperty]? = nil,
+        required: [String]? = nil,
+        additionalProperties: Bool? = nil
+    ) {
+        self.type = type
+        self.properties = properties
+        self.required = required
+        self.additionalProperties = additionalProperties
     }
 }
 
@@ -55,6 +122,11 @@ public struct ChatJSONSchema: Codable, Sendable, Equatable {
 
 public enum ChatResponseFormat: Sendable, Equatable {
     case jsonSchema(name: String, schema: ChatJSONSchema)
+}
+
+public enum LLMStructuredOutputCapability: Sendable, Equatable {
+    case nativeJSONSchema
+    case promptEmbeddedJSONSchema
 }
 
 public struct ChatCompletionOptions: Sendable, Equatable {

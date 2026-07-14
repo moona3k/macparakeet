@@ -136,66 +136,6 @@ public enum AudioDeviceManager {
         return deviceInfo(id)
     }
 
-    /// Returns the current system default *output* device ID.
-    public static func defaultOutputDevice() -> AudioDeviceID? {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var deviceID: AudioDeviceID = 0
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        let status = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address, 0, nil, &size, &deviceID
-        )
-        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
-        return deviceID
-    }
-
-    /// Returns whether audio output is currently routed to a Bluetooth device.
-    ///
-    /// Returns nil when the output route, transport, or aggregate sub-device
-    /// list cannot be resolved; capture callers should treat that as risky
-    /// during route churn.
-    ///
-    /// This is the trigger for preferring the built-in microphone during
-    /// dictation/meeting capture: opening a Bluetooth headset's microphone
-    /// forces it out of high-quality A2DP into bidirectional HFP/SCO, which
-    /// both degrades the playback the user is hearing and races the profile
-    /// switch — capture can start before the SCO link delivers audio and read
-    /// silence (issues #481 / #541 / #409). Mirrors `isBluetoothInput`,
-    /// including the aggregate sub-device scan, since a Bluetooth endpoint can
-    /// surface behind a CoreAudio aggregate.
-    public static func defaultOutputBluetoothState() -> Bool? {
-        guard let deviceID = defaultOutputDevice() else { return nil }
-        guard let transport = resolvedTransportType(deviceID) else { return nil }
-
-        let subTransports: [UInt32]?
-        if transport == kAudioDeviceTransportTypeAggregate {
-            guard let subDeviceIDs = activeSubDeviceIDsIfAvailable(deviceID) else { return nil }
-            var resolvedSubTransports: [UInt32] = []
-            resolvedSubTransports.reserveCapacity(subDeviceIDs.count)
-            for subDeviceID in subDeviceIDs {
-                guard let subTransport = resolvedTransportType(subDeviceID) else { return nil }
-                resolvedSubTransports.append(subTransport)
-            }
-            subTransports = resolvedSubTransports
-        } else {
-            subTransports = []
-        }
-
-        return bluetoothRouteState(
-            transport: transport,
-            activeSubDeviceTransports: subTransports
-        )
-    }
-
-    /// True when audio output is currently routed to a Bluetooth device.
-    public static func isDefaultOutputBluetooth() -> Bool {
-        defaultOutputBluetoothState() == true
-    }
-
     /// Resolves a persistent CoreAudio device UID to the current process-local
     /// `AudioDeviceID`. Device IDs are not stable across boots or hardware
     /// topology changes, so app preferences should store UIDs and resolve late.

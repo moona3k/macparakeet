@@ -24,7 +24,6 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldShowMeetingRecordingPill: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
-    var preferBuiltInMicWhenBluetoothOutput: Bool { get }
     var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
@@ -524,13 +523,6 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
-    /// When on (default), dictation/meeting capture prefers the built-in mic
-    /// while audio output is routed to a Bluetooth headset, so opening the mic
-    /// doesn't force the headset into HFP/SCO (degraded playback + silent-
-    /// capture race, issues #481/#541/#409). Explicit mic selections remain
-    /// first; this only changes the system-default path or the fallback behind
-    /// a failed explicit attempt.
-    public static let preferBuiltInMicWhenBluetoothOutputKey = "preferBuiltInMicWhenBluetoothOutput"
     public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
@@ -685,10 +677,6 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var instantDictationEnabled: Bool {
         defaults.object(forKey: Self.instantDictationEnabledKey) as? Bool ?? false
-    }
-
-    public var preferBuiltInMicWhenBluetoothOutput: Bool {
-        defaults.object(forKey: Self.preferBuiltInMicWhenBluetoothOutputKey) as? Bool ?? true
     }
 
     public var customVocabularyRecognitionBoostingEnabled: Bool {

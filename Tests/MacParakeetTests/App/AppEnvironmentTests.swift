@@ -3,6 +3,31 @@ import MacParakeetCore
 import XCTest
 
 final class AppEnvironmentTests: XCTestCase {
+    func testWarmCaptureSuppressionUsesTheActiveInputRoute() {
+        let systemDefaultAttempts: [MeetingInputDeviceAttempt] = [
+            .implicitSystemDefault(resolvedDeviceID: 20),
+            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 30),
+        ]
+        XCTAssertTrue(AppEnvironment.shouldSuppressWarmCapture(
+            deviceAttempts: systemDefaultAttempts,
+            isBluetoothInput: { $0 == 20 }
+        ))
+
+        let namedMicAttempts: [MeetingInputDeviceAttempt] = [
+            MeetingInputDeviceAttempt(source: .selected(uid: "usb-mic"), deviceID: 10),
+            .implicitSystemDefault(resolvedDeviceID: 20),
+        ]
+        XCTAssertFalse(AppEnvironment.shouldSuppressWarmCapture(
+            deviceAttempts: namedMicAttempts,
+            isBluetoothInput: { $0 == 20 }
+        ))
+
+        XCTAssertTrue(AppEnvironment.shouldSuppressWarmCapture(
+            deviceAttempts: [.implicitSystemDefault(resolvedDeviceID: nil)],
+            isBluetoothInput: { _ in false }
+        ))
+    }
+
     func testCohereDictationRoutingDisablesLiveAndDisplayPreview() {
         XCTAssertFalse(AppEnvironment.shouldAttemptLiveDictationTranscription(
             speechEngine: .cohere,

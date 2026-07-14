@@ -5,6 +5,10 @@ import Foundation
 public protocol LLMClientProtocol: Sendable {
     var supportsInProcessLocalLLM: Bool { get }
 
+    func structuredOutputCapability(
+        context: LLMExecutionContext
+    ) -> LLMStructuredOutputCapability
+
     func chatCompletion(
         messages: [ChatMessage],
         context: LLMExecutionContext,
@@ -30,6 +34,17 @@ public protocol LLMClientProtocol: Sendable {
 
 public extension LLMClientProtocol {
     var supportsInProcessLocalLLM: Bool { false }
+
+    func structuredOutputCapability(
+        context: LLMExecutionContext
+    ) -> LLMStructuredOutputCapability {
+        switch context.providerConfig.id {
+        case .openai, .openaiCompatible, .gemini, .openrouter, .lmstudio:
+            .nativeJSONSchema
+        case .anthropic, .ollama, .localCLI, .inProcessLocal:
+            .promptEmbeddedJSONSchema
+        }
+    }
 
     func chatCompletion(
         messages: [ChatMessage],
@@ -90,6 +105,13 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         let config = context.providerConfig
         return try await adapter(for: config.id)
             .chatCompletion(messages: messages, config: config, options: options)
+    }
+
+    public func structuredOutputCapability(
+        context: LLMExecutionContext
+    ) -> LLMStructuredOutputCapability {
+        (try? adapter(for: context.providerConfig.id).structuredOutputCapability)
+            ?? .promptEmbeddedJSONSchema
     }
 
     public func chatCompletionStream(

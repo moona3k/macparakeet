@@ -85,6 +85,7 @@ public final class PromptResultsViewModel {
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
 
     private var llmService: LLMServiceProtocol?
+    private var cardGenerator: CardGenerating?
     private var promptRepo: PromptRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
     /// Read-only access to the underlying transcription so prompt assembly
@@ -166,6 +167,7 @@ public final class PromptResultsViewModel {
         meetingArtifactStore: MeetingArtifactStoring? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
         llmClient: LLMClientProtocol? = nil,
+        cardGenerator: CardGenerating? = nil,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.llmService = llmService
@@ -175,14 +177,19 @@ public final class PromptResultsViewModel {
         self.meetingArtifactStore = meetingArtifactStore
         self.configStore = configStore
         self.llmClient = llmClient
+        self.cardGenerator = cardGenerator
         self.cliConfigStore = cliConfigStore
         loadVisiblePrompts()
         refreshModelInfo()
     }
 
-    public func updateLLMService(_ service: LLMServiceProtocol?) {
+    public func updateLLMService(
+        _ service: LLMServiceProtocol?,
+        cardGenerator: CardGenerating? = nil
+    ) {
         cancelAllGenerations()
         llmService = service
+        self.cardGenerator = cardGenerator
         refreshModelInfo()
     }
 
@@ -358,6 +365,8 @@ public final class PromptResultsViewModel {
     ) -> [UUID] {
         guard transcript.contains(where: { !$0.isWhitespace }) else { return [] }
 
+        generateKnowledgeCard(transcriptionId: transcriptionId)
+
         let autoPrompts: [Prompt]
         do {
             autoPrompts = try promptRepo?.fetchAutoRunPrompts(for: sourceType) ?? []
@@ -381,6 +390,23 @@ public final class PromptResultsViewModel {
             }
         }
         return queuedIDs
+    }
+
+    public func generateKnowledgeCard(transcriptionId: UUID) {
+        guard let cardGenerator else { return }
+        let logger = logger
+        Task.detached(priority: .utility) {
+            do {
+                _ = try await cardGenerator.generate(
+                    transcriptionId: transcriptionId,
+                    force: false
+                )
+            } catch {
+                logger.warning(
+                    "Knowledge card generation failed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+        }
     }
 
     public func cancelStreaming() {

@@ -1150,14 +1150,6 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Use Mac mic with Bluetooth headphones",
-                    detail: "When the microphone is set to System Default and output is AirPods or other Bluetooth headphones, use the Mac's built-in mic first. This keeps headphone audio clear and helps avoid missed starts. Specific microphone choices above still take priority when available.",
-                    isOn: $viewModel.preferBuiltInMicWhenBluetoothOutput
-                )
-
-                Divider()
-
-                settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard
