@@ -1,0 +1,40 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_fe30d9e1d81161::t_cd8b5114178208 787-789
+spec/03-architecture.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 335,338,341
+spec/08-error-handling.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 84,86
+plans/README.md
+  s_fe30d9e1d81161::t_62b952feb7c3d3 23,34
+spec/adr/014-meeting-recording.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 148-153
+spec/02-features.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 1635-1641
+spec/06-stt-engine.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 425-427,433-437
+  s_fe30d9e1d81161::t_6a21269b12f3eb 438
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_fe30d9e1d81161::t_15a2c25e7644a4 160-163
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_fe30d9e1d81161::t_15a2c25e7644a4 390-391
+plans/active/2026-07-15-live-final-speech-routing.md
+  s_fe30d9e1d81161::t_62b952feb7c3d3 3,180-182
+spec/05-audio-pipeline.md
+  s_fe30d9e1d81161::t_62b952feb7c3d3 376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ca19ecd4e290f66f452ab4a8a2b7d5ab659f4008",
+  "prompts": {},
+  "sessions": {
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
