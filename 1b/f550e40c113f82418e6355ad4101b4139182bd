@@ -1,0 +1,37 @@
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_fe30d9e1d81161::t_4a7e56517c36b5 64
+plans/active/2026-07-15-live-final-speech-routing.md
+  s_fe30d9e1d81161::t_4a8b635662d9d6 104-110
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  s_fe30d9e1d81161::t_4a7e56517c36b5 207
+Tests/MacParakeetTests/STT/SpeechEnginePreferenceTests.swift
+  s_fe30d9e1d81161::t_4a7e56517c36b5 133-166
+docs/research/2026-07-15-live-final-speech-routing-fable-review.md
+  s_fe30d9e1d81161::t_4a8b635662d9d6 222-262
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  s_fe30d9e1d81161::t_4a7e56517c36b5 26,511-512
+spec/06-stt-engine.md
+  s_fe30d9e1d81161::t_4a8b635662d9d6 336-341
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  s_fe30d9e1d81161::t_4a7e56517c36b5 20-21,134-151
+  s_fe30d9e1d81161::t_0046e7cba67411 13-14,17-18
+  s_fe30d9e1d81161::t_6443a3ce9e62bb 152-153
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_fe30d9e1d81161::t_4a7e56517c36b5 3656
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1bf550e40c113f82418e6355ad4101b4139182bd",
+  "prompts": {},
+  "sessions": {
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
