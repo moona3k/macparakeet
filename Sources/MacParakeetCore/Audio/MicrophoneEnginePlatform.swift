@@ -63,28 +63,54 @@ public extension MicrophoneEnginePlatform {
 
 /// The tap is installed during idle preparation, but the callback requested by
 /// the eventual capture may be a newer closure. Keep that callback replaceable
-/// without reinstalling the tap; copy it under the lock and invoke it after the
-/// lock is released on the audio render thread.
-private final class MutableMicrophoneTapHandler: @unchecked Sendable {
+/// without reinstalling the tap; snapshot its target under the lock and invoke
+/// it after the lock is released on the audio render thread.
+final class MutableMicrophoneTapHandler: @unchecked Sendable {
     typealias Handler = @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
 
-    private let handler: OSAllocatedUnfairLock<Handler?>
+    /// Keep the function behind a stable reference. Repeatedly copying a
+    /// function stored directly as `OSAllocatedUnfairLock` state can build a
+    /// deep chain of Swift reabstraction thunks; destroying that function on
+    /// stop then recursively releases the chain and can overflow the stack.
+    private final class Target: Sendable {
+        let handler: Handler
+
+        init(_ handler: @escaping Handler) {
+            self.handler = handler
+        }
+    }
+
+    private let target: OSAllocatedUnfairLock<Target?>
 
     init(_ handler: @escaping Handler) {
-        self.handler = OSAllocatedUnfairLock(initialState: handler)
+        self.target = OSAllocatedUnfairLock(initialState: Target(handler))
     }
 
     func replace(with handler: @escaping Handler) {
-        self.handler.withLock { $0 = handler }
+        let replacement = Target(handler)
+        let previous = target.withLock { current in
+            let previous = current
+            current = replacement
+            return previous
+        }
+        // Destroy the old function after leaving the lock's critical section.
+        withExtendedLifetime(previous) {}
     }
 
     func invoke(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
-        let current = handler.withLock { $0 }
-        current?(buffer, time)
+        let current = target.withLock { $0 }
+        current?.handler(buffer, time)
     }
 
     func clear() {
-        handler.withLock { $0 = nil }
+        let previous = target.withLock { current in
+            let previous = current
+            current = nil
+            return previous
+        }
+        // An in-flight invocation retains its own Target. Future invocations
+        // see nil, while the detached function is destroyed outside the lock.
+        withExtendedLifetime(previous) {}
     }
 }
 
