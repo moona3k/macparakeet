@@ -360,7 +360,7 @@ Update in the same PR:
   `speechEngine` is the captured final/recovery selection; schema remains v2
 - `spec/contracts/meeting-artifacts-v1.md` — document optional archived preview
   provenance if the metadata field is added
-- `docs/telemetry.md` only if the existing setting-value semantics change
+- `docs/telemetry.md` — document `same_as_live` when the Advanced override is disabled
 
 ADR-020 remains unchanged because `recording.lock` does not change.
 

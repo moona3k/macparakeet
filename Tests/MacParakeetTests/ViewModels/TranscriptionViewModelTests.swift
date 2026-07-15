@@ -318,11 +318,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.progress, "Preparing...", "Initial progress should be 'Preparing...'")
     }
 
-    func testTranscribeFileProgressSublineUsesSelectedEngineSnapshot() async throws {
+    func testTranscribeFileProgressSublineUsesFinalEngineSnapshot() async throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
         let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
@@ -2818,11 +2819,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
     }
 
-    func testRetranscriptionEngineOptionFallsBackToCurrentDefaultForLegacyFileTranscript() throws {
+    func testRetranscriptionEngineOptionFallsBackToFinalRouteForLegacyFileTranscript() throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ko", defaults: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
@@ -2836,7 +2838,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tmpFile) }
 
         // Pre-attribution row: no engine recorded, so the menu falls back to the
-        // user's current default and badges it "Current", not "Original".
+        // user's current final route and badges it "Current", not "Original".
         let original = Transcription(
             id: UUID(),
             fileName: "Legacy File",

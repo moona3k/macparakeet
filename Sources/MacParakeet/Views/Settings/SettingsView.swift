@@ -406,8 +406,8 @@ struct SettingsView: View {
     /// 6. `engineLanguageCard` — which language? (Whisper only in Settings)
     /// 7. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 3–6 appear for engines used by either workflow route, so multiple
-    /// contextual cards can coexist when dictation and transcription differ.
+    /// Cards 3–6 appear for engines used by either route, so model/language
+    /// controls stay available when Live Speech and Final Transcription differ.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
