@@ -1,0 +1,29 @@
+Sources/CLI/MacParakeetCLI.swift
+  s_52ff362537f332::t_286883d1e96750 11
+spec/contracts/cli-json-v1.md
+  s_52ff362537f332::t_286883d1e96750 150-155
+spec/contracts/meeting-recovery-retention.md
+  s_52ff362537f332::t_e4dbb8c0864c06 138-142
+docs/audits/2026-07-14-post-0.7.2-release-readiness.md
+  s_52ff362537f332::t_098271e635a2f6 1-39,41-106,124-137
+  s_52ff362537f332::t_1eb2f139382252 40,107-123
+Sources/CLI/CHANGELOG.md
+  s_52ff362537f332::t_286883d1e96750 92-93,107-110
+  s_52ff362537f332::t_e4dbb8c0864c06 102-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2dbfd02b198112edeb28b96c4c5618d5936de362",
+  "prompts": {},
+  "sessions": {
+    "s_52ff362537f332": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6434-0f05-7c03-b827-cca676da5b5e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
