@@ -33,6 +33,19 @@ final class STTWordTimingBuilderTests: XCTestCase {
         XCTAssertEqual(words[0].endMs, 320)
     }
 
+    func testWordsPreserveStandaloneSentencePieceBoundary() {
+        let words = STTWordTimingBuilder.words(from: [
+            TokenTiming(token: "▁improve", tokenId: 1, startTime: 0.00, endTime: 0.12, confidence: 0.9),
+            TokenTiming(token: "▁", tokenId: 2, startTime: 0.12, endTime: 0.16, confidence: 0.9),
+            TokenTiming(token: "based", tokenId: 3, startTime: 0.16, endTime: 0.28, confidence: 0.9),
+            TokenTiming(token: "▁on", tokenId: 4, startTime: 0.28, endTime: 0.40, confidence: 0.9),
+        ])
+
+        XCTAssertEqual(words.map(\.word), ["improve", "based", "on"])
+        XCTAssertEqual(words.map(\.startMs), [0, 160, 280])
+        XCTAssertEqual(words.map(\.endMs), [120, 280, 400])
+    }
+
     func testWordsStartPlainFirstTokenAsWord() {
         let words = STTWordTimingBuilder.words(from: [
             TokenTiming(token: "hello", tokenId: 1, startTime: 0.04, endTime: 0.20, confidence: 0.7),

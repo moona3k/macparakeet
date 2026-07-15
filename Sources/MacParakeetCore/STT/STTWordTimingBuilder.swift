@@ -35,10 +35,18 @@ enum STTWordTimingBuilder {
 
         for timing in tokenTimings {
             let normalizedToken = timing.token.replacingOccurrences(of: "▁", with: " ")
+            let startsNewWord = normalizedToken.first?.isWhitespace == true
             let trimmedToken = normalizedToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedToken.isEmpty else { continue }
+            guard !trimmedToken.isEmpty else {
+                // Multilingual Nemotron can emit the SentencePiece boundary as
+                // its own token, so it still terminates the preceding word.
+                if startsNewWord {
+                    flushCurrentWord()
+                }
+                continue
+            }
 
-            if normalizedToken.first?.isWhitespace == true {
+            if startsNewWord {
                 flushCurrentWord()
                 currentWord = trimmedToken
                 currentStartTime = timing.startTime
