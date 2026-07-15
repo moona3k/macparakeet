@@ -624,6 +624,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let stt = MockSTTClient()
         await stt.setReady(false)
         let meetingSelection = SpeechEngineSelection(engine: .parakeet)
+        let changedPreference = SpeechEngineSelection(engine: .cohere, language: "fr")
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: MeetingRecordingServiceSpy(
                 output: makeRecordingOutput(),
@@ -640,7 +641,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             sttManager: stt,
-            speechEngineSelectionProvider: { meetingSelection },
+            speechEngineSelectionProvider: { changedPreference },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
