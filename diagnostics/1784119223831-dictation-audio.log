@@ -1,0 +1,30 @@
+2026-07-09T13:39:47.375Z dictation_diagnostics_session_start pid=86554 version=0.6.24 build=20260621193207 source=dist-xcodebuild-release commit=390e5eeda65b
+2026-07-09T13:39:50.549Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T13:40:06.064Z whisper_model_prepare_still_loading elapsed_s=15 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T13:40:20.009Z whisper_model_prepare_complete model=large-v3-v20240930_turbo_632MB duration_s=29.462
+2026-07-09T13:41:28.170Z dictation_diagnostics_session_start pid=87373 version=0.7.1 build=20260709110129 source=dist-xcodebuild-release commit=5e1d1af1cbba
+2026-07-09T13:41:30.691Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T13:41:45.906Z whisper_model_prepare_still_loading elapsed_s=15 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T13:42:07.449Z whisper_model_prepare_complete model=large-v3-v20240930_turbo_632MB duration_s=36.757
+2026-07-09T14:20:44.298Z dictation_diagnostics_session_start pid=1254 version=0.7.1 build=20260709110129 source=dist-xcodebuild-release commit=5e1d1af1cbba
+2026-07-09T14:20:46.932Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T14:21:14.070Z whisper_model_prepare_still_loading elapsed_s=15 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T14:22:11.934Z whisper_model_prepare_still_loading elapsed_s=60 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T14:24:23.767Z whisper_model_prepare_still_loading elapsed_s=180 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T14:26:31.394Z whisper_model_prepare_still_loading elapsed_s=300 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T14:29:26.069Z whisper_model_prepare_complete model=large-v3-v20240930_turbo_632MB duration_s=519.215
+2026-07-09T16:01:36.722Z dictation_diagnostics_session_start pid=34316 version=0.7.1 build=20260709110129 source=dist-xcodebuild-release commit=5e1d1af1cbba
+2026-07-09T16:01:39.231Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-09T16:01:42.069Z whisper_model_prepare_complete model=large-v3-v20240930_turbo_632MB duration_s=2.839
+2026-07-15T12:32:30.670Z dictation_diagnostics_session_start pid=56008 version=0.7.1 build=20260709110129 source=dist-xcodebuild-release commit=5e1d1af1cbba
+2026-07-15T12:32:32.598Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:32:48.358Z dictation_diagnostics_session_start pid=56073 version=0.7.2 build=20260712195419 source=dist-xcodebuild-release commit=afc2eff9dd0c
+2026-07-15T12:32:50.291Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:33:05.695Z whisper_model_prepare_still_loading elapsed_s=15 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:33:52.918Z whisper_model_prepare_still_loading elapsed_s=60 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:35:54.912Z whisper_model_prepare_still_loading elapsed_s=180 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:36:42.037Z dictation_diagnostics_session_start pid=58771 version=0.7.2 build=20260712195419 source=dist-xcodebuild-release commit=afc2eff9dd0c
+2026-07-15T12:36:44.825Z whisper_model_prepare_start model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:37:00.260Z whisper_model_prepare_still_loading elapsed_s=15 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:37:45.999Z whisper_model_prepare_still_loading elapsed_s=60 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
+2026-07-15T12:39:46.072Z whisper_model_prepare_still_loading elapsed_s=180 model=large-v3-v20240930_turbo_632MB folder=openai_whisper-large-v3-v20240930_turbo_632MB
