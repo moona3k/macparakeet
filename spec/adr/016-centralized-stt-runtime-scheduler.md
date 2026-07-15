@@ -9,6 +9,7 @@
 > Amendment 2026-07-06: Parakeet Unified routes inside the same control plane through a dedicated `ParakeetUnifiedEngine` selected by the persisted Parakeet model preference. Unified does not create a feature-owned STT runtime; final paste/file/meeting work and live dictation preview use its native streaming manager so token-derived word timestamps are available to exports and speaker alignment.
 > Amendment 2026-06-27: Cohere Transcribe routes through the same runtime owner as an opt-in, explicitly downloaded, batch-only FluidAudio CoreML engine. It is allowed for recorded dictation finalization, file transcription, and meeting finalization/retranscribe, but it must not enter live dictation preview or meeting live-chunk paths because it emits no live partials, word timestamps, or speaker labels. Because the Cohere runtime is a single large batch pipeline rather than separate interactive/background managers, the scheduler treats Cohere as a global single-flight resource instead of hiding cross-slot waits inside the engine.
 > Amendment 2026-07-11: GUI routing preferences are split by workflow. `speechRecognitionEngine` remains the dictation engine; `transcriptionSpeechRecognitionEngine` routes file/media/URL jobs and is captured by new meeting leases. Missing workflow state inherits dictation for backward compatibility. Both routes remain inside the single runtime/scheduler control plane.
+> Amendment 2026-07-15: The GUI split is defined by live-vs-final responsibility rather than feature grouping. `speechRecognitionEngine` is Live Speech for dictation and meeting preview. `transcriptionSpeechRecognitionEngine` is an optional Advanced Final Transcription override for post-meeting and file/media work; absence means inheritance. Meetings always lease Live Speech and capture a separate immutable final route.
 
 ## Context
 
@@ -203,10 +204,19 @@ The control plane supports both unrouted and routed transcription calls:
 - Routed jobs pass a `SpeechEngineSelection` (`parakeet`, `nemotron`, `cohere`, or `whisper`, with optional language where the selected engine/build supports it).
 - Cohere jobs are admitted as a scheduler-level single-flight resource across the interactive and background slots. Parakeet/Nemotron/Whisper keep the normal slot split; Cohere trades that low-latency isolation for its larger batch accuracy path.
 - `setSpeechEngine(_:)` is rejected while jobs are queued/running.
-- `beginSpeechEngineSession()` returns a lease containing the current selection; the routed overload pins an explicit workflow selection; `endSpeechEngineSession(_:)` releases either lease.
+- `beginSpeechEngineSession()` returns a lease containing the current live selection and capabilities; the routed overload remains available for explicit callers; `endSpeechEngineSession(_:)` releases either lease.
 - Engine switching is rejected while any lease is active.
 
-Meeting recording uses the routed lease at start with the persisted Meetings & Transcriptions selection. This prevents a long recording from starting with one engine for live preview and finishing with another while leaving dictation on its own independently selected engine. The captured engine/language is also persisted to meeting metadata and recovery lock files so interrupted sessions recover through the same engine. Batch-only engines can opt out of live phases while still preserving the same captured selection for finalization; Cohere does this deliberately.
+Meeting recording always acquires the current Live Speech lease at start—even
+when that engine cannot render preview—so engine and model-variant switches
+remain excluded for the full capture. It resolves one immutable
+`MeetingSpeechPlan` from that lease plus the resolved Final Transcription
+preference. Preview admission is a capability decision derived from word-timing
+support; there is no fallback engine. The final selection is persisted in the
+existing lock field for recovery and in archived metadata for immediate and
+later retranscription. Optional preview provenance is metadata-only. Final
+model loading remains lazy and enters through normal scheduler admission after
+durable stop; the meeting feature never constructs or downloads an engine.
 
 ## Consequences
 

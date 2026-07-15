@@ -256,6 +256,15 @@ struct MeetingRecordingPanelView: View {
                 MeetingSourceHealthChips(chips: visibleSourceHealthChips)
             }
 
+            if let attribution = viewModel.speechRouteAttribution {
+                Text(attribution)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if viewModel.showsLaggingIndicator {
                 Label("Transcript preview is catching up", systemImage: "exclamationmark.triangle.fill")
                     .font(DesignSystem.Typography.caption.weight(.semibold))

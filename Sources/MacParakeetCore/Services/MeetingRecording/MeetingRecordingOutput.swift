@@ -19,6 +19,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
+    public let previewSpeechEngine: SpeechEngineSelection?
     public let startContext: MeetingStartContext?
     /// Free-form notes the user typed during the meeting, captured at finalize
     /// time. Threaded through to `Transcription.userNotes` by the caller so
@@ -40,6 +41,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
+        previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil
@@ -57,6 +59,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             sourceAlignment: sourceAlignment,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
+            previewSpeechEngine: previewSpeechEngine,
             startContext: startContext,
             userNotes: userNotes,
             calendarEventSnapshot: calendarEventSnapshot
@@ -76,6 +79,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
+        previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil
@@ -92,6 +96,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
+        self.previewSpeechEngine = previewSpeechEngine
         self.startContext = startContext
         self.userNotes = userNotes
         self.calendarEventSnapshot = calendarEventSnapshot
@@ -187,6 +192,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             sourceAlignment: metadata.sourceAlignment,
             speechEngine: metadata.speechEngine,
             speechEngineWasCaptured: metadata.speechEngineWasCaptured,
+            previewSpeechEngine: metadata.previewSpeechEngine,
             startContext: metadata.startContext,
             calendarEventSnapshot: metadata.calendarEventSnapshot
         )
@@ -222,6 +228,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.sourceAlignment == rhs.sourceAlignment
             && lhs.speechEngine == rhs.speechEngine
             && lhs.speechEngineWasCaptured == rhs.speechEngineWasCaptured
+            && lhs.previewSpeechEngine == rhs.previewSpeechEngine
             && lhs.startContext == rhs.startContext
             && lhs.userNotes == rhs.userNotes
             && lhs.calendarEventSnapshot == rhs.calendarEventSnapshot

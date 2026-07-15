@@ -2021,6 +2021,56 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(selections, [SpeechEngineSelection(engine: .whisper, language: "ko")])
     }
 
+    func testMissingCapturedFinalModelFailsWithoutFallbackAndKeepsMeetingRetryable() async throws {
+        let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: recordingFolder) }
+
+        let mixedURL = recordingFolder.appendingPathComponent("meeting-playback.m4a")
+        let microphoneURL = recordingFolder.appendingPathComponent("microphone-raw.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: microphoneURL.path, contents: Data("microphone".utf8)))
+        await mockSTT.configure(error: STTError.modelNotLoaded)
+
+        let finalSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let recording = MeetingRecordingOutput(
+            sessionID: UUID(),
+            displayName: "Captured Cohere Meeting",
+            folderURL: recordingFolder,
+            mixedAudioURL: mixedURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: recordingFolder.appendingPathComponent("system-raw.m4a"),
+            durationSeconds: 1.0,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: nil,
+                microphone: .init(
+                    firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0, writtenFrameCount: 24_000,
+                    sampleRate: 48_000),
+                system: nil
+            ),
+            speechEngine: finalSelection,
+            previewSpeechEngine: SpeechEngineSelection(engine: .parakeet)
+        )
+
+        do {
+            _ = try await service.transcribeMeeting(recording: recording)
+            XCTFail("Expected the missing captured final model to fail")
+        } catch let error as STTError {
+            guard case .modelNotLoaded = error else {
+                return XCTFail("Unexpected STT error: \(error)")
+            }
+        }
+
+        let selections = await mockSTT.speechEngineSelections
+        XCTAssertEqual(selections, [finalSelection])
+        let saved = try XCTUnwrap(try transcriptionRepo.fetchAll(limit: nil).first)
+        XCTAssertEqual(saved.status, .error)
+        XCTAssertEqual(saved.errorMessage, STTError.modelNotLoaded.localizedDescription)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: microphoneURL.path))
+    }
+
     func testRetranscribeMeetingCanOverrideCapturedSpeechEngineForOneRun() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

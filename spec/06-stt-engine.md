@@ -324,12 +324,14 @@ ADR-016 defines MacParakeet's STT architecture as:
 
 The app does not treat "one service = one STT runtime" as a valid long-term architecture.
 `STTClient` remains only as a standalone compatibility facade for the CLI and tests; app code uses the shared `STTRuntime` + `STTScheduler` from `AppEnvironment`.
-The GUI uses `speechRecognitionEngine` for dictation and
-`transcriptionSpeechRecognitionEngine` for files, media, URLs, and newly started
-meetings. When the latter key is absent it inherits the dictation preference,
-preserving upgrade behavior. This is a routing-policy layer on top of the shared
-control plane, not a separate runtime per feature. The CLI can still override
-per invocation.
+The GUI uses `speechRecognitionEngine` as **Live Speech** for dictation and
+eligible meeting preview. `transcriptionSpeechRecognitionEngine` is the
+optional **Final Transcription** override for authoritative post-meeting STT and
+file, media, URL, podcast, and retranscription jobs. When the latter key is
+absent, final work inherits Live Speech; Settings must preserve absence rather
+than materializing a duplicate value. This is a routing-policy layer on top of
+the shared control plane, not a separate runtime per feature. The CLI can still
+override per invocation.
 
 ### Lifecycle
 
@@ -339,7 +341,7 @@ per invocation.
 - **Graceful shutdown**: The shared runtime is released when the app quits
 - **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
 - **Cancellation-safe init**: Shutdown/cache clear cancel in-flight initialization and wait for loaded managers to clean themselves up before returning
-- **Meeting engine lease**: Meeting recording captures the dedicated Meetings & Transcriptions `SpeechEngineSelection` at start and holds a scheduler lease until stop/cancel; engine/model changes are rejected while the lease is active
+- **Meeting speech plan**: Meeting recording leases Live Speech at start unconditionally and captures `MeetingSpeechPlan { preview?, final }`; engine/model changes and model deletion are rejected while the lease is active. Preview uses the lease only when word-timing capabilities support the renderer. Final loads lazily after durable stop through the normal scheduler route.
 
 ### Scheduling Policy
 
@@ -400,21 +402,21 @@ Meeting live preview (v0.6):
     → MicConditioner (pass-through; no capture-time AEC by default)
     → dominant-system live guard (skip clearly system-dominant mic chunks for live preview only)
     → LiveChunkTranscriber (queueing + ordering + cancellation)
-    → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, speechEngine: meetingLease.selection, onProgress:)
+    → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, speechEngine: meetingPlan.preview, onProgress:)
     → background-slot selected-engine STT
     → live transcript update
 
 Meeting stop / finalization:
   microphone-raw.m4a + system-raw.m4a + MeetingSourceAlignment
     → convert each source to mono WAV
-    → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, speechEngine: capturedSelection, onProgress:) per source
+    → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, speechEngine: meetingPlan.final, onProgress:) per source
     → aligned merge
     → final saved meeting transcript
 
 Saved meeting retranscription from the library:
   meeting-playback.m4a + archived meeting-recording-metadata.json + source files
     → reconstruct MeetingRecordingOutput
-    → same dual-source meetingFinalize path and captured engine as immediate post-stop finalization
+    → same dual-source meetingFinalize path and captured final engine as immediate post-stop finalization
     → updated meeting transcript
   Stored-file fallback:
     transcriptions.filePath audio only → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript

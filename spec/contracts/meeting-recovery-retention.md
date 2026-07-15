@@ -61,9 +61,12 @@ Speech-engine provenance is versioned because schema v1 writers always encoded
 the former shared engine route. A v1 `speechEngine` therefore does not prove
 that an independent meeting route was captured. Schema v2 introduces that
 meaning: when its `speechEngine` is present, recovery uses the captured meeting
-selection; v1 locks and v2 locks without the field use the current Meetings &
-Transcriptions route. Readers accept supported older versions and reject newer,
-unknown versions.
+final-transcription selection; v1 locks and v2 locks without the field use the
+current resolved Final Transcription route. The 2026-07-15 live/final split does
+not introduce schema v3: preview is nonessential to recovery, and older stable
+readers deliberately reject future schemas. Keeping v2 avoids making an active
+recording invisible to older recovery, CLI, or retention readers. Readers
+accept supported older versions and reject newer, unknown versions.
 
 ## Safety Predicates
 
@@ -130,6 +133,8 @@ not final-transcription completion:
 
 - PID liveness is process-local and time-sensitive.
 - `startedAt` and folder paths vary by session.
+- Preview-engine provenance is intentionally not part of the lock. It is
+  additive archived metadata only; recovery needs the authoritative final route.
 - Future lock schema versions are opaque to older readers; the file presence
   remains protective for destructive sweeps.
 

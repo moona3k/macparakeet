@@ -77,6 +77,59 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         )
     }
 
+    func testFinalTranscriptionWithoutOverrideFollowsLaterLiveSpeechChanges() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .parakeet)
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .whisper)
+    }
+
+    func testFinalTranscriptionOverrideRemainsIndependentFromLiveSpeech() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.cohere, defaults: defaults)
+        SpeechEnginePreference.whisper.save(to: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .cohere)
+    }
+
+    func testClearingFinalTranscriptionOverrideRestoresLiveSpeechInheritance() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+
+        SpeechEnginePreference.saveFinalTranscriptionOverride(nil, defaults: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertNil(defaults.object(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .whisper)
+    }
+
+    func testEqualValuedFinalOverrideIsStillExplicitByKeyPresence() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .parakeet)
+    }
+
     // MARK: - Whisper optimized-variant tracking
 
     private func makeIsolatedDefaults() -> (UserDefaults, String) {

@@ -21,9 +21,10 @@ public final class EngineSettingsViewModel {
             applySpeechEngineChange(speechEnginePreference)
         }
     }
-    /// Engine routed to file/media jobs and captured by newly started meetings.
-    /// Changing it does not reload or replace the live dictation engine.
+    /// Resolved authoritative engine for file/media jobs and newly started
+    /// meetings. It follows live speech unless the Advanced override is on.
     public private(set) var transcriptionSpeechEnginePreference: SpeechEnginePreference
+    public private(set) var usesDifferentFinalTranscriptionEngine: Bool
     /// Which Parakeet build (multilingual `v3`, English-only `v2`, or Unified)
     /// is active. Changing it live-reloads the model when Parakeet is the selected
     /// engine (downloading the target on first use); see
@@ -243,16 +244,9 @@ public final class EngineSettingsViewModel {
         self.deleteCohereModelOnDisk = deleteCohereModelOnDisk
         self.physicalMemoryBytes = physicalMemoryBytes
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
-        let initialTranscriptionEngine = SpeechEnginePreference.transcription(defaults: defaults)
-        transcriptionSpeechEnginePreference = initialTranscriptionEngine
-        // Materialize the inherited upgrade value when Settings first owns the
-        // controls. From this point on, changing dictation must not silently
-        // move the Meetings & Transcriptions route behind the visible picker.
-        if defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey)
-            .flatMap(SpeechEnginePreference.init(rawValue:)) == nil
-        {
-            initialTranscriptionEngine.saveForTranscriptions(to: defaults)
-        }
+        transcriptionSpeechEnginePreference = SpeechEnginePreference.finalTranscription(defaults: defaults)
+        usesDifferentFinalTranscriptionEngine =
+            SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults)
         parakeetModelVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
         nemotronModelVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
@@ -273,13 +267,47 @@ public final class EngineSettingsViewModel {
             ?? (sttClient as? SpeechEngineSwitchAvailabilityProviding)
     }
 
-    /// Persists the background/meeting route independently from dictation.
-    /// Model readiness is checked here so the next recording cannot silently
-    /// pin an engine that has not been installed yet.
+    public func setUsesDifferentFinalTranscriptionEngine(_ enabled: Bool) {
+        guard enabled != usesDifferentFinalTranscriptionEngine else { return }
+        transcriptionSpeechEngineError = nil
+        usesDifferentFinalTranscriptionEngine = enabled
+
+        if enabled {
+            // Key presence is intentional even when both routes currently
+            // match: a later live-engine change must leave this override alone.
+            transcriptionSpeechEnginePreference =
+                SpeechEnginePreference.finalTranscription(defaults: defaults)
+            SpeechEnginePreference.saveFinalTranscriptionOverride(
+                transcriptionSpeechEnginePreference,
+                defaults: defaults
+            )
+            Telemetry.send(
+                .settingChanged(
+                    setting: .transcriptionSpeechEngine,
+                    value: transcriptionSpeechEnginePreference.rawValue
+                )
+            )
+        } else {
+            SpeechEnginePreference.saveFinalTranscriptionOverride(nil, defaults: defaults)
+            transcriptionSpeechEnginePreference = speechEnginePreference
+            Telemetry.send(
+                .settingChanged(setting: .transcriptionSpeechEngine, value: "same_as_live")
+            )
+        }
+    }
+
+    /// Persists the Advanced final-transcription route without reloading the
+    /// live engine. Readiness is checked so the next job does not pin a model
+    /// that has not been installed.
     @discardableResult
     public func selectTranscriptionSpeechEngine(_ preference: SpeechEnginePreference) -> Bool {
         transcriptionSpeechEngineError = nil
-        guard preference != transcriptionSpeechEnginePreference else { return true }
+        if preference == transcriptionSpeechEnginePreference {
+            if !usesDifferentFinalTranscriptionEngine {
+                setUsesDifferentFinalTranscriptionEngine(true)
+            }
+            return true
+        }
 
         if preference == .nemotron && !isNemotronModelAvailable {
             transcriptionSpeechEngineError =
@@ -304,7 +332,8 @@ public final class EngineSettingsViewModel {
         }
 
         transcriptionSpeechEnginePreference = preference
-        preference.saveForTranscriptions(to: defaults)
+        usesDifferentFinalTranscriptionEngine = true
+        SpeechEnginePreference.saveFinalTranscriptionOverride(preference, defaults: defaults)
         Telemetry.send(.settingChanged(setting: .transcriptionSpeechEngine, value: preference.rawValue))
         return true
     }
@@ -868,6 +897,11 @@ public final class EngineSettingsViewModel {
         }
     }
 
+    private func syncInheritedFinalTranscriptionPreference() {
+        guard !usesDifferentFinalTranscriptionEngine else { return }
+        transcriptionSpeechEnginePreference = speechEnginePreference
+    }
+
     private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
@@ -954,6 +988,7 @@ public final class EngineSettingsViewModel {
 
         guard let speechEngineSwitcher else {
             preference.save(to: defaults)
+            syncInheritedFinalTranscriptionPreference()
             Telemetry.send(.speechEngineSwitchOperation(
                 operationID: operationContext.operationID,
                 operationContext: operationContext,
@@ -1014,6 +1049,7 @@ public final class EngineSettingsViewModel {
                     }
                 }
                 preference.save(to: self.defaults)
+                self.syncInheritedFinalTranscriptionPreference()
                 Telemetry.send(.speechEngineSwitchOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
@@ -1260,7 +1296,7 @@ public final class EngineSettingsViewModel {
     /// slips through. The "Downloaded" badge drops immediately; a disk refresh
     /// then confirms.
     public func deleteParakeetVariant(_ variant: ParakeetModelVariant) {
-        guard !speechEngineSwitching else { return }
+        guard !speechEngineSwitching, speechEngineSwitchAvailability == .available else { return }
         // Never delete the selected Parakeet build. Even while Whisper is the
         // active engine, this is the build Parakeet would load after a switch.
         guard parakeetModelVariant != variant else { return }
@@ -1291,7 +1327,9 @@ public final class EngineSettingsViewModel {
     /// next active use has an explicit download moment instead of a surprise
     /// re-fetch.
     public func deleteNemotronVariant(_ variant: NemotronModelVariant) {
-        guard !speechEngineSwitching, !nemotronDownloading else { return }
+        guard !speechEngineSwitching, !nemotronDownloading,
+            speechEngineSwitchAvailability == .available
+        else { return }
         if usesSpeechEngine(.nemotron), nemotronModelVariant == variant { return }
         guard downloadedNemotronVariants.contains(variant) else { return }
 
@@ -1320,7 +1358,9 @@ public final class EngineSettingsViewModel {
     /// would force a silent re-download. State flips to "Not Downloaded"
     /// immediately; a disk refresh then confirms.
     public func deleteWhisperModel() {
-        guard !speechEngineSwitching, !whisperDownloading else { return }
+        guard !speechEngineSwitching, !whisperDownloading,
+            speechEngineSwitchAvailability == .available
+        else { return }
         // Protect the in-use engine's model.
         guard !usesSpeechEngine(.whisper) else { return }
         guard isWhisperModelDownloaded else { return }
@@ -1344,7 +1384,9 @@ public final class EngineSettingsViewModel {
     }
 
     public func deleteCohereModel() {
-        guard !speechEngineSwitching, !cohereDownloading, !cohereDeleting else { return }
+        guard !speechEngineSwitching, !cohereDownloading, !cohereDeleting,
+            speechEngineSwitchAvailability == .available
+        else { return }
         // Protect the in-use engine's model; deleting it would force a silent
         // re-download the next time the active runtime prepares.
         guard !usesSpeechEngine(.cohere) else { return }

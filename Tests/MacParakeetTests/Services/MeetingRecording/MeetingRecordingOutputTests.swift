@@ -525,6 +525,45 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(archived.startContext, startContext)
     }
 
+    func testMeetingRecordingMetadataRoundTripsOptionalPreviewSpeechEngine() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let preview = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .cohere, language: "fr")
+
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                speechEngine: final,
+                previewSpeechEngine: preview
+            ),
+            folderURL: dir
+        )
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(metadata.speechEngine, final)
+        XCTAssertEqual(metadata.previewSpeechEngine, preview)
+    }
+
+    func testLegacyMeetingRecordingMetadataWithoutPreviewSpeechEngineStillLoads() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = MeetingRecordingMetadata(
+            sourceAlignment: dualSourceAlignment(),
+            speechEngine: SpeechEngineSelection(engine: .whisper, language: "ja")
+        )
+        let encoded = try JSONEncoder().encode(metadata)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "previewSpeechEngine")
+        try JSONSerialization.data(withJSONObject: object).write(
+            to: MeetingRecordingMetadataStore.metadataURL(for: dir)
+        )
+
+        let decoded = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertNil(decoded.previewSpeechEngine)
+        XCTAssertEqual(decoded.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
+    }
+
     func testMeetingRecordingMetadataWithMalformedStartContextStillLoads() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

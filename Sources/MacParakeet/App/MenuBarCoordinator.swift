@@ -529,7 +529,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let item = cohereLanguageMenuItem else { return }
         let isCohere =
             SpeechEnginePreference.current() == .cohere
-            || SpeechEnginePreference.transcription() == .cohere
+            || SpeechEnginePreference.finalTranscription() == .cohere
         item.isHidden = !isCohere
         guard isCohere, let submenu = item.submenu else { return }
         let selected = SpeechEnginePreference.cohereDefaultLanguage() ?? "en"

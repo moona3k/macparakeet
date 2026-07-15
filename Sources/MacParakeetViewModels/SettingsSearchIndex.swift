@@ -275,8 +275,8 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "engine.selector",
             tab: .engine,
-            title: "Speech Recognition",
-            subtitle: "Parakeet, Nemotron, Whisper, and Cohere engine selector.",
+            title: "Live Speech",
+            subtitle: "Dictation and meeting live-preview engine.",
             keywords: [
                 "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
                 "model", "preview", "timestamps", "ane", "neural engine"
@@ -286,10 +286,11 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "engine.transcriptionSelector",
             tab: .engine,
-            title: "Meetings & Transcriptions Engine",
-            subtitle: "Choose an engine independently from dictation.",
+            title: "Final Transcription Engine",
+            subtitle: "Advanced override for meetings after stop and files or media.",
             keywords: [
-                "meeting engine", "transcription engine", "file engine", "separate engine",
+                "meeting engine", "transcription engine", "final transcript", "file engine",
+                "separate engine", "same as live", "advanced", "media", "retranscription",
                 "dictation", "parakeet", "nemotron", "whisper", "cohere",
             ],
             cardAnchor: "engine.transcriptionSelector"

@@ -130,6 +130,13 @@ public struct SpeechEngineCapabilities: Equatable, Sendable {
     public let supportsCustomVocabulary: Bool
     public let modelLifecycle: SpeechEngineModelLifecycle
     public let telemetryIdentity: SpeechEngineTelemetryIdentity
+
+    /// Whether the current meeting preview pipeline can render this engine's
+    /// chunk results. Preview segmentation requires word timings today, so keep
+    /// one source of truth until an engine makes these capabilities diverge.
+    public var supportsMeetingLivePreview: Bool {
+        providesWordTimestamps
+    }
 }
 
 public struct SpeechEngineMemoryRequirementStatus: Equatable, Sendable {

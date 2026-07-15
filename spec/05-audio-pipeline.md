@@ -76,7 +76,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
-- Dictation and meetings/transcriptions each have a persisted speech-engine route; both default to Parakeet, and upgrades initially inherit the existing dictation choice for the second route. File, media, and URL jobs snapshot the meetings/transcriptions route when they start. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in with native live preview and token-derived word timestamps; Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected in Settings or per CLI invocation where their engine constraints fit. Cohere is batch-only and produces plain text without word timestamps or live preview.
+- Live Speech is the persisted low-latency route for dictation and eligible meeting preview. Final Transcription is an optional persisted override for authoritative post-meeting and file/media work; when its key is absent it follows Live Speech. File, media, and URL jobs snapshot the resolved final route when they start. Within Parakeet, v3 is the multilingual default, v2 is an English-only TDT opt-in, and Unified is an English-only punctuation/capitalization opt-in with native live preview and token-derived word timestamps; Nemotron Beta, WhisperKit, and Cohere Transcribe can be selected in Settings or per CLI invocation where their engine constraints fit. Cohere is batch-only and produces plain text without word timestamps or live preview.
 
 ### Conversion Flow
 
@@ -266,7 +266,7 @@ is the artifact and sidecar contract.
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
 | `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
-| `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured speech engine for crash recovery |
+| `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured final speech engine for crash recovery |
 | `MeetingRecordingSettlement` | Sole completion-path owner of `recording.lock` deletion; re-fetches the saved row and deletes the lock only after verifying a completed meeting Transcription for that artifact folder (see [meeting-recovery-retention contract](contracts/meeting-recovery-retention.md#lock-deletion-authority)) |
 | `MeetingTranscriptionQueue` | Owns FIFO background finalization for stopped meetings after audio + lock + Library stub are durable |
 | `MeetingTranscriptFinalizer` | Merges fresh per-source STT results into the final meeting transcript |
@@ -279,14 +279,17 @@ User clicks "Start Meeting Recording"
     → Check microphone permission only when the mode includes mic audio
     → Check Screen & System Audio Recording permission only when the mode includes system audio
     → If a required permission is denied: show error + "Open System Settings" button, block recording
-    → Acquire speech-engine lease from STTScheduler and capture the Meetings & Transcriptions engine/language
+    → Acquire the Live Speech lease from STTScheduler unconditionally
+    → Capture an immutable preview/final plan; preview is live when supported,
+      final is the resolved Final Transcription route
     → Start MeetingAudioCaptureService with the selected source mode
     → Show recording pill (red dot + elapsed timer + stop button)
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
-      and keep `recording.lock` current with session state/notes/speech engine
+      and keep `recording.lock` current with session state/notes/final speech engine
     → User clicks Stop
     → Stop capture and finalize the captured source file(s)
-    → Persist `meeting-recording-metadata.json` with source alignment and speech engine
+    → Persist `meeting-recording-metadata.json` with source alignment, final
+      speech engine, and optional preview-engine provenance
     → Merge streams into `meeting-playback.m4a` (stereo for dual input; mono for single input)
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
     → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting-playback.m4a`
@@ -321,8 +324,8 @@ the stopped meeting waits for that job to finish; once the slot is free,
     ├── system-raw.m4a        # System audio when captured (AAC, 48kHz mono)
     ├── microphone-cleaned.m4a  # Optional derived echo-cancelled mic (16kHz mono); STT input for the "Me" track only after readiness/decodability gates pass
     ├── meeting-playback.m4a       # Playback/export artifact (stereo dual-source when both tracks exist)
-    ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine, optionally echoSuppression provenance
-    ├── recording.lock     # Recording/awaiting-transcription recovery state, including notes and speech engine
+    ├── meeting-recording-metadata.json  # Source timing/alignment + final engine + optional preview engine / echoSuppression provenance
+    ├── recording.lock     # Recovery state, notes, and captured final engine (schema v2 unchanged)
     └── chunks/            # Live-preview scratch chunks
 ```
 
@@ -370,7 +373,7 @@ All STT work routes through a process-wide scheduler and shared runtime owner (A
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot
 - file / YouTube transcription, plus legacy saved-meeting fallbacks without archived metadata, queued behind meeting work on that same background slot
 - saved meetings with archived source metadata reuse the same `meetingFinalize` path as immediate post-stop finalization
-- active meeting recordings pinned to one speech engine/language for live preview, finalization, and crash recovery
+- active meetings hold the Live Speech lease and capture one immutable preview/final plan; recovery uses the captured final engine/language
 
 The primary concurrency use case remains meeting recording + dictation. File transcription may coexist architecturally, but it should never degrade dictation responsiveness.
 
@@ -401,7 +404,7 @@ alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 
 ### Meeting Live Preview
 
-`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting's captured speech engine during recording when that engine supports live chunk transcription. The fixed fallback keeps the original 5s / 1s-overlap `AudioChunker` cadence. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and the meeting uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper sessions currently use the fixed cadence. Cohere sessions skip live-preview chunks because Cohere is batch-only. VAD unavailable/error cases fall back to the fixed cadence, and the final post-stop transcript is unchanged. This provides:
+`CaptureOrchestrator` buffers audio into live-preview chunks and sends them through the scheduler using the meeting plan's preview route. The preview route is the captured Live Speech selection only when its capabilities provide the word timings required by the renderer; otherwise no live chunks are created and there is no fallback engine. The fixed cadence keeps the original 5s / 1s-overlap `AudioChunker`. When `AppFeatures.meetingVadLiveChunkingEnabled` is true, launch-time prep tries to cache the Silero VAD model; if it is cached and preview uses Parakeet, the live path cuts chunks at speech boundaries per source. Nemotron and Whisper preview use the fixed cadence. Cohere cannot preview. VAD unavailable/error cases fall back to fixed chunking, while the authoritative post-stop pass independently uses the plan's captured final route and durable audio. This provides:
 - Live transcript preview in the recording pill
 - Source-aware labels: mic chunks → "Me", system chunks → "Them"
 - Raw mic capture plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows

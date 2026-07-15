@@ -18,6 +18,13 @@ and progress fan-out. App code reaches it as
 `AppEnvironment.sttScheduler`. The scheduler delegates model lifecycle
 to one `STTRuntime`; callers do not own model lifecycles directly.
 
+The GUI has two semantic routes over that one control plane. **Live Speech**
+serves dictation and meeting preview. **Final Transcription** serves durable
+post-meeting STT and file/media work; it inherits Live Speech unless the user
+enables an Advanced override. A meeting captures an immutable
+`MeetingSpeechPlan` at start: preview is the leased live selection when the
+current renderer supports it, while final is the captured authoritative route.
+
 ## What's here
 
 **Speech control plane**
@@ -202,30 +209,31 @@ gate close over inline. A new call site that invokes `AsrManager.transcribe`
 directly **must** wrap it the same way — calling the manager bare reopens the
 crash for whichever lane runs unguarded.
 
-**Engine routing is per-job.** Parakeet stays default. Settings persists an
-independent dictation engine and a Meetings & Transcriptions engine. Missing
-workflow-specific state inherits the dictation engine, so upgrades preserve the
-old single-choice behavior. New meetings capture the Meetings & Transcriptions
-selection in their lease/recovery metadata; transcription jobs snapshot that
-selection and pass it directly to the scheduler. Both routes still use this one
-shared runtime and scheduler. The selected Parakeet build is `v3` unless the
+**Engine routing is per-job.** Parakeet stays default. Settings persists Live
+Speech plus an optional Final Transcription override. Missing override state
+inherits Live Speech, so upgrades preserve the old single-choice behavior. New
+meetings lease Live Speech and capture a separate final selection in recovery
+metadata; transcription jobs snapshot the resolved final selection and pass it
+directly to the scheduler. Both routes still use this one shared runtime and
+scheduler. The selected Parakeet build is `v3` unless the
 user opts into `v2` through Settings or the CLI
 (`config set parakeet-model`, `models select parakeet-v2`, or
 `transcribe --parakeet-model v2`). A subscriber can request Nemotron or
 WhisperKit or Cohere for dictation (Settings / `models select`) or per call (CLI
 `--engine nemotron --language ko`, `--engine cohere --language ja`,
-`--engine whisper --language ko`). When set as the dictation preference,
-dictation routes there without changing the independent Meetings &
-Transcriptions preference; when set per-job, only that job uses the requested
-engine. Cohere dictation remains record-then-transcribe and does not enter
-live-preview paths.
+`--engine whisper --language ko`). When set as Live Speech, dictation and
+eligible meeting preview route there. The Advanced final override is
+persist-only and loads lazily when a durable-audio job reaches the scheduler;
+when set per-job, only that job uses the requested engine. Cohere dictation
+remains record-then-transcribe and does not enter live-preview paths.
 
 **Active meetings hold an engine lease.** Once a meeting recording
-starts, its engine selection is captured for the session's duration.
-Engine switching is blocked while the lease is held — switching
-mid-meeting would split a single recording across two engines'
-output formats, which the transcript assembler does not support.
-The lease releases when the meeting stops or recovery completes.
+starts, its Live Speech selection is captured by the session lease and its
+Final Transcription selection is captured alongside it. Engine/model switching
+and model deletion are blocked while the lease is held. Preview may be absent,
+but the live lease is still acquired so a batch-only live engine cannot reopen
+the engine/variant race. The lease releases at durable stop/cancel; queued final
+STT uses the captured final route rather than the mutable preference.
 
 **Model lifecycle is the runtime's job, not yours.** Don't call
 `AsrManager` directly from app code, don't `Task { try await

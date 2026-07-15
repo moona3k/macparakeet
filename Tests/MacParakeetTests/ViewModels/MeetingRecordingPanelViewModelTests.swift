@@ -313,12 +313,56 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Live preview off for Cohere")
         XCTAssertEqual(
             viewModel.transcriptEmptyStateDetail,
-            "Cohere will transcribe after you stop recording."
+            "Audio will be transcribed after you stop recording."
         )
         XCTAssertEqual(
             viewModel.statusMessage,
-            "Cohere is recording now and will transcribe the final meeting after you stop."
+            "Live preview is off for Cohere. Audio is still recording for final transcription."
         )
+    }
+
+    func testDifferingSpeechRoutesExposePreviewAndFinalAttribution() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let preview = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .cohere, language: "fr")
+
+        viewModel.configureSpeechRouting(
+            live: preview,
+            plan: MeetingSpeechPlan(preview: preview, final: final)
+        )
+
+        XCTAssertEqual(
+            viewModel.speechRouteAttribution,
+            "Live preview: Parakeet · Final transcript: Cohere (fr) after recording ends"
+        )
+    }
+
+    func testUnsupportedLiveRouteAttributesDifferentFinalEngine() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let live = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let final = SpeechEngineSelection(engine: .whisper, language: "ko")
+
+        viewModel.configureSpeechRouting(
+            live: live,
+            plan: MeetingSpeechPlan(preview: nil, final: final)
+        )
+
+        XCTAssertEqual(
+            viewModel.speechRouteAttribution,
+            "Live preview: Off (Cohere (fr)) · Final transcript: Whisper (ko) after recording ends"
+        )
+    }
+
+    func testSameSpeechRouteDoesNotAddAttributionNoise() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let selection = SpeechEngineSelection(engine: .parakeet)
+
+        viewModel.configureSpeechRouting(
+            live: selection,
+            plan: MeetingSpeechPlan(preview: selection, final: selection)
+        )
+
+        XCTAssertNil(viewModel.speechRouteAttribution)
     }
 
     func testTranscriptContentLocksOutAdvisoryEmptyStatus() {

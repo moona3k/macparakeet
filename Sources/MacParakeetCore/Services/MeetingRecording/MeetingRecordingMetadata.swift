@@ -54,6 +54,9 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public let sourceAlignment: MeetingSourceAlignment
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
+    /// Best-effort live-preview route captured for archived provenance. `nil`
+    /// for preview-unsupported engines, legacy artifacts, and crash recovery.
+    public let previewSpeechEngine: SpeechEngineSelection?
     public let startContext: MeetingStartContext?
     public let echoSuppression: MeetingEchoSuppressionMetadata?
     public let calendarEventSnapshot: MeetingCalendarSnapshot?
@@ -62,6 +65,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         sourceAlignment: MeetingSourceAlignment,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
+        previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         echoSuppression: MeetingEchoSuppressionMetadata? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil
@@ -69,6 +73,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         self.sourceAlignment = sourceAlignment
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
+        self.previewSpeechEngine = previewSpeechEngine
         self.startContext = startContext
         self.echoSuppression = echoSuppression
         self.calendarEventSnapshot = calendarEventSnapshot
@@ -77,6 +82,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case sourceAlignment
         case speechEngine
+        case previewSpeechEngine
         case startContext
         case echoSuppression
         case calendarEventSnapshot
@@ -88,6 +94,10 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         let decodedSpeechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
         speechEngine = decodedSpeechEngine ?? SpeechEngineSelection(engine: .parakeet)
         speechEngineWasCaptured = decodedSpeechEngine != nil
+        previewSpeechEngine = try container.decodeIfPresent(
+            SpeechEngineSelection.self,
+            forKey: .previewSpeechEngine
+        )
         startContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)) ?? nil
         echoSuppression = try container.decodeIfPresent(
             MeetingEchoSuppressionMetadata.self,
@@ -105,6 +115,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         if speechEngineWasCaptured {
             try container.encode(speechEngine, forKey: .speechEngine)
         }
+        try container.encodeIfPresent(previewSpeechEngine, forKey: .previewSpeechEngine)
         try container.encodeIfPresent(startContext, forKey: .startContext)
         try container.encodeIfPresent(echoSuppression, forKey: .echoSuppression)
         try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
@@ -117,6 +128,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             sourceAlignment: sourceAlignment,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
+            previewSpeechEngine: previewSpeechEngine,
             startContext: startContext,
             echoSuppression: echoSuppression,
             calendarEventSnapshot: calendarEventSnapshot
