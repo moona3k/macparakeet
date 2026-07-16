@@ -90,7 +90,7 @@ struct EngineOptionTile: View {
         }
         .accessibilityLabel(tileAccessibilityLabel)
         .accessibilityHint(unavailableReason ?? helpText)
-        .accessibilityAddTraits(isSelected || selectionRole != nil ? .isSelected : [])
+        .accessibilityAddTraits(isSelected && selectionRole == nil ? .isSelected : [])
     }
 
     private var isUnavailable: Bool {
@@ -151,7 +151,6 @@ struct EngineOptionTile: View {
                     )
             )
             .accessibilityLabel(role.accessibilityLabel)
-            .transition(.scale.combined(with: .opacity))
     }
 
     private var statusFooter: some View {
