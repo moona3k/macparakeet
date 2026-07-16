@@ -1566,7 +1566,7 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Multi-select cleanup with `Select Many...`, `Select All`, clear/cancel, and contextual destructive confirmations
 - [x] Meeting cleanup supports both full deletion and `Remove Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
-Visible transcription titles resolve in this order: meeting `fileName` for meeting rows; otherwise non-empty user `titleOverride`, non-empty `derivedTitle`, then original `fileName`. Library cards, detail headers, search, title sort, and GUI export filename suggestions use that effective title. Public CLI lookup/output remains tied to the existing CLI contract unless explicitly updated with CLI docs and tests.
+Visible transcription titles are source-aware. Meeting rows use their meeting `fileName`. Local file rows use a non-empty user `titleOverride` when explicitly renamed, then the original media `fileName`; transcript-derived opening words never replace that source identity. URL rows retain the non-empty `titleOverride`, `derivedTitle`, then `fileName` fallback. Library cards, detail headers, title sort, agent-facing title fields, and GUI export filename suggestions use that effective title. Search still matches the override, original filename, derived title, and transcript content. Public CLI exact-name lookup and export defaults remain tied to the existing CLI contract.
 
 ### F27: Home Page Redesign
 

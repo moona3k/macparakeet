@@ -658,9 +658,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             : .empty
         let fileName = Self.firstNonEmpty(
             displayFileName,
-            embeddedMetadata.title,
             storedFileURL?.lastPathComponent,
-            fileURL.lastPathComponent
+            fileURL.lastPathComponent,
+            embeddedMetadata.title
         ) ?? fileURL.lastPathComponent
         let fileSize = storedFileURL.flatMap {
             (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int).flatMap { $0 }

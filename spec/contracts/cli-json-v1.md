@@ -41,14 +41,17 @@ with human progress/status kept off stdout.
 - `search --json` returns an array of segment hits with `transcriptionId`,
   `title`, ISO-8601 `recordedAt`, `source`, `seq`, nullable `startMs` and
   `speaker`, `snippet`, and nullable `rank`. CJK substring-fallback hits use
-  `rank: null`.
+  `rank: null`. Local-file `title` values use an explicit title override when
+  present, otherwise the original media filename; transcript-derived opening
+  words do not replace the source filename.
 - For `search --since/--until`, a bare `yyyy-MM-dd` is interpreted in the
   user's local calendar and time zone: `--since` starts at local midnight and
   `--until` includes the full local day. Full ISO-8601 timestamps with `Z` or
   an explicit offset retain that stated zone.
 - `transcript --json` returns one object with transcription metadata and an
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
-  speaker fields, `text`, and `segmenterVersion`.
+  speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
+  the same override-then-original-filename rule as search results.
 - `cards list --json` returns an array; `--ndjson` returns the same card objects
   one compact object per line. Each object has exactly `transcriptionId`,
   `title`, `date`, nullable `durationMs`, `source`, nullable `attendees`, the
@@ -58,6 +61,7 @@ with human progress/status kept off stdout.
   are explicit `null`. File/URL decision and action arrays are empty. Cards
   whose transcript hash, segmenter version, prompt version, or card schema
   version is stale are suppressed; list output contains current cards only.
+  Local-file card titles follow the same override-then-original-filename rule.
 - `cards generate --json` returns selection and progress counts, nullable
   prompt/completion/total token totals, explicit `estimatedCostUSD: null`, and
   per-recording failures. Human progress remains on stderr. Any failed item

@@ -88,6 +88,29 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["Q3 Vendor Notes.txt"])
     }
 
+    func testBulkExportUsesOriginalFilenameForUnrenamedLocalFile() async throws {
+        let transcription = Transcription(
+            fileName: "my_video.mp4",
+            rawTranscript: "Welcome to the first few spoken words.",
+            status: .completed,
+            sourceType: .file,
+            derivedTitle: "Welcome to the first few spoken words"
+        )
+
+        let result = try await TranscriptResultActions.exportTranscriptsToDirectory(
+            transcriptions: [transcription],
+            format: .txt,
+            options: TranscriptExportOptions(
+                includeTimestamps: false,
+                includeSpeakerLabels: false,
+                includeMetadata: false
+            ),
+            directory: tempDir
+        )
+
+        XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["my_video.txt"])
+    }
+
     func testBulkExportCompleteSuccessRequiresEveryRequestedFile() {
         let result = BulkTranscriptExportResult(
             directory: tempDir,

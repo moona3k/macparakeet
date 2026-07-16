@@ -42,6 +42,7 @@ final class CardsCommandTests: XCTestCase {
         XCTAssertTrue(actions[0]["owner"] is NSNull)
 
         let file = try XCTUnwrap(rows.first { ($0["source"] as? String) == "file" })
+        XCTAssertEqual(file["title"] as? String, "notes.m4a")
         XCTAssertTrue(file["durationMs"] is NSNull)
         XCTAssertTrue(file["attendees"] is NSNull)
         XCTAssertEqual((file["decisions"] as? [Any])?.count, 0)
@@ -161,7 +162,8 @@ final class CardsCommandTests: XCTestCase {
             durationMs: nil,
             rawTranscript: "File notes.",
             status: .completed,
-            sourceType: .file
+            sourceType: .file,
+            derivedTitle: "Spoken Local Opening"
         )
         for transcription in [meeting, file] {
             try transcriptions.save(transcription)

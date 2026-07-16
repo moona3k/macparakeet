@@ -125,7 +125,7 @@ When `Library.filter == .meeting`, the view renders a date-grouped list (`Today`
 
 ### Local Transcription Rename
 
-Local transcription rows expose `Rename...` with a `pencil` symbol in the same Library card/context menu as `Open`, placed before selection and destructive actions. The dialog is compact, prefilled with the effective display title, and rejects blank titles. Rename is a display-metadata operation only: the original source filename/path remain unchanged, and copy-on-import/media-retention behavior is not implied.
+Local transcription rows expose `Rename...` with a `pencil` symbol in the same Library card/context menu as `Open`, placed before selection and destructive actions. The dialog is compact, prefilled with the effective display title, and rejects blank titles. Until the user explicitly renames it, a Local row's effective title is its original media filename rather than transcript-derived opening words. Rename is a display-metadata operation only: the original source filename/path remain unchanged, and copy-on-import/media-retention behavior is not implied.
 
 The transcript detail header uses the same effective title as the Library. The pencil affordance is available for supported title-editing sources: meetings through the existing meeting title path, and local file transcriptions through the persisted title override path.
 

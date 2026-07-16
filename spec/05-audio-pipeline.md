@@ -82,7 +82,7 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 
 ```
 User selects file
-    → Extract embedded media metadata (title, author, artwork, duration) when present
+    → Preserve the original filename and extract embedded author, description, artwork, and duration when present
     → Validate format (check extension + probe with FFmpeg)
     → Validate duration <= max (4 hours default)
     → Convert to 16kHz mono WAV via FFmpeg

@@ -177,7 +177,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `titleOverride` stores a user-authored display title for non-meeting transcription rows. It is app metadata only: it does not rename/move `filePath`, replace the original `fileName`, or participate in meeting artifact naming. Blank titles are normalized to `NULL`. Added in v0.26.
-- `derivedTitle` / `derivedSnippet` cache display copy derived from the completed transcript. Added in v0.9 so Library cards do not need to recompute preview text on every render.
+- `derivedTitle` / `derivedSnippet` cache semantic display copy derived from the completed transcript. Local file rows retain the original `fileName` as their default visible title, but the derived copy remains available for search and preview-related behavior. Added in v0.9 so Library surfaces do not need to recompute derived text on every render.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
@@ -713,7 +713,7 @@ struct Transcription: Codable, Identifiable {
     var engineVariant: String?          // v0.8 — Engine-specific model variant
     var calendarEventSnapshot: MeetingCalendarSnapshot? // v0.25 — Local calendar context snapshot
     var titleOverride: String?          // v0.26 — User-authored non-meeting display title override
-    var derivedTitle: String?           // v0.9 — Display title derived from transcript text
+    var derivedTitle: String?           // v0.9 — Semantic title derived from transcript text
     var derivedSnippet: String?         // v0.9 — Display preview snippet derived from transcript text
     var updatedAt: Date
 
@@ -1288,7 +1288,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.engineVariant` | v0.8 | Engine-specific variant id; `NULL` for engines without variants and legacy rows |
 | `transcriptions.engine` | v0.8 | STT engine that produced the transcription; `NULL` for legacy rows |
 | `transcriptions.engineVariant` | v0.8 | Engine-specific variant id; `NULL` for engines without variants and legacy rows |
-| `transcriptions.derivedTitle` | v0.9 | Cached display title derived from transcript content |
+| `transcriptions.derivedTitle` | v0.9 | Cached semantic title derived from transcript content |
 | `transcriptions.derivedSnippet` | v0.9 | Cached display preview snippet derived from transcript content |
 | `quick_prompts` | v0.10 | User-customizable live Ask tab shortcut pills; v0.6 product feature |
 | `idx_transcriptions_source_type_created_at` / `idx_transcriptions_favorite_created_at` / `idx_transcriptions_status_created_at` | v0.10 | Library filter/sort indexes for source type, favorites, and status |
