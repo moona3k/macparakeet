@@ -168,6 +168,17 @@ public final class AutoSaveService {
         return url
     }
 
+    /// Resolve captured bookmark data without changing the stored bookmark.
+    /// This is useful for asynchronous preflight work whose result may become
+    /// stale while the user chooses a different folder.
+    public nonisolated static func resolveFolder(bookmarkData: Data) -> URL? {
+        var isStale = false
+        return try? URL(
+            resolvingBookmarkData: bookmarkData,
+            bookmarkDataIsStale: &isStale
+        )
+    }
+
     /// A non-invasive preflight for Settings. The real export remains the
     /// authoritative write check because availability can change at any time.
     public nonisolated static func isFolderUsable(_ url: URL) async -> Bool {

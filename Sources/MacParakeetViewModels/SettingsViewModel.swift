@@ -1009,11 +1009,11 @@ public final class SettingsViewModel {
     }
 
     public func refreshMeetingAutoSaveFolderStatus() async {
-        let (folderURL, resolvedBookmarkData) = await Task.detached(priority: .utility) { [defaults] in
-            let folderURL = AutoSaveService.resolveFolder(scope: .meeting, defaults: defaults)
-            return (folderURL, defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
+        let bookmarkData = defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey)
+        let folderURL = await Task.detached(priority: .utility) {
+            bookmarkData.flatMap(AutoSaveService.resolveFolder(bookmarkData:))
         }.value
-        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == resolvedBookmarkData else { return }
+        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == bookmarkData else { return }
         guard let folderURL else {
             meetingAutoSaveFolderIsUsable = false
             return
@@ -1021,7 +1021,7 @@ public final class SettingsViewModel {
         let path = folderURL.path
         meetingAutoSaveFolderPath = path
         let isUsable = await AutoSaveService.isFolderUsable(folderURL)
-        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == resolvedBookmarkData,
+        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == bookmarkData,
               meetingAutoSaveFolderPath == path
         else { return }
         meetingAutoSaveFolderIsUsable = isUsable
