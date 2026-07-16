@@ -921,6 +921,7 @@ public final class EngineSettingsViewModel {
 
     private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
         speechEngineError = nil
+        transcriptionSpeechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
         let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)

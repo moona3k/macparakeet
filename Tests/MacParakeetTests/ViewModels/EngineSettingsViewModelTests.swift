@@ -175,6 +175,18 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
     }
 
+    func testChangingLiveEngineClearsFailedRecordingsSelectionError() {
+        let vm = makeViewModel()
+
+        XCTAssertFalse(vm.selectTranscriptionSpeechEngine(.whisper))
+        XCTAssertNotNil(vm.transcriptionSpeechEngineError)
+
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEnginePreference = .whisper
+
+        XCTAssertNil(vm.transcriptionSpeechEngineError)
+    }
+
     func testEnablingFinalOverridePersistsEvenWhenItMatchesLiveEngine() {
         let vm = makeViewModel()
 
