@@ -91,7 +91,7 @@ The highest-risk paths have explicit ownership and bounded state transitions:
 
 | Issue cluster | Candidate interpretation | Release action |
 |---|---|---|
-| #796, #803, #820: Bluetooth/System Default input failures | v0.7.1/v0.7.2 forced built-in-mic routing while Bluetooth output was active. PR #801 removes that policy and restores implicit System Default routing. | Must verify on physical Bluetooth hardware in the signed candidate. |
+| #796, #803, #820: Bluetooth/System Default input failures | #796 is consistent with the forced built-in-mic routing removed by PR #801. #803 is likely routing-related, but its evidence is incomplete; #820 does not yet isolate a route. PR #801 restores implicit System Default routing. | Must verify on physical Bluetooth hardware in the signed candidate. |
 | #798: Instant Dictation fails after idle/repeat | PR #785 adds cold-start prewarming and lifecycle coverage. | Run idle, repeat, toggle, route-change, and sleep/wake matrix. |
 | #808: stuck recording / meeting stop | PRs #810 and #814 address the stack overflow and unbounded capture lifecycle. | Run a meeting longer than the reporter's failure window, then stop/finalize. |
 | #605: speaker bleed / no-headphones meeting capture | AEC assets and cleaned-mic finalization ship and pass artifact gates. | Run real Zoom/Meet/Teams calls without headphones; inspect raw and cleaned artifacts. |
@@ -101,8 +101,9 @@ The highest-risk paths have explicit ownership and bounded state transitions:
 ## Verification evidence
 
 - Exact-main hosted CI run `29532380793`: green, including release build, CLI
-  smoke, bundle smoke, Swift 6 first-party build, concurrency-warning scan, and
-  the full parallel Swift suite.
+  smoke, bundle smoke, Swift 6 first-party build with WhisperKit excluded from
+  that language-mode check, concurrency-warning scan, and the full parallel
+  Swift suite.
 - Focused high-risk matrix: 1,220 tests, zero failures. It covered microphone
   routing/prewarm, capture lifecycle, meeting service/recovery/finalization,
   STT routes/scheduler/leases, auto-save, CLI config/search, settings, and text
