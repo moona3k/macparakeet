@@ -572,6 +572,11 @@ public final class SettingsViewModel {
         }
     }
     public var meetingAutoSaveFolderPath: String?
+    public private(set) var meetingAutoSaveFolderIsUsable = false
+    public var meetingAutoSaveFolderWarning: String? {
+        guard meetingAutoSave, !meetingAutoSaveFolderIsUsable else { return nil }
+        return "This folder is unavailable or not writable. Choose another folder before the next meeting."
+    }
 
     // Calendar auto-start (ADR-017)
     //
@@ -851,21 +856,14 @@ public final class SettingsViewModel {
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
 
-        // Defense-in-depth self-heal: in the rare case that
-        // `ensureFolderConfigured` couldn't create the default folder
-        // (disk full, `~/Documents` not writable, stale bookmark
-        // unresolvable), folder may still be nil. Toggling ON in that
-        // state silently no-ops every save, so reset the toggle to
-        // match reality. Writes through to defaults because didSet
-        // doesn't fire during init.
+        // Keep the transcription toggle consistent with its resolved folder.
+        // Meeting auto-save deliberately preserves its enabled preference when
+        // the folder is unavailable so Settings can show the warning and picker.
         if autoSaveTranscripts && autoSaveFolderPath == nil {
             autoSaveTranscripts = false
             defaults.set(false, forKey: AutoSaveService.enabledKey)
         }
-        if meetingAutoSave && meetingAutoSaveFolderPath == nil {
-            meetingAutoSave = false
-            defaults.set(false, forKey: AutoSaveScope.meeting.enabledKey)
-        }
+        meetingAutoSaveFolderIsUsable = meetingAutoSaveFolderPath != nil
 
         refreshMicrophoneDevices()
         observeCalendarSettings()
@@ -996,16 +994,37 @@ public final class SettingsViewModel {
         }
     }
 
-    public func chooseMeetingAutoSaveFolder(url: URL) {
+    public func chooseMeetingAutoSaveFolder(url: URL) async {
         if let path = AutoSaveService.storeFolder(url, scope: .meeting, defaults: defaults) {
             meetingAutoSaveFolderPath = path
+            await refreshMeetingAutoSaveFolderStatus()
         }
     }
 
-    public func resetMeetingAutoSaveFolder() {
+    public func resetMeetingAutoSaveFolder() async {
         if let url = AutoSaveService.resetFolderToDefault(scope: .meeting, defaults: defaults) {
             meetingAutoSaveFolderPath = url.path
+            await refreshMeetingAutoSaveFolderStatus()
         }
+    }
+
+    public func refreshMeetingAutoSaveFolderStatus() async {
+        let bookmarkData = defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey)
+        let folderURL = await Task.detached(priority: .utility) {
+            bookmarkData.flatMap(AutoSaveService.resolveFolder(bookmarkData:))
+        }.value
+        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == bookmarkData else { return }
+        guard let folderURL else {
+            meetingAutoSaveFolderIsUsable = false
+            return
+        }
+        let path = folderURL.path
+        meetingAutoSaveFolderPath = path
+        let isUsable = await AutoSaveService.isFolderUsable(folderURL)
+        guard defaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey) == bookmarkData,
+              meetingAutoSaveFolderPath == path
+        else { return }
+        meetingAutoSaveFolderIsUsable = isUsable
     }
 
     private static func resolveMeetingHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {

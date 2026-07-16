@@ -49,6 +49,14 @@ public enum AutoSaveScope: String, Sendable {
     }
 }
 
+/// Outcome of attempting an automatic export.
+public enum AutoSaveResult: Equatable, Sendable {
+    case disabled
+    case saved
+    case folderUnavailable
+    case failed
+}
+
 /// Automatically saves completed transcriptions to a user-chosen folder.
 /// Reads configuration from UserDefaults; does nothing when auto-save is disabled
 /// or no folder is configured.
@@ -73,9 +81,14 @@ public final class AutoSaveService {
     }
 
     /// Save the transcription if auto-save is enabled for the given scope.
-    /// Failures are logged but never surfaced to the user.
-    public func saveIfEnabled(_ transcription: Transcription, scope: AutoSaveScope = .transcription) {
-        guard defaults.bool(forKey: scope.enabledKey) else { return }
+    /// The result lets callers surface failures without making the primary
+    /// transcription or meeting save fail.
+    @discardableResult
+    public func saveIfEnabled(
+        _ transcription: Transcription,
+        scope: AutoSaveScope = .transcription
+    ) -> AutoSaveResult {
+        guard defaults.bool(forKey: scope.enabledKey) else { return .disabled }
         let format = AutoSaveFormat(rawValue: defaults.string(forKey: scope.formatKey) ?? "md") ?? .md
         let operationContext = Observability.childOperationContext()
         guard let folderURL = resolveFolder(scope: scope) else {
@@ -87,7 +100,7 @@ public final class AutoSaveService {
                 outcome: .unavailable,
                 errorType: "folder_unavailable"
             )
-            return
+            return .folderUnavailable
         }
 
         let fileURL = buildFileURL(for: transcription, format: format, in: folderURL)
@@ -111,6 +124,7 @@ public final class AutoSaveService {
                 format: format,
                 outcome: .success
             )
+            return .saved
         } catch {
             let errorType = Observability.errorType(for: error)
             logger.error("auto_save_failed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=failure error_type=\(errorType, privacy: .public)")
@@ -121,6 +135,7 @@ public final class AutoSaveService {
                 outcome: .failure,
                 errorType: errorType
             )
+            return .failed
         }
     }
 
@@ -134,7 +149,10 @@ public final class AutoSaveService {
 
     /// Resolve the stored bookmark data back to a URL for the given scope.
     /// Re-creates the bookmark if it has gone stale.
-    public static func resolveFolder(scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> URL? {
+    public nonisolated static func resolveFolder(
+        scope: AutoSaveScope = .transcription,
+        defaults: UserDefaults = .standard
+    ) -> URL? {
         guard let bookmarkData = defaults.data(forKey: scope.folderBookmarkKey) else { return nil }
         var isStale = false
         guard let url = try? URL(
@@ -148,6 +166,31 @@ public final class AutoSaveService {
             }
         }
         return url
+    }
+
+    /// Resolve captured bookmark data without changing the stored bookmark.
+    /// This is useful for asynchronous preflight work whose result may become
+    /// stale while the user chooses a different folder.
+    public nonisolated static func resolveFolder(bookmarkData: Data) -> URL? {
+        var isStale = false
+        return try? URL(
+            resolvingBookmarkData: bookmarkData,
+            bookmarkDataIsStale: &isStale
+        )
+    }
+
+    /// A non-invasive preflight for Settings. The real export remains the
+    /// authoritative write check because availability can change at any time.
+    public nonisolated static func isFolderUsable(_ url: URL) async -> Bool {
+        await Task.detached(priority: .utility) {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else {
+                return false
+            }
+            return FileManager.default.isWritableFile(atPath: url.path)
+        }.value
     }
 
     /// Upgraded installs may already have transcription auto-save configured before
