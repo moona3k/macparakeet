@@ -149,7 +149,10 @@ public final class AutoSaveService {
 
     /// Resolve the stored bookmark data back to a URL for the given scope.
     /// Re-creates the bookmark if it has gone stale.
-    public static func resolveFolder(scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> URL? {
+    public nonisolated static func resolveFolder(
+        scope: AutoSaveScope = .transcription,
+        defaults: UserDefaults = .standard
+    ) -> URL? {
         guard let bookmarkData = defaults.data(forKey: scope.folderBookmarkKey) else { return nil }
         var isStale = false
         guard let url = try? URL(

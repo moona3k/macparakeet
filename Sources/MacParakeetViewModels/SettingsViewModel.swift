@@ -1009,7 +1009,10 @@ public final class SettingsViewModel {
     }
 
     public func refreshMeetingAutoSaveFolderStatus() async {
-        guard let folderURL = AutoSaveService.resolveFolder(scope: .meeting, defaults: defaults) else {
+        let folderURL = await Task.detached(priority: .utility) { [defaults] in
+            AutoSaveService.resolveFolder(scope: .meeting, defaults: defaults)
+        }.value
+        guard let folderURL else {
             meetingAutoSaveFolderIsUsable = false
             return
         }
