@@ -1290,8 +1290,8 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Auto-save meetings to disk",
-                    detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
+                    title: "Also save meetings to a folder",
+                    detail: "MacParakeet keeps the complete meeting in its managed storage. Turn this on to also save the selected format to a folder you choose.",
                     isOn: $viewModel.meetingAutoSave
                 )
 
@@ -1379,15 +1379,30 @@ struct SettingsView: View {
     }
 
     private var meetingAutoSaveOptionsView: some View {
-        autoSaveOptions(
-            format: $viewModel.meetingAutoSaveFormat,
-            folderPath: viewModel.meetingAutoSaveFolderPath,
-            formatDetail: "File format for saved meetings.",
-            panelMessage: "Select a folder for auto-saved meeting recordings",
-            resetHelp: "Reset to the default folder (~/Documents/MacParakeet/Meetings)",
-            onChooseFolder: { viewModel.chooseMeetingAutoSaveFolder(url: $0) },
-            onResetFolder: { viewModel.resetMeetingAutoSaveFolder() }
-        )
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Complete meeting artifacts—including transcript, notes, metadata, prompt results, and retained audio—stay in \(meetingArtifactsDisplayPath). The selected format is also saved to the folder below after each meeting.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            autoSaveOptions(
+                format: $viewModel.meetingAutoSaveFormat,
+                folderPath: viewModel.meetingAutoSaveFolderPath,
+                formatDetail: "File format also saved to the selected folder.",
+                panelMessage: "Select a folder for auto-saved meetings",
+                resetHelp: "Reset to the default folder (~/Documents/MacParakeet/Meetings)",
+                warning: viewModel.meetingAutoSaveFolderWarning,
+                onChooseFolder: { viewModel.chooseMeetingAutoSaveFolder(url: $0) },
+                onResetFolder: { viewModel.resetMeetingAutoSaveFolder() }
+            )
+        }
+        .onAppear {
+            viewModel.refreshMeetingAutoSaveFolderStatus()
+        }
+    }
+
+    private var meetingArtifactsDisplayPath: String {
+        (AppPaths.meetingRecordingsDir as NSString).abbreviatingWithTildeInPath
     }
 
     private var transcriptionCard: some View {
@@ -1605,6 +1620,7 @@ struct SettingsView: View {
         formatDetail: String,
         panelMessage: String,
         resetHelp: String,
+        warning: String? = nil,
         onChooseFolder: @escaping (URL) -> Void,
         onResetFolder: @escaping () -> Void
     ) -> some View {
@@ -1647,6 +1663,20 @@ struct SettingsView: View {
                     }
                 }
                 .parakeetAction(.secondary)
+            }
+
+            if let warning {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .padding(.top, 1)
+                    Text(warning)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
             }
         }
         .padding(DesignSystem.Spacing.sm)

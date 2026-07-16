@@ -905,9 +905,22 @@ public final class TranscriptionViewModel {
     }
 
     private func autoSaveIfEnabled(_ transcription: Transcription) {
-        let service = AutoSaveService()
         let scope: AutoSaveScope = transcription.sourceType == .meeting ? .meeting : .transcription
-        service.saveIfEnabled(transcription, scope: scope)
+        let result = AutoSaveService(defaults: defaults).saveIfEnabled(transcription, scope: scope)
+        guard scope == .meeting else { return }
+
+        switch result {
+        case .folderUnavailable:
+            setError(
+                message: "Meeting saved in MacParakeet, but the selected auto-save folder is unavailable. Choose another folder in Settings."
+            )
+        case .failed:
+            setError(
+                message: "Meeting saved in MacParakeet, but it couldn't be saved to the selected folder. Check the folder in Settings and try again."
+            )
+        case .disabled, .saved:
+            break
+        }
     }
 
     private func applyMeetingAudioRetentionIfNeeded(_ transcription: Transcription) {

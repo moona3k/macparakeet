@@ -725,6 +725,27 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.meetingAutoSave)
     }
 
+    func testChooseMeetingAutoSaveFolderReportsUsable() {
+        viewModel.chooseMeetingAutoSaveFolder(url: youtubeDownloadsTestDir)
+
+        XCTAssertTrue(viewModel.meetingAutoSaveFolderIsUsable)
+        XCTAssertNil(viewModel.meetingAutoSaveFolderWarning)
+    }
+
+    func testRefreshMeetingAutoSaveFolderReportsUnavailableFolder() throws {
+        viewModel.chooseMeetingAutoSaveFolder(url: youtubeDownloadsTestDir)
+        viewModel.meetingAutoSave = true
+        try FileManager.default.removeItem(at: youtubeDownloadsTestDir)
+
+        viewModel.refreshMeetingAutoSaveFolderStatus()
+
+        XCTAssertFalse(viewModel.meetingAutoSaveFolderIsUsable)
+        XCTAssertEqual(
+            viewModel.meetingAutoSaveFolderWarning,
+            "This folder is unavailable or not writable. Choose another folder before the next meeting."
+        )
+    }
+
     func testEnsureFolderConfiguredIsIdempotent() {
         // Running ensureFolderConfigured twice on fresh defaults must
         // produce the same path — the second call should see the first

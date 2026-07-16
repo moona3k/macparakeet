@@ -564,6 +564,9 @@ public final class SettingsViewModel {
         didSet {
             defaults.set(meetingAutoSave, forKey: AutoSaveScope.meeting.enabledKey)
             Telemetry.send(.settingChanged(setting: .meetingAutoSave, value: Self.settingValue(meetingAutoSave)))
+            if meetingAutoSave {
+                refreshMeetingAutoSaveFolderStatus()
+            }
         }
     }
     public var meetingAutoSaveFormat: AutoSaveFormat {
@@ -572,6 +575,11 @@ public final class SettingsViewModel {
         }
     }
     public var meetingAutoSaveFolderPath: String?
+    public private(set) var meetingAutoSaveFolderIsUsable = false
+    public var meetingAutoSaveFolderWarning: String? {
+        guard meetingAutoSave, !meetingAutoSaveFolderIsUsable else { return nil }
+        return "This folder is unavailable or not writable. Choose another folder before the next meeting."
+    }
 
     // Calendar auto-start (ADR-017)
     //
@@ -866,6 +874,9 @@ public final class SettingsViewModel {
             meetingAutoSave = false
             defaults.set(false, forKey: AutoSaveScope.meeting.enabledKey)
         }
+        meetingAutoSaveFolderIsUsable = meetingAutoSaveFolderPath
+            .map { AutoSaveService.isFolderUsable(URL(fileURLWithPath: $0, isDirectory: true)) }
+            ?? false
 
         refreshMicrophoneDevices()
         observeCalendarSettings()
@@ -999,13 +1010,24 @@ public final class SettingsViewModel {
     public func chooseMeetingAutoSaveFolder(url: URL) {
         if let path = AutoSaveService.storeFolder(url, scope: .meeting, defaults: defaults) {
             meetingAutoSaveFolderPath = path
+            refreshMeetingAutoSaveFolderStatus()
         }
     }
 
     public func resetMeetingAutoSaveFolder() {
         if let url = AutoSaveService.resetFolderToDefault(scope: .meeting, defaults: defaults) {
             meetingAutoSaveFolderPath = url.path
+            refreshMeetingAutoSaveFolderStatus()
         }
+    }
+
+    public func refreshMeetingAutoSaveFolderStatus() {
+        guard let folderURL = AutoSaveService.resolveFolder(scope: .meeting, defaults: defaults) else {
+            meetingAutoSaveFolderIsUsable = false
+            return
+        }
+        meetingAutoSaveFolderPath = folderURL.path
+        meetingAutoSaveFolderIsUsable = AutoSaveService.isFolderUsable(folderURL)
     }
 
     private static func resolveMeetingHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
