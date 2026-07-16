@@ -1,0 +1,19 @@
+spec/04-ui-patterns.md
+  s_a46f1acd449c27::t_b681f341b917e5 803
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "53d0d97b09c4bc46c627615bac489ac6e7b2c39d",
+  "prompts": {},
+  "sessions": {
+    "s_a46f1acd449c27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6979-7919-7ad0-9e2c-d84789e9e448",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
