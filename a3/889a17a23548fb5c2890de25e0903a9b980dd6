@@ -30,6 +30,8 @@ spec/README.md
 plans/README.md
   s_20d3828eb9e4c5::t_9cd7cee3fbed5f 4,6-7,34-35
   s_20d3828eb9e4c5::t_4a4e91dd71e2c9 37
+  s_20d3828eb9e4c5::t_9a0b00ca3aae57 5
+  s_20d3828eb9e4c5::t_6ee6e3f6c70c4f 33
 ---
 {
   "schema_version": "authorship/3.0.0",
