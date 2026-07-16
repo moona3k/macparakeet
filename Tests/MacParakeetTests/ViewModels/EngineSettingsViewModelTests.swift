@@ -138,6 +138,18 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
     }
 
+    func testRecordingsSelectionPreservesExplicitEqualValuedOverride() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+        let vm = makeViewModel()
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .parakeet)
+        XCTAssertTrue(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(
+            defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey),
+            SpeechEnginePreference.parakeet.rawValue
+        )
+    }
+
     func testSelectingSameEngineClearsRecordingsOverride() {
         SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
         let vm = makeViewModel()

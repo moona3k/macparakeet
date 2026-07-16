@@ -746,7 +746,7 @@ Row anatomy:
 Settings open in the content area when "Settings" is selected in the sidebar. The current information architecture is a four-tab shell with a persistent header, search field, and status-aware tab badges:
 
 - **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. The Meeting Recording card groups start/stop automation under an "Automatic recording" subsection as two parallel on/off toggles: a calendar-driven "Start recording automatically" adaptive row (requests Calendar access in context, then becomes a plain on/off toggle that reveals an elevated sub-panel — matching the "Auto-save meetings to disk" disclosure — holding the `.notify` vs `.autoStart` mode segmented control plus the reminder, event-filter, and per-calendar controls; `.off` is the toggle's unchecked state; `AppFeatures.calendarEnabled = true`) paired with an activity-driven "Stop recording automatically" toggle (`AppFeatures.meetingAutoStopEnabled = true`). Both halves use the same toggle idiom so the lifecycle pair reads as symmetric.
-- **Engine** — Primary Live Speech selector, an Advanced optional final-transcription override, per-engine model/language controls, and local model status/management.
+- **Engine** — One Speech Engine card with the primary engine tiles and an inline optional recordings/files override, followed by per-engine model/language controls and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
 - **System** — Appearance, startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.
 
@@ -944,47 +944,26 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 └───────────────────────────────────────────────────────────┘
 ```
 
-### Live Speech and Advanced Final Transcription (v0.6)
+### Speech Engine and Recordings/Files Override (v0.6)
 
 ```text
 ┌───────────────────────────────────────────────────────────┐
-│  LIVE SPEECH                                              │
+│  SPEECH ENGINE                                            │
 │  ─────────────────────────────────────────────────────    │
-│  Used for dictation and meeting live preview.             │
+│  Handles dictation, live preview, and transcripts.        │
 │                                                           │
 │  [ Parakeet ] [ Nemotron Beta ] [ Whisper ] [ Cohere ]      │
 │                                                           │
-│  Whisper language                                         │
-│  [ Auto-detect                         ▾ ]                │
-│                                                           │
-│  Cohere language                                          │
-│  [ English                             ▾ ]                │
-│                                                           │
-│  Parakeet          ╭─✓ Ready─╮              [Repair]      │
-│  Loaded in memory and ready.                              │
-│                                                           │
-│  Whisper           ╭─↓ Not Downloaded─╮     [Download]    │
-│  Download before switching to Whisper.                    │
-│                                                           │
-│  Cohere            ╭─↓ Not Downloaded─╮     [Download]    │
-│  Batch-only; no live preview or word timestamps.          │
-│                                                           │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
-
-┌───────────────────────────────────────────────────────────┐
-│  ADVANCED                                                 │
-│  Optional final-transcription routing.                    │
-│                                                           │
-│  Use a different engine for final transcripts       [off] │
-│  Final transcripts use Live Speech by default.            │
-│                                                           │
-│  When on: [ Parakeet ] [ Nemotron ] [ Whisper ] [ Cohere ] │
+│  ─────────────────────────────────────────────────────    │
+│  Recordings & files                         [Same engine ▾]│
+│  Advanced: meetings after they end, files, media, and     │
+│  URLs can use a different engine.                         │
 └───────────────────────────────────────────────────────────┘
 ```
 
-- The primary picker controls Live Speech: dictation and meeting live preview.
-- Final Transcription follows Live Speech by default. The Advanced toggle reveals a separate picker for the authoritative pass after meetings stop and for file/media/URL/retranscription jobs. Selecting it is persist-only; the downloaded model loads when a job needs it and does not replace the live engine.
+- The primary tiles control the live speech route. With the override off, this engine handles dictation, meeting preview, authoritative post-meeting transcription, and file/media/URL/retranscription jobs.
+- The inline `Recordings & files` menu defaults to `Same engine`. Choosing another downloaded engine persists an override for the authoritative pass after meetings stop and for file/media/URL/retranscription jobs; it loads lazily and does not replace the live engine. Choosing the live engine from this menu collapses back to `Same engine`.
+- When the two routes differ, the card subtitle names both engines, the live tile carries a filled `Live` chip, and the recordings/files tile carries an outlined `Recordings` chip. Relevant per-engine model cards add their route context.
 - When meeting preview and final routes differ, the recording panel attributes both. If the live engine cannot preview, it says preview is off while confirming audio is still recording for final transcription.
 - Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.

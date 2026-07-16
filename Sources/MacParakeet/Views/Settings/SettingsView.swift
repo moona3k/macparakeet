@@ -2214,6 +2214,7 @@ struct SettingsView: View {
                 .pickerStyle(.menu)
                 .tint(DesignSystem.Colors.accent)
                 .frame(minWidth: 170, idealWidth: 190, maxWidth: 220)
+                .disabled(viewModel.engine.speechEngineSwitching)
                 .accessibilityLabel("Engine for recordings and files")
                 .accessibilityHint(
                     "Choose Same engine or a separate engine for recordings, files, media, and URLs."
