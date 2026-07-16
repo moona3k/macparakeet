@@ -263,11 +263,11 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         await load()
 
         vm.renameTranscriptionTitle(vm.transcriptions[0], to: "   ")
-        vm.renameTranscriptionTitle(vm.transcriptions[0], to: "Auto Derived Title")
+        vm.renameTranscriptionTitle(vm.transcriptions[0], to: "IMG_1942.m4a")
 
         let loaded = try XCTUnwrap(vm.transcriptions.first)
         XCTAssertNil(loaded.titleOverride)
-        XCTAssertEqual(loaded.effectiveDisplayTitle, "Auto Derived Title")
+        XCTAssertEqual(loaded.effectiveDisplayTitle, "IMG_1942.m4a")
         XCTAssertNil(try repo.fetch(id: transcription.id)?.titleOverride)
     }
 

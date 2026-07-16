@@ -1,13 +1,13 @@
 import Foundation
 
 /// Pure-function deriver that produces a display-ready title string from a raw
-/// transcript. The first substantive sentence (filler-stripped) becomes the
-/// headline for file/YouTube rows in the Library thumbnail grid — sources that
-/// have no inherent title. Meeting rows use their own editable meeting name
-/// (`Transcription.fileName`) instead; for meetings this derived value only
-/// feeds the snippet preview and the "Save Audio As…" export-filename helper.
-/// Falls back through several tiers so even short or filler-heavy transcripts
-/// get a usable title.
+/// transcript. The first substantive sentence (filler-stripped) can become the
+/// headline for URL rows that lack useful source metadata. Imported local files
+/// retain their original filename unless the user explicitly renames them, while
+/// meeting rows use their own editable meeting name (`Transcription.fileName`).
+/// The derived value remains searchable metadata for local files and feeds
+/// meeting audio export naming. Falls back through several tiers so even short
+/// or filler-heavy transcripts get a usable semantic title.
 ///
 /// Deterministic and synchronous — runs on the transcription completion path
 /// and persists into `Transcription.derivedTitle`.

@@ -335,6 +335,42 @@ final class SegmentRepositoryTests: XCTestCase {
         XCTAssertTrue(afterDelete.isEmpty)
     }
 
+    func testSearchUsesSourceAwareDisplayTitles() throws {
+        let local = Transcription(
+            fileName: " source-recording .m4a",
+            rawTranscript: "shared naming marker",
+            status: .completed,
+            sourceType: .file,
+            derivedTitle: "Spoken Local Opening"
+        )
+        let renamedLocal = Transcription(
+            fileName: "renamed-source.m4a",
+            rawTranscript: "shared naming marker",
+            status: .completed,
+            sourceType: .file,
+            titleOverride: "Customer Interview",
+            derivedTitle: "Spoken Renamed Opening"
+        )
+        let url = Transcription(
+            fileName: "Published Video Title",
+            rawTranscript: "shared naming marker",
+            status: .completed,
+            sourceType: .youtube,
+            derivedTitle: "Spoken URL Opening"
+        )
+
+        for transcription in [local, renamedLocal, url] {
+            try transcriptions.save(transcription)
+            try segments.replaceSegments(for: transcription)
+        }
+
+        let hits = try segments.search(SegmentSearchQuery(query: "naming", limit: 10))
+        let titlesByID = Dictionary(uniqueKeysWithValues: hits.map { ($0.transcriptionId, $0.title) })
+        XCTAssertEqual(titlesByID[local.id], " source-recording .m4a")
+        XCTAssertEqual(titlesByID[renamedLocal.id], "Customer Interview")
+        XCTAssertEqual(titlesByID[url.id], "Spoken URL Opening")
+    }
+
     func testCJKFallbackAndGraphemeSafeSnippet() throws {
         XCTAssertTrue(SegmentRepository.requiresSubstringFallback("\u{20000}"))
         XCTAssertTrue(SegmentRepository.requiresSubstringFallback("\u{FF76}"), "halfwidth Katakana")

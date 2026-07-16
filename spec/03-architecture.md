@@ -373,7 +373,7 @@ protocol TextProcessingPipelineProtocol {
 }
 
 // Pipeline stages (executed in order):
-// 1. Filler removal (verbal fillers: um, uh, you know, etc.)
+// 1. Filler removal (conservative hesitation spellings: uh, umm, uhh)
 // 2. Custom word replacements (vocabulary anchors + corrections)
 // 3. Snippet expansion (trigger → expansion)
 // 4. Whitespace cleanup (collapse spaces, fix punctuation, capitalize)

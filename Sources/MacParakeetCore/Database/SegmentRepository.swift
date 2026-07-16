@@ -480,16 +480,8 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         (0x41...0x5A).contains(value) ? value + 0x20 : value
     }
 
-    private static let titleExpression = """
-        CASE
-            WHEN t.sourceType = 'meeting' THEN t.fileName
-            ELSE COALESCE(
-                NULLIF(TRIM(t.titleOverride), ''),
-                NULLIF(TRIM(t.derivedTitle), ''),
-                t.fileName
-            )
-        END
-        """
+    private static let titleExpression =
+        TranscriptionRepository.effectiveDisplayTitleExpression(tableAlias: "t")
 
     private static let urlSourceTypeLiterals = [
         Transcription.SourceType.youtube,

@@ -127,7 +127,7 @@ struct VocabularyView: View {
                 pipelineStep(
                     number: 1,
                     title: "Remove fillers",
-                    detail: "um, uh, umm, uhh",
+                    detail: "uh, umm, uhh",
                     actionTitle: nil,
                     action: nil
                 )

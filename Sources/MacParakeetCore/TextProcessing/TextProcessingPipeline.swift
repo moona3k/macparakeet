@@ -68,9 +68,9 @@ public struct TextProcessingPipeline: Sendable {
     // MARK: - Step 1: Filler Removal
 
     /// Always-safe fillers (always removed)
-    /// Only pure hesitation sounds — words that never carry meaning.
+    /// Conservative hesitation spellings that do not conflict with supported languages.
     private static let alwaysSafeFillers = [
-        "um", "uh", "umm", "uhh"
+        "uh", "umm", "uhh",
     ]
 
     /// Pre-compiled filler regexes — avoids recompilation on every dictation.

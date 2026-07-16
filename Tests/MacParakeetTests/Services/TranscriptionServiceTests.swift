@@ -648,7 +648,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.durationMs, 5000)
     }
 
-    func testTranscribeFilePersistsEmbeddedMediaMetadataAndArtwork() async throws {
+    func testTranscribeDragDropPreservesOriginalFilenameAndEmbeddedMediaMetadata() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("transcription-metadata-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -679,15 +679,15 @@ final class TranscriptionServiceTests: XCTestCase {
             ]
         ))
 
-        let result = try await service.transcribe(fileURL: fileURL)
+        let result = try await service.transcribe(fileURL: fileURL, source: .dragDrop)
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
         let cachedThumbnail = try XCTUnwrap(thumbnailCache.cachedThumbnail(for: result.id))
 
-        XCTAssertEqual(result.fileName, "Episode Title")
+        XCTAssertEqual(result.fileName, "downloaded.m4a")
         XCTAssertEqual(result.channelName, "Show Host")
         XCTAssertEqual(result.videoDescription, "Episode notes")
         XCTAssertEqual(result.durationMs, 12_000)
-        XCTAssertEqual(fetched.fileName, "Episode Title")
+        XCTAssertEqual(fetched.fileName, "downloaded.m4a")
         XCTAssertEqual(fetched.channelName, "Show Host")
         XCTAssertEqual(fetched.videoDescription, "Episode notes")
         XCTAssertEqual(fetched.durationMs, 12_000)

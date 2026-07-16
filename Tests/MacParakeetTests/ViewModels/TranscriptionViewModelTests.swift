@@ -2128,10 +2128,10 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.currentTranscription = t
 
         viewModel.renameCurrentTranscriptionTitle(to: "   ")
-        viewModel.renameCurrentTranscriptionTitle(to: "Auto Derived Title")
+        viewModel.renameCurrentTranscriptionTitle(to: "IMG_1942.m4a")
 
         XCTAssertNil(viewModel.currentTranscription?.titleOverride)
-        XCTAssertEqual(viewModel.currentTranscription?.effectiveDisplayTitle, "Auto Derived Title")
+        XCTAssertEqual(viewModel.currentTranscription?.effectiveDisplayTitle, "IMG_1942.m4a")
         XCTAssertTrue(mockRepo.updateTitleOverrideCalls.isEmpty)
     }
 

@@ -199,6 +199,9 @@ extension Transcription {
         if let titleOverride = normalizedTitleOverride {
             return titleOverride
         }
+        if sourceType == .file {
+            return fileName
+        }
         if let derived = derivedTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
            !derived.isEmpty {
             return derived

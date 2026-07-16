@@ -137,6 +137,12 @@ final class TranscriptionRepositoryTests: XCTestCase {
             derivedTitle: "Derived Topic"
         )
         let localWithoutDerived = Transcription(fileName: "source-file.m4a", status: .completed)
+        let urlWithDerived = Transcription(
+            fileName: "Published Video Title",
+            status: .completed,
+            sourceType: .youtube,
+            derivedTitle: "Transcript Topic"
+        )
         let meeting = Transcription(
             fileName: "Weekly Sync",
             status: .completed,
@@ -145,9 +151,10 @@ final class TranscriptionRepositoryTests: XCTestCase {
             derivedTitle: "Transcript-Derived Meeting Topic"
         )
 
-        XCTAssertEqual(localWithDerived.effectiveDisplayTitle, "Transcript Topic")
-        XCTAssertEqual(localWithBlankOverride.effectiveDisplayTitle, "Derived Topic")
+        XCTAssertEqual(localWithDerived.effectiveDisplayTitle, "source-file.m4a")
+        XCTAssertEqual(localWithBlankOverride.effectiveDisplayTitle, "blank-override.m4a")
         XCTAssertEqual(localWithoutDerived.effectiveDisplayTitle, "source-file.m4a")
+        XCTAssertEqual(urlWithDerived.effectiveDisplayTitle, "Transcript Topic")
         XCTAssertEqual(meeting.effectiveDisplayTitle, "Weekly Sync")
     }
 
@@ -623,7 +630,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         )
         let newer = Transcription(
             createdAt: Date(timeIntervalSinceReferenceDate: 200),
-            fileName: "Apple.mp3",
+            fileName: "Zulu.mp3",
             status: .completed,
             derivedTitle: "Aardvark Topic",
             updatedAt: Date(timeIntervalSinceReferenceDate: 200)
@@ -650,7 +657,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
         )
         XCTAssertEqual(
             try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .titleAscending, limit: 10)).items.map(\.id),
-            [newer.id, meeting.id, older.id]
+            [meeting.id, older.id, newer.id]
         )
     }
 
@@ -758,7 +765,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
         XCTAssertNil(fetched.titleOverride)
-        XCTAssertEqual(fetched.effectiveDisplayTitle, "Derived Topic")
+        XCTAssertEqual(fetched.effectiveDisplayTitle, "IMG_1942.m4a")
         XCTAssertEqual(fetched.fileName, "IMG_1942.m4a")
         XCTAssertEqual(fetched.filePath, "/tmp/IMG_1942.m4a")
         XCTAssertEqual(fetched.derivedTitle, "Derived Topic")
