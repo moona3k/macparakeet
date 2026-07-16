@@ -908,6 +908,7 @@ public final class TranscriptionViewModel {
         let scope: AutoSaveScope = transcription.sourceType == .meeting ? .meeting : .transcription
         let result = AutoSaveService(defaults: defaults).saveIfEnabled(transcription, scope: scope)
         guard scope == .meeting else { return }
+        guard errorMessage == nil else { return }
 
         switch result {
         case .folderUnavailable:
