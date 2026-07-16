@@ -79,11 +79,11 @@ final class SettingsSearchIndexTests: XCTestCase {
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))
     }
 
-    func testRecordingsEngineQueriesFindVisibleSpeechEngineCard() throws {
+    func testRecordingsEngineQueriesFindAdvancedTranscriptionDisclosure() throws {
         let transcriptionEntry = try XCTUnwrap(
-            SettingsSearchIndex.entries.first { $0.id == "engine.transcriptionSelector" }
+            SettingsSearchIndex.entries.first { $0.id == SettingsSearchIndex.advancedTranscriptionAnchor }
         )
-        XCTAssertEqual(transcriptionEntry.cardAnchor, "engine.selector")
+        XCTAssertEqual(transcriptionEntry.cardAnchor, SettingsSearchIndex.advancedTranscriptionAnchor)
 
         for query in [
             "recordings", "files engine", "accuracy", "slower",
@@ -91,7 +91,7 @@ final class SettingsSearchIndexTests: XCTestCase {
         ] {
             let results = SettingsSearchIndex.matches(query)
             XCTAssertTrue(
-                results.contains(where: { $0.id == "engine.transcriptionSelector" }),
+                results.contains(where: { $0.id == SettingsSearchIndex.advancedTranscriptionAnchor }),
                 "Query \(query) should find the recordings and files override"
             )
         }

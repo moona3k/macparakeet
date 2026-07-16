@@ -77,6 +77,9 @@ public struct SettingsSearchEntry: Identifiable, Hashable, Sendable {
 /// when their `AppFeatures` flag is `false`, so search never lands on a
 /// card or row that won't render.
 public enum SettingsSearchIndex {
+    /// Shared anchor for the advanced recordings/files engine control.
+    public static let advancedTranscriptionAnchor = "engine.transcriptionSelector"
+
     /// Ids whose destination card or row is gated on
     /// `AppFeatures.meetingRecordingEnabled`. When the flag is off these
     /// entries are filtered out so search never lands on a destination
@@ -276,7 +279,7 @@ public enum SettingsSearchIndex {
             id: "engine.selector",
             tab: .engine,
             title: "Speech Engine",
-            subtitle: "Handles dictation, live preview, and transcripts.",
+            subtitle: "Your selected engine handles dictation, meetings, recordings, and files.",
             keywords: [
                 "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
                 "model", "preview", "timestamps", "ane", "neural engine"
@@ -284,16 +287,16 @@ public enum SettingsSearchIndex {
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
-            id: "engine.transcriptionSelector",
+            id: advancedTranscriptionAnchor,
             tab: .engine,
             title: "Recordings & Files Engine",
-            subtitle: "Advanced engine override for meetings after they end, files, media, and URLs.",
+            subtitle: "Optionally use a different engine for completed meeting recordings, files, media, and URLs.",
             keywords: [
                 "meeting engine", "transcription engine", "final transcript", "file engine", "files engine",
                 "recordings", "accuracy", "slower", "separate engine", "same as live", "advanced",
                 "media", "retranscription", "dictation", "parakeet", "nemotron", "whisper", "cohere",
             ],
-            cardAnchor: "engine.selector"
+            cardAnchor: advancedTranscriptionAnchor
         ),
         SettingsSearchEntry(
             id: "engine.language",

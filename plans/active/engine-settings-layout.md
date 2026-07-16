@@ -1,9 +1,9 @@
-# Engine settings layout: one Speech Engine section, one override row
+# Engine settings layout: one Speech Engine section, one advanced disclosure
 
 Status: active (2026-07-16)
 Owner: Daniel (design), Codex (implementation)
-Scope: Settings → Engine tab UI/copy only. No behavior, persistence, or
-routing changes.
+Scope: Settings → Engine tab UI/copy plus navigation that expands and scrolls
+to the advanced control. No persistence, routing, or engine-lifecycle changes.
 
 ## Problem
 
@@ -34,29 +34,33 @@ mockup is directional for layout, not pixel-exact.
 ## Design decisions (settled — do not re-litigate)
 
 1. **Rename** the selector card: title `Speech Engine`. Subtitle is dynamic:
-   - Override off: `Handles dictation, live preview, and final transcripts.`
-     → use: `Handles dictation, live preview, and transcripts.`
-   - Override on (example): `Parakeet handles live speech · Nemotron
-     transcribes recordings, files, and media.` (interpolate the two engine
+   - Override off: `Your selected engine handles dictation, meetings,
+     recordings, and files.`
+   - Override on (example): `Parakeet handles dictation and live preview ·
+     Nemotron handles recordings and files.` (interpolate the two engine
      display names; use the `·` separator).
-2. **Delete the separate "Advanced" card.** Its function moves into a footer
-   row *inside* the Speech Engine card, below the tiles/banners, separated by
-   a `Divider()`:
+2. **Delete the separate "Advanced" card.** Its function moves into a collapsed
+   `Advanced transcription` disclosure *inside* the Speech Engine card, below
+   the tiles/banners and separated by a `Divider()`. The collapsed summary says
+   either `Optionally use a different engine for recordings & files.` or names
+   the active override. Expanding it explains the default one-engine model and
+   reveals:
    - Label: `Recordings & files`
    - Control: a **menu-style `Picker`** (not segmented, not a toggle) whose
-     first option is `Same engine` (the default) followed by the engine
-     display names. `Same engine` maps to
+     first option is `Same as <SelectedEngine>` (the default) followed by the
+     engine display names. The inherited option maps to
      `usesDifferentFinalTranscriptionEngine == false`; picking an engine sets
      the flag true and selects that engine. Picking the same engine as live
-     is equivalent to `Same engine` — collapse it back to `Same engine`
-     rather than showing a degenerate split.
+     is equivalent to the inherited option — collapse it back rather than
+     showing a degenerate split.
+   - Explanation: `MacParakeet uses your selected speech engine for everything
+     by default. You can choose another engine for completed meeting recordings,
+     files, media, and URLs—for example, for higher accuracy or broader language
+     support when a longer wait is okay.`
    - Hint text under the row, override off:
-     `Advanced: transcribe meetings (after they end), files, media, and URLs
-     with a different engine. These jobs aren't live, so a slower engine with
-     higher accuracy or more languages costs you nothing but wait time.`
+     `Using <LiveEngineName> for all speech recognition.`
    - Hint text, override on:
-     `Transcribes meetings after they end, plus files, media, and URLs.
-     Dictation and live preview stay on <LiveEngineName>.`
+     `Dictation and live preview stay on <LiveEngineName>.`
    - Keep the existing error text
      (`viewModel.engine.transcriptionSpeechEngineError`) rendering beneath.
 3. **Role chips on tiles when split.** When the override is active, the live
@@ -78,14 +82,13 @@ mockup is directional for layout, not pixel-exact.
    standard settings styling. (Removing the `.switch` toggle and `.segmented`
    picker resolves the current blue.)
 6. **Search index follows the rename.** Update `SettingsSearchIndex` entries
-   `engine.selector` (title `Speech Engine`, subtitle mentioning dictation,
-   live preview, and transcripts) and `engine.transcriptionSelector` (title
+   `engine.selector` (title `Speech Engine`, subtitle naming the default
+   one-engine behavior) and `engine.transcriptionSelector` (title
    `Recordings & Files Engine`, keywords gain `recordings`, `files engine`,
    `accuracy`, `slower`, keep the old terms `final transcript`, `advanced`,
-   `same as live` as findable synonyms). The `engine.transcriptionSelector`
-   anchor now points at `engine.selector` (the row lives in that card) — or
-   keep a dedicated anchor id on the footer row if simpler; either way search
-   navigation must land somewhere visible in both override states.
+   `same as live` as findable synonyms). Point `engine.transcriptionSelector`
+   at the disclosure's dedicated anchor, expand it when that search result or
+   external destination is opened, and scroll the control into view.
 
 ## Non-goals / must-not-change
 
@@ -119,20 +122,22 @@ mockup is directional for layout, not pixel-exact.
 ## Acceptance criteria
 
 1. Engine tab shows: Speech Engine card (tiles + variant/download banners +
-   divider + Recordings & files row), then per-engine model cards for engines
-   in use, then existing Whisper language / Local Models cards. No standalone
-   Advanced card remains.
-2. Override off: menu shows `Same engine`; subtitle and hint match the copy
-   above; tiles look as today.
+   divider + collapsed Advanced transcription disclosure), then per-engine
+   model cards for engines in use, then existing Whisper language / Local
+   Models cards. No standalone Advanced card remains.
+2. Override off: the collapsed summary explains that a different recordings
+   engine is optional; expanding it shows `Same as <SelectedEngine>` and the
+   one-engine explanation above; tiles look as today.
 3. Override on: menu shows the engine name; subtitle narrates the routing;
    chips `Live` / `Recordings` appear on the right tiles; both engines'
    model cards render with role subtitles.
-4. Selecting the live engine in the recordings menu returns to `Same engine`
+4. Selecting the live engine in the recordings menu returns to the inherited
    state (flag false), not a degenerate A/A split.
 5. `swift build` clean; focused tests green
    (`swift test --filter SettingsSearchIndexTests` plus the engine settings
    view-model suites touched); full `swift test` once as the final gate.
 6. Accessibility: chips and the menu row have sensible VoiceOver labels;
    keyboard focus works on the menu.
-7. Search for "final transcript", "recordings", "accuracy", and "engine"
-   each land on a visible anchor in both override states.
+7. Search for "final transcript", "recordings", and "accuracy" expands and
+   scrolls to the Advanced transcription disclosure; "engine" lands on the
+   primary selector.
