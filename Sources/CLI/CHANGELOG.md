@@ -95,6 +95,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   the original media filename unless the user explicitly renamed the
   transcription, matching the Mac app and avoiding transcript-opening words as
   unstable source identifiers. JSON field names and shapes are unchanged.
+- Clean processing now preserves `um` because it carries meaning in supported
+  languages such as Portuguese and German.
 - Transcription and retranscription progress now reports
   `Preparing speech model...` while the local engine loads instead of printing
   a synthetic 0% update before measurable work begins. JSON stdout is unchanged.

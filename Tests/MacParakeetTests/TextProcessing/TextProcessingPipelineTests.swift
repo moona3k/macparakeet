@@ -21,7 +21,7 @@ final class TextProcessingPipelineTests: XCTestCase {
         ]
 
         let result = pipeline.process(
-            text: "um kubernetes is great my signature",
+            text: "uh kubernetes is great my signature",
             customWords: words,
             snippets: snippets
         )
@@ -35,25 +35,29 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "Hello world")
     }
 
+    func testPipelinePreservesPortugueseUmWhenCounting() {
+        let result = pipeline.process(text: "um, dois, três", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "Um, dois, três")
+    }
+
     // MARK: - Step 1: Filler Removal
 
     func testAlwaysSafeFillerRemoval() {
-        let result = pipeline.removeFillers(from: "um hello uh world")
+        let result = pipeline.removeFillers(from: "uh hello uhh world")
         // After filler removal, we get "  hello  world" — whitespace cleanup is separate
-        XCTAssertFalse(result.contains("um"))
         XCTAssertFalse(result.contains("uh"))
+        XCTAssertFalse(result.contains("uhh"))
     }
 
     func testFillerRemovalPreservesPartialWords() {
-        // Word boundaries prevent "um" from matching inside "umbrella"
-        let result = pipeline.removeFillers(from: "umbrella this is humble")
-        XCTAssertTrue(result.contains("umbrella"))
-        XCTAssertTrue(result.contains("humble"))
+        // Word boundaries prevent active fillers from matching inside longer words.
+        let result = pipeline.removeFillers(from: "huh summer")
+        XCTAssertEqual(result, "huh summer")
     }
 
     func testFillerRemovalCaseInsensitive() {
-        let result = pipeline.removeFillers(from: "UM hello UHH world")
-        XCTAssertFalse(result.lowercased().contains("um"))
+        let result = pipeline.removeFillers(from: "UH hello UHH world")
+        XCTAssertFalse(result.lowercased().contains("uh"))
         XCTAssertFalse(result.lowercased().contains("uhh"))
     }
 
@@ -558,11 +562,11 @@ final class TextProcessingPipelineTests: XCTestCase {
     }
 
     func testMultiWordTriggerWithFillerGap() {
-        // Filler removal can leave double spaces: "press um return" → "press  return"
+        // Filler removal can leave double spaces: "press uh return" → "press  return"
         let snippets = [
             TextSnippet(trigger: "press return", expansion: "return", action: .returnKey)
         ]
-        let result = pipeline.process(text: "git status press um return", customWords: [], snippets: snippets)
+        let result = pipeline.process(text: "git status press uh return", customWords: [], snippets: snippets)
         XCTAssertEqual(result.text, "Git status")
         XCTAssertEqual(result.postPasteAction, .returnKey)
     }

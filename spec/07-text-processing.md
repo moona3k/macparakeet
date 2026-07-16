@@ -18,9 +18,9 @@ Raw STT Text → Filler Removal → Custom Words → Trailing Action Extraction 
 
 Removes only always-safe hesitation sounds:
 
-- "um", "uh", "umm", "uhh"
+- "uh", "umm", "uhh"
 
-Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Words like "like", "so", "right", and phrases like "you know" are intentionally not stripped by default because they can carry meaning.
+Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Portuguese and German `um`, words like "like", "so", "right", and phrases like "you know" are intentionally not stripped by default because they can carry meaning.
 
 ### Step 2: Custom Word Replacements
 
@@ -139,7 +139,7 @@ Stores trigger-to-expansion mappings.
 
 ```bash
 # Run clean processing on text
-macparakeet-cli vocab process "um hello kubernetes is great"
+macparakeet-cli vocab process "uh hello kubernetes is great"
 # → "Hello Kubernetes is great."
 
 # Process and copy to clipboard

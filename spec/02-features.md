@@ -798,7 +798,7 @@ Audio → local STT → raw transcript → clean pipeline → paste
 
 **Step 1: Filler removal**
 
-Conservative defaults: only pure hesitation sounds (`um`, `uh`, `umm`, `uhh`) are removed. False negatives are better than false positives, so words like `like`, `so`, `right`, and phrases like `you know` are not stripped by default.
+Conservative defaults: only hesitation spellings that do not conflict with supported languages (`uh`, `umm`, `uhh`) are removed. False negatives are better than false positives, so semantic words such as Portuguese and German `um`, along with words like `like`, `so`, `right`, and phrases like `you know`, are not stripped by default.
 
 **Step 2: Custom word replacements**
 
