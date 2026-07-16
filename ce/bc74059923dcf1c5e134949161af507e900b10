@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Settings/Components/EngineOptionTile.swift
+  s_c906e5aea74126::t_4035718418c703 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cebc74059923dcf1c5e134949161af507e900b10",
+  "prompts": {},
+  "sessions": {
+    "s_c906e5aea74126": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f69ef-20cd-7c52-86ac-c631a11d77ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
