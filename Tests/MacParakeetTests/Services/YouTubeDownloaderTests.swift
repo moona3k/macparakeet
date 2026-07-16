@@ -49,6 +49,10 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertFalse(YouTubeDownloader.isSupportedMediaURL("/tmp/video.mp4"))
     }
 
+    func testMetadataTimeoutAllowsSlowPackagedHelperStartup() {
+        XCTAssertEqual(YouTubeDownloader.metadataTimeout, 2 * 60)
+    }
+
     func testParseDownloadProgressPercentParsesYtDlpLine() {
         XCTAssertEqual(
             YouTubeDownloader.parseDownloadProgressPercent(from: "[download]  42.3% of ~12.34MiB at 1.23MiB/s ETA 00:07"),

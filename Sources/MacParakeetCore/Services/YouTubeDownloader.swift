@@ -30,6 +30,8 @@ extension YouTubeDownloading {
 }
 
 public actor YouTubeDownloader {
+    // The packaged yt-dlp helper may need extra time for cold extraction and security scanning.
+    static let metadataTimeout: TimeInterval = 2 * 60
     private static let downloadTimeout: TimeInterval = 60 * 60
     private static let audioFileExtensions: Set<String> = [
         "aac",
@@ -816,7 +818,7 @@ public actor YouTubeDownloader {
         try process.run()
         try await ChildProcessWaiter.waitUntilExit(
             process,
-            timeout: 30,
+            timeout: Self.metadataTimeout,
             timeoutError: YouTubeDownloadError.timedOut
         )
 
