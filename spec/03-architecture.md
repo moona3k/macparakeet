@@ -150,7 +150,7 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and speech-engine dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
-- **Live/final engine roles** — The live speech route serves dictation and eligible meeting preview. The recordings/files route inherits it by default and can be overridden from the Speech Engine card for meeting finalization and file/media work. Jobs snapshot their route; each recording captures an immutable preview/final plan at start.
+- **Live/final engine roles** — The live speech route serves dictation and eligible meeting preview. The recordings/files route inherits it by default and can be overridden from the Speech Engine card for meeting finalization and file/media work. File, media, and URL jobs snapshot the resolved final route when they start; active meetings capture an immutable preview/final plan at start.
 - **Cohere is batch-only** — Cohere dictation records first and transcribes on stop. It cannot serve meeting preview, but it may be the captured final route while another live engine previews. The scheduler admits Cohere as one global single-flight resource because the engine owns one large batch pipeline rather than separate interactive/background managers.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
 
