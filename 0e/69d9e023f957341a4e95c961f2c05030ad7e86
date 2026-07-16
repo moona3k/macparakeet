@@ -1,0 +1,50 @@
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_e236039aae95b5::t_a571f239891256 91-113
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_e236039aae95b5::t_b81a3848141352 140-145,154-155,157,633,768
+  s_e236039aae95b5::t_0265eb253bd085 660
+Tests/CLITests/CardsCommandTests.swift
+  s_e236039aae95b5::t_a571f239891256 45,165-166
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_e236039aae95b5::t_b81a3848141352 202-204
+Tests/CLITests/SearchCommandTests.swift
+  s_e236039aae95b5::t_b81a3848141352 82,104-105
+spec/02-features.md
+  s_e236039aae95b5::t_2414626d2b4416 1569
+spec/04-ui-patterns.md
+  s_e236039aae95b5::t_2414626d2b4416 128
+Sources/MacParakeetCore/Database/SegmentRepository.swift
+  s_e236039aae95b5::t_2414626d2b4416 483-484
+spec/contracts/cli-json-v1.md
+  s_e236039aae95b5::t_2414626d2b4416 44-46,53-54,64
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_e236039aae95b5::t_b81a3848141352 2131,2134
+spec/01-data-model.md
+  s_e236039aae95b5::t_2414626d2b4416 180,716,1291
+Sources/CLI/CHANGELOG.md
+  s_e236039aae95b5::t_2414626d2b4416 94-97
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_e236039aae95b5::t_a571f239891256 338-373
+Sources/MacParakeetCore/TextProcessing/TranscriptDerivers.swift
+  s_e236039aae95b5::t_b81a3848141352 4-10
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_e236039aae95b5::t_b81a3848141352 128-132,135-136,139-144,146,149
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_e236039aae95b5::t_b81a3848141352 266,270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0e69d9e023f957341a4e95c961f2c05030ad7e86",
+  "prompts": {},
+  "sessions": {
+    "s_e236039aae95b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f697a-a1ab-7032-a48e-4211119af943",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
