@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_e236039aae95b5::t_5c0bc9f2465c48 340,369
+spec/05-audio-pipeline.md
+  s_e236039aae95b5::t_5c0bc9f2465c48 85
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_e236039aae95b5::t_5c0bc9f2465c48 662-663
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_e236039aae95b5::t_5c0bc9f2465c48 139-141,143-145
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_e236039aae95b5::t_5c0bc9f2465c48 651,682,686,690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cf2229c4ecec604ad59a8b03005f74a57f26899d",
+  "prompts": {},
+  "sessions": {
+    "s_e236039aae95b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f697a-a1ab-7032-a48e-4211119af943",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
