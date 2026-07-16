@@ -952,7 +952,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
     }
 
-    func testPresentCompletedMeetingPreservesExistingErrorWhenAutoSaveFolderIsUnavailable() throws {
+    func testPresentCompletedMeetingComposesExistingErrorWithUnavailableAutoSaveFolderWarning() throws {
         let suite = "transcription-vm-meeting-auto-save-existing-error-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -980,8 +980,10 @@ final class TranscriptionViewModelTests: XCTestCase {
             applyMeetingRetention: false
         )
 
-        XCTAssertEqual(viewModel.errorMessage, "Primary failure")
-        XCTAssertEqual(viewModel.errorDetail, "Primary failure details")
+        let warning =
+            "Meeting saved in MacParakeet, but the selected auto-save folder is unavailable. Choose another folder in Settings."
+        XCTAssertEqual(viewModel.errorMessage, "Primary failure\n\n\(warning)")
+        XCTAssertEqual(viewModel.errorDetail, "Primary failure details\n\n\(warning)")
     }
 
     func testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff() throws {
