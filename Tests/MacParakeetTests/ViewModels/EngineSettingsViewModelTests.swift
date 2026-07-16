@@ -110,6 +110,58 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .parakeet)
     }
 
+    func testRecordingsEngineSelectionMapsNilToInheritedLiveEngine() {
+        let vm = makeViewModel()
+        vm.whisperModelStatus = .notLoaded
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+
+        vm.recordingsSpeechEngineSelection = .whisper
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .whisper)
+        XCTAssertTrue(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .whisper)
+    }
+
+    func testSelectingLiveEngineForRecordingsCollapsesToSameEngine() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
+        let vm = makeViewModel()
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .whisper)
+
+        vm.recordingsSpeechEngineSelection = .parakeet
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+        XCTAssertFalse(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .parakeet)
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+    }
+
+    func testRecordingsSelectionPreservesExplicitEqualValuedOverride() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+        let vm = makeViewModel()
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .parakeet)
+        XCTAssertTrue(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(
+            defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey),
+            SpeechEnginePreference.parakeet.rawValue
+        )
+    }
+
+    func testSelectingSameEngineClearsRecordingsOverride() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
+        let vm = makeViewModel()
+
+        vm.recordingsSpeechEngineSelection = nil
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+        XCTAssertFalse(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .parakeet)
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+    }
+
     func testChangingLiveEngineAlsoMovesInheritedFinalRoute() {
         let vm = makeViewModel()
         vm.whisperModelStatus = .notLoaded
@@ -121,6 +173,47 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .whisper)
         XCTAssertFalse(vm.usesDifferentFinalTranscriptionEngine)
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+    }
+
+    func testSuccessfulLiveEngineChangeClearsFailedRecordingsSelectionError() {
+        let vm = makeViewModel()
+
+        XCTAssertFalse(vm.selectTranscriptionSpeechEngine(.whisper))
+        XCTAssertNotNil(vm.transcriptionSpeechEngineError)
+
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEnginePreference = .whisper
+
+        XCTAssertNil(vm.transcriptionSpeechEngineError)
+    }
+
+    func testRejectedLiveEngineChangePreservesFailedRecordingsSelectionError() {
+        let vm = makeViewModel()
+
+        XCTAssertFalse(vm.selectTranscriptionSpeechEngine(.whisper))
+        let recordingsError = vm.transcriptionSpeechEngineError
+
+        vm.speechEnginePreference = .nemotron
+
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(vm.transcriptionSpeechEngineError, recordingsError)
+    }
+
+    func testFailedLiveEngineChangePreservesFailedRecordingsSelectionError() async throws {
+        let stt = MockSTTClient()
+        await stt.configureSpeechEngineSwitch(error: STTError.engineBusy)
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+
+        XCTAssertFalse(vm.selectTranscriptionSpeechEngine(.whisper))
+        let recordingsError = vm.transcriptionSpeechEngineError
+
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEnginePreference = .whisper
+
+        try await waitUntil { !vm.speechEngineSwitching }
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(vm.transcriptionSpeechEngineError, recordingsError)
     }
 
     func testEnablingFinalOverridePersistsEvenWhenItMatchesLiveEngine() {

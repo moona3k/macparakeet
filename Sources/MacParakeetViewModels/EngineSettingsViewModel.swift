@@ -152,6 +152,23 @@ public final class EngineSettingsViewModel {
     public func usesSpeechEngine(_ preference: SpeechEnginePreference) -> Bool {
         speechEnginePreference == preference || transcriptionSpeechEnginePreference == preference
     }
+    /// Optional selection used by the recordings menu: `nil` inherits the live
+    /// engine, and choosing that engine explicitly collapses the override.
+    public var recordingsSpeechEngineSelection: SpeechEnginePreference? {
+        get {
+            usesDifferentFinalTranscriptionEngine
+                ? transcriptionSpeechEnginePreference
+                : nil
+        }
+        set {
+            guard let newValue, newValue != speechEnginePreference else {
+                transcriptionSpeechEngineError = nil
+                setUsesDifferentFinalTranscriptionEngine(false)
+                return
+            }
+            _ = selectTranscriptionSpeechEngine(newValue)
+        }
+    }
     /// True once the active Whisper variant has paid its one-time on-device
     /// optimize, so the next load is fast. Drives cold ("Setup needed",
     /// minutes) vs warm ("Downloaded", seconds) status in the engine picker.
@@ -989,6 +1006,7 @@ public final class EngineSettingsViewModel {
         guard let speechEngineSwitcher else {
             preference.save(to: defaults)
             syncInheritedFinalTranscriptionPreference()
+            transcriptionSpeechEngineError = nil
             Telemetry.send(.speechEngineSwitchOperation(
                 operationID: operationContext.operationID,
                 operationContext: operationContext,
@@ -1051,6 +1069,7 @@ public final class EngineSettingsViewModel {
                 }
                 preference.save(to: self.defaults)
                 self.syncInheritedFinalTranscriptionPreference()
+                self.transcriptionSpeechEngineError = nil
                 Telemetry.send(.speechEngineSwitchOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
