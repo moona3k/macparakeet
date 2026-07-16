@@ -75,18 +75,33 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testTitleMatches() {
-        let results = SettingsSearchIndex.matches("Live Speech")
+        let results = SettingsSearchIndex.matches("Speech Engine")
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))
     }
 
-    func testAdvancedFinalEngineQueriesFindTranscriptionSelector() {
-        for query in ["separate engine", "final transcript", "same as live", "advanced"] {
+    func testRecordingsEngineQueriesFindVisibleSpeechEngineCard() throws {
+        let transcriptionEntry = try XCTUnwrap(
+            SettingsSearchIndex.entries.first { $0.id == "engine.transcriptionSelector" }
+        )
+        XCTAssertEqual(transcriptionEntry.cardAnchor, "engine.selector")
+
+        for query in [
+            "recordings", "files engine", "accuracy", "slower",
+            "separate engine", "final transcript", "same as live", "advanced"
+        ] {
             let results = SettingsSearchIndex.matches(query)
             XCTAssertTrue(
                 results.contains(where: { $0.id == "engine.transcriptionSelector" }),
-                "Query \(query) should find the final transcription override"
+                "Query \(query) should find the recordings and files override"
             )
         }
+    }
+
+    func testEngineQueryFindsVisibleSpeechEngineCard() throws {
+        let selectorEntry = try XCTUnwrap(
+            SettingsSearchIndex.matches("engine").first { $0.id == "engine.selector" }
+        )
+        XCTAssertEqual(selectorEntry.cardAnchor, "engine.selector")
     }
 
     func testSubtitleMatches() {

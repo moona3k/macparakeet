@@ -396,22 +396,20 @@ struct SettingsView: View {
     /// Engine tab — speech recognition stack, decomposed into cards so each
     /// surface owns one decision the user makes:
     ///
-    /// 1. `engineSelectorCard` — which live engine?
-    /// 2. `transcriptionEngineCard` — optional Advanced final route
-    /// 3. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
+    /// 1. `engineSelectorCard` — primary engine plus recordings/files override
+    /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
     ///    multilingual `v3`, English-only `v2`, or Unified)
-    /// 4. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
+    /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
     ///    multilingual vs English-only)
-    /// 5. `engineCohereModelCard` — GPU vs Neural Engine? (Cohere only)
-    /// 6. `engineLanguageCard` — which language? (Whisper only in Settings)
-    /// 7. `enginesModelsCard` — what's the local model state?
+    /// 4. `engineCohereModelCard` — GPU vs Neural Engine? (Cohere only)
+    /// 5. `engineLanguageCard` — which language? (Whisper only in Settings)
+    /// 6. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 3–6 appear for engines used by either route, so model/language
-    /// controls stay available when Live Speech and Final Transcription differ.
+    /// Cards 2–5 appear for engines used by either route, so model/language
+    /// controls stay available when live speech and recordings differ.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
-            transcriptionEngineCard.id("engine.transcriptionSelector")
             engineParakeetModelCard.id("engine.parakeetModel")
             engineNemotronModelCard.id("engine.nemotronModel")
             engineCohereModelCard.id("engine.cohereModel")
@@ -2037,8 +2035,8 @@ struct SettingsView: View {
 
     private var engineSelectorCard: some View {
         SettingsCard(
-            title: "Live Speech",
-            subtitle: "Used for dictation and meeting live preview.",
+            title: "Speech Engine",
+            subtitle: speechEngineCardSubtitle,
             icon: "cpu",
             status: engineSelectorCardStatus
         ) {
@@ -2047,79 +2045,7 @@ struct SettingsView: View {
                     speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
                 }
 
-                LazyVGrid(columns: engineOptionColumns, alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    EngineOptionTile(
-                        icon: "bolt.fill",
-                        name: "Parakeet",
-                        tagline: "Everyday local default",
-                        strengths: [
-                            "Fast everyday dictation",
-                            "Timestamps for saved dictations",
-                            "English + supported European languages"
-                        ],
-                        helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
-                        modelStatus: displayedParakeetModelStatus,
-                        isSelected: viewModel.engine.speechEnginePreference == .parakeet,
-                        isBusy: viewModel.engine.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
-                        onSelect: { selectEngine(.parakeet) }
-                    )
-
-                    EngineOptionTile(
-                        icon: "sparkles",
-                        name: "Nemotron",
-                        tagline: "Beta live preview",
-                        strengths: [
-                            "Live preview while you speak",
-                            "English or multilingual builds",
-                            "Quality varies by language and audio"
-                        ],
-                        helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
-                        modelStatus: displayedNemotronModelStatus,
-                        isSelected: viewModel.engine.speechEnginePreference == .nemotron,
-                        isBusy: viewModel.engine.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
-                        onSelect: { handleNemotronTileTap() }
-                    )
-
-                    EngineOptionTile(
-                        icon: "globe",
-                        name: "Whisper",
-                        tagline: "Broad-language dictation",
-                        strengths: [
-                            "Recorded dictation in many languages",
-                            "Meeting preview with word timestamps",
-                            "Slower cold starts; no dictation preview"
-                        ],
-                        helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
-                        modelStatus: displayedWhisperModelStatus,
-                        isSelected: viewModel.engine.speechEnginePreference == .whisper,
-                        isBusy: viewModel.engine.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .whisper),
-                        needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
-                            && !viewModel.engine.whisperHasBeenOptimized,
-                        onSelect: { handleWhisperTileTap() }
-                    )
-
-                    if AppFeatures.cohereEngineEnabled {
-                        EngineOptionTile(
-                            icon: "waveform",
-                            name: "Cohere",
-                            tagline: "Local batch plain text",
-                            strengths: [
-                                "Local record-then-transcribe",
-                                "Plain text with set language",
-                                "No dictation or meeting preview"
-                            ],
-                            helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
-                            modelStatus: displayedCohereModelStatus,
-                            isSelected: viewModel.engine.speechEnginePreference == .cohere,
-                            isBusy: viewModel.engine.speechEngineSwitching,
-                            unavailableReason: engineSwitchUnavailableReason(for: .cohere),
-                            onSelect: { handleCohereTileTap() }
-                        )
-                    }
-                }
+                engineOptionGrid
 
                 if let banner = nemotronDownloadBannerState {
                     EngineDownloadBanner(
@@ -2155,62 +2081,190 @@ struct SettingsView: View {
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.errorRed)
                 }
+
+                Divider()
+
+                recordingsEngineFooter
             }
         }
     }
 
-    private var transcriptionEngineCard: some View {
-        SettingsCard(
-            title: "Advanced",
-            subtitle: "Optional final-transcription routing.",
-            icon: "slider.horizontal.3"
-        ) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                Toggle(
-                    "Use a different engine for final transcripts",
-                    isOn: Binding(
-                        get: { viewModel.engine.usesDifferentFinalTranscriptionEngine },
-                        set: { viewModel.engine.setUsesDifferentFinalTranscriptionEngine($0) }
-                    )
-                )
-                .toggleStyle(.switch)
+    private var speechEngineCardSubtitle: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "\(viewModel.engine.speechEnginePreference.displayName) handles live speech · \(viewModel.engine.transcriptionSpeechEnginePreference.displayName) transcribes recordings, files, and media."
+        }
+        return "Handles dictation, live preview, and transcripts."
+    }
 
-                Text(
-                    viewModel.engine.usesDifferentFinalTranscriptionEngine
-                        ? "Used after meetings end and for files, media, URLs, and retranscription."
-                        : "Final transcripts use Live Speech by default."
-                )
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                if viewModel.engine.usesDifferentFinalTranscriptionEngine {
-                    Picker(
-                        "Final transcript engine",
-                        selection: Binding(
-                            get: { viewModel.engine.transcriptionSpeechEnginePreference },
-                            set: { _ = viewModel.engine.selectTranscriptionSpeechEngine($0) }
-                        )
-                    ) {
-                        ForEach(transcriptionEngineOptions, id: \.self) { engine in
-                            Text(engine.displayName).tag(engine)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    Text(
-                        "The downloaded model loads when a final job needs it. Model and language choices remain shared per engine."
-                    )
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                    if let error = viewModel.engine.transcriptionSpeechEngineError {
-                        Text(error)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.errorRed)
-                    }
-                }
+    private var engineOptionGrid: some View {
+        LazyVGrid(columns: engineOptionColumns, alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            parakeetEngineTile
+            nemotronEngineTile
+            whisperEngineTile
+            if AppFeatures.cohereEngineEnabled {
+                cohereEngineTile
             }
         }
+    }
+
+    private var parakeetEngineTile: some View {
+        EngineOptionTile(
+            icon: "bolt.fill",
+            name: "Parakeet",
+            tagline: "Everyday local default",
+            strengths: [
+                "Fast everyday dictation",
+                "Timestamps for saved dictations",
+                "English + supported European languages"
+            ],
+            helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
+            modelStatus: displayedParakeetModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .parakeet,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
+            selectionRole: engineSelectionRole(for: .parakeet),
+            onSelect: { selectEngine(.parakeet) }
+        )
+    }
+
+    private var nemotronEngineTile: some View {
+        EngineOptionTile(
+            icon: "sparkles",
+            name: "Nemotron",
+            tagline: "Beta live preview",
+            strengths: [
+                "Live preview while you speak",
+                "English or multilingual builds",
+                "Quality varies by language and audio"
+            ],
+            helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
+            modelStatus: displayedNemotronModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .nemotron,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
+            selectionRole: engineSelectionRole(for: .nemotron),
+            onSelect: { handleNemotronTileTap() }
+        )
+    }
+
+    private var whisperEngineTile: some View {
+        EngineOptionTile(
+            icon: "globe",
+            name: "Whisper",
+            tagline: "Broad-language dictation",
+            strengths: [
+                "Recorded dictation in many languages",
+                "Meeting preview with word timestamps",
+                "Slower cold starts; no dictation preview"
+            ],
+            helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
+            modelStatus: displayedWhisperModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .whisper,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .whisper),
+            needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
+                && !viewModel.engine.whisperHasBeenOptimized,
+            selectionRole: engineSelectionRole(for: .whisper),
+            onSelect: { handleWhisperTileTap() }
+        )
+    }
+
+    private var cohereEngineTile: some View {
+        EngineOptionTile(
+            icon: "waveform",
+            name: "Cohere",
+            tagline: "Local batch plain text",
+            strengths: [
+                "Local record-then-transcribe",
+                "Plain text with set language",
+                "No dictation or meeting preview"
+            ],
+            helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
+            modelStatus: displayedCohereModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .cohere,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .cohere),
+            selectionRole: engineSelectionRole(for: .cohere),
+            onSelect: { handleCohereTileTap() }
+        )
+    }
+
+    private var recordingsEngineFooter: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                Text("Recordings & files")
+                    .font(DesignSystem.Typography.body.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Picker(
+                    "Recordings & files engine",
+                    selection: Binding(
+                        get: { viewModel.engine.recordingsSpeechEngineSelection },
+                        set: { viewModel.engine.recordingsSpeechEngineSelection = $0 }
+                    )
+                ) {
+                    Text("Same engine").tag(SpeechEnginePreference?.none)
+                    ForEach(transcriptionEngineOptions, id: \.self) { engine in
+                        Text(engine.displayName).tag(Optional(engine))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(DesignSystem.Colors.accent)
+                .frame(minWidth: 170, idealWidth: 190, maxWidth: 220)
+                .accessibilityLabel("Engine for recordings and files")
+                .accessibilityHint(
+                    "Choose Same engine or a separate engine for recordings, files, media, and URLs."
+                )
+            }
+
+            Text(recordingsEngineHint)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let error = viewModel.engine.transcriptionSpeechEngineError {
+                Text(error)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+            }
+        }
+    }
+
+    private var recordingsEngineHint: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "Transcribes meetings after they end, plus files, media, and URLs. Dictation and live preview stay on \(viewModel.engine.speechEnginePreference.displayName)."
+        }
+        return "Advanced: transcribe meetings (after they end), files, media, and URLs with a different engine. These jobs aren't live, so a slower engine with higher accuracy or more languages costs you nothing but wait time."
+    }
+
+    private func engineSelectionRole(
+        for engine: SpeechEnginePreference
+    ) -> EngineOptionTile.SelectionRole? {
+        guard viewModel.engine.usesDifferentFinalTranscriptionEngine,
+              viewModel.engine.speechEnginePreference != viewModel.engine.transcriptionSpeechEnginePreference
+        else { return nil }
+        if viewModel.engine.speechEnginePreference == engine { return .live }
+        if viewModel.engine.transcriptionSpeechEnginePreference == engine { return .recordings }
+        return nil
+    }
+
+    private func engineModelSubtitle(
+        _ base: String,
+        for engine: SpeechEnginePreference
+    ) -> String {
+        guard viewModel.engine.usesDifferentFinalTranscriptionEngine,
+              viewModel.engine.speechEnginePreference != viewModel.engine.transcriptionSpeechEnginePreference
+        else { return base }
+        if viewModel.engine.speechEnginePreference == engine {
+            return "\(base)\nUsed for live speech."
+        }
+        if viewModel.engine.transcriptionSpeechEnginePreference == engine {
+            return "\(base)\nUsed for recordings & files."
+        }
+        return base
     }
 
     private var transcriptionEngineOptions: [SpeechEnginePreference] {
@@ -2235,7 +2289,10 @@ struct SettingsView: View {
         if viewModel.engine.usesSpeechEngine(.parakeet) {
             SettingsCard(
                 title: "Parakeet Model",
-                subtitle: "Pick what Parakeet optimizes for: supported-language coverage, English timestamps, or readable English live preview.",
+                subtitle: engineModelSubtitle(
+                    "Pick what Parakeet optimizes for: supported-language coverage, English timestamps, or readable English live preview.",
+                    for: .parakeet
+                ),
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
@@ -2360,7 +2417,10 @@ struct SettingsView: View {
         if viewModel.engine.usesSpeechEngine(.nemotron) {
             SettingsCard(
                 title: "Nemotron Model",
-                subtitle: "Pick the Beta streaming build: multilingual for broader live preview, English for a smaller English-only path.",
+                subtitle: engineModelSubtitle(
+                    "Pick the Beta streaming build: multilingual for broader live preview, English for a smaller English-only path.",
+                    for: .nemotron
+                ),
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
@@ -2462,7 +2522,10 @@ struct SettingsView: View {
         if engine.usesSpeechEngine(.cohere) {
             SettingsCard(
                 title: "Cohere Performance",
-                subtitle: "GPU can finish Cohere batches faster after Core ML setup. Neural Engine avoids that setup wait. Changes apply next time Cohere loads.",
+                subtitle: engineModelSubtitle(
+                    "GPU can finish Cohere batches faster after Core ML setup. Neural Engine avoids that setup wait. Changes apply next time Cohere loads.",
+                    for: .cohere
+                ),
                 icon: "bolt"
             ) {
                 HStack(alignment: .center) {
@@ -2477,6 +2540,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
+                    .tint(DesignSystem.Colors.accent)
                     .frame(width: 240)
                 }
                 if engine.cohereComputePolicyNeedsRelaunch {

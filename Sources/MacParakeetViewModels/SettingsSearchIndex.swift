@@ -275,8 +275,8 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "engine.selector",
             tab: .engine,
-            title: "Live Speech",
-            subtitle: "Dictation and meeting live-preview engine.",
+            title: "Speech Engine",
+            subtitle: "Handles dictation, live preview, and transcripts.",
             keywords: [
                 "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
                 "model", "preview", "timestamps", "ane", "neural engine"
@@ -286,14 +286,14 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "engine.transcriptionSelector",
             tab: .engine,
-            title: "Final Transcription Engine",
-            subtitle: "Advanced override for meetings after stop and files or media.",
+            title: "Recordings & Files Engine",
+            subtitle: "Advanced engine override for meetings after they end, files, media, and URLs.",
             keywords: [
-                "meeting engine", "transcription engine", "final transcript", "file engine",
-                "separate engine", "same as live", "advanced", "media", "retranscription",
-                "dictation", "parakeet", "nemotron", "whisper", "cohere",
+                "meeting engine", "transcription engine", "final transcript", "file engine", "files engine",
+                "recordings", "accuracy", "slower", "separate engine", "same as live", "advanced",
+                "media", "retranscription", "dictation", "parakeet", "nemotron", "whisper", "cohere",
             ],
-            cardAnchor: "engine.transcriptionSelector"
+            cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
             id: "engine.language",

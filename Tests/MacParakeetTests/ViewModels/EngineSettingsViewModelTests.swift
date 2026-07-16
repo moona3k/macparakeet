@@ -110,6 +110,46 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .parakeet)
     }
 
+    func testRecordingsEngineSelectionMapsNilToInheritedLiveEngine() {
+        let vm = makeViewModel()
+        vm.whisperModelStatus = .notLoaded
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+
+        vm.recordingsSpeechEngineSelection = .whisper
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .whisper)
+        XCTAssertTrue(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .whisper)
+    }
+
+    func testSelectingLiveEngineForRecordingsCollapsesToSameEngine() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
+        let vm = makeViewModel()
+
+        XCTAssertEqual(vm.recordingsSpeechEngineSelection, .whisper)
+
+        vm.recordingsSpeechEngineSelection = .parakeet
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+        XCTAssertFalse(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .parakeet)
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+    }
+
+    func testSelectingSameEngineClearsRecordingsOverride() {
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
+        let vm = makeViewModel()
+
+        vm.recordingsSpeechEngineSelection = nil
+
+        XCTAssertNil(vm.recordingsSpeechEngineSelection)
+        XCTAssertFalse(vm.usesDifferentFinalTranscriptionEngine)
+        XCTAssertEqual(vm.transcriptionSpeechEnginePreference, .parakeet)
+        XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+    }
+
     func testChangingLiveEngineAlsoMovesInheritedFinalRoute() {
         let vm = makeViewModel()
         vm.whisperModelStatus = .notLoaded
