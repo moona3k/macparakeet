@@ -183,6 +183,7 @@ struct SettingsView: View {
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
             viewModel.engine.refreshModelStatus()
+            viewModel.engine.refreshSpeechEngineSwitchAvailability()
             viewModel.refreshPendingMeetingRecoveries()
         }
         .onDisappear {
@@ -395,8 +396,8 @@ struct SettingsView: View {
     /// Engine tab — speech recognition stack, decomposed into cards so each
     /// surface owns one decision the user makes:
     ///
-    /// 1. `engineSelectorCard` — which engine?
-    /// 2. `transcriptionEngineCard` — independent file/meeting route
+    /// 1. `engineSelectorCard` — which live engine?
+    /// 2. `transcriptionEngineCard` — optional Advanced final route
     /// 3. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
     ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 4. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
@@ -405,8 +406,8 @@ struct SettingsView: View {
     /// 6. `engineLanguageCard` — which language? (Whisper only in Settings)
     /// 7. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 3–6 appear for engines used by either workflow route, so multiple
-    /// contextual cards can coexist when dictation and transcription differ.
+    /// Cards 3–6 appear for engines used by either route, so model/language
+    /// controls stay available when Live Speech and Final Transcription differ.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
@@ -563,17 +564,25 @@ struct SettingsView: View {
     }
 
     private func performModelDeletion(_ deletion: PendingModelDeletion) {
-        switch deletion {
-        case .parakeet(let variant):
-            viewModel.engine.deleteParakeetVariant(variant)
-        case .nemotron(let variant):
-            viewModel.engine.deleteNemotronVariant(variant)
-        case .whisper:
-            viewModel.engine.deleteWhisperModel()
-        case .cohere:
-            viewModel.engine.deleteCohereModel()
-        }
         pendingModelDeletion = nil
+        Task { @MainActor in
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                viewModel.engine.speechEngineError =
+                    EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                return
+            }
+            switch deletion {
+            case .parakeet(let variant):
+                viewModel.engine.deleteParakeetVariant(variant)
+            case .nemotron(let variant):
+                viewModel.engine.deleteNemotronVariant(variant)
+            case .whisper:
+                viewModel.engine.deleteWhisperModel()
+            case .cohere:
+                viewModel.engine.deleteCohereModel()
+            }
+        }
     }
 
     private var speechEngineSwitchConfirmationTitle: String {
@@ -2028,8 +2037,8 @@ struct SettingsView: View {
 
     private var engineSelectorCard: some View {
         SettingsCard(
-            title: "Speech Recognition",
-            subtitle: "Choose the local engine for dictation. Meetings and file transcription have their own route below.",
+            title: "Live Speech",
+            subtitle: "Used for dictation and meeting live preview.",
             icon: "cpu",
             status: engineSelectorCardStatus
         ) {
@@ -2079,10 +2088,10 @@ struct SettingsView: View {
                         tagline: "Broad-language dictation",
                         strengths: [
                             "Recorded dictation in many languages",
-                            "Word timestamps for saved dictations",
-                            "Slower cold starts; no live preview"
+                            "Meeting preview with word timestamps",
+                            "Slower cold starts; no dictation preview"
                         ],
-                        helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
+                        helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
                         modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.engine.speechEnginePreference == .whisper,
                         isBusy: viewModel.engine.speechEngineSwitching,
@@ -2100,7 +2109,7 @@ struct SettingsView: View {
                             strengths: [
                                 "Local record-then-transcribe",
                                 "Plain text with set language",
-                                "No preview, timestamps, or speaker labels"
+                                "No dictation or meeting preview"
                             ],
                             helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
                             modelStatus: displayedCohereModelStatus,
@@ -2152,33 +2161,53 @@ struct SettingsView: View {
 
     private var transcriptionEngineCard: some View {
         SettingsCard(
-            title: "Meetings & Transcriptions",
-            subtitle:
-                "Choose an engine without changing dictation. New meetings capture this choice at start; files, media, and URLs use it per job.",
-            icon: "waveform.and.mic"
+            title: "Advanced",
+            subtitle: "Optional final-transcription routing.",
+            icon: "slider.horizontal.3"
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                Picker(
-                    "Speech engine",
-                    selection: Binding(
-                        get: { viewModel.engine.transcriptionSpeechEnginePreference },
-                        set: { _ = viewModel.engine.selectTranscriptionSpeechEngine($0) }
+                Toggle(
+                    "Use a different engine for final transcripts",
+                    isOn: Binding(
+                        get: { viewModel.engine.usesDifferentFinalTranscriptionEngine },
+                        set: { viewModel.engine.setUsesDifferentFinalTranscriptionEngine($0) }
                     )
-                ) {
-                    ForEach(transcriptionEngineOptions, id: \.self) { engine in
-                        Text(engine.displayName).tag(engine)
-                    }
-                }
-                .pickerStyle(.segmented)
+                )
+                .toggleStyle(.switch)
 
-                Text("Model variants and language choices remain shared per engine; only workflow routing is separate.")
+                Text(
+                    viewModel.engine.usesDifferentFinalTranscriptionEngine
+                        ? "Used after meetings end and for files, media, URLs, and retranscription."
+                        : "Final transcripts use Live Speech by default."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+                    Picker(
+                        "Final transcript engine",
+                        selection: Binding(
+                            get: { viewModel.engine.transcriptionSpeechEnginePreference },
+                            set: { _ = viewModel.engine.selectTranscriptionSpeechEngine($0) }
+                        )
+                    ) {
+                        ForEach(transcriptionEngineOptions, id: \.self) { engine in
+                            Text(engine.displayName).tag(engine)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(
+                        "The downloaded model loads when a final job needs it. Model and language choices remain shared per engine."
+                    )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                if let error = viewModel.engine.transcriptionSpeechEngineError {
-                    Text(error)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                    if let error = viewModel.engine.transcriptionSpeechEngineError {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
                 }
             }
         }

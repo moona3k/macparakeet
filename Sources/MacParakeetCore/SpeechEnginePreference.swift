@@ -10,12 +10,15 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case cohere
 
     public static let defaultsKey = "speechRecognitionEngine"
-    /// Engine used for file/media transcription and newly started meetings.
+    /// Optional final engine for file/media transcription and newly started
+    /// meetings after recording stops.
     ///
     /// This is intentionally separate from ``defaultsKey``, which remains the
-    /// live dictation engine. When this key has never been written we inherit
-    /// the dictation choice so upgrades preserve the pre-split behavior.
+    /// live-speech engine. When this key has never been written we inherit the
+    /// live choice so upgrades preserve the pre-split behavior.
     public static let transcriptionDefaultsKey = "transcriptionSpeechRecognitionEngine"
+    private static let materializedFinalOverrideMigrationKey =
+        "didMigrateMaterializedFinalTranscriptionOverride"
     public static let parakeetModelVariantKey = "parakeetModelVariant"
     public static let nemotronModelVariantKey = "nemotronModelVariant"
     public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
@@ -79,6 +82,13 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         defaults.set(rawValue, forKey: Self.defaultsKey)
     }
 
+    /// Engine for latency-sensitive speech: dictation and meeting live preview.
+    /// Kept as a semantic alias for ``current(defaults:)`` so existing callers
+    /// and persisted defaults remain source- and data-compatible.
+    public static func liveSpeech(defaults: UserDefaults = .standard) -> SpeechEnginePreference {
+        current(defaults: defaults)
+    }
+
     public static func transcription(defaults: UserDefaults = .standard) -> SpeechEnginePreference {
         guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey),
             let preference = SpeechEnginePreference(rawValue: rawValue)
@@ -86,6 +96,59 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return current(defaults: defaults)
         }
         return preference
+    }
+
+    /// Engine for authoritative post-meeting and file/media transcription.
+    /// Without an explicit override this follows the live-speech engine.
+    public static func finalTranscription(
+        defaults: UserDefaults = .standard
+    ) -> SpeechEnginePreference {
+        transcription(defaults: defaults)
+    }
+
+    /// Key presence is the durable override signal. An explicit override equal
+    /// to the current live engine remains enabled so a later live-engine change
+    /// does not silently move the final route.
+    public static func hasFinalTranscriptionOverride(
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey) else {
+            return false
+        }
+        return SpeechEnginePreference(rawValue: rawValue) != nil
+    }
+
+    /// Saves an explicit final route, or clears it to restore inheritance from
+    /// live speech. Model-download validation remains the Settings owner's job.
+    public static func saveFinalTranscriptionOverride(
+        _ preference: SpeechEnginePreference?,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let preference else {
+            defaults.removeObject(forKey: transcriptionDefaultsKey)
+            return
+        }
+        preference.saveForTranscriptions(to: defaults)
+    }
+
+    /// Repairs the brief pre-live/final Settings behavior that wrote an
+    /// inherited value into the second key merely by opening Settings. Before
+    /// this migration, an equal-valued key could not express independent user
+    /// intent, so removing it preserves the old behavior. The completion flag
+    /// ensures a deliberate equal-valued override created afterward survives.
+    public static func migrateMaterializedFinalTranscriptionOverrideIfNeeded(
+        defaults: UserDefaults = .standard
+    ) {
+        guard !defaults.bool(forKey: materializedFinalOverrideMigrationKey) else { return }
+        defer { defaults.set(true, forKey: materializedFinalOverrideMigrationKey) }
+
+        guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey),
+            let persistedFinal = SpeechEnginePreference(rawValue: rawValue),
+            persistedFinal == liveSpeech(defaults: defaults)
+        else {
+            return
+        }
+        defaults.removeObject(forKey: transcriptionDefaultsKey)
     }
 
     public func saveForTranscriptions(to defaults: UserDefaults = .standard) {
@@ -570,10 +633,20 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
         return selection(for: engine, defaults: defaults)
     }
 
+    public static func liveSpeech(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
+        current(defaults: defaults)
+    }
+
     /// Selection for file/media transcription and meetings. Missing persisted
     /// state inherits the dictation selection for a backward-compatible upgrade.
     public static func transcription(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
         selection(for: SpeechEnginePreference.transcription(defaults: defaults), defaults: defaults)
+    }
+
+    public static func finalTranscription(
+        defaults: UserDefaults = .standard
+    ) -> SpeechEngineSelection {
+        transcription(defaults: defaults)
     }
 
     private static func selection(
@@ -591,6 +664,31 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
         return SpeechEngineSelection(engine: engine, language: language)
+    }
+}
+
+/// Immutable routing captured when a meeting starts. Preview is best-effort
+/// and may be unavailable; final is always the authoritative durable-audio
+/// transcription route.
+public struct MeetingSpeechPlan: Codable, Equatable, Sendable {
+    public let preview: SpeechEngineSelection?
+    public let final: SpeechEngineSelection
+
+    public init(preview: SpeechEngineSelection?, final: SpeechEngineSelection) {
+        self.preview = preview
+        self.final = final
+    }
+
+    public static func resolve(
+        live: SpeechEngineSelection,
+        final: SpeechEngineSelection,
+        liveCapabilities: SpeechEngineCapabilities?
+    ) -> MeetingSpeechPlan {
+        let canPreview =
+            liveCapabilities.map {
+                $0.key.engine == live.engine && $0.supportsMeetingLivePreview
+            } ?? false
+        return MeetingSpeechPlan(preview: canPreview ? live : nil, final: final)
     }
 }
 

@@ -28,7 +28,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     public let speechEngine: SpeechEngineSelection
     /// Whether `speechEngine` was explicitly persisted by the recording build.
     /// Legacy locks without the field retain the Parakeet decode fallback but
-    /// must use the current Meetings & Transcriptions route during recovery.
+    /// must use the current final-transcription route during recovery.
     public let speechEngineWasCaptured: Bool
     public let startContext: MeetingStartContext?
     public let calendarEventSnapshot: MeetingCalendarSnapshot?

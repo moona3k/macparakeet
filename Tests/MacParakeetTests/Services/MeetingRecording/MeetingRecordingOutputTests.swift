@@ -525,6 +525,70 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(archived.startContext, startContext)
     }
 
+    func testMeetingRecordingMetadataRoundTripsOptionalPreviewSpeechEngine() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let preview = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .cohere, language: "fr")
+
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                speechEngine: final,
+                previewSpeechEngine: preview
+            ),
+            folderURL: dir
+        )
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(metadata.speechEngine, final)
+        XCTAssertEqual(metadata.previewSpeechEngine, preview)
+    }
+
+    func testLegacyMeetingRecordingMetadataWithoutPreviewSpeechEngineStillLoads() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = MeetingRecordingMetadata(
+            sourceAlignment: dualSourceAlignment(),
+            speechEngine: SpeechEngineSelection(engine: .whisper, language: "ja")
+        )
+        let encoded = try JSONEncoder().encode(metadata)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "previewSpeechEngine")
+        try JSONSerialization.data(withJSONObject: object).write(
+            to: MeetingRecordingMetadataStore.metadataURL(for: dir)
+        )
+
+        let decoded = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertNil(decoded.previewSpeechEngine)
+        XCTAssertEqual(decoded.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
+    }
+
+    func testMeetingRecordingMetadataWithMalformedPreviewSpeechEngineStillLoads() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let final = SpeechEngineSelection(engine: .whisper, language: "ja")
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                speechEngine: final,
+                previewSpeechEngine: SpeechEngineSelection(engine: .parakeet)
+            ),
+            folderURL: dir
+        )
+
+        let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)
+        ) as? [String: Any])
+        json["previewSpeechEngine"] = ["engine": "future_engine"]
+        try JSONSerialization.data(withJSONObject: json).write(to: url, options: .atomic)
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertNil(metadata.previewSpeechEngine)
+        XCTAssertEqual(metadata.speechEngine, final)
+    }
+
     func testMeetingRecordingMetadataWithMalformedStartContextStillLoads() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

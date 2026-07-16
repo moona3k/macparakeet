@@ -61,6 +61,7 @@ final class AppEnvironment {
     let derivedFieldsBackfill: DerivedFieldsBackfillService
 
     init(databaseManager: DatabaseManager) throws {
+        SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded()
         self.databaseManager = databaseManager
 
         // Repositories
@@ -162,7 +163,7 @@ final class AppEnvironment {
             ),
             sttTranscriber: sttScheduler,
             lockFileStore: meetingRecordingLockFileStore,
-            meetingSpeechEngineSelection: { SpeechEngineSelection.transcription() },
+            finalSpeechEngineSelection: { SpeechEngineSelection.finalTranscription() },
             // Wire the real feature flag here (the service defaults to fixed
             // chunking so tests stay deterministic regardless of the flag).
             isVadLiveChunkingEnabled: { AppFeatures.meetingVadLiveChunkingEnabled }
@@ -373,7 +374,7 @@ final class AppEnvironment {
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             shouldDiarizeMeetings: { [runtimePreferences] in runtimePreferences.shouldDiarizeMeetings },
-            fileSpeechEngineSelection: { SpeechEngineSelection.transcription() },
+            fileSpeechEngineSelection: { SpeechEngineSelection.finalTranscription() },
             youtubeDownloader: youtubeDownloader,
             podcastResolver: PodcastEpisodeResolver(),
             podcastSearchResolver: PodcastQueryResolver(),

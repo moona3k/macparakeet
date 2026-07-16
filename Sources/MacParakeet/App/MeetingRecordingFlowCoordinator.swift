@@ -685,32 +685,52 @@ final class MeetingRecordingFlowCoordinator {
                         self.recordIgnoredStartResult(generation: gen, outcome: "success")
                         return
                     }
-                    var activeSpeechEngineSelection = await meetingRecordingService.activeSpeechEngineSelection
+                    var activeLiveSpeechEngineSelection = await meetingRecordingService.activeSpeechEngineSelection
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "success")
                         return
                     }
-                    if activeSpeechEngineSelection == nil,
+                    if activeLiveSpeechEngineSelection == nil,
                         let speechEngineSelectionProvider
                     {
-                        activeSpeechEngineSelection = await speechEngineSelectionProvider()
+                        activeLiveSpeechEngineSelection = await speechEngineSelectionProvider()
                         guard self.ownsPendingStart(generation: gen) else {
                             self.recordIgnoredStartResult(generation: gen, outcome: "success")
                             return
                         }
                     }
-                    self.startSpeechWarmUpObservation(
-                        speechEngineSelection: activeSpeechEngineSelection
-                    )
+                    let activeSpeechPlan = await meetingRecordingService.activeMeetingSpeechPlan
+                    guard self.ownsPendingStart(generation: gen) else {
+                        self.recordIgnoredStartResult(generation: gen, outcome: "success")
+                        return
+                    }
+                    let previewSpeechEngineSelection = activeSpeechPlan?.preview
                     if let panelViewModel = self.panelViewModel {
+                        panelViewModel.configureSpeechRouting(
+                            live: activeLiveSpeechEngineSelection,
+                            plan: activeSpeechPlan
+                        )
                         self.refreshInitialLiveTranscriptStatus(
                             for: panelViewModel,
-                            speechEngineSelection: activeSpeechEngineSelection
+                            liveSpeechEngineSelection: activeLiveSpeechEngineSelection,
+                            plan: activeSpeechPlan
                         )
                     }
-                    let isSpeechModelReady = await self.isMeetingSpeechModelReady(
-                        speechEngineSelection: activeSpeechEngineSelection
-                    )
+                    if let previewSpeechEngineSelection {
+                        self.startSpeechWarmUpObservation(
+                            speechEngineSelection: previewSpeechEngineSelection
+                        )
+                    } else {
+                        self.stopSpeechWarmUpObservation()
+                    }
+                    let isSpeechModelReady =
+                        if let previewSpeechEngineSelection {
+                            await self.isMeetingSpeechModelReady(
+                                speechEngineSelection: previewSpeechEngineSelection
+                            )
+                        } else {
+                            true
+                        }
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "success")
                         return
@@ -1450,10 +1470,17 @@ final class MeetingRecordingFlowCoordinator {
 
     private func refreshInitialLiveTranscriptStatus(
         for panelViewModel: MeetingRecordingPanelViewModel,
-        speechEngineSelection: SpeechEngineSelection?
+        liveSpeechEngineSelection: SpeechEngineSelection?,
+        plan: MeetingSpeechPlan?
     ) {
-        guard speechEngineSelection?.engine == .cohere else { return }
-        panelViewModel.updateLiveTranscriptStatus(.previewUnsupported(engine: .cohere))
+        guard let plan else {
+            panelViewModel.updateLiveTranscriptStatus(.previewUnavailable)
+            return
+        }
+        guard plan.preview == nil, let liveSpeechEngineSelection else { return }
+        panelViewModel.updateLiveTranscriptStatus(
+            .previewUnsupported(engine: liveSpeechEngineSelection.engine)
+        )
     }
 
     nonisolated private static func makePreviewLines(from update: MeetingTranscriptUpdate)

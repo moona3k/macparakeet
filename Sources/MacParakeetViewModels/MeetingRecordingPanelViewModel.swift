@@ -51,6 +51,10 @@ public final class MeetingRecordingPanelViewModel {
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
+    /// Shown only when a meeting's live and authoritative final routes differ.
+    /// Keeping this meeting-scoped avoids implying that a later Settings change
+    /// can mutate the route captured when recording started.
+    public private(set) var speechRouteAttribution: String?
     public var showCopiedConfirmation: Bool = false
     /// Default to `.notes` per ADR-020 §2 — opening the panel should put the
     /// cursor in the notepad, not stare the user down with raw transcript.
@@ -169,6 +173,7 @@ public final class MeetingRecordingPanelViewModel {
         wordCount = 0
         isTranscriptionLagging = false
         liveTranscriptStatus = .listening
+        speechRouteAttribution = nil
         copiedResetTask?.cancel()
         showCopiedConfirmation = false
         selectedTab = .notes
@@ -276,6 +281,28 @@ public final class MeetingRecordingPanelViewModel {
         liveTranscriptStatus = status
     }
 
+    public func configureSpeechRouting(
+        live: SpeechEngineSelection?,
+        plan: MeetingSpeechPlan?
+    ) {
+        guard let live, let plan else {
+            speechRouteAttribution = nil
+            return
+        }
+
+        if let preview = plan.preview, preview != plan.final {
+            speechRouteAttribution =
+                "Live preview: \(Self.describe(preview)) · "
+                + "Final transcript: \(Self.describe(plan.final)) after recording ends"
+        } else if plan.preview == nil, live != plan.final {
+            speechRouteAttribution =
+                "Live preview: Off (\(Self.describe(live))) · "
+                + "Final transcript: \(Self.describe(plan.final)) after recording ends"
+        } else {
+            speechRouteAttribution = nil
+        }
+    }
+
     public var transcriptEmptyStateTitle: String {
         if isTranscriptionLagging {
             return "Catching up..."
@@ -307,8 +334,8 @@ public final class MeetingRecordingPanelViewModel {
             return Self.cleanWarmUpMessage(message) ?? "Recording continues while local transcription starts."
         case .listening, .live:
             return nil
-        case .previewUnsupported(let engine):
-            return "\(engine.displayName) will transcribe after you stop recording."
+        case .previewUnsupported:
+            return "Audio will be transcribed after you stop recording."
         case .previewUnavailable:
             return "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
         }
@@ -317,7 +344,7 @@ public final class MeetingRecordingPanelViewModel {
     private var livePreviewStatusMessage: String? {
         switch liveTranscriptStatus {
         case .previewUnsupported(let engine):
-            return "\(engine.displayName) is recording now and will transcribe the final meeting after you stop."
+            return "Live preview is off for \(engine.displayName). Audio is still recording for final transcription."
         case .previewUnavailable:
             return "Audio is still recording. Live preview may stay off until the final transcript is ready."
         case .startingAudio, .preparingSpeechModel, .listening, .live:
@@ -338,6 +365,13 @@ public final class MeetingRecordingPanelViewModel {
 
     private static func wordCount(for text: String) -> Int {
         text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    private static func describe(_ selection: SpeechEngineSelection) -> String {
+        guard let language = selection.language, !language.isEmpty else {
+            return selection.engine.displayName
+        }
+        return "\(selection.engine.displayName) (\(language))"
     }
 
     private static func cleanWarmUpMessage(_ message: String?) -> String? {

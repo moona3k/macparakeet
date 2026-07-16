@@ -784,8 +784,9 @@ struct TranscriptResultView: View {
         // Pin the engine named on the card whenever it is a specific choice — an
         // alternative engine, or the engine that actually produced this
         // transcript. Only the legacy "Current" primary (a fall-back to the
-        // user's live default) reruns through the plain current-settings path,
-        // so its variant and language follow whatever the user has set now.
+        // user's Final Transcription default) reruns through the plain
+        // current-settings path, so its variant and language follow whatever
+        // the user has set now.
         let override: SpeechEngineSelection? =
             (choice.isPrimary && !reflectsTranscriptEngine) ? nil : choice.selection
         pendingRetranscribePick = RetranscribePick(transcriptionID: transcription.id, override: override)

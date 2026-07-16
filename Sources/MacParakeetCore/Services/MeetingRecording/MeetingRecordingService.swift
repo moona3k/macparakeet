@@ -75,8 +75,12 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var isRecording: Bool { get async }
     var activeSessionID: UUID? { get async }
     /// Speech engine pinned to the active recording session. Consumers should
-    /// use this instead of re-reading a mutable preference after recording starts.
+    /// use this instead of re-reading a mutable preference after recording
+    /// starts. This is the live-speech lease selection, not necessarily the
+    /// engine captured for final transcription.
     var activeSpeechEngineSelection: SpeechEngineSelection? { get async }
+    /// Immutable preview/final routing captured when the meeting starts.
+    var activeMeetingSpeechPlan: MeetingSpeechPlan? { get async }
     var isPaused: Bool { get async }
     var micLevel: Float { get async }
     var systemLevel: Float { get async }
@@ -175,13 +179,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let microphoneAudioURL: URL
         let systemAudioURL: URL
         let mixedAudioURL: URL
-        let speechEngine: SpeechEngineSelection
-        let speechEngineCapabilities: SpeechEngineCapabilities?
+        let liveSpeechEngine: SpeechEngineSelection
+        let speechPlan: MeetingSpeechPlan
         let startContext: MeetingStartContext?
         let calendarEventSnapshot: MeetingCalendarSnapshot?
 
         var supportsLiveChunkTranscription: Bool {
-            speechEngineCapabilities?.providesWordTimestamps == true
+            speechPlan.preview != nil
         }
     }
 
@@ -232,7 +236,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let liveChunkTranscriber: LiveChunkTranscriber
     private let lockFileStore: MeetingRecordingLockFileStoring
     private let speechEngineSessionManager: (any SpeechEngineSessionManaging)?
-    private let meetingSpeechEngineSelection: @Sendable () -> SpeechEngineSelection?
+    private let finalSpeechEngineSelection: @Sendable () -> SpeechEngineSelection?
     private let micConditionerFactory: @Sendable () -> any MicConditioning
     private let cleanedMicConditionerFactory: @Sendable () -> any MicConditioning
     private let cleanedMicrophoneReadinessScheduler: MeetingCleanedMicrophoneReadinessScheduling
@@ -329,7 +333,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sttTranscriber: STTTranscribing,
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default,
-        meetingSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
+        finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
     ) {
@@ -340,7 +344,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             sttTranscriber: sttTranscriber,
             lockFileStore: lockFileStore,
             fileManager: fileManager,
-            meetingSpeechEngineSelection: meetingSpeechEngineSelection,
+            finalSpeechEngineSelection: finalSpeechEngineSelection,
             isVadLiveChunkingEnabled: isVadLiveChunkingEnabled,
             micConditionerFactory: {
                 MeetingEchoSuppressionFactory.makeConditioner(
@@ -357,7 +361,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sttTranscriber: STTTranscribing,
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default,
-        meetingSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
+        finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
         cleanedMicConditionerFactory: (@Sendable () -> any MicConditioning)? = nil,
@@ -380,7 +384,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.audioConverter = audioConverter
         self.lockFileStore = lockFileStore
         self.fileManager = fileManager
-        self.meetingSpeechEngineSelection = meetingSpeechEngineSelection
+        self.finalSpeechEngineSelection = finalSpeechEngineSelection
         self.isVadLiveChunkingEnabled = isVadLiveChunkingEnabled
         self.micConditionerFactory = micConditionerFactory
         self.cleanedMicConditionerFactory = cleanedMicConditionerFactory ?? micConditionerFactory
@@ -399,7 +403,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     public var activeSpeechEngineSelection: SpeechEngineSelection? {
-        currentSession?.speechEngine
+        currentSession?.liveSpeechEngine
+    }
+
+    public var activeMeetingSpeechPlan: MeetingSpeechPlan? {
+        currentSession?.speechPlan
     }
 
     public var isPaused: Bool {
@@ -579,27 +587,28 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // the clock ticked over a minute boundary between them, which is
         // vanishingly rare but trivially avoidable.
         let now = wallClockNow()
-        let requestedSpeechEngine = meetingSpeechEngineSelection()
-        let speechEngineLease: SpeechEngineLease?
-        if let requestedSpeechEngine,
-            let routedSessionManager = speechEngineSessionManager as? any SpeechEngineRoutedSessionManaging
-        {
-            speechEngineLease = await routedSessionManager.beginSpeechEngineSession(
-                speechEngine: requestedSpeechEngine
-            )
-        } else {
-            speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
-        }
+        // Reserve the live engine before reading the final preference. The
+        // scheduler lease closes the switch/variant TOCTOU window and remains
+        // held even when the live engine cannot render meeting preview.
+        let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
         currentSpeechEngineLease = speechEngineLease
-        let speechEngine: SpeechEngineSelection
-        let speechEngineCapabilities: SpeechEngineCapabilities?
+        let liveSpeechEngine: SpeechEngineSelection
+        let liveSpeechEngineCapabilities: SpeechEngineCapabilities?
         if let speechEngineLease {
-            speechEngine = speechEngineLease.selection
-            speechEngineCapabilities = speechEngineLease.capabilities
+            liveSpeechEngine = speechEngineLease.selection
+            liveSpeechEngineCapabilities = speechEngineLease.capabilities
         } else {
-            speechEngine = SpeechEngineSelection(engine: .parakeet)
-            speechEngineCapabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+            liveSpeechEngine = SpeechEngineSelection.liveSpeech()
+            liveSpeechEngineCapabilities = SpeechEngineCapabilityRegistry.capabilities(
+                for: liveSpeechEngine.engine
+            )
         }
+        let finalSpeechEngine = finalSpeechEngineSelection() ?? liveSpeechEngine
+        let speechPlan = MeetingSpeechPlan.resolve(
+            live: liveSpeechEngine,
+            final: finalSpeechEngine,
+            liveCapabilities: liveSpeechEngineCapabilities
+        )
         let session = Session(
             id: sessionID,
             displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
@@ -609,8 +618,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: writer.microphoneAudioURL,
             systemAudioURL: writer.systemAudioURL,
             mixedAudioURL: writer.mixedAudioURL,
-            speechEngine: speechEngine,
-            speechEngineCapabilities: speechEngineCapabilities,
+            liveSpeechEngine: liveSpeechEngine,
+            speechPlan: speechPlan,
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot
         )
@@ -623,7 +632,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 startedAt: session.startedAt,
                 pid: ProcessInfo.processInfo.processIdentifier,
                 displayName: session.displayName,
-                speechEngine: session.speechEngine,
+                speechEngine: session.speechPlan.final,
                 startContext: session.startContext,
                 calendarEventSnapshot: session.calendarEventSnapshot,
                 folderURL: session.folderURL
@@ -656,16 +665,18 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             syncLagWarningActive = false
             lastLoggedSyncLagBucketMs = nil
 
-            await liveChunkTranscriber.startSession(
-                .init(
-                    id: session.id,
-                    chunkFolderURL: session.chunkFolderURL,
-                    speechEngine: session.speechEngine
-                ),
-                onEvent: { [weak self] event in
-                    await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
-                }
-            )
+            if let previewSpeechEngine = session.speechPlan.preview {
+                await liveChunkTranscriber.startSession(
+                    .init(
+                        id: session.id,
+                        chunkFolderURL: session.chunkFolderURL,
+                        speechEngine: previewSpeechEngine
+                    ),
+                    onEvent: { [weak self] event in
+                        await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
+                    }
+                )
+            }
             try await validateStartStillCurrent(session)
 
             let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
@@ -848,7 +859,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             try MeetingRecordingMetadataStore.save(
                 MeetingRecordingMetadata(
                     sourceAlignment: sourceAlignment,
-                    speechEngine: session.speechEngine,
+                    speechEngine: session.speechPlan.final,
+                    previewSpeechEngine: session.speechPlan.preview,
                     startContext: session.startContext,
                     calendarEventSnapshot: session.calendarEventSnapshot
                 ),
@@ -921,7 +933,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             startedAt: session.startedAt,
             pid: ProcessInfo.processInfo.processIdentifier,
             displayName: session.displayName,
-            speechEngine: session.speechEngine,
+            speechEngine: session.speechPlan.final,
             startContext: session.startContext,
             calendarEventSnapshot: session.calendarEventSnapshot,
             folderURL: session.folderURL
@@ -979,7 +991,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             cleanedMicrophoneReadiness: cleanedMicrophoneReadiness,
             durationSeconds: durationSeconds,
             sourceAlignment: sourceAlignment,
-            speechEngine: session.speechEngine,
+            speechEngine: session.speechPlan.final,
+            previewSpeechEngine: session.speechPlan.preview,
             startContext: session.startContext,
             userNotes: finalNotes,
             calendarEventSnapshot: session.calendarEventSnapshot
@@ -1031,7 +1044,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             startedAt: session.startedAt,
             pid: ProcessInfo.processInfo.processIdentifier,
             displayName: session.displayName,
-            speechEngine: session.speechEngine,
+            speechEngine: session.speechPlan.final,
             startContext: session.startContext,
             calendarEventSnapshot: session.calendarEventSnapshot,
             folderURL: session.folderURL
@@ -1339,7 +1352,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             await useFixed(reason: "feature_disabled")
             return
         }
-        guard session.speechEngine.engine == .parakeet else {
+        guard session.speechPlan.preview?.engine == .parakeet else {
             await useFixed(reason: "non_parakeet_engine")
             return
         }

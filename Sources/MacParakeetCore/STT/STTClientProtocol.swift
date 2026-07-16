@@ -164,13 +164,6 @@ public protocol SpeechEngineSessionManaging: Sendable {
     func endSpeechEngineSession(_ lease: SpeechEngineLease) async
 }
 
-/// A meeting session that pins an explicit routed engine instead of inheriting
-/// the live dictation engine. The lease still blocks model/variant switches so
-/// a recording cannot change behavior halfway through.
-public protocol SpeechEngineRoutedSessionManaging: SpeechEngineSessionManaging {
-    func beginSpeechEngineSession(speechEngine: SpeechEngineSelection) async -> SpeechEngineLease
-}
-
 extension STTTranscribing {
     public func transcribe(audioPath: String, job: STTJobKind) async throws -> STTResult {
         try await transcribe(audioPath: audioPath, job: job, onProgress: nil)

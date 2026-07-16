@@ -469,7 +469,7 @@ public final class TranscriptionViewModel {
         // Whisper transcript would surface "Parakeet" as its primary. Meetings
         // carry the captured selection; file/URL transcripts carry the engine on
         // the row (since the engine-attribution migration). Rows predating
-        // attribution have no engine and fall back to the current default.
+        // attribution have no engine and fall back to the current final route.
         let primaryEngine: SpeechEngineSelection
         let primaryReflectsTranscriptEngine: Bool
         if original.sourceType == .meeting,
@@ -485,7 +485,7 @@ public final class TranscriptionViewModel {
             primaryEngine = SpeechEngineSelection(engine: recordedEngine, language: original.language)
             primaryReflectsTranscriptEngine = true
         } else {
-            primaryEngine = SpeechEngineSelection.current(defaults: defaults)
+            primaryEngine = SpeechEngineSelection.finalTranscription(defaults: defaults)
             primaryReflectsTranscriptEngine = false
         }
 
@@ -844,7 +844,7 @@ public final class TranscriptionViewModel {
 
         let taskID = UUID()
         activeTranscriptionTaskID = taskID
-        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.finalTranscription(defaults: defaults)
         activeProgressSpeechEngine = progressSpeechEngine
         activeProgressWhisperVariant = progressSpeechEngine.engine == .whisper
             ? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
@@ -1089,7 +1089,8 @@ public final class TranscriptionViewModel {
         self.transcriptionProgress = progress.fraction
         self.progressPhase = phase
         self.progressHeadline = Self.headline(for: phase)
-        let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let speechEngine = activeProgressSpeechEngine
+            ?? SpeechEngineSelection.finalTranscription(defaults: defaults)
         let whisperVariant = activeProgressWhisperVariant
             ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         let nemotronVariant = activeProgressNemotronVariant

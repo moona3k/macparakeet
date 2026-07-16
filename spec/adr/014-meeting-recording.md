@@ -11,6 +11,7 @@
 > Amended: 2026-06-10 (echo hardening for [issue #480](https://github.com/moona3k/macparakeet/issues/480): confidence-independent simultaneous-echo rule in the final transcript filter, streaming AEC frame carry + reference-delay knob, VPIO experiments now disable AGC)
 > Amended: 2026-06-20 (meeting source mode is configurable per recording: microphone + system audio by default, microphone-only, or system-audio-only; permission prompts are scoped to the selected sources)
 > Amended: 2026-06-27 (Cohere Transcribe can be selected for final meeting transcription through the captured engine lease; it is batch-only, so meeting live-preview chunks stay disabled and finalized Cohere transcripts are plain text without word timestamps/speaker labels)
+> Amended: 2026-07-15 (meeting speech routing is captured as an immutable live-preview/final plan: preview follows the leased Live Speech engine when supported, while authoritative finalization and recovery use the separately captured Final Transcription route)
 > Amended: 2026-07-15 (bound ScreenCaptureKit startup/teardown waits and make Stop during partial meeting startup immediately own durable settlement)
 
 ## Context
@@ -149,7 +150,35 @@ Keeping mic and system audio as separate streams enables source-aware attributio
 
 ### 9. Speech engine captured at recording start
 
-The meeting service captures the dedicated Meetings & Transcriptions `SpeechEngineSelection` at start and persists it in the session metadata/lock file; this choice is independent from the dictation engine. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection where the selected engine supports that phase. Cohere is batch-only, so Cohere meetings skip live-preview chunks and use the captured engine only for final/retranscribe work; because Cohere emits no word timestamps or speaker labels, finalized Cohere meeting transcripts degrade to plain text. Settings cannot switch engine models while the meeting's speech-engine lease is active. For back-to-back recording, that lease ends at the durable stop boundary; queued finalization still uses the captured selection through the routed STT job.
+The meeting service first acquires the current Live Speech scheduler lease,
+unconditionally, and then captures an immutable `MeetingSpeechPlan`:
+
+- `preview` is the lease selection when its capabilities provide the word
+  timings required by the current live renderer; otherwise it is absent. No
+  unrelated fallback engine is selected.
+- `final` is the resolved Final Transcription selection, which follows Live
+  Speech unless the user enabled the Advanced override.
+
+Live chunks and warm-up use only `preview`. The authoritative post-stop pass
+re-reads durable source audio and uses only `final`; preview text is never
+promoted into the saved transcript. The existing lock schema remains v2 and
+its `speechEngine` field keeps the recovery-critical final selection.
+`meeting-recording-metadata.json` stores the same final selection plus optional
+preview provenance for diagnostics. Legacy metadata without preview provenance
+remains readable.
+
+Recovery treats that lock field as authoritative only when a schema-v2 lock
+actually contains it. Schema-v1 locks used `speechEngine` for the former shared
+route, and schema-v2 locks can omit the field; both cases use the current
+resolved Final Transcription route. This compatibility rule is not an engine
+fallback from a captured failure.
+
+Settings cannot switch engine models or delete model data while the live lease
+is active. For back-to-back recording, that lease ends at the durable stop
+boundary; queued finalization still uses the captured final selection through
+the routed STT job. Cohere cannot preview, but it may be the final route behind
+a different live preview engine; Cohere final output remains plain text without
+word timestamps or speaker labels.
 
 ### 10. Meeting mic echo mitigation (v0.6 hardening)
 

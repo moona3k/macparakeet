@@ -150,8 +150,8 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and speech-engine dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
-- **Workflow engine routes** — dictation and meetings/transcriptions have independent persisted engine choices on the shared runtime; transcription jobs snapshot their route at start, and a recording pins the dedicated meeting engine/language until stop/cancel.
-- **Cohere is batch-only** — Cohere dictation records first and transcribes on stop; meetings use Cohere only for final transcription, not live preview chunks. The scheduler admits Cohere as one global single-flight resource because the engine owns one large batch pipeline rather than separate interactive/background managers.
+- **Live/final engine roles** — Live Speech serves dictation and eligible meeting preview. Final Transcription inherits Live Speech by default and can be overridden in Advanced settings for meeting finalization and file/media work. Jobs snapshot their route; each recording captures an immutable preview/final plan at start.
+- **Cohere is batch-only** — Cohere dictation records first and transcribes on stop. It cannot serve meeting preview, but it may be the captured final route while another live engine previews. The scheduler admits Cohere as one global single-flight resource because the engine owns one large batch pipeline rather than separate interactive/background managers.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
 
 ---
@@ -332,13 +332,13 @@ TranscriptionRepository.save() → persisted to database
 Transcription returned to UI
 
 Saved meeting retranscription from the library:
-Saved meeting audio file
+Archived meeting source files and metadata
     │
     ▼
-AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
+Captured Final Transcription engine/language is the primary explicit choice; legacy rows default to current Final Transcription
     │
     ▼
-STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot work
+Meeting source reconstruction → per-source `.meetingFinalize` jobs → aligned merge
     │
     ▼
 Updated Transcription persisted with sourceType still = .meeting

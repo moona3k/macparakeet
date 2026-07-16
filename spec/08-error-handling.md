@@ -54,6 +54,8 @@
 | Mic capture failed during meeting | AVAudioEngine failed to start for meeting mic | "Microphone capture failed. Check your microphone connection." |
 | Mix failed | FFmpeg failed to produce the meeting playback artifact from the selected source M4A files | Log error, attempt transcription of individual streams |
 | Chunk transcription backpressure | Live transcription can't keep pace with recording | Silent degradation: final batch transcription still produces full result |
+| Live engine cannot preview meetings | Captured Live Speech engine does not provide the word timings required by the preview renderer | Show preview off for that engine; continue durable audio recording and use the captured Final Transcription route after stop |
+| Captured final model unavailable | The explicitly selected final model was removed or cannot load after durable stop | Keep the meeting row, lock, and audio retryable; surface the transcription failure without silently falling back to another engine |
 | Meeting hotkey conflict | Meeting hotkey same as dictation hotkey | Block in Settings UI; at runtime, log warning and skip conflicting trigger |
 
 ### Export / Storage Errors
@@ -79,9 +81,9 @@ During active meeting recording, MacParakeet writes fragmented source audio and 
 **Recovery flow:**
 1. On app launch, scan meeting-recording directories for `recording.lock`.
 2. If a lock exists, the previous meeting session was interrupted.
-3. Validate surviving source audio and load lock metadata, including title, notes, and captured speech engine/language.
+3. Validate surviving source audio and load lock metadata, including title, notes, and any schema-v2 captured final speech engine/language.
 4. Recover the meeting into the transcription library when audio exists; otherwise clean up empty sessions according to the recovery service rules.
-5. Final transcription uses the same Meetings & Transcriptions engine/language captured when the meeting started.
+5. Final transcription uses the captured route for schema-v2 locks that contain it. Schema-v1 locks and schema-v2 locks without `speechEngine` use the current resolved Final Transcription route. Preview provenance is optional archived metadata and is not required for recovery.
 6. Remove the lock after successful recovery/finalization.
 
 Dictation does not use this lock-file recovery path. Short dictation audio is written as a temp WAV and rejected before STT if it contains too little audio.

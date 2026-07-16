@@ -350,28 +350,113 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(activeLeaseCountAfterStop, 0)
     }
 
-    func testRecordingPinsDedicatedMeetingEngineWithoutUsingDictationSelection() async throws {
+    func testRecordingUsesLiveLeaseForPreviewAndDedicatedFinalEngine() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
+        let liveSelection = SpeechEngineSelection(engine: .parakeet)
         let sttClient = LeasingMeetingSTTClient(
-            selection: SpeechEngineSelection(engine: .parakeet)
+            selection: liveSelection
         )
-        let meetingSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let finalSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: MockMeetingAudioFileConverter(),
             sttTranscriber: sttClient,
             lockFileStore: lockStore,
-            meetingSpeechEngineSelection: { meetingSelection }
+            finalSpeechEngineSelection: { finalSelection }
         )
 
         try await service.startRecording()
 
-        XCTAssertEqual(lockStore.writes.first?.file.speechEngine, meetingSelection)
-        let requestedSelections = await sttClient.requestedSessionSelections
-        XCTAssertEqual(requestedSelections, [meetingSelection])
+        let activePlan = await service.activeMeetingSpeechPlan
+        XCTAssertEqual(activePlan, MeetingSpeechPlan(preview: liveSelection, final: finalSelection))
+        let activeLiveSelection = await service.activeSpeechEngineSelection
+        XCTAssertEqual(activeLiveSelection, liveSelection)
+        XCTAssertEqual(lockStore.writes.first?.file.speechEngine, finalSelection)
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        try await waitForRoutedLiveChunkSelection(sttClient)
+        let routedSelections = await sttClient.routedSelections
+        XCTAssertEqual(routedSelections, [liveSelection])
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertEqual(output.speechEngine, finalSelection)
+        XCTAssertEqual(output.previewSpeechEngine, liveSelection)
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+        XCTAssertEqual(metadata.speechEngine, finalSelection)
+        XCTAssertEqual(metadata.previewSpeechEngine, liveSelection)
+    }
+
+    func testPreviewUnsupportedLiveEngineStillHoldsLeaseAndCapturesFinalRoute() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let liveSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let finalSelection = SpeechEngineSelection(engine: .whisper, language: "ko")
+        let sttClient = LeasingMeetingSTTClient(selection: liveSelection)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: sttClient,
+            lockFileStore: lockStore,
+            finalSpeechEngineSelection: { finalSelection }
+        )
+
+        try await service.startRecording()
+
+        let activePlan = await service.activeMeetingSpeechPlan
+        XCTAssertEqual(activePlan, MeetingSpeechPlan(preview: nil, final: finalSelection))
+        let activeLeaseCount = await sttClient.activeLeaseCount
+        XCTAssertEqual(activeLeaseCount, 1)
+        XCTAssertEqual(lockStore.writes.first?.file.speechEngine, finalSelection)
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         await service.cancelRecording()
+        let routedSelections = await sttClient.routedSelections
+        XCTAssertEqual(routedSelections, [])
+
+        let activeLeaseCountAfterCancel = await sttClient.activeLeaseCount
+        XCTAssertEqual(activeLeaseCountAfterCancel, 0)
+    }
+
+    func testRecordingKeepsSpeechPlanCapturedAtStartWhenFinalPreferenceChanges() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let liveSelection = SpeechEngineSelection(engine: .parakeet)
+        let initialFinalSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let finalSelection = MeetingSpeechSelectionBox(initialFinalSelection)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: LeasingMeetingSTTClient(selection: liveSelection),
+            lockFileStore: RecordingLockFileStore(),
+            finalSpeechEngineSelection: { finalSelection.value }
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        finalSelection.value = SpeechEngineSelection(engine: .whisper, language: "ko")
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(output.speechEngine, initialFinalSelection)
+        XCTAssertEqual(output.previewSpeechEngine, liveSelection)
     }
 
     func testStoppedRecordingKeepsAwaitingTranscriptionLockWithoutSettlement() async throws {
@@ -3534,6 +3619,20 @@ private final class MeetingTestWallClock: @unchecked Sendable {
     }
 }
 
+private final class MeetingSpeechSelectionBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var selection: SpeechEngineSelection
+
+    init(_ selection: SpeechEngineSelection) {
+        self.selection = selection
+    }
+
+    var value: SpeechEngineSelection {
+        get { lock.withLock { selection } }
+        set { lock.withLock { selection = newValue } }
+    }
+}
+
 private final class MeetingTestAsyncSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Void, Never>?
@@ -3588,13 +3687,12 @@ private actor StopOutputCapture {
 }
 
 private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing,
-    SpeechEngineRoutedSessionManaging
+    SpeechEngineSessionManaging
 {
     private let selection: SpeechEngineSelection
     private let capabilities: SpeechEngineCapabilities?
     private var activeLeases: Set<UUID> = []
     private(set) var routedSelections: [SpeechEngineSelection] = []
-    private(set) var requestedSessionSelections: [SpeechEngineSelection] = []
 
     init(
         selection: SpeechEngineSelection,
@@ -3610,16 +3708,6 @@ private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTran
 
     func beginSpeechEngineSession() async -> SpeechEngineLease {
         let lease = SpeechEngineLease(selection: selection, capabilities: capabilities)
-        activeLeases.insert(lease.id)
-        return lease
-    }
-
-    func beginSpeechEngineSession(speechEngine: SpeechEngineSelection) async -> SpeechEngineLease {
-        requestedSessionSelections.append(speechEngine)
-        let lease = SpeechEngineLease(
-            selection: speechEngine,
-            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: speechEngine.engine)
-        )
         activeLeases.insert(lease.id)
         return lease
     }

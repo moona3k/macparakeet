@@ -157,27 +157,6 @@ final class STTSchedulerTests: XCTestCase {
         await scheduler.endSpeechEngineSession(lease)
     }
 
-    func testRoutedSessionLeasePinsRequestedEngineWithoutChangingRuntimeSelection() async {
-        let runtime = MockSTTRuntime()
-        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .parakeet))
-        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
-
-        let lease = await scheduler.beginSpeechEngineSession(
-            speechEngine: SpeechEngineSelection(engine: .cohere, language: "fr")
-        )
-
-        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .cohere, language: "fr"))
-        XCTAssertEqual(lease.capabilities?.key, .cohere)
-        let capabilitySelections = await runtime.routedCapabilitySelectionSnapshots()
-        XCTAssertEqual(
-            capabilitySelections,
-            [SpeechEngineSelection(engine: .cohere, language: "fr")]
-        )
-        let runtimeSelection = await runtime.currentSpeechEngineSelection()
-        XCTAssertEqual(runtimeSelection, SpeechEngineSelection(engine: .parakeet))
-        await scheduler.endSpeechEngineSession(lease)
-    }
-
     func testLiveDictationFinalizationIgnoresConcurrentCancel() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))

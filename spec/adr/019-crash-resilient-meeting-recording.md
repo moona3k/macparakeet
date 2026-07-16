@@ -157,9 +157,10 @@ post-stop pipeline:
 2. Synthesize `meeting-recording-metadata.json` from the audio file durations
    (`startOffsetMs = 0` for both since we don't have the original
    alignment; acceptable degradation — user knows recording was recovered).
-   Use the independent meeting speech-engine route captured by schema v2. For
-   schema v1 locks, whose `speechEngine` belonged to the former shared route,
-   use the current Meetings & Transcriptions selection.
+   Use the final-transcription route captured by schema v2 when the
+   `speechEngine` field is present. For schema v1 locks, whose `speechEngine`
+   belonged to the former shared route, and schema v2 locks missing the field,
+   use the current resolved Final Transcription selection.
 3. Run `MeetingTranscriptFinalizer.finalize` via `STTScheduler` as a
    normal background job (recovery transcription is just another
    meeting-finalize task per ADR-016's slot model), updating an existing

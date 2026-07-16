@@ -318,7 +318,7 @@ final class AppEnvironmentConfigurer {
             quickPromptRepo: env.quickPromptRepo,
             configStore: env.llmConfigStore,
             sttManager: env.sttScheduler,
-            speechEngineSelectionProvider: { SpeechEngineSelection.transcription() },
+            speechEngineSelectionProvider: { SpeechEngineSelection.liveSpeech() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
             shouldShowFloatingMeetingPill: { env.runtimePreferences.shouldShowMeetingRecordingPill },
             probableCalendarSnapshotProvider: {

@@ -1626,7 +1626,19 @@ exposes a terminal provider/model/token metadata envelope.
 
 The v0.6 scope includes meeting capture with configurable source mode (microphone + system audio by default, microphone-only, or system-audio-only; ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional Nemotron Beta (multilingual default plus a persisted English-only build option), Cohere Transcribe, and WhisperKit multilingual STT (ADR-001/ADR-021), VAD-guided live-preview chunking with fixed fallback, the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 and meeting-hardening feature surface.
 
-Meeting transcription uses the dedicated Meetings & Transcriptions speech engine captured at recording start, independently from the live dictation route. The route initially inherits the existing dictation choice on upgrade; Parakeet remains the fresh-install default. Nemotron Beta, Cohere, or WhisperKit can be selected before starting a meeting for broader local multilingual coverage or accuracy-focused batch transcription. Cohere meetings have no live-preview chunks and degrade to plain text because Cohere does not emit word timestamps or speaker labels.
+Speech routing has two roles over one local runtime. **Live Speech** serves
+dictation and best-effort meeting preview. **Final Transcription** serves the
+authoritative post-meeting pass plus file, drag/drop, media URL, podcast, and
+retranscription jobs; it follows Live Speech unless the user enables an
+Advanced override. New meetings capture both roles at start. Preview uses the
+captured live route only when it provides word timings; finalization and crash
+recovery for new schema-v2 artifacts use the captured final route and durable
+recorded audio. Legacy schema-v1 locks and schema-v2 locks without a captured
+`speechEngine` use the current resolved Final Transcription route because they
+do not contain authoritative independent-route provenance. There is no hidden
+fallback. A live Cohere route therefore shows no meeting preview, while Cohere
+as only the final override can coexist with another engine's preview; Cohere
+final transcripts remain plain text without word timestamps or speaker labels.
 
 ### F36: Live Meeting Notepad
 

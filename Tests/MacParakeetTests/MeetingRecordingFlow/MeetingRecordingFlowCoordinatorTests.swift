@@ -614,17 +614,23 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
     }
 
     func testCohereRecordingShowsLivePreviewUnsupportedCopy() async throws {
+        let liveSelection = SpeechEngineSelection(engine: .cohere, language: "ja")
         let coordinator = MeetingRecordingFlowCoordinator(
-            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            meetingRecordingService: MeetingRecordingServiceSpy(
+                output: makeRecordingOutput(),
+                activeSpeechEngineSelection: liveSelection,
+                activeMeetingSpeechPlan: MeetingSpeechPlan(
+                    preview: nil,
+                    final: liveSelection
+                )
+            ),
             transcriptionService: MockTranscriptionService(),
             permissionService: MockPermissionService(),
             transcriptionRepo: MockTranscriptionRepository(),
             conversationRepo: MockChatConversationRepository(),
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
-            speechEngineSelectionProvider: {
-                SpeechEngineSelection(engine: .cohere, language: "ja")
-            },
+            speechEngineSelectionProvider: { liveSelection },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
@@ -647,16 +653,24 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(panelViewModel.transcriptEmptyStateTitle, "Live preview off for Cohere")
         XCTAssertEqual(
             panelViewModel.transcriptEmptyStateDetail,
-            "Cohere will transcribe after you stop recording."
+            "Audio will be transcribed after you stop recording."
         )
     }
 
-    func testMeetingWarmUpUsesMeetingEngineSelection() async throws {
+    func testMeetingWarmUpUsesCapturedPreviewSelection() async throws {
         let stt = MockSTTClient()
         await stt.setReady(false)
         let meetingSelection = SpeechEngineSelection(engine: .parakeet)
+        let changedPreference = SpeechEngineSelection(engine: .cohere, language: "fr")
         let coordinator = MeetingRecordingFlowCoordinator(
-            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            meetingRecordingService: MeetingRecordingServiceSpy(
+                output: makeRecordingOutput(),
+                activeSpeechEngineSelection: meetingSelection,
+                activeMeetingSpeechPlan: MeetingSpeechPlan(
+                    preview: meetingSelection,
+                    final: meetingSelection
+                )
+            ),
             transcriptionService: MockTranscriptionService(),
             permissionService: MockPermissionService(),
             transcriptionRepo: MockTranscriptionRepository(),
@@ -664,7 +678,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             sttManager: stt,
-            speechEngineSelectionProvider: { meetingSelection },
+            speechEngineSelectionProvider: { changedPreference },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
@@ -689,14 +703,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(backgroundWarmUps, 0)
     }
 
-    func testMeetingStartupUsesEnginePinnedByStartedSession() async throws {
+    func testMeetingStartupDoesNotWarmUnsupportedLiveEngineAndAttributesFinalRoute() async throws {
         let stt = MockSTTClient()
         await stt.setReady(false)
         let pinnedSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
-        let changedPreference = SpeechEngineSelection(engine: .parakeet)
+        let finalSelection = SpeechEngineSelection(engine: .parakeet)
         let recordingService = MeetingRecordingServiceSpy(
             output: makeRecordingOutput(),
-            activeSpeechEngineSelection: pinnedSelection
+            activeSpeechEngineSelection: pinnedSelection,
+            activeMeetingSpeechPlan: MeetingSpeechPlan(preview: nil, final: finalSelection)
         )
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
@@ -707,7 +722,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             sttManager: stt,
-            speechEngineSelectionProvider: { changedPreference },
+            speechEngineSelectionProvider: { finalSelection },
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
@@ -720,27 +735,35 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         let startedAt = ContinuousClock.now
         while startedAt.duration(to: .now) <= .seconds(1) {
-            if !(await stt.routedWarmUpSelectionsSnapshot()).isEmpty {
+            if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewUnsupported(engine: .cohere) {
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
         }
 
         let routedWarmUps = await stt.routedWarmUpSelectionsSnapshot()
-        XCTAssertEqual(routedWarmUps, [pinnedSelection])
+        XCTAssertEqual(routedWarmUps, [])
         XCTAssertEqual(
             coordinator.testHook_panelViewModel?.liveTranscriptStatus,
             .previewUnsupported(engine: .cohere)
+        )
+        XCTAssertEqual(
+            coordinator.testHook_panelViewModel?.speechRouteAttribution,
+            "Live preview: Off (Cohere (fr)) · Final transcript: Parakeet after recording ends"
         )
     }
 
     func testMeetingReadinessUsesEnginePinnedByStartedSession() async throws {
         let stt = MockSTTClient()
-        let pinnedSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
-        let changedPreference = SpeechEngineSelection(engine: .parakeet)
+        let pinnedSelection = SpeechEngineSelection(engine: .parakeet)
+        let changedPreference = SpeechEngineSelection(engine: .cohere, language: "fr")
         let recordingService = MeetingRecordingServiceSpy(
             output: makeRecordingOutput(),
-            activeSpeechEngineSelection: pinnedSelection
+            activeSpeechEngineSelection: pinnedSelection,
+            activeMeetingSpeechPlan: MeetingSpeechPlan(
+                preview: pinnedSelection,
+                final: changedPreference
+            )
         )
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
@@ -1122,6 +1145,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private let output: MeetingRecordingOutput
     private let blocksStart: Bool
     let activeSpeechEngineSelection: SpeechEngineSelection?
+    let activeMeetingSpeechPlan: MeetingSpeechPlan?
     var startCallCount = 0
     var startCalls: [StartCall] = []
     var stopCallCount = 0
@@ -1137,10 +1161,12 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     init(
         output: MeetingRecordingOutput,
         activeSpeechEngineSelection: SpeechEngineSelection? = nil,
+        activeMeetingSpeechPlan: MeetingSpeechPlan? = nil,
         blocksStart: Bool = false
     ) {
         self.output = output
         self.activeSpeechEngineSelection = activeSpeechEngineSelection
+        self.activeMeetingSpeechPlan = activeMeetingSpeechPlan
         self.blocksStart = blocksStart
     }
 
