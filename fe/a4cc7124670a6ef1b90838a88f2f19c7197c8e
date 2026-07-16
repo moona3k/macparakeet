@@ -1,0 +1,46 @@
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_20d3828eb9e4c5::t_55d56f5179a0c5 110
+  s_20d3828eb9e4c5::t_4f8534425d0638 101,103,376
+  s_20d3828eb9e4c5::t_12aa96bed8dafb 275,285-288,296-298
+  s_20d3828eb9e4c5::t_83e93ad44f21c8 433-434,436-442,444-449
+  s_20d3828eb9e4c5::t_0d35f765881e95 674,754-755
+  s_20d3828eb9e4c5::t_cfc12fabd7c344 107-109,111
+  s_20d3828eb9e4c5::t_8acb16ed3dfb61 62-63
+  s_20d3828eb9e4c5::t_f2bbf9eee1ef27 7
+  s_20d3828eb9e4c5::t_56a7fd12eefbef 157
+  s_20d3828eb9e4c5::t_89c69a4c146dea 100
+  s_20d3828eb9e4c5::t_129f6132402a76 74
+docs/audits/2026-07-16-architecture-deep-dive.md
+  s_20d3828eb9e4c5::t_3907ca12cd25ed 5
+docs/audits/2026-07-16-release-readiness-audit.md
+  s_20d3828eb9e4c5::t_77845aade46a8a 33-34
+  s_20d3828eb9e4c5::t_70fa77d2292088 137-144
+  s_6edafe92d02713::t_d7e309dc544b6f 103
+  s_20d3828eb9e4c5::t_f38cad530a7cb8 77
+  s_20d3828eb9e4c5::t_1c28dcbd48fb6b 110-111,114-115
+  s_20d3828eb9e4c5::t_adc890f7034f9f 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fea4cc7124670a6ef1b90838a88f2f19c7197c8e",
+  "prompts": {},
+  "sessions": {
+    "s_20d3828eb9e4c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5b-a693-7b91-8d85-3a39b6bda685",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
