@@ -919,6 +919,73 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "Prior load warning")
     }
 
+    func testPresentCompletedMeetingSurfacesUnavailableAutoSaveFolder() throws {
+        let suite = "transcription-vm-meeting-auto-save-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-auto-save-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defaults.set(true, forKey: AutoSaveScope.meeting.enabledKey)
+        defaults.set(AutoSaveFormat.md.rawValue, forKey: AutoSaveScope.meeting.formatKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(folder, scope: .meeting, defaults: defaults))
+        try FileManager.default.removeItem(at: folder)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        let meeting = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Done",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.presentCompletedTranscription(
+            meeting,
+            autoSave: true,
+            runAutoPrompts: false,
+            applyMeetingRetention: false
+        )
+
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            "Meeting saved in MacParakeet, but the selected auto-save folder is unavailable. Choose another folder in Settings."
+        )
+    }
+
+    func testPresentCompletedMeetingComposesExistingErrorWithUnavailableAutoSaveFolderWarning() throws {
+        let suite = "transcription-vm-meeting-auto-save-existing-error-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-auto-save-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defaults.set(true, forKey: AutoSaveScope.meeting.enabledKey)
+        defaults.set(AutoSaveFormat.md.rawValue, forKey: AutoSaveScope.meeting.formatKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(folder, scope: .meeting, defaults: defaults))
+        try FileManager.default.removeItem(at: folder)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.setError(message: "Primary failure", detail: "Primary failure details")
+
+        let meeting = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Done",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.presentCompletedTranscription(
+            meeting,
+            autoSave: true,
+            runAutoPrompts: false,
+            applyMeetingRetention: false
+        )
+
+        let warning =
+            "Meeting saved in MacParakeet, but the selected auto-save folder is unavailable. Choose another folder in Settings."
+        XCTAssertEqual(viewModel.errorMessage, "Primary failure\n\n\(warning)")
+        XCTAssertEqual(viewModel.errorDetail, "Primary failure details\n\n\(warning)")
+    }
+
     func testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff() throws {
         let suite = "transcription-vm-meeting-recovery-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

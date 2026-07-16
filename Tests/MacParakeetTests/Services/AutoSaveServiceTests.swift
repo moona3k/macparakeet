@@ -99,11 +99,12 @@ final class AutoSaveServiceTests: XCTestCase {
         let transcription = makeTranscription()
         let service = makeService()
 
-        service.saveIfEnabled(transcription)
+        let result = service.saveIfEnabled(transcription)
 
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
+        XCTAssertEqual(result, .saved)
     }
 
     func testSaveIfEnabledWritesTxtFile() {
@@ -273,14 +274,37 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertTrue(content.contains("This is a test transcript"))
     }
 
-    func testDeletedFolderDoesNotCrash() {
+    func testDeletedFolderReturnsUnavailable() {
         configureAutoSave(enabled: true, format: .txt)
         // Remove the target folder after configuring — bookmark resolution will fail
         try! FileManager.default.removeItem(at: tempDir)
 
         let service = makeService()
-        // Should not crash; auto-save silently skips when folder is gone
-        service.saveIfEnabled(makeTranscription())
+        let result = service.saveIfEnabled(makeTranscription())
+
+        XCTAssertEqual(result, .folderUnavailable)
+    }
+
+    func testFileDestinationReturnsFailure() throws {
+        let fileURL = tempDir.appendingPathComponent("not-a-folder")
+        try Data().write(to: fileURL)
+        defaults.set(true, forKey: AutoSaveService.enabledKey)
+        defaults.set(AutoSaveFormat.txt.rawValue, forKey: AutoSaveService.formatKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(fileURL, defaults: defaults))
+
+        let result = makeService().saveIfEnabled(makeTranscription())
+
+        XCTAssertEqual(result, .failed)
+    }
+
+    func testFolderUsabilityRequiresExistingDirectory() async throws {
+        let existingFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
+
+        try FileManager.default.removeItem(at: tempDir)
+        let deletedFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
+
+        XCTAssertTrue(existingFolderIsUsable)
+        XCTAssertFalse(deletedFolderIsUsable)
     }
 
     func testDeletedFolderEmitsUnavailableOperation() {

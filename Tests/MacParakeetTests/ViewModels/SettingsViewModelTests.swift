@@ -713,16 +713,55 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.autoSaveTranscripts, "Reset must not silently disable the toggle.")
     }
 
-    func testResetMeetingAutoSaveFolderRestoresDefault() {
+    func testResetMeetingAutoSaveFolderRestoresDefault() async {
         AutoSaveService.storeFolder(youtubeDownloadsTestDir, scope: .meeting, defaults: testDefaults)
         viewModel.meetingAutoSave = true
         viewModel.meetingAutoSaveFolderPath = youtubeDownloadsTestDir.path
 
-        viewModel.resetMeetingAutoSaveFolder()
+        await viewModel.resetMeetingAutoSaveFolder()
 
         XCTAssertNotNil(viewModel.meetingAutoSaveFolderPath)
         XCTAssertTrue(viewModel.meetingAutoSaveFolderPath?.contains("MacParakeet/Meetings") ?? false)
         XCTAssertTrue(viewModel.meetingAutoSave)
+    }
+
+    func testChooseMeetingAutoSaveFolderReportsUsable() async {
+        await viewModel.chooseMeetingAutoSaveFolder(url: youtubeDownloadsTestDir)
+
+        XCTAssertTrue(viewModel.meetingAutoSaveFolderIsUsable)
+        XCTAssertNil(viewModel.meetingAutoSaveFolderWarning)
+    }
+
+    func testRefreshMeetingAutoSaveFolderReportsUnavailableFolder() async throws {
+        await viewModel.chooseMeetingAutoSaveFolder(url: youtubeDownloadsTestDir)
+        viewModel.meetingAutoSave = true
+        try FileManager.default.removeItem(at: youtubeDownloadsTestDir)
+
+        await viewModel.refreshMeetingAutoSaveFolderStatus()
+
+        XCTAssertFalse(viewModel.meetingAutoSaveFolderIsUsable)
+        XCTAssertEqual(
+            viewModel.meetingAutoSaveFolderWarning,
+            "This folder is unavailable or not writable. Choose another folder before the next meeting."
+        )
+    }
+
+    func testInitPreservesEnabledMeetingAutoSaveWhenFolderIsUnavailable() throws {
+        let suite = "com.macparakeet.tests.unavailable-meeting-folder.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unavailable-meeting-folder-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defaults.set(true, forKey: AutoSaveScope.meeting.enabledKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(folder, scope: .meeting, defaults: defaults))
+        try FileManager.default.removeItem(at: folder)
+
+        let viewModel = SettingsViewModel(defaults: defaults)
+
+        XCTAssertTrue(viewModel.meetingAutoSave)
+        XCTAssertFalse(viewModel.meetingAutoSaveFolderIsUsable)
+        XCTAssertNotNil(viewModel.meetingAutoSaveFolderWarning)
     }
 
     func testEnsureFolderConfiguredIsIdempotent() {
