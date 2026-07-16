@@ -1,0 +1,50 @@
+Sources/MacParakeetCore/TextProcessing/TextProcessingPipeline.swift
+  s_a46f1acd449c27::t_681f18db07e50d 71
+  s_a46f1acd449c27::t_dcb99bc5f74d20 73
+spec/adr/004-deterministic-pipeline.md
+  s_a46f1acd449c27::t_681f18db07e50d 30
+Sources/CLI/CHANGELOG.md
+  s_a46f1acd449c27::t_681f18db07e50d 94-95
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_a46f1acd449c27::t_2356e3b74d4327 72-75
+  s_a46f1acd449c27::t_681f18db07e50d 49,85-87
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_a46f1acd449c27::t_681f18db07e50d 130
+README.md
+  s_a46f1acd449c27::t_681f18db07e50d 242
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_a46f1acd449c27::t_2edbc0a587bdf8 350
+Tests/MacParakeetTests/TextProcessing/TextProcessingPipelineTests.swift
+  s_a46f1acd449c27::t_a77fa3b0936297 565,569
+  s_a46f1acd449c27::t_ee963bab6e2cf5 38,41-42
+  s_a46f1acd449c27::t_4cdbf2033437c0 39-40
+  s_a46f1acd449c27::t_2356e3b74d4327 53-55
+  s_a46f1acd449c27::t_681f18db07e50d 24,46,49,59-60
+Tests/MacParakeetTests/TextProcessing/TextRefinementServiceTests.swift
+  s_a46f1acd449c27::t_2edbc0a587bdf8 8
+spec/02-features.md
+  s_a46f1acd449c27::t_681f18db07e50d 801
+spec/03-architecture.md
+  s_a46f1acd449c27::t_681f18db07e50d 376
+spec/04-ui-patterns.md
+  s_a46f1acd449c27::t_681f18db07e50d 803
+spec/07-text-processing.md
+  s_a46f1acd449c27::t_681f18db07e50d 21,23
+  s_a46f1acd449c27::t_2356e3b74d4327 142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4dbe0f6aa157580832218259c935d0604296966d",
+  "prompts": {},
+  "sessions": {
+    "s_a46f1acd449c27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6979-7919-7ad0-9e2c-d84789e9e448",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
