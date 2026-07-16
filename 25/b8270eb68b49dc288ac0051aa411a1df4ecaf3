@@ -1,0 +1,19 @@
+docs/audits/2026-07-16-v0.7.3-qa.md
+  s_20d3828eb9e4c5::t_f681c6cb75a7b6 51,53,61-64,66,68-73,455-541,566,568,570-571,582-586,588,590,592,594-597,599-600,602-616,631,633-637
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "25b8270eb68b49dc288ac0051aa411a1df4ecaf3",
+  "prompts": {},
+  "sessions": {
+    "s_20d3828eb9e4c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5b-a693-7b91-8d85-3a39b6bda685",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
