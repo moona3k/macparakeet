@@ -1392,12 +1392,16 @@ struct SettingsView: View {
                 panelMessage: "Select a folder for auto-saved meetings",
                 resetHelp: "Reset to the default folder (~/Documents/MacParakeet/Meetings)",
                 warning: viewModel.meetingAutoSaveFolderWarning,
-                onChooseFolder: { viewModel.chooseMeetingAutoSaveFolder(url: $0) },
-                onResetFolder: { viewModel.resetMeetingAutoSaveFolder() }
+                onChooseFolder: { url in
+                    Task { await viewModel.chooseMeetingAutoSaveFolder(url: url) }
+                },
+                onResetFolder: {
+                    Task { await viewModel.resetMeetingAutoSaveFolder() }
+                }
             )
         }
-        .onAppear {
-            viewModel.refreshMeetingAutoSaveFolderStatus()
+        .task {
+            await viewModel.refreshMeetingAutoSaveFolderStatus()
         }
     }
 

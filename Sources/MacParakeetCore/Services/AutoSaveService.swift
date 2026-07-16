@@ -52,7 +52,7 @@ public enum AutoSaveScope: String, Sendable {
 /// Outcome of attempting an automatic export.
 public enum AutoSaveResult: Equatable, Sendable {
     case disabled
-    case saved(URL)
+    case saved
     case folderUnavailable
     case failed
 }
@@ -124,7 +124,7 @@ public final class AutoSaveService {
                 format: format,
                 outcome: .success
             )
-            return .saved(fileURL)
+            return .saved
         } catch {
             let errorType = Observability.errorType(for: error)
             logger.error("auto_save_failed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=failure error_type=\(errorType, privacy: .public)")
@@ -167,14 +167,16 @@ public final class AutoSaveService {
 
     /// A non-invasive preflight for Settings. The real export remains the
     /// authoritative write check because availability can change at any time.
-    public static func isFolderUsable(_ url: URL) -> Bool {
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              isDirectory.boolValue
-        else {
-            return false
-        }
-        return FileManager.default.isWritableFile(atPath: url.path)
+    public nonisolated static func isFolderUsable(_ url: URL) async -> Bool {
+        await Task.detached(priority: .utility) {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else {
+                return false
+            }
+            return FileManager.default.isWritableFile(atPath: url.path)
+        }.value
     }
 
     /// Upgraded installs may already have transcription auto-save configured before

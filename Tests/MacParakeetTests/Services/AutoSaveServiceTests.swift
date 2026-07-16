@@ -104,10 +104,7 @@ final class AutoSaveServiceTests: XCTestCase {
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
-        guard case .saved(let fileURL) = result else {
-            return XCTFail("Expected the successful file URL, got \(result)")
-        }
-        XCTAssertEqual(fileURL.standardizedFileURL, tempDir.appendingPathComponent(files[0]).standardizedFileURL)
+        XCTAssertEqual(result, .saved)
     }
 
     func testSaveIfEnabledWritesTxtFile() {
@@ -300,12 +297,14 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertEqual(result, .failed)
     }
 
-    func testFolderUsabilityRequiresExistingDirectory() throws {
-        XCTAssertTrue(AutoSaveService.isFolderUsable(tempDir))
+    func testFolderUsabilityRequiresExistingDirectory() async throws {
+        let existingFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
 
         try FileManager.default.removeItem(at: tempDir)
+        let deletedFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
 
-        XCTAssertFalse(AutoSaveService.isFolderUsable(tempDir))
+        XCTAssertTrue(existingFolderIsUsable)
+        XCTAssertFalse(deletedFolderIsUsable)
     }
 
     func testDeletedFolderEmitsUnavailableOperation() {
