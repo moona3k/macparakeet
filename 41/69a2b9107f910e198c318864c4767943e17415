@@ -1,0 +1,29 @@
+plans/active/engine-settings-layout.md
+  s_7ee097993daea6::t_513c46bff18a70 1-138
+plans/README.md
+  s_c906e5aea74126::t_b61c0c4460cc63 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4169a2b9107f910e198c318864c4767943e17415",
+  "prompts": {},
+  "sessions": {
+    "s_7ee097993daea6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c0be613-8c73-4999-8c63-682ab05f793f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c906e5aea74126": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f69ef-20cd-7c52-86ac-c631a11d77ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
