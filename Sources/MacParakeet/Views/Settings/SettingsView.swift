@@ -112,6 +112,7 @@ struct SettingsView: View {
     @State private var pendingModelDeletion: PendingModelDeletion?
     @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
     @State private var coherePolicyRelaunchInFlight = false
+    @State private var advancedTranscriptionExpanded = false
 
     init(
         viewModel: SettingsViewModel,
@@ -313,6 +314,9 @@ struct SettingsView: View {
         if entry.tab == .capture, let section = captureSection(for: entry.cardAnchor) {
             rootViewModel.activeCaptureWorkflow = section
         }
+        if entry.id == "engine.transcriptionSelector" {
+            advancedTranscriptionExpanded = true
+        }
         pendingScrollTarget = normalizedScrollAnchor(for: entry.cardAnchor, tab: entry.tab)
         rootViewModel.activeTab = entry.tab
         rootViewModel.clearSearch()
@@ -322,6 +326,9 @@ struct SettingsView: View {
         let destinationTab = tab ?? rootViewModel.activeTab
         if destinationTab == .capture, let anchor, let section = captureSection(for: anchor) {
             rootViewModel.activeCaptureWorkflow = section
+        }
+        if anchor == "engine.transcriptionSelector" {
+            advancedTranscriptionExpanded = true
         }
         if let anchor {
             pendingScrollTarget = normalizedScrollAnchor(for: anchor, tab: destinationTab)
@@ -396,7 +403,8 @@ struct SettingsView: View {
     /// Engine tab — speech recognition stack, decomposed into cards so each
     /// surface owns one decision the user makes:
     ///
-    /// 1. `engineSelectorCard` — primary engine plus recordings/files override
+    /// 1. `engineSelectorCard` — primary engine plus an Advanced disclosure
+    ///    for the optional recordings/files override
     /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
     ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
@@ -2118,16 +2126,17 @@ struct SettingsView: View {
 
                 Divider()
 
-                recordingsEngineFooter
+                advancedTranscriptionDisclosure
+                    .id("engine.transcriptionSelector")
             }
         }
     }
 
     private var speechEngineCardSubtitle: String {
         if viewModel.engine.usesDifferentFinalTranscriptionEngine {
-            return "\(viewModel.engine.speechEnginePreference.displayName) handles live speech · \(viewModel.engine.transcriptionSpeechEnginePreference.displayName) transcribes recordings, files, and media."
+            return "\(viewModel.engine.speechEnginePreference.displayName) handles dictation and live preview · \(viewModel.engine.transcriptionSpeechEnginePreference.displayName) handles recordings and files."
         }
-        return "Handles dictation, live preview, and transcripts."
+        return "Your selected engine handles dictation, meetings, recordings, and files."
     }
 
     private var engineOptionGrid: some View {
@@ -2223,56 +2232,86 @@ struct SettingsView: View {
         )
     }
 
-    private var recordingsEngineFooter: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-                Text("Recordings & files")
-                    .font(DesignSystem.Typography.body.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-
-                Spacer(minLength: DesignSystem.Spacing.md)
-
-                Picker(
-                    "Recordings & files engine",
-                    selection: Binding(
-                        get: { viewModel.engine.recordingsSpeechEngineSelection },
-                        set: { viewModel.engine.recordingsSpeechEngineSelection = $0 }
-                    )
-                ) {
-                    Text("Same engine").tag(SpeechEnginePreference?.none)
-                    ForEach(transcriptionEngineOptions, id: \.self) { engine in
-                        Text(engine.displayName).tag(Optional(engine))
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .tint(DesignSystem.Colors.accent)
-                .frame(minWidth: 170, idealWidth: 190, maxWidth: 220)
-                .disabled(viewModel.engine.speechEngineSwitching)
-                .accessibilityLabel("Engine for recordings and files")
-                .accessibilityHint(
-                    "Choose Same engine or a separate engine for recordings, files, media, and URLs."
+    private var advancedTranscriptionDisclosure: some View {
+        DisclosureGroup(isExpanded: $advancedTranscriptionExpanded) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                Text(
+                    "MacParakeet uses your selected speech engine for everything by default. "
+                        + "You can choose another engine for completed meeting recordings, files, media, and URLs—for example, for higher accuracy or broader language support when a longer wait is okay."
                 )
-            }
-
-            Text(recordingsEngineHint)
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .frame(maxWidth: 900, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let error = viewModel.engine.transcriptionSpeechEngineError {
-                Text(error)
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                    Text("Recordings & files")
+                        .font(DesignSystem.Typography.body.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                    Spacer(minLength: DesignSystem.Spacing.md)
+
+                    Picker(
+                        "Recordings & files engine",
+                        selection: Binding(
+                            get: { viewModel.engine.recordingsSpeechEngineSelection },
+                            set: { viewModel.engine.recordingsSpeechEngineSelection = $0 }
+                        )
+                    ) {
+                        Text("Same as \(viewModel.engine.speechEnginePreference.displayName)")
+                            .tag(SpeechEnginePreference?.none)
+                        ForEach(transcriptionEngineOptions, id: \.self) { engine in
+                            Text(engine.displayName).tag(Optional(engine))
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(DesignSystem.Colors.accent)
+                    .frame(minWidth: 190, idealWidth: 210, maxWidth: 240)
+                    .disabled(viewModel.engine.speechEngineSwitching)
+                    .accessibilityLabel("Engine for recordings and files")
+                    .accessibilityHint(
+                        "Use the selected speech engine or choose a separate engine for completed meeting recordings, files, media, and URLs."
+                    )
+                }
+
+                Text(recordingsEngineHint)
                     .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let error = viewModel.engine.transcriptionSpeechEngineError {
+                    Text(error)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                }
+            }
+            .padding(.top, DesignSystem.Spacing.sm)
+        } label: {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Advanced transcription")
+                    .font(DesignSystem.Typography.body.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text(advancedTranscriptionSummary)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
         }
+        .tint(DesignSystem.Colors.accent)
+    }
+
+    private var advancedTranscriptionSummary: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "Recordings & files use \(viewModel.engine.transcriptionSpeechEnginePreference.displayName)."
+        }
+        return "Optionally use a different engine for recordings & files."
     }
 
     private var recordingsEngineHint: String {
         if viewModel.engine.usesDifferentFinalTranscriptionEngine {
-            return "Transcribes meetings after they end, plus files, media, and URLs. Dictation and live preview stay on \(viewModel.engine.speechEnginePreference.displayName)."
+            return "Dictation and live preview stay on \(viewModel.engine.speechEnginePreference.displayName)."
         }
-        return "Advanced: transcribe meetings (after they end), files, media, and URLs with a different engine. These jobs aren't live, so a slower engine with higher accuracy or more languages costs you nothing but wait time."
+        return "Using \(viewModel.engine.speechEnginePreference.displayName) for all speech recognition."
     }
 
     private func engineSelectionRole(

@@ -79,11 +79,11 @@ final class SettingsSearchIndexTests: XCTestCase {
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))
     }
 
-    func testRecordingsEngineQueriesFindVisibleSpeechEngineCard() throws {
+    func testRecordingsEngineQueriesFindAdvancedTranscriptionDisclosure() throws {
         let transcriptionEntry = try XCTUnwrap(
             SettingsSearchIndex.entries.first { $0.id == "engine.transcriptionSelector" }
         )
-        XCTAssertEqual(transcriptionEntry.cardAnchor, "engine.selector")
+        XCTAssertEqual(transcriptionEntry.cardAnchor, "engine.transcriptionSelector")
 
         for query in [
             "recordings", "files engine", "accuracy", "slower",

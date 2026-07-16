@@ -950,20 +950,23 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 ┌───────────────────────────────────────────────────────────┐
 │  SPEECH ENGINE                                            │
 │  ─────────────────────────────────────────────────────    │
-│  Handles dictation, live preview, and transcripts.        │
+│  Your selected engine handles dictation, meetings,        │
+│  recordings, and files.                                   │
 │                                                           │
 │  [ Parakeet ] [ Nemotron Beta ] [ Whisper ] [ Cohere ]      │
 │                                                           │
 │  ─────────────────────────────────────────────────────    │
-│  Recordings & files                         [Same engine ▾]│
-│  Advanced: meetings after they end, files, media, and     │
-│  URLs can use a different engine.                         │
+│  ▸ Advanced transcription                                 │
+│    Optionally use a different engine for recordings &     │
+│    files.                                                 │
 └───────────────────────────────────────────────────────────┘
 ```
 
 - The primary tiles control the live speech route. With the override off, this engine handles dictation, meeting preview, authoritative post-meeting transcription, and file/media/URL/retranscription jobs.
-- The inline `Recordings & files` menu defaults to `Same engine`. Choosing another downloaded engine persists an override for the authoritative pass after meetings stop and for file/media/URL/retranscription jobs; it loads lazily and does not replace the live engine. Choosing the live engine from this menu collapses back to `Same engine`.
+- The recordings/files override is progressive disclosure at the bottom of the card. `Advanced transcription` is collapsed by default; its summary says whether recordings and files inherit the selected engine or use an override. This keeps the normal one-engine setup legible without hiding an active split.
+- Expanding the disclosure explains that one selected engine handles everything by default, then offers an inline `Recordings & files` menu. Its inherited option is named dynamically, for example `Same as Parakeet`. Choosing another downloaded engine persists an override for the authoritative pass after meetings stop and for file/media/URL/retranscription jobs; it loads lazily and does not replace the live engine. Choosing the live engine from this menu collapses back to the inherited option.
 - When the two routes differ, the card subtitle names both engines, the live tile carries a filled `Live` chip, and the recordings/files tile carries an outlined `Recordings` chip. Relevant per-engine model cards add their route context.
+- Settings search results for the recordings/files engine expand the disclosure and scroll directly to it.
 - When meeting preview and final routes differ, the recording panel attributes both. If the live engine cannot preview, it says preview is off while confirming audio is still recording for final transcription.
 - Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
