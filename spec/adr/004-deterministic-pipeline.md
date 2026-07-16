@@ -27,7 +27,7 @@ Use a **deterministic 5-step pipeline** for the default "clean" processing mode.
 
 | Step | What It Does | Example |
 |------|-------------|---------|
-| 1. Filler removal | Strip only always-safe hesitation sounds | "um the API" -> "the API" |
+| 1. Filler removal | Strip only always-safe hesitation sounds | "uh the API" -> "the API" |
 | 2. Custom word replacement | User-defined vocabulary anchors and corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
 | 3. Trailing action extraction | Strip terminal action-snippet triggers and surface a post-paste action | "send this press return" -> text plus Return action |
 | 4. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |

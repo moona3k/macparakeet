@@ -46,7 +46,7 @@ mode.
 
 **The five pipeline steps run in this fixed order:**
 
-1. **Filler removal.** Strip pure hesitation sounds (`um`, `uh`,
+1. **Filler removal.** Strip conservative hesitation spellings (`uh`,
    `umm`, `uhh`) only. Word-boundary regex, case-insensitive,
    pre-compiled at type level. The list is intentionally short —
    anything longer ("like", "you know", "kind of") changes meaning
@@ -69,12 +69,10 @@ mode.
    while preserving acronyms, camelCase, custom vocabulary, and expanded
    snippet casing.
 
-**The order is load-bearing.** Filler removal before custom words
-prevents a custom rule from accidentally matching `"um"` as a
-substring. Action extraction before snippet expansion prevents a
-plain-text snippet from consuming the action trigger. Don't reorder
-without writing a test that exercises every adjacent-step
-interaction.
+**The order is load-bearing.** Action extraction before snippet
+expansion prevents a plain-text snippet from consuming the action
+trigger. Don't reorder without writing a test that exercises every
+adjacent-step interaction.
 
 **The pipeline is a pure function.** No I/O, no side effects, no
 state. This makes it trivial to test exhaustively (see
@@ -84,8 +82,9 @@ it at the call site, not inside the pipeline.
 
 **Filler removal is intentionally narrow.** Any expansion of the
 `alwaysSafeFillers` list needs a thoughtful test case demonstrating
-it doesn't change meaning. "I want to like Slack the team" must not
-become "I want to Slack the team."
+it doesn't change meaning in every supported language. Portuguese and
+German use `um` semantically, so it is preserved even though English
+speakers may use the same spelling as a hesitation.
 
 **The AI formatter is a different code path.** `TextRefinementService`
 does not call an LLM. It returns deterministic cleanup (plus any

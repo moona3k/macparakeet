@@ -5,7 +5,7 @@ final class TextRefinementServiceTests: XCTestCase {
     func testCleanModeReturnsDeterministicText() async {
         let service = TextRefinementService()
         let result = await service.refine(
-            rawText: "um hello world",
+            rawText: "uh hello world",
             mode: .clean,
             customWords: [],
             snippets: []

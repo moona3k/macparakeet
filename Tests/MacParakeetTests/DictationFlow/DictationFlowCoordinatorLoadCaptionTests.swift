@@ -347,7 +347,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let harness = try makeHarness(
             isReady: true,
             transcribeDelayMs: 5,
-            transcribeText: "um",
+            transcribeText: "uh",
             keepDictationOnClipboard: true,
             processingMode: .clean
         )
