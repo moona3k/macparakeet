@@ -1,0 +1,49 @@
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_20d3828eb9e4c5::t_8fa7f1b2812d7b 1-4,13-278,282-288,291-659,662-740,742-752
+  s_20d3828eb9e4c5::t_6e8b9c1431a5fa 5-12
+  s_20d3828eb9e4c5::t_73570bf084e0ed 279-281,289-290,660-661,741
+README.md
+  s_20d3828eb9e4c5::t_4e53138cc022e4 58,66-67,69,87
+plans/active/live-dictation-preview-readout.md
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 5
+Sources/MacParakeetCore/AppFeatures.swift
+  s_20d3828eb9e4c5::t_4e53138cc022e4 30-31
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 88-90
+spec/adr/023-activity-based-meeting-auto-stop.md
+  s_20d3828eb9e4c5::t_4e53138cc022e4 3
+docs/audits/2026-07-16-release-readiness-audit.md
+  s_20d3828eb9e4c5::t_61e0318183dadd 1,9,20,71,110,184
+  s_20d3828eb9e4c5::t_696a93136fc053 11-13,123-139
+  s_20d3828eb9e4c5::t_a90c42914e750a 2,10,18-19,21-70,72-97,100-109,111-112,117-118,140-183,185
+  s_20d3828eb9e4c5::t_eefab1b674c118 14-17
+  s_20d3828eb9e4c5::t_423d5c53a52910 3-8
+  s_20d3828eb9e4c5::t_35e44d7aa365ed 98-99
+  s_20d3828eb9e4c5::t_ca2634fff02ddb 113-116,119-122
+docs/audits/2026-07-16-architecture-deep-dive.md
+  s_20d3828eb9e4c5::t_4151dccbc066b2 3-5
+  s_20d3828eb9e4c5::t_115b25bb127b57 9-11,180-197
+  s_20d3828eb9e4c5::t_8ab567b324d5fb 1-2,6-8,12-179,198-259
+spec/README.md
+  s_20d3828eb9e4c5::t_4e53138cc022e4 65-66,74
+  s_20d3828eb9e4c5::t_61e0318183dadd 130
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 243
+plans/README.md
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 4,6-7,34-35
+  s_20d3828eb9e4c5::t_4a4e91dd71e2c9 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a3889a17a23548fb5c2890de25e0903a9b980dd6",
+  "prompts": {},
+  "sessions": {
+    "s_20d3828eb9e4c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5b-a693-7b91-8d85-3a39b6bda685",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
