@@ -209,14 +209,14 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        // OpenAI reasoning models reject temperature AND max_tokens. That
-        // includes the GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, ...),
-        // which only accepts the default temperature; their "-chat" variants
-        // still accept explicit values. Newer models also require
+        // OpenAI reasoning models reject max_tokens. Explicit temperature
+        // support varies by model and reasoning effort, so omit it for the
+        // GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, ...); its "-chat"
+        // variants still accept explicit values. Newer models also require
         // max_completion_tokens instead of max_tokens.
-        let rejectsTemperature = config.id == .openai && Self.openAIRejectsTemperature(config.modelName)
+        let shouldOmitTemperature = config.id == .openai && Self.openAIShouldOmitTemperature(config.modelName)
         let needsNewTokenParam = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
-        let temperature = rejectsTemperature ? nil : options.temperature
+        let temperature = shouldOmitTemperature ? nil : options.temperature
         let maxTokens = needsNewTokenParam ? nil : options.maxTokens
         let maxCompletionTokens = needsNewTokenParam ? options.maxTokens : nil
 
@@ -249,10 +249,10 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         isOpenAIReasoningModelID(model.lowercased())
     }
 
-    /// OpenAI models that reject non-default `temperature`: the o-series and
-    /// the GPT-5.x+ reasoning tier. Chat-tier variants (gpt-5.3-chat-latest)
-    /// and pre-5.x models accept explicit temperature values.
-    static func openAIRejectsTemperature(_ model: String) -> Bool {
+    /// OpenAI models for which MacParakeet omits explicit `temperature`: the
+    /// o-series and GPT-5.x+ reasoning tier. Chat-tier variants
+    /// (gpt-5.3-chat-latest) and pre-5.x models keep the caller's value.
+    static func openAIShouldOmitTemperature(_ model: String) -> Bool {
         let lowered = model.lowercased()
         if isOpenAIReasoningModelID(lowered) { return true }
         if lowered.contains("chat") { return false }

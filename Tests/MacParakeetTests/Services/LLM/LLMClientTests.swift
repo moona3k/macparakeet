@@ -899,7 +899,7 @@ final class LLMClientTests: XCTestCase {
         // GPT-5.x requires max_completion_tokens, not max_tokens
         XCTAssertNil(capturedBody?["max_tokens"])
         XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
-        // GPT-5.x reasoning tier only accepts the default temperature
+        // MacParakeet omits temperature for the GPT-5.x reasoning tier
         XCTAssertNil(capturedBody?["temperature"])
     }
 

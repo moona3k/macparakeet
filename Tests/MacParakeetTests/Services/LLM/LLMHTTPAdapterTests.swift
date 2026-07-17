@@ -122,19 +122,19 @@ final class LLMHTTPAdapterTests: XCTestCase {
         )
     }
 
-    func testOpenAIRejectsTemperatureModelMatrix() {
+    func testOpenAIShouldOmitTemperatureModelMatrix() {
         let rejecting = ["o3", "o4-mini", "gpt-5.5", "gpt-5.4", "gpt-5.4-nano", "GPT-5.4-Mini", "gpt-10"]
         for model in rejecting {
             XCTAssertTrue(
-                OpenAICompatibleLLMHTTPAdapter.openAIRejectsTemperature(model),
-                "\(model) should reject temperature"
+                OpenAICompatibleLLMHTTPAdapter.openAIShouldOmitTemperature(model),
+                "\(model) should omit temperature"
             )
         }
         let accepting = ["gpt-5.3-chat-latest", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "chatgpt-4o-latest"]
         for model in accepting {
             XCTAssertFalse(
-                OpenAICompatibleLLMHTTPAdapter.openAIRejectsTemperature(model),
-                "\(model) should accept temperature"
+                OpenAICompatibleLLMHTTPAdapter.openAIShouldOmitTemperature(model),
+                "\(model) should keep temperature"
             )
         }
     }
