@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_fadac94ffa0d83::t_ad9cb5b466b198 108-109,123
+  s_fadac94ffa0d83::t_41989107321e24 102-107,110-122,124-127,284
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_fadac94ffa0d83::t_a82e259bd75854 89,241-251
+  s_fadac94ffa0d83::t_9a43d76818b816 252-253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c6cf8229aa7573079a4d467c6bc187aa66b183f8",
+  "prompts": {},
+  "sessions": {
+    "s_fadac94ffa0d83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7105-cbbb-73e3-9a2b-0ae212673f60",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
