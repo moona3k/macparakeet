@@ -1,0 +1,29 @@
+spec/README.md
+  s_6edafe92d02713::t_c07f57761d2251 65-66,130
+README.md
+  s_6edafe92d02713::t_c07f57761d2251 58,66-67
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_6edafe92d02713::t_eacc54177d154b 43-47,55-63,201-203,266-270
+  s_6edafe92d02713::t_fe810464b08123 11-12,24-42,48-54,76-80,451,460-462,787-788,808-811
+  s_6edafe92d02713::t_db882711759688 271
+  s_6edafe92d02713::t_4c3fc12069bc11 812
+docs/audits/2026-07-16-release-readiness-audit.md
+  s_6edafe92d02713::t_fe810464b08123 10-12,23-27,29-32,173-176
+  s_6edafe92d02713::t_eacc54177d154b 82-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "bf26c6c6c1c31473947f10cd9e14f848885e03d7",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
