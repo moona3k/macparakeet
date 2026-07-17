@@ -95,8 +95,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   models (e.g. `gpt-5.5`, `gpt-5.4-mini`), preventing HTTP 400 responses
   from model and reasoning-effort combinations that do not accept non-default
   sampling temperatures. Chat-tier variants (`gpt-5.3-chat-latest`) and
-  pre-5.x models retain the caller's temperature, matching the existing
-  o-series handling and the Anthropic adapter's behavior.
+  non-o-series pre-5.x models retain the caller's temperature; o-series
+  reasoning models continue using their existing omission behavior.
 - Local-file titles in `search`, `transcript`, and `cards list` now preserve
   the original media filename unless the user explicitly renamed the
   transcription, matching the Mac app and avoiding transcript-opening words as
