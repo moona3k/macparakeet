@@ -1,6 +1,12 @@
 import Foundation
 @testable import MacParakeetCore
 
+private struct PreviewCallWaiter {
+    let id: UUID
+    let minimumCount: Int
+    let continuation: CheckedContinuation<Bool, Never>
+}
+
 public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineTelemetryAttributing, SpeechEngineRoutedWarmUpManaging {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
@@ -62,10 +68,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var previewHeld = false
     private var previewReleasesOnCancel = true
     private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
-    private var previewCallWaiters: [(
-        minimumCount: Int,
-        continuation: CheckedContinuation<Void, Never>
-    )] = []
+    private var previewCallWaiters: [PreviewCallWaiter] = []
 
     public init() {}
 
@@ -178,14 +181,61 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         resetPreviewTracking()
     }
 
-    public func waitForPreviewCallCount(_ minimumCount: Int) async {
-        guard previewCallCount < minimumCount else { return }
-        await withCheckedContinuation { continuation in
-            previewCallWaiters.append((minimumCount, continuation))
+    public func waitForPreviewCallCount(
+        _ minimumCount: Int,
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+
+        let id = UUID()
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await self.registerPreviewCallWaiter(id: id, minimumCount: minimumCount)
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return await self.timeOutPreviewCallWaiter(id: id, minimumCount: minimumCount)
+            }
+
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
         }
     }
 
+    private func registerPreviewCallWaiter(id: UUID, minimumCount: Int) async -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+
+        return await withCheckedContinuation { continuation in
+            if previewCallCount >= minimumCount {
+                continuation.resume(returning: true)
+            } else {
+                previewCallWaiters.append(
+                    PreviewCallWaiter(
+                        id: id,
+                        minimumCount: minimumCount,
+                        continuation: continuation,
+                    ))
+            }
+        }
+    }
+
+    private func timeOutPreviewCallWaiter(id: UUID, minimumCount: Int) -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+        guard let index = previewCallWaiters.firstIndex(where: { $0.id == id }) else {
+            return previewCallCount >= minimumCount
+        }
+        let waiter = previewCallWaiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+        return false
+    }
+
     private func resetPreviewTracking() {
+        let waiters = previewCallWaiters
+        previewCallWaiters = []
+        for waiter in waiters {
+            waiter.continuation.resume(returning: false)
+        }
         previewCallCount = 0
         previewCancelCallCount = 0
         previewSamples = []
@@ -221,7 +271,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         let ready = previewCallWaiters.filter { $0.minimumCount <= previewCallCount }
         previewCallWaiters.removeAll { $0.minimumCount <= previewCallCount }
         for waiter in ready {
-            waiter.continuation.resume()
+            waiter.continuation.resume(returning: true)
         }
     }
 

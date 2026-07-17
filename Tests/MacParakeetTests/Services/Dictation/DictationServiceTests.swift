@@ -1049,13 +1049,16 @@ final class DictationServiceTests: XCTestCase {
 
         await mockAudio.emitLiveSamples([0.3, 0.4])
         await mockAudio.emitLiveSamples([0.5])
-        await mockSTT.waitForPreviewCallCount(3)
+        let previewCallReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(previewCallReached, "Expected post-reset preview passes")
         let previewSamples = await mockSTT.previewSamples
         XCTAssertEqual(
             previewSamples,
             [[0.1, 0.2], [0.3, 0.4], [0.3, 0.4, 0.5]],
             "Post-reset preview passes should exclude all pre-roll samples"
         )
+        // Preview passes are serial. Entering pass 3 proves pass 2 returned and
+        // its updateDisplayPreview call completed before this assertion.
         let resumedTranscript = await service.liveTranscript
         XCTAssertEqual(
             resumedTranscript,
@@ -1094,7 +1097,8 @@ final class DictationServiceTests: XCTestCase {
 
         try await service.startRecording()
         await mockAudio.emitLiveSamples([0.1])
-        await mockSTT.waitForPreviewCallCount(1)
+        let initialPreviewCallReached = await mockSTT.waitForPreviewCallCount(1)
+        XCTAssertTrue(initialPreviewCallReached, "Expected the held pre-reset preview pass")
 
         await mockAudio.emitLiveSamples([0.2])
         await service.discardPreRollForActiveCapture(sessionID: nil)
@@ -1102,7 +1106,8 @@ final class DictationServiceTests: XCTestCase {
         await mockAudio.emitLiveSamples([0.5])
         await mockSTT.releasePreviewTranscription()
 
-        await mockSTT.waitForPreviewCallCount(3)
+        let postResetPreviewCallsReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(postResetPreviewCallsReached, "Expected post-reset preview passes")
         let previewSamples = await mockSTT.previewSamples
         XCTAssertEqual(
             previewSamples,
