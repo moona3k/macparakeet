@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_929cd2e607778b::t_3726961f6be9d3 217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6381532e1277ff6d87cbaefc993a1828a1bc8cbe",
+  "prompts": {},
+  "sessions": {
+    "s_929cd2e607778b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f710d-db44-7280-ab47-de1357d57c55",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
