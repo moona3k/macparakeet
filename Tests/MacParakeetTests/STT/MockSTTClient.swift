@@ -214,7 +214,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
                     PreviewCallWaiter(
                         id: id,
                         minimumCount: minimumCount,
-                        continuation: continuation,
+                        continuation: continuation
                     ))
             }
         }
