@@ -1,0 +1,21 @@
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_6edafe92d02713::t_493598a63ba545 24,129-131,133,136-139,726
+docs/audits/2026-07-16-release-readiness-audit.md
+  s_6edafe92d02713::t_493598a63ba545 85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8d9950e4c60dd7e32caa74c3acd523a6d4845ad6",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
