@@ -65,10 +65,18 @@ private struct LiveDictationTranscriptionState: Sendable {
     }
 }
 
+private struct DictationDisplayPreviewSamples: Sendable {
+    let samples: [Float]
+    /// Identifies the pre-roll epoch this chunk belongs to so buffered samples
+    /// from before a reset cannot enter the next preview tail.
+    let generation: Int
+}
+
 private struct DictationDisplayPreviewState: Sendable {
     let dictationSessionID: Int
     let previewSessionID: UUID
-    let sampleContinuation: AsyncStream<[Float]>.Continuation
+    let sampleContinuation: AsyncStream<DictationDisplayPreviewSamples>.Continuation
+    let resetGeneration: OSAllocatedUnfairLock<Int>
     let task: Task<Void, Never>
 }
 
@@ -566,8 +574,8 @@ public actor DictationService: DictationServiceProtocol {
         if let state = liveTranscriptionState, state.dictationSessionID == activeSessionID {
             state.markDegraded(reason: "preroll_discarded")
         }
+        resetDisplayPreview(sessionID: activeSessionID)
         clearLiveTranscript()
-        await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         await audioProcessor.discardPreRollForActiveCapture()
     }
 
@@ -923,18 +931,20 @@ public actor DictationService: DictationServiceProtocol {
         guard previewSpeechEngine.capabilities.supportsTailPreview else { return nil }
         let speechEngine = previewSpeechEngine.selection
 
-        var continuation: AsyncStream<[Float]>.Continuation?
-        let stream = AsyncStream<[Float]>(bufferingPolicy: .bufferingNewest(120)) {
+        var continuation: AsyncStream<DictationDisplayPreviewSamples>.Continuation?
+        let stream = AsyncStream<DictationDisplayPreviewSamples>(bufferingPolicy: .bufferingNewest(120)) {
             continuation = $0
         }
         guard let sampleContinuation = continuation else { return nil }
 
         let previewSessionID = UUID()
+        let resetGeneration = OSAllocatedUnfairLock(initialState: 0)
         let interval = dictationPreviewInterval
         let windowSampleCount = dictationPreviewWindowSampleCount
         let task = Task { [weak self, previewTranscriber] in
             var tailSamples: [Float] = []
             var tailStartIndex = 0
+            var generation = 0
             let clock = ContinuousClock()
             var lastPass = clock.now
             func appendTailSamples(_ samples: [Float]) {
@@ -953,9 +963,19 @@ public actor DictationService: DictationServiceProtocol {
                 return Array(tailSamples[tailStartIndex...])
             }
 
-            for await samples in stream {
+            for await input in stream {
                 guard !Task.isCancelled else { break }
+                let samples = input.samples
                 guard !samples.isEmpty else { continue }
+                let latestGeneration = resetGeneration.withLock { $0 }
+                // A reset can happen while this task is awaiting inference, so
+                // drop any older chunks that remained buffered in the stream.
+                guard input.generation == latestGeneration else { continue }
+                if input.generation != generation {
+                    tailSamples.removeAll(keepingCapacity: true)
+                    tailStartIndex = 0
+                    generation = input.generation
+                }
                 appendTailSamples(samples)
 
                 let now = clock.now
@@ -980,7 +1000,8 @@ public actor DictationService: DictationServiceProtocol {
                     await self?.updateDisplayPreview(
                         result.text,
                         sessionID: sessionID,
-                        previewSessionID: previewSessionID
+                        previewSessionID: previewSessionID,
+                        generation: generation
                     )
                 } catch is CancellationError {
                     break
@@ -996,6 +1017,7 @@ public actor DictationService: DictationServiceProtocol {
             dictationSessionID: sessionID,
             previewSessionID: previewSessionID,
             sampleContinuation: sampleContinuation,
+            resetGeneration: resetGeneration,
             task: task
         )
         AudioCaptureDiagnostics.append("dictation_preview_started engine=\(speechEngine.engine.rawValue)")
@@ -1003,7 +1025,10 @@ public actor DictationService: DictationServiceProtocol {
         return DictationAudioSampleSink(
             onSamples: { samples in
                 guard !samples.isEmpty else { return }
-                sampleContinuation.yield(samples)
+                sampleContinuation.yield(DictationDisplayPreviewSamples(
+                    samples: samples,
+                    generation: resetGeneration.withLock { $0 }
+                ))
             },
             onFinish: {
                 sampleContinuation.finish()
@@ -1027,13 +1052,30 @@ public actor DictationService: DictationServiceProtocol {
         setLiveTranscript(raw: partial)
     }
 
-    private func updateDisplayPreview(_ preview: String, sessionID: Int, previewSessionID: UUID) {
-        guard displayPreviewState?.dictationSessionID == sessionID,
-              displayPreviewState?.previewSessionID == previewSessionID,
+    private func updateDisplayPreview(
+        _ preview: String,
+        sessionID: Int,
+        previewSessionID: UUID,
+        generation: Int
+    ) {
+        guard let state = displayPreviewState,
+              state.dictationSessionID == sessionID,
+              state.previewSessionID == previewSessionID,
+              // Reject a pre-reset pass that completed after Pause Media.
+              state.resetGeneration.withLock({ $0 }) == generation,
               case .recording = _state else {
             return
         }
         setLiveTranscript(raw: preview)
+    }
+
+    private func resetDisplayPreview(sessionID: Int) {
+        guard let state = displayPreviewState,
+              state.dictationSessionID == sessionID else {
+            return
+        }
+        state.resetGeneration.withLock { $0 += 1 }
+        AudioCaptureDiagnostics.append("dictation_preview_reset reason=preroll_discarded")
     }
 
     /// Feed a raw preview transcript through the stabilizer and publish the

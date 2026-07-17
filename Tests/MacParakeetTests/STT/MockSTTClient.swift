@@ -53,6 +53,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var backgroundWarmUpTask: Task<Void, Never>?
     private var queuedTranscribeResults: [STTResult] = []
     private var queuedTranscribeErrors: [Error] = []
+    private var queuedPreviewResults: [STTResult] = []
     private var transcribeProgressUpdates: [(current: Int, total: Int)] = []
     private var liveSessionID: UUID?
     private var livePartialHandler: (@Sendable (String) -> Void)?
@@ -61,6 +62,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var previewHeld = false
     private var previewReleasesOnCancel = true
     private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
+    private var previewCallWaiters: [(
+        minimumCount: Int,
+        continuation: CheckedContinuation<Void, Never>
+    )] = []
 
     public init() {}
 
@@ -162,6 +167,25 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public func configurePreview(result: STTResult? = nil, error: Error? = nil) {
         previewResult = result
         previewError = error
+        queuedPreviewResults = []
+        resetPreviewTracking()
+    }
+
+    public func configurePreview(results: [STTResult]) {
+        previewResult = nil
+        previewError = nil
+        queuedPreviewResults = results
+        resetPreviewTracking()
+    }
+
+    public func waitForPreviewCallCount(_ minimumCount: Int) async {
+        guard previewCallCount < minimumCount else { return }
+        await withCheckedContinuation { continuation in
+            previewCallWaiters.append((minimumCount, continuation))
+        }
+    }
+
+    private func resetPreviewTracking() {
         previewCallCount = 0
         previewCancelCallCount = 0
         previewSamples = []
@@ -177,6 +201,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         previewCallCount += 1
         previewSamples.append(samples)
         previewSelections.append(speechEngine)
+        resumePreviewCallWaiters()
         if previewHeld {
             await withCheckedContinuation { continuation in
                 previewHoldContinuations.append(continuation)
@@ -186,7 +211,18 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         if let previewError {
             throw previewError
         }
+        if !queuedPreviewResults.isEmpty {
+            return queuedPreviewResults.removeFirst()
+        }
         return previewResult ?? STTResult(text: "preview", words: [], engine: speechEngine.engine)
+    }
+
+    private func resumePreviewCallWaiters() {
+        let ready = previewCallWaiters.filter { $0.minimumCount <= previewCallCount }
+        previewCallWaiters.removeAll { $0.minimumCount <= previewCallCount }
+        for waiter in ready {
+            waiter.continuation.resume()
+        }
     }
 
     public func holdPreviewTranscription(releaseOnCancel: Bool = true) {
