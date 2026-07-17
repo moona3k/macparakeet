@@ -1,0 +1,30 @@
+spec/adr/001-parakeet-stt.md
+  s_6edafe92d02713::t_d07587d8d8baed 15,174-175,217-218
+docs/audits/2026-07-16-fresh-eye-product-documentation-audit.md
+  s_6edafe92d02713::t_3bee10340153f6 284
+  s_6edafe92d02713::t_d07587d8d8baed 77
+spec/00-vision.md
+  s_6edafe92d02713::t_d07587d8d8baed 82,501
+spec/README.md
+  s_6edafe92d02713::t_d07587d8d8baed 53
+README.md
+  s_6edafe92d02713::t_d07587d8d8baed 58,133,222
+spec/03-architecture.md
+  s_6edafe92d02713::t_d07587d8d8baed 711
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e02f61fd466de447498901539a19f5474aa9e747",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
