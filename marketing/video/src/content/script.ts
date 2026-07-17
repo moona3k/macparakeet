@@ -22,9 +22,9 @@ export const SCRIPT = {
   modes: {
     dictation: {
       title: 'Dictate anywhere',
-      caption: 'Apple Silicon · fast local dictation · runs offline',
+      caption: 'Apple Silicon · local dictation · offline after setup',
       durationSec: 16,
-      vo: 'MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. Local transcription. Runs offline.',
+      vo: 'MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Speech recognition stays local and works offline after model setup.',
       screencast: 'screencasts/dictation.mp4',
     },
     transcription: {

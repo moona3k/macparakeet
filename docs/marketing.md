@@ -63,9 +63,9 @@ Render target: 1920×1080 @ 60fps. Voice via Kokoro-82M by default (or Higgs Aud
 2. Cursor — `"TODO refactor this function to use async await instead of completions"`
 3. Browser address bar — `"best ramen in the mission district"`
 
-**Lower-third:** Apple Silicon · fast local dictation · runs offline
+**Lower-third:** Apple Silicon · local dictation · offline after setup
 
-**VO:** "MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. Local transcription. Runs offline."
+**VO:** "MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Speech recognition stays local and works offline after model setup."
 
 ### 0:22 – 0:38 · Mode 2: Transcription
 **Visual sequence:**
