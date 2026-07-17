@@ -105,13 +105,12 @@ WhisperKit model downloads live under
 
 MacParakeet deliberately does not modify your shell configuration or install
 files into package-manager directories. If you want the bundled executable
-under the shorter `macparakeet-cli` command, first check whether another copy
-is already on your `$PATH`, then configure an alias or symlink yourself:
+under the shorter `macparakeet-cli` command, use the Homebrew installation
+above or configure your own shell alias, PATH entry, or symlink. First check
+whether another copy is already available:
 
 ```bash
 command -v macparakeet-cli
-sudo ln -s /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli \
-           /usr/local/bin/macparakeet-cli
 ```
 
 The Homebrew CLI and the app-bundled CLI are released independently, so their
