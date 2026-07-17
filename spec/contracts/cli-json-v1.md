@@ -52,6 +52,10 @@ with human progress/status kept off stdout.
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
   the same override-then-original-filename rule as search results.
+- `transcribe --format json` may include nullable `audioTrackOrdinal` on its
+  `Transcription` object. It is zero-based and non-null only when a local-file
+  audio stream was selected explicitly; this additive field does not change
+  stdout/stderr or envelope shapes.
 - `cards list --json` returns an array; `--ndjson` returns the same card objects
   one compact object per line. Each object has exactly `transcriptionId`,
   `title`, `date`, nullable `durationMs`, `source`, nullable `attendees`, the

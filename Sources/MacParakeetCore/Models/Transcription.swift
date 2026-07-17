@@ -19,6 +19,10 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var createdAt: Date
     public var fileName: String
     public var filePath: String?
+    /// Zero-based ordinal among the source file's audio streams (`0:a:N`).
+    /// `nil` preserves FFmpeg's automatic selection for legacy/single-track
+    /// rows and for non-file transcription sources.
+    public var audioTrackOrdinal: Int?
     public var meetingArtifactFolderPath: String?
     public var fileSizeBytes: Int?
     public var durationMs: Int?
@@ -86,6 +90,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         createdAt: Date = Date(),
         fileName: String,
         filePath: String? = nil,
+        audioTrackOrdinal: Int? = nil,
         meetingArtifactFolderPath: String? = nil,
         fileSizeBytes: Int? = nil,
         durationMs: Int? = nil,
@@ -123,6 +128,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.fileName = fileName
         self.filePath = filePath
+        self.audioTrackOrdinal = audioTrackOrdinal
         self.meetingArtifactFolderPath = meetingArtifactFolderPath
         self.fileSizeBytes = fileSizeBytes
         self.durationMs = durationMs
@@ -316,7 +322,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "transcriptions"
 
     public enum Columns: String, ColumnExpression {
-        case id, createdAt, fileName, filePath, meetingArtifactFolderPath, fileSizeBytes, durationMs
+        case id, createdAt, fileName, filePath, audioTrackOrdinal, meetingArtifactFolderPath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
@@ -332,6 +338,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         fileName = try container.decode(String.self, forKey: .fileName)
         filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
+        audioTrackOrdinal = try container.decodeIfPresent(Int.self, forKey: .audioTrackOrdinal)
         meetingArtifactFolderPath = try container.decodeIfPresent(String.self, forKey: .meetingArtifactFolderPath)
         fileSizeBytes = try container.decodeIfPresent(Int.self, forKey: .fileSizeBytes)
         durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)

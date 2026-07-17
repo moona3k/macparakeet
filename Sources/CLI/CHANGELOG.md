@@ -89,6 +89,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `transcribe --audio-track <N>` selects a one-based embedded audio track for
+  local files and folders. The option is rejected for downloaded media and
+  podcast inputs; omitting it preserves automatic selection.
+
 ### Fixed
 
 - Native OpenAI LLM calls omit `temperature` for GPT-5.x reasoning-tier

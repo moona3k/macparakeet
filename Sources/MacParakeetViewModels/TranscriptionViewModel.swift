@@ -6,6 +6,15 @@ import SwiftUI
 @MainActor
 @Observable
 public final class TranscriptionViewModel {
+    public struct AudioTrackSelectionRequest: Identifiable, Equatable, Sendable {
+        public let id: UUID
+        public let fileName: String
+        public let fileCount: Int
+        public let tracks: [AudioTrackDescriptor]
+
+        public var isBatch: Bool { fileCount > 1 }
+    }
+
     public struct RetranscriptionEngineOption: Equatable, Sendable {
         public struct Choice: Identifiable, Equatable, Sendable {
             public let selection: SpeechEngineSelection
@@ -131,6 +140,8 @@ public final class TranscriptionViewModel {
         setError(message: nil)
     }
     public private(set) var transcribingFileName: String = ""
+    public private(set) var isInspectingAudioTracks = false
+    public private(set) var pendingAudioTrackSelection: AudioTrackSelectionRequest?
     public var isDragging = false
     public var urlInput: String = ""
     public var hasPromptResultTabs: Bool = false
@@ -159,6 +170,8 @@ public final class TranscriptionViewModel {
     public private(set) var batchFailedCount = 0
     private var batchQueue: [URL] = []
     private var batchSource: TelemetryTranscriptionSource = .file
+    private var batchAudioTrackOrdinal: Int?
+    private var batchMultiTrackFilePaths: Set<String> = []
 
     /// One-line batch status for the global progress bar / batch card,
     /// e.g. "Transcribing 7 of 40" or "Transcribing 7 of 40 · 1 failed".
@@ -195,10 +208,16 @@ public final class TranscriptionViewModel {
     }
 
     private var transcriptionService: TranscriptionServiceProtocol?
+    private var audioTrackService: AudioTrackSelectingTranscriptionService?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
+    private var audioTrackPreflightID: UUID?
+    private var pendingAudioTrackFiles: [URL] = []
+    private var pendingAudioTrackSource: TelemetryTranscriptionSource = .file
+    private var pendingAudioTrackExpansion: AudioFileEnumerator.Result?
+    private var pendingMultiTrackFilePaths: Set<String> = []
     private var activeProgressSpeechEngine: SpeechEngineSelection?
     private var activeProgressWhisperVariant: String?
     private var activeProgressNemotronVariant: NemotronModelVariant?
@@ -254,11 +273,14 @@ public final class TranscriptionViewModel {
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        audioTrackService: AudioTrackSelectingTranscriptionService? = nil,
         llmService: LLMServiceProtocol? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         promptResultsViewModel: PromptResultsViewModel? = nil
     ) {
         self.transcriptionService = transcriptionService
+        self.audioTrackService = audioTrackService
+            ?? (transcriptionService as? any AudioTrackSelectingTranscriptionService)
         self.transcriptionRepo = transcriptionRepo
         self.llmAvailable = llmService != nil
         self.promptResultRepo = promptResultRepo
@@ -283,8 +305,28 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
-        guard let service = transcriptionService else {
+        guard transcriptionService != nil else {
             reportMissingConfiguration("transcriptionService", action: "transcribeFile")
+            return
+        }
+        if audioTrackService != nil {
+            startAudioTrackPreflight(
+                files: [url],
+                source: source,
+                expansion: AudioFileEnumerator.Result(files: [url], droppedCount: 0)
+            )
+        } else {
+            startTranscribingFile(url: url, source: source, audioTrackOrdinal: nil)
+        }
+    }
+
+    private func startTranscribingFile(
+        url: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?
+    ) {
+        guard let service = transcriptionService else {
+            reportMissingConfiguration("transcriptionService", action: "startTranscribingFile")
             return
         }
         let taskID = beginNewTranscription(source: .localFile, fileName: url.lastPathComponent)
@@ -292,10 +334,30 @@ public final class TranscriptionViewModel {
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let result = try await service.transcribe(fileURL: url, source: source) { [weak self] progress in
+                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { [weak self] progress in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: progress, taskID: taskID)
                     }
+                }
+                let result: Transcription
+                if let audioTrackOrdinal {
+                    guard let audioTrackService else {
+                        throw AudioProcessorError.conversionFailed(
+                            "Audio-track selection is unavailable for this transcription service."
+                        )
+                    }
+                    result = try await audioTrackService.transcribe(
+                        fileURL: url,
+                        source: source,
+                        audioTrackOrdinal: audioTrackOrdinal,
+                        onProgress: progressHandler
+                    )
+                } else {
+                    result = try await service.transcribe(
+                        fileURL: url,
+                        source: source,
+                        onProgress: progressHandler
+                    )
                 }
                 completeSuccessfulTranscription(taskID: taskID, result: result)
             } catch is CancellationError {
@@ -317,7 +379,10 @@ public final class TranscriptionViewModel {
             reportMissingConfiguration("transcriptionService", action: "transcribeFiles")
             return false
         }
-        guard !isTranscribing, !isBatchActive else { return false }
+        guard !isTranscribing,
+              !isBatchActive,
+              !isInspectingAudioTracks,
+              pendingAudioTrackSelection == nil else { return false }
         let expansion = AudioFileEnumerator.expand(urls: urls)
         let files = expansion.files
         guard !files.isEmpty else {
@@ -325,21 +390,156 @@ public final class TranscriptionViewModel {
             return false
         }
 
-        if files.count == 1 {
-            transcribeFile(url: files[0], source: source)
-            return true
+        if audioTrackService != nil {
+            startAudioTrackPreflight(files: files, source: source, expansion: expansion)
+        } else {
+            startResolvedFiles(
+                files,
+                source: source,
+                audioTrackOrdinal: nil,
+                multiTrackFilePaths: [],
+                expansion: expansion
+            )
+        }
+        return true
+    }
+
+    public func selectAudioTrack(ordinal: Int) {
+        guard let request = pendingAudioTrackSelection,
+              request.tracks.contains(where: { $0.ordinal == ordinal }),
+              !pendingAudioTrackFiles.isEmpty else {
+            return
         }
 
-        batchSource = source
-        batchTotalCount = files.count
-        batchCompletedCount = 0
-        batchFailedCount = 0
-        batchQueue = Array(files.dropFirst())
-        isBatchActive = true
-        transcribeFile(url: files[0], source: source)
-        // `transcribeFile` clears `errorMessage`; surface any cap overflow after
-        // it so the dropped-file count is never lost silently.
-        if expansion.truncated {
+        let files = pendingAudioTrackFiles
+        let source = pendingAudioTrackSource
+        let expansion = pendingAudioTrackExpansion
+        let multiTrackFilePaths = pendingMultiTrackFilePaths
+        clearPendingAudioTrackSelection()
+        startResolvedFiles(
+            files,
+            source: source,
+            audioTrackOrdinal: ordinal,
+            multiTrackFilePaths: multiTrackFilePaths,
+            expansion: expansion
+        )
+    }
+
+    public func cancelAudioTrackSelection() {
+        clearPendingAudioTrackSelection()
+    }
+
+    private func startAudioTrackPreflight(
+        files: [URL],
+        source: TelemetryTranscriptionSource,
+        expansion: AudioFileEnumerator.Result
+    ) {
+        guard let audioTrackService else {
+            startResolvedFiles(
+                files,
+                source: source,
+                audioTrackOrdinal: nil,
+                multiTrackFilePaths: [],
+                expansion: expansion
+            )
+            return
+        }
+
+        transcriptionTask?.cancel()
+        let preflightID = UUID()
+        audioTrackPreflightID = preflightID
+        isInspectingAudioTracks = true
+        clearPendingAudioTrackSelection()
+        clearError()
+
+        transcriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                var firstMultiTrackFile: (url: URL, tracks: [AudioTrackDescriptor])?
+                var multiTrackFilePaths: Set<String> = []
+                for file in files {
+                    try Task.checkCancellation()
+                    let tracks = try await audioTrackService.audioTracks(in: file)
+                    guard !tracks.isEmpty else {
+                        throw AudioProcessorError.conversionFailed(
+                            "No audio tracks were found in \(file.lastPathComponent)."
+                        )
+                    }
+                    if firstMultiTrackFile == nil, tracks.count > 1 {
+                        firstMultiTrackFile = (file, tracks)
+                    }
+                    if tracks.count > 1 {
+                        multiTrackFilePaths.insert(file.standardizedFileURL.path)
+                    }
+                }
+
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+
+                if let multiTrack = firstMultiTrackFile {
+                    pendingAudioTrackFiles = files
+                    pendingAudioTrackSource = source
+                    pendingAudioTrackExpansion = expansion
+                    pendingMultiTrackFilePaths = multiTrackFilePaths
+                    pendingAudioTrackSelection = AudioTrackSelectionRequest(
+                        id: UUID(),
+                        fileName: multiTrack.url.lastPathComponent,
+                        fileCount: files.count,
+                        tracks: multiTrack.tracks
+                    )
+                } else {
+                    startResolvedFiles(
+                        files,
+                        source: source,
+                        audioTrackOrdinal: nil,
+                        multiTrackFilePaths: [],
+                        expansion: expansion
+                    )
+                }
+            } catch is CancellationError {
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+            } catch {
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+                setError(message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func startResolvedFiles(
+        _ files: [URL],
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
+        multiTrackFilePaths: Set<String>,
+        expansion: AudioFileEnumerator.Result?
+    ) {
+        guard let first = files.first else { return }
+        let firstAudioTrackOrdinal = multiTrackFilePaths.contains(first.standardizedFileURL.path)
+            ? audioTrackOrdinal
+            : nil
+
+        if files.count == 1 {
+            startTranscribingFile(url: first, source: source, audioTrackOrdinal: firstAudioTrackOrdinal)
+        } else {
+            batchSource = source
+            batchAudioTrackOrdinal = audioTrackOrdinal
+            batchMultiTrackFilePaths = multiTrackFilePaths
+            batchTotalCount = files.count
+            batchCompletedCount = 0
+            batchFailedCount = 0
+            batchQueue = Array(files.dropFirst())
+            isBatchActive = true
+            startTranscribingFile(url: first, source: source, audioTrackOrdinal: firstAudioTrackOrdinal)
+        }
+
+        if let expansion, expansion.truncated {
             let dropped = expansion.stoppedEarly
                 ? "at least \(expansion.droppedCount)"
                 : "\(expansion.droppedCount)"
@@ -347,7 +547,13 @@ public final class TranscriptionViewModel {
                 + "\(dropped) more were skipped "
                 + "(\(AudioFileEnumerator.defaultMaxFiles)-file limit).")
         }
-        return true
+    }
+
+    private func clearPendingAudioTrackSelection() {
+        pendingAudioTrackSelection = nil
+        pendingAudioTrackFiles.removeAll()
+        pendingAudioTrackExpansion = nil
+        pendingMultiTrackFilePaths.removeAll()
     }
 
     public func transcribeURL() {
@@ -697,6 +903,11 @@ public final class TranscriptionViewModel {
 
     public func cancelTranscription() {
         transcriptionTask?.cancel()
+        if isInspectingAudioTracks {
+            audioTrackPreflightID = nil
+            transcriptionTask = nil
+            isInspectingAudioTracks = false
+        }
     }
 
     /// Cancel an in-progress batch deterministically: drop everything still
@@ -727,7 +938,13 @@ public final class TranscriptionViewModel {
             finishBatch()
         } else {
             let next = batchQueue.removeFirst()
-            transcribeFile(url: next, source: batchSource)
+            startTranscribingFile(
+                url: next,
+                source: batchSource,
+                audioTrackOrdinal: batchMultiTrackFilePaths.contains(next.standardizedFileURL.path)
+                    ? batchAudioTrackOrdinal
+                    : nil
+            )
         }
     }
 
@@ -747,6 +964,8 @@ public final class TranscriptionViewModel {
         batchCompletedCount = 0
         batchFailedCount = 0
         batchQueue.removeAll()
+        batchAudioTrackOrdinal = nil
+        batchMultiTrackFilePaths.removeAll()
     }
 
     private func emitCompletionSignal(_ content: TranscriptionCompletionNotifier.Content?) {

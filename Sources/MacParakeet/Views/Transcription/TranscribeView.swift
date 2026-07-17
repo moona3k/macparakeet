@@ -102,6 +102,24 @@ struct TranscribeView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             onRefreshPermissions()
         }
+        .sheet(item: audioTrackSelectionBinding) { request in
+            AudioTrackSelectionSheet(
+                request: request,
+                onSelect: { viewModel.selectAudioTrack(ordinal: $0) },
+                onCancel: { viewModel.cancelAudioTrackSelection() }
+            )
+        }
+    }
+
+    private var audioTrackSelectionBinding: Binding<TranscriptionViewModel.AudioTrackSelectionRequest?> {
+        Binding(
+            get: { viewModel.pendingAudioTrackSelection },
+            set: { request in
+                if request == nil {
+                    viewModel.cancelAudioTrackSelection()
+                }
+            }
+        )
     }
 
     // MARK: - Drop Zone (Portal)
@@ -633,5 +651,67 @@ struct TranscribeView: View {
             SoundManager.shared.play(.fileDropped)
             viewModel.transcribeFiles(urls: panel.urls)
         }
+    }
+}
+
+private struct AudioTrackSelectionSheet: View {
+    let request: TranscriptionViewModel.AudioTrackSelectionRequest
+    let onSelect: (Int) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Label("Choose an audio track", systemImage: "waveform.badge.plus")
+                    .font(DesignSystem.Typography.sectionTitle)
+                Text(request.fileName)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(
+                    request.isBatch
+                        ? "This choice will be used for multi-track files in this \(request.fileCount)-file batch."
+                        : "Only the selected track will be transcribed."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: DesignSystem.Spacing.sm) {
+                ForEach(request.tracks) { track in
+                    Button {
+                        onSelect(track.ordinal)
+                    } label: {
+                        HStack(spacing: DesignSystem.Spacing.md) {
+                            Image(systemName: "waveform")
+                                .foregroundStyle(DesignSystem.Colors.accent)
+                            Text(track.displayName)
+                                .font(DesignSystem.Typography.body)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                        .contentShape(Rectangle())
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .fill(DesignSystem.Colors.surfaceElevated)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Transcribe \(track.displayName)")
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                    .parakeetAction(.secondary)
+            }
+        }
+        .padding(DesignSystem.Spacing.xl)
+        .frame(width: 440)
     }
 }

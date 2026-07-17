@@ -49,6 +49,10 @@ public actor AudioProcessor: AudioProcessorProtocol {
         try await converter.convert(fileURL: fileURL)
     }
 
+    public func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
+        try await converter.convert(fileURL: fileURL, audioTrackOrdinal: audioTrackOrdinal)
+    }
+
     public func startCapture() async throws {
         try await startCapture(sampleSink: nil)
     }

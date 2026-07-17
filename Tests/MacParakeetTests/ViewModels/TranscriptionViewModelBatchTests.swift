@@ -31,6 +31,16 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         return vm
     }
 
+    private func makeViewModel(audioTrackService: MockAudioTrackSelectionService) -> TranscriptionViewModel {
+        let vm = TranscriptionViewModel(defaults: defaults)
+        vm.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            audioTrackService: audioTrackService
+        )
+        return vm
+    }
+
     private func touch(_ name: String) throws -> URL {
         let url = tempDir.appendingPathComponent(name)
         try Data("x".utf8).write(to: url)
@@ -55,6 +65,170 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
     }
 
     // MARK: - Single-file regression
+
+    func testSingleAudioTrackContinuesWithoutShowingPicker() async throws {
+        let url = try touch("only.mkv")
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: [
+                "only.mkv": [AudioTrackDescriptor(ordinal: 0, streamIndex: 1)]
+            ]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { vm.currentTranscription != nil && !vm.isTranscribing }
+
+        XCTAssertNil(vm.pendingAudioTrackSelection)
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        XCTAssertEqual(selectedOrdinals, [])
+    }
+
+    func testMultipleAudioTracksWaitForSelectionBeforeTranscribing() async throws {
+        let url = try touch("episode.mkv")
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: [
+                "episode.mkv": [
+                    AudioTrackDescriptor(ordinal: 0, streamIndex: 1, languageCode: "jpn", isDefault: true),
+                    AudioTrackDescriptor(ordinal: 1, streamIndex: 2, languageCode: "eng"),
+                ]
+            ]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        XCTAssertFalse(vm.isTranscribing)
+        let callsBeforeSelection = await mockService.transcribeCallCount
+        XCTAssertEqual(callsBeforeSelection, 0)
+        XCTAssertEqual(vm.pendingAudioTrackSelection?.tracks.count, 2)
+
+        vm.selectAudioTrack(ordinal: 1)
+        try await waitUntil { vm.currentTranscription != nil && !vm.isTranscribing }
+
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        XCTAssertEqual(selectedOrdinals, [1])
+    }
+
+    func testCancellingAudioTrackSelectionStartsNothing() async throws {
+        let url = try touch("episode.mkv")
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["episode.mkv": tracks]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        vm.cancelAudioTrackSelection()
+
+        XCTAssertNil(vm.pendingAudioTrackSelection)
+        XCTAssertNil(vm.currentTranscription)
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertEqual(callCount, 0)
+    }
+
+    func testBatchUsesOneSelectedAudioTrackOrdinalForEveryMultiTrackFile() async throws {
+        let urls = [try touch("c.mkv"), try touch("a.mkv"), try touch("b.mkv")]
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1, languageCode: "jpn", isDefault: true),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2, languageCode: "eng"),
+        ]
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["a.mkv": tracks, "b.mkv": tracks, "c.mkv": tracks]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+        XCTAssertEqual(vm.pendingAudioTrackSelection?.fileCount, 3)
+
+        vm.selectAudioTrack(ordinal: 1)
+        try await waitUntil { !vm.isBatchActive && !vm.isTranscribing }
+
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        let transcribedFileNames = await mockService.transcribedFileNames
+        XCTAssertEqual(selectedOrdinals, [1, 1, 1])
+        XCTAssertEqual(transcribedFileNames, ["a.mkv", "b.mkv", "c.mkv"])
+    }
+
+    func testBatchLeavesSingleTrackFilesOnAutomaticSelection() async throws {
+        let urls = [try touch("a.mkv"), try touch("b.mkv"), try touch("c.mkv")]
+        let multiTracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: [
+                "a.mkv": multiTracks,
+                "b.mkv": [AudioTrackDescriptor(ordinal: 0, streamIndex: 1)],
+                "c.mkv": multiTracks,
+            ]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        vm.selectAudioTrack(ordinal: 1)
+        try await waitUntil { !vm.isBatchActive && !vm.isTranscribing }
+
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        let transcribedFileNames = await mockService.transcribedFileNames
+        XCTAssertEqual(selectedOrdinals, [1, 1])
+        XCTAssertEqual(transcribedFileNames, ["a.mkv", "b.mkv", "c.mkv"])
+    }
+
+    func testBatchContinuesWhenLaterMultiTrackFileLacksSelectedOrdinal() async throws {
+        let urls = [try touch("a.mkv"), try touch("b.mkv"), try touch("c.mkv")]
+        let threeTracks = (0...2).map { AudioTrackDescriptor(ordinal: $0, streamIndex: $0 + 1) }
+        let twoTracks = (0...1).map { AudioTrackDescriptor(ordinal: $0, streamIndex: $0 + 1) }
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["a.mkv": threeTracks, "b.mkv": twoTracks, "c.mkv": threeTracks]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+        var captured: TranscriptionCompletionNotifier.Content?
+        vm.onTranscriptionCompleted = { captured = $0 }
+
+        XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        vm.selectAudioTrack(ordinal: 2)
+        try await waitUntil { !vm.isBatchActive && !vm.isTranscribing }
+
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        let transcribedFileNames = await mockService.transcribedFileNames
+        XCTAssertEqual(selectedOrdinals, [2, 2, 2])
+        XCTAssertEqual(transcribedFileNames, ["a.mkv", "c.mkv"])
+        XCTAssertEqual(captured?.body, "2 transcribed \u{00B7} 1 failed")
+    }
+
+    func testFileWithoutAudioTrackFailsBeforeTranscription() async throws {
+        let url = try touch("silent.mkv")
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["silent.mkv": []]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+
+        XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { vm.errorMessage != nil }
+
+        XCTAssertTrue(vm.errorMessage?.contains("No audio tracks") == true)
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertEqual(callCount, 0)
+        XCTAssertNil(vm.pendingAudioTrackSelection)
+    }
 
     func testSingleFileRoutesThroughSinglePathAndSignals() async throws {
         let vm = makeViewModel()
@@ -175,4 +349,56 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         XCTAssertFalse(vm.isTranscribing)
         XCTAssertNotNil(vm.errorMessage)
     }
+}
+
+private actor MockAudioTrackSelectionService: AudioTrackSelectingTranscriptionService {
+    private let base: MockTranscriptionService
+    private let tracksByFileName: [String: [AudioTrackDescriptor]]
+    private var ordinals: [Int] = []
+
+    init(
+        base: MockTranscriptionService,
+        tracksByFileName: [String: [AudioTrackDescriptor]]
+    ) {
+        self.base = base
+        self.tracksByFileName = tracksByFileName
+    }
+
+    func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
+        tracksByFileName[fileURL.lastPathComponent]
+            ?? [AudioTrackDescriptor(ordinal: 0, streamIndex: 0)]
+    }
+
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        ordinals.append(audioTrackOrdinal)
+        guard tracksByFileName[fileURL.lastPathComponent]?.contains(where: {
+            $0.ordinal == audioTrackOrdinal
+        }) == true else {
+            throw AudioProcessorError.conversionFailed(
+                "Audio track \(audioTrackOrdinal + 1) is unavailable."
+            )
+        }
+        return try await base.transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            onProgress: onProgress
+        )
+    }
+
+    func selectedOrdinals() -> [Int] { ordinals }
 }

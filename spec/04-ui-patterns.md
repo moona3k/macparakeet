@@ -638,6 +638,19 @@ Drop zone components:
   supported extension strings can still produce `nil`.
 ```
 
+### Embedded Audio Track Picker
+
+After a local file/folder selection, FFmpeg reads container headers without
+adding a new control or preference. This preflight does not create a Library
+row or start STT. Exactly one audio track continues immediately with no new UI.
+Two or more tracks present a compact sheet whose rows are named `Track N`,
+enriched with language and default-state metadata when available.
+Choosing a row starts transcription immediately; Cancel leaves no partial
+transcription. For a batch, the sheet says that one choice applies to its
+multi-track files; single-track files continue automatically. The picker never
+appears for single-track files, URLs, podcasts,
+dictation, or meeting capture, and it is not duplicated in Settings.
+
 ### Processing State
 
 Uses `SpinnerRingView` plus phase-aware progress feedback.

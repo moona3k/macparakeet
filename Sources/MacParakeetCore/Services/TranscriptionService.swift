@@ -58,6 +58,24 @@ public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServicePr
     ) async throws -> Transcription
 }
 
+/// Additive file-only capability used by the app and CLI when a local media
+/// container has more than one embedded audio stream.
+public protocol AudioTrackSelectingTranscriptionService: Sendable {
+    func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor]
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+}
+
 /// Metadata that pre-resolution (e.g. an Apple Podcasts iTunes lookup or RSS
 /// feed parse) supplies for a downloaded media URL. When present, these fields
 /// win over the generic metadata inferred from a raw enclosure URL.
@@ -212,7 +230,7 @@ private struct TranscriptionOperationContext: Sendable {
     }
 }
 
-public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
+public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, AudioTrackSelectingTranscriptionService {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
@@ -390,6 +408,22 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
+            persistResult: true,
+            onProgress: onProgress
+        )
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: true,
             onProgress: onProgress
         )
@@ -403,14 +437,35 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
             persistResult: false,
             onProgress: onProgress
         )
     }
 
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            persistResult: false,
+            onProgress: onProgress
+        )
+    }
+
+    public func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
+        try await FFmpegAudioTrackProbe().tracks(in: fileURL)
+    }
+
     private func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
         persistResult: Bool,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
@@ -431,6 +486,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             source: source,
             sttJob: .fileTranscription,
             sourceType: sourceType,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: persistResult,
             onProgress: onProgress
         )
@@ -649,6 +705,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
+        audioTrackOrdinal: Int? = nil,
         persistResult: Bool = true,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
@@ -678,6 +735,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             var transcription = Transcription(
                 fileName: fileName,
                 filePath: storedFileURL?.path,
+                audioTrackOrdinal: audioTrackOrdinal,
                 fileSizeBytes: fileSize,
                 durationMs: embeddedMetadata.durationMs,
                 language: nil,
@@ -1581,7 +1639,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         let diarizationRequested = diarizationService != nil && shouldDiarize()
         do {
             onProgress?(.converting)
-            wavURL = try await audioProcessor.convert(fileURL: fileURL)
+            wavURL = try await audioProcessor.convert(
+                fileURL: fileURL,
+                audioTrackOrdinal: transcription.audioTrackOrdinal
+            )
 
             guard let wavURL else {
                 throw AudioProcessorError.conversionFailed("Failed to produce WAV output")

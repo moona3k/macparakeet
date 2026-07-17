@@ -3,6 +3,7 @@ import os
 
 public protocol AudioFileConverting: Sendable {
     func convert(fileURL: URL) async throws -> URL
+    func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL
     func mixToM4A(
         inputURLs: [URL],
         outputURL: URL,
@@ -11,6 +12,15 @@ public protocol AudioFileConverting: Sendable {
 }
 
 public extension AudioFileConverting {
+    func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
+        guard audioTrackOrdinal == nil else {
+            throw AudioProcessorError.conversionFailed(
+                "This audio converter cannot select an embedded audio track."
+            )
+        }
+        return try await convert(fileURL: fileURL)
+    }
+
     func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
         try await mixToM4A(inputURLs: inputURLs, outputURL: outputURL, sourceAlignment: nil)
     }
@@ -43,6 +53,11 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
     /// Convert any supported audio/video file to 16kHz mono WAV.
     /// Returns the path to the converted WAV file in the temp directory.
     public func convert(fileURL: URL) async throws -> URL {
+        try await convert(fileURL: fileURL, audioTrackOrdinal: nil)
+    }
+
+    /// Convert an explicitly selected zero-based audio-stream ordinal.
+    public func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
         let ext = fileURL.pathExtension.lowercased()
         guard Self.isSupported(extension: ext) else {
             throw AudioProcessorError.unsupportedFormat(ext)
@@ -53,7 +68,10 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
 
         do {
             return try await runFFmpegConversion(
-                ffmpegPath: primaryPath, inputURL: fileURL, tempDir: tempDir
+                ffmpegPath: primaryPath,
+                inputURL: fileURL,
+                tempDir: tempDir,
+                audioTrackOrdinal: audioTrackOrdinal
             )
         } catch let error as AudioProcessorError {
             // If the bundled FFmpeg failed due to dyld (e.g., Team ID mismatch after
@@ -65,7 +83,10 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
             else { throw error }
 
             return try await runFFmpegConversion(
-                ffmpegPath: fallbackPath, inputURL: fileURL, tempDir: tempDir
+                ffmpegPath: fallbackPath,
+                inputURL: fileURL,
+                tempDir: tempDir,
+                audioTrackOrdinal: audioTrackOrdinal
             )
         }
     }
@@ -109,17 +130,27 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
     }
 
     /// Build the FFmpeg command arguments (useful for testing)
-    public func ffmpegArguments(inputPath: String, outputPath: String) -> [String] {
-        [
+    public func ffmpegArguments(
+        inputPath: String,
+        outputPath: String,
+        audioTrackOrdinal: Int? = nil
+    ) -> [String] {
+        var arguments = [
             "-nostdin",
             "-i", inputPath,
+        ]
+        if let audioTrackOrdinal {
+            arguments.append(contentsOf: ["-map", "0:a:\(audioTrackOrdinal)"])
+        }
+        arguments.append(contentsOf: [
             "-ar", "16000",
             "-ac", "1",
             "-f", "wav",
             "-acodec", "pcm_f32le",
             "-y",
-            outputPath
-        ]
+            outputPath,
+        ])
+        return arguments
     }
 
     public func ffmpegMixArguments(
@@ -193,8 +224,14 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
     // MARK: - Private
 
     private func runFFmpegConversion(
-        ffmpegPath: String, inputURL: URL, tempDir: URL
+        ffmpegPath: String,
+        inputURL: URL,
+        tempDir: URL,
+        audioTrackOrdinal: Int?
     ) async throws -> URL {
+        if let audioTrackOrdinal, audioTrackOrdinal < 0 {
+            throw AudioProcessorError.conversionFailed("Audio-track number must be positive.")
+        }
         let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString).wav")
 
         // The output WAV is owned by the caller on success (returned URL). On
@@ -211,16 +248,11 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
-        process.arguments = [
-            "-nostdin",          // Don't read stdin (prevents SIGTTIN stop signal)
-            "-i", inputURL.path,
-            "-ar", "16000",      // 16kHz sample rate
-            "-ac", "1",          // mono
-            "-f", "wav",         // WAV format
-            "-acodec", "pcm_f32le",  // Float32 PCM
-            "-y",                // overwrite output
-            outputURL.path
-        ]
+        process.arguments = ffmpegArguments(
+            inputPath: inputURL.path,
+            outputPath: outputURL.path,
+            audioTrackOrdinal: audioTrackOrdinal
+        )
 
         // Use temp file for stderr to avoid pipe buffer deadlock on long files.
         // ffmpeg writes verbose progress to stderr; if it exceeds the 64KB pipe

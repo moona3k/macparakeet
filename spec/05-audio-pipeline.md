@@ -63,6 +63,11 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 
 - **FFmpeg** (bundled with the app) handles format conversion to 16kHz mono WAV
 - The STT engine requires 16kHz mono Float32 input; FFmpeg normalizes all formats to this
+- FFmpeg input-summary probing enumerates local-file audio streams before STT.
+  One stream preserves automatic selection; two or more require an explicit
+  zero-based audio-stream ordinal and conversion adds `-map 0:a:N`. Stream
+  indices shown by the container are informational and are not substituted for
+  the audio-only ordinal.
 
 ### Supported Formats
 
@@ -84,8 +89,9 @@ Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Trans
 User selects file
     → Preserve the original filename and extract embedded author, description, artwork, and duration when present
     → Validate format (check extension + probe with FFmpeg)
+    → Continue immediately for one audio stream, or collect a choice for two or more
     → Validate duration <= max (4 hours default)
-    → Convert to 16kHz mono WAV via FFmpeg
+    → Convert the selected audio stream to 16kHz mono WAV via FFmpeg
     → Send to selected local STT engine through STTScheduler
     → Return transcript
     → Clean up temp WAV

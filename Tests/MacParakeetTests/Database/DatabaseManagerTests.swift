@@ -400,6 +400,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testAudioTrackOrdinalColumnExistsOnTranscriptions() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(
+                columns.contains("audioTrackOrdinal"),
+                "transcriptions should persist an explicitly selected audio-stream ordinal"
+            )
+        }
+    }
+
     // MARK: - ADR-020 v0.8 schema additions
 
     func testUserNotesColumnExistsOnTranscriptions() throws {

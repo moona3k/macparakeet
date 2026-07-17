@@ -49,6 +49,23 @@ final class AudioFileConverterTests: XCTestCase {
         XCTAssertTrue(args.contains("pcm_f32le"))
         XCTAssertTrue(args.contains("-y"))
         XCTAssertTrue(args.contains("/tmp/output.wav"))
+        XCTAssertFalse(args.contains("-map"))
+    }
+
+    func testFFmpegArgumentsMapExplicitAudioTrackOrdinal() {
+        let converter = AudioFileConverter()
+
+        let args = converter.ffmpegArguments(
+            inputPath: "/tmp/input.mkv",
+            outputPath: "/tmp/output.wav",
+            audioTrackOrdinal: 1
+        )
+
+        guard let mapIndex = args.firstIndex(of: "-map") else {
+            return XCTFail("Missing explicit audio-track map")
+        }
+        XCTAssertEqual(args[mapIndex + 1], "0:a:1")
+        XCTAssertLessThan(mapIndex, try XCTUnwrap(args.firstIndex(of: "-ar")))
     }
 
     func testFFmpegMixArgumentsPreserveStereoForMicAndSystem() {

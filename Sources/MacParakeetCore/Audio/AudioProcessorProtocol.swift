@@ -103,6 +103,9 @@ public protocol AudioProcessorProtocol: Sendable {
     /// Convert an audio/video file to 16kHz mono WAV for STT processing
     func convert(fileURL: URL) async throws -> URL
 
+    /// Convert a specific zero-based audio-stream ordinal when non-nil.
+    func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL
+
     /// Start microphone capture
     func startCapture() async throws
 
@@ -133,6 +136,15 @@ public protocol AudioProcessorProtocol: Sendable {
 }
 
 public extension AudioProcessorProtocol {
+    func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
+        guard audioTrackOrdinal == nil else {
+            throw AudioProcessorError.conversionFailed(
+                "This audio processor cannot select an embedded audio track."
+            )
+        }
+        return try await convert(fileURL: fileURL)
+    }
+
     func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
         try await startCapture()
     }

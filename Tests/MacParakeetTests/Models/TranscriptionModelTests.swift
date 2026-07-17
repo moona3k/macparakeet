@@ -9,6 +9,7 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertFalse(t.id.uuidString.isEmpty)
         XCTAssertEqual(t.fileName, "recording.mp3")
         XCTAssertNil(t.filePath)
+        XCTAssertNil(t.audioTrackOrdinal)
         XCTAssertNil(t.fileSizeBytes)
         XCTAssertNil(t.durationMs)
         XCTAssertNil(t.rawTranscript)
@@ -81,6 +82,7 @@ final class TranscriptionModelTests: XCTestCase {
     func testTranscriptionCodableRoundTrip() throws {
         let original = Transcription(
             fileName: "test.wav",
+            audioTrackOrdinal: 1,
             durationMs: 5000,
             rawTranscript: "Hello",
             wordTimestamps: [
@@ -99,6 +101,7 @@ final class TranscriptionModelTests: XCTestCase {
 
         XCTAssertEqual(decoded.id, original.id)
         XCTAssertEqual(decoded.fileName, original.fileName)
+        XCTAssertEqual(decoded.audioTrackOrdinal, 1)
         XCTAssertEqual(decoded.rawTranscript, original.rawTranscript)
         XCTAssertEqual(decoded.wordTimestamps?.count, 1)
         XCTAssertEqual(decoded.status, original.status)
@@ -122,6 +125,7 @@ final class TranscriptionModelTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let t = try decoder.decode(Transcription.self, from: Data(json.utf8))
 
+        XCTAssertNil(t.audioTrackOrdinal)
         XCTAssertEqual(t.speakers?.count, 2)
         XCTAssertEqual(t.speakers?[0].id, "S1")
         XCTAssertEqual(t.speakers?[0].label, "Alice")

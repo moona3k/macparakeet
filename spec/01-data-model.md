@@ -118,6 +118,7 @@ CREATE TABLE transcriptions (
     createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
     fileName TEXT NOT NULL,                            -- Original filename (e.g., "interview.mp3")
     filePath TEXT,                                     -- Original file path (nullable, may be moved/deleted)
+    audioTrackOrdinal INTEGER,                         -- v0.29: Explicit zero-based 0:a:N selection
     meetingArtifactFolderPath TEXT,                    -- v0.22: Durable meeting artifact folder path
     meetingStartContext TEXT,                          -- v0.24: JSON one-shot meeting start context
     fileSizeBytes INTEGER,                             -- Original file size
@@ -164,6 +165,10 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
+- `audioTrackOrdinal` stores the zero-based ordinal among the source file's
+  audio streams when the user or CLI explicitly selected one. `NULL` preserves
+  legacy/automatic selection and is expected for single-track, URL, podcast,
+  dictation, and meeting rows. Retranscription reuses a stored ordinal.
 - For meeting recordings, `filePath` points to the mixed `meeting-playback.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone-raw.m4a` and/or `system-raw.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. `meetingStartContext` stores the one-shot local-only start snapshot for meeting rows: trigger kind, configured source mode, and the frontmost app bundle id/name read at recording start. `calendarEventSnapshot` stores local EventKit context captured at start time for confirmed or probable calendar meetings. The folder is the first-class local artifact contract for the session, including the deterministic `meeting.md` Markdown view; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
 - The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.meetingArtifactFolderPath`, falling back to the parent of `transcriptions.filePath` for legacy rows.
 - Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
@@ -684,6 +689,7 @@ struct Transcription: Codable, Identifiable {
     var createdAt: Date
     var fileName: String
     var filePath: String?
+    var audioTrackOrdinal: Int? // v0.29 — Explicit zero-based audio-stream ordinal
     var meetingArtifactFolderPath: String? // v0.22 — Durable meeting artifact folder
     var meetingStartContext: MeetingStartContext? // v0.24 — One-shot meeting start context
     var fileSizeBytes: Int?
@@ -1236,6 +1242,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.26 — transcriptions.titleOverride (raw SQL additive column)
 // v0.27 — derived segments + external-content segments_fts (raw SQL)
 // v0.28 — derived cards + external-content cards_fts (raw SQL)
+// v0.29 — transcriptions.audioTrackOrdinal
 ```
 
 ### Migration Rules
@@ -1260,6 +1267,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
 | `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
+| `transcriptions.audioTrackOrdinal` | v0.29 | Explicit zero-based audio-stream ordinal reused by local-file retranscription; `NULL` means automatic |
 | `segments` / `segments_fts` | v0.27 | Derived, rebuildable meeting + file/URL retrieval segments and external-content FTS5 index; dictations excluded |
 | `cards` / `cards_fts` | v0.28 | Derived per-recording knowledge cards with provenance, cited candidates, and synopsis/topic FTS; dictations excluded |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |

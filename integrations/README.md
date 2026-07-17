@@ -174,6 +174,17 @@ macparakeet-cli transcribe /path/to/audio.mp3 --format transcript
 macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history | pbcopy
 ```
 
+For a local container with multiple embedded audio streams, select one with a
+one-based track number. The choice is persisted with saved history and reused
+by retranscription:
+
+```bash
+macparakeet-cli transcribe /path/to/episode.mkv --audio-track 2 --format json
+```
+
+`--audio-track` works for local files and folders only; media URLs and podcast
+inputs reject it rather than pretending to control a remote/download stream.
+
 To write a subtitle file directly, transcribe with `--format srt|vtt` and an
 `--output-dir` (one command, no separate `export` step):
 

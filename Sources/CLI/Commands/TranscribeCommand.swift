@@ -85,6 +85,12 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Argument(help: "One or more audio/video file paths, folders, YouTube URLs, Apple Podcasts URLs, or HTTP(S) media URLs supported by yt-dlp. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
     var inputs: [String] = []
 
+    @Option(
+        name: .customLong("audio-track"),
+        help: "1-based embedded audio track to transcribe from local files or folders. Omit for automatic selection."
+    )
+    var audioTrack: Int?
+
     @Option(name: .long, help: "Freetext podcast search: find a show + episode on Apple Podcasts and transcribe it. Example: --podcast \"Lex Fridman episode 400\". Episode number/title hints select the episode; otherwise the latest is used. Ignores positional inputs.")
     var podcast: String?
 
@@ -170,6 +176,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
         if mediaAudioQuality != nil && legacyYouTubeAudioQuality != nil {
             throw ValidationError("--media-audio-quality and --youtube-audio-quality cannot be combined.")
+        }
+        if let audioTrack, audioTrack < 1 {
+            throw ValidationError("--audio-track must be at least 1.")
+        }
+        if audioTrack != nil,
+           normalizedPodcastQuery != nil || inputs.contains(where: Self.isDownloadableURLInput) {
+            throw ValidationError("--audio-track is supported only for local files and folders.")
         }
         try Self.validateSpeakerConstraintOptions(
             speakerDetection: speakerDetection,
@@ -436,6 +449,26 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func localFileURL(for input: String) -> URL {
         URL(fileURLWithPath: expandTilde(input))
+    }
+
+    static func zeroBasedAudioTrackOrdinal(_ audioTrack: Int?) -> Int? {
+        audioTrack.map { $0 - 1 }
+    }
+
+    static func validateAudioTrackOrdinal(
+        _ ordinal: Int,
+        tracks: [AudioTrackDescriptor],
+        fileName: String
+    ) throws {
+        guard tracks.contains(where: { $0.ordinal == ordinal }) else {
+            if tracks.isEmpty {
+                throw ValidationError("\(fileName) has no audio tracks.")
+            }
+            throw ValidationError(
+                "--audio-track \(ordinal + 1) is unavailable for \(fileName) "
+                    + "(\(tracks.count) audio tracks)."
+            )
+        }
     }
 
     static func telemetryInputKind(for input: String) -> ObservabilityInputKind {
@@ -814,7 +847,30 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         guard AudioFileConverter.supportedExtensions.contains(ext) else {
             throw CLIError.unsupportedFormat(ext)
         }
+        let audioTrackOrdinal = Self.zeroBasedAudioTrackOrdinal(audioTrack)
+        if let audioTrackOrdinal {
+            let tracks = try await service.audioTracks(in: url)
+            try Self.validateAudioTrackOrdinal(
+                audioTrackOrdinal,
+                tracks: tracks,
+                fileName: url.lastPathComponent
+            )
+        }
         printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
+        if let audioTrackOrdinal {
+            if noHistory {
+                return try await service.transcribeTransient(
+                    fileURL: url,
+                    audioTrackOrdinal: audioTrackOrdinal,
+                    onProgress: progressHandler
+                )
+            }
+            return try await service.transcribe(
+                fileURL: url,
+                audioTrackOrdinal: audioTrackOrdinal,
+                onProgress: progressHandler
+            )
+        }
         if noHistory {
             return try await service.transcribeTransient(fileURL: url, onProgress: progressHandler)
         }

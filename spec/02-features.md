@@ -350,8 +350,14 @@ User drops file(s) onto window or menu bar icon
        │
        ▼
 ┌──────────────────┐
+│ Track discovery  │ ── Continue for one audio track; ask once for 2+
+│                  │    (no persistent setting; local files only)
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
 │  AudioProcessor  │ ── Detect format, convert to 16kHz mono WAV
-│                  │    (FFmpeg for video → audio extraction)
+│                  │    (explicit FFmpeg 0:a:N map when selected)
 └────────┬─────────┘
          │
          ▼
@@ -436,6 +442,21 @@ through the unchanged single-file path. YouTube stays single-URL (different
 ingestion model; the queue machinery is generic enough for a future
 playlist front-end). The CLI mirrors this — see F11 / `macparakeet-cli
 transcribe` and the CLI CHANGELOG (REQ-CLI-002).
+
+**Embedded audio tracks (issue #767):** Local file/folder ingestion probes the
+container's audio streams before creating a transcription row. A file with one
+audio stream continues without extra UI. A file with two or more audio streams
+shows a one-time picker with numbered tracks plus language/default metadata
+when the container provides it; this is an import decision, not a Settings
+preference. A batch is probed before it starts and reuses one selected
+audio-stream ordinal for its multi-track files; single-track files continue
+automatically. If that ordinal is absent from a later multi-track file, that
+file fails visibly and the sequential batch continues rather than silently
+falling back to another stream. The selected zero-based ordinal is
+stored on the transcription and reused by retranscription. CLI callers use the
+equivalent one-based `transcribe --audio-track N` flag for local files/folders,
+where it applies explicitly to every expanded file; URL and podcast lanes
+reject the flag.
 
 **Apple Podcasts URL transcription:** Pasting an Apple Podcasts link
 (`podcasts.apple.com/.../id<show>?i=<episode>`) resolves the episode through

@@ -398,6 +398,23 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(indexedText, ["This is a transcription"])
     }
 
+    func testTranscribeFileMapsAndPersistsExplicitAudioTrackOrdinal() async throws {
+        await mockSTT.configure(result: STTResult(text: "English dialogue"))
+        let fileURL = URL(fileURLWithPath: "/tmp/episode.mkv")
+
+        let result = try await service.transcribe(
+            fileURL: fileURL,
+            source: .file,
+            audioTrackOrdinal: 1,
+            onProgress: nil
+        )
+
+        let convertedAudioTrackOrdinal = await mockAudio.lastAudioTrackOrdinal
+        XCTAssertEqual(convertedAudioTrackOrdinal, 1)
+        XCTAssertEqual(result.audioTrackOrdinal, 1)
+        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.audioTrackOrdinal, 1)
+    }
+
     func testTranscribeFileReportsModelPreparationBeforeEngineProgress() async throws {
         await mockSTT.configure(result: STTResult(text: "Prepared transcription"))
         await mockSTT.configureTranscribeProgress([(current: 0, total: 10), (current: 1, total: 10)])
@@ -2848,6 +2865,7 @@ final class TranscriptionServiceTests: XCTestCase {
             createdAt: Date(timeIntervalSince1970: 123),
             fileName: "lecture.mp3",
             filePath: "/tmp/lecture.mp3",
+            audioTrackOrdinal: 1,
             rawTranscript: "Old transcript",
             cleanTranscript: "Edited old transcript",
             wordTimestamps: [
@@ -2899,6 +2917,9 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].videoDescription, original.videoDescription)
         XCTAssertEqual(all[0].isFavorite, true)
         XCTAssertEqual(all[0].sourceType, .youtube)
+        XCTAssertEqual(all[0].audioTrackOrdinal, 1)
+        let convertedAudioTrackOrdinal = await mockAudio.lastAudioTrackOrdinal
+        XCTAssertEqual(convertedAudioTrackOrdinal, 1)
         XCTAssertEqual(all[0].status, .completed)
         XCTAssertEqual(all[0].transcriptSegments?.map(\.text), ["New transcript"])
         let indexedText: [String] = try segmentRepo.fetch(transcriptionId: original.id).map(\.text)

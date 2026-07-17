@@ -366,7 +366,15 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" --format transcript -
 swift run macparakeet-cli transcribe lecture1.m4a lectures/ \
   --output-dir Transcripts \
   --format transcript
+
+# Select the second embedded audio track (local files/folders only; 1-based)
+swift run macparakeet-cli transcribe episode.mkv --audio-track 2 --format transcript
 ```
+
+`--audio-track` is an explicit per-run input decision, not a saved CLI/app
+preference. It applies the same ordinal to every local file expanded from the
+invocation and fails any file where that ordinal is absent; it is rejected for
+media URLs and podcast search/URL inputs.
 
 `--format transcript` prints only `cleanTranscript` when present, otherwise
 `rawTranscript`. Status and progress messages stay on stderr, so stdout can be

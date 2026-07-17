@@ -1314,6 +1314,15 @@ public final class DatabaseManager: Sendable {
                 """)
         }
 
+        // v0.29 — Remember which embedded audio stream a user explicitly
+        // selected for local file transcription. Nil preserves legacy
+        // automatic/single-track behavior.
+        migrator.registerMigration("v0.29-transcription-audio-track") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "audioTrackOrdinal", .integer)
+            }
+        }
+
         return migrator
     }
 

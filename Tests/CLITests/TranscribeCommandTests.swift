@@ -9,6 +9,65 @@ final class TranscribeCommandTests: XCTestCase {
         case restore
     }
 
+    func testAudioTrackOptionIsOneBasedAndResolvesToAudioOrdinal() throws {
+        let command = try TranscribeCommand.parse(["episode.mkv", "--audio-track", "2"])
+
+        XCTAssertEqual(command.audioTrack, 2)
+        XCTAssertEqual(TranscribeCommand.zeroBasedAudioTrackOrdinal(command.audioTrack), 1)
+    }
+
+    func testAudioTrackOptionRejectsZero() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse(["episode.mkv", "--audio-track", "0"])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("at least 1"))
+        }
+    }
+
+    func testAudioTrackOptionRejectsDownloadedMediaAndPodcastInputs() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse([
+                "https://example.com/episode.mp4", "--audio-track", "2",
+            ])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("local files"))
+        }
+
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse([
+                "--podcast", "The Daily", "--audio-track", "2",
+            ])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("local files"))
+        }
+    }
+
+    func testAudioTrackValidationRejectsMissingOrdinal() {
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+
+        XCTAssertNoThrow(
+            try TranscribeCommand.validateAudioTrackOrdinal(
+                1,
+                tracks: tracks,
+                fileName: "episode.mkv"
+            )
+        )
+        XCTAssertThrowsError(
+            try TranscribeCommand.validateAudioTrackOrdinal(
+                2,
+                tracks: tracks,
+                fileName: "episode.mkv"
+            )
+        ) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("--audio-track 3"))
+            XCTAssertTrue(message.contains("2 audio tracks"))
+        }
+    }
+
     func testOutputEmissionAfterNativeTeardownSurfacesRunErrorBeforeRestoreError() {
         var ignoredRestoreErrors: [OutputTeardownError] = []
         XCTAssertThrowsError(
@@ -840,6 +899,7 @@ final class TranscribeCommandTests: XCTestCase {
 
         let transcription = Transcription(
             fileName: "clip.mp3",
+            audioTrackOrdinal: 1,
             rawTranscript: "hi",
             status: .completed
         )
@@ -847,6 +907,7 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         XCTAssertNotNil(object)
+        XCTAssertEqual(object?["audioTrackOrdinal"] as? Int, 1)
     }
 
     func testFileExtensionMapsEachFormat() {
