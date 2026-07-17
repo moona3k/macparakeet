@@ -19,7 +19,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let dictationCaptureActiveProvider: () -> Bool
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
-    private let onOpenCommandLineToolSettings: () -> Void
     private let onNavigate: (SidebarItem) -> Void
     private let onNewTranscription: () -> Void
     private let onStartDictation: () -> Void
@@ -67,7 +66,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         dictationCaptureActiveProvider: @escaping () -> Bool,
         onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
-        onOpenCommandLineToolSettings: @escaping () -> Void,
         onNavigate: @escaping (SidebarItem) -> Void,
         onNewTranscription: @escaping () -> Void,
         onStartDictation: @escaping () -> Void,
@@ -90,7 +88,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.dictationCaptureActiveProvider = dictationCaptureActiveProvider
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
-        self.onOpenCommandLineToolSettings = onOpenCommandLineToolSettings
         self.onNavigate = onNavigate
         self.onNewTranscription = onNewTranscription
         self.onStartDictation = onStartDictation
@@ -149,14 +146,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         )
         settingsItem.target = self
         appMenu.addItem(settingsItem)
-
-        let installCLIItem = NSMenuItem(
-            title: "Install Command Line Tool...",
-            action: #selector(showCommandLineToolSettings),
-            keyEquivalent: ""
-        )
-        installCLIItem.target = self
-        appMenu.addItem(installCLIItem)
 
         let checkForUpdatesItem = NSMenuItem(
             title: "Check for Updates...",
@@ -587,10 +576,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     // which would trigger automatic gear SF Symbol decoration on the menu item.
     @objc private func showSettingsWindow() {
         onOpenSettings()
-    }
-
-    @objc private func showCommandLineToolSettings() {
-        onOpenCommandLineToolSettings()
     }
 
     @objc private func showTranscribe() {

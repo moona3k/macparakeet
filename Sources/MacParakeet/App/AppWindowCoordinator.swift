@@ -97,8 +97,8 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func openMainWindowToSettings(tab: SettingsTab? = nil, anchor: String? = nil) {
-        mainWindowState.navigateToSettings(tab: tab, anchor: anchor)
+    func openMainWindowToSettings(tab: SettingsTab? = nil) {
+        mainWindowState.navigateToSettings(tab: tab)
         openMainWindow()
     }
 

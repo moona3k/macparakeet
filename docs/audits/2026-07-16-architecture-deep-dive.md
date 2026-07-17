@@ -183,18 +183,19 @@ file split with the same cross-file state would be shallow and is not the goal.
 **Recommendation: Strong engineering hardening.**
 
 A strict Swift 6 language-mode build on Xcode 26.4.1 / Swift 6.3.1 exposes
-three isolation errors where the main-actor Settings view model sends a
-captured `CommandLineToolInstalling` service into async calls. The production
-service is an actor, but the protocol does not declare an explicit `Sendable`
-or isolation contract. ScreenCaptureKit completion-handler annotations also
-produce two related warnings.
+three isolation errors in the now-removed in-app CLI installer seam, plus two
+related ScreenCaptureKit completion-handler warnings. Signed-app release QA
+showed that the installer itself crossed the wrong product boundary, and PR
+#827 removed its service, protocol, test doubles, and Settings calls before
+0.7.3 publication. Those three errors are therefore historical evidence, not
+a reason to recreate or refactor that service.
 
-Make protocols that cross actors explicit about isolation and `Sendable`,
-beginning with this service and its test doubles. Add a current-Xcode or
-scheduled compiler lane alongside the pinned reproducible release lane. This
-is separate from the speech-model lifecycle recommendation and should be
-treated as a compiler-boundary hardening slice, not a broad concurrency
-rewrite.
+Add a current-Xcode or scheduled compiler lane alongside the pinned
+reproducible release lane, then make remaining protocols that genuinely cross
+actors explicit about isolation and `Sendable`. Start with live production
+seams such as the ScreenCaptureKit callbacks. This is separate from the
+speech-model lifecycle recommendation and should remain a compiler-boundary
+hardening slice, not a broad concurrency rewrite.
 
 ## Priority 5: Finish the Settings domain split
 

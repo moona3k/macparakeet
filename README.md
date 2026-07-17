@@ -64,7 +64,7 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 | Channel | Status | Includes |
 |---------|--------|----------|
 | Stable DMG `0.7.2` | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture, cleaned-mic finalization and audio-retention controls, meeting calendar reminders and opt-in auto-start/auto-stop, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta, Cohere, and WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | Latest stable release plus System Default microphone-routing repair, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, meeting auto-save feedback, CLI 3.0/install support, and other post-v0.7.2 fixes; developer-gated in-process MLX local LLM groundwork remains compiled/tested but hidden from normal users |
+| `main` branch | Development | Latest stable release plus System Default microphone-routing repair, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, meeting auto-save feedback, CLI 3.0, and other post-v0.7.2 fixes; developer-gated in-process MLX local LLM groundwork remains compiled/tested but hidden from normal users |
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into. Recordings stop manually unless the separate activity-based auto-stop setting is enabled; that setting also defaults off.
 

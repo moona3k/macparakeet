@@ -129,11 +129,13 @@ The highest-risk paths have explicit ownership and bounded state transitions:
 
 The hosted Swift 6 gate is green on its pinned Xcode 16.1 toolchain, but a
 separate strict-language build on the release machine's Xcode 26.4.1 / Swift
-6.3.1 found three isolation errors in `SettingsViewModel` calls through the
-non-`Sendable` `CommandLineToolInstalling` protocol. The actual strict Release
-bundle passes in the package's Swift 5.9 language mode, so this is not a 0.7.3
-release-configuration blocker. It is P1 toolchain debt: make the service
-isolation contract explicit, update test doubles, and add a current-Xcode gate.
+6.3.1 originally found three isolation errors in `SettingsViewModel` calls
+through the non-`Sendable` `CommandLineToolInstalling` protocol. Signed-app QA
+subsequently led to the complete removal of that installer and protocol before
+publication, so those three errors are no longer current code or post-release
+debt. The broader recommendation to add a current-Xcode gate remains valid for
+the other concurrency warnings; do not recreate the deleted service merely to
+address this historical finding.
 
 The exact-main hosted log contains 9,785 unique swift-format diagnostics after
 full path/line/message deduplication (6,269 indentation, 2,011 add-lines, 825
