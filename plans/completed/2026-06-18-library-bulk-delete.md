@@ -1,6 +1,6 @@
 # Library Multi-Select Bulk Cleanup
 
-**Status:** IMPLEMENTED IN PR #572 — pending review/merge
+**Status:** SHIPPED IN PR #572 — archived 2026-07-16
 **Date:** 2026-06-18
 **ADRs:** none new (UI/data-flow change within existing Library architecture)
 **Issues:** #498

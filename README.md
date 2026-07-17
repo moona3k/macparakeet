@@ -5,7 +5,7 @@
 <h1 align="center">MacParakeet</h1>
 
 <p align="center">
-  Fast voice app for Mac with fully local speech and optional AI. Free and open-source.
+  Fast, private, local-first voice app for Apple Silicon Macs. Free and open-source.
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording with selectable microphone/system capture and echo-suppressed finalization, meeting calendar support, Parakeet v3/v2/Unified model selection, optional local Nemotron Beta, Cohere Transcribe, and WhisperKit recognition, and Transforms for selected-text rewrites. Version 0.7.3 adds System Default microphone-routing repair, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, meeting auto-save feedback, and bundled CLI 3.0. All speech recognition happens on your Mac.
+MacParakeet combines system-wide dictation, file/media transcription, and meeting recording in one local-first app, with optional selected-text Transforms and agent automation through `macparakeet-cli`. Parakeet v3 is the default local speech engine; Parakeet v2/Unified, Nemotron Beta, Cohere Transcribe, and WhisperKit are optional local choices for different language, latency, timestamp, and accuracy needs. Version 0.7.3 adds System Default microphone-routing repair, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, meeting auto-save feedback, and bundled CLI 3.0. All speech recognition happens on your Mac; networked AI features are separate and opt-in.
 
 ## Release status
 
@@ -72,7 +72,7 @@ Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming m
 
 **Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, or tap the hands-free shortcut to start and stop longer dictations. Works system-wide. The default uses Fn, but Settings -> Dictation can bind external-keyboard-friendly keys such as F13/F19 or End, modifier+key shortcuts, or modifier-only chords like Control+Option. A beta setting can pause supported Now Playing media while you dictate and resume it when capture stops.
 
-**File & URL transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste any video or podcast link. YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and any other site `yt-dlp` supports all work — there's no fixed list; the card recognizes the platform and shows its mark as you paste. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. The CLI also does **freetext podcast search** — `macparakeet-cli transcribe --podcast "Lex Fridman episode 400"` searches the iTunes directory, parses the show's RSS feed, picks the episode, and transcribes it. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript output includes word-level timestamps and speaker labels when the selected speech engine provides timings; Cohere produces plain text only. Completion chime/banner and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON) are supported. Assign global hotkeys to trigger File or URL transcription from anywhere.
+**File & URL transcription** — Drag one or many audio/video files, drop a folder, use the multi-select picker, or paste a supported media or podcast link. YouTube, X, Vimeo, TikTok, Instagram, Facebook, and other sites handled by `yt-dlp` are supported subject to upstream site changes; the card recognizes known platforms as you paste. Apple Podcasts links resolve through the iTunes lookup API to the episode's audio enclosure (no scraping), then download and transcribe locally just like a YouTube video. The CLI also does **freetext podcast search** — `macparakeet-cli transcribe --podcast "Lex Fridman episode 400"` searches the iTunes directory, parses the show's RSS feed, picks the episode, and transcribes it. Local-file batches run sequentially, keep finished results in the Library, and can be cancelled as a group. Full transcript output includes word-level timestamps and speaker labels when the selected speech engine provides timings; Cohere produces plain text only. Completion chime/banner and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON) are supported. Assign global hotkeys to trigger File or URL transcription from anywhere.
 
 **Meeting recording** — Record system audio and microphone together, or pick microphone-only or system-only capture (microphone-only needs no Screen Recording permission). See a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat. Choose how long to keep the source audio: keep it, auto-delete after a set number of days, or remove it right after transcription.
 
@@ -130,7 +130,7 @@ Cohere is the most accurate on-device engine in this benchmark, but its statisti
 
 **Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
-First launch downloads the default Parakeet CoreML build (~465 MB) plus speaker-detection assets (~130 MB) as needed. Parakeet v2 and v3 cache independently if you install both. Everything works fully offline after that.
+First launch downloads the default Parakeet CoreML build (~465 MB) plus speaker-detection assets (~130 MB) as needed. Parakeet v2 and v3 cache independently if you install both. Core dictation, local-file transcription, and meeting recording can work offline after required models are installed; media imports, updates, telemetry, and cloud/remote AI providers still require a network.
 
 The DMG is the stable release.
 

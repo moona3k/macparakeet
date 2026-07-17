@@ -299,7 +299,7 @@ Bad ship: Korean output is unusable in practice → reversal triggers fire towar
 
 ### Internal
 - `Sources/CLI/CHANGELOG.md` — v1.2 envelope contract (do not break)
-- `plans/active/cli-as-canonical-parakeet-surface.md` — broader CLI positioning
+- `plans/completed/cli-as-canonical-parakeet-surface.md` — broader CLI positioning
 - `Sources/CLI/AudioFileConverter.swift` — produces 16 kHz mono Float32 WAV (used by both engines)
 - `Sources/MacParakeetCore/STT/STTRuntime.swift` — current Parakeet-only dispatch; gets a toggle-based switch in this PR
 

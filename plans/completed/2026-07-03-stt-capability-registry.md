@@ -1,6 +1,7 @@
 # STT capability registry + optional-engine adapters
 
-> Status: **DONE** (Phase A complete; Phases B/C gated as described)
+> Status: **DONE / ARCHIVED 2026-07-16** (Phase A shipped as #720; Phases B/C
+> remain separately gated and are not implied active by this record)
 > Date: 2026-07-03
 > Governing decision: [ADR-026 §4](../../spec/adr/026-asr-engine-strategy.md)
 > Design source: [`docs/research/2026-06-28-architecture-deepening-opportunities.md`](../../docs/research/2026-06-28-architecture-deepening-opportunities.md)

@@ -1,26 +1,25 @@
 # MacParakeet Marketing Script
 
-> Status: **ACTIVE** — single source of truth for all video, GIF, and copy
-> assets. The TypeScript mirror at `marketing/video/src/content/script.ts`
-> must stay aligned with this document.
+> Status: **ACTIVE PRODUCTION BRIEF** — source of truth for the demo/video
+> script. Current product, privacy, engine, and release claims remain governed
+> by `README.md` and `spec/README.md`; revalidate them before publishing. The
+> TypeScript mirror at `marketing/video/src/content/script.ts` must stay aligned
+> with any script changes in this document.
 
 ## Locked Hook
 
 > **Dictate. Transcribe. Record meetings. One Mac app.**
 
-This hook leads with the **three-modes scope** — the category claim no
-single-mode competitor (WisprFlow, MacWhisper, VoiceInk, Superwhisper,
-Voibe, TypeWhisper, FluidVoice) can copy without rebuilding their product.
-Privacy and local-first are *supporting* claims, not lead claims, because
-that framing is saturated.
+This hook leads with the **three-modes scope**. Privacy and local-first remain
+supporting claims in this specific demo structure; the product itself treats
+them as core commitments.
 
 ## Locked Supporting Line
 
 > **Free. Open source. Built for Apple Silicon.**
 
-Three claims, three short statements, all true. Hits the price wedge against
-$5-15/mo competitors AND the closed-source wedge AND the "made for the chip
-you have" wedge in one breath.
+Three short, verifiable claims: the current public build is free and open
+source, and the supported runtime is Apple Silicon.
 
 ## Voice & Tone
 
@@ -71,12 +70,12 @@ Render target: 1920×1080 @ 60fps. Voice via Kokoro-82M by default (or Higgs Aud
 ### 0:22 – 0:38 · Mode 2: Transcription
 **Visual sequence:**
 1. Drag an MP4 file onto the Transcribe tab. Progress card briefly visible. Transcript appears with diarized speakers and timestamps.
-2. Paste a real YouTube URL (Karpathy *"Let's build GPT"*, 1h56m). Card: "Transcribing 1h 56m video..." → done in <60s elapsed.
+2. Paste a real YouTube URL. Show the actual duration and measured elapsed time from the captured run; do not pre-script a speed result.
 3. Click Export. Menu opens: TXT · MD · SRT · VTT · PDF · DOCX · JSON.
 
 **Lower-third:** Audio · Video · YouTube · Export anywhere
 
-**VO:** "Drop in any audio, any video, even a YouTube link. Get a transcript with timestamps and speakers. Export it any way you need."
+**VO:** "Drop in supported audio or video, or paste a media link. When the selected engine provides timing, you get timestamps and speakers. Export it in the format you need."
 
 ### 0:38 – 0:54 · Mode 3: Meeting Recording
 **Visual sequence:**
@@ -119,7 +118,7 @@ Each renders at 1280×720, ≤10s, ≤4 MB (GitHub README cap). Captured from th
 Pure flow: keyboard hand → Fn tap → text streaming into Slack mid-thread. No captions. Loops cleanly.
 
 ### GIF 2 · YouTube transcription (10s)
-Paste URL → progress card with elapsed timer → transcript materializing with diarization labels. Single caption: `1h 56m video · 47s to transcribe`.
+Paste URL → progress card with elapsed timer → transcript materializing with diarization labels. Use the actual duration and elapsed time from the captured run rather than a hard-coded benchmark caption.
 
 ### GIF 3 · Meeting recording (10s)
 Pill recording state → split to live notepad + transcript ticking → finished meeting card. Caption: `System audio + mic · Local`.
@@ -137,15 +136,13 @@ Hover Export → menu opens → cursor brushes across TXT, MD, SRT, VTT, PDF, DO
 <h1 align="center">MacParakeet</h1>
 
 <p align="center">
-  <strong>Dictate. Transcribe. Record meetings. One Mac app.</strong><br/>
-  <em>Free. Open source. Built for Apple Silicon.</em>
+  <strong>Fast, private, local-first voice for Apple Silicon Macs.</strong><br/>
+  <em>Dictate. Transcribe. Record meetings. Free and open source.</em>
 </p>
 
 <p align="center">
   <a href="https://macparakeet.com">Website</a> ·
-  <a href="https://macparakeet.com/docs">Docs</a> ·
-  <a href="https://github.com/moona3k/macparakeet/releases/latest">Download</a> ·
-  <a href="#comparison">Compared to other voice apps</a>
+  <a href="https://github.com/moona3k/macparakeet/releases/latest">Download</a>
 </p>
 
 <p align="center">
@@ -159,26 +156,16 @@ Hover Export → menu opens → cursor brushes across TXT, MD, SRT, VTT, PDF, DO
 **Three voice apps in one. Free.**
 
 ### Sub
-Most Mac voice apps do one thing. MacParakeet does all three — dictation, file & YouTube transcription, and meeting recording — locally, on Apple Silicon, for free.
+MacParakeet brings system-wide dictation, file/media transcription, and meeting recording together on Apple Silicon. Speech recognition stays local; the current public build is free and open source.
 
 ### Comparison table
 
-| | MacParakeet | TypeWhisper | FluidVoice | WisprFlow | MacWhisper | VoiceInk | Superwhisper | Voibe |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| System-wide dictation | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
-| File transcription | ✓ | ✓ | — | — | ✓ | ✓ | ✓ | ✓ |
-| YouTube URL transcription | ✓ | — | — | — | — | — | — | — |
-| **Meeting recording** | **✓** | — | — | — | — | — | — | — |
-| Speaker diarization | ✓ | beta | — | — | — | — | — | — |
-| Local-first | ✓ | ✓ | ✓ | partial | ✓ | ✓ | ✓ | ✓ |
-| Apple Silicon optimized | ✓ | ✓ | ✓ | partial | partial | ✓ | partial | partial |
-| Open source | GPL-3.0 | GPL / commercial | GPL-3.0 | — | — | GPL-3.0 | — | — |
-| Price | **Free** | Free / €5/mo commercial | Free | $12-15/mo | $30 once | $39.99 once | $5.41/mo or $250 once | $4.90/mo or $99 once |
-
-*Last verified: 2026-05.*
+No static competitor table is canonical. Competitor features, licenses, and
+prices change too quickly for an active product document. Build and date-stamp
+a source-backed comparison at publication time if a campaign needs one.
 
 ### Body paragraph
-MacParakeet is the only Mac voice app that captures meetings with system audio, microphone audio, or both, transcribes locally with diarization, and ships the result alongside a live notepad — while also handling system-wide dictation and YouTube/file transcription. The three modes share one STT scheduler and one inference runtime, so meeting recording and dictation can run concurrently without resource contention. Built around local Apple Silicon speech recognition: Parakeet v3 is the default for English and supported European languages, English-only Parakeet builds cover timestamped exports and readable live preview, Whisper handles broader-language files and retranscription, Nemotron is Beta live preview, and Cohere is local batch plain text.
+MacParakeet captures meetings with system audio, microphone audio, or both, transcribes locally, and keeps the result alongside a live notepad — while also handling system-wide dictation and file/media transcription. The three modes share one scheduler/runtime control plane so meeting recording and dictation can be coordinated safely. Parakeet v3 is the default for English and supported European languages; English-only Parakeet builds cover timestamped exports and readable live preview; Whisper handles broader-language files and retranscription; Nemotron is Beta live preview; and Cohere is local batch plain text.
 
 ## CTA Conventions
 
@@ -189,15 +176,15 @@ MacParakeet is the only Mac voice app that captures meetings with system audio, 
 
 ## Production Stack
 
-100% local, 100% free, 100% open. The marketing pipeline embodies the same
-"local-first, no subscriptions" thesis as the product itself.
+The marketing-production pipeline favors local, free, and open tooling where
+practical. Product privacy claims are governed separately by the README/specs.
 
 | Layer | Tool | Cost |
 |---|---|---|
-| Native app capture | Screen Studio | $90 one-time |
+| Native app capture | Screen Studio | Commercial; verify current pricing before purchase |
 | Composition + render | Remotion (`marketing/video/`) | Free for solo |
-| Voice (default) | **Kokoro-82M** via `kokoro-js` — top open-weight TTS on Artificial Analysis (ELO 1059), MIT licensed, pure Node, ~80MB | Free, local |
-| Voice (premium upgrade) | **Higgs Audio V2** via Python — #1 trending on HuggingFace, Llama 3.2 3B foundation, naturalness 9.5/10, multi-speaker | Free, local |
+| Voice (default) | **Kokoro-82M** via `kokoro-js` — MIT licensed, pure Node, ~80 MB | Free, local |
+| Voice (premium upgrade) | **Higgs Audio V2** via Python — optional multi-speaker render path | Free, local |
 | Voice (future) | **F5-TTS** voice clone of the actual founder's voice from a 5-15s reference | Free, local |
 | Music | Pixabay / Mixkit royalty-free | Free |
 | Caption font (render) | Inter (Google Fonts) | Free |
@@ -208,7 +195,7 @@ MacParakeet is the only Mac voice app that captures meetings with system audio, 
 - **Resolution:** 1920×1080 minimum for landscape; 4K (3840×2160) for hero loop
 - **Frame rate:** 60fps
 - **Audio:** 48kHz, 16-bit minimum, mastered to -16 LUFS for web
-- **Voice (default):** Kokoro-82M at `q8` precision, `af_bella` or audition equivalent. Calm, measured, slight warmth. Top open-weight TTS by Artificial Analysis ranking.
+- **Voice (default):** Kokoro-82M at `q8` precision, `af_bella` or audition equivalent. Calm, measured, slight warmth.
 - **Voice (premium):** Higgs Audio V2 with the brand-voice system prompt when SOTA quality matters (hero renders, multi-speaker scenes). Never the default robotic preset of any model.
 - **Music:** ducked under VO; never overpowers. -18 dB under voice.
 - **Type:** anti-aliased, kerned, never below 32pt

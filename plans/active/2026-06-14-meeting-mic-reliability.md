@@ -4,7 +4,7 @@
 **Date:** 2026-06-14
 **ADRs:** ADR-025 (meeting capture reliability), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting), ADR-016 (centralized STT runtime + two-slot scheduler), ADR-019 (crash-resilient meeting recording)
 **Requirements:** REQ-MEET-017 (mic-health watchdog) — Phase A implemented; REQ-MEET-018 (post-stop coverage-based transcript repair) — proposed
-**Sibling work:** `plans/active/2026-05-dictation-stall-integration-tests.md`, `plans/active/2026-06-onboarding-stall-watchdog-test.md` — this is the meeting-side counterpart to the dictation silent-stall hardening; stay consistent, don't duplicate.
+**Sibling work:** `plans/active/2026-05-dictation-stall-integration-tests.md`, `plans/completed/2026-06-onboarding-stall-watchdog-test.md` — this is the meeting-side counterpart to the dictation silent-stall hardening; stay consistent, don't duplicate.
 
 ## What this plan closes out
 

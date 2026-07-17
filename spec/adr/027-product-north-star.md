@@ -6,13 +6,16 @@
 > Related: [ADR-002](002-local-only.md) (local-only),
 > [ADR-014](014-meeting-recording.md) (meeting recording),
 > [spec/00-vision.md](../00-vision.md) (product vision, updated in the same PR)
+> Copy note (2026-07-16): public/current-facing copy uses "fast, private,
+> local-first" rather than an unsupported "fastest" superlative. The private
+> speech-memory direction is unchanged.
 
 ## Context
 
 MacParakeet ships three capture modes — system-wide dictation, file/media
 transcription, and meeting recording — plus Transforms. Each mode is a solid
-standalone tool, and to date the product identity has been "the fastest, most
-private voice app for Mac." Three forces make it worth stating where those
+standalone tool, and the product identity is a fast, private, local-first
+voice app for Mac. Three forces make it worth stating where those
 modes converge:
 
 1. **Raw ASR is commoditizing.** Apple now ships a zero-download engine in
@@ -44,8 +47,8 @@ Short form: **MacParakeet is the private speech memory of your Mac.**
 
 The three capture modes are intake valves for one compounding local corpus:
 dictation captures what you say, meetings capture what you discuss,
-files/media capture what you consume. The existing product promise (fastest,
-most private, simplest) is unchanged as the day-one experience; this ADR
+files/media capture what you consume. The existing product promise (fast,
+private, local-first, and simple) is unchanged as the day-one experience; this ADR
 states the destination those modes converge toward.
 
 ### 2. The Library becomes the center of gravity

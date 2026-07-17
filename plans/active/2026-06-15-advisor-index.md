@@ -36,11 +36,11 @@ full suite on every push and the Jun-12 run recorded green.
 
 | Plan | Title | Priority | Effort | Risk | Status |
 |------|-------|----------|--------|------|--------|
-| [2026-06-15-dx-format-lint-baseline](2026-06-15-dx-format-lint-baseline.md) | swift-format + .editorconfig + dev scripts + informational CI | P2 | S | LOW | TODO |
-| [2026-06-15-settings-observer-fanout-collapse](2026-06-15-settings-observer-fanout-collapse.md) | Table-driven AppSettingsObserverCoordinator | P2 | S | LOW | TODO |
-| [2026-06-15-settings-engine-characterization-tests](2026-06-15-settings-engine-characterization-tests.md) | Characterize the Settings engine/model surface | P2 | M | LOW | TODO |
-| [2026-06-15-settings-engine-viewmodel-extraction](2026-06-15-settings-engine-viewmodel-extraction.md) | Extract EngineSettingsViewModel (extract-and-delegate) | P2 | L | MED | TODO (depends on the char-tests) |
-| [2026-06-15-transcript-formatter-dedup](2026-06-15-transcript-formatter-dedup.md) | Shared TranscriptFormatter (kill the dup AI-formatter path) | P2 | M | MED | TODO |
+| [2026-06-15-dx-format-lint-baseline](../completed/2026-06-15-dx-format-lint-baseline.md) | swift-format + .editorconfig + dev scripts + informational CI | P2 | S | LOW | DONE |
+| [2026-06-15-settings-observer-fanout-collapse](../completed/2026-06-15-settings-observer-fanout-collapse.md) | Table-driven AppSettingsObserverCoordinator | P2 | S | LOW | DONE |
+| [2026-06-15-settings-engine-characterization-tests](../completed/2026-06-15-settings-engine-characterization-tests.md) | Characterize the Settings engine/model surface | P2 | M | LOW | DONE |
+| [2026-06-15-settings-engine-viewmodel-extraction](../completed/2026-06-15-settings-engine-viewmodel-extraction.md) | Extract EngineSettingsViewModel (extract-and-delegate) | P2 | L | MED | DONE |
+| [2026-06-15-transcript-formatter-dedup](../completed/2026-06-15-transcript-formatter-dedup.md) | Shared TranscriptFormatter (kill the dup AI-formatter path) | P2 | M | MED | DONE |
 
 Recommended order by leverage/dependency:
 1. **DX baseline** (S, LOW, protective — defuses the documented CRLF-flip pitfall, gives agents a fast loop).

@@ -23,7 +23,7 @@ the opportunistic list below.
 
 | Plan | Title | Priority | Effort | Status |
 |------|-------|----------|--------|--------|
-| [2026-06-onboarding-stall-watchdog-test.md](2026-06-onboarding-stall-watchdog-test.md) | Make the warm-up stall watchdog testable and test it | P1 | S–M | TODO |
+| [2026-06-onboarding-stall-watchdog-test.md](2026-06-onboarding-stall-watchdog-test.md) | Make the warm-up stall watchdog testable and test it | P1 | S–M | DONE — #518 |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) |
 REJECTED (one-line rationale).

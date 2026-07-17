@@ -4,7 +4,7 @@
 > **Baseline:** `origin/main` at `9bf4ac5c78023831091187ddd1bd301fb6493988`
 > **Review mode:** Claude Fable, read-only adversarial architecture review
 > **Implementation plan:**
-> [`plans/active/2026-07-15-live-final-speech-routing.md`](../../plans/active/2026-07-15-live-final-speech-routing.md)
+> [`plans/completed/2026-07-15-live-final-speech-routing.md`](../../plans/completed/2026-07-15-live-final-speech-routing.md)
 
 ## Review Brief
 

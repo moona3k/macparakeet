@@ -1,6 +1,6 @@
 # Live Speech and Final Transcription Routing
 
-> **Status:** PR OPEN — implementation and local verification complete; hosted review on #813
+> **Status:** SHIPPED AS #813 — archived 2026-07-16
 > **Priority:** P1 product clarity / P1 meeting-transcript trust
 > **Branch:** `codex/live-final-speech-routing` from live `origin/main`
 > **Risk:** HIGH — meeting recovery metadata, engine lifecycle, Settings, and final transcript provenance

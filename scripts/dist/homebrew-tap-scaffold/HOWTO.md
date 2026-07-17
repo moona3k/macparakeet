@@ -155,7 +155,7 @@ see `brew tap-new --pull-label` and the Homebrew bottles docs.
 - **Pre-built signed binary** rather than `swift build` in the formula:
   faster install (no ~30s SwiftPM compile), no need for users to have
   Xcode CLT, simpler caveats. Recommended in the canonical plan at
-  `plans/active/cli-as-canonical-parakeet-surface.md`.
+  `plans/completed/cli-as-canonical-parakeet-surface.md`.
 - **Tap separate from main repo:** keeps Homebrew's expected layout
   (`Formula/<name>.rb`), allows future formulae (`macparakeet-cli`,
   potentially other tools) to share infrastructure.

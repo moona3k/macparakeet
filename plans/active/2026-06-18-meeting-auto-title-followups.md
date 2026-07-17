@@ -1,6 +1,7 @@
-# Auto Meeting Titles — Merge PR #553 + Manual/Bulk "Generate Title"
+# Auto Meeting Titles — Manual/Bulk "Generate Title" Follow-ups
 
-**Status:** ACTIVE PLAN — not started
+**Status:** PARTIAL — automatic titles shipped as #553 on 2026-06-19; the
+single-item and bulk backlog actions remain open
 **Date:** 2026-06-18
 **ADRs:** ADR-011 (LLM providers), ADR-013 (Prompt Library / multi-summary), ADR-020 (memo-steered summaries — shares the post-meeting LLM path)
 **Requirement:** REQ-MEET-021 (proposed)
@@ -19,16 +20,13 @@ the backlog.
 two-part: (a) new meetings should get a real title automatically, and (b) their
 *existing* library of timestamp names is hard to navigate.
 
-Part (a) is **already built** in **PR #553** (`feat/auto-meeting-titles`,
-`MeetingTitleGenerator`, 510 insertions, `swift test` green) — but the PR is
-**merge-conflicting with `main`** and **unreviewed**. Part (b) is the small
-follow-on this plan adds: a user-initiated "Generate title" that reuses #553's
-generator and #498's selection.
+Part (a) shipped in **PR #553** (`MeetingTitleGenerator`) and issue #546 is
+closed. Part (b) remains open: a user-initiated "Generate title" that reuses
+the shipped generator and the Library multi-select substrate.
 
 ## Why this is two workstreams, sequenced
-1. **Merge PR #553** (automatic titles for new meetings) — review + de-conflict +
-   confirm a few product choices. No fresh implementation.
-2. **Manual + bulk "Generate title"** (backlog cleanup) — small, depends on the
+1. **Automatic titles for new meetings — COMPLETE** (#553).
+2. **Manual + bulk "Generate title"** (backlog cleanup) — remains open and depends on the
    #498 Library multi-select substrate for the bulk path.
 
 ## Scope boundaries

@@ -1,6 +1,6 @@
 # Live Dictation Preview — Stable Rolling Readout
 
-> Status: **ACTIVE**
+> Status: **SHIPPED as #534; archived 2026-07-16**
 > Requirement: REQ-DICT-007 (display-only live dictation transcript preview)
 > Flag: `AppFeatures.liveDictationStreamingEnabled` (shipping since v0.7.0)
 > Scope: refinement of the existing preview — no new feature surface, no flag change

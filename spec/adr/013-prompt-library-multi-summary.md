@@ -3,7 +3,7 @@
 > Status: **Accepted**
 > Date: 2026-04-03
 > Related: ADR-011 (LLM providers), spec/12-processing-layer.md, ADR-022 (Transforms)
-> Implementation Note (2026-04-04): The current branch seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `community-prompts.json` exists as a contribution/reference artifact, but runtime JSON loading has not shipped.
+> Implementation Note (2026-04-04): The current implementation seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `community-prompts.json` exists as a contribution/reference artifact, but runtime JSON loading has not shipped.
 > Naming Note (2026-04-28): The database table remains `summaries`, but the Swift model/repository/view-model names are now `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 > Transform Note (2026-05-13): ADR-022 now uses `Prompt.Category.transform` for productized Transforms. The Prompt Library serves summaries and Transforms today; workflow steps remain future work.
 

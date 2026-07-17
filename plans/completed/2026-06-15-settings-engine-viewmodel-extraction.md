@@ -1,5 +1,8 @@
 # Plan: Extract EngineSettingsViewModel from SettingsViewModel (extract-and-delegate)
 
+> **Archive status (2026-07-16): SHIPPED.** The engine settings view-model
+> extraction and compatibility forwarding are present on `main`.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving on. If
 > anything in "STOP conditions" occurs, stop and report — do not improvise.
@@ -16,7 +19,7 @@
 - **Priority**: P2
 - **Effort**: L
 - **Risk**: MED
-- **Depends on**: `plans/active/2026-06-15-settings-engine-characterization-tests.md` (HARD — do not start until those tests exist and pass)
+- **Depends on**: `plans/completed/2026-06-15-settings-engine-characterization-tests.md` (satisfied before implementation)
 - **Category**: tech-debt
 - **Planned at**: commit `16e3f865f`, 2026-06-15
 

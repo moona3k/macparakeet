@@ -71,8 +71,9 @@
 │  ┌──────────────────────────────┐                                                │
 │  │   Parakeet STT (default)     │                                                │
 │  │   FluidAudio CoreML on ANE   │                                                │
-│  │   ~66 MB working RAM         │                                                │
-│  │   ~2.5% WER, 155x realtime   │                                                │
+│  │   115–131 MB peak RSS*       │                                                │
+│  │   2.38–3.22% macro WER*      │                                                │
+│  │   ~81–93x steady realtime*   │                                                │
 │  └──────────────────────────────┘                                                │
 │  ┌──────────────────────────────┐                                                │
 │  │   Nemotron STT (optional)    │                                                │
@@ -99,7 +100,7 @@
 │  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │  │Capture  ││
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
 │                                                                                  │
-│  Parakeet working RAM: ~66 MB per active inference slot on ANE                  │
+│  * Current M4 Pro reference benchmark; varies by Parakeet build and hardware    │
 │  Cohere cache: ~/Library/Application Support/FluidAudio/Models/                 │
 │                cohere-transcribe/q8                                             │
 │  Whisper cache: ~/Library/Application Support/MacParakeet/models/stt/whisper/   │
@@ -716,9 +717,9 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 | Property | Value |
 |----------|-------|
 | Model | Parakeet TDT 0.6B (`v3` multilingual default, `v2` English-only opt-in) plus Parakeet Unified EN 0.6B (`unified`) |
-| WER | ~2.5% (v3) / ~2.1% (v2) / ~2.15% average WER on LibriSpeech test-clean (Unified) |
-| Speed | ~155x realtime on Apple Silicon |
-| Working RAM | ~66 MB (~130 MB with vocab boosting) |
+| Benchmark accuracy | Full-LibriSpeech macro WER: 3.22% (v3), 2.57% (v2), 2.38% (Unified) on the current shared benchmark |
+| Speed | ~81x (v3), ~90x (v2), ~93x (Unified) steady realtime on the M4 Pro reference benchmark |
+| Peak RSS | 131 MB (v3), 123 MB (v2), 115 MB (Unified) on the same reference benchmark, before recognition-time custom vocabulary boosting |
 | Runs on | Neural Engine (ANE) via CoreML |
 | Input | 16kHz mono Float32 samples |
 | Output | Text + word-level timestamps + confidence |
@@ -1108,8 +1109,8 @@ deleted.
 
 | Permission | Reason | When Requested | Required? |
 |------------|--------|----------------|-----------|
-| Microphone | Dictation recording | First dictation attempt | Yes (for dictation) |
-| Accessibility | Global hotkey + simulated paste + read selection | First dictation attempt | Yes (for dictation) |
+| Microphone | Dictation recording | During onboarding, or first dictation if onboarding was deferred | Yes (for dictation) |
+| Accessibility | Global hotkey + simulated paste + read selection | During onboarding, or first dictation if onboarding was deferred | Yes (for dictation) |
 
 ### Permission Flow
 
@@ -1119,9 +1120,6 @@ First Launch
     ▼
 Show onboarding: explain what permissions are needed and why
     │
-    ▼
-User triggers first dictation
-    │
     ├── Microphone permission dialog (system)
     │     ├── Granted → continue
     │     └── Denied → show "enable in System Settings" guidance
@@ -1130,18 +1128,25 @@ User triggers first dictation
     │     ├── Granted → continue
     │     └── Denied → show guidance (hotkey + paste won't work)
     │
+    ├── Hotkey instructions
+    │
+    ├── Speech stack setup (download/warm required assets)
+    │
     ▼
 Dictation ready
+
+If onboarding is explicitly deferred, the first dictation path performs the
+same required permission checks in context.
 ```
 
 ### Privacy Guarantees
 
 1. **No cloud STT** — Speech recognition stays local. Network is used only for explicit surfaces such as model downloads, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and user-initiated YouTube downloads.
-2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
-3. **No accounts** — No login, no email, no user tracking
+2. **Managed temporary files** — Owning flows clean their temporary working files; persisted dictation/meeting audio follows the user's explicit storage and retention settings
+3. **No required product account** — No login or email is required; optional telemetry/crash reporting is described separately
 4. **Telemetry is opt-out** — Self-hosted usage analytics and crash reporting run only while telemetry is enabled
 5. **Audio storage is opt-in** — Dictation audio only saved if user enables "Keep audio" in settings
-6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML
+6. **Local speech inference** — STT runs on-device. Optional LLM features may use a local runtime, local CLI, or user-configured remote provider; those text-only boundaries are documented separately.
 
 ### Runtime Permissions
 
@@ -1149,8 +1154,8 @@ Dictation ready
 |------------|--------------|-----------|
 | Microphone | Dictation, onboarding mic test, meeting recording mic capture | Requested during onboarding or first dictation/meeting use |
 | Accessibility | Global hotkey paste simulation | Requested during onboarding or first dictation use |
-| Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting source modes that include system audio | Optional during onboarding; otherwise requested on first system-audio meeting attempt; system-audio modes stay blocked until granted |
-| Calendar | Calendar reminders and optional meeting auto-start | Requested from onboarding or Settings calendar controls |
+| Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting source modes that include system audio | Requested on first system-audio meeting attempt; system-audio modes stay blocked until granted |
+| Calendar | Calendar reminders and optional meeting auto-start | Requested from Settings calendar controls |
 
 ### Sandboxing (App Store)
 
@@ -1181,7 +1186,7 @@ For App Store distribution, the app needs:
 ┌────────────────────────────────────────────────────────────┐
 │                    Memory at Peak                           │
 ├────────────────────────────────────────────────────────────┤
-│  Parakeet STT (CoreML/ANE)       ~66 MB per active slot    │
+│  Parakeet STT benchmark peak RSS 115–131 MB by build*      │
 │  Optional WhisperKit engine      model-dependent           │
 │  App process (UI + services)     ~100 MB                   │
 │  Audio buffers                   ~50 MB                    │
@@ -1189,6 +1194,7 @@ For App Store distribution, the app needs:
 │  Total peak                      depends on active engines │
 │                                                            │
 │  Minimum system RAM: 8 GB (Apple Silicon)                  │
+│  * M4 Pro reference benchmark; not a per-slot budget       │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -1217,18 +1223,11 @@ After initial warm-up, subsequent dictations are near-instant because the shared
 
 ### Transcription Speed
 
-| Audio Length | Transcription Time (M1) | Transcription Time (M1 Pro+) |
-|-------------|------------------------|-------------------------------|
-| 1 minute | ~0.4 seconds | ~0.2 seconds |
-| 10 minutes | ~4 seconds | ~2 seconds |
-| 1 hour | ~23 seconds | ~12 seconds |
-| 4 hours (max) | ~93 seconds | ~46 seconds |
-
-Parakeet TDT 0.6B throughput varies by device class: v3 is approximately 155x realtime on baseline M1 and up to ~300x on M1 Pro+ hardware via FluidAudio CoreML/ANE; v2 is slightly faster on English-only audio.
+The current Apple M4 Pro speed/memory micro-benchmark measures roughly 81x realtime for Parakeet v3, 90x for v2, and 93x for Unified. At those steady-state rates, one hour of audio is roughly 39–45 seconds of inference before surrounding decode, I/O, diarization, and UI work. These are reference measurements, not cross-device guarantees; [`benchmarks/asr/`](../benchmarks/asr/) is the canonical method and result source.
 
 ### Memory Management
 
-- **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. Budget ~66 MB working RAM per active inference slot on the ANE path. Real total memory depends on how many managers are loaded/active in the current implementation, whether the background capacity stays lazy in the final design, and whether diarization models are also resident.
+- **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. The current M4 Pro micro-benchmark measures 115–131 MB peak process RSS by build, before recognition-time custom-vocabulary boosting. Real total memory depends on loaded managers, model-mapped pages, scheduler activity, and whether diarization assets are also resident; do not treat the benchmark row as a fixed per-slot allocation.
 - **Cohere model:** Loaded only when selected; downloaded explicitly to the FluidAudio cache. It is batch-only and has a larger resident footprint than Parakeet, so it is not part of the default readiness path.
 - **Whisper model:** Loaded only when selected; model size and runtime memory are variant-dependent. Default cache is `models/stt/whisper/`.
 - **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. Completed meeting audio is retained by default but can be detached from the transcript through GUI/CLI cleanup. No recording duration limit beyond disk space and practical UI constraints.

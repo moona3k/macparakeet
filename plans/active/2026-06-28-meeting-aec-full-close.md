@@ -2,13 +2,21 @@
 
 ## Status
 
-- **Priority**: P0 for meeting trust; P1 overall release blocker until verified
+- **State**: PARTIAL — the core AEC path shipped; issue #605 remains open for
+  real speaker-mode evidence and any justified follow-up
+- **Priority**: P1 meeting-trust follow-up; not a v0.7.3 release blocker
 - **Effort**: L
 - **Risk**: HIGH (audio quality, native assets, final transcript trust, user data artifacts)
 - **Category**: fix / audio pipeline / meeting transcription
 - **Planned at**: 2026-06-28
 - **Baseline**: `main` after PR #624, `f70dea929`
 - **Relates**: issue #605; issues #480/#430/#501/#542/#106; `plans/active/2026-06-27-meeting-aec-measurement-harness.md`; `docs/research/2026-06-meeting-aec-open-issues-prior-art.md`; ADR-014; `spec/05-audio-pipeline.md`; `spec/06-stt-engine.md`
+
+The implementation record below was written while the work was landing. As of
+2026-07-16, adaptive delay, cleaned-microphone rendering and final-STT routing,
+release assets/model selection, provenance, and the long-meeting guard are on
+`main`. Treat unchecked units as candidates to re-validate, not implied release
+requirements.
 
 ## Implementation Progress (2026-06-28, branch `feat/meeting-aec`)
 

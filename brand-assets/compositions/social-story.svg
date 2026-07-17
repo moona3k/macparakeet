@@ -17,7 +17,7 @@
 
   <g font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif" fill="#0E0F12">
     <text x="540" y="1240" font-size="96" font-weight="700" letter-spacing="-2.5" text-anchor="middle">MacParakeet</text>
-    <text x="540" y="1300" font-size="32" font-weight="400" opacity="0.65" text-anchor="middle">The fastest, most private</text>
+    <text x="540" y="1300" font-size="32" font-weight="400" opacity="0.65" text-anchor="middle">Fast, private, local-first</text>
     <text x="540" y="1340" font-size="32" font-weight="400" opacity="0.65" text-anchor="middle">voice app for Mac.</text>
     <text x="540" y="1480" font-size="34" font-weight="500" fill="#E86B3B" text-anchor="middle">macparakeet.com</text>
   </g>

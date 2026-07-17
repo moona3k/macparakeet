@@ -150,7 +150,7 @@ Future naming cleanup: `microphone-raw.m4a` plus
 `microphone-cleaned.m4a` would be clearer than today's
 `microphone.m4a` plus `microphone-cleaned.m4a`. This should be treated as a
 future artifact-contract change, not a release hotfix. The plan is tracked in
-`plans/active/2026-07-05-meeting-artifact-naming-v2.md`. Existing meeting
+`plans/completed/2026-07-05-meeting-artifact-naming-v2.md`. Existing meeting
 folders should remain valid as-is.
 
 ## AEC Trigger And Fail-Soft Routing

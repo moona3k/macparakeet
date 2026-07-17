@@ -1,6 +1,6 @@
 # Back-to-Back Meeting Recording (Decoupled Post-Stop Transcription)
 
-**Status:** ACTIVE PLAN — not started
+**Status:** SHIPPED ON `main` (`2667cd83`) — archived 2026-07-16
 **Date:** 2026-06-18
 **ADRs:** ADR-014 (meeting recording), ADR-015 (concurrent dictation+meeting), ADR-016 (STT scheduler / two-slot), ADR-019 (crash-resilient recording)
 **Requirement:** REQ-MEET-020 (proposed)

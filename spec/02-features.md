@@ -3,7 +3,7 @@
 > Status: **ACTIVE** - Authoritative, current
 > What we're building, in what order, and why.
 
-**North Star:** The fastest, most private transcription app for Mac.
+**North Star:** Fast, private, local-first voice for Mac.
 
 See [00-vision.md](./00-vision.md) for positioning and market context.
 
@@ -195,7 +195,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 │ 5. Processing                                                    │
 │    - Overlay transitions to processing state                     │
 │    - Audio buffer → temp WAV → selected local STT engine         │
-│    - Parakeet default returns transcript (~155x realtime)        │
+│    - Selected local engine returns the authoritative transcript  │
 │    - (v0.2) Raw → clean pipeline → polished text                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
@@ -1850,14 +1850,14 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 
 | Metric | Target | Notes |
 |--------|--------|-------|
-| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML); Nemotron is Beta, Cohere is batch accuracy-focused, and WhisperKit is for coverage, not this default latency target |
+| Transcription speed | ≥80x steady realtime on the M4 Pro reference benchmark | Current Parakeet builds measure ~81–93x through FluidAudio CoreML; Nemotron is Beta, Cohere is batch accuracy-focused, and WhisperKit is for coverage rather than the default latency target |
 | Dictation latency | <500ms end-to-end | From Fn release to text appearing |
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
-| Memory usage (active) | Engine-dependent | Parakeet active slot is ~66 MB working RAM; Nemotron, Cohere, and Whisper depend on selected model/runtime |
+| Memory usage (active) | Engine-dependent | Current Parakeet builds measure 115–131 MB peak RSS on the M4 Pro reference benchmark; Nemotron, Cohere, and Whisper depend on selected model/runtime |
 | App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~2.1 GB optional Cohere download, and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
-| File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
+| File transcription | 1 hour audio in <45s | Reference target for current Parakeet builds on the M4 Pro benchmark machine; hardware, audio, and engine choice affect elapsed time |
 
 ---
 

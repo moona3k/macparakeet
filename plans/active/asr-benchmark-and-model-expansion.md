@@ -1,6 +1,8 @@
 # Plan: Gold-Standard ASR Benchmark + Model Expansion
 
-> Status: **ACTIVE** (proposal pending owner steer on Phase 3 scope)
+> Status: **PARTIAL / OWNER GATE** — the benchmark harness shipped as #568 and
+> Cohere later shipped as an opt-in engine. MLX-only Qwen3-ASR/Moonshine work
+> remains deferred pending owner steer; this record is not an active mandate.
 > Branch: `asr/benchmark-model-expansion`
 > Author: AI agent session, 2026-06-18
 > Supersedes the ad-hoc `benchmarks/parakeet-unified/` harness with a

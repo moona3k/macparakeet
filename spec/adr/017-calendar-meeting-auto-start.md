@@ -1,8 +1,9 @@
 # ADR-017: Calendar-Driven Meeting Auto-Start
 
-> Status: **IMPLEMENTED (amended)** — Phase 1 (notify-only) and Phase 2 (auto-start + countdown) are implemented and enabled (`AppFeatures.calendarEnabled = true` as of the post-#318 reliability hardening: mid-flight teardown, RSVP/zero-duration guards, reschedule re-fire). Auto-start defaults to mode `.off`, so users opt in via onboarding or Settings — nothing changes for existing users until they do. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
+> Status: **IMPLEMENTED (amended)** — Phase 1 (notify-only) and Phase 2 (auto-start + countdown) are implemented and enabled (`AppFeatures.calendarEnabled = true` as of the post-#318 reliability hardening: mid-flight teardown, RSVP/zero-duration guards, reschedule re-fire). Auto-start defaults to mode `.off`, so users opt in from Settings — nothing changes for existing users until they do. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
 > Date: 2026-04-19
 > **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the calendar coordinator never stops a recording. The replacement is ADR-023 (Activity-Based Meeting Auto-Stop, 2026-06-14), implemented behind a default-off flag using activity signals plus a veto countdown.
+> **Amendment (2026-06-13): Calendar removed from first-run onboarding.** The six-step dictation-first flow in ADR-005 no longer asks for EventKit access. Calendar setup is opt-in from the Meeting Recording settings surface, which requests Calendar and notification access in context.
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 
 ## Context
@@ -19,7 +20,7 @@ This ADR defines MacParakeet's scope for that feature. It is deliberately narrow
 
 Calendar access goes through Apple's EventKit framework (`EKEventStore`), which reads whatever calendars the user has already configured in the macOS Calendar app (iCloud, Google via macOS Internet Accounts, Exchange, CalDAV). MacParakeet does not run its own OAuth flows and does not ship Google/Microsoft SDKs.
 
-**Why:** ADR-002 (local-first). Events stay on-device; we don't add a new cloud surface. It also keeps onboarding simple — "grant Calendar access" is one click and delegates the messy auth to macOS.
+**Why:** ADR-002 (local-first). Events stay on-device; we don't add a new cloud surface. The in-context Settings flow delegates authorization to macOS without adding first-run friction.
 
 ### 2. Three behavior modes (off / notify / notify + auto-start)
 
@@ -95,11 +96,9 @@ The implemented Settings surface is folded into the Meeting Recording card rathe
 
 This subsection appears once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
 
-### 9. Onboarding: optional, skippable, post-permissions
+### 9. Setup: in-context from Settings
 
-When `AppFeatures.calendarEnabled` is `true`, a new onboarding step slots in **after** the existing mic/accessibility/screen-recording permission block and **before** the model download. It explains the feature in one sentence, asks for Calendar permission, and has a clear "Skip" button. It is not blocking -- users who decline never see a regression in the rest of onboarding. The calendar flag is now `true`, so this step is live.
-
-Skipping sets `calendarAutoStartMode = .off` explicitly so re-enabling later goes through the Settings surface, not onboarding.
+Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. Until the user opts in, `calendarAutoStartMode` remains `.off`.
 
 ### 10. Hotkey / manual start still works independently
 
@@ -173,7 +172,7 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 
 ### Negative
 
-- **New permission (Calendar)**: a sixth prompt on top of mic, accessibility, notifications, screen recording, and contacts (if ever). Mitigated by making the onboarding step skippable and by offering meaningful behavior (`.notify`) without auto-start.
+- **New permission (Calendar)**: an additional optional permission, requested in context from Meeting Recording settings rather than during first-run onboarding.
 - **Polling**: 60-second timer when no events are near is cheap but non-zero. Acceptable for an app that's already idle-friendly post-PR #111.
 - **Video-link detection is heuristic**: meetings without URLs but with participants won't match the default filter. Users who rely on phone calls or non-standard conferencing tools need to change the filter to `.withParticipants` or `.allEvents`.
 - **Countdown toast is new UI surface area**: another floating panel controller to maintain alongside pill / panel / dictation overlay.
@@ -199,7 +198,7 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 - `MeetingAutoStartCoordinator` — owns the poll timer, EventKit change observer, notification scheduler, countdown toast controller; wires to `MeetingRecordingFlowCoordinator`
 - New `MeetingCountdownToastController` — a small, non-activating floating panel (reuse `KeylessPanel`) with a 5-second bar and a Cancel button
 - Settings UI: `CalendarSettingsView` folded into the Meeting Recording settings card and rendered only when `AppFeatures.calendarEnabled` is `true`
-- Onboarding UI: `OnboardingCalendarView` slotted in after the permissions step only when both `AppFeatures.meetingRecordingEnabled` and `AppFeatures.calendarEnabled` are `true`
+- No onboarding UI. Calendar permission and mode selection live in the Meeting Recording settings surface.
 
 ### Telemetry (new cases, must mirror to website allowlist)
 
@@ -226,13 +225,12 @@ Repo: `https://github.com/moona3k/oatmeal` (same owner, GPL-3.0).
 
 ## Phased Rollout
 
-1. **Phase 1 — Notify only ✅ IMPLEMENTED (2026-04-25):** Ported `CalendarService`, `MeetingLinkParser`, `MeetingMonitor`, `CalendarEvent` from Oatmeal. Built `MeetingAutoStartCoordinator` (`@MainActor`, adaptive 60s/15s/5s polling, `.EKEventStoreChanged` observer, daily stale-id cleanup). Settings subsection + onboarding step + per-calendar include list are implemented and enabled (`AppFeatures.calendarEnabled = true`). CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) ships alongside for headless verification. Mode defaults to `.off` -- opt-in via onboarding (auto-`.notify` on permission grant, but only when notifications are also authorized) or Settings. Phase 1 amendment: **per-calendar include list landed in Phase 1**, not Phase 3 -- it was only ~30 lines and made onboarding feel finished.
+1. **Phase 1 — Notify only ✅ IMPLEMENTED (2026-04-25; onboarding amended 2026-06-13):** Ported `CalendarService`, `MeetingLinkParser`, `MeetingMonitor`, `CalendarEvent` from Oatmeal. Built `MeetingAutoStartCoordinator` (`@MainActor`, adaptive 60s/15s/5s polling, `.EKEventStoreChanged` observer, daily stale-id cleanup). The Settings subsection and per-calendar include list are implemented and enabled (`AppFeatures.calendarEnabled = true`). CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) ships alongside for headless verification. Mode defaults to `.off` and is enabled from Settings. The original onboarding step was removed by ADR-005's dictation-first amendment.
 2. **Phase 2 — Auto-start with countdown ✅ IMPLEMENTED (2026-04-25):** Built `MeetingCountdownToastController` for the pre-meeting auto-start countdown. **Superseded by the 2026-05-22 amendment:** the original end-of-meeting auto-stop countdown was removed, and the auto-start toast was redesigned as a minimal top-right "countdown halo" (sacred-geometry rosette inside a coral ring, ✕ to cancel / ↵ to start now). Current coordinator behavior handles `.autoStartDue` -> toast -> `MeetingRecordingFlowCoordinator.startFromCalendar()` and never stops recordings from calendar end times. Settings exposes all three modes but no auto-stop toggle. Current telemetry events are `calendar_reminder_shown`, `calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, and `calendar_auto_start_failed`; removed auto-stop events are historical only. `meeting_recording_started` gained an optional `trigger` prop. `CalendarServicing` protocol + `MockCalendarService` extracted for `MeetingAutoStartCoordinatorTests`.
-   - **Post-#318 reliability hardening (2026-05-21) — flag enabled:** countdowns are closed/ignored when calendar settings or permissions disable the action mid-flight; auto-start is gated on RSVP (declined/pending excluded) and zero-duration/inverted events are dropped; rescheduled occurrences re-fire via `CalendarEvent.dedupeKey`; `pollAsync` is reentrancy-guarded with coalescing; and onboarding only auto-enables `.notify` when notification authorization is also granted.
+   - **Post-#318 reliability hardening (2026-05-21) — flag enabled:** countdowns are closed/ignored when calendar settings or permissions disable the action mid-flight; auto-start is gated on RSVP (declined/pending excluded) and zero-duration/inverted events are dropped; rescheduled occurrences re-fire via `CalendarEvent.dedupeKey`; and `pollAsync` is reentrancy-guarded with coalescing.
 3. **Phase 3 — Refinements (PROPOSED):** Better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI (separate `lateJoinShownEventIds` set in `MeetingMonitor.evaluate(...)` so dismissed countdowns don't suppress late-join), optional retro-link (match a manually-started recording back to a calendar event).
 
 ## Open Questions
 
 - **Naming in copy**: "Auto-start" vs "Auto-record" vs "Start automatically" — pick one and use it everywhere.
 - **Countdown with LLM features**: should insights (ADR-018) begin warming up during the countdown so the first live insight lands sooner? Or wait until recording actually starts? Lean towards wait — zero-second "ghost warm-up" is complexity we don't need until measurements justify it.
-- **Onboarding ordering**: before or after the STT model download? Leaning *before* so the user isn't asked to click through after a 60-second wait.

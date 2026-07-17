@@ -22,16 +22,16 @@ export const SCRIPT = {
   modes: {
     dictation: {
       title: 'Dictate anywhere',
-      caption: 'Apple Silicon · 155× realtime · runs offline',
+      caption: 'Apple Silicon · fast local dictation · runs offline',
       durationSec: 16,
-      vo: 'MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. 155 times realtime. Runs offline.',
+      vo: 'MacParakeet dictates anywhere on your Mac. Tap a hotkey, speak, the text appears. Apple Silicon. Local transcription. Runs offline.',
       screencast: 'screencasts/dictation.mp4',
     },
     transcription: {
       title: 'Drop in audio, video, or a YouTube link',
       caption: 'Audio · Video · YouTube · Export anywhere',
       durationSec: 16,
-      vo: 'Drop in any audio, any video, even a YouTube link. Get a transcript with timestamps and speakers. Export it any way you need.',
+      vo: 'Drop in supported audio or video, or paste a media link. When the selected engine provides timing, you get timestamps and speakers. Export it in the format you need.',
       screencast: 'screencasts/transcription.mp4',
     },
     meeting: {

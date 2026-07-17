@@ -1,14 +1,14 @@
 # MacParakeet: Vision & Philosophy
 
 > Status: **ACTIVE** - Authoritative, current
-> The fastest, most private voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
+> Fast, private, local-first voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
 > Pricing amendment: The current public build is free, GPL-3.0, and fully unlocked. Older "$49 one-time purchase" and trial-tier language is historical, but GPL-compatible official paid distribution, support, hosted services, or future paid builds remain valid options. The retained purchase activation plumbing must not be removed as dead code without explicit owner direction and an ADR/spec update.
 
 ---
 
 ## The North Star
 
-**The fastest, most private voice app for Mac. Fully local speech when you want it. No required cloud subscription for core speech.**
+**Fast, private, local-first voice for Mac. Fully local speech when you want it. No required cloud subscription for core speech.**
 
 That is the day-one promise. The destination it builds toward
 ([ADR-027](adr/027-product-north-star.md)): **every word you speak or hear on
@@ -19,13 +19,13 @@ memory of your Mac.
 ```
 +-----------------------------------------------------------------------+
 |                                                                       |
-|   CLOUD DICTATION (WisprFlow, Otter)                                  |
-|   ---------------------------------                                   |
-|   Voice -> Server -> Wait -> Text -> $12-15/mo forever                |
+|   CLOUD SPEECH SERVICE                                                |
+|   --------------------                                                |
+|   Voice -> Provider -> Text -> account and service dependency         |
 |                                                                       |
-|   LOCAL BUT COMPLEX (MacWhisper, Superwhisper)                        |
-|   -------------------------------------------                         |
-|   Voice -> Configure -> Select model -> Text -> $30-$250             |
+|   LOCAL SINGLE-MODE TOOL                                              |
+|   ----------------------                                              |
+|   Voice/file -> Local model -> Text -> narrow workflow                |
 |                                                                       |
 |   MacPARAKEET                                                         |
 |   -----------                                                         |
@@ -70,16 +70,14 @@ hand it safely to you and your agents — otherwise it does not ship.
 
 **The problem:** Mac users who want voice-to-text face a bad tradeoff:
 
-| Option | Speed | Privacy | Price | Simplicity |
-|--------|-------|---------|-------|------------|
-| **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
-| **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
-| **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **Can be fully local** | **Current public build free/GPL** | **Three capture modes + Transforms** |
+| Option | Speech boundary | Product breadth | Ownership |
+|--------|-----------------|-----------------|-----------|
+| **Cloud speech services** | Audio leaves the Mac | Often focused on dictation or meetings | Provider account and service dependency |
+| **Local transcription tools** | Speech can stay local | Often focused on files or one capture mode | Local files, product-specific automation |
+| **Built-in OS dictation** | OS-managed | Dictation only | No shared transcript library or file/meeting workflow |
+| **MacParakeet** | **No cloud STT; can be fully local** | **Three capture modes + Transforms** | **Local library, exports, and versioned CLI** |
 
-No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
-
-Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
+MacParakeet is deliberately optimized for **speed + privacy + simplicity + user ownership**. Competitor capabilities and prices change; this spec defines MacParakeet's product commitments rather than serving as a live market-comparison table.
 
 **MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default, English-only v2 as an opt-in TDT build, and Parakeet Unified as an opt-in English build with punctuation, capitalization, live preview, and word-timestamped output, plus optional local Nemotron Beta, Cohere Transcribe, and WhisperKit engines for broader language coverage and accuracy-focused batch work. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
 
@@ -89,9 +87,9 @@ Cloud services send your voice to remote servers, create accounts, charge monthl
 
 ### 1. Speed Is the Feature
 
-Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~23 seconds (155x realtime on the Neural Engine via FluidAudio CoreML). English-only v2 is available for users who prefer a faster no-auto-detect Parakeet path, while Parakeet Unified is available for English users who want the newer punctuation/capitalization-focused build with live preview and word timestamps. Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
+On the repository's Apple M4 Pro reference benchmark, the three Parakeet builds sustain roughly 81–93x realtime with 115–131 MB peak RSS, depending on the build. English-only v2 provides a no-auto-detect TDT path, while Parakeet Unified provides English punctuation/capitalization, live preview, and word timestamps. These measurements are hardware- and corpus-specific; [`benchmarks/asr/`](../benchmarks/asr/) and the README carry the current tables.
 
-Speed changes behavior. When transcription takes 30 seconds, you think about whether it is worth doing. When it takes 0.5 seconds, you just talk. MacParakeet makes voice the faster input method for everything: emails, messages, code comments, documents, notes.
+Speed changes behavior. When a short dictation returns quickly and predictably, voice becomes a practical input method for emails, messages, code comments, documents, and notes.
 
 ### 2. Privacy Is the Brand
 
@@ -100,13 +98,13 @@ Fully local speech is a core product property, and the app can stay fully local 
 - Local STT. No cloud speech processing, no accounts, no required backend for core speech.
 - Audio never leaves your Mac for dictation or transcription.
 - No email signup. No login. Optional self-hosted telemetry can be disabled in Settings.
-- Works in airplane mode, air-gapped environments, classified settings.
+- Core capture and local-file speech workflows work in airplane-mode or air-gapped environments after the required models are installed. Media imports, updates, telemetry, and remote AI providers are separate network surfaces.
 
-This is not privacy theater ("your data is encrypted in transit"). This is privacy by architecture: there is no server to send data to.
+This is privacy by architecture: speech recognition has no server path. Optional transcript-AI, media-download, update, and telemetry surfaces remain explicit and separately documented.
 
 ### 3. Simplicity Over Features
 
-MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms.
+MacParakeet keeps the top-level product centered on three capture modes plus Transforms.
 
 - **Dictate** -- Double-tap Fn or hold Fn, speak, and text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
@@ -262,19 +260,26 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ### Primary: Developers and Power Users
 
-The people who would use WisprFlow if it were not cloud-dependent. They type fast already, but voice is faster for certain tasks: writing long messages, thinking out loud, dictating documentation. They care deeply about privacy and dislike subscriptions.
+People who type quickly but prefer voice for long messages, thinking out loud,
+and dictating documentation. They care about low latency, clear privacy
+boundaries, automation, and avoiding a required subscription.
 
 **What they want:** Fast dictation that works in VS Code, Terminal, Slack. No cloud, no subscription, no bloat.
 
 ### Secondary: Privacy-Conscious Professionals
 
-Lawyers handling confidential case notes. Healthcare professionals with HIPAA constraints. Journalists protecting sources. Security researchers in air-gapped environments. Government and defense contractors with data sovereignty requirements.
+People who handle sensitive notes, interviews, research, or internal material
+and want speech recognition to stay on their Mac. MacParakeet does not itself
+certify a user's regulatory compliance; users must evaluate their complete
+workflow, device controls, enabled telemetry, and configured AI providers.
 
-**What they want:** Absolute certainty that audio never leaves the device. No accounts, no tracking, no terms-of-service loopholes. Compliance-friendly architecture.
+**What they want:** Understandable data boundaries, no required product
+account, local core speech, and the ability to disable telemetry and avoid
+remote AI providers.
 
 ### Tertiary: Subscription-Fatigued Users
 
-MacWhisper and Superwhisper users who balk at paying $30-$250. WisprFlow users tired of $144-180/year. People who searched "MacWhisper alternative" or "WisprFlow free alternative."
+People who want a capable voice app without another recurring subscription, account, or feature-gated trial.
 
 **What they want:** A good product without recurring charges. Free and open-source.
 
@@ -286,53 +291,18 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ---
 
-## Competitive Position
+## Product Position
 
-```
-                         SPEED + ACCURACY
-                               |
-                               |
-            MacParakeet -------+----------------- WisprFlow
-            (free, local,      |                  ($144-180/yr, cloud,
-             Parakeet 155x)    |                   fast but server delays)
-                               |
-                               |
-   PRIVATE -------------------+------------------------------- CLOUD
-                               |
-                               |
-            MacWhisper --------+----------------- Otter.ai
-            ($30, local,       |                  ($100/yr, cloud,
-             Whisper 15-30x)   |                   meeting-focused)
-                               |
-                               |
-                          SLOW + COMPLEX
-```
+MacParakeet does not depend on a time-sensitive competitor matrix for its identity. Published comparisons must be reverified when used; prices, engine choices, and feature sets are not stable facts.
 
-### Head-to-Head Comparison
-
-| Feature | MacParakeet | WisprFlow | MacWhisper | Superwhisper | Apple Dictation |
-|---------|-------------|-----------|------------|--------------|-----------------|
-| **STT Engine** | Parakeet default + optional Nemotron/Cohere/WhisperKit | Cloud AI | Whisper | Whisper | Apple Neural |
-| **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
-| **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
-| **Privacy** | Local-first speech | Cloud | Local | Local | Mostly local |
-| **Dictation** | Yes | Yes | No | Yes | Yes |
-| **File transcription** | Yes | No | Yes | Limited | No |
-| **Meeting recording** | Yes | No | No | No | No |
-| **Smart cleanup** | Deterministic | Cloud AI | No | Cloud AI | No |
-| **Custom words** | Yes | Yes | Limited | No | No |
-| **Price** | Current public build free/GPL | $144-180/yr | $30 once | $250 once | Free |
-| **Account required** | No | Yes | No | Yes | Apple ID |
-
-*WisprFlow speed includes network latency.
-**WisprFlow accuracy estimated; uses proprietary cloud models.
-
-### Why We Win Each Segment
-
-- **vs WisprFlow**: Same speed class, but a fully local speech option + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
-- **vs MacWhisper**: Faster default engine, simpler three-mode product, plus system-wide dictation and free/open-source distribution.
-- **vs Superwhisper**: Free vs $250, Parakeet-first architecture. No contest on price.
-- **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Same price (free), dramatically more capable.
+| Product commitment | MacParakeet's position |
+|--------------------|------------------------|
+| Speech privacy | No cloud STT; supported speech engines run on the Mac |
+| Scope | System-wide dictation, file/media transcription, and meeting recording in one app |
+| Ownership | Local library, local artifacts, export, and a versioned CLI contract |
+| Processing | Deterministic cleanup by default; optional provider-backed AI |
+| Distribution | Current public build is free and GPL-3.0 |
+| Platform fit | Native Swift app for Apple Silicon Macs |
 
 ---
 
@@ -342,12 +312,12 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 and Unified as English-only Parakeet options, then added WhisperKit, Nemotron, and Cohere explicitly as local opt-in engines for broader coverage, experimentation, and accuracy-focused batch work.
 
-- **155x realtime** on the Neural Engine vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
-- **~2.5% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
-- **Word-level timestamps** -- enables synced subtitles, precise seeking, confidence scoring.
-- **Technical vocabulary** -- better handling of code terms, acronyms, and proper nouns than Whisper.
+- **Fast default path** -- the current M4 Pro benchmark measures roughly 81–93x steady realtime across Parakeet v3, v2, and Unified.
+- **Measured engine tradeoffs** -- the shared benchmark reports accuracy, throughput, memory, and language coverage instead of relying on one headline number.
+- **Word-level timestamps** -- enables synced subtitles, precise seeking, and speaker alignment where the selected engine supplies timings.
+- **Vocabulary support** -- deterministic replacements ship today; recognition-time custom-vocabulary boosting is separately controlled and tested.
 
-Competitors bolted Parakeet onto existing Whisper architectures. We optimized the default pipeline for Parakeet while routing optional Nemotron, Cohere, and Whisper through the same scheduler/runtime control plane.
+MacParakeet optimizes the default pipeline for Parakeet while routing optional Nemotron, Cohere, and Whisper through the same scheduler/runtime control plane.
 
 ### 2. Local-First, Zero-Compromise Speech
 
@@ -357,7 +327,7 @@ Optional network features exist, but they are explicit and separate: transcript 
 
 ### 3. Free and Open-Source
 
-In a market of subscriptions ($144-180/yr for WisprFlow) and premium pricing ($250 for Superwhisper), the current free and open-source build is the adoption wedge: no pricing objection, no trial friction, no conversion funnel. Future monetization should sell official convenience, support, hosted services, or team workflows without undermining local-first GPL distribution.
+The current free and open-source build removes account, trial, and subscription friction. Future monetization should sell official convenience, support, hosted services, or team workflows without undermining local-first GPL distribution.
 
 ### 4. Focused Simplicity
 
@@ -438,9 +408,9 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 
 | Metric | Target |
 |--------|--------|
-| Dictation latency (press-to-text) | < 500ms |
-| Transcription speed (60 min file) | < 30s on M1, < 15s on M1 Pro+ |
-| Word error rate | < 3% (Parakeet via FluidAudio CoreML: ~2.5%) |
+| Dictation latency | Measure end-of-capture to paste by engine/build; do not publish one hardware-independent number |
+| Parakeet throughput | ≥80x steady realtime on the current M4 Pro reference harness |
+| Word error rate | Publish per-engine/corpus results from `benchmarks/asr/`; no universal WER claim |
 | App crash rate | < 0.1% of sessions |
 | First-use success rate | > 95% (user dictates successfully on first try) |
 
@@ -454,7 +424,8 @@ A new user should be able to:
 4. See clean text appear at their cursor
 5. Think "this is better than anything I have tried"
 
-All within 60 seconds of first launch. A short permissions/model setup flow is acceptable; accounts and tutorials are not.
+On first use, the user should reach this outcome as soon as the required model
+download and permission setup complete. No product account is required.
 
 ---
 
@@ -510,10 +481,15 @@ Ship-quality polish. Direct distribution via notarized DMG.
 
 ### v0.7: Post-v0.6 polish
 
-- Follow-up scope TBD after the v0.6 release hardens in user hands
-- Direction per [ADR-027](adr/027-product-north-star.md): Library convergence
-  (unified search, corpus QA), on-device local LLM, agent read access to the
-  library via the CLI
+- Stable v0.7.3 adds System Default microphone-routing repair, split live/final
+  speech-engine routes, bounded meeting-capture lifecycle handling, meeting
+  auto-save feedback, CLI 3.0, and post-v0.6 reliability polish.
+- Meeting echo cancellation ships as a fail-soft derived cleaned-microphone
+  artifact; activity-based auto-stop remains opt-in and activity-based meeting
+  detection remains gated.
+- Direction per [ADR-027](adr/027-product-north-star.md): continue Library
+  convergence and safe agent access through the CLI. Developer-gated local MLX
+  groundwork is not a normal-user v0.7 feature.
 
 ---
 
@@ -543,7 +519,7 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 
 | Feature | What It Does | Why It Matters |
 |---------|--------------|----------------|
-| **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
+| **Parakeet Speed** | ~81–93x steady realtime across current builds on the M4 Pro reference benchmark | Fast local transcription with measured, hardware-specific evidence |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
 | **Meeting Recording** | Capture system audio, mic audio, or both; transcribe locally | Record any call or meeting without cloud services |
 | **YouTube Transcription** | Paste a URL, get a transcript | File transcription for the YouTube era |

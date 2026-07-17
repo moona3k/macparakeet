@@ -171,7 +171,7 @@ to read against ink and paper and to sit beside coral. The Pop palette is
 | **Tone** | Calm, confident, minimal |
 | **Language** | Simple, direct, no jargon |
 | **Personality** | Quiet competence — does the work, doesn't brag |
-| **Tagline** | "The fastest, most private voice app for Mac." |
+| **Tagline** | "Fast, private, local-first voice app for Mac." |
 
 ---
 

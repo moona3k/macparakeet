@@ -3486,7 +3486,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("MacParakeet \(identity.version) (\(identity.buildNumber))")
                             .font(DesignSystem.Typography.body)
-                        Text("Fast, private voice for Mac")
+                        Text("Fast, private, local-first voice for Mac")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                     }

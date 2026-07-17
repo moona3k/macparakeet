@@ -27,7 +27,7 @@ Cloud models (Claude, GPT-4, Gemini) are dramatically better than any local 8B f
 
 ### Competitive Validation
 
-Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — supports this general BYO-provider pattern. That validates the product direction even though MacParakeet's current branch now uses a mixed transport layer: Anthropic native Messages API, Ollama native `/api/chat`, OpenAI-compatible providers including LM Studio, and Local CLI subprocess execution.
+Char (fastrepl/char) — a meeting transcription app — supports this general BYO-provider pattern. That validates the product direction even though MacParakeet now uses a mixed transport layer: Anthropic native Messages API, Ollama native `/api/chat`, OpenAI-compatible providers including LM Studio, and Local CLI subprocess execution.
 
 ## Decision
 
@@ -35,7 +35,7 @@ Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — suppo
 
 ### Supported Providers
 
-The current branch supports these provider/runtime types through one shared service layer:
+The current implementation supports these provider/runtime types through one shared service layer:
 
 | Provider | Type | Base URL | Auth |
 |----------|------|----------|------|
@@ -237,7 +237,7 @@ Rejected for the current LLM design. Adds server costs, requires a separate host
 
 ### Anthropic native Messages API (historical alternative)
 
-Historical note: this alternative has since been implemented on the current branch. Anthropic now uses the native Messages API behind the same `LLMClientProtocol` boundary, while the higher-level product decision in this ADR remains unchanged.
+Historical note: this alternative has since been implemented. Anthropic now uses the native Messages API behind the same `LLMClientProtocol` boundary, while the higher-level product decision in this ADR remains unchanged.
 
 ## References
 

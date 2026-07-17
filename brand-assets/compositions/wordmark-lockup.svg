@@ -21,6 +21,6 @@
   <!-- Wordmark + tagline on the right -->
   <g font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif" fill="#0E0F12">
     <text x="740" y="450" font-size="120" font-weight="700" letter-spacing="-3">MacParakeet</text>
-    <text x="746" y="520" font-size="32" font-weight="400" opacity="0.65" letter-spacing="0">The fastest, most private voice app for Mac.</text>
+    <text x="746" y="520" font-size="32" font-weight="400" opacity="0.65" letter-spacing="0">Fast, private, local-first voice app for Mac.</text>
   </g>
 </svg>

@@ -1,8 +1,9 @@
 # Plan: MacParakeet CLI as the canonical Parakeet-on-Apple-Silicon surface
 
-> Status: **ACTIVE** — strategic rollout plan. CLI semver/AGENTS/integrations
-> work has shipped; Homebrew distribution is live; remaining work is
-> website/community/registry follow-through around the v0.6 release.
+> Status: **SHIPPED / HISTORICAL — archived 2026-07-16.** CLI
+> semver/AGENTS/integrations and Homebrew distribution shipped. The remaining
+> v0.6-era community/registry copy is retained as a campaign snapshot, not a
+> current launch checklist.
 > Author: agent (Claude) + Daniel
 > Date: 2026-04-25
 > Related: PR #138 (CLI prompts + JSON sweep, merged), PR #141 (gitignore journal/, merged), PR #144 (CLI 1.0 + AGENTS.md + integrations/, merged), PR #145 (rollout artifacts + registry drafts)
@@ -16,7 +17,7 @@
 > `integrations/openclaw/README.md`). Inline `SOUL.md` references in
 > the body below are preserved as the original strategic snapshot but
 > should be read as `SKILL.md` for any OpenClaw/ClawHub action. See
-> PR #145's `plans/active/registry-submissions/clawhub.md` for the
+> PR #145's `plans/completed/registry-submissions/clawhub.md` for the
 > verified submission flow.
 >
 > **Post-Brew correction (2026-05-19):** `brew install

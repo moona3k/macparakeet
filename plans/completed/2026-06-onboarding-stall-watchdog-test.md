@@ -1,5 +1,8 @@
 # Plan: Make the onboarding warm-up stall watchdog testable, and test it
 
+> **Archive status (2026-07-16): SHIPPED in PR #518 (`89298746d`).** The
+> injectable timeout and stall/healthy-path tests are present on `main`.
+
 > **Recovery note (2026-06-12)**: this plan was originally authored on a branch
 > (`chore/improve-audit-fixes`/`feat/487-stop-meeting-transcription`) at commit
 > `f8e28be91`, which never merged to `main`. It has been re-validated against

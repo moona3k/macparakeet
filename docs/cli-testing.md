@@ -123,8 +123,9 @@ macparakeet-cli
 └── feedback <message> [options]         Submit feedback
 ```
 
-`flow` is a compatibility alias for `vocab` in the CLI 2.x line. Use `vocab` in new
-scripts; the alias remains documented here only while the CLI still exposes it.
+`flow` is a deprecated compatibility alias for `vocab` and remains accepted in
+CLI 3.0. Use `vocab` in new scripts; removal requires a future major-version
+contract change and a matching changelog entry.
 
 > **JSON output convention**: any query command marked `[--json]` emits a single
 > JSON document on stdout (ISO-8601 dates, sorted keys, pretty-printed). Pipe to
@@ -408,7 +409,7 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
   --enforce-entitlements
 ```
 
-On the current branch, the app is effectively unlocked, so
+In the current public build, the app is effectively unlocked, so
 `--enforce-entitlements` should still pass unless you are explicitly validating
 retained purchase activation code.
 

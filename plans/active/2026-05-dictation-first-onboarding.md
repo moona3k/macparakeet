@@ -18,7 +18,7 @@
 - **Priority**: **P1** — highest-leverage activation lever in the backlog
 - **Effort**: Part A = **S–M** (subtraction + switch fixes + tests) · Part B = **M** (warm-up state machine)
 - **Risk**: Part A = **LOW** (pure removal, no new control flow) · Part B = **MED** (perturbs the warm-up machinery)
-- **Depends on**: Part A — none. Part B — *soft*: land `plans/active/2026-06-onboarding-stall-watchdog-test.md` first so the warm-up path Part B perturbs has test coverage under it.
+- **Depends on**: Part A — none. Part B — *soft*, satisfied by `plans/completed/2026-06-onboarding-stall-watchdog-test.md`, which landed before the warm-up timing change.
 - **Category**: direction / activation
 - **Planned at**: commit `237bb8ae1`, 2026-06-13 (refreshed to executor-grade from the 2026-05-29 design)
 - **ADR**: amends ADR-005 (onboarding first-run)

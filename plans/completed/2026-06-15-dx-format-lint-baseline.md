@@ -1,5 +1,9 @@
 # Plan: Establish a formatting/lint safety net (swift-format + .editorconfig + dev scripts + informational CI)
 
+> **Archive status (2026-07-16): SHIPPED.** The formatting configuration,
+> developer scripts, and informational CI path are present on `main`. The
+> execution-era instructions below are retained as implementation history.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving to the
 > next step. If anything in the "STOP conditions" section occurs, stop and

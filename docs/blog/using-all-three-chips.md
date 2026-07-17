@@ -1,6 +1,6 @@
 # Using All Three Chips: How We Rebuilt MacParakeet's Speech Engine for Apple Silicon
 
-> Status: **HISTORICAL** - The old on-device Qwen3-8B / mlx-swift-lm path was removed 2026-02-23. GPU-local LLM content below is outdated; current LLM features use external providers or local CLI, while core speech remains a two-chip architecture (CPU + ANE).
+> Status: **HISTORICAL** - The old on-device Qwen3-8B / mlx-swift-lm path was removed 2026-02-23. GPU-local LLM content below is outdated; current LLM features use external providers or local CLI, while core speech remains a two-chip architecture (CPU + ANE). The `155x` / `~66 MB` numbers below are migration-era measurements, not current release claims; current M4 Pro results are ~81–93x steady realtime and 115–131 MB peak RSS by Parakeet build (see `spec/06-stt-engine.md`).
 
 *MacParakeet Engineering*
 

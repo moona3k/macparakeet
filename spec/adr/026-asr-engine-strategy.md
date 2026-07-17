@@ -1,7 +1,8 @@
 # ADR-026: ASR Engine and Runtime Strategy
 
-> Status: ACCEPTED (strategy; capability-registry implementation tracked in
-> `plans/active/2026-07-03-stt-capability-registry.md`)
+> Status: ACCEPTED (strategy; capability-registry Phase A shipped as #720;
+> implementation record archived at
+> `plans/completed/2026-07-03-stt-capability-registry.md`)
 > Date: 2026-07-03
 > Related: ADR-001 (Parakeet primary STT + benchmark amendment), ADR-002
 > (local-only), ADR-007 (FluidAudio CoreML), ADR-016 (centralized STT
@@ -98,16 +99,16 @@ before shipping; the harness, not vendor claims, decides copy like
 
 ### 4. Foundation before the next engine family
 
-Before any new engine *family* is added, the `(engine, variant)`
-capability registry described in research finding 3 must land: a single
+The `(engine, variant)` capability registry described in research finding 3
+shipped as #720 and remains the required foundation before another engine
+*family* is added. It provides a single
 exhaustively-keyed declaration of what each engine supports (native
 live, preview, word timestamps, languages, scheduling class, memory
 gate, model lifecycle) that drives runtime routing, scheduler admission,
 Settings availability/copy, CLI listings, and capability tests.
-Implementation plan: `plans/active/2026-07-03-stt-capability-registry.md`.
-New *variants* of existing families may ship before the registry, but
-each one raises its cost and is another migration to do later — prefer
-registry-first when sequencing allows.
+Implementation record: `plans/completed/2026-07-03-stt-capability-registry.md`.
+New *variants* of existing families must extend that registry and its adoption
+tests rather than creating another switch-site capability table.
 
 ### 5. Whisper's trajectory: maintained fallback, shrinking role
 

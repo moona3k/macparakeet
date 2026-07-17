@@ -92,7 +92,7 @@ Transforms use the user's configured LLM provider (cloud API key, OpenAI-compati
 
 ### 7. CLI parity via `macparakeet-cli transforms` subcommand tree
 
-The CLI is a public, semver-tracked contract (`Sources/CLI/CHANGELOG.md`). Coding agents (OpenClaw / Hermes path per `plans/active/cli-as-canonical-parakeet-surface.md`) need to drive Transforms headlessly for testing and provisioning.
+The CLI is a public, semver-tracked contract (`Sources/CLI/CHANGELOG.md`). Coding agents (OpenClaw / Hermes path per `plans/completed/cli-as-canonical-parakeet-surface.md`) need to drive Transforms headlessly for testing and provisioning.
 
 ```text
 transforms list [--json]

@@ -1,7 +1,8 @@
 # Telemetry Error Count Verification -- 2026-05-05
 
 > Status: VERIFIED CURRENT SNAPSHOT. Follow-up to
-> [`journal/2026-05-05-telemetry-error-counts.md`](../../journal/2026-05-05-telemetry-error-counts.md).
+> The original private working note was `journal/2026-05-05-telemetry-error-counts.md`
+> (intentionally not tracked); this audit is the durable repository record.
 > Source: direct Cloudflare D1 queries run with `npx wrangler d1 execute
 > macparakeet-telemetry --remote --command ...`. Wrangler auth expired around
 > 2026-05-05 02:11 UTC, then was refreshed and D1 access was restored around

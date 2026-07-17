@@ -4,7 +4,7 @@
 > Date: 2026-07-03
 > Governing decision: [ADR-026 §3](../../spec/adr/026-asr-engine-strategy.md) — roadmap item 1
 > Sequencing: prefer after capability-registry Phase A
-> ([2026-07-03-stt-capability-registry.md](2026-07-03-stt-capability-registry.md));
+> ([2026-07-03-stt-capability-registry.md](../completed/2026-07-03-stt-capability-registry.md));
 > may proceed before it if the registry stalls, at the cost of one more
 > switch-site migration later.
 

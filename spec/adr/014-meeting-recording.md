@@ -7,7 +7,8 @@
 > Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so optional VPIO no longer conflicts with system audio capture)
 > Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
 > Amended: 2026-05-14 (ship raw meeting mic capture by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants)
-> Amended: 2026-05-29 (permission timing clarification: Screen & System Audio Recording can be granted from the optional onboarding step or requested on first system-audio meeting use; denied/missing permission blocks source modes that include system audio)
+> Amended: 2026-05-29 (permission timing clarification; superseded in part by the 2026-06-13 dictation-first onboarding change below)
+> Amended: 2026-06-13 (Meeting Recording setup removed from first-run onboarding; Screen & System Audio Recording is requested in context on first use of a mode that includes system audio)
 > Amended: 2026-06-10 (echo hardening for [issue #480](https://github.com/moona3k/macparakeet/issues/480): confidence-independent simultaneous-echo rule in the final transcript filter, streaming AEC frame carry + reference-delay knob, VPIO experiments now disable AGC)
 > Amended: 2026-06-20 (meeting source mode is configurable per recording: microphone + system audio by default, microphone-only, or system-audio-only; permission prompts are scoped to the selected sources)
 > Amended: 2026-06-27 (Cohere Transcribe can be selected for final meeting transcription through the captured engine lease; it is batch-only, so meeting live-preview chunks stay disabled and finalized Cohere transcripts are plain text without word timestamps/speaker labels)
@@ -129,14 +130,13 @@ Permission checks are scoped to the selected source mode:
   not start the mic stream.
 
 If a required permission for the selected mode is denied, recording is blocked
-with the matching settings action. First-run onboarding can still request Screen
-& System Audio Recording early for users who expect to capture system audio; if
-the user skips it, the Transcribe tile/menu-bar/hotkey first-use path requests
-it only when the selected source mode needs it.
+with the matching settings action. The Transcribe tile/menu-bar/hotkey first-use
+path requests Screen & System Audio Recording only when the selected source mode
+needs it; first-run onboarding no longer includes Meeting Recording setup.
 
 ### 7. Batch transcription first; live preview implemented later
 
-Parakeet at 155x realtime transcribes 60 minutes of audio in ~23 seconds. Batch transcription (transcribe after recording stops) was the MVP. Real-time chunked transcription (5-second chunks during recording) shipped in Phase 2 and is best-effort; final post-stop transcription remains authoritative.
+Batch transcription (transcribe after recording stops) was the MVP. Current Parakeet builds measure roughly 81–93x steady realtime on the M4 Pro reference benchmark, depending on the build. Real-time chunked transcription (5-second chunks during recording) shipped in Phase 2 and is best-effort; final post-stop transcription remains authoritative.
 
 2026-05 hardening: the live preview path now supports a `MeetingLiveAudioChunking`
 strategy layer. The fixed strategy preserves the original 5-second / 1-second

@@ -1,5 +1,8 @@
 # Plan: Extract a shared TranscriptFormatter to kill the duplicated AI-formatter path
 
+> **Archive status (2026-07-16): SHIPPED.** The shared formatter and focused
+> tests are present on `main`; later validator work remains a separate plan.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving on. If
 > anything in "STOP conditions" occurs, stop and report — do not improvise.

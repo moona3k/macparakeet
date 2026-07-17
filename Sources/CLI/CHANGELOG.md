@@ -974,7 +974,7 @@ complete enough to commit to. This release marks that commitment.
 - Command abstract reframed from "internal developer CLI" to a public surface.
   The CLI is now positioned as the canonical Swift-native interface to
   Parakeet TDT on Apple Silicon, with the macOS app as one consumer of it.
-  Strategic context: `plans/active/cli-as-canonical-parakeet-surface.md`.
+  Strategic context: `plans/completed/cli-as-canonical-parakeet-surface.md`.
 
 ### Compatibility notes
 

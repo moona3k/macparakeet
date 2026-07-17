@@ -1,5 +1,8 @@
 # Registry submission drafts
 
+> **Historical snapshot (archived 2026-07-16).** This folder records the
+> 2026-04/05 registry campaign; it is not an active submission checklist.
+
 Drafts of the content + submission bodies for placing `macparakeet-cli`
 in the relevant agent skill registries. The Hermes and OpenClaw
 awesome-list issues have been submitted; the ClawHub path is deferred

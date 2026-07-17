@@ -1,5 +1,8 @@
 # Community post drafts
 
+> **Historical snapshot (archived 2026-07-16).** These drafts target the CLI
+> 2.3.1 launch and are not approved current release copy.
+
 Drafts for cross-posting the macparakeet-cli agent/Homebrew launch to the
 relevant communities. **None of these have been posted.** Each
 needs the maintainer's account on the target platform; the agent

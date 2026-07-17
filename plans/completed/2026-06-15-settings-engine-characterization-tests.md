@@ -1,5 +1,8 @@
 # Plan: Characterization tests for the Settings engine/model surface (decomposition safety net)
 
+> **Archive status (2026-07-16): SHIPPED.** The characterization coverage is
+> present on `main`; this plan is retained as the safety-net design record.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving on. If
 > anything in "STOP conditions" occurs, stop and report — do not improvise.

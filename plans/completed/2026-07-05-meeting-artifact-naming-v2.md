@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status:** IMPLEMENTED on `feat/meeting-artifact-naming-v2` (2026-07-05);
-  verify acceptance criteria on `main`, then archive.
+- **Status:** SHIPPED as #744; acceptance criteria verified on `main` and
+  archived 2026-07-16.
 - **Priority:** P1 while the meeting artifact contract is still new and cheap to
   correct.
 - **Decision date:** 2026-07-05.

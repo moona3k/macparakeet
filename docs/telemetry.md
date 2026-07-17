@@ -1,6 +1,9 @@
 # Telemetry System
 
 > Status: **ACTIVE** — Design document for MacParakeet's privacy-first analytics system.
+> Vendor limits and prices are point-in-time planning inputs, not product
+> contracts; verify current Cloudflare documentation before capacity or cost
+> decisions.
 > Reviewed by: Codex (2026-03-13). See [Codex Review](#codex-review-2026-03-13) for accepted/rejected feedback.
 > Observability update: Codex (2026-04-26). Added canonical operation events for product health and CLI/agent usage while preserving the existing opt-out and privacy model.
 > Logging/wide-events review: Codex (2026-05-02). Compared the implementation against the "Logging Sucks" wide-event guidance. Conclusion: MacParakeet already uses the right operation-wide-event model for product telemetry; follow-up work is mainly coverage, schema hygiene, and local diagnostic export. See [`docs/audits/2026-05-02-logging-telemetry-review.md`](audits/2026-05-02-logging-telemetry-review.md) and [`docs/audits/2026-05-02-logging-telemetry-issues.md`](audits/2026-05-02-logging-telemetry-issues.md).

@@ -1,5 +1,8 @@
 # Plan: Collapse AppSettingsObserverCoordinator's 12 observer triples into a table-driven registration
 
+> **Archive status (2026-07-16): SHIPPED.** The table-driven observer
+> registration and its tests are present on `main`.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving on. If
 > anything in "STOP conditions" occurs, stop and report — do not improvise.

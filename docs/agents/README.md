@@ -1,6 +1,7 @@
 # Agent Landscape Notes
 
-> Status: **ACTIVE** — last updated 2026-05-03
+> Status: **DATED RESEARCH INDEX** — snapshot last updated 2026-05-03. The
+> landscape changes quickly; reverify tools and claims before adoption.
 
 Field notes on the AI-agent frontier as it intersects MacParakeet's needs.
 Two threads we actively care about:
@@ -8,7 +9,8 @@ Two threads we actively care about:
 - **QA agents** — can an agent verify a user flow works end-to-end?
 - **Demo agents** — can an agent produce a polished product demo on demand?
 
-Each doc is a curated landscape map plus an opinion on what to do **today**
+Each doc is a point-in-time landscape map plus an opinion on what to do **as of
+its review date**
 versus what to **watch** over the next 6–12 months. These are living
 documents — update them as the frontier moves and as MacParakeet's surfaces
 grow.

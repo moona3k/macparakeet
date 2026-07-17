@@ -1,6 +1,6 @@
 # Bounded Capture Lifecycle
 
-**Status:** IMPLEMENTED IN BRANCH
+**Status:** SHIPPED AS #814 — archived 2026-07-16
 **Priority:** P1 reliability
 **Branch:** `fix/bounded-capture-lifecycle`
 **Baseline:** `origin/main` at `d97720362575f155e17e826d39fc161dfe0fa33a`

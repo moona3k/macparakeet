@@ -418,7 +418,7 @@ alter the pasted text. See `docs/research/live-dictation-streaming.md`.
 |------------|-----|----------------|----------|
 | Microphone | Dictation recording and meeting modes that include mic audio | Onboarding, first dictation attempt, or first mic-capturing meeting attempt | Show permission dialog with instructions |
 | Accessibility | Global shortcut detection + text insertion | Onboarding or first dictation attempt | Show System Settings deep link |
-| Screen & System Audio Recording | Meeting modes that include system audio capture via ScreenCaptureKit | Optional onboarding step or first system-audio meeting attempt | Show error + "Open System Settings" button, block recording |
+| Screen & System Audio Recording | Meeting modes that include system audio capture via ScreenCaptureKit | First system-audio meeting attempt | Show error + "Open System Settings" button, block recording |
 
 ### Permission Flow
 

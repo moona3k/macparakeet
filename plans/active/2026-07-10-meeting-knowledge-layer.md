@@ -22,8 +22,9 @@
 
 ## Status
 
-- **State**: **EXECUTOR-READY (Phase 1)** — all §8 design questions answered
-  by Daniel 2026-07-10; Phase 1 implementation dispatched.
+- **State**: **PARTIAL** — Phase 1 shipped as #781 and Phase 2 as #784.
+  Phase 3 agent guidance and Phase 4 optional semantic retrieval remain open;
+  re-validate both against the shipped CLI before execution.
 - **Priority**: P1 (north-star work: "make the local library more useful,
   expose it safely to the user and their agents" — ADR-027)
 - **Effort**: L (staged; Phase 1 is M and ships standalone)

@@ -47,7 +47,7 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
 
 ### Provider Protocol
 
-The current branch does not flatten every provider into one wire protocol. `RoutingLLMClient` shares one high-level interface, but transport branches by provider:
+The current implementation does not flatten every provider into one wire protocol. `RoutingLLMClient` shares one high-level interface, but transport branches by provider:
 
 - **Anthropic** uses the native Messages API (`POST /v1/messages`).
 - **Ollama** uses the native chat API (`POST /api/chat`) so thinking can be disabled.
@@ -484,7 +484,7 @@ MacParakeet does not inspect the active tab URL or window title.
 
 > Historical note: this section predates the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md). The `summary` column shipped, but prompt persistence now lives in the prompt/summary model described in spec/12 rather than a standalone custom-transform store.
 
-The original implementation added `transcriptions.summary`. The current branch
+The original implementation added `transcriptions.summary`. The current implementation
 migrated that legacy column into the `summaries` table, whose Swift model is
 `PromptResult`. Prompt templates live in `prompts`, generated outputs live in
 `summaries`, and transcript chat lives in `chat_conversations`. See
@@ -492,7 +492,7 @@ migrated that legacy column into the `summaries` table, whose Swift model is
 [spec/12-processing-layer.md](12-processing-layer.md) for the authoritative
 schema.
 
-Custom transforms were the original plan for this spec. The current branch
+Custom transforms were the original plan for this spec. The current implementation
 routes summary/transform prompting through the Prompt Library architecture in
 [spec/12-processing-layer.md](12-processing-layer.md).
 

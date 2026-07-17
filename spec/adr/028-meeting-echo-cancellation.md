@@ -1,6 +1,7 @@
 # ADR-028: Offline Meeting Echo Cancellation via Derived Cleaned-Mic Artifact
 
-Status: Accepted (2026-07-03)
+> Status: **Accepted**
+> Date: 2026-07-03
 
 ## Context
 
