@@ -242,22 +242,31 @@ that cleanup bug. It reports Spanish speech switching back into English
 mid-sentence and remains open. Treating #817 as the resolution for #786 would
 conflate deterministic post-processing with speech-engine language recognition.
 
-## 5. Surfaces updated
+## 5. Updated surface inventory
 
-- `README.md`
-- in-app Settings About subtitle
-- `spec/00-vision.md`, `spec/02-features.md`, `spec/03-architecture.md`, and
-  `spec/05-audio-pipeline.md`
-- affected LLM/processing specs whose wording was branch-relative
-- ADR-001, ADR-005, ADR-007, ADR-011, ADR-013, ADR-014, ADR-017, ADR-022,
-  ADR-026, ADR-027, and ADR-028
-- `docs/brand-identity.md`, `docs/marketing.md`, `docs/cli-testing.md`, and the
-  historical three-chip blog status note
-- active brand SVG compositions and regenerated PNG exports
-- marketing-video script copy
-- `plans/README.md`, active partial-plan statuses, completed-plan archive
-  headers, and all affected plan/spec/research references
-- GitHub repository About description
+The complete file-level inventory is the PR/commit diff. Grouped by role, the
+change covers:
+
+- **Public product/automation entry points:** `README.md`, the in-app Settings
+  About subtitle, `Sources/CLI/CHANGELOG.md`, and the Homebrew scaffold HOWTO.
+- **Current specs:** vision, features, architecture, audio pipeline, and the
+  affected LLM/processing wording in specs 11 and 12.
+- **Accepted decisions:** ADR-001, ADR-005, ADR-007, ADR-011, ADR-013, ADR-014,
+  ADR-017, ADR-022, ADR-026, ADR-027, and ADR-028.
+- **Brand/marketing:** brand identity, marketing production brief,
+  marketing-video script, three active composition SVGs, and their regenerated
+  OG/wordmark/story PNG exports.
+- **Current operational/research guidance:** CLI testing, telemetry vendor-limit
+  warning, agent-landscape index and snapshots, historical three-chip blog
+  status note, and the resolved #91 crash investigation status.
+- **Audit/research navigation:** the telemetry verification record,
+  meeting-stop readiness record, v0.7.3 comprehensive audit, live/final routing
+  review reference, and this fresh-eye audit.
+- **Plan truth:** `plans/README.md`, nine active plan/advisor records, two older
+  completed-plan cross-references, one completed advisor status, 17 archived
+  implementation records, and two archived CLI campaign directories.
+- **Live repository metadata:** the GitHub About description, updated outside
+  the file diff and re-read after mutation.
 
 ## 6. Validation
 
