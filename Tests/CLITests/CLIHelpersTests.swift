@@ -1,9 +1,17 @@
 import Darwin
+import Foundation
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
 
 final class CLIHelpersTests: XCTestCase {
+
+    func testBundledCLIUsesStandardDefaultsForAppPreferenceDomain() {
+        XCTAssertTrue(
+            macParakeetAppDefaults(bundleIdentifier: AppPaths.preferencesSuiteName)
+                === UserDefaults.standard
+        )
+    }
 
     func testStandardOutputRedirectionRestoresStdoutPayload() throws {
         let nullFileDescriptor = open("/dev/null", O_WRONLY)

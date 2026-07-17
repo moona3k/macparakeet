@@ -91,6 +91,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- Bundled CLI commands no longer emit a Foundation UserDefaults suite warning
+  on otherwise successful invocations. The standalone CLI continues sharing
+  the MacParakeet app's preferences.
 - Local-file titles in `search`, `transcript`, and `cards list` now preserve
   the original media filename unless the user explicitly renamed the
   transcription, matching the Mac app and avoiding transcript-opening words as
