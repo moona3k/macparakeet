@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_929cd2e607778b::t_25849f73bb1bf3 213-218
+  s_929cd2e607778b::t_c9d042de24a78b 4-9,71
+  s_929cd2e607778b::t_903290bd8028b2 184-202,206-212,219-232,234-238,274
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_929cd2e607778b::t_903290bd8028b2 1052-1053,1060-1061,1100-1101,1109-1110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "78089c051d64aa5a9a6e550a720dc2e375510c08",
+  "prompts": {},
+  "sessions": {
+    "s_929cd2e607778b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f710d-db44-7280-ab47-de1357d57c55",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
