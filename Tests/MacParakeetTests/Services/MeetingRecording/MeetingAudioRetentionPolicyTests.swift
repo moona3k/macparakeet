@@ -30,17 +30,21 @@ final class MeetingAudioRetentionPolicyTests: XCTestCase {
         )
     }
 
-    func testDeleteImmediatelySweepsExistingCompletedAudio() {
-        let alreadySaved = candidate(id: UUID(), ageDays: 0, extraSeconds: 1)
-        let justCreated = candidate(id: UUID(), ageDays: 0)
+    func testDeleteImmediatelyNeverSweepsSavedAudio() {
+        // "Remove audio after transcription" applies at capture time (fresh
+        // audio is never persisted). The sweeper must never retroactively
+        // delete audio that was saved under an earlier retention setting —
+        // that destroyed a real user library on 2026-07-16.
+        let old = candidate(id: UUID(), ageDays: 90)
+        let recent = candidate(id: UUID(), ageDays: 0, extraSeconds: 1)
 
         XCTAssertEqual(
             MeetingAudioRetentionPolicy.sweep(
-                [alreadySaved, justCreated],
+                [old, recent],
                 config: .deleteImmediately,
                 now: now
             ),
-            [alreadySaved.id]
+            []
         )
     }
 

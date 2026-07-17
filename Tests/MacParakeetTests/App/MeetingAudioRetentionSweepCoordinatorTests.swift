@@ -51,7 +51,7 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
         )
         coordinator.schedulePreferenceChangeSweep(
             repository: repository,
-            retention: .deleteImmediately
+            retention: .deleteAfterDays(7)
         )
 
         try? await Task.sleep(for: .milliseconds(100))
@@ -61,7 +61,7 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
 
         let didFetchAfterRecovery = await waitForFetch(repository)
         XCTAssertTrue(didFetchAfterRecovery)
-        XCTAssertEqual(repository.cutoffs.first, sweepNow)
+        XCTAssertEqual(repository.cutoffs.first, sweepNow.addingTimeInterval(-7 * 24 * 60 * 60))
     }
 
     func testForegroundSweepWaitsForPendingLaunchRecovery() async {

@@ -54,6 +54,26 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: lockedAwaiting.transcription.id)?.filePath, lockedAwaiting.audioURL.path)
     }
 
+    func testSweepWithDeleteImmediatelyLeavesSavedAudioUntouched() throws {
+        // `.deleteImmediately` is enforced at capture time; the sweeper must
+        // not use it to retroactively destroy previously saved audio.
+        let old = try makeMeeting(ageDays: 90)
+        let recent = try makeMeeting(ageDays: 0)
+        try repo.save(old.transcription)
+        try repo.save(recent.transcription)
+
+        let result = try MeetingAudioRetentionSweeper(repository: repo)
+            .sweep(retention: .deleteImmediately, now: now)
+
+        XCTAssertEqual(result.evaluatedCount, 0)
+        XCTAssertEqual(result.eligibleCount, 0)
+        XCTAssertEqual(result.detachedCount, 0)
+        for meeting in [old, recent] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: meeting.audioURL.path))
+            XCTAssertEqual(try repo.fetch(id: meeting.transcription.id)?.filePath, meeting.audioURL.path)
+        }
+    }
+
     func testSweepSkipsUnmanagedMeetingAudioPath() throws {
         let externalPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("external-meeting-\(UUID().uuidString).m4a")

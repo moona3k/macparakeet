@@ -1846,7 +1846,7 @@ struct SettingsView: View {
         case .deleteAfterDays(let days):
             return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
         case .deleteImmediately:
-            return "MacParakeet will remove saved audio after each final transcript is saved. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
+            return "New recordings will not keep audio after each final transcript is saved. Audio already saved from past meetings is kept. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available for new recordings, and MacParakeet cannot detect or backfill speakers for them."
         }
     }
 
