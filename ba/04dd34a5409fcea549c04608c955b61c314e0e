@@ -1,0 +1,27 @@
+Tests/CLITests/CLIHelpersTests.swift
+  s_2b7ce6a4fa6e3c::t_b8ad7953361117 11
+  s_2b7ce6a4fa6e3c::t_c7b81725483ff5 2,9-10,12-14
+  s_2b7ce6a4fa6e3c::t_7823f88c335aec 15
+Sources/CLI/Commands/CLIHelpers.swift
+  s_2b7ce6a4fa6e3c::t_ca698d91544970 16-17
+  s_2b7ce6a4fa6e3c::t_68583bd3331831 13-15,19-20
+  s_2b7ce6a4fa6e3c::t_b8ad7953361117 18,21
+Sources/CLI/CHANGELOG.md
+  s_2b7ce6a4fa6e3c::t_ca698d91544970 94-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ba04dd34a5409fcea549c04608c955b61c314e0e",
+  "prompts": {},
+  "sessions": {
+    "s_2b7ce6a4fa6e3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6e5f-ce7e-7080-a5a8-16e6575af8b6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
