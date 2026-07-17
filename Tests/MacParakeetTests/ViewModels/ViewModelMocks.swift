@@ -410,48 +410,6 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
     }
 }
 
-// MARK: - MockCommandLineToolInstallService
-
-final class MockCommandLineToolInstallService: CommandLineToolInstalling {
-    var status: CommandLineToolInstallStatus
-    var currentStatusResults: [CommandLineToolInstallStatus] = []
-    var currentStatusDelayNanoseconds: UInt64 = 0
-    var currentStatusCallCount = 0
-    var installResult: CommandLineToolInstallStatus
-    var installError: Error?
-    var installOverwriteCalls: [Bool] = []
-
-    init(
-        status: CommandLineToolInstallStatus = .notInstalled,
-        installResult: CommandLineToolInstallStatus = .installed,
-        installError: Error? = nil
-    ) {
-        self.status = status
-        self.installResult = installResult
-        self.installError = installError
-    }
-
-    func currentStatus() async -> CommandLineToolInstallStatus {
-        currentStatusCallCount += 1
-        if currentStatusDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: currentStatusDelayNanoseconds)
-        }
-        if !currentStatusResults.isEmpty {
-            return currentStatusResults.removeFirst()
-        }
-        return status
-    }
-
-    func install(overwriteExisting: Bool) async throws -> CommandLineToolInstallStatus {
-        installOverwriteCalls.append(overwriteExisting)
-        if let installError {
-            throw installError
-        }
-        status = installResult
-        return installResult
-    }
-}
-
 // MARK: - MockTranscriptionService
 
 actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {

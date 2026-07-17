@@ -105,10 +105,6 @@ WhisperKit model downloads live under
 
 For convenience, symlink it onto your `$PATH`:
 
-- From the app: choose **MacParakeet > Install Command Line Tool...** or open
-  **Settings > System > Startup > Command line tool**.
-- Manually:
-
 ```bash
 ln -s /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli \
       /usr/local/bin/macparakeet-cli

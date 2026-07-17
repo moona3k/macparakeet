@@ -270,9 +270,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onOpenSettings: { [weak self] in
             self?.windowCoordinator.openMainWindowToSettings()
         },
-        onOpenCommandLineToolSettings: { [weak self] in
-            self?.windowCoordinator.openMainWindowToSettings(tab: .system, anchor: "system.startup")
-        },
         onNavigate: { [weak self] item in
             self?.mainWindowState.navigate(to: item)
         },

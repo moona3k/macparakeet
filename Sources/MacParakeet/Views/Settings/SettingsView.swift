@@ -179,7 +179,6 @@ struct SettingsView: View {
         .background(focusSearchHotkey)
         .onAppear {
             viewModel.refreshLaunchAtLoginStatus()
-            viewModel.refreshCommandLineToolStatus()
             viewModel.startPermissionPolling()
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
@@ -192,7 +191,6 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshPermissions()
-            viewModel.refreshCommandLineToolStatus()
             viewModel.engine.refreshSpeechEngineSwitchAvailability()
             Task { await viewModel.refreshCalendarNotificationAuthorization() }
         }
@@ -658,23 +656,6 @@ struct SettingsView: View {
         } message: { pending in
             Text(meetingAudioRetentionConfirmationMessage(for: pending.retention))
         }
-        .alert(
-            "Replace command line tool link?",
-            isPresented: Binding(
-                get: { viewModel.pendingCommandLineToolOverwriteTarget != nil },
-                set: { if !$0 { viewModel.cancelCommandLineToolOverwrite() } }
-            ),
-            presenting: viewModel.pendingCommandLineToolOverwriteTarget
-        ) { _ in
-            Button("Cancel", role: .cancel) {
-                viewModel.cancelCommandLineToolOverwrite()
-            }
-            Button("Replace Link") {
-                viewModel.confirmCommandLineToolOverwrite()
-            }
-        } message: { target in
-            Text("/usr/local/bin/macparakeet-cli currently points to \(target). Replace it with this copy of MacParakeet?")
-        }
     }
 
     /// Common scaffold for all four tab bodies: ScrollView wrapped in a
@@ -968,7 +949,7 @@ struct SettingsView: View {
     private var startupCard: some View {
         settingsCard(
             title: "Startup",
-            subtitle: "How MacParakeet integrates with macOS and Terminal.",
+            subtitle: "How MacParakeet shows up on your Mac at sign-in.",
             icon: "power"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
@@ -1002,39 +983,6 @@ struct SettingsView: View {
                     detail: "Hide the Dock icon and run from the menu bar only.",
                     isOn: $viewModel.menuBarOnlyMode
                 )
-
-                Divider()
-
-                HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-                    rowText(
-                        title: "Command line tool",
-                        detail: viewModel.commandLineToolDetail
-                    )
-
-                    Spacer()
-
-                    if viewModel.commandLineToolStatusChecking || viewModel.commandLineToolInstallInProgress {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-
-                    Text(viewModel.commandLineToolStatusLabel)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button(viewModel.commandLineToolActionTitle) {
-                        viewModel.installCommandLineTool()
-                    }
-                    .parakeetAction(.secondary)
-                    .disabled(!viewModel.canInstallCommandLineTool)
-                }
-
-                if let error = viewModel.commandLineToolError {
-                    Text(error)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
         }
     }

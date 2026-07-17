@@ -50,7 +50,6 @@ final class AppEnvironment {
     let focusedAppContextService: FocusedAppContextService
     let entitlementsService: EntitlementsService
     let launchAtLoginService: LaunchAtLoginService
-    let commandLineToolInstallService: CommandLineToolInstallService
     let checkoutURL: URL?
     let telemetryService: TelemetryService
     let llmClient: RoutingLLMClient
@@ -179,7 +178,6 @@ final class AppEnvironment {
         accessibilityService = AccessibilityService()
         focusedAppContextService = FocusedAppContextService()
         launchAtLoginService = LaunchAtLoginService()
-        commandLineToolInstallService = CommandLineToolInstallService()
 
         // Retained purchase activation / entitlements. Current free/GPL builds
         // always report unlocked, but the old activation plumbing is preserved
