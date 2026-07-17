@@ -86,6 +86,7 @@ public enum SettingsSearchIndex {
     /// that won't render.
     private static let meetingGatedIds: Set<String> = [
         "meeting",
+        "meeting.hotkey",
         "meeting.floatingControls",
         "meeting.speakerDetection",
         "meeting.autoStop",
@@ -235,6 +236,19 @@ public enum SettingsSearchIndex {
             title: "Meeting Recording",
             subtitle: "Dedicated controls for meeting audio capture.",
             keywords: ["meeting", "system audio", "screen recording", "meeting capture", "core audio taps"],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.hotkey",
+            tab: .capture,
+            title: "Meeting hotkey",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "hotkey", "shortcut", "keyboard shortcut", "meeting shortcut",
+                "change hotkey", "change shortcut", "remove hotkey", "remove shortcut",
+                "disable hotkey", "unmap", "remap",
+                "cmd shift m", "cmd+shift+m", "command shift m", "command+shift+m", "⌘⇧m"
+            ],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(

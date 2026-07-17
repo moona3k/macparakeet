@@ -99,6 +99,32 @@ final class SettingsSearchIndexTests: XCTestCase {
         XCTAssertTrue(results.contains(where: { $0.id == "system.storage" }))
     }
 
+    func testMeetingHotkeyQueriesFindMeetingHotkeySetting() throws {
+        if AppFeatures.meetingRecordingEnabled {
+            let entry = try XCTUnwrap(
+                SettingsSearchIndex.entries.first { $0.id == "meeting.hotkey" }
+            )
+            XCTAssertEqual(entry.tab, .capture)
+            XCTAssertEqual(entry.title, "Meeting hotkey")
+            XCTAssertEqual(entry.subtitle, "in Meeting Recording")
+            XCTAssertEqual(entry.cardAnchor, "meeting")
+
+            for query in [
+                "meeting hotkey", "meeting shortcut", "change hotkey",
+                "remove shortcut", "disable hotkey", "CMD+Shift+M",
+                "Command Shift M", "⌘⇧M"
+            ] {
+                let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+                XCTAssertTrue(ids.contains("meeting.hotkey"), "Query \(query) should find the meeting hotkey")
+            }
+        } else {
+            XCTAssertFalse(
+                SettingsSearchIndex.entries.contains { $0.id == "meeting.hotkey" },
+                "Meeting hotkey search should stay hidden with meeting recording disabled"
+            )
+        }
+    }
+
     func testTranscriptOnlyQueryFindsStorageRetention() {
         let results = SettingsSearchIndex.matches("transcript only")
 
@@ -255,6 +281,7 @@ final class SettingsSearchIndexTests: XCTestCase {
         // change. Ids: card + sub-card + cross-tab permission row.
         let meetingGatedIds: Set<String> = [
             "meeting",
+            "meeting.hotkey",
             "meeting.floatingControls",
             "meeting.speakerDetection",
             "meeting.autoStop",
