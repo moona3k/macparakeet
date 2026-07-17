@@ -879,7 +879,7 @@ final class LLMClientTests: XCTestCase {
         XCTAssertNil(capturedBody?["temperature"])
     }
 
-    func testGPT5UsesMaxCompletionTokensButKeepsTemperature() async throws {
+    func testGPT5ReasoningTierUsesMaxCompletionTokensAndOmitsTemperature() async throws {
         var capturedBody: [String: Any]?
 
         MockURLProtocol.handler = { request in
@@ -899,7 +899,31 @@ final class LLMClientTests: XCTestCase {
         // GPT-5.x requires max_completion_tokens, not max_tokens
         XCTAssertNil(capturedBody?["max_tokens"])
         XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
-        // But GPT-5.x still accepts temperature (unlike reasoning models)
+        // GPT-5.x reasoning tier only accepts the default temperature
+        XCTAssertNil(capturedBody?["temperature"])
+    }
+
+    func testGPT5ChatTierUsesMaxCompletionTokensAndKeepsTemperature() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.openai(apiKey: "sk-test", model: "gpt-5.3-chat-latest")
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: ChatCompletionOptions(temperature: 0.7, maxTokens: 500)
+        )
+
+        // GPT-5.x requires max_completion_tokens, not max_tokens
+        XCTAssertNil(capturedBody?["max_tokens"])
+        XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
+        // Chat-tier GPT-5.x variants still accept explicit temperature
         XCTAssertEqual(capturedBody?["temperature"] as? Double, 0.7)
     }
 

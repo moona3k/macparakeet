@@ -91,6 +91,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- Native OpenAI LLM calls omit `temperature` for GPT-5.x reasoning-tier
+  models (e.g. `gpt-5.5`, `gpt-5.4-mini`), preventing HTTP 400
+  "unsupported temperature" responses from models that only accept the
+  default sampling temperature. Chat-tier variants (`gpt-5.3-chat-latest`)
+  and pre-5.x models retain the caller's temperature, matching the existing
+  o-series handling and the Anthropic adapter's behavior.
 - Local-file titles in `search`, `transcript`, and `cards list` now preserve
   the original media filename unless the user explicitly renamed the
   transcription, matching the Mac app and avoiding transcript-opening words as

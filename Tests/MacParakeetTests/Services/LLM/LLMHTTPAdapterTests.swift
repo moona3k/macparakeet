@@ -76,6 +76,69 @@ final class LLMHTTPAdapterTests: XCTestCase {
         )
     }
 
+    func testOpenAIAdapterOmitsTemperatureForGPT5ReasoningTierModels() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: .openai(apiKey: "sk-golden", model: "gpt-5.5"),
+            options: ChatCompletionOptions(temperature: 0.25, maxTokens: 123)
+        )
+
+        let request = try XCTUnwrap(capturedRequest)
+        XCTAssertEqual(
+            try canonicalJSONBody(from: request),
+            """
+            {"max_completion_tokens":123,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"gpt-5.5","stream":false}
+            """
+        )
+    }
+
+    func testOpenAIAdapterKeepsTemperatureForGPT5ChatTierModels() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: .openai(apiKey: "sk-golden", model: "gpt-5.3-chat-latest"),
+            options: ChatCompletionOptions(temperature: 0.25, maxTokens: 123)
+        )
+
+        let request = try XCTUnwrap(capturedRequest)
+        XCTAssertEqual(
+            try canonicalJSONBody(from: request),
+            """
+            {"max_completion_tokens":123,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"gpt-5.3-chat-latest","stream":false,"temperature":0.25}
+            """
+        )
+    }
+
+    func testOpenAIRejectsTemperatureModelMatrix() {
+        let rejecting = ["o3", "o4-mini", "gpt-5.5", "gpt-5.4", "gpt-5.4-nano", "GPT-5.4-Mini"]
+        for model in rejecting {
+            XCTAssertTrue(
+                OpenAICompatibleLLMHTTPAdapter.openAIRejectsTemperature(model),
+                "\(model) should reject temperature"
+            )
+        }
+        let accepting = ["gpt-5.3-chat-latest", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "chatgpt-4o-latest"]
+        for model in accepting {
+            XCTAssertFalse(
+                OpenAICompatibleLLMHTTPAdapter.openAIRejectsTemperature(model),
+                "\(model) should accept temperature"
+            )
+        }
+    }
+
     func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {
         var capturedRequest: URLRequest?
 

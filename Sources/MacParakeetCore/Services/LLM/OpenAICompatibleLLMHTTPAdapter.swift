@@ -209,12 +209,14 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        // OpenAI reasoning models reject temperature AND max_tokens.
-        // Newer OpenAI models (gpt-5.x) reject max_tokens but accept temperature.
-        // All of them require max_completion_tokens instead of max_tokens.
-        let isReasoningModel = config.id == .openai && Self.isOpenAIReasoningModel(config.modelName)
+        // OpenAI reasoning models reject temperature AND max_tokens. That
+        // includes the GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, ...),
+        // which only accepts the default temperature; their "-chat" variants
+        // still accept explicit values. Newer models also require
+        // max_completion_tokens instead of max_tokens.
+        let rejectsTemperature = config.id == .openai && Self.openAIRejectsTemperature(config.modelName)
         let needsNewTokenParam = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
-        let temperature = isReasoningModel ? nil : options.temperature
+        let temperature = rejectsTemperature ? nil : options.temperature
         let maxTokens = needsNewTokenParam ? nil : options.maxTokens
         let maxCompletionTokens = needsNewTokenParam ? options.maxTokens : nil
 
@@ -245,6 +247,19 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
     /// OpenAI reasoning models that reject temperature and max_tokens parameters.
     static func isOpenAIReasoningModel(_ model: String) -> Bool {
         isOpenAIReasoningModelID(model.lowercased())
+    }
+
+    /// OpenAI models that reject non-default `temperature`: the o-series and
+    /// the GPT-5.x+ reasoning tier. Chat-tier variants (gpt-5.3-chat-latest)
+    /// and pre-5.x models accept explicit temperature values.
+    static func openAIRejectsTemperature(_ model: String) -> Bool {
+        let lowered = model.lowercased()
+        if isOpenAIReasoningModelID(lowered) { return true }
+        if lowered.contains("chat") { return false }
+        if lowered.hasPrefix("gpt-"), let digit = lowered.dropFirst(4).first, let version = digit.wholeNumberValue, version >= 5 {
+            return true
+        }
+        return false
     }
 
     /// OpenAI models that require max_completion_tokens instead of max_tokens.
