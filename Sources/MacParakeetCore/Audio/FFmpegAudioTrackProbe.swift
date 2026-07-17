@@ -11,7 +11,12 @@ public protocol AudioTrackProbing: Sendable {
 /// container does not provide language metadata, without adding another
 /// runtime binary.
 public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
-    typealias RunProbe = @Sendable (URL) async throws -> String
+    struct ProbeResult: Sendable {
+        let output: String
+        let terminationStatus: Int32
+    }
+
+    typealias RunProbe = @Sendable (URL) async throws -> ProbeResult
 
     private let runProbe: RunProbe
 
@@ -26,8 +31,13 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
     }
 
     public func tracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
-        let output = try await runProbe(fileURL)
-        return Self.parseTracks(from: output)
+        let result = try await runProbe(fileURL)
+        guard result.terminationStatus == 0 else {
+            throw AudioProcessorError.conversionFailed(
+                AudioFileConverter.tailForError(result.output)
+            )
+        }
+        return Self.parseTracks(from: result.output)
     }
 
     private static func parseTracks(from output: String) -> [AudioTrackDescriptor] {
@@ -39,6 +49,10 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
         var tracks: [AudioTrackDescriptor] = []
         for line in output.split(whereSeparator: \Character.isNewline) {
             let string = String(line)
+            let trimmed = string.trimmingCharacters(in: .whitespaces)
+            if trimmed == "Stream mapping:" || trimmed.hasPrefix("Output #") {
+                break
+            }
             let range = NSRange(string.startIndex..., in: string)
             guard let match = expression.firstMatch(in: string, range: range),
                 let streamRange = Range(match.range(at: 1), in: string),
@@ -65,7 +79,7 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
         return tracks
     }
 
-    private static func runFFmpegProbe(fileURL: URL) async throws -> String {
+    private static func runFFmpegProbe(fileURL: URL) async throws -> ProbeResult {
         let primaryPath: String
         do {
             primaryPath = try BinaryBootstrap.requireRuntimeFFmpegPath()
@@ -76,7 +90,8 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
         }
 
         let primaryOutput = try await runFFmpegProbe(fileURL: fileURL, ffmpegPath: primaryPath)
-        if (primaryOutput.contains("dyld") || primaryOutput.contains("Library not loaded")),
+        if (primaryOutput.output.contains("dyld")
+            || primaryOutput.output.contains("Library not loaded")),
             let fallbackPath = BinaryBootstrap.findSystemFFmpeg(),
             fallbackPath != primaryPath
         {
@@ -85,7 +100,7 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
         return primaryOutput
     }
 
-    private static func runFFmpegProbe(fileURL: URL, ffmpegPath: String) async throws -> String {
+    private static func runFFmpegProbe(fileURL: URL, ffmpegPath: String) async throws -> ProbeResult {
         let logURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-audio-tracks-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: logURL.path, contents: Data())
@@ -96,7 +111,13 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
-        process.arguments = ["-hide_banner", "-nostdin", "-i", fileURL.path]
+        // A bare `-i` always exits nonzero because no output was requested,
+        // making an unreadable file indistinguishable from a successful probe.
+        // A zero-duration null output validates the input without transcoding it.
+        process.arguments = [
+            "-hide_banner", "-nostdin", "-i", fileURL.path,
+            "-c", "copy", "-t", "0", "-f", "null", "-",
+        ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = handle
 
@@ -107,6 +128,9 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
             timeoutError: AudioProcessorError.conversionFailed("Audio-track discovery timed out")
         )
         try handle.synchronize()
-        return (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+        return ProbeResult(
+            output: (try? String(contentsOf: logURL, encoding: .utf8)) ?? "",
+            terminationStatus: process.terminationStatus
+        )
     }
 }

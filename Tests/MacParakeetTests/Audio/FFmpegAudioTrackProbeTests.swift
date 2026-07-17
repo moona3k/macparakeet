@@ -10,7 +10,9 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
               Stream #0:2(eng): Audio: aac, 48000 Hz, stereo, fltp
             At least one output file must be specified
             """
-        let probe = FFmpegAudioTrackProbe(runProbe: { _ in stderr })
+        let probe = FFmpegAudioTrackProbe(runProbe: { _ in
+            .init(output: stderr, terminationStatus: 0)
+        })
 
         let tracks = try await probe.tracks(in: URL(fileURLWithPath: "/tmp/episode.mkv"))
 
@@ -32,7 +34,9 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
               Stream #0:0: Video: vp9
               Stream #0:4 -> #0:0 (opus (native) -> pcm_s16le (native))
             """
-        let probe = FFmpegAudioTrackProbe(runProbe: { _ in stderr })
+        let probe = FFmpegAudioTrackProbe(runProbe: { _ in
+            .init(output: stderr, terminationStatus: 0)
+        })
 
         let tracks = try await probe.tracks(in: URL(fileURLWithPath: "/tmp/episode.webm"))
 
@@ -45,8 +49,14 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
         let stderr = """
               Stream #0:0[0x1](und): Video: h264
               Stream #0:1[0x2](eng): Audio: aac, 48000 Hz, stereo, fltp (default)
+            Stream mapping:
+              Stream #0:1 -> #0:0 (copy)
+            Output #0, null, to 'pipe:':
+              Stream #0:0(eng): Audio: aac, 48000 Hz, stereo, fltp (default)
             """
-        let probe = FFmpegAudioTrackProbe(runProbe: { _ in stderr })
+        let probe = FFmpegAudioTrackProbe(runProbe: { _ in
+            .init(output: stderr, terminationStatus: 0)
+        })
 
         let tracks = try await probe.tracks(in: URL(fileURLWithPath: "/tmp/episode.mp4"))
 
@@ -54,5 +64,25 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
             tracks,
             [AudioTrackDescriptor(ordinal: 0, streamIndex: 1, languageCode: "eng", isDefault: true)]
         )
+    }
+
+    func testTracksReportsFFmpegFailureInsteadOfNoAudioTracks() async {
+        let stderr = """
+            [in#0 @ 0x123] Error opening input: Invalid data found when processing input
+            Error opening input file /tmp/corrupt.mkv.
+            Error opening input files: Invalid data found when processing input
+            """
+        let probe = FFmpegAudioTrackProbe(runProbe: { _ in
+            .init(output: stderr, terminationStatus: 1)
+        })
+
+        do {
+            _ = try await probe.tracks(in: URL(fileURLWithPath: "/tmp/corrupt.mkv"))
+            XCTFail("Expected a probe failure")
+        } catch let AudioProcessorError.conversionFailed(reason) {
+            XCTAssertTrue(reason.contains("Invalid data found when processing input"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 }
