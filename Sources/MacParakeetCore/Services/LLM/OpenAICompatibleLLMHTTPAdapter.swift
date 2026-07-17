@@ -256,10 +256,19 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         let lowered = model.lowercased()
         if isOpenAIReasoningModelID(lowered) { return true }
         if lowered.contains("chat") { return false }
-        if lowered.hasPrefix("gpt-"), let digit = lowered.dropFirst(4).first, let version = digit.wholeNumberValue, version >= 5 {
+        if let version = gptMajorVersion(lowered), version >= 5 {
             return true
         }
         return false
+    }
+
+    /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
+    /// or nil for IDs without a gpt- numeric prefix. Reads all leading digits so
+    /// future multi-digit major versions compare correctly.
+    static func gptMajorVersion(_ loweredModel: String) -> Int? {
+        guard loweredModel.hasPrefix("gpt-") else { return nil }
+        let digits = loweredModel.dropFirst(4).prefix(while: { $0.isNumber })
+        return Int(digits)
     }
 
     /// OpenAI models that require max_completion_tokens instead of max_tokens.
@@ -268,7 +277,7 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         let lowered = model.lowercased()
         if isOpenAIReasoningModel(lowered) { return true }
         // GPT-5.x and beyond reject max_tokens
-        if lowered.hasPrefix("gpt-"), let digit = lowered.dropFirst(4).first, let version = digit.wholeNumberValue, version >= 5 {
+        if let version = gptMajorVersion(lowered), version >= 5 {
             return true
         }
         return false
