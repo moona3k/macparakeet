@@ -136,7 +136,9 @@ final class MeetingAudioRetentionSweepCoordinator {
     }
 
     private func logSweepResult(_ result: MeetingAudioRetentionSweepResult) {
-        logger.info(
+        // .notice persists to the unified log store (.info is memory-only);
+        // sweeps delete user audio, so they must be reconstructable later.
+        logger.notice(
             "meeting_audio_retention_sweep_completed evaluated=\(result.evaluatedCount, privacy: .public) eligible=\(result.eligibleCount, privacy: .public) detached=\(result.detachedCount, privacy: .public) locked=\(result.skippedLockedCount, privacy: .public) unmanaged=\(result.skippedUnmanagedCount, privacy: .public) failed=\(result.failedCount, privacy: .public)"
         )
     }

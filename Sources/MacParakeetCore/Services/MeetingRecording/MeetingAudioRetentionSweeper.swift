@@ -30,7 +30,11 @@ public final class MeetingAudioRetentionSweeper: @unchecked Sendable {
         retention: MeetingAudioRetention,
         now: Date = Date()
     ) throws -> MeetingAudioRetentionSweepResult {
-        guard retention.automaticallyDeletesAudio else {
+        // Only the age-based mode sweeps saved audio. `.deleteImmediately`
+        // applies at capture time to new recordings and must never
+        // retroactively remove previously saved audio (see
+        // spec/contracts/meeting-artifacts-v1.md).
+        guard retention.mode == .deleteAfterDays else {
             return MeetingAudioRetentionSweepResult(
                 evaluatedCount: 0,
                 eligibleCount: 0,
@@ -41,7 +45,7 @@ public final class MeetingAudioRetentionSweeper: @unchecked Sendable {
             )
         }
 
-        let cutoff = cutoffDate(for: retention, now: now)
+        let cutoff = now.addingTimeInterval(-TimeInterval(retention.deleteAfterDays * 24 * 60 * 60))
         let transcriptions = try repository.fetchMeetingAudioRetentionCandidates(createdAtOrBefore: cutoff)
         var candidates: [MeetingAudioRetentionPolicy.Candidate] = []
         var skippedLockedCount = 0
@@ -95,17 +99,6 @@ public final class MeetingAudioRetentionSweeper: @unchecked Sendable {
             skippedUnmanagedCount: skippedUnmanagedCount,
             failedCount: failedCount
         )
-    }
-
-    private func cutoffDate(for retention: MeetingAudioRetention, now: Date) -> Date {
-        switch retention {
-        case .keepForever:
-            return now
-        case .deleteAfterDays(let days):
-            return now.addingTimeInterval(-TimeInterval(days * 24 * 60 * 60))
-        case .deleteImmediately:
-            return now
-        }
     }
 
     private func hasAnyRecordingLock(forAudioPath filePath: String) -> Bool {

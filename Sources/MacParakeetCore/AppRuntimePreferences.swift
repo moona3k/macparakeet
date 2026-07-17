@@ -497,7 +497,6 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let saveMeetingAudioKey = "saveMeetingAudio"
     public static let meetingAudioRetentionKey = "meetingAudioRetention"
     public static let meetingAudioRetentionDeleteAfterDaysKey = "meetingAudioRetentionDeleteAfterDays"
-    public static let meetingAudioRetentionAutoDeleteConfirmedKey = "meetingAudioRetentionAutoDeleteConfirmed"
     public static let lastMeetingAudioRetentionSweepAtKey = "lastMeetingAudioRetentionSweepAt"
     public static let autoGenerateMeetingTitlesKey = "autoGenerateMeetingTitles"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"

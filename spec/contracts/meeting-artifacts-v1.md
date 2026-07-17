@@ -186,7 +186,11 @@ with a migration and conflict-resolution rule.
 
 Audio retention and "Remove Audio Only" clear `transcriptions.filePath` but
 must preserve `transcriptions.meetingArtifactFolderPath` and leave the folder's
-non-audio artifact files in place. Bulk meeting-audio cleanup removes top-level
+non-audio artifact files in place. The retention sweeper acts only on the
+age-based `delete_after_days` mode. `delete_immediately` ("Remove audio after
+transcription") applies at capture/finalization to new recordings and must
+never retroactively remove previously saved audio — selecting it in Settings
+is not consent to delete the existing library. Bulk meeting-audio cleanup removes top-level
 app-managed audio files in the session folder, including canonical filenames
 and other managed audio extensions, while preserving JSON/Markdown artifacts.
 Full meeting deletion removes the artifact folder even when retained audio was

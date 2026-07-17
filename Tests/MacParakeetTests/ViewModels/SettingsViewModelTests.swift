@@ -978,14 +978,28 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingAudioRetention, .deleteAfterDays(14))
     }
 
-    func testMeetingAudioRetentionConfirmationRequiredOnlyForFirstAutoDeleteTransition() {
+    func testMeetingAudioRetentionConfirmationRequiredForEveryAutoDeleteModeTransition() {
+        // The one-time "confirmed" flag allowed later destructive switches to
+        // apply silently (the 2026-07-16 audio-loss incident). Every mode
+        // transition into an auto-deleting mode must confirm, every time.
         XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteAfterDays(30)))
 
         viewModel.confirmMeetingAudioRetentionChange(.deleteAfterDays(30))
-
         XCTAssertEqual(viewModel.meetingAudioRetention, .deleteAfterDays(30))
+
+        // Confirming once must NOT suppress future confirmations.
         viewModel.setMeetingAudioRetention(.keepForever)
-        XCTAssertFalse(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteImmediately))
+        XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteImmediately))
+        XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteAfterDays(30)))
+
+        // Mode transitions between the two auto-deleting modes also confirm.
+        viewModel.confirmMeetingAudioRetentionChange(.deleteAfterDays(30))
+        XCTAssertTrue(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteImmediately))
+
+        // Day tweaks within delete-after-days do not re-confirm (stepper UX),
+        // and returning to keep-forever is never destructive.
+        XCTAssertFalse(viewModel.requiresMeetingAudioRetentionConfirmation(for: .deleteAfterDays(14)))
+        XCTAssertFalse(viewModel.requiresMeetingAudioRetentionConfirmation(for: .keepForever))
     }
 
     func testSettingYouTubeAudioQualityPersists() {

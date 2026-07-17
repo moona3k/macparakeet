@@ -28,9 +28,13 @@ public enum MeetingAudioRetentionPolicy {
         config: MeetingAudioRetention,
         now: Date
     ) -> [UUID] {
-        guard config.automaticallyDeletesAudio else { return [] }
+        // Age-based cleanup only. `.deleteImmediately` is enforced at capture
+        // time (fresh audio is never persisted); treating it as "cutoff = now"
+        // here retroactively destroyed a whole library's saved audio when the
+        // mode was merely selected in Settings (2026-07-16 incident).
+        guard config.mode == .deleteAfterDays else { return [] }
 
-        let retentionInterval = TimeInterval(config == .deleteImmediately ? 0 : config.deleteAfterDays * 24 * 60 * 60)
+        let retentionInterval = TimeInterval(config.deleteAfterDays * 24 * 60 * 60)
         return candidates.compactMap { candidate in
             guard candidate.hasAudioOnDisk,
                   candidate.isCompleted,

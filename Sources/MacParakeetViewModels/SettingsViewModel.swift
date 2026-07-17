@@ -860,14 +860,17 @@ public final class SettingsViewModel {
         )
     }
 
+    /// Every mode transition into an auto-deleting retention mode requires
+    /// confirmation — each time, not once per install. A one-time "confirmed"
+    /// flag let a later six-second pass through "Remove audio after
+    /// transcription" silently trigger audio deletion (2026-07-16 incident).
+    /// Day tweaks within delete-after-days stay alert-free (stepper UX).
     public func requiresMeetingAudioRetentionConfirmation(for retention: MeetingAudioRetention) -> Bool {
         retention.automaticallyDeletesAudio
-            && !meetingAudioRetention.automaticallyDeletesAudio
-            && !defaults.bool(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionAutoDeleteConfirmedKey)
+            && retention.mode != meetingAudioRetention.mode
     }
 
     public func confirmMeetingAudioRetentionChange(_ retention: MeetingAudioRetention) {
-        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionAutoDeleteConfirmedKey)
         setMeetingAudioRetention(retention)
     }
 
