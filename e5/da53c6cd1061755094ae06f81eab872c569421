@@ -1,0 +1,37 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingAudioRetentionSweeperTests.swift
+  s_9701c6963ca664::t_16cf6e1697d633 57-76
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingAudioRetentionPolicyTests.swift
+  s_9701c6963ca664::t_42ed9ae94d3157 33-39,43,47
+spec/contracts/meeting-artifacts-v1.md
+  s_9701c6963ca664::t_8ad7e2e1809499 189-193
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioRetentionPolicy.swift
+  s_9701c6963ca664::t_609c2c3b990692 31-35,37
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_9701c6963ca664::t_55870ec7039d61 981-984,989-990,992-1002
+Tests/MacParakeetTests/App/MeetingAudioRetentionSweepCoordinatorTests.swift
+  s_9701c6963ca664::t_4da359e22b00e1 54,64
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioRetentionSweeper.swift
+  s_9701c6963ca664::t_571731fd259438 33-37,48
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_9701c6963ca664::t_bfb7be2ba33739 863-867,870
+Sources/MacParakeet/App/MeetingAudioRetentionSweepCoordinator.swift
+  s_9701c6963ca664::t_e64988584db9c1 139-141
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_9701c6963ca664::t_3a2dfc540514f1 1849
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e5da53c6cd1061755094ae06f81eab872c569421",
+  "prompts": {},
+  "sessions": {
+    "s_9701c6963ca664": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab14a-7498-4afd-a60d-795cc744d88a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
