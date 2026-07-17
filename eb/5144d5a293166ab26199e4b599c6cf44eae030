@@ -1,0 +1,19 @@
+Sources/CLI/CHANGELOG.md
+  s_5478965f6dbd7c::t_b5a4ff9c871cb1 98-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "eb5144d5a293166ab26199e4b599c6cf44eae030",
+  "prompts": {},
+  "sessions": {
+    "s_5478965f6dbd7c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6e94-9a38-7402-83c6-6d3b4d00086d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
