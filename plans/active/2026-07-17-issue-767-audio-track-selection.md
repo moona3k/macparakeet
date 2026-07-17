@@ -1,7 +1,8 @@
 # Issue 767: Multi-audio-track selection
 
-> Status: ACTIVE
+> Status: PR OPEN
 > Issue: https://github.com/moona3k/macparakeet/issues/767
+> Pull request: https://github.com/moona3k/macparakeet/pull/839
 > Branch: `feat/767-audio-track-selection`
 
 ## Goal
@@ -84,4 +85,7 @@ Governing surfaces:
 - [x] Core discovery and conversion mapping.
 - [x] App flow, batch behavior, persistence, and retranscription.
 - [x] CLI and documentation.
-- [ ] Verification, review, and merge-ready PR.
+- [x] Focused verification, release build, standards review, and specification
+  review.
+- [x] Pull request opened as #839.
+- [ ] Hosted checks and review state verified merge-ready.
