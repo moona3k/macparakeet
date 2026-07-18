@@ -452,8 +452,10 @@ preference. A batch is probed before it starts and reuses one selected
 audio-stream ordinal for its multi-track files; single-track files continue
 automatically. If that ordinal is absent from a later multi-track file, that
 file fails visibly and the sequential batch continues rather than silently
-falling back to another stream. The selected zero-based ordinal is
-stored on the transcription and reused by retranscription. CLI callers use the
+falling back to another stream. A per-file discovery or no-audio failure is
+likewise counted for that file without aborting the remaining batch. The
+selected zero-based ordinal is stored on the transcription and reused by
+retranscription. CLI callers use the
 equivalent one-based `transcribe --audio-track N` flag for local files/folders,
 where it applies explicitly to every expanded file; URL and podcast lanes
 reject the flag.

@@ -213,6 +213,35 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         XCTAssertEqual(captured?.body, "2 transcribed \u{00B7} 1 failed")
     }
 
+    func testBatchContinuesWhenOneFileFailsAudioTrackDiscovery() async throws {
+        let urls = [try touch("a.mkv"), try touch("b.mkv"), try touch("c.mkv")]
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["a.mkv": tracks, "c.mkv": tracks],
+            probeFailureFileNames: ["b.mkv"]
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+        var captured: TranscriptionCompletionNotifier.Content?
+        vm.onTranscriptionCompleted = { captured = $0 }
+
+        XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        vm.selectAudioTrack(ordinal: 1)
+        try await waitUntil { !vm.isBatchActive && !vm.isTranscribing }
+
+        let selectedOrdinals = await trackService.selectedOrdinals()
+        let transcribedFileNames = await mockService.transcribedFileNames
+        XCTAssertEqual(selectedOrdinals, [1, 1])
+        XCTAssertEqual(transcribedFileNames, ["a.mkv", "c.mkv"])
+        XCTAssertEqual(captured?.body, "2 transcribed \u{00B7} 1 failed")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func testFileWithoutAudioTrackFailsBeforeTranscription() async throws {
         let url = try touch("silent.mkv")
         let trackService = MockAudioTrackSelectionService(
@@ -354,18 +383,24 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 private actor MockAudioTrackSelectionService: AudioTrackSelectingTranscriptionService {
     private let base: MockTranscriptionService
     private let tracksByFileName: [String: [AudioTrackDescriptor]]
+    private let probeFailureFileNames: Set<String>
     private var ordinals: [Int] = []
 
     init(
         base: MockTranscriptionService,
-        tracksByFileName: [String: [AudioTrackDescriptor]]
+        tracksByFileName: [String: [AudioTrackDescriptor]],
+        probeFailureFileNames: Set<String> = []
     ) {
         self.base = base
         self.tracksByFileName = tracksByFileName
+        self.probeFailureFileNames = probeFailureFileNames
     }
 
     func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
-        tracksByFileName[fileURL.lastPathComponent]
+        if probeFailureFileNames.contains(fileURL.lastPathComponent) {
+            throw AudioProcessorError.conversionFailed("Audio-track discovery failed.")
+        }
+        return tracksByFileName[fileURL.lastPathComponent]
             ?? [AudioTrackDescriptor(ordinal: 0, streamIndex: 0)]
     }
 

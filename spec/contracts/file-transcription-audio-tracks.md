@@ -38,6 +38,8 @@ preserving the zero-friction path for ordinary single-track files.
   retain automatic selection and do not receive an explicit map. A missing
   ordinal on a later multi-track file fails that file; it must never fall back
   silently to another stream, and the remaining sequential batch continues.
+  A per-file discovery or no-audio failure is also counted as that file's
+  failure without aborting the remaining batch or creating a partial row.
 - `transcriptions.audioTrackOrdinal` is nullable. `NULL` means automatic/legacy
   selection; a value records an explicit choice and is reused on
   retranscription.

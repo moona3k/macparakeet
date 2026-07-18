@@ -172,6 +172,7 @@ public final class TranscriptionViewModel {
     private var batchSource: TelemetryTranscriptionSource = .file
     private var batchAudioTrackOrdinal: Int?
     private var batchMultiTrackFilePaths: Set<String> = []
+    private var batchAudioTrackPreflightFailedPaths: Set<String> = []
 
     /// One-line batch status for the global progress bar / batch card,
     /// e.g. "Transcribing 7 of 40" or "Transcribing 7 of 40 · 1 failed".
@@ -218,6 +219,7 @@ public final class TranscriptionViewModel {
     private var pendingAudioTrackSource: TelemetryTranscriptionSource = .file
     private var pendingAudioTrackExpansion: AudioFileEnumerator.Result?
     private var pendingMultiTrackFilePaths: Set<String> = []
+    private var pendingAudioTrackPreflightFailedPaths: Set<String> = []
     private var activeProgressSpeechEngine: SpeechEngineSelection?
     private var activeProgressWhisperVariant: String?
     private var activeProgressNemotronVariant: NemotronModelVariant?
@@ -369,10 +371,10 @@ public final class TranscriptionViewModel {
     }
 
     /// Entry point for one-or-many local files (drag-drop, Browse, menu-bar
-    /// open). Folders are expanded recursively; a single resolved file routes
-    /// through the unchanged `transcribeFile` path, two or more start a
-    /// sequential batch. Returns `true` when at least one supported file was
-    /// accepted (so the drop handler knows whether to dismiss the drop UI).
+    /// open). Folders are expanded recursively; a single resolved file follows
+    /// the single-job path, while two or more start a sequential batch. Returns
+    /// `true` when at least one supported file was accepted (so the drop handler
+    /// knows whether to dismiss the drop UI).
     @discardableResult
     public func transcribeFiles(urls: [URL], source: TelemetryTranscriptionSource = .file) -> Bool {
         guard transcriptionService != nil else {
@@ -415,12 +417,14 @@ public final class TranscriptionViewModel {
         let source = pendingAudioTrackSource
         let expansion = pendingAudioTrackExpansion
         let multiTrackFilePaths = pendingMultiTrackFilePaths
+        let preflightFailedFilePaths = pendingAudioTrackPreflightFailedPaths
         clearPendingAudioTrackSelection()
         startResolvedFiles(
             files,
             source: source,
             audioTrackOrdinal: ordinal,
             multiTrackFilePaths: multiTrackFilePaths,
+            preflightFailedFilePaths: preflightFailedFilePaths,
             expansion: expansion
         )
     }
@@ -457,19 +461,30 @@ public final class TranscriptionViewModel {
             do {
                 var firstMultiTrackFile: (url: URL, tracks: [AudioTrackDescriptor])?
                 var multiTrackFilePaths: Set<String> = []
+                var preflightFailedFilePaths: Set<String> = []
                 for file in files {
                     try Task.checkCancellation()
-                    let tracks = try await audioTrackService.audioTracks(in: file)
-                    guard !tracks.isEmpty else {
-                        throw AudioProcessorError.conversionFailed(
-                            "No audio tracks were found in \(file.lastPathComponent)."
+                    do {
+                        let tracks = try await audioTrackService.audioTracks(in: file)
+                        guard !tracks.isEmpty else {
+                            throw AudioProcessorError.conversionFailed(
+                                "No audio tracks were found in \(file.lastPathComponent)."
+                            )
+                        }
+                        if firstMultiTrackFile == nil, tracks.count > 1 {
+                            firstMultiTrackFile = (file, tracks)
+                        }
+                        if tracks.count > 1 {
+                            multiTrackFilePaths.insert(file.standardizedFileURL.path)
+                        }
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        guard files.count > 1 else { throw error }
+                        preflightFailedFilePaths.insert(file.standardizedFileURL.path)
+                        logger.error(
+                            "Batch audio-track discovery failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
                         )
-                    }
-                    if firstMultiTrackFile == nil, tracks.count > 1 {
-                        firstMultiTrackFile = (file, tracks)
-                    }
-                    if tracks.count > 1 {
-                        multiTrackFilePaths.insert(file.standardizedFileURL.path)
                     }
                 }
 
@@ -483,6 +498,7 @@ public final class TranscriptionViewModel {
                     pendingAudioTrackSource = source
                     pendingAudioTrackExpansion = expansion
                     pendingMultiTrackFilePaths = multiTrackFilePaths
+                    pendingAudioTrackPreflightFailedPaths = preflightFailedFilePaths
                     pendingAudioTrackSelection = AudioTrackSelectionRequest(
                         id: UUID(),
                         fileName: multiTrack.url.lastPathComponent,
@@ -495,6 +511,7 @@ public final class TranscriptionViewModel {
                         source: source,
                         audioTrackOrdinal: nil,
                         multiTrackFilePaths: [],
+                        preflightFailedFilePaths: preflightFailedFilePaths,
                         expansion: expansion
                     )
                 }
@@ -518,6 +535,7 @@ public final class TranscriptionViewModel {
         source: TelemetryTranscriptionSource,
         audioTrackOrdinal: Int?,
         multiTrackFilePaths: Set<String>,
+        preflightFailedFilePaths: Set<String> = [],
         expansion: AudioFileEnumerator.Result?
     ) {
         guard let first = files.first else { return }
@@ -531,12 +549,13 @@ public final class TranscriptionViewModel {
             batchSource = source
             batchAudioTrackOrdinal = audioTrackOrdinal
             batchMultiTrackFilePaths = multiTrackFilePaths
+            batchAudioTrackPreflightFailedPaths = preflightFailedFilePaths
             batchTotalCount = files.count
             batchCompletedCount = 0
             batchFailedCount = 0
-            batchQueue = Array(files.dropFirst())
+            batchQueue = files
             isBatchActive = true
-            startTranscribingFile(url: first, source: source, audioTrackOrdinal: firstAudioTrackOrdinal)
+            advanceBatch()
         }
 
         if let expansion, expansion.truncated {
@@ -554,6 +573,7 @@ public final class TranscriptionViewModel {
         pendingAudioTrackFiles.removeAll()
         pendingAudioTrackExpansion = nil
         pendingMultiTrackFilePaths.removeAll()
+        pendingAudioTrackPreflightFailedPaths.removeAll()
     }
 
     public func transcribeURL() {
@@ -929,15 +949,16 @@ public final class TranscriptionViewModel {
     }
 
     /// Submit the next queued file, or finish the batch when the queue drains.
-    /// Called only from the completion funnels, where `transcriptionTask` is
-    /// already nil — so `transcribeFile` → `beginNewTranscription`'s
-    /// `cancel()` is a no-op and never aborts the next file.
+    /// Preflight failures are counted and skipped here so one unreadable file
+    /// does not prevent the rest of the batch from reaching transcription.
     private func advanceBatch() {
         guard isBatchActive else { return }
-        if batchQueue.isEmpty {
-            finishBatch()
-        } else {
+        while !batchQueue.isEmpty {
             let next = batchQueue.removeFirst()
+            if batchAudioTrackPreflightFailedPaths.remove(next.standardizedFileURL.path) != nil {
+                batchFailedCount += 1
+                continue
+            }
             startTranscribingFile(
                 url: next,
                 source: batchSource,
@@ -945,7 +966,9 @@ public final class TranscriptionViewModel {
                     ? batchAudioTrackOrdinal
                     : nil
             )
+            return
         }
+        finishBatch()
     }
 
     private func finishBatch() {
@@ -966,6 +989,7 @@ public final class TranscriptionViewModel {
         batchQueue.removeAll()
         batchAudioTrackOrdinal = nil
         batchMultiTrackFilePaths.removeAll()
+        batchAudioTrackPreflightFailedPaths.removeAll()
     }
 
     private func emitCompletionSignal(_ content: TranscriptionCompletionNotifier.Content?) {
