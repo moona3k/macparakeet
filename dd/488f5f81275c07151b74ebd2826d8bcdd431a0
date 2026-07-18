@@ -1,0 +1,23 @@
+docs/audits/2026-07-17-v0.7.3-telemetry-health.md
+  s_f45851066e8b83::t_aaa1ae6e8ad179 1-2,11-37,79-155,176-217,224-258
+  s_f45851066e8b83::t_75e38f746497d3 7-10,38-66,72-78
+  s_f45851066e8b83::t_91f06e1e299c93 67-71
+  s_f45851066e8b83::t_8b8933f276aca4 156-175,218-223
+  s_f45851066e8b83::t_e207bfc3a08886 3-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dd488f5f81275c07151b74ebd2826d8bcdd431a0",
+  "prompts": {},
+  "sessions": {
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
