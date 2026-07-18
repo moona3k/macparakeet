@@ -1016,7 +1016,7 @@ final class DictationServiceTests: XCTestCase {
         await mockSTT.releasePreviewTranscription()
     }
 
-    func testPreRollDiscardClearsDisplayPreviewAndStillUsesRecordedFileFinal() async throws {
+    func testPreRollDiscardResetsDisplayPreviewAndStillUsesRecordedFileFinal() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
@@ -1041,22 +1041,88 @@ final class DictationServiceTests: XCTestCase {
         }
         XCTAssertTrue(cleared, "Expected pre-roll discard to clear display preview")
         let previewCancelCallCount = await mockSTT.previewCancelCallCount
-        XCTAssertEqual(previewCancelCallCount, 1)
+        XCTAssertEqual(
+            previewCancelCallCount,
+            0,
+            "Pre-roll discard should reset the active preview instead of cancelling it"
+        )
 
         await mockAudio.emitLiveSamples([0.3, 0.4])
-        try await Task.sleep(for: .milliseconds(50))
-        let previewCallCount = await mockSTT.previewCallCount
+        await mockAudio.emitLiveSamples([0.5])
+        let previewCallReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(previewCallReached, "Expected post-reset preview passes")
+        let previewSamples = await mockSTT.previewSamples
         XCTAssertEqual(
-            previewCallCount,
-            1,
-            "Preview should stop after pre-roll discard so stale pre-roll samples cannot re-enter the visible tail"
+            previewSamples,
+            [[0.1, 0.2], [0.3, 0.4], [0.3, 0.4, 0.5]],
+            "Post-reset preview passes should exclude all pre-roll samples"
+        )
+        // Preview passes are serial. Entering pass 3 proves pass 2 returned and
+        // its updateDisplayPreview call completed before this assertion.
+        let resumedTranscript = await service.liveTranscript
+        XCTAssertEqual(
+            resumedTranscript,
+            "preview tail",
+            "Display preview should publish post-reset speech"
         )
 
         let result = try await service.stopRecording()
 
-        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        XCTAssertEqual(
+            result.dictation.rawTranscript,
+            "file final",
+            "Final dictation should remain recorded-file authoritative"
+        )
+        let finalPreviewCancelCallCount = await mockSTT.previewCancelCallCount
         let discardCallCount = await mockAudio.discardPreRollCallCount
-        XCTAssertEqual(discardCallCount, 1)
+        XCTAssertEqual(finalPreviewCancelCallCount, 1, "Stopping should still cancel display preview")
+        XCTAssertEqual(discardCallCount, 1, "Expected the recorder pre-roll to be discarded once")
+    }
+
+    func testPreRollDiscardDropsQueuedPreviewAudioAndInFlightResult() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(results: [
+            STTResult(text: "stale pre-roll preview", words: [], engine: .parakeet),
+            STTResult(text: "", words: [], engine: .parakeet),
+            STTResult(text: "", words: [], engine: .parakeet),
+        ])
+        await mockSTT.holdPreviewTranscription()
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1])
+        let initialPreviewCallReached = await mockSTT.waitForPreviewCallCount(1)
+        XCTAssertTrue(initialPreviewCallReached, "Expected the held pre-reset preview pass")
+
+        await mockAudio.emitLiveSamples([0.2])
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        await mockAudio.emitLiveSamples([0.5])
+        await mockSTT.releasePreviewTranscription()
+
+        let postResetPreviewCallsReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(postResetPreviewCallsReached, "Expected post-reset preview passes")
+        let previewSamples = await mockSTT.previewSamples
+        XCTAssertEqual(
+            previewSamples,
+            [[0.1], [0.3, 0.4], [0.3, 0.4, 0.5]],
+            "Queued pre-roll audio should be dropped before post-reset passes"
+        )
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "", "An in-flight pre-roll result must not reappear after reset")
+
+        let result = try await service.stopRecording()
+        XCTAssertEqual(
+            result.dictation.rawTranscript,
+            "file final",
+            "Final dictation should remain recorded-file authoritative"
+        )
     }
 
     func testStopRecordingCancelsLiveSessionWhenCaptureIsTooShort() async throws {
