@@ -135,6 +135,33 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         XCTAssertEqual(callCount, 0)
     }
 
+    func testURLTranscriptionCannotReplaceAudioTrackPreflight() async throws {
+        let url = try touch("episode.mkv")
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+        let trackService = MockAudioTrackSelectionService(
+            base: mockService,
+            tracksByFileName: ["episode.mkv": tracks],
+            probeDelay: .milliseconds(100)
+        )
+        let vm = makeViewModel(audioTrackService: trackService)
+        vm.urlInput = "https://example.com/talk.mp4"
+
+        XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        XCTAssertTrue(vm.isInspectingAudioTracks)
+
+        vm.transcribeURL()
+        try await waitUntil { vm.pendingAudioTrackSelection != nil }
+
+        let urlCallCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(vm.urlInput, "https://example.com/talk.mp4")
+        XCTAssertFalse(vm.isInspectingAudioTracks)
+        XCTAssertEqual(urlCallCount, 0)
+        XCTAssertEqual(vm.pendingAudioTrackSelection?.tracks, tracks)
+    }
+
     func testBatchUsesOneSelectedAudioTrackOrdinalForEveryMultiTrackFile() async throws {
         let urls = [try touch("c.mkv"), try touch("a.mkv"), try touch("b.mkv")]
         let tracks = [
@@ -384,19 +411,25 @@ private actor MockAudioTrackSelectionService: AudioTrackSelectingTranscriptionSe
     private let base: MockTranscriptionService
     private let tracksByFileName: [String: [AudioTrackDescriptor]]
     private let probeFailureFileNames: Set<String>
+    private let probeDelay: Duration?
     private var ordinals: [Int] = []
 
     init(
         base: MockTranscriptionService,
         tracksByFileName: [String: [AudioTrackDescriptor]],
-        probeFailureFileNames: Set<String> = []
+        probeFailureFileNames: Set<String> = [],
+        probeDelay: Duration? = nil
     ) {
         self.base = base
         self.tracksByFileName = tracksByFileName
         self.probeFailureFileNames = probeFailureFileNames
+        self.probeDelay = probeDelay
     }
 
     func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
+        if let probeDelay {
+            try await Task.sleep(for: probeDelay)
+        }
         if probeFailureFileNames.contains(fileURL.lastPathComponent) {
             throw AudioProcessorError.conversionFailed("Audio-track discovery failed.")
         }

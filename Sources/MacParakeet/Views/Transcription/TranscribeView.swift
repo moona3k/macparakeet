@@ -699,7 +699,7 @@ private struct AudioTrackSelectionSheet: View {
                                 .fill(DesignSystem.Colors.surfaceElevated)
                         )
                     }
-                    .buttonStyle(.plain)
+                    .parakeetAction(.subtle)
                     .accessibilityLabel("Transcribe \(track.displayName)")
                 }
             }

@@ -577,6 +577,7 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeURL() {
+        guard !isInspectingAudioTracks, pendingAudioTrackSelection == nil else { return }
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "transcribeURL")
             return
