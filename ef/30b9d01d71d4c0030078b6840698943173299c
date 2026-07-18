@@ -1,0 +1,27 @@
+scripts/backfill-telemetry-rollups.mjs
+  s_f45851066e8b83::t_dff7afada85fa5 30-33,118,144
+tests/telemetry-rollup-worker.test.mjs
+  s_f45851066e8b83::t_dff7afada85fa5 14,162-164
+  s_f45851066e8b83::t_568d79ea4f854b 165-166
+docs/telemetry-rollups-plan.md
+  s_f45851066e8b83::t_8eb4c3e91f5a25 5-6,10-30,33-40
+  s_f45851066e8b83::t_91f06e1e299c93 55-60,64-66
+  s_f45851066e8b83::t_c28a400d08893d 31-32,41-54,61-63
+  s_f45851066e8b83::t_17a5e557b6ae6a 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ef30b9d01d71d4c0030078b6840698943173299c",
+  "prompts": {},
+  "sessions": {
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
