@@ -1,0 +1,19 @@
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_a6a03680f52612::t_10d8fae1a24c27 14-15,19-21,29-30,36-38,69-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6306ceaf25649b6d77b7cff1a7528ad24d340da3",
+  "prompts": {},
+  "sessions": {
+    "s_a6a03680f52612": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7947-b2d2-70b0-8bb8-80d1048d0f0f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
