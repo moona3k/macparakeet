@@ -11,12 +11,14 @@
 #
 # See HOWTO.md for CLI release instructions.
 
+require "json"
+
 class MacparakeetCli < Formula
   desc "Local STT, transcription, and prompt automation for Apple Silicon"
   homepage "https://macparakeet.com"
-  url "https://github.com/moona3k/macparakeet/releases/download/cli-v2.3.1/macparakeet-cli-2.3.1-darwin-arm64.tar.gz"
-  version "2.3.1"
-  sha256 "4250a6d8ad2f829ba00ab6dd4514764e6fa3bb28d6607e5547263fe554be2b6d"
+  url "https://github.com/moona3k/macparakeet/releases/download/cli-v3.1.0/macparakeet-cli-3.1.0-darwin-arm64.tar.gz"
+  version "3.1.0"
+  sha256 "05d0cb95ac4fb26bc18c5adecb7bb19d2a1892a42dd69bd5fce388f2138426bc"
   license "GPL-3.0-or-later"
 
   # Apple Silicon only — the Neural Engine is the entire performance story
@@ -24,13 +26,16 @@ class MacparakeetCli < Formula
   # Runtime media deps (bundled inside MacParakeet.app, but the standalone
   # CLI install needs them on PATH).
   depends_on "ffmpeg"
+  depends_on :macos
+  depends_on "yt-dlp"
 
   # macOS 14.2+ (Sonoma) — required by FluidAudio + Swift 6 runtime.
   # Homebrew's `depends_on macos:` only accepts major-version symbols, so
   # `:sonoma` covers 14.0+; the patch-level floor (14.2) is enforced at
   # install time via the `odie` check below.
-  depends_on macos: :sonoma
-  depends_on "yt-dlp"
+  on_macos do
+    depends_on macos: :sonoma
+  end
 
   def install
     odie "macparakeet-cli requires macOS 14.2 or later" if MacOS.version < "14.2"
@@ -61,5 +66,7 @@ class MacparakeetCli < Formula
 
   test do
     assert_match version.to_s, shell_output("#{bin}/macparakeet-cli --version")
+    spec = JSON.parse(shell_output("#{bin}/macparakeet-cli spec --json"))
+    assert_equal version.to_s, spec.fetch("cliVersion")
   end
 end
