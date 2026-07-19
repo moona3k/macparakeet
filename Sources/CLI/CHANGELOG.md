@@ -97,6 +97,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- TXT and Markdown file exports now group word-timed transcripts into
+  deterministic reading paragraphs with at most one timestamp per paragraph;
+  Markdown stdout uses the same formatting. SRT, VTT, and JSON output are
+  unchanged.
 - Native OpenAI LLM calls omit `temperature` for GPT-5.x reasoning-tier
   models (e.g. `gpt-5.5`, `gpt-5.4-mini`), preventing HTTP 400 responses
   from model and reasoning-effort combinations that do not accept non-default
