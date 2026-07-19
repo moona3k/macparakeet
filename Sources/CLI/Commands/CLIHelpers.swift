@@ -3,7 +3,6 @@ import Darwin
 import Foundation
 import MacParakeetCore
 
-let macParakeetAppDefaultsSuiteName = "com.macparakeet.MacParakeet"
 let cliValidationMisuseExitCode = ExitCode(2)
 
 struct CLIJSONEnvelopeExit: Error {
@@ -11,8 +10,15 @@ struct CLIJSONEnvelopeExit: Error {
     let originalError: Error
 }
 
-func macParakeetAppDefaults() -> UserDefaults {
-    UserDefaults(suiteName: macParakeetAppDefaultsSuiteName) ?? .standard
+func macParakeetAppDefaults(
+    bundleIdentifier: String? = Bundle.main.bundleIdentifier
+) -> UserDefaults {
+    // The bundled CLI already inherits the app's defaults domain. Reopening it
+    // as a named suite makes Foundation emit a nonsensical-suite warning.
+    if bundleIdentifier == AppPaths.preferencesSuiteName {
+        return .standard
+    }
+    return AppPaths.sharedAppDefaults()
 }
 
 func validateCLISpeechEngineMemoryRequirement(

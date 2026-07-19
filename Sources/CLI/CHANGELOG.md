@@ -89,6 +89,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-07-19
+
 ### Added
 
 - `transcribe --audio-track <N>` selects a one-based embedded audio track for
@@ -101,6 +103,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   deterministic reading paragraphs with at most one timestamp per paragraph;
   Markdown stdout uses the same formatting. SRT, VTT, and JSON output are
   unchanged.
+- Bundled CLI commands no longer emit a Foundation UserDefaults suite warning
+  on otherwise successful invocations. The standalone CLI continues sharing
+  the MacParakeet app's preferences.
 - Native OpenAI LLM calls omit `temperature` for GPT-5.x reasoning-tier
   models (e.g. `gpt-5.5`, `gpt-5.4-mini`), preventing HTTP 400 responses
   from model and reasoning-effort combinations that do not accept non-default

@@ -39,8 +39,11 @@ class MacparakeetCli < Formula
 
   def caveats
     <<~EOS
-      First run downloads the Parakeet TDT speech model (~6 GB) to:
-        ~/Library/Application Support/MacParakeet/models/
+      Local Parakeet, Nemotron, and Cohere models are cached by FluidAudio at:
+        ~/Library/Application Support/FluidAudio/Models/
+
+      Optional Whisper models are stored at:
+        ~/Library/Application Support/MacParakeet/models/stt/whisper/
 
       The CLI shares its database with the macOS app at:
         ~/Library/Application Support/MacParakeet/macparakeet.db

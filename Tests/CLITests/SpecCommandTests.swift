@@ -309,6 +309,7 @@ final class SpecCommandTests: XCTestCase {
         let options = try XCTUnwrap(transcribe["options"] as? [[String: Any]])
         let optionNames = Set(options.compactMap { $0["name"] as? String })
         XCTAssertTrue(optionNames.contains("--podcast"))
+        XCTAssertTrue(optionNames.contains("--audio-track"))
         XCTAssertTrue(optionNames.contains("--output-dir"))
         XCTAssertTrue(optionNames.contains("--format"))
         XCTAssertTrue(optionNames.contains("--mode"))
@@ -325,6 +326,12 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|cohere|app-default")
         let format = try XCTUnwrap(options.first { ($0["name"] as? String) == "--format" })
         XCTAssertEqual(format["valueName"] as? String, "text|transcript|json|srt|vtt")
+        let audioTrack = try XCTUnwrap(options.first { ($0["name"] as? String) == "--audio-track" })
+        XCTAssertEqual(audioTrack["valueName"] as? String, "N")
+        XCTAssertEqual(
+            audioTrack["summary"] as? String,
+            "Select a one-based embedded audio track for local files and folders."
+        )
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
