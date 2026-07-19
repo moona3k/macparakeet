@@ -203,6 +203,9 @@ private extension CLISpecCommand {
                     "--podcast", valueName: "QUERY",
                     summary: "Search Apple Podcasts by show/episode text and transcribe the selected episode."),
                 CLISpecParameter.option(
+                    "--audio-track", valueName: "N",
+                    summary: "Select a one-based embedded audio track for local files and folders."),
+                CLISpecParameter.option(
                     "--output-dir", valueName: "DIR",
                     summary: "Write one transcript file per input to this directory; implies batch mode."),
                 CLISpecParameter.option(

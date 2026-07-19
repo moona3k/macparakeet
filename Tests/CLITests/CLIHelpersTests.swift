@@ -1,9 +1,32 @@
 import Darwin
+import Foundation
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
 
 final class CLIHelpersTests: XCTestCase {
+
+    func testBundledCLIUsesStandardDefaultsForAppPreferenceDomain() {
+        XCTAssertTrue(
+            macParakeetAppDefaults(bundleIdentifier: AppPaths.preferencesSuiteName)
+                === UserDefaults.standard
+        )
+    }
+
+    func testStandaloneCLIUsesSharedAppPreferenceDomain() {
+        let key = "CLIHelpersTests.standaloneDefaults.\(UUID().uuidString)"
+        let value = UUID().uuidString
+        let standaloneDefaults = macParakeetAppDefaults(bundleIdentifier: "com.macparakeet.cli-tests")
+        let sharedDefaults = AppPaths.sharedAppDefaults()
+        defer {
+            standaloneDefaults.removeObject(forKey: key)
+            sharedDefaults.removeObject(forKey: key)
+        }
+
+        standaloneDefaults.set(value, forKey: key)
+
+        XCTAssertEqual(sharedDefaults.string(forKey: key), value)
+    }
 
     func testStandardOutputRedirectionRestoresStdoutPayload() throws {
         let nullFileDescriptor = open("/dev/null", O_WRONLY)
