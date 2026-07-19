@@ -536,16 +536,7 @@ struct TranscriptResultView: View {
 
     private var actionBar: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Button {
-                copyToClipboard()
-            } label: {
-                Label(
-                    copied ? "Copied!" : "Copy",
-                    systemImage: copied ? "checkmark" : "doc.on.clipboard"
-                )
-                .foregroundStyle(copied ? DesignSystem.Colors.successGreen : .primary)
-            }
-            .parakeetAction(.secondary)
+            copyAction
 
             Button {
                 showingExportOptions.toggle()
@@ -713,6 +704,42 @@ struct TranscriptResultView: View {
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)
         }
+    }
+
+    @ViewBuilder
+    private var copyAction: some View {
+        if activeTranscription.sourceType == .meeting {
+            Menu {
+                Button {
+                    copyTranscriptToClipboard()
+                } label: {
+                    Label("Copy Transcript", systemImage: "doc.plaintext")
+                }
+            } label: {
+                copyActionLabel(title: copied ? "Copied!" : "Copy Meeting")
+            } primaryAction: {
+                copyMeetingToClipboard()
+            }
+            .parakeetAction(.secondary)
+            .help("Copy the meeting title, notes, and transcript. Use the menu to copy only the transcript.")
+            .accessibilityLabel("Copy meeting")
+            .accessibilityValue(copied ? "Copied" : "")
+        } else {
+            Button {
+                copyTranscriptToClipboard()
+            } label: {
+                copyActionLabel(title: copied ? "Copied!" : "Copy")
+            }
+            .parakeetAction(.secondary)
+        }
+    }
+
+    private func copyActionLabel(title: String) -> some View {
+        Label(
+            title,
+            systemImage: copied ? "checkmark" : "doc.on.clipboard"
+        )
+        .foregroundStyle(copied ? DesignSystem.Colors.successGreen : .primary)
     }
 
     private var isRetranscriptionConfirmationPresented: Binding<Bool> {
@@ -3298,9 +3325,20 @@ struct TranscriptResultView: View {
 
     // MARK: - Actions
 
-    private func copyToClipboard() {
-        let text = transcriptText
-        TranscriptResultActions.copyText(text)
+    private func copyMeetingToClipboard() {
+        let markdown = MeetingMarkdownRenderer().renderForClipboard(
+            transcription: activeTranscription
+        )
+        TranscriptResultActions.copyText(markdown, source: .meeting)
+        showCopiedFeedback()
+    }
+
+    private func copyTranscriptToClipboard() {
+        TranscriptResultActions.copyText(transcriptText)
+        showCopiedFeedback()
+    }
+
+    private func showCopiedFeedback() {
         copiedResetTask?.cancel()
         withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
         copiedResetTask = Task { @MainActor in

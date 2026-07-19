@@ -135,6 +135,18 @@ public struct MeetingMarkdownRenderer: Sendable {
 
     public init() {}
 
+    public func renderForClipboard(transcription: Transcription) -> String {
+        let transcript = renderedTranscript(transcription)
+        var sections = ["# \(transcription.fileName)"]
+
+        if let notes = normalizedNonEmptyText(transcription.userNotes) {
+            sections.append("## Notes\n\n\(notes)")
+        }
+
+        sections.append("## Transcript\n\n\(transcript.text)")
+        return sections.joined(separator: "\n\n") + "\n"
+    }
+
     public func render(
         transcription: Transcription,
         promptResults: [PromptResult],

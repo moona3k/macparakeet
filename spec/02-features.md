@@ -1678,6 +1678,7 @@ final transcripts remain plain text without word timestamps or speaker labels.
 - [x] Notes round-trip through crash recovery via lock-file `notes` (additive, decoded with `decodeIfPresent`, decoded independently so a malformed notes value doesn't block audio recovery)
 - [x] Soft-cap warning footer at 7,500 words; notes themselves are never truncated (cap applies only at prompt-assembly time)
 - [x] `MeetingNotesViewModel.notesText` is `private(set)` and bound exclusively to the editor — code-level enforcement of the "notes are user-authored only" invariant (ADR-020 §11)
+- [x] Completed meeting detail uses **Copy Meeting** as its primary copy action, producing compact Markdown with title, non-empty personal notes, and the preferred transcript; its split menu retains **Copy Transcript**, while the live Transcript-tab Copy action remains transcript-only
 
 ### F37: Memo-Steered Summaries
 
