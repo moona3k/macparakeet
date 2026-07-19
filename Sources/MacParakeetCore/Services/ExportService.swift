@@ -3,9 +3,19 @@ import Foundation
 
 public protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
+    func exportToTxt(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws
     func exportToSRT(transcription: Transcription, url: URL) throws
     func exportToVTT(transcription: Transcription, url: URL) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
+    func exportToMarkdown(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws
     func exportToJSON(transcription: Transcription, url: URL) throws
     @MainActor func exportToPDF(transcription: Transcription, url: URL) throws
     @MainActor func exportToDocx(transcription: Transcription, url: URL) throws
@@ -15,6 +25,26 @@ public protocol ExportServiceProtocol: Sendable {
     func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]?) -> String
     func formatMarkdown(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
+}
+
+public extension ExportServiceProtocol {
+    /// Compatibility fallback for conformers that only support the original export surface.
+    func exportToTxt(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws {
+        try exportToTxt(transcription: transcription, url: url)
+    }
+
+    /// Compatibility fallback for conformers that only support the original export surface.
+    func exportToMarkdown(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws {
+        try exportToMarkdown(transcription: transcription, url: url)
+    }
 }
 
 public struct TranscriptExportOptions: Sendable, Equatable {
@@ -311,37 +341,35 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append(text)
             lines.append("")
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
+            let paragraphs = TranscriptParagraphBuilder.build(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
-                if options.includeTimestamps {
-                    var lastSpeakerId: String? = nil
-                    for cue in cues {
-                        if options.includeSpeakerLabels,
-                           let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                           cue.speakerId != lastSpeakerId {
-                            lines.append("**\(label)**")
-                            lines.append("")
-                        }
-                        lastSpeakerId = cue.speakerId
+                var lastSpeakerId: String? = nil
+                for paragraph in paragraphs {
+                    if options.includeSpeakerLabels,
+                       let label = speakerLabel(for: paragraph.speakerId, in: transcription.speakers),
+                       paragraph.speakerId != lastSpeakerId {
+                        lines.append("**\(label)**")
+                        lines.append("")
+                    }
+                    lastSpeakerId = paragraph.speakerId
 
-                        let ts = formatReadableTimestamp(ms: cue.startMs)
-                        lines.append("**[\(ts)]** \(cue.text)")
-                        lines.append("")
-                    }
-                } else {
-                    for paragraph in speakerParagraphs(from: cues, speakers: transcription.speakers) {
-                        if let label = paragraph.label {
-                            lines.append("**\(label)**")
-                            lines.append("")
-                        }
+                    if options.includeTimestamps {
+                        let timestamp = formatReadableTimestamp(ms: paragraph.startMs)
+                        lines.append("**[\(timestamp)]** \(paragraph.text)")
+                    } else {
                         lines.append(paragraph.text)
-                        lines.append("")
                     }
+                    lines.append("")
                 }
-            } else {
-                let text = preferredText(transcription: transcription)
-                lines.append(text.isEmpty ? cues.map(\.text).joined(separator: " ") : text)
+            } else if let cleanTranscript = transcription.cleanTranscript,
+                      !cleanTranscript.isEmpty {
+                lines.append(cleanTranscript)
                 lines.append("")
+            } else {
+                for paragraph in paragraphs {
+                    lines.append(paragraph.text)
+                    lines.append("")
+                }
             }
         } else {
             let text = preferredText(transcription: transcription)
@@ -427,37 +455,37 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let text = editedTranscriptText(transcription: transcription) {
             lines.append(text)
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
+            let paragraphs = TranscriptParagraphBuilder.build(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
-                if options.includeTimestamps {
-                    var lastSpeakerId: String? = nil
-                    for cue in cues {
-                        if options.includeSpeakerLabels,
-                           let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                           cue.speakerId != lastSpeakerId {
-                            if !lines.isEmpty, lines.last != "" {
-                                lines.append("")
-                            }
-                            lines.append("\(label):")
-                        }
-                        lastSpeakerId = cue.speakerId
-
-                        lines.append("[\(formatReadableTimestamp(ms: cue.startMs))] \(cue.text)")
+                var lastSpeakerId: String? = nil
+                for paragraph in paragraphs {
+                    if !lines.isEmpty, lines.last != "" {
+                        lines.append("")
                     }
-                } else {
-                    for paragraph in speakerParagraphs(from: cues, speakers: transcription.speakers) {
-                        if let label = paragraph.label {
-                            if !lines.isEmpty, lines.last != "" {
-                                lines.append("")
-                            }
-                            lines.append("\(label):")
-                        }
+
+                    if options.includeSpeakerLabels,
+                       let label = speakerLabel(for: paragraph.speakerId, in: transcription.speakers),
+                       paragraph.speakerId != lastSpeakerId {
+                        lines.append("\(label):")
+                    }
+                    lastSpeakerId = paragraph.speakerId
+
+                    if options.includeTimestamps {
+                        lines.append("[\(formatReadableTimestamp(ms: paragraph.startMs))] \(paragraph.text)")
+                    } else {
                         lines.append(paragraph.text)
                     }
                 }
+            } else if let cleanTranscript = transcription.cleanTranscript,
+                      !cleanTranscript.isEmpty {
+                lines.append(cleanTranscript)
             } else {
-                let text = preferredText(transcription: transcription)
-                lines.append(text.isEmpty ? cues.map(\.text).joined(separator: " ") : text)
+                for paragraph in paragraphs {
+                    if !lines.isEmpty, lines.last != "" {
+                        lines.append("")
+                    }
+                    lines.append(paragraph.text)
+                }
             }
         } else {
             let text = preferredText(transcription: transcription)
@@ -467,30 +495,6 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         return lines.joined(separator: "\n")
-    }
-
-    private struct SpeakerParagraph {
-        var speakerId: String?
-        var label: String?
-        var text: String
-    }
-
-    private func speakerParagraphs(from cues: [SubtitleCue], speakers: [SpeakerInfo]?) -> [SpeakerParagraph] {
-        var paragraphs: [SpeakerParagraph] = []
-        for cue in cues {
-            let label = speakerLabel(for: cue.speakerId, in: speakers)
-            if let last = paragraphs.indices.last,
-               paragraphs[last].speakerId == cue.speakerId {
-                paragraphs[last].text += " \(cue.text)"
-            } else {
-                paragraphs.append(SpeakerParagraph(
-                    speakerId: cue.speakerId,
-                    label: label,
-                    text: cue.text
-                ))
-            }
-        }
-        return paragraphs
     }
 
     // MARK: - Rich Text (AppKit)

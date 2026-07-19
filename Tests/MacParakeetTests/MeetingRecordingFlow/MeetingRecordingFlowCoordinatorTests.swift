@@ -19,6 +19,36 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         super.tearDown()
     }
 
+    func testLivePreviewUsesReadingParagraphs() {
+        let sentenceWords = [
+            ("First", 0, 100), ("sentence", 120, 220), ("ends.", 240, 340),
+            ("Second", 400, 500), ("sentence", 520, 620), ("ends.", 640, 740),
+            ("Third", 800, 900), ("sentence", 920, 1_020), ("ends.", 1_040, 1_140),
+            ("Fourth", 1_200, 1_300), ("sentence", 1_320, 1_420), ("ends.", 1_440, 1_540),
+        ]
+        let words = sentenceWords.map { text, startMs, endMs in
+            WordTimestamp(
+                word: text,
+                startMs: startMs,
+                endMs: endMs,
+                confidence: 0.99,
+                speakerId: AudioSource.microphone.rawValue
+            )
+        }
+        let update = MeetingTranscriptUpdate(
+            words: words,
+            speakers: [SpeakerInfo(id: AudioSource.microphone.rawValue, label: "Me")]
+        )
+
+        let lines = MeetingRecordingFlowCoordinator.testHook_makePreviewLines(from: update)
+
+        XCTAssertEqual(lines.map(\.text), [
+            "First sentence ends. Second sentence ends. Third sentence ends.",
+            "Fourth sentence ends.",
+        ])
+        XCTAssertEqual(lines.map(\.timestamp), ["0:00", "0:01"])
+    }
+
     func testAutoStopTriggerUsesNormalStopTranscribeFlow() async throws {
         let output = makeRecordingOutput()
         let recordingService = MeetingRecordingServiceSpy(output: output)

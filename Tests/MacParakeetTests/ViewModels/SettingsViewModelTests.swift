@@ -661,6 +661,29 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNotNil(fresh.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
     }
 
+    func testMeetingAutoSaveContentOptionsDefaultOnAndPersist() {
+        XCTAssertTrue(viewModel.meetingAutoSaveIncludeTimestamps)
+        XCTAssertTrue(viewModel.meetingAutoSaveIncludeSpeakerLabels)
+        XCTAssertTrue(viewModel.meetingAutoSaveIncludeMetadata)
+
+        viewModel.meetingAutoSaveIncludeTimestamps = false
+        viewModel.meetingAutoSaveIncludeSpeakerLabels = false
+        viewModel.meetingAutoSaveIncludeMetadata = false
+
+        let reloaded = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
+                youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            },
+            meetingRecordingsDirPath: { [meetingRecordingsTestDir] in
+                meetingRecordingsTestDir?.path ?? AppPaths.meetingRecordingsDir
+            }
+        )
+        XCTAssertFalse(reloaded.meetingAutoSaveIncludeTimestamps)
+        XCTAssertFalse(reloaded.meetingAutoSaveIncludeSpeakerLabels)
+        XCTAssertFalse(reloaded.meetingAutoSaveIncludeMetadata)
+    }
+
     // MARK: - Auto-save folder configuration
     //
     // The folder is always set after init — to the user's chosen folder if

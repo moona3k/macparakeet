@@ -197,6 +197,7 @@ struct TranscriptTextView: NSViewRepresentable {
 
             let textPara = NSMutableParagraphStyle()
             textPara.lineSpacing = 2
+            textPara.paragraphSpacing = 8
             textPara.firstLineHeadIndent = 11
             textPara.headIndent = 11
 

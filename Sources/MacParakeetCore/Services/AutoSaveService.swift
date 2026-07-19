@@ -70,6 +70,9 @@ public final class AutoSaveService {
     public static let enabledKey = AutoSaveScope.transcription.enabledKey
     public static let formatKey = AutoSaveScope.transcription.formatKey
     public static let folderBookmarkKey = AutoSaveScope.transcription.folderBookmarkKey
+    public static let meetingIncludeTimestampsKey = "meetingAutoSaveIncludeTimestamps"
+    public static let meetingIncludeSpeakerLabelsKey = "meetingAutoSaveIncludeSpeakerLabels"
+    public static let meetingIncludeMetadataKey = "meetingAutoSaveIncludeMetadata"
 
     public init(
         exportService: ExportServiceProtocol? = nil,
@@ -90,6 +93,7 @@ public final class AutoSaveService {
     ) -> AutoSaveResult {
         guard defaults.bool(forKey: scope.enabledKey) else { return .disabled }
         let format = AutoSaveFormat(rawValue: defaults.string(forKey: scope.formatKey) ?? "md") ?? .md
+        let textOptions = transcriptExportOptions(for: scope)
         let operationContext = Observability.childOperationContext()
         guard let folderURL = resolveFolder(scope: scope) else {
             logger.warning("Auto-save enabled but no valid folder configured for \(scope.rawValue).")
@@ -110,8 +114,18 @@ public final class AutoSaveService {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
             switch format {
-            case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
-            case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
+            case .txt:
+                try exportService.exportToTxt(
+                    transcription: transcription,
+                    url: fileURL,
+                    options: textOptions
+                )
+            case .md:
+                try exportService.exportToMarkdown(
+                    transcription: transcription,
+                    url: fileURL,
+                    options: textOptions
+                )
             case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
             case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
@@ -207,6 +221,19 @@ public final class AutoSaveService {
               let value = defaults.object(forKey: sourceKey)
         else { return }
         defaults.set(value, forKey: destinationKey)
+    }
+
+    private func transcriptExportOptions(for scope: AutoSaveScope) -> TranscriptExportOptions {
+        guard scope == .meeting else { return .default }
+        return TranscriptExportOptions(
+            includeTimestamps: bool(defaultingToTrueForKey: Self.meetingIncludeTimestampsKey),
+            includeSpeakerLabels: bool(defaultingToTrueForKey: Self.meetingIncludeSpeakerLabelsKey),
+            includeMetadata: bool(defaultingToTrueForKey: Self.meetingIncludeMetadataKey)
+        )
+    }
+
+    private func bool(defaultingToTrueForKey key: String) -> Bool {
+        defaults.object(forKey: key) as? Bool ?? true
     }
 
     private func sendAutoSaveOperation(

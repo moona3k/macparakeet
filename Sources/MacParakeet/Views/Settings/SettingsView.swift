@@ -1355,6 +1355,37 @@ struct SettingsView: View {
                     Task { await viewModel.resetMeetingAutoSaveFolder() }
                 }
             )
+
+            if viewModel.meetingAutoSaveFormat == .txt || viewModel.meetingAutoSaveFormat == .md {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    settingsToggleRow(
+                        title: "Include timestamps",
+                        detail: "Add one timestamp at the start of each reading paragraph.",
+                        isOn: $viewModel.meetingAutoSaveIncludeTimestamps
+                    )
+
+                    Divider()
+
+                    settingsToggleRow(
+                        title: "Include speaker labels",
+                        detail: "Show speaker names when meeting speaker information is available.",
+                        isOn: $viewModel.meetingAutoSaveIncludeSpeakerLabels
+                    )
+
+                    Divider()
+
+                    settingsToggleRow(
+                        title: "Include meeting details",
+                        detail: "Add the title, duration, and other available transcript details.",
+                        isOn: $viewModel.meetingAutoSaveIncludeMetadata
+                    )
+                }
+                .padding(DesignSystem.Spacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated)
+                )
+            }
         }
         .task {
             await viewModel.refreshMeetingAutoSaveFolderStatus()

@@ -31,6 +31,29 @@ final class TranscriptTextViewTests: XCTestCase {
         assertColor(actual, matches: expected, appearance: .darkAqua)
     }
 
+    func testLiveTranscriptBodyTextAddsReadingParagraphSpacing() throws {
+        let view = TranscriptTextView(lines: [], autoScroll: true)
+        let line = MeetingRecordingPreviewLine(
+            id: "1",
+            timestamp: "0:05",
+            speakerLabel: "Me",
+            text: "A readable paragraph",
+            source: .microphone
+        )
+
+        let rendered = view.renderedAttributedStringForTesting(lines: [line][...])
+        let range = (rendered.string as NSString).range(of: line.text)
+        let paragraphStyle = try XCTUnwrap(
+            rendered.attribute(
+                .paragraphStyle,
+                at: range.location,
+                effectiveRange: nil
+            ) as? NSParagraphStyle
+        )
+
+        XCTAssertEqual(paragraphStyle.paragraphSpacing, 8)
+    }
+
     private func assertColor(
         _ actual: NSColor,
         matches expected: NSColor,

@@ -104,6 +104,8 @@ final class AutoSaveServiceTests: XCTestCase {
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("# test-audio.mp3"))
         XCTAssertEqual(result, .saved)
     }
 
@@ -372,6 +374,49 @@ final class AutoSaveServiceTests: XCTestCase {
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("# test-audio.mp3"))
+    }
+
+    func testMeetingScopeAppliesPlainTextContentOptions() throws {
+        configureMeetingAutoSave(enabled: true, format: .txt)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeTimestampsKey)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeSpeakerLabelsKey)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeMetadataKey)
+        let transcription = Transcription(
+            fileName: "Roadmap Sync",
+            durationMs: 2_000,
+            rawTranscript: "First. Second.",
+            wordTimestamps: [
+                WordTimestamp(
+                    word: "First.",
+                    startMs: 0,
+                    endMs: 400,
+                    confidence: 0.99,
+                    speakerId: "S1"
+                ),
+                WordTimestamp(
+                    word: "Second.",
+                    startMs: 500,
+                    endMs: 900,
+                    confidence: 0.99,
+                    speakerId: "S2"
+                ),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let result = makeService().saveIfEnabled(transcription, scope: .meeting)
+
+        let fileName = try XCTUnwrap(FileManager.default.contentsOfDirectory(atPath: tempDir.path).first)
+        let content = try String(contentsOf: tempDir.appendingPathComponent(fileName), encoding: .utf8)
+        XCTAssertEqual(result, .saved)
+        XCTAssertEqual(content, "First.\n\nSecond.")
     }
 
     func testMeetingFileNameUsesCalendarEventTitle() {

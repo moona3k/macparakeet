@@ -31,6 +31,10 @@ mode.
 - `TranscriptDerivers.swift` — derives display-side fields
   (search-friendly text, summaries' rendering helpers, etc.) from
   stored transcripts. Read-only; doesn't mutate the canonical text.
+- `TranscriptParagraphBuilder.swift` — groups timestamped words into
+  deterministic reading paragraphs for TXT/Markdown exports and the meeting
+  live preview. It does not replace subtitle cues or persisted transcript
+  segments.
 
 ## Cross-references
 

@@ -1487,14 +1487,14 @@ final class MeetingRecordingFlowCoordinator {
         -> [MeetingRecordingPreviewLine]
     {
         let speakerLabels = Dictionary(uniqueKeysWithValues: update.speakers.map { ($0.id, $0.label) })
-        let segments = TranscriptSegmenter.groupIntoSegments(words: update.words)
-        return segments.map { segment in
-            let source = segment.speakerId.flatMap(AudioSource.init(rawValue:))
+        let paragraphs = TranscriptParagraphBuilder.build(from: update.words)
+        return paragraphs.map { paragraph in
+            let source = paragraph.speakerId.flatMap(AudioSource.init(rawValue:))
             return MeetingRecordingPreviewLine(
-                id: "\(segment.startMs)-\(segment.speakerId ?? "unknown")",
-                timestamp: format(milliseconds: segment.startMs),
-                speakerLabel: speakerLabels[segment.speakerId ?? ""] ?? source?.displayLabel ?? "Speaker",
-                text: segment.text,
+                id: "\(paragraph.startMs)-\(paragraph.speakerId ?? "unknown")",
+                timestamp: format(milliseconds: paragraph.startMs),
+                speakerLabel: speakerLabels[paragraph.speakerId ?? ""] ?? source?.displayLabel ?? "Speaker",
+                text: paragraph.text,
                 source: source
             )
         }
@@ -1684,6 +1684,12 @@ final class MeetingRecordingFlowCoordinator {
 /// Hooks for unit tests. These stay internal and are not `#if DEBUG`-gated so
 /// `swift test -c release` links the same as the auto-start coordinator tests.
 extension MeetingRecordingFlowCoordinator {
+    nonisolated static func testHook_makePreviewLines(
+        from update: MeetingTranscriptUpdate
+    ) -> [MeetingRecordingPreviewLine] {
+        makePreviewLines(from: update)
+    }
+
     func testHook_enterRecording(
         operationContext: ObservabilityOperationContext = ObservabilityOperationContext(
             operationID: "test-meeting-operation",

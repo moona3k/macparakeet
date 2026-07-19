@@ -172,6 +172,19 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(text.contains("[0:00]"))
     }
 
+    func testFormatPlainTextUsesOneTimestampPerReadingParagraph() {
+        let transcription = makeReadingParagraphTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: true,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertEqual(text, "[0:00] First. Second. Third.\n\n[0:01] Fourth.")
+    }
+
     func testFormatMarkdownCanOmitMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
         let options = TranscriptExportOptions(
@@ -218,6 +231,22 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(markdown.contains("**Alice**\n\nFirst cue. Second cue."))
         XCTAssertFalse(markdown.contains("First cue.\n\nSecond cue."))
         XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testFormatMarkdownUsesOneTimestampPerReadingParagraph() {
+        let transcription = makeReadingParagraphTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: true,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertEqual(
+            markdown.trimmingCharacters(in: .whitespacesAndNewlines),
+            "**[0:00]** First. Second. Third.\n\n**[0:01]** Fourth."
+        )
     }
 
     func testExportToMarkdownUsesOptions() throws {
@@ -517,8 +546,8 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(md.contains("**Duration:** 0:05"))
         XCTAssertTrue(md.contains("**Language:** en"))
         XCTAssertTrue(md.contains("---"))
-        XCTAssertTrue(md.contains("**[0:00]** Hello world."))
-        XCTAssertTrue(md.contains("**[0:02]** How are you?"))
+        XCTAssertTrue(md.contains("**[0:00]** Hello world. How are you?"))
+        XCTAssertFalse(md.contains("**[0:02]**"))
     }
 
     func testFormatMarkdownWithoutTimestamps() {
@@ -1067,6 +1096,21 @@ final class ExportServiceTests: XCTestCase {
             speakers: [
                 SpeakerInfo(id: "S1", label: "Alice"),
                 SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+    }
+
+    private func makeReadingParagraphTranscription() -> Transcription {
+        Transcription(
+            fileName: "meeting.m4a",
+            durationMs: 2_000,
+            rawTranscript: "First. Second. Third. Fourth.",
+            wordTimestamps: [
+                WordTimestamp(word: "First.", startMs: 0, endMs: 300, confidence: 0.99),
+                WordTimestamp(word: "Second.", startMs: 400, endMs: 700, confidence: 0.99),
+                WordTimestamp(word: "Third.", startMs: 800, endMs: 1_100, confidence: 0.99),
+                WordTimestamp(word: "Fourth.", startMs: 1_200, endMs: 1_500, confidence: 0.99),
             ],
             status: .completed
         )

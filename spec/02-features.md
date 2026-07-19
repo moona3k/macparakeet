@@ -1296,7 +1296,8 @@ Display result (same view as file transcription)
 
 | Format | Extension | Use Case | Content |
 |--------|-----------|----------|---------|
-| Plain Text | `.txt` | General | Full transcript, no timestamps |
+| Plain Text | `.txt` | General | Reading paragraphs with optional timestamps, speaker labels, and file details |
+| Markdown | `.md` | Notes and documents | Reading paragraphs with optional timestamps, speaker labels, and file details |
 | Subtitles (SRT) | `.srt` | Video editing | Timed subtitle segments |
 | Subtitles (VTT) | `.vtt` | Web video | WebVTT format subtitles |
 | Word Document | `.docx` | Documents | Formatted with headings |
@@ -1333,7 +1334,7 @@ new scheduling architecture.
 ```
 
 **Acceptance criteria:**
-- [ ] All 6 formats generate correctly
+- [ ] All supported formats generate correctly
 - [ ] SRT/VTT contain properly timed segments from word-level timestamps
 - [ ] DOCX opens correctly in Word/Pages/Google Docs
 - [ ] PDF is well-formatted and print-ready
@@ -1392,6 +1393,13 @@ new scheduling architecture.
 - TXT/Markdown: speaker label before each turn
 - DOCX/PDF: speaker name in bold before each turn
 - JSON: `speakerId` field per word in `wordTimestamps`
+
+TXT and Markdown are reading surfaces rather than subtitle surfaces. When word
+timings are available, they group text into deterministic paragraphs and add at
+most one timestamp per paragraph. SRT and VTT keep their shorter timed subtitle
+cues. Meeting folder auto-save exposes the TXT/Markdown timestamp, speaker, and
+meeting-detail choices independently; the complete app-managed meeting artifacts
+are unaffected.
 
 **Technical notes:**
 - Uses FluidAudio's offline diarization pipeline (separate from ASR, see ADR-010)
