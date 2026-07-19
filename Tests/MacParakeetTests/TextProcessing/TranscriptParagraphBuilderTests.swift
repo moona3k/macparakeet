@@ -92,6 +92,20 @@ final class TranscriptParagraphBuilderTests: XCTestCase {
         XCTAssertEqual(paragraphs.map(\.speakerId), ["speaker-1", "speaker-1"])
     }
 
+    func testRecognizesSentencePunctuationBeforeTrailingWhitespace() {
+        let words = [
+            word("First.\n", startMs: 0, endMs: 300),
+            word("Second. ", startMs: 350, endMs: 650),
+            word("Third.\t", startMs: 700, endMs: 1_000),
+            word("Fourth.", startMs: 1_050, endMs: 1_350),
+        ]
+
+        let paragraphs = TranscriptParagraphBuilder.build(from: words)
+
+        XCTAssertEqual(paragraphs.count, 2)
+        XCTAssertEqual(paragraphs[0].endMs, 1_000)
+    }
+
     private func word(
         _ text: String,
         startMs: Int,

@@ -82,7 +82,8 @@ public enum TranscriptParagraphBuilder {
     }
 
     private static func endsSentence(_ word: String) -> Bool {
-        guard let lastCharacter = word.last else { return false }
+        let trimmedWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let lastCharacter = trimmedWord.last else { return false }
         return lastCharacter == "." || lastCharacter == "!" || lastCharacter == "?"
     }
 }
