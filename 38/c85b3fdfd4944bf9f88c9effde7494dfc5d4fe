@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/TextProcessing/TranscriptParagraphBuilderTests.swift
+  s_51efd1f8647ee0::t_b7c417d21c20a8 95-108
+Sources/MacParakeetCore/TextProcessing/TranscriptParagraphBuilder.swift
+  s_51efd1f8647ee0::t_50a7d71c02b328 85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "38c85b3fdfd4944bf9f88c9effde7494dfc5d4fe",
+  "prompts": {},
+  "sessions": {
+    "s_51efd1f8647ee0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f790b-46ab-7382-a4e6-e4648c2d5944",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
