@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingMarkdownRenderer.swift
+  s_187bc488ae6a90::t_5ac9a845222526 140-143,153,159,161-164,177-188
+  s_187bc488ae6a90::t_43c3364203fd35 189-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ff95890054866c3f70422be5acf79b73d75d82a4",
+  "prompts": {},
+  "sessions": {
+    "s_187bc488ae6a90": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f790b-e840-7fb2-9d43-58a9383d5c6c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
