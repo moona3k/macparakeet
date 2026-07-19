@@ -193,7 +193,6 @@ struct TranscriptResultView: View {
     @State private var lastScrolledSegmentMs: Int = -1
     // Cached transcript data — recomputed only when transcription.id changes, not on every playback tick
     @State private var cachedSegments: [TranscriptSegment] = []
-    @State private var cachedTurns: [SpeakerTurn] = []
     @State private var cachedIdentifiedTurnCards: [IdentifiedSpeakerTurn] = []
     @State private var cachedHasSpeakers: Bool = false
     @State private var cachedSpeakerColorMap: [String: Color] = [:]
@@ -3157,7 +3156,6 @@ struct TranscriptResultView: View {
     private func rebuildSegmentCache() {
         guard let words = activeTranscription.wordTimestamps, !words.isEmpty else {
             cachedSegments = []
-            cachedTurns = []
             cachedIdentifiedTurnCards = []
             cachedHasSpeakers = false
             cachedSpeakerColorMap = [:]
@@ -3183,10 +3181,8 @@ struct TranscriptResultView: View {
                     return cachedSpeakerLabelMap[speakerID] ?? "Unknown"
                 }
             )
-            cachedTurns = turns
             cachedIdentifiedTurnCards = identifiedSpeakerTurnCards(turns)
         } else {
-            cachedTurns = []
             cachedIdentifiedTurnCards = []
         }
     }
@@ -3224,15 +3220,13 @@ struct TranscriptResultView: View {
         return activeIdx == segmentIndex
     }
 
-    /// Find the scroll target ID (segment startMs) for the given playback time using binary search.
+    /// Find the scroll target ID (segment startMs) for the given playback time.
     private func autoScrollTarget(for currentMs: Int) -> Int? {
         if cachedHasSpeakers {
-            // Find the last turn whose first segment starts at or before currentMs
-            for turn in cachedTurns.reversed() {
-                if let first = turn.segments.first, first.startMs <= currentMs {
-                    return first.startMs
-                }
-            }
+            return speakerTurnCardScrollTarget(
+                for: currentMs,
+                in: cachedIdentifiedTurnCards
+            )
         } else {
             if let idx = activeSegmentIndex(for: currentMs) {
                 return cachedSegmentStartMs[idx]

@@ -100,6 +100,19 @@ func identifiedSpeakerTurnCards(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTur
     return identifySpeakerTurns(cardTurns)
 }
 
+func speakerTurnCardScrollTarget(
+    for currentMs: Int,
+    in cards: [IdentifiedSpeakerTurn]
+) -> Int? {
+    for card in cards.reversed() {
+        if let firstStartMs = card.turn.segments.first?.startMs,
+           firstStartMs <= currentMs {
+            return firstStartMs
+        }
+    }
+    return nil
+}
+
 private func identifySpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
     var duplicateCounts: [SpeakerTurnIdentityBase: Int] = [:]
     return turns.map { turn in

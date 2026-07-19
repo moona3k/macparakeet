@@ -72,4 +72,21 @@ final class SpeakerTurnIdentityTests: XCTestCase {
         )
         XCTAssertEqual(Set(cards.map(\.id)).count, cards.count)
     }
+
+    func testAutoScrollTargetAdvancesAcrossContinuationCards() {
+        let segments = (0..<(maximumSpeakerTurnSegmentsPerCard * 2 + 1)).map {
+            segment($0 * 1000)
+        }
+        let cards = identifiedSpeakerTurnCards([turn(segments: segments)])
+
+        XCTAssertNil(speakerTurnCardScrollTarget(for: -1, in: cards))
+        XCTAssertEqual(speakerTurnCardScrollTarget(for: 1000, in: cards), 0)
+        XCTAssertEqual(
+            speakerTurnCardScrollTarget(
+                for: maximumSpeakerTurnSegmentsPerCard * 1000 + 1000,
+                in: cards
+            ),
+            maximumSpeakerTurnSegmentsPerCard * 1000
+        )
+    }
 }
