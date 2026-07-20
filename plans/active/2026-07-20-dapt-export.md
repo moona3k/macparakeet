@@ -17,9 +17,9 @@ fresh-eye review against the exact PR head.
 ## Goal
 
 Export any saved or newly produced MacParakeet transcription as a DAPT 1.0
-original-language transcript, preserving aligned timing, language, and
-available speaker labels without inventing metadata when those inputs are
-absent.
+original-language transcript, preserving aligned timing, language, speaker
+attribution, and available display labels without inventing metadata when those
+inputs are absent.
 
 ## Invariants
 
@@ -46,8 +46,9 @@ absent.
 - Signal DAPT 1.0, `originalTranscript`, and `audio.dialogue` on the root.
 - Use the normalized transcript language, falling back to `xml:lang="und"`.
 - Reuse `TranscriptCueBuilder` for aligned timed events.
-- Emit character agents only for speaker IDs referenced by aligned events and
-  use current renamed labels.
+- Emit character agents only for speaker IDs referenced by aligned events, use
+  current renamed labels, and fall back to stored anonymous IDs when the
+  optional label roster is missing or incomplete.
 - Fall back to one untimed event for timestampless or manually edited text.
 - Escape XML markup and remove characters XML 1.0 cannot serialize.
 - Use `.dapt.xml` as the product filename convention.
@@ -81,8 +82,9 @@ absent.
 
 - Focused Swift tests for core export, app export routing, auto-save, CLI
   export/transcribe, and `spec --json`.
-- Validate representative timed-speaker, timed-no-speaker, and untimed output
-  with the current W3C schema validator and BBC TTML validator.
+- Validate representative timed-labeled-speaker, timed-raw-ID,
+  timed-no-speaker, and untimed output with the current W3C schema validator
+  and BBC TTML validator.
 - Run formatting/diff hygiene and the two-axis standards/spec review.
 - Commit, run the full Swift test suite at most once as the final gate, use
   `no-mistakes` when available, push, and open a PR closing #850.
@@ -95,8 +97,9 @@ absent.
 - Root metadata includes a non-empty language, `originalTranscript`, and
   `audio.dialogue` representation.
 - Aligned word-timed transcripts produce deterministic timed script events.
-- Available speaker labels produce valid character agents and event references;
-  renamed labels are preserved and XML-escaped.
+- Aligned speaker IDs produce valid character agents and event references;
+  renamed labels are preserved and XML-escaped, while missing label-map entries
+  use anonymous stored IDs without claiming person identity.
 - A transcript without diarization produces no agent declarations/references
   and remains valid.
 - A transcript without word timing, or with manually edited text, produces an

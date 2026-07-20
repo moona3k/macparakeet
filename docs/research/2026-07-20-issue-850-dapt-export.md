@@ -59,14 +59,17 @@ identifiers are optional. When character data exists, each character is a
 `ttm:agent type="character"` with an alias name and events can reference it via
 `ttm:agent` ([DAPT section 4.2](https://www.w3.org/TR/dapt/#character)).
 
-Those rules give MacParakeet three honest output tiers:
+Those rules give MacParakeet four honest output tiers:
 
-1. aligned word timings plus speaker labels: timed events with character agents;
-2. aligned word timings without speaker labels: timed events without agents;
-3. no aligned timings (including manually edited transcripts): one untimed text
+1. aligned word timings plus speaker IDs and display labels: timed events with
+   labeled character agents;
+2. aligned word timings plus speaker IDs but no complete label roster: timed
+   events with the stored anonymous IDs as character aliases;
+3. aligned word timings without speaker IDs: timed events without agents;
+4. no aligned timings (including manually edited transcripts): one untimed text
    event without agents.
 
-The third tier must not manufacture a whole-file time range or speaker mapping.
+The fourth tier must not manufacture a whole-file time range or speaker mapping.
 An untimed event says exactly what MacParakeet knows; a synthetic timed event
 would appear more precise than the source data.
 
@@ -135,9 +138,10 @@ timings or a dominant-speaker guess.
 
 ## Implementation validation
 
-Three files produced through the real `macparakeet-cli export --format dapt`
-path were checked on 2026-07-20: timed with two speakers, timed without
-diarization, and untimed without word timestamps. All three passed the current
-`w3c/dapt` XSD validator and the BBC TTML Validator's DAPT rules with zero
-DAPT-related warnings. The BBC tool reports its generic optional-copyright
-warning because MacParakeet deliberately does not invent rights metadata.
+Four files produced through the real `macparakeet-cli export --format dapt`
+path were checked on 2026-07-20: timed with two labeled speakers, timed with
+stored speaker IDs but no label roster, timed without diarization, and untimed
+without word timestamps. All four passed the current `w3c/dapt` XSD validator
+and the BBC TTML Validator's DAPT rules with zero DAPT-related warnings. The BBC
+tool reports its generic optional-copyright warning because MacParakeet
+deliberately does not invent rights metadata.

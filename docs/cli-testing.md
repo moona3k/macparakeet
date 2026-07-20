@@ -383,9 +383,10 @@ media URLs and podcast search/URL inputs.
 `rawTranscript`. Status and progress messages stay on stderr, so stdout can be
 piped directly into `pbcopy`, `grep`, `tee`, or a local LLM command.
 
-`--format dapt` uses the shared DAPT renderer. Aligned word timing and available
-speaker labels become timed script events and character agents; missing
-diarization or timing is omitted rather than synthesized.
+`--format dapt` uses the shared DAPT renderer. Aligned word timing and speaker
+IDs become timed script events and character agents; current display labels are
+used when available, otherwise the stored anonymous ID remains the alias.
+Missing diarization or timing is omitted rather than synthesized.
 
 `--no-history` uses the same transcription pipeline without retaining a completed
 history row. For media URL inputs, downloaded audio is temporary regardless of

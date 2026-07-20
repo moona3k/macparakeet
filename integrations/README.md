@@ -199,10 +199,12 @@ macparakeet-cli transcribe /path/to/interview.mp3 --format dapt --output-dir .
 A single input without `--output-dir` prints the selected document to stdout,
 so you can also redirect it:
 `macparakeet-cli transcribe interview.mp3 --format dapt > interview.dapt.xml`.
-DAPT preserves word timing and speaker labels when they are aligned with the
-transcript. If diarization is off or unavailable, it omits character agents;
-if word timing is unavailable, it emits a valid untimed original transcript
-rather than inventing timing or attribution.
+DAPT preserves word timing and speaker attribution when they are aligned with
+the transcript. Current display labels become character aliases; if the
+optional label roster is incomplete, stored anonymous IDs such as `S2` remain
+anonymous aliases. If diarization is off or unavailable, DAPT omits character
+agents; if word timing is unavailable, it emits a valid untimed original
+transcript rather than inventing timing or attribution.
 
 To re-export something already in your library, list it and export by id:
 
