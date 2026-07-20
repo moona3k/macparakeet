@@ -176,7 +176,7 @@ final class DAPTExportTests: XCTestCase {
         XCTAssertNoThrow(try XMLDocument(xmlString: xml))
     }
 
-    func testEditedTranscriptDropsStaleTimingAndSpeakerAttribution() {
+    func testEditedTranscriptDropsStaleTimingAndSpeakerAttribution() throws {
         let transcription = Transcription(
             fileName: "edited.wav",
             rawTranscript: "Old words.",
@@ -197,6 +197,7 @@ final class DAPTExportTests: XCTestCase {
         XCTAssertFalse(xml.contains("begin=\""))
         XCTAssertFalse(xml.contains("<ttm:agent"))
         XCTAssertFalse(xml.contains("ttm:agent=\""))
+        XCTAssertNoThrow(try XMLDocument(xmlString: xml))
     }
 
     func testXML10InvalidCharactersAreRemoved() throws {
