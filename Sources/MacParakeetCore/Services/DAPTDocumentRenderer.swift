@@ -4,7 +4,7 @@ import Foundation
 /// original-transcript document. Missing timing and diarization remain absent;
 /// the renderer never manufactures either to make the document look richer.
 enum DAPTDocumentRenderer {
-    private struct Character {
+    private struct SpeakerCharacter {
         let speakerID: String
         let xmlID: String
         let label: String
@@ -99,13 +99,13 @@ enum DAPTDocumentRenderer {
     private static func referencedCharacters(
         cues: [TranscriptCue],
         speakers: [SpeakerInfo]?
-    ) -> [Character] {
+    ) -> [SpeakerCharacter] {
         let labelsByID = Dictionary(
             (speakers ?? []).map { ($0.id, $0.label) },
             uniquingKeysWith: { first, _ in first }
         )
         var seen = Set<String>()
-        var characters: [Character] = []
+        var characters: [SpeakerCharacter] = []
 
         for cue in cues {
             guard let speakerID = cue.speakerId,
@@ -117,7 +117,7 @@ enum DAPTDocumentRenderer {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedLabel = label.flatMap { $0.isEmpty ? nil : $0 } ?? speakerID
             characters.append(
-                Character(
+                SpeakerCharacter(
                     speakerID: speakerID,
                     xmlID: "character_\(characters.count + 1)",
                     label: resolvedLabel
