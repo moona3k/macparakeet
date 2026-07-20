@@ -100,9 +100,8 @@ enum DAPTDocumentRenderer {
         cues: [TranscriptCue],
         speakers: [SpeakerInfo]?
     ) -> [Character] {
-        guard let speakers, !speakers.isEmpty else { return [] }
         let labelsByID = Dictionary(
-            speakers.map { ($0.id, $0.label) },
+            (speakers ?? []).map { ($0.id, $0.label) },
             uniquingKeysWith: { first, _ in first }
         )
         var seen = Set<String>()

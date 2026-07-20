@@ -75,6 +75,33 @@ final class DAPTExportTests: XCTestCase {
         XCTAssertNoThrow(try XMLDocument(xmlString: xml))
     }
 
+    func testAlignedSpeakerIDsWithoutRosterUseAnonymousIDAliases() throws {
+        let transcription = Transcription(
+            fileName: "legacy.wav",
+            rawTranscript: "First turn. Second turn.",
+            wordTimestamps: [
+                WordTimestamp(word: "First", startMs: 0, endMs: 300, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "turn.", startMs: 300, endMs: 700, confidence: 0.9, speakerId: "S1"),
+                WordTimestamp(word: "Second", startMs: 900, endMs: 1_200, confidence: 0.9, speakerId: "S2"),
+                WordTimestamp(word: "turn.", startMs: 1_200, endMs: 1_600, confidence: 0.9, speakerId: "S2"),
+            ],
+            speakers: nil,
+            status: .completed
+        )
+
+        let xml = exportService.formatDAPT(transcription: transcription)
+
+        XCTAssertTrue(xml.contains("<ttm:name type=\"alias\">S1</ttm:name>"))
+        XCTAssertTrue(xml.contains("<ttm:name type=\"alias\">S2</ttm:name>"))
+        XCTAssertTrue(
+            xml.contains(
+                "xml:id=\"event_1\" begin=\"00:00:00.000\" end=\"00:00:00.700\" ttm:agent=\"character_1\""))
+        XCTAssertTrue(
+            xml.contains(
+                "xml:id=\"event_2\" begin=\"00:00:00.900\" end=\"00:00:01.600\" ttm:agent=\"character_2\""))
+        XCTAssertNoThrow(try XMLDocument(xmlString: xml))
+    }
+
     func testPartialDiarizationAttributesOnlyAlignedSpeakerEvents() throws {
         let transcription = Transcription(
             fileName: "partial.wav",

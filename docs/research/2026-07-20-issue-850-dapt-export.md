@@ -76,7 +76,7 @@ would appear more precise than the source data.
 |---|---|---|
 | `language` | root `xml:lang` and, when known, `daptm:langSrc` | Normalize known language codes; use `xml:lang="und"` and omit `langSrc` when unavailable. |
 | `wordTimestamps` | timed script events | Reuse `TranscriptCueBuilder` so DAPT, SRT, and VTT share deterministic timing/speaker boundaries. |
-| `speakers` + word `speakerId` | `ttm:agent` character metadata and event references | Emit only for speakers actually referenced by aligned events; preserve renamed labels; never infer a speaker. |
+| word `speakerId` + optional `speakers` label map | `ttm:agent` character metadata and event references | Emit only IDs actually referenced by aligned events; preserve renamed labels and fall back to the anonymous stored ID when its label roster is absent; never infer a speaker. |
 | edited transcript text | one untimed script event | Manual editing invalidates word/text alignment, matching existing export behavior. |
 | `cleanTranscript` / `rawTranscript` without words | one untimed script event | Prefer the same display text as existing text exports. |
 | effective display title | `ttm:title` metadata | Human-readable metadata only; no local path or private source URL. |
