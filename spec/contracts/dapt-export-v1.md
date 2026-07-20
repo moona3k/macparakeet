@@ -46,9 +46,11 @@ stale alignment metadata is omitted rather than invented.
   text, uses one untimed script event. File duration is not substituted for
   missing word alignment.
 - Referenced speaker IDs become generated `ttm:agent type="character"`
-  declarations with current speaker labels as aliases. Unattributed events do
-  not receive an agent reference. No persistent identity, actor/talent role,
-  confidence, or voiceprint claim is implied.
+  declarations with current speaker labels as aliases. When the optional label
+  map is missing or incomplete, the stored anonymous ID itself is the alias;
+  that preserves a known diarization cluster without claiming person identity.
+  Unattributed events do not receive an agent reference. No persistent
+  identity, actor/talent role, confidence, or voiceprint claim is implied.
 - If there are no aligned speaker-attributed words, no character agents are
   emitted even when a legacy speaker roster or speaker count exists.
 - User text, title, and labels are XML-escaped; code points forbidden by XML
