@@ -4,15 +4,17 @@
 
 - **Issue:** [#850](https://github.com/moona3k/macparakeet/issues/850)
 - **Priority:** P1
-- **Status:** REVIEW
+- **Status:** PR OPEN
 - **Branch:** `feat/850-dapt-export`
 - **Baseline:** `origin/main` at `1e5502c1d9951457e91725e2fbd1cc69a29b3b29`
 - **Research:**
   [`docs/research/2026-07-20-issue-850-dapt-export.md`](../../docs/research/2026-07-20-issue-850-dapt-export.md)
 
-Implementation, focused tests, the final full-suite gate, CLI smoke checks, and
-both external DAPT validators are complete. Remaining: PR/hosted CI and
-fresh-eye review against the exact PR head.
+Implementation, focused tests, the final full-suite gate, CLI smoke checks,
+both external DAPT validators, and fresh-eye remediation are complete on
+[PR #854](https://github.com/moona3k/macparakeet/pull/854). Exact-head hosted
+CI/review evidence and the final merge-readiness verdict are tracked on the PR;
+this plan remains active until merge.
 
 ## Goal
 
