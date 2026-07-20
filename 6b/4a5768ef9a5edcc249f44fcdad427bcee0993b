@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/DAPTDocumentRenderer.swift
+  s_5ef458d46fff9b::t_41edc66c3abf8f 104
+Tests/MacParakeetTests/Services/DAPTExportTests.swift
+  s_5ef458d46fff9b::t_3c9e5def707e13 96-101
+  s_5ef458d46fff9b::t_2ef422a1ba0fca 78-95,102-104
+docs/research/2026-07-20-issue-850-dapt-export.md
+  s_5ef458d46fff9b::t_2ef422a1ba0fca 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6b4a5768ef9a5edcc249f44fcdad427bcee0993b",
+  "prompts": {},
+  "sessions": {
+    "s_5ef458d46fff9b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8132-721d-7ed1-bdfb-73454394c4ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
