@@ -185,21 +185,30 @@ macparakeet-cli transcribe /path/to/episode.mkv --audio-track 2 --format json
 `--audio-track` works for local files and folders only; media URLs and podcast
 inputs reject it rather than pretending to control a remote/download stream.
 
-To write a subtitle file directly, transcribe with `--format srt|vtt` and an
-`--output-dir` (one command, no separate `export` step):
+To write a subtitle or structured DAPT transcript directly, use
+`--format srt|vtt|dapt` with an `--output-dir` (one command, no separate
+`export` step):
 
 ```bash
 macparakeet-cli transcribe /path/to/audio.mp3 --format vtt --output-dir .
 # -> ./audio.vtt   (same renderer as `export --format vtt`)
+macparakeet-cli transcribe /path/to/interview.mp3 --format dapt --output-dir .
+# -> ./interview.dapt.xml
 ```
 
-A single input without `--output-dir` prints the subtitle to stdout, so you can
-also redirect it: `macparakeet-cli transcribe audio.mp3 --format vtt > audio.vtt`.
+A single input without `--output-dir` prints the selected document to stdout,
+so you can also redirect it:
+`macparakeet-cli transcribe interview.mp3 --format dapt > interview.dapt.xml`.
+DAPT preserves word timing and speaker labels when they are aligned with the
+transcript. If diarization is off or unavailable, it omits character agents;
+if word timing is unavailable, it emits a valid untimed original transcript
+rather than inventing timing or attribution.
+
 To re-export something already in your library, list it and export by id:
 
 ```bash
 macparakeet-cli history transcriptions          # note the subcommand; lists ids
-macparakeet-cli export <id> --format vtt
+macparakeet-cli export <id> --format dapt
 ```
 
 To rerun STT for an existing saved item without creating a new library row,

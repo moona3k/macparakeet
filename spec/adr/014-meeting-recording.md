@@ -70,7 +70,7 @@ public enum SourceType: String, Codable, Sendable {
 }
 ```
 
-This gives meeting recordings the full library infrastructure for free: export (TXT/MD/SRT/VTT/DOCX/PDF/JSON), prompt library, multi-summary tabs, chat, favorites, search, thumbnail grid.
+This gives meeting recordings the full library infrastructure for free: export (TXT/MD/SRT/VTT/DAPT/DOCX/PDF/JSON), prompt library, multi-summary tabs, chat, favorites, search, thumbnail grid.
 
 No new table is needed. The migration adds a column and backfills existing records.
 

@@ -89,6 +89,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `export --format dapt` and `transcribe --format dapt` now emit W3C DAPT 1.0
+  `originalTranscript` documents through the shared exporter. File output uses
+  `.dapt.xml`; stdout is supported by both commands. Aligned word timing and
+  speaker labels are preserved when present, while undiarized transcripts omit
+  character agents and timestampless or edited transcripts remain untimed.
+
 ## [3.1.0] — 2026-07-19
 
 ### Added

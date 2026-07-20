@@ -27,6 +27,7 @@ enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendab
     case json
     case srt
     case vtt
+    case dapt
 }
 
 enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -97,7 +98,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
     var outputDir: String?
 
-    @Option(name: .shortAndLong, help: "Output format: text, transcript, json, srt, vtt. srt/vtt emit timed subtitles (same renderer as `export`); pair with --output-dir to write one file per input.")
+    @Option(name: .shortAndLong, help: "Output format: text, transcript, json, srt, vtt, dapt. srt/vtt emit timed subtitles; dapt emits a structured W3C original transcript. Pair with --output-dir to write one file per input.")
     var format: TranscribeOutputFormat = .text
 
     @Option(help: "Processing mode: raw, clean, app-default.")
@@ -758,8 +759,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 printTranscript(result)
             case .text:
                 printText(result)
-            case .srt, .vtt:
-                print(await Self.subtitleString(for: result, format: outputFormat), terminator: "")
+            case .srt, .vtt, .dapt:
+                print(await Self.formattedString(for: result, format: outputFormat), terminator: "")
             }
             printSaveHintIfSaved(result, format: outputFormat)
         }
@@ -963,28 +964,26 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .json: return "json"
         case .srt: return "srt"
         case .vtt: return "vtt"
+        case .dapt: return "dapt.xml"
         case .text, .transcript: return "txt"
         }
     }
 
-    /// Render the timed-subtitle body for `srt`/`vtt` using the same
-    /// `ExportService` renderer the `export` command and the GUI use, so a file
-    /// produced by `transcribe --format vtt` is byte-identical to one produced
-    /// by `export <id> --format vtt`. Only the `.srt`/`.vtt` output paths call
-    /// this; the other formats render through their own text/JSON writers, so
-    /// they return an empty body here.
+    /// Render SRT, VTT, and DAPT using the same `ExportService` implementation
+    /// as the `export` command and GUI, keeping public output paths identical.
     @MainActor
-    static func subtitleString(for t: Transcription, format: TranscribeOutputFormat) -> String {
+    static func formattedString(for t: Transcription, format: TranscribeOutputFormat) -> String {
         let exporter = ExportService()
         switch format {
         case .srt: return exporter.formatSRT(transcription: t)
         case .vtt: return exporter.formatVTT(transcription: t)
+        case .dapt: return exporter.formatDAPT(transcription: t)
         case .text, .transcript, .json: return ""
         }
     }
 
     /// Write one transcript file for `t` into `dir`, named after the source and
-    /// suffixed by format (`.json`/`.srt`/`.vtt`, else `.txt`). Never
+    /// suffixed by format (`.json`/`.srt`/`.vtt`/`.dapt.xml`, else `.txt`). Never
     /// overwrites — collisions get a `-2`, `-3`, … suffix.
     static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) async throws -> URL {
         let ext = fileExtension(for: format)
@@ -1001,8 +1000,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             contents = transcriptOutput(for: t)
         case .text:
             contents = plainTextOutput(for: t)
-        case .srt, .vtt:
-            contents = await subtitleString(for: t, format: format)
+        case .srt, .vtt, .dapt:
+            contents = await formattedString(for: t, format: format)
         }
         try Data(contents.utf8).write(to: url)
         return url
@@ -1123,7 +1122,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         printErr("")
         printErr("Saved to your library (id \(t.id.uuidString)).")
         printErr("Turn it into a file: macparakeet-cli export \(t.id.uuidString) --format vtt"
-            + "   (or srt, txt, markdown, json)")
+            + "   (or srt, dapt, txt, markdown, json)")
     }
 
     private func printText(_ t: Transcription) {

@@ -145,6 +145,20 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertTrue(files[0].hasSuffix(".vtt"))
     }
 
+    func testSaveIfEnabledWritesDAPTFile() {
+        configureAutoSave(enabled: true, format: .dapt)
+        let transcription = makeTranscription()
+
+        let result = makeService().saveIfEnabled(transcription)
+
+        XCTAssertEqual(result, .saved)
+        let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertTrue(files[0].hasSuffix(".dapt.xml"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("daptm:scriptType=\"originalTranscript\""))
+    }
+
     func testSaveIfEnabledWritesJSONFile() {
         configureAutoSave(enabled: true, format: .json)
         let transcription = makeTranscription()
@@ -232,10 +246,13 @@ final class AutoSaveServiceTests: XCTestCase {
         }
     }
 
-    func testFormatRawValueMatchesFileExtension() {
-        for format in AutoSaveFormat.allCases {
-            XCTAssertEqual(format.rawValue, format.fileExtension)
-        }
+    func testFormatFileExtensions() {
+        XCTAssertEqual(AutoSaveFormat.txt.fileExtension, "txt")
+        XCTAssertEqual(AutoSaveFormat.md.fileExtension, "md")
+        XCTAssertEqual(AutoSaveFormat.srt.fileExtension, "srt")
+        XCTAssertEqual(AutoSaveFormat.vtt.fileExtension, "vtt")
+        XCTAssertEqual(AutoSaveFormat.dapt.fileExtension, "dapt.xml")
+        XCTAssertEqual(AutoSaveFormat.json.fileExtension, "json")
     }
 
     // MARK: - Folder Bookmark
@@ -376,6 +393,18 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertTrue(files[0].hasSuffix(".md"))
         let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
         XCTAssertTrue(content.contains("# test-audio.mp3"))
+    }
+
+    func testMeetingScopeWritesDAPTFile() {
+        configureMeetingAutoSave(enabled: true, format: .dapt)
+        let transcription = makeTranscription(sourceType: .meeting)
+
+        let result = makeService().saveIfEnabled(transcription, scope: .meeting)
+
+        XCTAssertEqual(result, .saved)
+        let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertTrue(files[0].hasSuffix(".dapt.xml"))
     }
 
     func testMeetingScopeAppliesPlainTextContentOptions() throws {

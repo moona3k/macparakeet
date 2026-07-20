@@ -585,10 +585,12 @@ Product-level readiness can coordinate additional services beyond the two STT sl
 ```swift
 protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
+    func exportToDAPT(transcription: Transcription, url: URL) throws
+    func formatDAPT(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
 }
 
-// v0.1: .txt only. SRT/VTT/JSON added in v0.3.
+// v0.1: .txt only. SRT/VTT/JSON added in v0.3; DAPT added after v0.7.3.
 ```
 
 **Dependencies:** Foundation (file I/O), `NSPasteboard` (clipboard)
@@ -606,6 +608,12 @@ ExportService.exportToTxt(transcription:, url: outputURL)
     ▼
 File saved at outputURL
 ```
+
+DAPT rendering is an isolated, deterministic branch of `ExportService`. It
+maps aligned words through `TranscriptCueBuilder`, includes character agents
+only for stored speaker-attributed cues, and emits untimed text when alignment
+is missing or stale. The stable public shape is defined in
+[`spec/contracts/dapt-export-v1.md`](contracts/dapt-export-v1.md).
 
 #### 2.7 Models
 
@@ -1271,7 +1279,7 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **TextProcessingPipeline** — Every stage, edge cases, custom word matching, snippet expansion
 - **Models** — Codable round-trip, validation, edge cases
 - **Repositories** — CRUD operations, search queries, migration correctness
-- **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3)
+- **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3; DAPT after v0.7.3)
 - **STT scheduler/runtime boundary** — mock the `STTClientProtocol` interface (`STTManaging`) rather than real FluidAudio
 - **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
 

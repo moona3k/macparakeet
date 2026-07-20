@@ -916,17 +916,19 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(TranscribeCommand.fileExtension(for: .json), "json")
         XCTAssertEqual(TranscribeCommand.fileExtension(for: .srt), "srt")
         XCTAssertEqual(TranscribeCommand.fileExtension(for: .vtt), "vtt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .dapt), "dapt.xml")
     }
 
-    func testParsesSubtitleFormats() throws {
+    func testParsesStructuredFormats() throws {
         XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "vtt"]).format, .vtt)
         XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "srt"]).format, .srt)
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "dapt"]).format, .dapt)
     }
 
-    /// `transcribe --format vtt`/`srt` must produce the same timed-subtitle body
-    /// as `export <id> --format vtt`/`srt` — both go through `ExportService`.
+    /// Structured `transcribe --format` outputs must use the same renderer as
+    /// `export <id> --format` so the two public paths stay byte-identical.
     @MainActor
-    func testSubtitleStringMatchesExportServiceRenderer() {
+    func testFormattedStringMatchesExportServiceRenderer() {
         let words = [
             WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
             WordTimestamp(word: "world", startMs: 400, endMs: 900, confidence: 0.95, speakerId: "S1"),
@@ -941,17 +943,21 @@ final class TranscribeCommandTests: XCTestCase {
         )
         let exporter = ExportService()
 
-        let vtt = TranscribeCommand.subtitleString(for: transcription, format: .vtt)
+        let vtt = TranscribeCommand.formattedString(for: transcription, format: .vtt)
         XCTAssertEqual(vtt, exporter.formatVTT(transcription: transcription))
         XCTAssertTrue(vtt.hasPrefix("WEBVTT"))
 
-        let srt = TranscribeCommand.subtitleString(for: transcription, format: .srt)
+        let srt = TranscribeCommand.formattedString(for: transcription, format: .srt)
         XCTAssertEqual(srt, exporter.formatSRT(transcription: transcription))
 
-        // Non-subtitle formats render through the text/json paths, so the
-        // subtitle renderer returns an empty body for them.
-        XCTAssertEqual(TranscribeCommand.subtitleString(for: transcription, format: .text), "")
-        XCTAssertEqual(TranscribeCommand.subtitleString(for: transcription, format: .json), "")
+        let dapt = TranscribeCommand.formattedString(for: transcription, format: .dapt)
+        XCTAssertEqual(dapt, exporter.formatDAPT(transcription: transcription))
+        XCTAssertTrue(dapt.contains("daptm:scriptType=\"originalTranscript\""))
+
+        // Other formats render through the text/json paths, so the shared
+        // renderer returns an empty body for them.
+        XCTAssertEqual(TranscribeCommand.formattedString(for: transcription, format: .text), "")
+        XCTAssertEqual(TranscribeCommand.formattedString(for: transcription, format: .json), "")
     }
 
     func testWriteOutputWritesVTTFile() async throws {
@@ -975,6 +981,25 @@ final class TranscribeCommandTests: XCTestCase {
         let contents = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(contents.hasPrefix("WEBVTT"), "VTT file should start with the WEBVTT header")
         XCTAssertTrue(contents.contains("hello"))
+    }
+
+    func testWriteOutputWritesDAPTFile() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-dapt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            rawTranscript: "Structured transcript.",
+            language: "en",
+            status: .completed
+        )
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+
+        XCTAssertEqual(url.lastPathComponent, "clip.dapt.xml")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(contents.contains("daptm:scriptType=\"originalTranscript\""))
     }
 
     func testPlainTextOutputToleratesDuplicateSpeakerIDs() {

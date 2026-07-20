@@ -26,7 +26,7 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 macparakeet-cli
 ├── transcribe <input...> [--podcast QUERY] [options]
 │                                         Transcribe files, folders, podcasts, or media URLs
-│   ├── --format text|transcript|json|srt|vtt [--no-history] [--database PATH]
+│   ├── --format text|transcript|json|srt|vtt|dapt [--no-history] [--database PATH]
 │   └── --engine app-default|parakeet|nemotron|whisper|cohere [--language <code>]
 │       --parakeet-model app-default|v3|v2|unified [--output-dir DIR]
 │       --mode raw|clean|app-default --downloaded-audio app-default|keep|delete
@@ -356,6 +356,9 @@ swift run macparakeet-cli transcribe "<FILE>"
 # JSON output (full Transcription object)
 swift run macparakeet-cli transcribe "<FILE>" --format json
 
+# W3C DAPT original transcript (writes <name>.dapt.xml)
+swift run macparakeet-cli transcribe "<FILE>" --format dapt --output-dir .
+
 # Transcript-only stdout for pipes
 swift run macparakeet-cli transcribe "<FILE>" --format transcript
 
@@ -379,6 +382,10 @@ media URLs and podcast search/URL inputs.
 `--format transcript` prints only `cleanTranscript` when present, otherwise
 `rawTranscript`. Status and progress messages stay on stderr, so stdout can be
 piped directly into `pbcopy`, `grep`, `tee`, or a local LLM command.
+
+`--format dapt` uses the shared DAPT renderer. Aligned word timing and available
+speaker labels become timed script events and character agents; missing
+diarization or timing is omitted rather than synthesized.
 
 `--no-history` uses the same transcription pipeline without retaining a completed
 history row. For media URL inputs, downloaded audio is temporary regardless of
@@ -423,7 +430,7 @@ retained purchase activation code.
 
 ## Export
 
-Export a transcription by its UUID or UUID prefix of at least 4 characters. Supported formats: txt, markdown, srt, vtt, json.
+Export a transcription by its UUID or UUID prefix of at least 4 characters. Supported formats: txt, markdown, srt, vtt, dapt, json.
 
 ```bash
 # List transcriptions to find the ID
@@ -433,14 +440,16 @@ swift run macparakeet-cli history transcriptions
 swift run macparakeet-cli export <ID> --format txt --output transcript.txt
 swift run macparakeet-cli export <ID> --format srt --output subtitles.srt
 swift run macparakeet-cli export <ID> --format vtt
+swift run macparakeet-cli export <ID> --format dapt
 swift run macparakeet-cli export <ID> --format markdown
 swift run macparakeet-cli export <ID> --format json --stdout
 
 # Print to stdout instead of writing a file
 swift run macparakeet-cli export <ID> --format srt --stdout
+swift run macparakeet-cli export <ID> --format dapt --stdout
 ```
 
-If `--output` is omitted, the file is written to the current directory with an auto-generated name.
+If `--output` is omitted, the file is written to the current directory with an auto-generated name. DAPT uses the compound `.dapt.xml` extension. It carries aligned timing and optional speaker characters when present, and remains valid without either.
 
 **Note:** PDF and DOCX export require AppKit and are only available in the GUI.
 

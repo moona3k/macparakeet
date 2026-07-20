@@ -209,7 +209,7 @@ private extension CLISpecCommand {
                     "--output-dir", valueName: "DIR",
                     summary: "Write one transcript file per input to this directory; implies batch mode."),
                 CLISpecParameter.option(
-                    "--format", valueName: "text|transcript|json|srt|vtt",
+                    "--format", valueName: "text|transcript|json|srt|vtt|dapt",
                     summary: "Output format for stdout or written transcript files."),
                 CLISpecParameter.option(
                     "--mode", valueName: "raw|clean|app-default", summary: "Text processing mode for this run."),
@@ -1026,7 +1026,8 @@ private extension CLISpecCommand {
             jsonMode: "--stdout --format json",
             arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
             options: [
-                CLISpecParameter.option("--format", valueName: "txt|markdown|srt|vtt|json", summary: "Export format."),
+                CLISpecParameter.option(
+                    "--format", valueName: "txt|markdown|srt|vtt|dapt|json", summary: "Export format."),
                 CLISpecParameter.option("--output", valueName: "PATH", summary: "Output file path."),
                 CLISpecParameter.flag("--stdout", summary: "Print to stdout instead of writing a file."),
                 databaseOption,

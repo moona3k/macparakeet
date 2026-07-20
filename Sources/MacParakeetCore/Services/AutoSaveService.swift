@@ -7,6 +7,7 @@ public enum AutoSaveFormat: String, Codable, CaseIterable, Sendable {
     case md
     case srt
     case vtt
+    case dapt
     case json
 
     public var displayName: String {
@@ -15,11 +16,14 @@ public enum AutoSaveFormat: String, Codable, CaseIterable, Sendable {
         case .md: return "Markdown (.md)"
         case .srt: return "SRT Subtitles (.srt)"
         case .vtt: return "WebVTT (.vtt)"
+        case .dapt: return "DAPT Transcript (.dapt.xml)"
         case .json: return "JSON (.json)"
         }
     }
 
-    public var fileExtension: String { rawValue }
+    public var fileExtension: String {
+        self == .dapt ? "dapt.xml" : rawValue
+    }
 }
 
 /// Distinguishes transcription vs meeting auto-save settings.
@@ -128,6 +132,7 @@ public final class AutoSaveService {
                 )
             case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
             case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+            case .dapt: try exportService.exportToDAPT(transcription: transcription, url: fileURL)
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
 

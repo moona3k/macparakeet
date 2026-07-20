@@ -71,7 +71,7 @@ Render target: 1920×1080 @ 60fps. Voice via Kokoro-82M by default (or Higgs Aud
 **Visual sequence:**
 1. Drag an MP4 file onto the Transcribe tab. Progress card briefly visible. Transcript appears with diarized speakers and timestamps.
 2. Paste a real YouTube URL. Show the actual duration and measured elapsed time from the captured run; do not pre-script a speed result.
-3. Click Export. Menu opens: TXT · MD · SRT · VTT · PDF · DOCX · JSON.
+3. Click Export. Menu opens: TXT · MD · SRT · VTT · DAPT · PDF · DOCX · JSON.
 
 **Lower-third:** Audio · Video · YouTube · Export anywhere
 
@@ -124,7 +124,7 @@ Paste URL → progress card with elapsed timer → transcript materializing with
 Pill recording state → split to live notepad + transcript ticking → finished meeting card. Caption: `System audio + mic · Local`.
 
 ### GIF 4 · Export menu (5s)
-Hover Export → menu opens → cursor brushes across TXT, MD, SRT, VTT, PDF, DOCX, JSON. No caption.
+Hover Export → menu opens → cursor brushes across TXT, MD, SRT, VTT, DAPT, PDF, DOCX, JSON. No caption.
 
 ## README Hero Block
 
