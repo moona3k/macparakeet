@@ -231,6 +231,7 @@ final class DAPTExportTests: XCTestCase {
         let data = try Data(contentsOf: url)
         XCTAssertEqual(Array(data.prefix(5)), Array("<?xml".utf8))
         XCTAssertNotEqual(Array(data.prefix(3)), [0xEF, 0xBB, 0xBF])
-        XCTAssertTrue(String(decoding: data, as: UTF8.self).hasSuffix("\n"))
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertTrue(text.hasSuffix("\n"))
     }
 }
