@@ -68,7 +68,52 @@ struct IdentifiedSpeakerTurn: Identifiable {
     }
 }
 
-func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
+/// Keep each lazy speaker card to a small, predictable amount of view work.
+/// Twenty-four transcript segments is typically a few minutes of speech: large
+/// enough to preserve the visual rhythm of speaker turns, but small enough that
+/// a single-speaker recording cannot become one unbounded SwiftUI subtree.
+let maximumSpeakerTurnSegmentsPerCard = 24
+
+func identifiedSpeakerTurnCards(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
+    let cardTurns = turns.flatMap { turn -> [SpeakerTurn] in
+        guard turn.segments.count > maximumSpeakerTurnSegmentsPerCard else {
+            return [turn]
+        }
+
+        return stride(
+            from: 0,
+            to: turn.segments.count,
+            by: maximumSpeakerTurnSegmentsPerCard
+        ).map { startIndex in
+            let endIndex = min(
+                startIndex + maximumSpeakerTurnSegmentsPerCard,
+                turn.segments.count
+            )
+            return SpeakerTurn(
+                speakerId: turn.speakerId,
+                speakerLabel: turn.speakerLabel,
+                segments: Array(turn.segments[startIndex..<endIndex])
+            )
+        }
+    }
+
+    return identifySpeakerTurns(cardTurns)
+}
+
+func speakerTurnCardScrollTarget(
+    for currentMs: Int,
+    in cards: [IdentifiedSpeakerTurn]
+) -> Int? {
+    for card in cards.reversed() {
+        if let firstStartMs = card.turn.segments.first?.startMs,
+           firstStartMs <= currentMs {
+            return firstStartMs
+        }
+    }
+    return nil
+}
+
+private func identifySpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
     var duplicateCounts: [SpeakerTurnIdentityBase: Int] = [:]
     return turns.map { turn in
         let base = SpeakerTurnIdentityBase(
@@ -90,7 +135,7 @@ func identifiedSpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
 
 struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
     let hasSpeakers: Bool
-    let identifiedTurns: [IdentifiedSpeakerTurn]
+    let identifiedTurnCards: [IdentifiedSpeakerTurn]
     let segments: [TranscriptSegment]
     let speakerColorMap: [String: Color]
     let speakerLabelForID: (String) -> String
@@ -109,7 +154,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
 
     var body: some View {
         if hasSpeakers {
-            ForEach(identifiedTurns) { identified in
+            ForEach(identifiedTurnCards) { identified in
                 let turn = identified.turn
                 let speakerLabel = speakerLabelForID(turn.speakerId)
                 let speakerColor = speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary

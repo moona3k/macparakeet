@@ -16,17 +16,24 @@ final class SpeakerTurnIdentityTests: XCTestCase {
         SpeakerTurn(speakerId: speaker, speakerLabel: speaker, segments: segments)
     }
 
-    /// A live turn keeps its identity as new segments are appended. Before the
-    /// fix the identity carried `lastStartMs`/`segmentCount`, so every appended
-    /// word produced a "new" identity and SwiftUI rebuilt the growing card.
-    func testIdentityStaysStableWhileTurnGrows() {
-        let small = turn(segments: [segment(1000)])
-        let grown = turn(segments: [segment(1000), segment(2000), segment(3000)])
+    /// The first card keeps its identity when a growing turn crosses the card
+    /// boundary, so SwiftUI adds a continuation card without replacing the
+    /// content already on screen.
+    func testIdentityStaysStableWhenTurnOutgrowsFirstCard() {
+        let small = turn(
+            segments: (0..<maximumSpeakerTurnSegmentsPerCard).map {
+                segment($0 * 1000)
+            })
+        let grown = turn(
+            segments: (0...maximumSpeakerTurnSegmentsPerCard).map {
+                segment($0 * 1000)
+            })
 
-        let smallID = identifiedSpeakerTurns([small])[0].id
-        let grownID = identifiedSpeakerTurns([grown])[0].id
+        let smallCards = identifiedSpeakerTurnCards([small])
+        let grownCards = identifiedSpeakerTurnCards([grown])
 
-        XCTAssertEqual(smallID, grownID)
+        XCTAssertEqual(smallCards[0].id, grownCards[0].id)
+        XCTAssertEqual(grownCards.count, 2)
     }
 
     /// Two turns that share `(speakerId, firstStartMs)` still receive distinct
@@ -35,9 +42,51 @@ final class SpeakerTurnIdentityTests: XCTestCase {
         let a = turn(segments: [segment(1000)])
         let b = turn(segments: [segment(1000), segment(2000)])
 
-        let ids = identifiedSpeakerTurns([a, b]).map(\.id)
+        let ids = identifiedSpeakerTurnCards([a, b]).map(\.id)
 
         XCTAssertEqual(ids.count, 2)
         XCTAssertNotEqual(ids[0], ids[1])
+    }
+
+    func testLongTurnIsSplitIntoBoundedCardsWithoutChangingContent() {
+        // Issue #845 contained 11,563 words, or about 964 typical segments.
+        let reporterScaleSegmentCount = 964
+        let segments = (0..<reporterScaleSegmentCount).map {
+            segment($0 * 1000)
+        }
+
+        let cards = identifiedSpeakerTurnCards([turn(segments: segments)])
+
+        XCTAssertEqual(
+            cards.count,
+            (reporterScaleSegmentCount + maximumSpeakerTurnSegmentsPerCard - 1)
+                / maximumSpeakerTurnSegmentsPerCard
+        )
+        XCTAssertTrue(
+            cards.allSatisfy {
+                $0.turn.segments.count <= maximumSpeakerTurnSegmentsPerCard
+            })
+        XCTAssertEqual(
+            cards.flatMap { $0.turn.segments.map(\.startMs) },
+            segments.map(\.startMs)
+        )
+        XCTAssertEqual(Set(cards.map(\.id)).count, cards.count)
+    }
+
+    func testAutoScrollTargetAdvancesAcrossContinuationCards() {
+        let segments = (0..<(maximumSpeakerTurnSegmentsPerCard * 2 + 1)).map {
+            segment($0 * 1000)
+        }
+        let cards = identifiedSpeakerTurnCards([turn(segments: segments)])
+
+        XCTAssertNil(speakerTurnCardScrollTarget(for: -1, in: cards))
+        XCTAssertEqual(speakerTurnCardScrollTarget(for: 1000, in: cards), 0)
+        XCTAssertEqual(
+            speakerTurnCardScrollTarget(
+                for: maximumSpeakerTurnSegmentsPerCard * 1000 + 1000,
+                in: cards
+            ),
+            maximumSpeakerTurnSegmentsPerCard * 1000
+        )
     }
 }

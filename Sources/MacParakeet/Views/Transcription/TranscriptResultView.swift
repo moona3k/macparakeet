@@ -193,8 +193,7 @@ struct TranscriptResultView: View {
     @State private var lastScrolledSegmentMs: Int = -1
     // Cached transcript data — recomputed only when transcription.id changes, not on every playback tick
     @State private var cachedSegments: [TranscriptSegment] = []
-    @State private var cachedTurns: [SpeakerTurn] = []
-    @State private var cachedIdentifiedTurns: [IdentifiedSpeakerTurn] = []
+    @State private var cachedIdentifiedTurnCards: [IdentifiedSpeakerTurn] = []
     @State private var cachedHasSpeakers: Bool = false
     @State private var cachedSpeakerColorMap: [String: Color] = [:]
     @State private var cachedSpeakerLabelMap: [String: String] = [:]
@@ -2932,7 +2931,7 @@ struct TranscriptResultView: View {
         let current = findCurrentHighlight
         TranscriptTimestampedContentView(
             hasSpeakers: cachedHasSpeakers,
-            identifiedTurns: cachedIdentifiedTurns,
+            identifiedTurnCards: cachedIdentifiedTurnCards,
             segments: cachedSegments,
             speakerColorMap: cachedSpeakerColorMap,
             speakerLabelForID: { cachedSpeakerLabelMap[$0] ?? "Unknown" },
@@ -3157,8 +3156,7 @@ struct TranscriptResultView: View {
     private func rebuildSegmentCache() {
         guard let words = activeTranscription.wordTimestamps, !words.isEmpty else {
             cachedSegments = []
-            cachedTurns = []
-            cachedIdentifiedTurns = []
+            cachedIdentifiedTurnCards = []
             cachedHasSpeakers = false
             cachedSpeakerColorMap = [:]
             cachedSpeakerLabelMap = [:]
@@ -3183,11 +3181,9 @@ struct TranscriptResultView: View {
                     return cachedSpeakerLabelMap[speakerID] ?? "Unknown"
                 }
             )
-            cachedTurns = turns
-            cachedIdentifiedTurns = identifiedSpeakerTurns(turns)
+            cachedIdentifiedTurnCards = identifiedSpeakerTurnCards(turns)
         } else {
-            cachedTurns = []
-            cachedIdentifiedTurns = []
+            cachedIdentifiedTurnCards = []
         }
     }
 
@@ -3224,15 +3220,13 @@ struct TranscriptResultView: View {
         return activeIdx == segmentIndex
     }
 
-    /// Find the scroll target ID (segment startMs) for the given playback time using binary search.
+    /// Find the scroll target ID (segment startMs) for the given playback time.
     private func autoScrollTarget(for currentMs: Int) -> Int? {
         if cachedHasSpeakers {
-            // Find the last turn whose first segment starts at or before currentMs
-            for turn in cachedTurns.reversed() {
-                if let first = turn.segments.first, first.startMs <= currentMs {
-                    return first.startMs
-                }
-            }
+            return speakerTurnCardScrollTarget(
+                for: currentMs,
+                in: cachedIdentifiedTurnCards
+            )
         } else {
             if let idx = activeSegmentIndex(for: currentMs) {
                 return cachedSegmentStartMs[idx]
