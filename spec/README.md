@@ -72,8 +72,8 @@ Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 | `meetingRecordingEnabled` | `true` | Shipping meeting-recording surface |
 | `calendarEnabled` | `true` | Shipping calendar reminders/auto-start; per-user auto-start defaults off |
 | `meetingAutoStopEnabled` | `true` | Shipping ADR-023 surface; per-user setting defaults off, so recordings stop manually until the user opts in |
-| `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 Phase A mic-health telemetry watchdog |
-| `meetingSourceHealthUIEnabled` | `false` | Source-health model/plumbing stay compiled, but health chips/pill glyph/tile mirror are hidden after the 2026-07-04 product review |
+| `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 signal-based mic-health monitoring and telemetry; direct source lifecycle recovery is independent |
+| `meetingSourceHealthUIEnabled` | `false` | Routine source-health chips/pill glyph/tile mirror stay hidden; actionable recovering, stalled, interrupted, or unavailable warnings bypass this presentation flag |
 | `meetingActivityDetectionEnabled` | `false` | ADR-024 collectors/detector are compiled but runtime coordinator/UI remain gated |
 | `transformsEnabled` | `true` | Productized Transforms shipping surface |
 | `cohereEngineEnabled` | `true` | Settings exposes Cohere Transcribe as an opt-in, downloaded, batch-only local engine; no live preview/timestamps |
@@ -112,7 +112,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-022](adr/022-transforms-system-wide-rewrite.md) | Transforms — system-wide LLM rewrites on selected text (implemented 2026-05-13) |
 | [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B implemented behind default-off flag — replaces withdrawn ADR-017 calendar auto-stop) |
 | [ADR-024](adr/024-activity-based-meeting-detection.md) | Activity-based meeting detection (Phases A+B process-audio/camera collectors + pure detector implemented behind default-off flag; coordinator/prompt phases proposed) |
-| [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — mic-health watchdog + post-stop coverage repair (Phase A mic-health telemetry watchdog implemented; warning UI + repair proposed) |
+| [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — direct mic/system lifecycle recovery, actionable warnings, and frame-derived capture reports implemented; signal-inferred mic restart and VAD transcript-gap repair proposed |
 | [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy — local-only reaffirmed; two runtimes (FluidAudio primary, WhisperKit fallback); engines grow as variants not new cards; capability registry required before a new engine family; Apple SpeechTranscriber spike-only |
 | [ADR-027](adr/027-product-north-star.md) | Product north star — MacParakeet is the private speech memory of your Mac; Library (search + QA + export) becomes the center of gravity; agent access first-class; ambient capture parked (not rejected); session-based capture stands |
 | [ADR-028](adr/028-meeting-echo-cancellation.md) | Offline meeting echo cancellation via derived cleaned-mic artifact |
@@ -227,6 +227,9 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 - [x] System audio capture via ScreenCaptureKit audio (macOS 14.2+)
 - [x] Mic + system audio dual-stream recording (`MeetingAudioCaptureService`)
+- [x] Direct source-lifecycle recovery: bounded AVAudioEngine configuration-change rebuilds and typed ScreenCaptureKit retries use fresh sources and require a real first buffer
+- [x] Actionable meeting-source warnings for recovery and terminal interruption; signal-inferred mic restart remains proposed
+- [x] Durable frame-derived meeting capture reports with per-source status; missing reports on legacy artifacts mean unknown rather than healthy
 - [x] `MeetingRecordingService` actor with protocol-based dependencies
 - [x] `MeetingRecordingFlowStateMachine` + coordinator (separate from dictation)
 - [x] Recording pill UI (floating NSPanel with timer + stop button)

@@ -63,7 +63,7 @@ final class MeetingRecordingCrashRecoveryTests: XCTestCase {
 
     private func finalize(_ writer: MeetingAudioStorageWriter) async {
         await withCheckedContinuation { continuation in
-            writer.finalize {
+            writer.finalize { _ in
                 continuation.resume()
             }
         }

@@ -6,7 +6,12 @@ public struct MeetingSourceAlignment: Sendable, Codable, Equatable {
         public let firstHostTime: UInt64?
         public let lastHostTime: UInt64?
         public let startOffsetMs: Int
+        /// Frames received from the capture source. Synthetic recovery padding
+        /// is intentionally excluded so coverage remains honest.
         public let writtenFrameCount: Int64
+        /// End of the playable source timeline, including recovery padding.
+        /// Absent in legacy metadata, where it is equivalent to written frames.
+        public let timelineFrameCount: Int64?
         public let sampleRate: Double
 
         public init(
@@ -14,12 +19,14 @@ public struct MeetingSourceAlignment: Sendable, Codable, Equatable {
             lastHostTime: UInt64?,
             startOffsetMs: Int,
             writtenFrameCount: Int64,
+            timelineFrameCount: Int64? = nil,
             sampleRate: Double
         ) {
             self.firstHostTime = firstHostTime
             self.lastHostTime = lastHostTime
             self.startOffsetMs = startOffsetMs
             self.writtenFrameCount = writtenFrameCount
+            self.timelineFrameCount = timelineFrameCount
             self.sampleRate = sampleRate
         }
     }
@@ -52,10 +59,14 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public static let fileName = "meeting-recording-metadata.json"
 
     public let sourceAlignment: MeetingSourceAlignment
+    /// Final frame-derived capture truth. Absent or unreadable in legacy and
+    /// malformed sidecars means unknown; it never invalidates core metadata.
+    public let captureReport: MeetingCaptureReport?
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
     /// Best-effort live-preview route captured for archived provenance. `nil`
-    /// for preview-unsupported engines, legacy artifacts, and crash recovery.
+    /// for preview-unsupported engines and legacy artifacts. Crash recovery
+    /// preserves this value when a finalized sidecar already contains it.
     public let previewSpeechEngine: SpeechEngineSelection?
     public let startContext: MeetingStartContext?
     public let echoSuppression: MeetingEchoSuppressionMetadata?
@@ -63,6 +74,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
 
     public init(
         sourceAlignment: MeetingSourceAlignment,
+        captureReport: MeetingCaptureReport? = nil,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         previewSpeechEngine: SpeechEngineSelection? = nil,
@@ -71,6 +83,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) {
         self.sourceAlignment = sourceAlignment
+        self.captureReport = captureReport
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.previewSpeechEngine = previewSpeechEngine
@@ -81,6 +94,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case sourceAlignment
+        case captureReport
         case speechEngine
         case previewSpeechEngine
         case startContext
@@ -91,6 +105,11 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sourceAlignment = try container.decode(MeetingSourceAlignment.self, forKey: .sourceAlignment)
+        captureReport =
+            (try? container.decodeIfPresent(
+                MeetingCaptureReport.self,
+                forKey: .captureReport
+            )) ?? nil
         let decodedSpeechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
         speechEngine = decodedSpeechEngine ?? SpeechEngineSelection(engine: .parakeet)
         speechEngineWasCaptured = decodedSpeechEngine != nil
@@ -103,15 +122,17 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             MeetingEchoSuppressionMetadata.self,
             forKey: .echoSuppression
         )
-        calendarEventSnapshot = (try? container.decodeIfPresent(
-            MeetingCalendarSnapshot.self,
-            forKey: .calendarEventSnapshot
-        )) ?? nil
+        calendarEventSnapshot =
+            (try? container.decodeIfPresent(
+                MeetingCalendarSnapshot.self,
+                forKey: .calendarEventSnapshot
+            )) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(sourceAlignment, forKey: .sourceAlignment)
+        try container.encodeIfPresent(captureReport, forKey: .captureReport)
         if speechEngineWasCaptured {
             try container.encode(speechEngine, forKey: .speechEngine)
         }
@@ -126,6 +147,22 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     ) -> MeetingRecordingMetadata {
         MeetingRecordingMetadata(
             sourceAlignment: sourceAlignment,
+            captureReport: captureReport,
+            speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
+            previewSpeechEngine: previewSpeechEngine,
+            startContext: startContext,
+            echoSuppression: echoSuppression,
+            calendarEventSnapshot: calendarEventSnapshot
+        )
+    }
+
+    public func withCaptureReport(
+        _ captureReport: MeetingCaptureReport?
+    ) -> MeetingRecordingMetadata {
+        MeetingRecordingMetadata(
+            sourceAlignment: sourceAlignment,
+            captureReport: captureReport,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             previewSpeechEngine: previewSpeechEngine,
@@ -253,9 +290,10 @@ extension MeetingSourceAlignment {
 
 extension MeetingSourceAlignment.Track {
     var durationSeconds: TimeInterval {
-        guard writtenFrameCount > 0, sampleRate.isFinite, sampleRate > 0 else {
+        let playableFrameCount = timelineFrameCount ?? writtenFrameCount
+        guard playableFrameCount > 0, sampleRate.isFinite, sampleRate > 0 else {
             return 0
         }
-        return Double(writtenFrameCount) / sampleRate
+        return Double(playableFrameCount) / sampleRate
     }
 }

@@ -50,9 +50,10 @@
 | Error | Cause | User Action |
 |-------|-------|-------------|
 | Screen Recording denied | User denied Screen & System Audio Recording permission for a meeting source mode that captures system audio | Show error + "Open System Settings" button, block that recording mode |
-| System audio capture failed | ScreenCaptureKit stream setup failed or stopped unexpectedly | "System audio capture failed. Try restarting the app." |
-| Mic capture failed during meeting | AVAudioEngine failed to start for meeting mic | "Microphone capture failed. Check your microphone connection." |
-| Mix failed | FFmpeg failed to produce the meeting playback artifact from the selected source M4A files | Log error, attempt transcription of individual streams |
+| System audio capture failed | ScreenCaptureKit setup fails, delivers no first buffer, stalls, or stops unexpectedly | Setup failure blocks start. During recording, retry bounded fresh streams and warn while recovering; after exhaustion continue a healthy sibling source or stop when no selected source remains. |
+| Mic capture failed during meeting | AVAudioEngine start fails or a route/configuration change kills the graph | Rebuild from the current route and format with bounded retries and require a real replacement buffer; on exhaustion warn and continue a healthy sibling source or stop when no selected source remains. |
+| Writer finalization failed | A source accepted real frames but AVAssetWriter did not reach `.completed` | Abort settlement, preserve `recording.lock` and source artifacts for recovery, and never publish a healthy capture report. |
+| Mix failed | Two decodable selected source files could not produce a valid combined playback artifact | Atomically install the longest aligned source as canonical playback and persist its `playbackFallbackSource` as partial; if no valid fallback exists, preserve the recoverable session and surface an error. |
 | Chunk transcription backpressure | Live transcription can't keep pace with recording | Silent degradation: final batch transcription still produces full result |
 | Live engine cannot preview meetings | Captured Live Speech engine does not provide the word timings required by the preview renderer | Show preview off for that engine; continue durable audio recording and use the captured Final Transcription route after stop |
 | Captured final model unavailable | The explicitly selected final model was removed or cannot load after durable stop | Keep the meeting row, lock, and audio retryable; surface the transcription failure without silently falling back to another engine |
@@ -81,8 +82,8 @@ During active meeting recording, MacParakeet writes fragmented source audio and 
 **Recovery flow:**
 1. On app launch, scan meeting-recording directories for `recording.lock`.
 2. If a lock exists, the previous meeting session was interrupted.
-3. Validate surviving source audio and load lock metadata, including title, notes, and any schema-v2 captured final speech engine/language.
-4. Recover the meeting into the transcription library when audio exists; otherwise clean up empty sessions according to the recovery service rules.
+3. Validate/repair surviving source audio; load lock metadata including title, notes, and any schema-v2 captured final speech engine/language; and load the optional recording-metadata sidecar containing source alignment and capture report.
+4. Reconcile media-derived alignment/report facts, rebuild and probe canonical playback, and set or clear any playback-fallback marker before recovering the meeting into the transcription library; otherwise clean up empty sessions according to the recovery service rules.
 5. Final transcription uses the captured route for schema-v2 locks that contain it. Schema-v1 locks and schema-v2 locks without `speechEngine` use the current resolved Final Transcription route. Preview provenance is optional archived metadata and is not required for recovery.
 6. Remove the lock after successful recovery/finalization.
 

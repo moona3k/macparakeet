@@ -111,6 +111,47 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.calendarEventSnapshot, snapshot)
     }
 
+    func testMeetingCaptureReportRoundTripsIndependentlyOfCompletedStatus() throws {
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                )
+            ),
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .microphone
+        )
+        let transcription = Transcription(
+            fileName: "Partial Meeting",
+            durationMs: report.capturedDurationMs,
+            status: .completed,
+            sourceType: .meeting,
+            meetingCaptureReport: report
+        )
+
+        try repo.save(transcription)
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertEqual(fetched.durationMs, 1_000)
+        XCTAssertEqual(fetched.meetingCaptureReport, report)
+        XCTAssertEqual(fetched.meetingCaptureReport?.quality, .partial)
+        XCTAssertEqual(fetched.meetingCaptureReport?.playbackFallbackSource, .microphone)
+    }
+
     func testTitleOverrideRoundTripsAndDrivesEffectiveDisplayTitle() throws {
         let transcription = Transcription(
             fileName: "source-file.m4a",

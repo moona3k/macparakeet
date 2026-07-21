@@ -276,6 +276,23 @@ public final class MeetingRecordingPanelViewModel {
         !sourceHealthChips.isEmpty
     }
 
+    /// Confirmed states worth interrupting a quiet UI for even while the full
+    /// source-health presentation remains behind its product flag.
+    public var actionableSourceHealthWarnings: [MeetingSourceHealthChip] {
+        guard state == .recording, captureHealth != .notRecording else {
+            return []
+        }
+        return MeetingSourceHealthChip.actionableWarnings(for: captureHealth)
+    }
+
+    /// Product-policy filtered health shown by the current UI. Keep the
+    /// feature gate here so every panel presentation makes the same choice.
+    public var visibleSourceHealthWarnings: [MeetingSourceHealthChip] {
+        AppFeatures.meetingSourceHealthUIEnabled
+            ? sourceHealthChips
+            : actionableSourceHealthWarnings
+    }
+
     public func updateLiveTranscriptStatus(_ status: LiveTranscriptStatus) {
         guard previewLines.isEmpty else { return }
         liveTranscriptStatus = status

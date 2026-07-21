@@ -59,7 +59,7 @@ final class MeetingRecordingTileTests: XCTestCase {
         XCTAssertEqual(systemOnly, .missing(microphone: false, screenRecording: true))
     }
 
-    func testDefaultOffHealthUIFlagHidesPresentationWhileKeepingViewModelHealthState() {
+    func testDefaultOffHealthUIFlagStillShowsConfirmedActionableWarning() {
         let captureHealth = MeetingCaptureHealthSummary(
             sourceMode: .microphoneAndSystem,
             microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
@@ -77,6 +77,33 @@ final class MeetingRecordingTileTests: XCTestCase {
         XCTAssertNotNil(pillViewModel.mirroredSourceHealthWarning)
 
         XCTAssertFalse(AppFeatures.meetingSourceHealthUIEnabled)
+        XCTAssertEqual(
+            MeetingRecordingPanelView(viewModel: panelViewModel).visibleSourceHealthChips.map(\.label),
+            ["System audio interrupted"]
+        )
+        XCTAssertEqual(
+            MeetingRecordingPillView(viewModel: pillViewModel).visibleSourceHealthWarning?.label,
+            "System audio interrupted"
+        )
+        XCTAssertEqual(
+            MeetingRecordingTile(viewModel: pillViewModel, onTap: {}).visibleSourceHealthWarning?.label,
+            "System audio interrupted"
+        )
+    }
+
+    func testDefaultOffHealthUIFlagStillHidesQuietButNormalSilence() {
+        let captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+        let panelViewModel = MeetingRecordingPanelViewModel()
+        panelViewModel.state = .recording
+        panelViewModel.captureHealth = captureHealth
+        let pillViewModel = MeetingRecordingPillViewModel()
+        pillViewModel.state = .recording
+        pillViewModel.captureHealth = captureHealth
+
         XCTAssertTrue(MeetingRecordingPanelView(viewModel: panelViewModel).visibleSourceHealthChips.isEmpty)
         XCTAssertNil(MeetingRecordingPillView(viewModel: pillViewModel).visibleSourceHealthWarning)
         XCTAssertNil(MeetingRecordingTile(viewModel: pillViewModel, onTap: {}).visibleSourceHealthWarning)

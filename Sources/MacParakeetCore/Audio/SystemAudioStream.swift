@@ -5,6 +5,20 @@ import Foundation
 import OSLog
 @preconcurrency import ScreenCaptureKit
 
+enum SystemAudioStreamStopDisposition: Equatable {
+    case userStopped
+    case unexpected
+
+    static func classify(errorDomain: String, errorCode: Int) -> Self {
+        if errorDomain == SCStreamErrorDomain,
+            errorCode == SCStreamError.Code.userStopped.rawValue
+        {
+            return .userStopped
+        }
+        return .unexpected
+    }
+}
+
 struct SystemAudioStreamLifecycleState {
     enum Phase: Equatable {
         case idle
@@ -149,11 +163,12 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         if let stream = stopOperation.stream {
             removeStreamOutputs(from: stream)
         }
-        let outcome = if let lifecycleController = stopOperation.lifecycleController {
-            await lifecycleController.stop()
-        } else {
-            ScreenCaptureStopOutcome.completed
-        }
+        let outcome =
+            if let lifecycleController = stopOperation.lifecycleController {
+                await lifecycleController.stop()
+            } else {
+                ScreenCaptureStopOutcome.completed
+            }
         if outcome == .timedOut {
             let timeout = String(format: "%.3f", stopTimeoutSeconds)
             logger.error("system_audio_stream_stop_timed_out")
@@ -272,9 +287,11 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
 
     private func beginStop(expectedAttemptID: Int? = nil) -> StopOperation? {
         let snapshot = stateQueue.sync { () -> StopOperation? in
-            guard let stoppingAttemptID = lifecycleState.beginStop(
-                expectedAttemptID: expectedAttemptID
-            ) else {
+            guard
+                let stoppingAttemptID = lifecycleState.beginStop(
+                    expectedAttemptID: expectedAttemptID
+                )
+            else {
                 return nil
             }
             let stream = self.stream
@@ -318,11 +335,12 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         if let stream = stopOperation.stream {
             removeStreamOutputs(from: stream)
         }
-        let outcome = if let lifecycleController = stopOperation.lifecycleController {
-            await lifecycleController.stop()
-        } else {
-            ScreenCaptureStopOutcome.completed
-        }
+        let outcome =
+            if let lifecycleController = stopOperation.lifecycleController {
+                await lifecycleController.stop()
+            } else {
+                ScreenCaptureStopOutcome.completed
+            }
         if outcome == .timedOut {
             let timeout = String(format: "%.3f", stopTimeoutSeconds)
             logger.error("system_audio_stream_failed_start_teardown_timed_out")
@@ -361,7 +379,9 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
             }
             AudioCaptureDiagnostics.append("system_audio_stream_screen_output_attached mode=discard")
         } catch {
-            logger.debug("system_audio_stream_screen_output_attach_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.debug(
+                "system_audio_stream_screen_output_attach_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
         }
     }
 
@@ -369,7 +389,9 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         do {
             try stream.removeStreamOutput(self, type: .audio)
         } catch {
-            logger.debug("system_audio_stream_remove_audio_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.debug(
+                "system_audio_stream_remove_audio_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
         }
 
         let shouldRemoveScreenOutput = stateQueue.sync { () -> Bool in
@@ -381,7 +403,9 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         do {
             try stream.removeStreamOutput(self, type: .screen)
         } catch {
-            logger.debug("system_audio_stream_remove_screen_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.debug(
+                "system_audio_stream_remove_screen_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
         }
     }
 
@@ -391,9 +415,10 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let seconds = presentationTime.seconds
         guard presentationTime.isValid,
-              !presentationTime.isIndefinite,
-              seconds.isFinite,
-              seconds >= 0 else {
+            !presentationTime.isIndefinite,
+            seconds.isFinite,
+            seconds >= 0
+        else {
             return mach_absolute_time()
         }
 
@@ -431,8 +456,8 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
             "system_audio_stream_no_buffers_within_timeout timeout_s=\(Self.firstBufferTimeoutSeconds)"
         )
         observer(
-            .captureRuntimeFailure(
-                "system audio stream delivered no buffers within \(Self.firstBufferTimeoutSeconds)s of start"
+            .systemAudioStalled(
+                .firstBufferTimeout(seconds: TimeInterval(Self.firstBufferTimeoutSeconds))
             )
         )
     }
@@ -484,9 +509,7 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
             "system_audio_stream_stalled gap_s=\(String(format: "%.2f", snapshot.gap))"
         )
         snapshot.observer?(
-            .captureRuntimeFailure(
-                "system audio stream stopped delivering buffers (gap \(String(format: "%.1f", snapshot.gap))s)"
-            )
+            .systemAudioStalled(.bufferGap(seconds: snapshot.gap))
         )
     }
 
@@ -554,7 +577,9 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
             let handler = stateQueue.sync { bufferHandler }
             handler?(buffer, time)
         } catch {
-            logger.warning("system_audio_stream_buffer_conversion_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.warning(
+                "system_audio_stream_buffer_conversion_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
             let observer = watchdogLock.withLock { stallObserver }
             observer?(
                 .captureRuntimeFailure(
@@ -565,7 +590,9 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
     }
 
     public func stream(_ stream: SCStream, didStopWithError error: Error) {
-        logger.error("system_audio_stream_stopped_with_error error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        logger.error(
+            "system_audio_stream_stopped_with_error error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+        )
         AudioCaptureDiagnostics.append(
             "system_audio_stream_stopped_with_error \(AudioCaptureDiagnostics.errorFields(error))"
         )
@@ -578,6 +605,19 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
             heartbeatTimer = nil
             return stallObserver
         }
-        observer?(.captureRuntimeFailure("system audio stream stopped: \(error.localizedDescription)"))
+        let nsError = error as NSError
+        switch SystemAudioStreamStopDisposition.classify(
+            errorDomain: nsError.domain,
+            errorCode: nsError.code
+        ) {
+        case .userStopped:
+            observer?(
+                .captureRuntimeFailure(
+                    "system audio sharing was stopped by the user"
+                )
+            )
+        case .unexpected:
+            observer?(.systemAudioStreamStopped(error.localizedDescription))
+        }
     }
 }

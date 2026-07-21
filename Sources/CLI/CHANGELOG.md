@@ -89,6 +89,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `meetings artifact --json` and envelope output may now include the additive
+  optional `meetingCaptureReport` field with frame-derived meeting capture
+  quality, elapsed/playable durations, and per-source coverage. Legacy meetings
+  omit it; omission means unknown rather than healthy.
+
 ## [3.1.0] — 2026-07-19
 
 ### Added

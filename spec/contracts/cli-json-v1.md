@@ -102,7 +102,9 @@ with human progress/status kept off stdout.
 - `meetings artifact --json` and `--envelope` return additive
   `MeetingArtifactSnapshot` fields `markdownPath`, optional
   `rawMicrophoneAudioPath`, optional `cleanedMicrophoneAudioPath`, optional
-  `rawSystemAudioPath`, and optional `playbackAudioPath`. The same refresh also
+  `rawSystemAudioPath`, optional `playbackAudioPath`, and optional
+  `meetingCaptureReport`. An absent report, including on legacy recordings,
+  means capture quality is unknown rather than healthy. The same refresh also
   writes `meeting.md`.
 - `meetings export --format md --stdout` emits the same Markdown shape as the
   materialized `meeting.md`; use `--stdout --format json` when the caller needs

@@ -44,6 +44,8 @@ public enum AppFeatures {
     /// panel chips, floating pill degraded glyph, and transcription-tile health
     /// mirror are hidden. Default-off after 2026-07-04 product review because
     /// quiet-but-normal recordings made the amber warning chips feel alarmist.
+    /// Confirmed actionable states (recovering, stalled, interrupted, and
+    /// unavailable) bypass this flag; silence and mute remain hidden.
     public static let meetingSourceHealthUIEnabled: Bool = false
 
     /// Activity-based meeting detection (ADR-024). When `false`, Settings hides

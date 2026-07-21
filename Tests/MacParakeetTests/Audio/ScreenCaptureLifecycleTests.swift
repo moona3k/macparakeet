@@ -1,8 +1,33 @@
 import Foundation
+@preconcurrency import ScreenCaptureKit
 import XCTest
 @testable import MacParakeetCore
 
 final class ScreenCaptureLifecycleTests: XCTestCase {
+    func testSystemAudioStreamStopDispositionOnlyTreatsScreenCaptureKitUserStopAsIntentional() {
+        XCTAssertEqual(
+            SystemAudioStreamStopDisposition.classify(
+                errorDomain: SCStreamErrorDomain,
+                errorCode: SCStreamError.Code.userStopped.rawValue
+            ),
+            .userStopped
+        )
+        XCTAssertEqual(
+            SystemAudioStreamStopDisposition.classify(
+                errorDomain: SCStreamErrorDomain,
+                errorCode: SCStreamError.Code.internalError.rawValue
+            ),
+            .unexpected
+        )
+        XCTAssertEqual(
+            SystemAudioStreamStopDisposition.classify(
+                errorDomain: "test.error",
+                errorCode: SCStreamError.Code.userStopped.rawValue
+            ),
+            .unexpected
+        )
+    }
+
     func testStartCompletionReturnsNormally() async throws {
         let session = FakeScreenCaptureLifecycleSession()
         let lifecycle = ScreenCaptureLifecycleController(

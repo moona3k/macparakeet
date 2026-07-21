@@ -1,4 +1,4 @@
-import AVFAudio
+import AVFoundation
 import Foundation
 import XCTest
 @testable import MacParakeetCore
@@ -250,10 +250,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -283,15 +284,17 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let originalFolder = try XCTUnwrap(lockStore.writes.first?.folderURL)
         defer { try? FileManager.default.removeItem(at: originalFolder) }
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.15))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         lockStore.errorToThrow = TestError.lockWriteFailed
         do {
@@ -306,8 +309,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(lockStore.writeAttempts.last?.file.state, .awaitingTranscription)
         XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
         XCTAssertEqual(conditionerProbe.buildCount, 0)
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: originalFolder.appendingPathComponent("microphone-cleaned.m4a").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: originalFolder.appendingPathComponent("microphone-cleaned.m4a").path))
         let isRecordingAfterFailure = await service.isRecording
         XCTAssertFalse(isRecordingAfterFailure)
 
@@ -331,13 +335,15 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         let activeLeaseCountAfterStart = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterStart, 1)
-        XCTAssertEqual(lockStore.writes.first?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertEqual(
+            lockStore.writes.first?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -345,7 +351,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
         XCTAssertEqual(output.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
         XCTAssertEqual(metadata.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
-        XCTAssertEqual(lockStore.writes.last?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertEqual(
+            lockStore.writes.last?.file.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
         let activeLeaseCountAfterStop = await sttClient.activeLeaseCount
         XCTAssertEqual(activeLeaseCountAfterStop, 0)
     }
@@ -473,10 +480,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -501,10 +509,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         let firstOutput = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: firstOutput.folderURL) }
 
@@ -532,10 +541,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForRoutedLiveChunkSelection(sttClient)
 
         let routedSelections = await sttClient.routedSelections
@@ -566,10 +576,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
@@ -585,7 +596,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
     }
 
-    func testStopRecordingReturnsOutputAndKeepsLockWhenMixFails() async throws {
+    func testStopRecordingUsesLongestAlignedSourceAsPlayableFallbackWhenMixFails() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
         let service = MeetingRecordingService(
@@ -597,21 +608,123 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let writtenFolder = try XCTUnwrap(lockStore.writes.first?.folderURL)
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 8_000, sampleValue: 0.25))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 32_000, sampleValue: 0.5))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: writtenFolder) }
 
         XCTAssertEqual(output.folderURL, writtenFolder)
         XCTAssertNotNil(output.sourceAlignment.microphone)
-        XCTAssertNil(output.sourceAlignment.system)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: output.mixedAudioURL.path))
+        XCTAssertEqual(output.sourceAlignment.system?.startOffsetMs, 1_000)
+        XCTAssertLessThanOrEqual(
+            abs((try XCTUnwrap(output.captureReport?.capturedDurationMs)) - 3_000),
+            2
+        )
+        let playbackDuration = try await playableAudioDuration(at: output.mixedAudioURL)
+        XCTAssertEqual(playbackDuration, 3, accuracy: 0.1)
+        XCTAssertEqual(output.durationSeconds, playbackDuration, accuracy: 0.02)
+        XCTAssertEqual(output.playableDurationMs, Int((playbackDuration * 1_000).rounded()))
+        XCTAssertEqual(output.captureReport?.quality, .partial)
+        XCTAssertEqual(output.captureReport?.playbackFallbackSource, .system)
+        let metadata = try MeetingRecordingMetadataStore.load(from: writtenFolder)
+        XCTAssertEqual(metadata.captureReport, output.captureReport)
         XCTAssertTrue(lockStore.deletes.isEmpty)
         XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
+    }
+
+    func testWriterFinalizationPolicyAcceptsCompletedSources() throws {
+        XCTAssertNoThrow(
+            try MeetingRecordingService.requireSuccessfulWriterFinalization(
+                MeetingAudioStorageWriter.FinalizationReport(failedSources: [])
+            )
+        )
+    }
+
+    func testWriterFinalizationPolicyRejectsFailedSourcesInStableOrder() {
+        XCTAssertThrowsError(
+            try MeetingRecordingService.requireSuccessfulWriterFinalization(
+                MeetingAudioStorageWriter.FinalizationReport(
+                    failedSources: [.system, .microphone]
+                )
+            )
+        ) { error in
+            guard
+                let meetingError = error as? MeetingAudioError,
+                case .storageFailed(let message) = meetingError
+            else {
+                return XCTFail("Expected storageFailed, got \(error)")
+            }
+            XCTAssertEqual(
+                message,
+                "Failed to finalize microphone,system meeting audio. "
+                    + "The source files were preserved for recovery."
+            )
+        }
+    }
+
+    func testWriterFinalizationFailurePreservesRecoveryArtifactsAndResetsService() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore,
+            micConditionerFactory: { PassthroughMicConditioner() },
+            writerFinalizationReportTransform: { _ in
+                MeetingAudioStorageWriter.FinalizationReport(
+                    failedSources: [.microphone]
+                )
+            }
+        )
+
+        try await service.startRecording()
+        let folderURL = try XCTUnwrap(lockStore.writes.first?.folderURL)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let microphoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+            )
+        )
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected writer finalization failure")
+        } catch let error as MeetingAudioError {
+            guard case .storageFailed = error else {
+                return XCTFail("Expected storageFailed, got \(error)")
+            }
+        }
+
+        let isRecordingAfterFailure = await service.isRecording
+        XCTAssertFalse(isRecordingAfterFailure)
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent("microphone-raw.m4a").path
+            )
+        )
+
+        try await service.startRecording()
+        let isRecordingAfterRestart = await service.isRecording
+        XCTAssertTrue(isRecordingAfterRestart)
+        await service.cancelRecording()
     }
 
     func testStopRecordingWritesPrivacySafeCaptureHealthSummary() async throws {
@@ -668,6 +781,68 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("delay_confidence=0.000"))
         XCTAssertTrue(log.contains("delay_estimate_count=0"))
         XCTAssertTrue(log.contains("rejected_delay_estimates=0"))
+    }
+
+    func testStopRecordingReportsSevereCaptureCoverageShortfallAsPartial() async throws {
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingMicrophoneCaptureStartReport(
+                    requestedMode: .raw,
+                    effectiveMode: .raw
+                )
+            )
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            wallClockNow: { wallClock.now }
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(
+            // AVAudioConverter consumes a 16-frame input prime when converting
+            // this 16 kHz fixture to the writer's 48 kHz format. 16,016 input
+            // frames therefore produce exactly 48,000 written frames (1s).
+            makeMonoFloatBuffer(frameCount: 16_016, sampleValue: 0.25)
+        )
+        let systemBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_016, sampleValue: 0.25)
+        )
+        let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+        await captureService.yield(.systemBuffer(systemBuffer, time))
+        wallClock.advance(by: 100)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(output.durationSeconds, 1, accuracy: 0.001)
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.elapsedDurationMs, 100_000)
+        XCTAssertEqual(report.capturedDurationMs, 1_000)
+        XCTAssertEqual(report.sources.map(\.source), [.microphone, .system])
+        XCTAssertEqual(report.sources.map(\.writtenDurationMs), [1_000, 1_000])
+        XCTAssertEqual(report.sources.map(\.status), [.coverageShortfall, .coverageShortfall])
+        XCTAssertFalse(report.captureFailed)
+
+        let log = try String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)
+        let healthLine = try XCTUnwrap(
+            log.split(whereSeparator: \.isNewline)
+                .last { $0.contains("meeting_recording_health session=\(output.sessionID.uuidString)") }
+        )
+        XCTAssertTrue(healthLine.contains("duration_s=100.000"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("captured_duration_s=1.000"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("capture_quality=partial"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("mic_coverage=0.010"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("system_coverage=0.010"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("mic_capture_status=coverage_shortfall"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("system_capture_status=coverage_shortfall"), String(healthLine))
+        XCTAssertTrue(healthLine.contains("capture_failed=false"), String(healthLine))
     }
 
     func testCancelRecordingDeletesLockAndSessionFolder() async throws {
@@ -735,6 +910,40 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(mode, .stopped)
 
         await service.cancelRecording()
+    }
+
+    func testRuntimeCaptureErrorAfterFramesPersistsCaptureFailedReportOnStop() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+            )
+        )
+        await captureService.yield(
+            .error(.captureRuntimeFailure("simulated runtime failure after captured frames"))
+        )
+        try await waitForCaptureMode(service) { $0 == .stopped }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertTrue(report.captureFailed)
+        XCTAssertEqual(report.source(for: .microphone)?.status, .captureFailed)
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+        XCTAssertEqual(metadata.captureReport, report)
     }
 
     func testCaptureFailureSignalYieldsOnceForRuntimeError() async throws {
@@ -823,16 +1032,19 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let firstSystemHostTime = AVAudioTime.hostTime(forSeconds: 100.0)
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: firstSystemHostTime)
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: firstSystemHostTime)
+            ))
         try await waitForSystemLevel(service) { $0 > 0 }
 
-        await captureService.yield(.sourceInterrupted(
-            source: .system,
-            error: .captureRuntimeFailure("system audio stream stopped: Failed to find any displays or windows to capture")
-        ))
+        await captureService.yield(
+            .sourceInterrupted(
+                source: .system,
+                error: .captureRuntimeFailure(
+                    "system audio stream stopped: Failed to find any displays or windows to capture")
+            ))
         try await waitForSystemLevel(service) { $0 == 0 }
 
         let modeAfterSystemInterruption = await service.captureMode
@@ -841,16 +1053,18 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(stopCallCountBeforeManualStop, 0)
 
         let lateSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.75))
-        await captureService.yield(.systemBuffer(
-            lateSystemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 102.0))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                lateSystemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 102.0))
+            ))
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -858,6 +1072,153 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNotNil(output.sourceAlignment.microphone)
         XCTAssertNotNil(output.sourceAlignment.system)
         XCTAssertEqual(output.sourceAlignment.system?.lastHostTime, firstSystemHostTime)
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.interruptedSources, [.system])
+        XCTAssertEqual(report.source(for: .system)?.status, .interrupted)
+        XCTAssertFalse(report.captureFailed)
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+        XCTAssertEqual(metadata.captureReport, report)
+    }
+
+    func testMicrophoneSourceInterruptionKeepsSystemRecordingAlive() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+
+        let firstMicrophoneHostTime = AVAudioTime.hostTime(forSeconds: 100.0)
+        let microphoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: firstMicrophoneHostTime)
+            ))
+
+        await captureService.yield(
+            .sourceInterrupted(
+                source: .microphone,
+                error: .captureRuntimeFailure("shared microphone engine stopped unexpectedly")
+            ))
+
+        let health = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .interrupted
+        }
+        let captureMode = await service.captureMode
+        let stopCallCount = await captureService.stopCallCount
+        let canMuteMicrophone = await service.canMuteMicrophone
+        XCTAssertEqual(health.microphone.label, "Mic interrupted")
+        XCTAssertEqual(captureMode, .full)
+        XCTAssertEqual(stopCallCount, 0)
+        XCTAssertFalse(canMuteMicrophone)
+
+        let lateMicrophoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.75)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                lateMicrophoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 102.0))
+            ))
+
+        let systemBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5)
+        )
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+            ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(output.sourceAlignment.microphone?.lastHostTime, firstMicrophoneHostTime)
+        XCTAssertNotNil(output.sourceAlignment.system)
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.interruptedSources, [.microphone])
+        XCTAssertFalse(report.captureFailed)
+    }
+
+    func testAllSelectedSourceInterruptionsFailCaptureAndPreserveDurableHistory() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording(sourceMode: .microphoneAndSystem)
+        let failureStream = await service.captureFailureSignalForCurrentSession()
+        let failureTask = Task { await collectCaptureFailureSignals(from: failureStream) }
+        let microphoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25)
+        )
+        let systemBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.5)
+        )
+        let firstHostTime = AVAudioTime.hostTime(forSeconds: 100)
+        await captureService.yield(
+            .microphoneBuffer(microphoneBuffer, AVAudioTime(hostTime: firstHostTime))
+        )
+        await captureService.yield(
+            .systemBuffer(systemBuffer, AVAudioTime(hostTime: firstHostTime))
+        )
+        _ = try await waitForCaptureHealth(service) {
+            $0.microphone.lastBufferAt != nil && $0.system.lastBufferAt != nil
+        }
+
+        await captureService.yield(
+            .sourceInterrupted(
+                source: .system,
+                error: .captureRuntimeFailure("system recovery exhausted")
+            )
+        )
+        let afterFirstInterruption = try await waitForCaptureHealth(service) {
+            $0.system.status == .interrupted
+        }
+        let captureModeAfterFirstInterruption = await service.captureMode
+        let stopCallCountAfterFirstInterruption = await captureService.stopCallCount
+        XCTAssertEqual(afterFirstInterruption.microphone.status, .live)
+        XCTAssertEqual(captureModeAfterFirstInterruption, .full)
+        XCTAssertEqual(stopCallCountAfterFirstInterruption, 0)
+
+        await captureService.yield(
+            .sourceInterrupted(
+                source: .microphone,
+                error: .captureRuntimeFailure("microphone recovery exhausted")
+            )
+        )
+        try await waitForCaptureMode(service) { $0 == .stopped }
+        let terminalCaptureMode = await service.captureMode
+        if terminalCaptureMode != .stopped {
+            failureTask.cancel()
+        }
+        let failureSignals = await failureTask.value
+        try await waitForCaptureStop(captureService)
+
+        let terminalStopCallCount = await captureService.stopCallCount
+        XCTAssertEqual(failureSignals.count, 1)
+        XCTAssertEqual(terminalCaptureMode, .stopped)
+        XCTAssertEqual(terminalStopCallCount, 1)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.interruptedSources, [.microphone, .system])
+        XCTAssertTrue(report.captureFailed)
+        XCTAssertEqual(report.source(for: .microphone)?.status, .interrupted)
+        XCTAssertEqual(report.source(for: .system)?.status, .interrupted)
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+        XCTAssertEqual(metadata.captureReport, report)
     }
 
     func testCaptureHealthReportsMicrophoneAndSystemLiveAfterBuffers() async throws {
@@ -871,14 +1232,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+            ))
 
         let health = try await waitForCaptureHealth(service) {
             $0.microphone.status == .live && $0.system.status == .live
@@ -908,14 +1271,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         let quietMicrophoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.0005))
         let quietSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.0005))
-        await captureService.yield(.microphoneBuffer(
-            quietMicrophoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            quietSystemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                quietMicrophoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                quietSystemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+            ))
 
         let silentHealth = try await waitForCaptureHealth(service) {
             $0.microphone.status == .silent && $0.system.status == .silent
@@ -925,14 +1290,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let speechMicrophoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.005))
         let speechSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.005))
-        await captureService.yield(.microphoneBuffer(
-            speechMicrophoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            speechSystemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.1))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                speechMicrophoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                speechSystemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.1))
+            ))
 
         let recoveredHealth = try await waitForCaptureHealth(service) {
             $0.microphone.status == .live && $0.system.status == .live
@@ -1022,10 +1389,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        await captureService.yield(.sourceInterrupted(
-            source: .system,
-            error: .captureRuntimeFailure("simulated system stream interruption")
-        ))
+        await captureService.yield(
+            .sourceInterrupted(
+                source: .system,
+                error: .captureRuntimeFailure("simulated system stream interruption")
+            ))
 
         let health = try await waitForCaptureHealth(service) {
             $0.system.status == .interrupted
@@ -1035,6 +1403,36 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(health.primaryMessage, "System audio interrupted")
         let captureMode = await service.captureMode
         XCTAssertEqual(captureMode, .full)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthShowsSystemRecoveryUntilReplacementIsLive() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient()
+        )
+
+        try await service.startRecording()
+        await captureService.yield(
+            .sourceRecoveryStarted(
+                source: .system,
+                error: .systemAudioStalled(.bufferGap(seconds: 5))
+            ))
+
+        let recovering = try await waitForCaptureHealth(service) {
+            $0.system.status == .recovering
+        }
+        XCTAssertEqual(recovering.system.label, "System audio reconnecting")
+        XCTAssertEqual(recovering.primaryActionableSource?.status, .recovering)
+
+        await captureService.yield(.sourceRecovered(source: .system))
+        let recovered = try await waitForCaptureHealth(service) {
+            $0.system.status != .recovering
+        }
+        XCTAssertNotEqual(recovered.system.status, .interrupted)
 
         await service.cancelRecording()
     }
@@ -1075,10 +1473,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(stalledHealth.primaryMessage, "System may be stalled")
 
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let recoveredHealth = try await waitForCaptureHealth(service) {
             $0.system.status == .live
@@ -1120,16 +1519,123 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(stalledHealth.primaryMessage, "Mic may be stalled")
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let recoveredHealth = try await waitForCaptureHealth(service) {
             $0.microphone.status == .live
         }
         XCTAssertEqual(recoveredHealth.microphone.label, "Mic live")
         XCTAssertNil(recoveredHealth.primaryMessage)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthMarksBothSourcesStalledWhenBuffersStopAfterBeingLive() async throws {
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            },
+            wallClockNow: {
+                wallClock.now
+            }
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+
+        _ = try await waitForCaptureHealth(service) {
+            $0.microphone.status == .live && $0.system.status == .live
+        }
+        wallClock.advance(by: 5.1)
+
+        let stalledHealth = await service.captureHealth
+        XCTAssertEqual(stalledHealth.microphone.status, .stalled)
+        XCTAssertEqual(stalledHealth.microphone.recoveryAction, .checkMicrophoneInput)
+        XCTAssertEqual(stalledHealth.system.status, .stalled)
+        XCTAssertEqual(stalledHealth.system.recoveryAction, .restartRecording)
+
+        await service.cancelRecording()
+    }
+
+    func testCaptureHealthExcludesPausedTimeFromPostBufferStallAndRecoversOnFreshBuffer() async throws {
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let hostClock = MeetingTestAudioHostClock(seconds: 100)
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                PassthroughMicConditioner()
+            },
+            wallClockNow: {
+                wallClock.now
+            },
+            audioHostTimeNow: {
+                hostClock.now
+            }
+        )
+
+        try await service.startRecording(sourceMode: .systemOnly)
+        let firstBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(
+            .systemBuffer(
+                firstBuffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        _ = try await waitForCaptureHealth(service) {
+            $0.system.status == .live
+        }
+
+        await service.pauseRecording()
+        wallClock.advance(by: 30)
+        hostClock.advance(by: 30)
+        let pausedHealth = await service.captureHealth
+        XCTAssertNotEqual(pausedHealth.system.status, .stalled)
+
+        await service.resumeRecording()
+        wallClock.advance(by: 4.9)
+        hostClock.advance(by: 4.9)
+        let withinGapHealth = await service.captureHealth
+        XCTAssertNotEqual(withinGapHealth.system.status, .stalled)
+
+        wallClock.advance(by: 0.2)
+        hostClock.advance(by: 0.2)
+        let stalledHealth = await service.captureHealth
+        XCTAssertEqual(stalledHealth.system.status, .stalled)
+
+        let freshBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+        await captureService.yield(
+            .systemBuffer(
+                freshBuffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        let recoveredHealth = try await waitForCaptureHealth(service) {
+            $0.system.status == .live
+        }
+        XCTAssertEqual(recoveredHealth.system.label, "System live")
 
         await service.cancelRecording()
     }
@@ -1154,10 +1660,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         await captureService.yield(.microphoneHealth(.recovered))
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+            ))
 
         let recoveredHealth = try await waitForCaptureHealth(service) {
             $0.microphone.status == .live
@@ -1228,12 +1735,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = SequencedMeetingSTTClient(results: [
-            STTResult(text: "mic", words: [
-                TimestampedWord(word: "mic", startMs: 0, endMs: 120, confidence: 0.9),
-            ]),
-            STTResult(text: "sys", words: [
-                TimestampedWord(word: "sys", startMs: 0, endMs: 120, confidence: 0.9),
-            ]),
+            STTResult(
+                text: "mic",
+                words: [
+                    TimestampedWord(word: "mic", startMs: 0, endMs: 120, confidence: 0.9)
+                ]),
+            STTResult(
+                text: "sys",
+                words: [
+                    TimestampedWord(word: "sys", startMs: 0, endMs: 120, confidence: 0.9)
+                ]),
             STTResult(text: "", words: []),
             STTResult(text: "", words: []),
         ])
@@ -1248,14 +1759,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
 
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.150))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.150))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1286,10 +1799,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForLiveChunkTranscriptionStart(sttClient)
 
         let startedAt = ContinuousClock.now
@@ -1307,18 +1821,22 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let sttClient = PrefixScriptedMeetingSTTClient(
             microphoneSteps: [
                 .result(
-                    STTResult(text: "mic", words: [
-                        TimestampedWord(word: "mic", startMs: 0, endMs: 120, confidence: 0.9),
-                    ])
-                ),
+                    STTResult(
+                        text: "mic",
+                        words: [
+                            TimestampedWord(word: "mic", startMs: 0, endMs: 120, confidence: 0.9)
+                        ])
+                )
             ],
             systemSteps: [
                 .result(
-                    STTResult(text: "sys", words: [
-                        TimestampedWord(word: "sys", startMs: 0, endMs: 120, confidence: 0.9),
-                    ]),
+                    STTResult(
+                        text: "sys",
+                        words: [
+                            TimestampedWord(word: "sys", startMs: 0, endMs: 120, confidence: 0.9)
+                        ]),
                     delay: .seconds(1)
-                ),
+                )
             ]
         )
         let service = MeetingRecordingService(
@@ -1332,14 +1850,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
 
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.150))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.150))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1354,9 +1874,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let sttClient = PrefixScriptedMeetingSTTClient(
             microphoneSteps: [
                 .result(
-                    STTResult(text: "first", words: [
-                        TimestampedWord(word: "first", startMs: 0, endMs: 120, confidence: 0.9),
-                    ]),
+                    STTResult(
+                        text: "first",
+                        words: [
+                            TimestampedWord(word: "first", startMs: 0, endMs: 120, confidence: 0.9)
+                        ]),
                     delay: .milliseconds(600)
                 ),
                 .dropBackpressure,
@@ -1378,14 +1900,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let firstBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
         let secondBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 64_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            firstBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.microphoneBuffer(
-            secondBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 104.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                firstBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .microphoneBuffer(
+                secondBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 104.0))
+            ))
 
         let maybeUpdate = await nextUpdate.value
         let update = try XCTUnwrap(maybeUpdate)
@@ -1402,7 +1926,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = PrefixScriptedMeetingSTTClient(
             microphoneSteps: [
-                .result(STTResult(text: "hello unified preview", words: [])),
+                .result(STTResult(text: "hello unified preview", words: []))
             ]
         )
         let service = MeetingRecordingService(
@@ -1420,10 +1944,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let maybeUpdate = await nextUpdate.value
         let update = try XCTUnwrap(maybeUpdate)
@@ -1450,10 +1975,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await Task.sleep(for: .milliseconds(100))
 
         let routedSelections = await sttClient.routedSelections
@@ -1480,10 +2006,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForRoutedLiveChunkSelection(sttClient)
 
         let routedSelections = await sttClient.routedSelections
@@ -1510,10 +2037,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForRoutedLiveChunkSelection(sttClient)
 
         let routedSelections = await sttClient.routedSelections
@@ -1529,9 +2057,12 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = PathScriptedMeetingSTTClient(responses: [
             "microphone-100000-105000": .failure(message: "late failure", delay: .milliseconds(300)),
-            "microphone-200000-205000": .result(STTResult(text: "fresh", words: [
-                TimestampedWord(word: "fresh", startMs: 0, endMs: 160, confidence: 0.9),
-            ])),
+            "microphone-200000-205000": .result(
+                STTResult(
+                    text: "fresh",
+                    words: [
+                        TimestampedWord(word: "fresh", startMs: 0, endMs: 160, confidence: 0.9)
+                    ])),
         ])
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
@@ -1542,10 +2073,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let firstBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            firstBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                firstBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let firstOutput = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: firstOutput.folderURL) }
@@ -1554,10 +2086,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let secondBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.microphoneBuffer(
-            secondBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 200.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                secondBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 200.0))
+            ))
         try await Task.sleep(for: .milliseconds(350))
 
         let secondOutput = try await service.stopRecording()
@@ -1581,14 +2114,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.6))
         let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.005))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.microphoneBuffer(
-            micBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .microphoneBuffer(
+                micBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1612,14 +2147,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
         let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.microphoneBuffer(
-            micBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .microphoneBuffer(
+                micBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.1))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1641,10 +2178,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            micBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                micBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1670,10 +2208,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            micBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                micBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1700,10 +2239,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            micBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                micBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1734,10 +2274,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording(sourceMode: .systemOnly)
 
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForMeetingSTTCall(sttClient) { $0.system >= 1 }
 
         let output = try await service.stopRecording()
@@ -1745,7 +2286,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertNil(output.sourceAlignment.microphone)
         XCTAssertNotNil(output.sourceAlignment.system)
-        XCTAssertEqual(audioConverter.capturedMixedInputs(), [output.systemAudioURL])
+        XCTAssertTrue(audioConverter.capturedMixedInputs().isEmpty)
 
         let requestedSourceModes = await captureService.requestedSourceModes
         XCTAssertEqual(requestedSourceModes, [.systemOnly])
@@ -1769,10 +2310,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording(sourceMode: .microphoneOnly)
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         try await waitForMeetingSTTCall(sttClient) { $0.microphone >= 1 }
 
         let output = try await service.stopRecording()
@@ -1780,7 +2322,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertNotNil(output.sourceAlignment.microphone)
         XCTAssertNil(output.sourceAlignment.system)
-        XCTAssertEqual(audioConverter.capturedMixedInputs(), [output.microphoneAudioURL])
+        XCTAssertTrue(audioConverter.capturedMixedInputs().isEmpty)
 
         let requestedSourceModes = await captureService.requestedSourceModes
         XCTAssertEqual(requestedSourceModes, [.microphoneOnly])
@@ -1804,14 +2346,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_096, sampleValue: 0.2))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_096, sampleValue: 0.3))
 
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1836,17 +2380,19 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         for index in 0..<500 {
             let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 160, sampleValue: 0.25))
-            await captureService.yield(.systemBuffer(
-                systemBuffer,
-                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + (Double(index) * 0.01)))
-            ))
+            await captureService.yield(
+                .systemBuffer(
+                    systemBuffer,
+                    AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + (Double(index) * 0.01)))
+                ))
         }
 
         let output = try await service.stopRecording()
@@ -1875,10 +2421,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording(title: "  Q1 Roadmap Standup  ")
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -1902,16 +2449,18 @@ final class MeetingRecordingServiceTests: XCTestCase {
         // we want the same default a manual recording gets.
         try await service.startRecording(title: "   \n  ")
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
-        XCTAssertTrue(output.displayName.hasPrefix("Meeting "),
-                      "Expected date-based fallback, got \(output.displayName)")
+        XCTAssertTrue(
+            output.displayName.hasPrefix("Meeting "),
+            "Expected date-based fallback, got \(output.displayName)")
     }
 
     private func waitForLiveChunkTranscriptionStart(
@@ -2005,6 +2554,20 @@ final class MeetingRecordingServiceTests: XCTestCase {
         while !predicate(await service.captureMode) {
             if startedAt.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for capture mode predicate")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForCaptureStop(
+        _ captureService: MockMeetingAudioCaptureService,
+        timeout: Duration = .seconds(1)
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while await captureService.stopCallCount == 0 {
+            if startedAt.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for meeting audio capture to stop")
                 return
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -2195,10 +2758,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -2206,8 +2770,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNil(
             output.cleanedMicrophoneAudioURL,
             "a mic-only meeting has no system reference to cancel against")
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: output.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: output.folderURL.appendingPathComponent("microphone-cleaned.m4a").path))
         XCTAssertEqual(
             conditionerProbe.buildCount,
             0,
@@ -2276,7 +2841,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        let threshold = MeetingCleanedMicrophoneReadinessPolicy.production.capSeconds
+        let threshold =
+            MeetingCleanedMicrophoneReadinessPolicy.production.capSeconds
             * MeetingCleanedMicrophoneReadinessPolicy.bestMeasuredRealtimeFactor
         wallClock.advance(by: threshold + 1)
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
@@ -2288,7 +2854,12 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
-        XCTAssertEqual(output.durationSeconds, threshold + 1, accuracy: 0.001)
+        XCTAssertLessThan(output.durationSeconds, 1)
+        XCTAssertEqual(
+            Double(try XCTUnwrap(output.captureReport).elapsedDurationMs) / 1_000,
+            threshold + 1,
+            accuracy: 0.001
+        )
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
         XCTAssertEqual(
             schedulerProbe.callCount,
@@ -2303,16 +2874,242 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(metadata.echoSuppression?.reasonCode, .rawRenderFailed)
     }
 
-    private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16_000,
-            channels: 1,
-            interleaved: false
-        ), let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(frameCount)
-        ) else {
+    func testRecoveredSourceGapPreservesTimelineWithoutInflatingCapturedFrames() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            wallClockNow: { wallClock.now }
+        )
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25)
+        )
+        for second in [100.0, 103.0] {
+            await captureService.yield(
+                .microphoneBuffer(
+                    buffer,
+                    AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: second))
+                ))
+        }
+        for second in [100.0, 101.0, 102.0, 103.0] {
+            await captureService.yield(
+                .systemBuffer(
+                    buffer,
+                    AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: second))
+                ))
+        }
+        wallClock.advance(by: 4)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
+        let system = try XCTUnwrap(output.sourceAlignment.system)
+        XCTAssertEqual(Double(microphone.writtenFrameCount), 96_000, accuracy: 100)
+        XCTAssertEqual(microphone.timelineFrameCount, 192_000)
+        XCTAssertEqual(Double(system.writtenFrameCount), 192_000, accuracy: 100)
+        XCTAssertEqual(system.timelineFrameCount, 192_000)
+        let report = try XCTUnwrap(output.captureReport)
+        XCTAssertEqual(report.capturedDurationMs, 4_000)
+        XCTAssertEqual(
+            Double(try XCTUnwrap(report.source(for: .microphone)?.writtenDurationMs)),
+            2_000,
+            accuracy: 2
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(report.source(for: .microphone)?.coverageRatio),
+            0.5,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(report.source(for: .system)?.writtenDurationMs)),
+            4_000,
+            accuracy: 2
+        )
+    }
+
+    func testPauseDoesNotBecomeTimelinePaddingOrDelayedSourceStart() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let hostClock = MeetingTestAudioHostClock(seconds: 100)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            wallClockNow: { wallClock.now },
+            audioHostTimeNow: { hostClock.now }
+        )
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        try await Task.sleep(for: .milliseconds(50))
+        hostClock.advance(by: 1)
+        wallClock.advance(by: 1)
+        await service.pauseRecording()
+        hostClock.advance(by: 10)
+        wallClock.advance(by: 10)
+        await service.resumeRecording()
+
+        await captureService.yield(
+            .systemBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        hostClock.advance(by: 1)
+        wallClock.advance(by: 1)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
+        let system = try XCTUnwrap(output.sourceAlignment.system)
+        XCTAssertLessThanOrEqual(
+            abs(try XCTUnwrap(microphone.timelineFrameCount) - microphone.writtenFrameCount),
+            100,
+            "the 10-second user pause must not be materialized as recovery padding"
+        )
+        XCTAssertEqual(system.startOffsetMs, 1_000)
+        XCTAssertEqual(output.captureReport?.capturedDurationMs, 2_000)
+        XCTAssertEqual(output.captureReport?.elapsedDurationMs, 2_000)
+    }
+
+    func testMoreThanBoundedPauseHistoryDoesNotInflateTimelineOrSourceOffset() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let hostClock = MeetingTestAudioHostClock(seconds: 100)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            wallClockNow: { wallClock.now },
+            audioHostTimeNow: { hostClock.now }
+        )
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        try await Task.sleep(for: .milliseconds(50))
+
+        hostClock.advance(by: 1)
+        wallClock.advance(by: 1)
+        for _ in 0..<513 {
+            await service.pauseRecording()
+            hostClock.advance(by: 1)
+            wallClock.advance(by: 1)
+            await service.resumeRecording()
+        }
+
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                buffer,
+                AVAudioTime(hostTime: hostClock.now)
+            ))
+        hostClock.advance(by: 1)
+        wallClock.advance(by: 1)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
+        let system = try XCTUnwrap(output.sourceAlignment.system)
+        XCTAssertLessThanOrEqual(
+            abs(try XCTUnwrap(microphone.timelineFrameCount) - microphone.writtenFrameCount),
+            100,
+            "evicting old pause ranges must not turn paused time into recovery padding"
+        )
+        XCTAssertEqual(system.startOffsetMs, 1_000)
+        XCTAssertEqual(output.captureReport?.capturedDurationMs, 2_000)
+        XCTAssertEqual(output.durationSeconds, 2, accuracy: 0.1)
+    }
+
+    func testUntimedLeadingAudioUsesWriterTimelineOriginForSourceAlignment() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            wallClockNow: { wallClock.now }
+        )
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(sampleTime: 0, atRate: 48_000)
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                buffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+            ))
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101))
+            ))
+        wallClock.advance(by: 2)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
+        XCTAssertEqual(microphone.startOffsetMs, 0)
+        XCTAssertEqual(output.captureReport?.capturedDurationMs, 2_000)
+        XCTAssertEqual(output.durationSeconds, 2, accuracy: 0.1)
+    }
+
+    private func makeMonoFloatBuffer(
+        frameCount: Int,
+        sampleValue: Float,
+        sampleRate: Double = 16_000
+    ) -> AVAudioPCMBuffer? {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: sampleRate,
+                channels: 1,
+                interleaved: false
+            ),
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(frameCount)
+            )
+        else {
             return nil
         }
 
@@ -2322,6 +3119,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
             channelData[0][index] = sampleValue
         }
         return buffer
+    }
+
+    private func playableAudioDuration(at url: URL) async throws -> TimeInterval {
+        let file = try AVAudioFile(forReading: url)
+        XCTAssertGreaterThan(file.length, 0, "playback artifact must contain decodable audio frames")
+        let assetDuration = try await AVURLAsset(url: url).load(.duration)
+        let duration = assetDuration.seconds
+        XCTAssertTrue(duration.isFinite)
+        XCTAssertGreaterThan(duration, 0)
+        return duration
     }
 
     // MARK: - ADR-020 §8 — updateNotes
@@ -2402,10 +3209,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         await service.updateNotes("notes from the meeting")
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -2437,10 +3245,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         // No updateNotes call — user attended without typing.
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
@@ -2471,10 +3280,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         // Push a buffer so levels are non-zero pre-pause.
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.5))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 1.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 1.0))
+            ))
         // Yield so the actor processes the buffer before pause.
         try await Task.sleep(for: .milliseconds(20))
 
@@ -2530,14 +3340,16 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+            ))
         // The level is set asynchronously when the actor drains a yielded buffer,
         // and it's a stored value with no decay — once non-zero it stays so. Poll
         // (up to 2s) for the system level instead of a fixed sleep: the old 80ms
@@ -2580,10 +3392,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let preMuteHostTime = AVAudioTime.hostTime(
             forSeconds: max(0, ProcessInfo.processInfo.systemUptime - 1)
         )
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: preMuteHostTime)
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: preMuteHostTime)
+            ))
 
         await service.setMicrophoneMuted(true)
 
@@ -2609,19 +3422,21 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.setMicrophoneMuted(true)
 
         let mutedBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
-        await captureService.yield(.microphoneBuffer(
-            mutedBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                mutedBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+            ))
         try await Task.sleep(for: .milliseconds(20))
 
         await service.setMicrophoneMuted(false)
 
         let unmutedBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            unmutedBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.3))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                unmutedBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.3))
+            ))
         try await Task.sleep(for: .milliseconds(80))
 
         let output = try await service.stopRecording()
@@ -2715,12 +3530,12 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
 
         await service.pauseRecording()
-        await service.pauseRecording() // redundant — must not double-account
+        await service.pauseRecording()  // redundant — must not double-account
         let pausedAfterDoublePause = await service.isPaused
         XCTAssertTrue(pausedAfterDoublePause)
 
         await service.resumeRecording()
-        await service.resumeRecording() // redundant — must not flip back to paused
+        await service.resumeRecording()  // redundant — must not flip back to paused
         let pausedAfterDoubleResume = await service.isPaused
         XCTAssertFalse(pausedAfterDoubleResume)
     }
@@ -2736,10 +3551,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         // Yield so the actor's processingTask drains the buffer to disk
         // before pause flips the discard flag. Without this, the buffer can
         // sit in the events mailbox behind the pause call and stop fails
@@ -2765,8 +3581,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let stoppedAt = Date()
         let totalWallclock = stoppedAt.timeIntervalSince(startedAt)
 
+        let elapsedDurationSeconds = Double(try XCTUnwrap(output.captureReport).elapsedDurationMs) / 1_000
         XCTAssertLessThan(
-            output.durationSeconds,
+            elapsedDurationSeconds,
             totalWallclock,
             "Paused interval must be subtracted from the persisted duration"
         )
@@ -2774,7 +3591,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         // (60% of the pause window), still proving subtraction happened
         // while leaving CI-friendly headroom for pre-pause overhead.
         XCTAssertLessThan(
-            output.durationSeconds,
+            elapsedDurationSeconds,
             totalWallclock - 0.6
         )
     }
@@ -2793,10 +3610,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let prePauseHostTime = AVAudioTime.hostTime(
             forSeconds: max(0, ProcessInfo.processInfo.systemUptime - 1)
         )
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: prePauseHostTime)
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: prePauseHostTime)
+            ))
 
         await service.pauseRecording()
 
@@ -2822,10 +3640,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         var lastHostTime: UInt64 = 0
         for index in 0..<24 {
             lastHostTime = AVAudioTime.hostTime(forSeconds: baseSeconds + (Double(index) * 0.01))
-            await captureService.yield(.microphoneBuffer(
-                microphoneBuffer,
-                AVAudioTime(hostTime: lastHostTime)
-            ))
+            await captureService.yield(
+                .microphoneBuffer(
+                    microphoneBuffer,
+                    AVAudioTime(hostTime: lastHostTime)
+                ))
         }
 
         let output = try await service.stopRecording()
@@ -2845,10 +3664,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            ))
         // Same actor-mailbox ordering caveat as the resume sibling test.
         try await Task.sleep(for: .milliseconds(50))
 
@@ -2865,8 +3685,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let stoppedAt = Date()
         let totalWallclock = stoppedAt.timeIntervalSince(startedAt)
 
+        let elapsedDurationSeconds = Double(try XCTUnwrap(output.captureReport).elapsedDurationMs) / 1_000
         XCTAssertLessThan(
-            output.durationSeconds,
+            elapsedDurationSeconds,
             totalWallclock - 0.6,
             "Stopping while paused must still subtract the in-flight pause interval"
         )
@@ -2891,10 +3712,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         // Push a non-trivial buffer while paused — service must drop it
         // without updating levels and without forwarding to the chunker.
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.6))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 2.0))
-        ))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 2.0))
+            ))
         // Give the actor a chance to process the buffer.
         try await Task.sleep(for: .milliseconds(50))
 
@@ -3619,6 +4441,26 @@ private final class MeetingTestWallClock: @unchecked Sendable {
     }
 }
 
+private final class MeetingTestAudioHostClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hostTime: UInt64
+
+    init(seconds: TimeInterval) {
+        hostTime = AVAudioTime.hostTime(forSeconds: seconds)
+    }
+
+    var now: UInt64 {
+        lock.withLock { hostTime }
+    }
+
+    func advance(by seconds: TimeInterval) {
+        lock.withLock {
+            let currentSeconds = AVAudioTime.seconds(forHostTime: hostTime)
+            hostTime = AVAudioTime.hostTime(forSeconds: currentSeconds + seconds)
+        }
+    }
+}
+
 private final class MeetingSpeechSelectionBox: @unchecked Sendable {
     private let lock = NSLock()
     private var selection: SpeechEngineSelection
@@ -3774,8 +4616,9 @@ private actor ChunkRangeRecordingMeetingSTTClient: STTClientProtocol {
         let stem = fileName.replacingOccurrences(of: ".wav", with: "")
         let parts = stem.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
         guard parts.count == 3,
-              let startMs = Int(parts[1]),
-              let endMs = Int(parts[2]) else {
+            let startMs = Int(parts[1]),
+            let endMs = Int(parts[2])
+        else {
             return STTResult(text: "", words: [])
         }
 

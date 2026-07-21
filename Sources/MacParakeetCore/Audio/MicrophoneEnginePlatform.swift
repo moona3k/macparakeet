@@ -51,6 +51,12 @@ public protocol MicrophoneEnginePlatform: AnyObject, Sendable {
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     )
+
+    /// Install a callback for a post-start engine death that the platform could
+    /// not recover within its bounded retry window. The callback runs off the
+    /// platform queue. Owners should reconcile their logical running state and
+    /// notify active consumers; normal `stopEngine()` teardown never calls it.
+    func setUnexpectedStopHandler(_ handler: (@Sendable () -> Void)?)
 }
 
 public extension MicrophoneEnginePlatform {
@@ -59,6 +65,8 @@ public extension MicrophoneEnginePlatform {
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) {}
+
+    func setUnexpectedStopHandler(_ handler: (@Sendable () -> Void)?) {}
 }
 
 /// The tap is installed during idle preparation, but the callback requested by
@@ -114,6 +122,64 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
     }
 }
 
+private final class MicrophoneRecoveryTapGate: @unchecked Sendable {
+    enum Observation {
+        case inactive
+        case first
+        case subsequent
+    }
+
+    private struct State {
+        var activeGeneration: UInt64?
+        var receivedFirstBuffer = false
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: State())
+
+    func activate(generation: UInt64) {
+        lock.withLock { state in
+            state.activeGeneration = generation
+            state.receivedFirstBuffer = false
+        }
+    }
+
+    func observeBuffer(generation: UInt64) -> Observation {
+        lock.withLock { state in
+            guard state.activeGeneration == generation else { return .inactive }
+            guard !state.receivedFirstBuffer else { return .subsequent }
+            state.receivedFirstBuffer = true
+            return .first
+        }
+    }
+
+    func isAwaitingFirstBuffer(generation: UInt64) -> Bool {
+        lock.withLock { state in
+            state.activeGeneration == generation && !state.receivedFirstBuffer
+        }
+    }
+
+    func hasReceivedFirstBuffer(generation: UInt64) -> Bool {
+        lock.withLock { state in
+            state.activeGeneration == generation && state.receivedFirstBuffer
+        }
+    }
+
+    func invalidate(generation: UInt64) {
+        lock.withLock { state in
+            guard state.activeGeneration == generation else { return }
+            state.activeGeneration = nil
+            state.receivedFirstBuffer = false
+        }
+    }
+
+    func invalidateAll() {
+        lock.withLock { state in
+            state.activeGeneration = nil
+            state.receivedFirstBuffer = false
+        }
+    }
+}
+
 /// Production adapter that drives a real `AVAudioEngine`. Mirrors the
 /// engine-lifecycle invariants from `MicrophoneCapture` (PR #186):
 ///
@@ -146,9 +212,20 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private let routeListenerQueue = DispatchQueue(
         label: "com.macparakeet.shared-mic-platform.route-listener"
     )
+    private let callbackQueue = DispatchQueue(
+        label: "com.macparakeet.shared-mic-platform.callbacks"
+    )
     private let deviceAttemptsBuilder: DeviceAttemptsBuilder?
     private let inputDeviceSetter: InputDeviceSetter
     private let engineStarter: EngineStarter?
+    /// The production schedule spans 31.5 seconds so a Bluetooth handoff that
+    /// takes ~20 seconds to settle remains recoverable without an unbounded loop.
+    private static let defaultRecoveryRetryDelays: [TimeInterval] = [0.5, 1, 2, 4, 8, 16]
+    private static let defaultRecoveryRouteChangeDebounce: TimeInterval = 0.5
+    private static let defaultRecoveryReadinessTimeout: TimeInterval = 2
+    private let recoveryRetryDelays: [TimeInterval]
+    private let recoveryRouteChangeDebounce: TimeInterval
+    private let recoveryReadinessTimeout: TimeInterval
     private var audioEngine = AVAudioEngine()
     private var running: Bool = false
     private var lastSucceededAttemptLocked: MeetingInputDeviceAttempt?
@@ -162,19 +239,27 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// trigger for the silent tap-stall under investigation.
     private var configurationChangeObserver: NSObjectProtocol?
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
-    /// Parameters from the most recent successful start. Used by the
-    /// configuration-change observer to re-run the exact same start sequence
-    /// during self-healing recovery. Cleared at the start of each configure
-    /// attempt and in `stopEngine()` — including when the platform is already
-    /// stopped — so a stale tap-handler closure is never retained after a
-    /// failed start or explicit stop. Never cleared by teardown / reset /
-    /// engine-replace helpers (they are part of the recovery path).
+    /// Parameters for the capture the caller still wants active. This desired
+    /// state is deliberately separate from `running`, which reflects the actual
+    /// AVAudioEngine state and becomes false during a recovery attempt. External
+    /// start failure and explicit stop clear the request; transient internal
+    /// recovery failure preserves it until retry success or exhaustion.
     private struct StartRequest {
         let vpioEnabled: Bool
         let bufferSize: AVAudioFrameCount
         let tapHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     }
-    private var lastStartRequestLocked: StartRequest?
+    private var activeStartRequestLocked: StartRequest?
+    private var recoveryEpisodeGenerationLocked: UInt64 = 0
+    private var recoveryScheduleGenerationLocked: UInt64 = 0
+    private var nextRecoveryRetryIndexLocked = 0
+    private var recoveryAttemptCountLocked = 0
+    private var recoveryRetryPendingLocked = false
+    private var recoveryReadinessPendingLocked = false
+    private var nextRecoveryTapGenerationLocked: UInt64 = 0
+    private var terminalRecoveryGenerationLocked: UInt64?
+    private var unexpectedStopHandlerLocked: (@Sendable () -> Void)?
+    private let recoveryTapGate = MicrophoneRecoveryTapGate()
 
     // Prepared-but-stopped engine: device + format + tap are paid, but the engine
     // is not started, so there is no capture and no mic indicator. A later
@@ -241,6 +326,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = nil
+        self.recoveryRetryDelays = Self.defaultRecoveryRetryDelays
+        self.recoveryRouteChangeDebounce = Self.defaultRecoveryRouteChangeDebounce
+        self.recoveryReadinessTimeout = Self.defaultRecoveryReadinessTimeout
     }
 
     init(
@@ -248,11 +336,17 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         inputDeviceSetter: @escaping InputDeviceSetter = { deviceID, engine in
             AudioDeviceManager.setInputDevice(deviceID, on: engine)
         },
+        recoveryRetryDelays: [TimeInterval] = AVAudioEngineMicrophonePlatform.defaultRecoveryRetryDelays,
+        recoveryRouteChangeDebounce: TimeInterval = AVAudioEngineMicrophonePlatform.defaultRecoveryRouteChangeDebounce,
+        recoveryReadinessTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultRecoveryReadinessTimeout,
         engineStarter: @escaping EngineStarter
     ) {
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = engineStarter
+        self.recoveryRetryDelays = recoveryRetryDelays.map { max(0, $0) }
+        self.recoveryRouteChangeDebounce = max(0, recoveryRouteChangeDebounce)
+        self.recoveryReadinessTimeout = max(0, recoveryReadinessTimeout)
     }
 
     public var isEngineRunning: Bool {
@@ -306,11 +400,33 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
         try queue.sync {
-            try configureAndStartLocked(
+            cancelRecoveryLocked(clearActiveRequest: true)
+            let request = StartRequest(
                 vpioEnabled: vpioEnabled,
                 bufferSize: bufferSize,
                 tapHandler: tapHandler
             )
+            activeStartRequestLocked = request
+            do {
+                try configureAndStartLocked(
+                    vpioEnabled: request.vpioEnabled,
+                    bufferSize: request.bufferSize,
+                    tapHandler: request.tapHandler
+                )
+            } catch {
+                // An external start that never succeeded owns no continuing
+                // capture intent. Do not retain its tap closure for a future
+                // unrelated start.
+                cancelRecoveryLocked(clearActiveRequest: true)
+                throw error
+            }
+        }
+    }
+
+    public func setUnexpectedStopHandler(_ handler: (@Sendable () -> Void)?) {
+        dispatchPrecondition(condition: .notOnQueue(queue))
+        queue.sync {
+            unexpectedStopHandlerLocked = handler
         }
     }
 
@@ -371,10 +487,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
     public func stopEngine() {
         queue.sync {
-            // Clear the stored start request unconditionally so the tap-handler
-            // closure is never retained past an explicit stop, even when the
-            // platform is already stopped.
-            lastStartRequestLocked = nil
+            // Explicit stop always wins, including while the physical engine is
+            // down between recovery attempts.
+            cancelRecoveryLocked(clearActiveRequest: true)
             let hasConfiguredEngine = running || prepared
             let hasRouteObservers = defaultInputChangeObserver != nil
             guard hasConfiguredEngine || hasRouteObservers else {
@@ -404,9 +519,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void,
         startNow: Bool = true,
-        attemptsOverride: [MeetingInputDeviceAttempt]? = nil
+        attemptsOverride: [MeetingInputDeviceAttempt]? = nil,
+        preserveRouteObservation: Bool = false
     ) throws {
-        lastStartRequestLocked = nil
         let currentRouteSnapshot = startNow ? deviceAttemptsBuilder?() : nil
         // Fast path: a matching prepared engine (device + format + tap already
         // paid, same VPIO/buffer/device) — just start it.
@@ -431,11 +546,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             }
             if prepared, goPreparedLocked() {
                 lastSucceededAttemptLocked = preparedAttempt
-                lastStartRequestLocked = StartRequest(
-                    vpioEnabled: vpioEnabled,
-                    bufferSize: bufferSize,
-                    tapHandler: tapHandler
-                )
                 return
             }
         }
@@ -451,7 +561,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         // VPIO toggle requires a stop → setVoiceProcessingEnabled → start
         // sequence; the engine cannot be reconfigured while running.
         if running {
-            tearDownLocked()
+            tearDownLocked(preserveRouteObservation: preserveRouteObservation)
         }
 
         let attempts = attemptsOverride ?? currentRouteSnapshot ?? []
@@ -465,11 +575,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             )
             if startNow {
                 lastSucceededAttemptLocked = nil
-                lastStartRequestLocked = StartRequest(
-                    vpioEnabled: vpioEnabled,
-                    bufferSize: bufferSize,
-                    tapHandler: tapHandler
-                )
             } else {
                 markPreparedLocked(
                     attempt: nil,
@@ -523,11 +628,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 )
                 if startNow {
                     lastSucceededAttemptLocked = attempt
-                    lastStartRequestLocked = StartRequest(
-                        vpioEnabled: vpioEnabled,
-                        bufferSize: bufferSize,
-                        tapHandler: tapHandler
-                    )
                 } else {
                     markPreparedLocked(
                         attempt: attempt,
@@ -822,14 +922,16 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         return true
     }
 
-    private func tearDownLocked() {
+    private func tearDownLocked(preserveRouteObservation: Bool = false) {
         prepared = false
         preparedRouteSnapshot = nil
         preparedConfigurationGeneration = 0
         tapHandlerBox?.clear()
         tapHandlerBox = nil
         removeConfigurationChangeObserverLocked()
-        removeRouteChangeObserversLocked()
+        if !preserveRouteObservation {
+            removeRouteChangeObserversLocked()
+        }
         guard engineStarter == nil else {
             audioEngine = AVAudioEngine()
             running = false
@@ -955,49 +1057,302 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
     }
 
-    /// Attempts to restart capture after an `AVAudioEngineConfigurationChange`
-    /// notification. All four gates must be satisfied:
-    /// 1. `running == true` — an explicit stop wins and suppresses recovery.
-    /// 2. `engineBox.wraps(audioEngine)` — the notification belongs to the
-    ///    current engine instance; stale events for a replaced engine are
-    ///    discarded.
-    /// 3. `engineBox.isEngineRunning() == false` — the engine actually
-    ///    stopped; benign notifications around a healthy start are no-ops.
-    /// 4. `lastStartRequestLocked != nil` — we have the parameters to replay.
-    ///
-    /// On success the engine is restarted with the original parameters.
-    /// On failure `running` is left `false` (the start helpers guarantee
-    /// this); a failed recovery does NOT retry — the next explicit
-    /// `configureAndStart` resets everything.
-    ///
-    /// Loop safety: the observer is registered with `object: audioEngine` and
-    /// removed on every teardown. Recovery replaces the engine, installing a
-    /// fresh observer on the new instance. A failed recovery leaves
-    /// `running == false`, which gates further attempts.
+    /// Begins bounded recovery after an `AVAudioEngineConfigurationChange`.
+    /// The notification gates remain strict: the caller still wants capture,
+    /// the event belongs to the current engine, and that engine really stopped.
+    /// A failed immediate attempt keeps the desired request alive and retries
+    /// on fresh engines through the production backoff window. Route changes
+    /// trailing-debounce the pending attempt so USB/Bluetooth handoff bursts do
+    /// not create a restart storm.
     private func recoverFromConfigurationChangeLocked(engineBox: UncheckedSendableAudioEngine) {
         guard running else { return }
         guard engineBox.wraps(audioEngine) else { return }
         guard !engineBox.isEngineRunning() else { return }
-        guard let request = lastStartRequestLocked else { return }
+        guard activeStartRequestLocked != nil else { return }
 
-        AudioCaptureDiagnostics.append("shared_mic_engine_config_change_recovery_attempt")
-        logger.info("shared_mic_engine_config_change_recovery_attempt")
+        if recoveryReadinessPendingLocked {
+            let episodeGeneration = recoveryEpisodeGenerationLocked
+            recoveryReadinessPendingLocked = false
+            recoveryTapGate.invalidateAll()
+            AudioCaptureDiagnostics.append(
+                "shared_mic_engine_config_change_during_recovery attempt=\(recoveryAttemptCountLocked)"
+            )
+            tearDownLocked(preserveRouteObservation: true)
+            installRouteChangeObserversLocked()
+            scheduleNextRecoveryRetryLocked(episodeGeneration: episodeGeneration)
+            return
+        }
+
+        recoveryEpisodeGenerationLocked &+= 1
+        recoveryScheduleGenerationLocked &+= 1
+        nextRecoveryRetryIndexLocked = 0
+        recoveryAttemptCountLocked = 0
+        recoveryRetryPendingLocked = false
+        recoveryReadinessPendingLocked = false
+        recoveryTapGate.invalidateAll()
+        terminalRecoveryGenerationLocked = nil
+        attemptRecoveryLocked(
+            episodeGeneration: recoveryEpisodeGenerationLocked,
+            trigger: "configuration_change"
+        )
+    }
+
+    private func attemptRecoveryLocked(
+        episodeGeneration: UInt64,
+        trigger: String
+    ) {
+        guard episodeGeneration == recoveryEpisodeGenerationLocked,
+            let request = activeStartRequestLocked
+        else { return }
+
+        recoveryAttemptCountLocked += 1
+        let attempt = recoveryAttemptCountLocked
+        nextRecoveryTapGenerationLocked &+= 1
+        let tapGeneration = nextRecoveryTapGenerationLocked
+        recoveryTapGate.activate(generation: tapGeneration)
+        recoveryReadinessPendingLocked = true
+        let recoveryTapHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = {
+            [weak self, tapGeneration] buffer, time in
+            guard let self else { return }
+            switch self.recoveryTapGate.observeBuffer(generation: tapGeneration) {
+            case .inactive:
+                return
+            case .first:
+                request.tapHandler(buffer, time)
+                self.queue.async { [weak self] in
+                    self?.completeRecoveryAfterFirstBufferLocked(
+                        episodeGeneration: episodeGeneration,
+                        tapGeneration: tapGeneration,
+                        attempt: attempt,
+                        trigger: trigger
+                    )
+                }
+            case .subsequent:
+                request.tapHandler(buffer, time)
+            }
+        }
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_config_change_recovery_attempt attempt=\(attempt) trigger=\(trigger)"
+        )
+        logger.info(
+            "shared_mic_engine_config_change_recovery_attempt attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public)"
+        )
 
         do {
             try configureAndStartLocked(
                 vpioEnabled: request.vpioEnabled,
                 bufferSize: request.bufferSize,
-                tapHandler: request.tapHandler
+                tapHandler: recoveryTapHandler,
+                preserveRouteObservation: true
             )
-            AudioCaptureDiagnostics.append("shared_mic_engine_config_change_recovery_succeeded")
-            logger.info("shared_mic_engine_config_change_recovery_succeeded")
+            awaitFirstRecoveryBufferLocked(
+                episodeGeneration: episodeGeneration,
+                tapGeneration: tapGeneration,
+                attempt: attempt,
+                trigger: trigger
+            )
         } catch {
+            recoveryReadinessPendingLocked = false
+            recoveryTapGate.invalidate(generation: tapGeneration)
             AudioCaptureDiagnostics.append(
-                "shared_mic_engine_config_change_recovery_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                "shared_mic_engine_config_change_recovery_failed attempt=\(attempt) trigger=\(trigger) \(AudioCaptureDiagnostics.errorFields(error))"
             )
             logger.error(
-                "shared_mic_engine_config_change_recovery_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                "shared_mic_engine_config_change_recovery_failed attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            // `configureAndStartLocked` used a fresh engine and re-read the
+            // current route/format. Keep observing default-input changes while
+            // the physical engine is down so a later settled route can re-arm
+            // the pending retry.
+            installRouteChangeObserversLocked()
+            scheduleNextRecoveryRetryLocked(episodeGeneration: episodeGeneration)
+        }
+    }
+
+    private func awaitFirstRecoveryBufferLocked(
+        episodeGeneration: UInt64,
+        tapGeneration: UInt64,
+        attempt: Int,
+        trigger: String
+    ) {
+        guard episodeGeneration == recoveryEpisodeGenerationLocked,
+            activeStartRequestLocked != nil,
+            running,
+            recoveryReadinessPendingLocked
+        else { return }
+
+        if recoveryTapGate.hasReceivedFirstBuffer(generation: tapGeneration) {
+            completeRecoveryAfterFirstBufferLocked(
+                episodeGeneration: episodeGeneration,
+                tapGeneration: tapGeneration,
+                attempt: attempt,
+                trigger: trigger
+            )
+            return
+        }
+        guard recoveryTapGate.isAwaitingFirstBuffer(generation: tapGeneration) else { return }
+
+        recoveryScheduleGenerationLocked &+= 1
+        let scheduleGeneration = recoveryScheduleGenerationLocked
+        queue.asyncAfter(deadline: .now() + recoveryReadinessTimeout) { [weak self] in
+            guard let self,
+                self.recoveryEpisodeGenerationLocked == episodeGeneration,
+                self.recoveryScheduleGenerationLocked == scheduleGeneration,
+                self.recoveryReadinessPendingLocked,
+                self.activeStartRequestLocked != nil,
+                self.running,
+                self.recoveryTapGate.isAwaitingFirstBuffer(generation: tapGeneration)
+            else { return }
+
+            self.recoveryReadinessPendingLocked = false
+            self.recoveryTapGate.invalidate(generation: tapGeneration)
+            AudioCaptureDiagnostics.append(
+                "shared_mic_engine_config_change_recovery_no_first_buffer attempt=\(attempt) trigger=\(trigger) timeout_s=\(self.recoveryReadinessTimeout)"
+            )
+            self.logger.error(
+                "shared_mic_engine_config_change_recovery_no_first_buffer attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public) timeout_s=\(self.recoveryReadinessTimeout, privacy: .public)"
+            )
+            self.tearDownLocked(preserveRouteObservation: true)
+            self.installRouteChangeObserversLocked()
+            self.scheduleNextRecoveryRetryLocked(episodeGeneration: episodeGeneration)
+        }
+    }
+
+    private func completeRecoveryAfterFirstBufferLocked(
+        episodeGeneration: UInt64,
+        tapGeneration: UInt64,
+        attempt: Int,
+        trigger: String
+    ) {
+        guard episodeGeneration == recoveryEpisodeGenerationLocked,
+            activeStartRequestLocked != nil,
+            running,
+            recoveryReadinessPendingLocked,
+            recoveryTapGate.hasReceivedFirstBuffer(generation: tapGeneration)
+        else { return }
+
+        recoveryScheduleGenerationLocked &+= 1
+        nextRecoveryRetryIndexLocked = 0
+        recoveryAttemptCountLocked = 0
+        recoveryRetryPendingLocked = false
+        recoveryReadinessPendingLocked = false
+        terminalRecoveryGenerationLocked = nil
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_config_change_recovery_succeeded attempt=\(attempt) trigger=\(trigger)"
+        )
+        logger.info(
+            "shared_mic_engine_config_change_recovery_succeeded attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public)"
+        )
+    }
+
+    private func scheduleNextRecoveryRetryLocked(episodeGeneration: UInt64) {
+        guard episodeGeneration == recoveryEpisodeGenerationLocked,
+            activeStartRequestLocked != nil,
+            !running
+        else { return }
+
+        guard nextRecoveryRetryIndexLocked < recoveryRetryDelays.count else {
+            exhaustRecoveryLocked(episodeGeneration: episodeGeneration)
+            return
+        }
+
+        let delay = recoveryRetryDelays[nextRecoveryRetryIndexLocked]
+        nextRecoveryRetryIndexLocked += 1
+        scheduleRecoveryRetryLocked(
+            episodeGeneration: episodeGeneration,
+            delay: delay,
+            trigger: "backoff"
+        )
+    }
+
+    private func scheduleRecoveryRetryLocked(
+        episodeGeneration: UInt64,
+        delay: TimeInterval,
+        trigger: String
+    ) {
+        recoveryScheduleGenerationLocked &+= 1
+        let scheduleGeneration = recoveryScheduleGenerationLocked
+        recoveryRetryPendingLocked = true
+        let retryNumber = nextRecoveryRetryIndexLocked
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_config_change_recovery_scheduled retry=\(retryNumber) delay_s=\(delay) trigger=\(trigger)"
+        )
+
+        queue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self,
+                self.recoveryEpisodeGenerationLocked == episodeGeneration,
+                self.recoveryScheduleGenerationLocked == scheduleGeneration,
+                self.recoveryRetryPendingLocked,
+                self.activeStartRequestLocked != nil,
+                !self.running
+            else { return }
+
+            self.recoveryRetryPendingLocked = false
+            self.attemptRecoveryLocked(
+                episodeGeneration: episodeGeneration,
+                trigger: trigger
+            )
+        }
+    }
+
+    private func rescheduleRecoveryAfterRouteChangeLocked() {
+        guard recoveryRetryPendingLocked,
+            activeStartRequestLocked != nil,
+            !running
+        else { return }
+
+        scheduleRecoveryRetryLocked(
+            episodeGeneration: recoveryEpisodeGenerationLocked,
+            delay: recoveryRouteChangeDebounce,
+            trigger: "route_change"
+        )
+    }
+
+    private func exhaustRecoveryLocked(episodeGeneration: UInt64) {
+        guard episodeGeneration == recoveryEpisodeGenerationLocked,
+            !running
+        else { return }
+
+        activeStartRequestLocked = nil
+        recoveryScheduleGenerationLocked &+= 1
+        recoveryRetryPendingLocked = false
+        recoveryReadinessPendingLocked = false
+        recoveryTapGate.invalidateAll()
+        terminalRecoveryGenerationLocked = episodeGeneration
+        removeConfigurationChangeObserverLocked()
+        removeRouteChangeObserversLocked()
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_config_change_recovery_exhausted attempts=\(recoveryAttemptCountLocked)"
+        )
+        logger.error(
+            "shared_mic_engine_config_change_recovery_exhausted attempts=\(self.recoveryAttemptCountLocked, privacy: .public)"
+        )
+
+        guard let handler = unexpectedStopHandlerLocked else { return }
+        callbackQueue.async { [weak self, handler] in
+            guard let self else { return }
+            let shouldNotify = self.queue.sync {
+                self.recoveryEpisodeGenerationLocked == episodeGeneration
+                    && self.terminalRecoveryGenerationLocked == episodeGeneration
+                    && self.activeStartRequestLocked == nil
+                    && !self.running
+            }
+            guard shouldNotify else { return }
+            handler()
+        }
+    }
+
+    private func cancelRecoveryLocked(clearActiveRequest: Bool) {
+        recoveryEpisodeGenerationLocked &+= 1
+        recoveryScheduleGenerationLocked &+= 1
+        nextRecoveryRetryIndexLocked = 0
+        recoveryAttemptCountLocked = 0
+        recoveryRetryPendingLocked = false
+        recoveryReadinessPendingLocked = false
+        recoveryTapGate.invalidateAll()
+        terminalRecoveryGenerationLocked = nil
+        if clearActiveRequest {
+            activeStartRequestLocked = nil
         }
     }
 
@@ -1008,11 +1363,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 mScope: kAudioObjectPropertyScopeGlobal,
                 mElement: kAudioObjectPropertyElementMain
             )
-            let inputBlock: AudioObjectPropertyListenerBlock = { _, _ in
+            let inputBlock: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 AudioCaptureDiagnostics.append(
                     "audio_default_input_changed \(AudioCaptureDiagnostics.defaultInputDeviceSummary())"
                 )
                 NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
+                self?.queue.async { [weak self] in
+                    self?.rescheduleRecoveryAfterRouteChangeLocked()
+                }
             }
             let inputStatus = AudioObjectAddPropertyListenerBlock(
                 AudioObjectID(kAudioObjectSystemObject),

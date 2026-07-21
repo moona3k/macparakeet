@@ -12,6 +12,7 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertNil(t.audioTrackOrdinal)
         XCTAssertNil(t.fileSizeBytes)
         XCTAssertNil(t.durationMs)
+        XCTAssertNil(t.meetingCaptureReport)
         XCTAssertNil(t.rawTranscript)
         XCTAssertNil(t.cleanTranscript)
         XCTAssertNil(t.wordTimestamps)
@@ -80,6 +81,28 @@ final class TranscriptionModelTests: XCTestCase {
     }
 
     func testTranscriptionCodableRoundTrip() throws {
+        let captureReport = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                )
+            ),
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .microphone
+        )
         let original = Transcription(
             fileName: "test.wav",
             audioTrackOrdinal: 1,
@@ -88,7 +111,8 @@ final class TranscriptionModelTests: XCTestCase {
             wordTimestamps: [
                 WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.98)
             ],
-            status: .completed
+            status: .completed,
+            meetingCaptureReport: captureReport
         )
 
         let encoder = JSONEncoder()
@@ -105,6 +129,8 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertEqual(decoded.rawTranscript, original.rawTranscript)
         XCTAssertEqual(decoded.wordTimestamps?.count, 1)
         XCTAssertEqual(decoded.status, original.status)
+        XCTAssertEqual(decoded.meetingCaptureReport, captureReport)
+        XCTAssertEqual(decoded.meetingCaptureReport?.playbackFallbackSource, .microphone)
     }
 
     // MARK: - Backward Compatibility

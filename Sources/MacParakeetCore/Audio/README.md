@@ -22,9 +22,11 @@ owned by `AppEnvironment`.
   fallback chain, VPIO toggle, tap install, engine recreation on
   every teardown (so coreaudiod releases the VPAU aggregate
   device), `AVAudioEngineConfigurationChangeNotification` observer,
-  configuration-change self-healing (four-gated restart on HAL
+  configuration-change self-healing (strictly gated, bounded retries on HAL
   reconfiguration — the Apple-documented contract for
-  `AVAudioEngineConfigurationChange` clients).
+  `AVAudioEngineConfigurationChange` clients). Notifications received while a
+  replacement still awaits its first buffer remain in the same recovery
+  episode; they do not replenish the retry budget.
 
 **Mic consumers (each subscribes to the shared stream)**
 - `AudioRecorder.swift` — dictation capture.
@@ -48,7 +50,9 @@ owned by `AppEnvironment`.
   with `wantsVPIO: false` by default via `MeetingMicProcessingMode.raw`.
   VPIO modes remain available for explicit experiments, with raw fallback
   when `.vpioPreferred` cannot engage. Has its own silent-buffer watchdog
-  with a stall observer wired up to the meeting flow.
+  with a stall observer wired up to the meeting flow. Stop is an ordered async
+  boundary: it retires callbacks and awaits shared-stream unsubscription before
+  a replacement meeting may start.
 
 **Meeting-side audio (independent of the mic stream)**
 - `SystemAudioStream.swift` — meeting system audio via
@@ -56,10 +60,15 @@ owned by `AppEnvironment`.
   `AVAudioEngine`. The complete startup attempt and callback-style
   start/stop boundaries have deadlines; late successful starts are stopped
   again rather than allowed to revive capture. Has its own first-buffer
-  watchdog.
+  watchdog. Unexpected `SCStreamDelegate` termination is a typed recoverable
+  source loss; ScreenCaptureKit's explicit `userStopped` code remains terminal.
 - `MeetingAudioCaptureService.swift` — composes mic + system audio
   for meeting recording. It owns partial startup explicitly, so Stop tears
   down whichever sources have started even before startup reports success.
+  Each settled Stop creates a new event-stream session, and system-audio
+  callback generations retire before teardown is awaited or a terminal event
+  is published. A source failure racing the initial async start is retained
+  until the start-to-running handoff, so a dead stream cannot be promoted.
 - `MeetingAudioStorageWriter.swift` — fragmented MP4 writer for
   meeting source files (ADR-019 crash recovery).
 - `MeetingAudioError.swift`, `MeetingMicProcessingMode.swift` —
@@ -257,21 +266,35 @@ the capture-health snapshot before STT runs. Keep mid-session heartbeat logs
 non-disruptive; they are still there to diagnose stalls without inventing a
 second recovery path.
 
-**The configuration-change observer self-heals (four-gated restart).** When
+**The configuration-change observer self-heals (gated, bounded recovery).** When
 `AVAudioEngine` stops itself after an `AVAudioEngineConfigurationChange`
 notification (default-input change, format change, sample-rate change), the
-observer in `MicrophoneEnginePlatform` attempts a self-healing restart — this
-is the Apple-documented client contract for that notification, not a
-diagnostic-turned-error. Recovery runs only when all four gates pass:
+observer in `MicrophoneEnginePlatform` starts self-healing recovery — this is
+the Apple-documented client contract for that notification, not a
+diagnostic-turned-error. Recovery starts only when all four gates pass:
 (1) `running == true` (explicit stop wins), (2) the notification belongs to
 the current engine instance (stale events for replaced engines are discarded),
 (3) `AVAudioEngine.isRunning == false` (benign notifications around a healthy
 start are no-ops), and (4) the original start parameters are known. The
-watchdog and heartbeat in `AudioRecorder` remain log-only; only the
-configuration-change path self-heals. Three new log events mark the recovery
-flow: `shared_mic_engine_config_change_recovery_attempt`,
+immediate restart and every retry rebuild the engine, resolve the current input
+route, and query its live format. Failures use a bounded 31.5-second backoff;
+default-input changes trailing-debounce the pending attempt so a USB/Bluetooth
+handoff can settle without causing a restart storm. An engine start is only a
+candidate recovery: the replacement must deliver its first real buffer before
+the attempt is accepted. A silent replacement is torn down and retried.
+Explicit Stop cancels the
+episode and no queued retry may resurrect capture. If every retry fails, the
+platform reports terminal engine death to `SharedMicrophoneStream`, which
+invalidates subscriptions and fires their existing `onEngineDeath` handlers.
+Meeting capture maps that terminal death to a microphone-source interruption
+when system audio is also selected, so the healthy sibling source continues;
+microphone-only capture keeps the existing whole-capture failure semantics.
+The watchdog and heartbeat in `AudioRecorder` remain log-only; only the
+configuration-change path self-heals. Recovery log events include
+`shared_mic_engine_config_change_recovery_attempt`,
 `shared_mic_engine_config_change_recovery_succeeded`, and
-`shared_mic_engine_config_change_recovery_failed`. The
+`shared_mic_engine_config_change_recovery_failed`, plus scheduling and terminal
+exhaustion records. The
 `shared_mic_engine_configuration_changed` line now includes an
 `engine_is_running=` field (actual `AVAudioEngine.isRunning`) alongside the
 existing `isRunning=` (platform `running` flag).
@@ -312,6 +335,22 @@ replacement start cannot route an old callback into its new handler. Keep
 `MeetingAudioCaptureService`'s `starting` ownership in sync with this rule:
 Stop during partial startup must stop all sources already created and a late
 start result must never restore the service to running.
+
+**System-audio stalls use source-owned replacement, not in-place restart.**
+`SystemAudioStream` reports first-buffer timeouts and heartbeat gaps as the
+typed `MeetingSystemAudioStall` error. `MeetingAudioCaptureService`, which owns
+the stream factory and meeting lifecycle, responds by retiring that capture
+generation, awaiting its bounded Stop, and creating a fresh `SystemAudioStream`
+for each bounded retry. Six attempts use 23 seconds of cumulative scheduled
+backoff (`0, 1, 2, 4, 8, 8` seconds); bounded stream lifecycle and first-buffer
+readiness waits are additional. This extends beyond the observed route-change
+settlement window. A replacement is healthy only after its first valid buffer;
+until then the service emits `sourceRecoveryStarted`, keeps the microphone
+untouched, and retries start/no-buffer failures. The first replacement buffer
+is delivered before `sourceRecovered`. Only exhausted retries produce the
+terminal `sourceInterrupted`/`error` event. Duplicate stall callbacks are
+coalesced, stale generations cannot publish buffers, and explicit Stop cancels
+and awaits recovery so no delayed attempt can revive capture.
 
 **The diagnostic log file is shared across processes.** Both the dev
 app and `swift test` write to

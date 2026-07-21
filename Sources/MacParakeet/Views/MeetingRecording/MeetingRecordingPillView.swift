@@ -273,7 +273,7 @@ struct MeetingRecordingPillView: View {
     }
 
     var visibleSourceHealthWarning: MeetingSourceHealthChip? {
-        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.mirroredSourceHealthWarning : nil
+        viewModel.mirroredVisibleSourceHealthWarning
     }
 
     private var pillBackground: some View {

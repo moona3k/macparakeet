@@ -1323,6 +1323,16 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.30 — Durable, frame-derived meeting capture quality. The JSON
+        // shape is additive and optional so legacy rows remain "unknown"
+        // instead of being mislabeled healthy.
+        migrator.registerMigration("v0.30-meeting-capture-report") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("meetingCaptureReport") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN meetingCaptureReport TEXT")
+            }
+        }
+
         return migrator
     }
 

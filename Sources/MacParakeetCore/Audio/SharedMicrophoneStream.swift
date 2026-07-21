@@ -44,10 +44,10 @@ import os
 ///    first; the engine may reuse the underlying memory immediately after
 ///    return.
 ///
-/// 7. **Engine death is observable.** When a deferred-VPIO promotion's
-///    `tearDown → setVoiceProcessingEnabled → start` sequence fails, the
-///    engine is left stopped. `diagnostics.engineRunning` reflects this,
-///    remaining subscriptions are invalidated, and each captured
+/// 7. **Engine death is observable.** When a deferred-VPIO promotion fails,
+///    or the platform exhausts bounded recovery after a live configuration
+///    change, the engine is left stopped. `diagnostics.engineRunning` reflects
+///    this, remaining subscriptions are invalidated, and each captured
 ///    `onEngineDeath` callback fires (off-lock, off the engine queue) so
 ///    consumers can surface a stall to the user instead of silently going
 ///    quiet.
@@ -148,6 +148,9 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         self.bufferSize = bufferSize
         self.autoPrewarmWhenIdle = autoPrewarmWhenIdle
         self.prewarmRefreshDebounce = max(0, prewarmRefreshDebounce)
+        platform.setUnexpectedStopHandler { [weak self] in
+            self?.handleUnexpectedPlatformStop()
+        }
     }
 
     // MARK: - Public API
@@ -496,6 +499,29 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
             for callback in callbacks {
                 callback()
             }
+        }
+    }
+
+    /// Reconcile the stream's desired/logical state after the platform has
+    /// exhausted recovery for a post-start engine death. The callback enters
+    /// through the stream's serialization queue so it cannot interleave with
+    /// subscribe/unsubscribe state transitions. A platform restart that wins
+    /// the race suppresses this now-stale notification.
+    private func handleUnexpectedPlatformStop() {
+        engineQueue.async { [weak self] in
+            guard let self, !self.platform.isEngineRunning else { return }
+            let shouldInvalidate = self.lock.withLock { state in
+                state.engineRunning || !state.subscribers.isEmpty
+            }
+            guard shouldInvalidate else { return }
+
+            let deathCallbacks = self.invalidateSubscribersAfterEngineDeath()
+            self.emitDiagnosticsLog(
+                transition: "platform_engine_dead",
+                wantsVPIO: nil,
+                blocksVPIOPromotion: nil
+            )
+            self.fireEngineDeathCallbacks(deathCallbacks)
         }
     }
 

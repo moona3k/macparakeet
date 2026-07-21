@@ -564,12 +564,14 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
             transcription.filePath = transcription.filePath ?? recording.mixedAudioURL.path
             transcription.meetingArtifactFolderPath = transcription.meetingArtifactFolderPath ?? recording.folderURL.path
             transcription.fileSizeBytes = transcription.fileSizeBytes ?? meetingFileSize(for: recording)
-            transcription.durationMs = transcription.durationMs ?? Int((recording.durationSeconds * 1000).rounded())
+            transcription.durationMs = recording.playableDurationMs
             transcription.sourceType = .meeting
             transcription.status = .processing
             transcription.errorMessage = nil
             transcription.userNotes = transcription.userNotes ?? recording.userNotes
             transcription.meetingStartContext = transcription.meetingStartContext ?? recording.startContext
+            transcription.meetingCaptureReport = recording.captureReport
+                ?? transcription.meetingCaptureReport
             transcription.calendarEventSnapshot = transcription.calendarEventSnapshot ?? recording.calendarEventSnapshot
             transcription.updatedAt = Date()
             try transcriptionRepo.save(transcription)
@@ -1237,12 +1239,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             fileSizeBytes: meetingFileSize(for: recording),
-            durationMs: Int((recording.durationSeconds * 1000).rounded()),
+            durationMs: recording.playableDurationMs,
             language: nil,
             status: .processing,
             sourceType: .meeting,
             userNotes: recording.userNotes,
             meetingStartContext: recording.startContext,
+            meetingCaptureReport: recording.captureReport,
             engine: recording.speechEngine.engine.rawValue,
             calendarEventSnapshot: recording.calendarEventSnapshot
         )
@@ -1329,10 +1332,12 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
                 transcription.engine = engineSource.result.engine.rawValue
                 transcription.engineVariant = engineSource.result.engineVariant
             }
-            transcription.durationMs = max(
-                Int((recording.durationSeconds * 1000).rounded()),
-                finalized.durationMs ?? 0
-            )
+            // Meeting duration describes playable media, not STT token extent
+            // or wall-clock session time. Engines can emit timestamps beyond
+            // the file edge; those must not inflate the saved recording.
+            transcription.durationMs = recording.playableDurationMs
+            transcription.meetingCaptureReport = recording.captureReport
+                ?? transcription.meetingCaptureReport
             transcription.speakers = finalized.speakers
             transcription.speakerCount = finalized.speakers.isEmpty ? nil : finalized.speakers.count
             transcription.diarizationSegments = finalized.diarizationSegments.isEmpty ? nil : finalized.diarizationSegments
