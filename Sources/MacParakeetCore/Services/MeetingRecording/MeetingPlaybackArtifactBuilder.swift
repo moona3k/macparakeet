@@ -139,7 +139,6 @@ actor MeetingPlaybackArtifactBuilder {
         } else {
             try await exportWithLeadingSilence(
                 sourceURL: candidate.candidate.url,
-                sourceDuration: candidate.durationSeconds,
                 leadingSilenceSeconds: offsetSeconds,
                 outputURL: temporaryURL
             )
@@ -157,7 +156,6 @@ actor MeetingPlaybackArtifactBuilder {
 
     private func exportWithLeadingSilence(
         sourceURL: URL,
-        sourceDuration: TimeInterval,
         leadingSilenceSeconds: TimeInterval,
         outputURL: URL
     ) async throws {
@@ -167,7 +165,7 @@ actor MeetingPlaybackArtifactBuilder {
             pathExtension: "caf"
         )
         defer { try? fileManager.removeItem(at: silenceURL) }
-        let renderedSilenceDuration = try writeSilentPrefix(
+        try writeSilentPrefix(
             durationSeconds: leadingSilenceSeconds,
             matching: sourceURL,
             to: silenceURL
@@ -181,6 +179,8 @@ actor MeetingPlaybackArtifactBuilder {
         guard let silenceTrack = try await silenceAsset.loadTracks(withMediaType: .audio).first else {
             throw MeetingAudioError.mixFailed("Playback fallback silence has no audio track.")
         }
+        let sourceTimeRange = try await sourceTrack.load(.timeRange)
+        let silenceTimeRange = try await silenceTrack.load(.timeRange)
 
         let composition = AVMutableComposition()
         guard
@@ -192,19 +192,18 @@ actor MeetingPlaybackArtifactBuilder {
             throw MeetingAudioError.mixFailed("Unable to create playback fallback track.")
         }
 
-        let duration = CMTime(seconds: sourceDuration, preferredTimescale: 48_000)
         // `insertEmptyTimeRange` is only an edit-list gap, which macOS 14's
         // M4A exporter can trim. Insert real silent media so the fallback's
         // source alignment survives every supported OS/toolchain.
         try compositionTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: renderedSilenceDuration),
+            silenceTimeRange,
             of: silenceTrack,
             at: .zero
         )
         try compositionTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: duration),
+            sourceTimeRange,
             of: sourceTrack,
-            at: renderedSilenceDuration
+            at: silenceTimeRange.duration
         )
 
         guard
@@ -219,7 +218,7 @@ actor MeetingPlaybackArtifactBuilder {
         exporter.outputFileType = .m4a
         exporter.timeRange = CMTimeRange(
             start: .zero,
-            duration: CMTimeAdd(renderedSilenceDuration, duration)
+            duration: CMTimeAdd(silenceTimeRange.duration, sourceTimeRange.duration)
         )
         await exporter.export()
 
@@ -235,7 +234,7 @@ actor MeetingPlaybackArtifactBuilder {
         durationSeconds: TimeInterval,
         matching sourceURL: URL,
         to outputURL: URL
-    ) throws -> CMTime {
+    ) throws {
         let sourceFile = try AVAudioFile(forReading: sourceURL)
         let sampleRate = sourceFile.processingFormat.sampleRate
         let channelCount = sourceFile.processingFormat.channelCount
@@ -247,8 +246,6 @@ actor MeetingPlaybackArtifactBuilder {
             channelCount > 0,
             requestedFrames.isFinite,
             requestedFrames <= Double(Int64.max),
-            sampleRate.rounded() >= 1,
-            sampleRate.rounded() <= Double(Int32.max),
             let format = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
                 sampleRate: sampleRate,
@@ -303,10 +300,6 @@ actor MeetingPlaybackArtifactBuilder {
             }
         }
 
-        return CMTime(
-            value: frameCount,
-            timescale: Int32(sampleRate.rounded())
-        )
     }
 
     private func probeDuration(at url: URL) async throws -> TimeInterval {
