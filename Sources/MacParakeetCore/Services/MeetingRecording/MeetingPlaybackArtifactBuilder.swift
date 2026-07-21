@@ -137,7 +137,7 @@ actor MeetingPlaybackArtifactBuilder {
         if offsetSeconds == 0 {
             try fileManager.copyItem(at: candidate.candidate.url, to: temporaryURL)
         } else {
-            try await exportWithLeadingSilence(
+            try await renderWithLeadingSilence(
                 sourceURL: candidate.candidate.url,
                 leadingSilenceSeconds: offsetSeconds,
                 outputURL: temporaryURL
@@ -154,152 +154,108 @@ actor MeetingPlaybackArtifactBuilder {
         return duration
     }
 
-    private func exportWithLeadingSilence(
+    private func renderWithLeadingSilence(
         sourceURL: URL,
         leadingSilenceSeconds: TimeInterval,
         outputURL: URL
     ) async throws {
-        let silenceURL = temporaryURL(
-            nextTo: outputURL,
-            label: "silence",
-            pathExtension: "caf"
-        )
-        defer { try? fileManager.removeItem(at: silenceURL) }
-        try writeSilentPrefix(
-            durationSeconds: leadingSilenceSeconds,
-            matching: sourceURL,
-            to: silenceURL
-        )
-
-        let sourceAsset = AVURLAsset(url: sourceURL)
-        guard let sourceTrack = try await sourceAsset.loadTracks(withMediaType: .audio).first else {
-            throw MeetingAudioError.mixFailed("Playback fallback source has no audio track.")
-        }
-        let silenceAsset = AVURLAsset(url: silenceURL)
-        guard let silenceTrack = try await silenceAsset.loadTracks(withMediaType: .audio).first else {
-            throw MeetingAudioError.mixFailed("Playback fallback silence has no audio track.")
-        }
-        let sourceTimeRange = try await sourceTrack.load(.timeRange)
-        let silenceTimeRange = try await silenceTrack.load(.timeRange)
-
-        let composition = AVMutableComposition()
-        guard
-            let compositionTrack = composition.addMutableTrack(
-                withMediaType: .audio,
-                preferredTrackID: kCMPersistentTrackID_Invalid
+        let renderTask = Task.detached(priority: .utility) {
+            try Self.renderAlignedSource(
+                sourceURL: sourceURL,
+                leadingSilenceSeconds: leadingSilenceSeconds,
+                outputURL: outputURL
             )
-        else {
-            throw MeetingAudioError.mixFailed("Unable to create playback fallback track.")
         }
-
-        // `insertEmptyTimeRange` is only an edit-list gap, which macOS 14's
-        // M4A exporter can trim. Insert real silent media so the fallback's
-        // source alignment survives every supported OS/toolchain.
-        try compositionTrack.insertTimeRange(
-            silenceTimeRange,
-            of: silenceTrack,
-            at: .zero
-        )
-        try compositionTrack.insertTimeRange(
-            sourceTimeRange,
-            of: sourceTrack,
-            at: silenceTimeRange.duration
-        )
-
-        guard
-            let exporter = AVAssetExportSession(
-                asset: composition,
-                presetName: AVAssetExportPresetAppleM4A
-            )
-        else {
-            throw MeetingAudioError.mixFailed("Unable to create playback fallback export.")
-        }
-        exporter.outputURL = outputURL
-        exporter.outputFileType = .m4a
-        exporter.timeRange = CMTimeRange(
-            start: .zero,
-            duration: CMTimeAdd(silenceTimeRange.duration, sourceTimeRange.duration)
-        )
-        await exporter.export()
-
-        if let error = exporter.error {
-            throw MeetingAudioError.mixFailed(error.localizedDescription)
-        }
-        guard exporter.status == .completed else {
-            throw MeetingAudioError.mixFailed("Playback fallback export did not complete.")
+        try await withTaskCancellationHandler {
+            try await renderTask.value
+        } onCancel: {
+            renderTask.cancel()
         }
     }
 
-    private func writeSilentPrefix(
-        durationSeconds: TimeInterval,
-        matching sourceURL: URL,
-        to outputURL: URL
+    /// Render one continuous AAC stream instead of relying on composition edit
+    /// ranges. macOS 14 can trim even a real silent segment when it is joined
+    /// to an AAC asset, while PCM written into the same encoder stream remains
+    /// durable. The transcode is a rare mix-failure fallback and stays bounded
+    /// to one reusable PCM buffer.
+    private nonisolated static func renderAlignedSource(
+        sourceURL: URL,
+        leadingSilenceSeconds: TimeInterval,
+        outputURL: URL
     ) throws {
-        let sourceFile = try AVAudioFile(forReading: sourceURL)
-        let sampleRate = sourceFile.processingFormat.sampleRate
-        let channelCount = sourceFile.processingFormat.channelCount
-        let requestedFrames = durationSeconds * sampleRate
-        guard durationSeconds.isFinite,
-            durationSeconds > 0,
+        let sourceFile = try AVAudioFile(
+            forReading: sourceURL,
+            commonFormat: .pcmFormatFloat32,
+            interleaved: false
+        )
+        let format = sourceFile.processingFormat
+        let sampleRate = format.sampleRate
+        let channelCount = format.channelCount
+        let requestedFrames = leadingSilenceSeconds * sampleRate
+        guard leadingSilenceSeconds.isFinite,
+            leadingSilenceSeconds > 0,
             sampleRate.isFinite,
             sampleRate > 0,
             channelCount > 0,
             requestedFrames.isFinite,
-            requestedFrames <= Double(Int64.max),
-            let format = AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: sampleRate,
-                channels: channelCount,
-                interleaved: false
-            )
+            requestedFrames < Double(Int64.max),
+            sourceFile.length > 0
         else {
-            throw MeetingAudioError.mixFailed("Playback fallback silence format is invalid.")
+            throw MeetingAudioError.mixFailed("Playback fallback source format is invalid.")
         }
 
-        let frameCount = max(1, Int64(requestedFrames.rounded(.up)))
+        let silenceFrameCount = max(1, Int64(requestedFrames.rounded(.up)))
+        let bufferCapacity: AVAudioFrameCount = 32_768
+        guard
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: bufferCapacity
+            )
+        else {
+            throw MeetingAudioError.mixFailed("Unable to allocate playback fallback buffer.")
+        }
+
         do {
-            let file = try AVAudioFile(
+            let outputFile = try AVAudioFile(
                 forWriting: outputURL,
                 settings: [
-                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
                     AVSampleRateKey: sampleRate,
                     AVNumberOfChannelsKey: channelCount,
-                    AVLinearPCMBitDepthKey: 32,
-                    AVLinearPCMIsFloatKey: true,
-                    AVLinearPCMIsBigEndianKey: false,
                 ],
                 commonFormat: .pcmFormatFloat32,
                 interleaved: false
             )
-            var remainingFrames = frameCount
-            let maximumChunkFrames = max(1, Int64(sampleRate * 30))
-            while remainingFrames > 0 {
-                let chunkFrames = AVAudioFrameCount(
-                    min(remainingFrames, maximumChunkFrames, Int64(AVAudioFrameCount.max))
+            var remainingSilenceFrames = silenceFrameCount
+            while remainingSilenceFrames > 0 {
+                try Task.checkCancellation()
+                buffer.frameLength = AVAudioFrameCount(
+                    min(remainingSilenceFrames, Int64(bufferCapacity))
                 )
-                guard
-                    let silence = AVAudioPCMBuffer(
-                        pcmFormat: format,
-                        frameCapacity: chunkFrames
-                    )
-                else {
-                    throw MeetingAudioError.mixFailed(
-                        "Unable to allocate playback fallback silence."
-                    )
-                }
-                silence.frameLength = chunkFrames
                 for audioBuffer in UnsafeMutableAudioBufferListPointer(
-                    silence.mutableAudioBufferList
+                    buffer.mutableAudioBufferList
                 ) {
                     if let data = audioBuffer.mData {
                         memset(data, 0, Int(audioBuffer.mDataByteSize))
                     }
                 }
-                try file.write(from: silence)
-                remainingFrames -= Int64(chunkFrames)
+                try outputFile.write(from: buffer)
+                remainingSilenceFrames -= Int64(buffer.frameLength)
+            }
+
+            while sourceFile.framePosition < sourceFile.length {
+                try Task.checkCancellation()
+                let remainingSourceFrames = sourceFile.length - sourceFile.framePosition
+                try sourceFile.read(
+                    into: buffer,
+                    frameCount: AVAudioFrameCount(
+                        min(remainingSourceFrames, AVAudioFramePosition(bufferCapacity))
+                    )
+                )
+                guard buffer.frameLength > 0 else { break }
+                try outputFile.write(from: buffer)
             }
         }
-
     }
 
     private func probeDuration(at url: URL) async throws -> TimeInterval {
@@ -326,13 +282,9 @@ actor MeetingPlaybackArtifactBuilder {
         return duration
     }
 
-    private func temporaryURL(
-        nextTo outputURL: URL,
-        label: String,
-        pathExtension: String = "m4a"
-    ) -> URL {
+    private func temporaryURL(nextTo outputURL: URL, label: String) -> URL {
         outputURL.deletingLastPathComponent().appendingPathComponent(
-            ".\(outputURL.deletingPathExtension().lastPathComponent)-\(label)-\(UUID().uuidString).\(pathExtension)"
+            ".\(outputURL.deletingPathExtension().lastPathComponent)-\(label)-\(UUID().uuidString).m4a"
         )
     }
 
