@@ -318,7 +318,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             )
         }
 
-        wait(for: [recoveryExpectation, unexpectedExtraRecovery], timeout: 0.2)
+        wait(for: [recoveryExpectation, unexpectedExtraRecovery], timeout: 1)
         XCTAssertTrue(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 2)
     }

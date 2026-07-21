@@ -17,6 +17,17 @@ private final class FinalizedAVAssetWriter: @unchecked Sendable {
 /// Non-Sendable audio sink owned and serialized by MeetingRecordingService.
 /// Its AVFoundation writer/converter objects are mutable reference types.
 final class MeetingAudioStorageWriter {
+    private enum InputReadinessPolicy: Equatable {
+        case failFast
+        case boundedRecoveryGap
+    }
+
+    /// Recovery padding is produced much faster than real time. Give
+    /// AVAssetWriter a short, bounded window to drain between synthetic
+    /// chunks without weakening the fail-before-drop policy for live audio.
+    private static let recoveryGapBackpressureTimeout: TimeInterval = 0.25
+    private static let recoveryGapBackpressurePollInterval: TimeInterval = 0.001
+
     struct FinalizationReport: Sendable, Equatable {
         let failedSources: Set<AudioSource>
     }
@@ -228,6 +239,7 @@ final class MeetingAudioStorageWriter {
         }
 
         let converted = try convertIfNeeded(buffer, converter: &converter)
+        var materializedRecoveryGap = false
         if let timelineTimeSeconds,
             timelineTimeSeconds.isFinite
         {
@@ -250,6 +262,7 @@ final class MeetingAudioStorageWriter {
                         input: input,
                         timelineFrames: &timelineFrames
                     )
+                    materializedRecoveryGap = true
                 }
             }
         }
@@ -258,7 +271,8 @@ final class MeetingAudioStorageWriter {
             converted,
             writer: writer,
             input: input,
-            timelineFrames: &timelineFrames
+            timelineFrames: &timelineFrames,
+            readinessPolicy: materializedRecoveryGap ? .boundedRecoveryGap : .failFast
         )
         actualFrameCount += Int64(converted.frameLength)
     }
@@ -292,7 +306,8 @@ final class MeetingAudioStorageWriter {
                 silence,
                 writer: writer,
                 input: input,
-                timelineFrames: &timelineFrames
+                timelineFrames: &timelineFrames,
+                readinessPolicy: .boundedRecoveryGap
             )
             remainingFrames -= Int64(chunkFrames)
         }
@@ -302,8 +317,28 @@ final class MeetingAudioStorageWriter {
         _ buffer: AVAudioPCMBuffer,
         writer: AVAssetWriter,
         input: AVAssetWriterInput,
-        timelineFrames: inout Int64
+        timelineFrames: inout Int64,
+        readinessPolicy: InputReadinessPolicy
     ) throws {
+        if !input.isReadyForMoreMediaData,
+            readinessPolicy == .boundedRecoveryGap
+        {
+            let deadline =
+                DispatchTime.now()
+                + Self.recoveryGapBackpressureTimeout
+            while !input.isReadyForMoreMediaData,
+                writer.status == .writing,
+                DispatchTime.now() < deadline
+            {
+                Thread.sleep(forTimeInterval: Self.recoveryGapBackpressurePollInterval)
+            }
+        }
+
+        guard writer.status == .writing else {
+            throw MeetingAudioError.storageFailed(
+                writer.error?.localizedDescription ?? "audio writer stopped"
+            )
+        }
         guard input.isReadyForMoreMediaData else {
             logger.error(
                 "Meeting audio writer input not ready, failing capture before dropping \(buffer.frameLength, privacy: .public) frames"

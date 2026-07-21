@@ -161,9 +161,25 @@ actor MeetingPlaybackArtifactBuilder {
         leadingSilenceSeconds: TimeInterval,
         outputURL: URL
     ) async throws {
+        let silenceURL = temporaryURL(
+            nextTo: outputURL,
+            label: "silence",
+            pathExtension: "caf"
+        )
+        defer { try? fileManager.removeItem(at: silenceURL) }
+        let renderedSilenceDuration = try writeSilentPrefix(
+            durationSeconds: leadingSilenceSeconds,
+            matching: sourceURL,
+            to: silenceURL
+        )
+
         let sourceAsset = AVURLAsset(url: sourceURL)
         guard let sourceTrack = try await sourceAsset.loadTracks(withMediaType: .audio).first else {
             throw MeetingAudioError.mixFailed("Playback fallback source has no audio track.")
+        }
+        let silenceAsset = AVURLAsset(url: silenceURL)
+        guard let silenceTrack = try await silenceAsset.loadTracks(withMediaType: .audio).first else {
+            throw MeetingAudioError.mixFailed("Playback fallback silence has no audio track.")
         }
 
         let composition = AVMutableComposition()
@@ -176,13 +192,19 @@ actor MeetingPlaybackArtifactBuilder {
             throw MeetingAudioError.mixFailed("Unable to create playback fallback track.")
         }
 
-        let offset = CMTime(seconds: leadingSilenceSeconds, preferredTimescale: 48_000)
         let duration = CMTime(seconds: sourceDuration, preferredTimescale: 48_000)
-        composition.insertEmptyTimeRange(CMTimeRange(start: .zero, duration: offset))
+        // `insertEmptyTimeRange` is only an edit-list gap, which macOS 14's
+        // M4A exporter can trim. Insert real silent media so the fallback's
+        // source alignment survives every supported OS/toolchain.
+        try compositionTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: renderedSilenceDuration),
+            of: silenceTrack,
+            at: .zero
+        )
         try compositionTrack.insertTimeRange(
             CMTimeRange(start: .zero, duration: duration),
             of: sourceTrack,
-            at: offset
+            at: renderedSilenceDuration
         )
 
         guard
@@ -197,7 +219,7 @@ actor MeetingPlaybackArtifactBuilder {
         exporter.outputFileType = .m4a
         exporter.timeRange = CMTimeRange(
             start: .zero,
-            duration: CMTimeAdd(offset, duration)
+            duration: CMTimeAdd(renderedSilenceDuration, duration)
         )
         await exporter.export()
 
@@ -207,6 +229,84 @@ actor MeetingPlaybackArtifactBuilder {
         guard exporter.status == .completed else {
             throw MeetingAudioError.mixFailed("Playback fallback export did not complete.")
         }
+    }
+
+    private func writeSilentPrefix(
+        durationSeconds: TimeInterval,
+        matching sourceURL: URL,
+        to outputURL: URL
+    ) throws -> CMTime {
+        let sourceFile = try AVAudioFile(forReading: sourceURL)
+        let sampleRate = sourceFile.processingFormat.sampleRate
+        let channelCount = sourceFile.processingFormat.channelCount
+        let requestedFrames = durationSeconds * sampleRate
+        guard durationSeconds.isFinite,
+            durationSeconds > 0,
+            sampleRate.isFinite,
+            sampleRate > 0,
+            channelCount > 0,
+            requestedFrames.isFinite,
+            requestedFrames <= Double(Int64.max),
+            sampleRate.rounded() >= 1,
+            sampleRate.rounded() <= Double(Int32.max),
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: sampleRate,
+                channels: channelCount,
+                interleaved: false
+            )
+        else {
+            throw MeetingAudioError.mixFailed("Playback fallback silence format is invalid.")
+        }
+
+        let frameCount = max(1, Int64(requestedFrames.rounded(.up)))
+        do {
+            let file = try AVAudioFile(
+                forWriting: outputURL,
+                settings: [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: channelCount,
+                    AVLinearPCMBitDepthKey: 32,
+                    AVLinearPCMIsFloatKey: true,
+                    AVLinearPCMIsBigEndianKey: false,
+                ],
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            var remainingFrames = frameCount
+            let maximumChunkFrames = max(1, Int64(sampleRate * 30))
+            while remainingFrames > 0 {
+                let chunkFrames = AVAudioFrameCount(
+                    min(remainingFrames, maximumChunkFrames, Int64(AVAudioFrameCount.max))
+                )
+                guard
+                    let silence = AVAudioPCMBuffer(
+                        pcmFormat: format,
+                        frameCapacity: chunkFrames
+                    )
+                else {
+                    throw MeetingAudioError.mixFailed(
+                        "Unable to allocate playback fallback silence."
+                    )
+                }
+                silence.frameLength = chunkFrames
+                for audioBuffer in UnsafeMutableAudioBufferListPointer(
+                    silence.mutableAudioBufferList
+                ) {
+                    if let data = audioBuffer.mData {
+                        memset(data, 0, Int(audioBuffer.mDataByteSize))
+                    }
+                }
+                try file.write(from: silence)
+                remainingFrames -= Int64(chunkFrames)
+            }
+        }
+
+        return CMTime(
+            value: frameCount,
+            timescale: Int32(sampleRate.rounded())
+        )
     }
 
     private func probeDuration(at url: URL) async throws -> TimeInterval {
@@ -233,9 +333,13 @@ actor MeetingPlaybackArtifactBuilder {
         return duration
     }
 
-    private func temporaryURL(nextTo outputURL: URL, label: String) -> URL {
+    private func temporaryURL(
+        nextTo outputURL: URL,
+        label: String,
+        pathExtension: String = "m4a"
+    ) -> URL {
         outputURL.deletingLastPathComponent().appendingPathComponent(
-            ".\(outputURL.deletingPathExtension().lastPathComponent)-\(label)-\(UUID().uuidString).m4a"
+            ".\(outputURL.deletingPathExtension().lastPathComponent)-\(label)-\(UUID().uuidString).\(pathExtension)"
         )
     }
 

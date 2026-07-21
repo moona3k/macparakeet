@@ -821,7 +821,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
         let report = try XCTUnwrap(output.captureReport)
-        XCTAssertEqual(output.durationSeconds, 1, accuracy: 0.001)
+        // Canonical playback duration is probed from encoded AAC and can be
+        // slightly shorter than its exact writer-frame duration on macOS 14.
+        let playbackDuration = try await playableAudioDuration(at: output.mixedAudioURL)
+        XCTAssertEqual(playbackDuration, 1, accuracy: 0.1)
+        XCTAssertEqual(output.durationSeconds, playbackDuration, accuracy: 0.02)
         XCTAssertEqual(report.quality, .partial)
         XCTAssertEqual(report.elapsedDurationMs, 100_000)
         XCTAssertEqual(report.capturedDurationMs, 1_000)

@@ -100,14 +100,17 @@ final class MeetingAudioStorageWriterTests: XCTestCase {
 
         try writer.write(buffer, source: .microphone, timelineTimeSeconds: 100)
         try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.1)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.2)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.3)
 
         let metrics = writer.metrics(for: .microphone)
-        XCTAssertEqual(metrics.writtenFrameCount, 9_600)
-        XCTAssertEqual(metrics.timelineFrameCount, 1_540_800)
+        XCTAssertEqual(metrics.writtenFrameCount, 24_000)
+        XCTAssertEqual(metrics.timelineFrameCount, 1_555_200)
 
         await finalize(writer)
         let duration = try await audioDuration(writer.microphoneAudioURL)
-        XCTAssertEqual(duration, 32.1, accuracy: 0.35)
+        XCTAssertEqual(duration, 32.4, accuracy: 0.35)
     }
 
     func testSuccessfulFinalizationReportsNoFailedWrittenSources() async throws {
