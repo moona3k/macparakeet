@@ -88,7 +88,9 @@ Finalized recording coverage is now a separate, implemented correctness layer:
   retained for the session so delayed buffers remain exactly classifiable. If
   capture begins with untimed buffers, the writer's
   effective file origin accounts for that leading audio exactly once when
-  deriving cross-source alignment.
+  deriving cross-source alignment. Cross-source offsets require complete writer
+  timeline origins; incomplete timing remains zero/unknown rather than falling
+  back to raw host deltas that still contain intentional pauses.
 - Capture quality is orthogonal to transcription lifecycle: successfully
   processed partial audio remains `completed` and receives a non-modal saved
   “Partial audio” explanation rather than a misleading retranscription action.

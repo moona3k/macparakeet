@@ -64,6 +64,30 @@ final class MeetingCleanedMicrophoneReadinessPolicyTests: XCTestCase {
 }
 
 final class MeetingSourceAlignmentDurationTests: XCTestCase {
+    func testStartOffsetRequiresCompleteWriterTimelineOrigins() {
+        XCTAssertEqual(
+            MeetingSourceAlignment.startOffsetMs(
+                timelineOriginSeconds: 101.25,
+                meetingOriginTimelineSeconds: 100
+            ),
+            1_250
+        )
+        XCTAssertEqual(
+            MeetingSourceAlignment.startOffsetMs(
+                timelineOriginSeconds: nil,
+                meetingOriginTimelineSeconds: 100
+            ),
+            0
+        )
+        XCTAssertEqual(
+            MeetingSourceAlignment.startOffsetMs(
+                timelineOriginSeconds: 101.25,
+                meetingOriginTimelineSeconds: nil
+            ),
+            0
+        )
+    }
+
     func testCleanedMicRenderDurationUsesLongestCapturedSource() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: nil,

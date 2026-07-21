@@ -1892,10 +1892,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let sourceTimelineOrigins = availableSources.compactMap { source in
             (writerMetrics[source] ?? nil)?.timelineOriginSeconds
         }
-        // Never compare a pause-adjusted writer origin for one source with a
-        // raw host-clock origin for its sibling. Writer and host metrics are
-        // recorded from the same successfully persisted AVAudioTime, so use
-        // the richer timeline domain only when every available source has it.
+        // Source offsets belong to the saved-media timeline, where intentional
+        // pauses do not exist. Use writer origins only when every available
+        // source has one; otherwise timing is unknown and every offset is zero.
+        // Raw host times remain diagnostic metadata, never an alignment fallback.
         let meetingOriginTimelineSeconds =
             sourceTimelineOrigins.count == availableSources.count
             ? sourceTimelineOrigins.min()
@@ -1905,7 +1905,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             availableSources.contains(.microphone)
             ? makeAlignedTrack(
                 source: .microphone,
-                meetingOriginHostTime: meetingOriginHostTime,
                 meetingOriginTimelineSeconds: meetingOriginTimelineSeconds,
                 writerMetrics: writerMetrics[.microphone] ?? nil
             )
@@ -1914,7 +1913,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             availableSources.contains(.system)
             ? makeAlignedTrack(
                 source: .system,
-                meetingOriginHostTime: meetingOriginHostTime,
                 meetingOriginTimelineSeconds: meetingOriginTimelineSeconds,
                 writerMetrics: writerMetrics[.system] ?? nil
             )
@@ -1929,7 +1927,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func makeAlignedTrack(
         source: AudioSource,
-        meetingOriginHostTime: UInt64?,
         meetingOriginTimelineSeconds: TimeInterval?,
         writerMetrics: MeetingAudioStorageWriter.SourceWriteMetrics?
     ) -> MeetingSourceAlignment.Track {
@@ -1937,35 +1934,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return MeetingSourceAlignment.Track(
             firstHostTime: captureMetrics?.firstHostTime,
             lastHostTime: captureMetrics?.lastHostTime,
-            startOffsetMs: startOffsetMs(
-                captureMetrics: captureMetrics,
-                sourceTimelineOriginSeconds: writerMetrics?.timelineOriginSeconds,
-                meetingOriginHostTime: meetingOriginHostTime,
+            startOffsetMs: MeetingSourceAlignment.startOffsetMs(
+                timelineOriginSeconds: writerMetrics?.timelineOriginSeconds,
                 meetingOriginTimelineSeconds: meetingOriginTimelineSeconds
             ),
             writtenFrameCount: writerMetrics?.writtenFrameCount ?? 0,
             timelineFrameCount: writerMetrics?.timelineFrameCount,
             sampleRate: writerMetrics?.sampleRate ?? 48_000
-        )
-    }
-
-    private func startOffsetMs(
-        captureMetrics: SourceCaptureMetrics?,
-        sourceTimelineOriginSeconds: TimeInterval?,
-        meetingOriginHostTime: UInt64?,
-        meetingOriginTimelineSeconds: TimeInterval?
-    ) -> Int {
-        if let sourceTimelineOriginSeconds,
-            let meetingOriginTimelineSeconds
-        {
-            return max(
-                0,
-                Int(((sourceTimelineOriginSeconds - meetingOriginTimelineSeconds) * 1_000).rounded())
-            )
-        }
-        return MeetingSourceAlignment.startOffsetMs(
-            hostTime: captureMetrics?.firstHostTime,
-            originHostTime: meetingOriginHostTime
         )
     }
 

@@ -1,4 +1,3 @@
-import AVFAudio
 import Foundation
 
 public struct MeetingSourceAlignment: Sendable, Codable, Equatable {
@@ -274,11 +273,17 @@ extension MeetingSourceAlignment {
         )
     }
 
-    static func startOffsetMs(hostTime: UInt64?, originHostTime: UInt64?) -> Int {
-        guard let hostTime, let originHostTime else { return 0 }
-        let startSeconds = AVAudioTime.seconds(forHostTime: hostTime)
-        let originSeconds = AVAudioTime.seconds(forHostTime: originHostTime)
-        return Int(((startSeconds - originSeconds) * 1000).rounded())
+    static func startOffsetMs(
+        timelineOriginSeconds: TimeInterval?,
+        meetingOriginTimelineSeconds: TimeInterval?
+    ) -> Int {
+        guard let timelineOriginSeconds, let meetingOriginTimelineSeconds else {
+            return 0
+        }
+        let offsetMilliseconds =
+            (timelineOriginSeconds - meetingOriginTimelineSeconds) * 1_000
+        guard offsetMilliseconds.isFinite else { return 0 }
+        return max(0, Int(offsetMilliseconds.rounded()))
     }
 
     var cleanedMicrophoneRenderDurationSeconds: TimeInterval {
