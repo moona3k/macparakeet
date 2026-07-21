@@ -226,14 +226,11 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             from: recoveredSources,
             preserving: existingMetadata?.sourceAlignment
         )
-        let captureReport = existingMetadata?.captureReport.map {
-            MeetingCaptureReport(
-                sourceMode: $0.sourceMode,
+        let captureReport = existingMetadata?.captureReport.map { existingReport in
+            reconciledCaptureReport(
+                from: existingReport,
                 sourceAlignment: sourceAlignment,
-                elapsedDurationMs: $0.elapsedDurationMs,
-                interruptedSources: Set($0.interruptedSources),
-                captureFailed: $0.captureFailed,
-                playbackFallbackSource: $0.playbackFallbackSource
+                playbackFallbackSource: existingReport.playbackFallbackSource
             )
         }
         var recoveredMetadata = MeetingRecordingMetadata(
@@ -286,12 +283,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         }
 
         let finalizedCaptureReport = captureReport.map { preliminaryReport in
-            MeetingCaptureReport(
-                sourceMode: preliminaryReport.sourceMode,
+            reconciledCaptureReport(
+                from: preliminaryReport,
                 sourceAlignment: sourceAlignment,
-                elapsedDurationMs: preliminaryReport.elapsedDurationMs,
-                interruptedSources: Set(preliminaryReport.interruptedSources),
-                captureFailed: preliminaryReport.captureFailed,
                 playbackFallbackSource: playbackArtifact.method == .bestSourceFallback
                     ? playbackArtifact.source
                     : nil
@@ -419,27 +413,31 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         preserving existing: MeetingSourceAlignment?
     ) -> MeetingSourceAlignment {
         func track(for source: AudioSource) -> MeetingSourceAlignment.Track? {
-            guard let source = sources.first(where: { $0.source == source }) else { return nil }
-            let existingTrack = existing?.track(for: source.source)
-            let timelineFrameCount = Int64((source.duration * source.sampleRate).rounded())
+            guard let recoveredSource = sources.first(where: { $0.source == source }) else {
+                return nil
+            }
+            let existingTrack = existing?.track(for: recoveredSource.source)
+            let timelineFrameCount = Int64(
+                (recoveredSource.duration * recoveredSource.sampleRate).rounded())
             let writtenDuration: TimeInterval
             if let existingTrack,
                existingTrack.sampleRate.isFinite,
                existingTrack.sampleRate > 0 {
                 writtenDuration = min(
-                    source.duration,
+                    recoveredSource.duration,
                     Double(max(0, existingTrack.writtenFrameCount)) / existingTrack.sampleRate
                 )
             } else {
-                writtenDuration = source.duration
+                writtenDuration = recoveredSource.duration
             }
             return MeetingSourceAlignment.Track(
                 firstHostTime: existingTrack?.firstHostTime,
                 lastHostTime: existingTrack?.lastHostTime,
                 startOffsetMs: existingTrack?.startOffsetMs ?? 0,
-                writtenFrameCount: Int64((writtenDuration * source.sampleRate).rounded()),
+                writtenFrameCount: Int64(
+                    (writtenDuration * recoveredSource.sampleRate).rounded()),
                 timelineFrameCount: timelineFrameCount,
-                sampleRate: source.sampleRate
+                sampleRate: recoveredSource.sampleRate
             )
         }
 
@@ -447,6 +445,21 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             meetingOriginHostTime: existing?.meetingOriginHostTime,
             microphone: track(for: .microphone),
             system: track(for: .system)
+        )
+    }
+
+    private func reconciledCaptureReport(
+        from report: MeetingCaptureReport,
+        sourceAlignment: MeetingSourceAlignment,
+        playbackFallbackSource: AudioSource?
+    ) -> MeetingCaptureReport {
+        MeetingCaptureReport(
+            sourceMode: report.sourceMode,
+            sourceAlignment: sourceAlignment,
+            elapsedDurationMs: report.elapsedDurationMs,
+            interruptedSources: Set(report.interruptedSources),
+            captureFailed: report.captureFailed,
+            playbackFallbackSource: playbackFallbackSource
         )
     }
 
