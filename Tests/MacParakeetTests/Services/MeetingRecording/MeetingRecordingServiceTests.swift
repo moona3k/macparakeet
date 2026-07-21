@@ -2991,7 +2991,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(output.captureReport?.elapsedDurationMs, 2_000)
     }
 
-    func testMoreThanBoundedPauseHistoryDoesNotInflateTimelineOrSourceOffset() async throws {
+    func testLongPauseHistoryClassifiesLateBuffersWithoutInflatingTimelineOrSourceOffset() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let wallClock = MeetingTestWallClock(now: Date(timeIntervalSince1970: 1_700_000_000))
         let hostClock = MeetingTestAudioHostClock(seconds: 100)
@@ -3024,6 +3024,14 @@ final class MeetingRecordingServiceTests: XCTestCase {
             await service.resumeRecording()
         }
 
+        // A very late buffer from inside the first pause must remain
+        // classifiable even after hundreds of later pause cycles.
+        await captureService.yield(
+            .microphoneBuffer(
+                buffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.5))
+            ))
+
         await captureService.yield(
             .microphoneBuffer(
                 buffer,
@@ -3042,6 +3050,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
         let system = try XCTUnwrap(output.sourceAlignment.system)
+        XCTAssertEqual(Double(microphone.writtenFrameCount), 96_000, accuracy: 100)
         XCTAssertLessThanOrEqual(
             abs(try XCTUnwrap(microphone.timelineFrameCount) - microphone.writtenFrameCount),
             100,

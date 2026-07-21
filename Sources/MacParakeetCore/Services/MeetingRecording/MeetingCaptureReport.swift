@@ -13,35 +13,25 @@ public struct MeetingCaptureReport: Codable, Sendable, Equatable {
     }
 
     public struct Policy: Sendable, Equatable {
-        public static let production = Policy(
-            minimumCoverageRatio: 0.9,
-            allowedMissingDurationMs: 5_000
-        )
+        public static let production = Policy(minimumCoverageRatio: 0.9)
 
         public let minimumCoverageRatio: Double
-        public let allowedMissingDurationMs: Int
 
-        public init(
-            minimumCoverageRatio: Double,
-            allowedMissingDurationMs: Int
-        ) {
+        public init(minimumCoverageRatio: Double) {
             self.minimumCoverageRatio = min(1, max(0, minimumCoverageRatio))
-            self.allowedMissingDurationMs = max(0, allowedMissingDurationMs)
         }
 
-        fileprivate func hasSubstantialShortfall(
+        fileprivate func hasCoverageShortfall(
             writtenDurationMs: Int,
             elapsedDurationMs: Int
         ) -> Bool {
             guard elapsedDurationMs > 0 else { return false }
             let clampedWrittenDurationMs = max(0, writtenDurationMs)
-            let missingDurationMs = max(0, elapsedDurationMs - clampedWrittenDurationMs)
             let coverageRatio = min(
                 1,
                 Double(clampedWrittenDurationMs) / Double(elapsedDurationMs)
             )
-            return missingDurationMs > allowedMissingDurationMs
-                && coverageRatio < minimumCoverageRatio
+            return coverageRatio < minimumCoverageRatio
         }
     }
 
@@ -121,7 +111,7 @@ public struct MeetingCaptureReport: Codable, Sendable, Equatable {
                 status = .captureFailed
             } else if track == nil {
                 status = .unavailable
-            } else if policy.hasSubstantialShortfall(
+            } else if policy.hasCoverageShortfall(
                 writtenDurationMs: writtenDurationMs,
                 elapsedDurationMs: clampedElapsedDurationMs
             ) {

@@ -69,11 +69,12 @@ Finalized recording coverage is now a separate, implemented correctness layer:
   writer frames.
 - A pure `MeetingCaptureReport` records `healthy`/`partial` quality, playable
   captured duration, elapsed duration, per-source written duration/coverage and
-  terminal status. Classification requires both a coverage-ratio shortfall and
-  an absolute missing-duration grace, while explicit interruption/failure is
-  always partial. If two healthy source files cannot be combined, the report
-  records which source became canonical playback and marks that playback as
-  partial without misclassifying either source capture.
+  terminal status. Classification uses a 90% coverage threshold so short
+  meetings cannot lose most of their media under a fixed-duration grace;
+  explicit interruption/failure is always partial. If two healthy source files
+  cannot be combined, the report records which source became canonical playback
+  and marks that playback as partial without misclassifying either source
+  capture.
 - Writer finalization is a correctness boundary: a source that accepted real
   frames but does not reach AVAssetWriter's completed state aborts settlement
   and leaves the lock and source artifacts available for recovery. Pre-finish
@@ -83,9 +84,9 @@ Finalized recording coverage is now a separate, implemented correctness layer:
   remains in the optional report, persisted in the canonical DB row and
   additive meeting artifact metadata. Legacy absence means unknown, not healthy.
 - Source files preserve genuine host-time recovery gaps as silence while
-  removing intentional pauses from that timeline. Pause duration is cumulative
-  even though only a bounded recent range history is kept for late-buffer
-  classification. If capture begins with untimed buffers, the writer's
+  removing intentional pauses from that timeline. Completed pause ranges are
+  retained for the session so delayed buffers remain exactly classifiable. If
+  capture begins with untimed buffers, the writer's
   effective file origin accounts for that leading audio exactly once when
   deriving cross-source alignment.
 - Capture quality is orthogonal to transcription lifecycle: successfully

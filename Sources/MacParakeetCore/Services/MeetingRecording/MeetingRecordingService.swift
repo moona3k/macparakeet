@@ -253,11 +253,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var pausedAt: Date?
     private var pausedHostTime: UInt64?
     private var completedPauseHostTimeRanges: [HostTimeRange] = []
-    /// Total duration of completed pauses evicted from the bounded range list.
-    /// The retained ranges classify late buffers; this cumulative value keeps
-    /// the active host timeline correct for current buffers after long-running
-    /// sessions exceed that history bound.
-    private var evictedPauseHostTimeDuration: TimeInterval = 0
     private var accumulatedPausedDuration: TimeInterval = 0
     /// Meeting-local microphone mute. We keep the OS mic stream alive and
     /// write silence into the mic source file while muted so the mic and
@@ -982,7 +977,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         do {
             playbackArtifact = try await MeetingPlaybackArtifactBuilder(
                 audioConverter: audioConverter,
-                fileManager: fileManager
+                fileManager: MeetingPlaybackArtifactBuilder.SendableFileManager(fileManager)
             ).build(
                 candidates: playbackCandidates,
                 outputURL: session.mixedAudioURL,
@@ -1367,12 +1362,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 } else {
                     recordingBuffer = buffer
                 }
-                recordCaptureMetrics(for: .microphone, time: time)
                 try writer?.write(
                     recordingBuffer,
                     source: .microphone,
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
+                recordCaptureMetrics(for: .microphone, time: time)
                 if handling == .recordAndProcess {
                     latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
                     updateMicrophoneRms(with: latestLevels.microphone)
@@ -1392,12 +1387,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let handling = captureBufferHandling(time: time)
             guard handling != .drop else { return }
             do {
-                recordCaptureMetrics(for: .system, time: time)
                 try writer?.write(
                     buffer,
                     source: .system,
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
+                recordCaptureMetrics(for: .system, time: time)
                 if handling == .recordAndProcess {
                     latestLevels.system = buffer.rmsLevel
                     updateSystemRms(with: latestLevels.system)
@@ -1764,7 +1759,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func pauseAdjustedHostTimeSeconds(for time: AVAudioTime) -> TimeInterval? {
         guard time.isHostTimeValid else { return nil }
         let hostTime = time.hostTime
-        let pausedSeconds = completedPauseHostTimeRanges.reduce(evictedPauseHostTimeDuration) { total, range in
+        let pausedSeconds = completedPauseHostTimeRanges.reduce(0.0) { total, range in
             guard hostTime > range.start else { return total }
             let overlapEnd = min(hostTime, range.end)
             guard overlapEnd > range.start else { return total }
@@ -1777,11 +1772,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func appendCompletedPauseHostTimeRange(start: UInt64, end: UInt64) {
         guard end > start else { return }
-        evictedPauseHostTimeDuration += appendBoundedCompletedHostTimeRange(
-            start: start,
-            end: end,
-            to: &completedPauseHostTimeRanges
-        )
+        // Pause ranges are session-scoped correctness state. Retain them all so
+        // delayed buffers can still be classified exactly; even hundreds of
+        // user-driven pause cycles occupy only a few kilobytes.
+        completedPauseHostTimeRanges.append(HostTimeRange(start: start, end: end))
     }
 
     private func appendCompletedMicrophoneMuteHostTimeRange(start: UInt64, end: UInt64) {
@@ -1793,23 +1787,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
     }
 
-    @discardableResult
     private func appendBoundedCompletedHostTimeRange(
         start: UInt64,
         end: UInt64,
         to ranges: inout [HostTimeRange]
-    ) -> TimeInterval {
+    ) {
         ranges.append(HostTimeRange(start: start, end: end))
         let overflowCount = ranges.count - Self.completedHostTimeRangeLimit
-        guard overflowCount > 0 else { return 0 }
-
-        let evictedDuration = ranges.prefix(overflowCount).reduce(0.0) { total, range in
-            total
-                + AVAudioTime.seconds(forHostTime: range.end)
-                - AVAudioTime.seconds(forHostTime: range.start)
+        if overflowCount > 0 {
+            ranges.removeFirst(overflowCount)
         }
-        ranges.removeFirst(overflowCount)
-        return evictedDuration
     }
 
     private func isMicrophoneMuted(at time: AVAudioTime) -> Bool {
@@ -1902,9 +1889,17 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     ) -> MeetingSourceAlignment {
         let candidateOrigins = availableSources.compactMap { sourceCaptureMetrics[$0]?.firstHostTime }
         let meetingOriginHostTime = candidateOrigins.min()
-        let meetingOriginTimelineSeconds = availableSources.compactMap { source in
+        let sourceTimelineOrigins = availableSources.compactMap { source in
             (writerMetrics[source] ?? nil)?.timelineOriginSeconds
-        }.min()
+        }
+        // Never compare a pause-adjusted writer origin for one source with a
+        // raw host-clock origin for its sibling. Writer and host metrics are
+        // recorded from the same successfully persisted AVAudioTime, so use
+        // the richer timeline domain only when every available source has it.
+        let meetingOriginTimelineSeconds =
+            sourceTimelineOrigins.count == availableSources.count
+            ? sourceTimelineOrigins.min()
+            : nil
 
         let microphone =
             availableSources.contains(.microphone)
@@ -2190,7 +2185,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         pausedAt = nil
         pausedHostTime = nil
         completedPauseHostTimeRanges = []
-        evictedPauseHostTimeDuration = 0
         accumulatedPausedDuration = 0
         microphoneMuted = false
         microphoneMutedHostTime = nil

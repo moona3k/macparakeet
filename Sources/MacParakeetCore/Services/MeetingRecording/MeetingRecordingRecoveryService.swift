@@ -269,7 +269,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         do {
             playbackArtifact = try await MeetingPlaybackArtifactBuilder(
                 audioConverter: audioConverter,
-                fileManager: fileManager
+                fileManager: MeetingPlaybackArtifactBuilder.SendableFileManager(fileManager)
             ).build(
                 candidates: playbackCandidates,
                 outputURL: mixedURL,

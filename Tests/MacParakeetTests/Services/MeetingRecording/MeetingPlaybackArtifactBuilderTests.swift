@@ -81,6 +81,40 @@ final class MeetingPlaybackArtifactBuilderTests: XCTestCase {
         XCTAssertFalse(outputTracks.isEmpty)
     }
 
+    func testBestSourceFallbackPrefersMicrophoneWhenPlayableEndsTie() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let microphoneURL = directory.appendingPathComponent("microphone.m4a")
+        let systemURL = directory.appendingPathComponent("system.m4a")
+        let shortMixFixtureURL = directory.appendingPathComponent("short-mix.m4a")
+        let outputURL = directory.appendingPathComponent("meeting-playback.m4a")
+        try writeM4A(to: microphoneURL, durationSeconds: 0.2)
+        try writeM4A(to: systemURL, durationSeconds: 0.2)
+        try writeM4A(to: shortMixFixtureURL, durationSeconds: 0.1)
+        let microphoneTrack = track(durationSeconds: 0.2, startOffsetMs: 250)
+        let systemTrack = track(durationSeconds: 0.2, startOffsetMs: 250)
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: microphoneTrack,
+            system: systemTrack
+        )
+        let builder = MeetingPlaybackArtifactBuilder(
+            audioConverter: FixtureMixAudioConverter(fixtureURL: shortMixFixtureURL)
+        )
+
+        let result = try await builder.build(
+            candidates: [
+                .init(source: .microphone, url: microphoneURL, track: microphoneTrack),
+                .init(source: .system, url: systemURL, track: systemTrack),
+            ],
+            outputURL: outputURL,
+            sourceAlignment: alignment
+        )
+
+        XCTAssertEqual(result.method, .bestSourceFallback)
+        XCTAssertEqual(result.source, .microphone)
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(
             "meeting-playback-builder-tests-\(UUID().uuidString)",

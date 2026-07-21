@@ -27,7 +27,7 @@ final class MeetingCaptureReportTests: XCTestCase {
         XCTAssertTrue(report.interruptedSources.isEmpty)
     }
 
-    func testCoveragePolicyRequiresRatioAndAbsoluteShortfall() {
+    func testCoverageBelowMinimumRatioIsPartial() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: 100,
             microphone: track(writtenDurationMs: 9_000),
@@ -38,18 +38,34 @@ final class MeetingCaptureReportTests: XCTestCase {
             sourceMode: .microphoneOnly,
             sourceAlignment: alignment,
             elapsedDurationMs: 12_000,
-            policy: MeetingCaptureReport.Policy(
-                minimumCoverageRatio: 0.9,
-                allowedMissingDurationMs: 5_000
-            )
+            policy: MeetingCaptureReport.Policy(minimumCoverageRatio: 0.9)
         )
 
-        XCTAssertEqual(report.quality, .healthy)
-        XCTAssertEqual(report.sources.map(\.status), [.complete])
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.sources.map(\.status), [.coverageShortfall])
         XCTAssertEqual(report.sources.map(\.source), [.microphone])
     }
 
-    func testCoverageAboveMinimumRatioIsHealthyDespiteMissingMoreThanAllowedDuration() {
+    func testShortRecordingBelowCoverageThresholdIsPartial() {
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: track(writtenDurationMs: 200),
+            system: nil
+        )
+
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneOnly,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 4_000,
+            policy: MeetingCaptureReport.Policy(minimumCoverageRatio: 0.9)
+        )
+
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.source(for: .microphone)?.status, .coverageShortfall)
+        XCTAssertEqual(report.source(for: .microphone)?.coverageRatio, 0.05)
+    }
+
+    func testCoverageAboveMinimumRatioIsHealthy() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: 100,
             microphone: track(writtenDurationMs: 92_000),
@@ -60,10 +76,7 @@ final class MeetingCaptureReportTests: XCTestCase {
             sourceMode: .microphoneOnly,
             sourceAlignment: alignment,
             elapsedDurationMs: 100_000,
-            policy: MeetingCaptureReport.Policy(
-                minimumCoverageRatio: 0.9,
-                allowedMissingDurationMs: 5_000
-            )
+            policy: MeetingCaptureReport.Policy(minimumCoverageRatio: 0.9)
         )
 
         XCTAssertEqual(report.quality, .healthy)
@@ -71,7 +84,7 @@ final class MeetingCaptureReportTests: XCTestCase {
         XCTAssertEqual(report.source(for: .microphone)?.coverageRatio, 0.92)
     }
 
-    func testCaptureFailureIsPartialEvenWithinCoverageGrace() {
+    func testCaptureFailureIsPartialDespiteHighCoverage() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: 100,
             microphone: track(writtenDurationMs: 9_000),
@@ -90,7 +103,7 @@ final class MeetingCaptureReportTests: XCTestCase {
         XCTAssertTrue(report.captureFailed)
     }
 
-    func testExplicitInterruptionIsPartialEvenWithinCoverageGrace() {
+    func testExplicitInterruptionIsPartialDespiteHighCoverage() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: 100,
             microphone: track(writtenDurationMs: 9_000),
@@ -141,10 +154,7 @@ final class MeetingCaptureReportTests: XCTestCase {
             sourceMode: .microphoneOnly,
             sourceAlignment: alignment,
             elapsedDurationMs: 4_000,
-            policy: MeetingCaptureReport.Policy(
-                minimumCoverageRatio: 0.9,
-                allowedMissingDurationMs: 0
-            )
+            policy: MeetingCaptureReport.Policy(minimumCoverageRatio: 0.9)
         )
 
         XCTAssertEqual(report.capturedDurationMs, 4_000)

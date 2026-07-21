@@ -4,26 +4,37 @@ import Foundation
 /// Builds the canonical, decodable meeting playback artifact from finalized
 /// source files. Source tracks remain the durable capture truth; this builder
 /// only owns the derived playback file and its probed duration.
-struct MeetingPlaybackArtifactBuilder {
-    struct Candidate {
+actor MeetingPlaybackArtifactBuilder {
+    /// `FileManager` is documented for concurrent use when no delegate is
+    /// installed. This wrapper preserves the callers' injected filesystem
+    /// dependency while the builder serializes its own operations.
+    struct SendableFileManager: @unchecked Sendable {
+        fileprivate let value: FileManager
+
+        init(_ value: FileManager = .default) {
+            self.value = value
+        }
+    }
+
+    struct Candidate: Sendable {
         let source: AudioSource
         let url: URL
         let track: MeetingSourceAlignment.Track
     }
 
-    enum Method: String {
+    enum Method: String, Sendable {
         case mixed
         case singleSource = "single_source"
         case bestSourceFallback = "best_source_fallback"
     }
 
-    struct Result {
+    struct Result: Sendable {
         let durationSeconds: TimeInterval
         let method: Method
         let source: AudioSource?
     }
 
-    private struct ProbedCandidate {
+    private struct ProbedCandidate: Sendable {
         let candidate: Candidate
         let durationSeconds: TimeInterval
 
@@ -37,10 +48,10 @@ struct MeetingPlaybackArtifactBuilder {
 
     init(
         audioConverter: any AudioFileConverting,
-        fileManager: FileManager = .default
+        fileManager: SendableFileManager = SendableFileManager()
     ) {
         self.audioConverter = audioConverter
-        self.fileManager = fileManager
+        self.fileManager = fileManager.value
     }
 
     func build(
