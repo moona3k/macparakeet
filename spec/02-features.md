@@ -939,6 +939,7 @@ Important constraints:
 - formatter is a separate toggle, not a dictation mode
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
+- formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
 - formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493)
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
