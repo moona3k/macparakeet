@@ -1,0 +1,19 @@
+docs/audits/2026-07-22-post-0.7.3-release-prep.md
+  s_6b60a355f5f8d4::t_38937d0c472640 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3d86e51875d42320c1da55ba2779c1c3dae0f419",
+  "prompts": {},
+  "sessions": {
+    "s_6b60a355f5f8d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bc5-48c5-7853-83ea-e4c648e46831",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
