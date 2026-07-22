@@ -227,8 +227,8 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 - [x] System audio capture via ScreenCaptureKit audio (macOS 14.2+)
 - [x] Mic + system audio dual-stream recording (`MeetingAudioCaptureService`)
-- [x] Direct source-lifecycle recovery: bounded AVAudioEngine configuration-change rebuilds and typed ScreenCaptureKit retries use fresh sources and require a real first buffer
-- [x] Actionable meeting-source warnings for recovery and terminal interruption; signal-inferred mic restart remains proposed
+- [x] Direct source-lifecycle recovery: bounded AVAudioEngine configuration-change/callback-stall rebuilds and typed ScreenCaptureKit retries use fresh sources and require a real first buffer
+- [x] Actionable meeting-source warnings for recovery and terminal interruption; amplitude-inferred mic restart remains proposed
 - [x] Durable frame-derived meeting capture reports with per-source status; missing reports on legacy artifacts mean unknown rather than healthy
 - [x] `MeetingRecordingService` actor with protocol-based dependencies
 - [x] `MeetingRecordingFlowStateMachine` + coordinator (separate from dictation)

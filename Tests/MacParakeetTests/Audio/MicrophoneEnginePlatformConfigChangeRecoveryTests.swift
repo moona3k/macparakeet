@@ -566,6 +566,156 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         XCTAssertFalse(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 4)
     }
+
+    /// A route change can leave AVAudioEngine claiming it is running after a
+    /// few tap callbacks, while no further audio arrives. Recover that stalled
+    /// callback stream on a fresh engine even without another configuration
+    /// notification.
+    func testCallbackStallAfterFirstBufferRestartsFreshEngine() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let recoveryExpectation = expectation(description: "callback stall starts recovery")
+        let recoveryBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            recoveryReadinessTimeout: 0.05,
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                if invocation == 2 {
+                    recoveryExpectation.fulfill()
+                }
+            }
+        )
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        wait(for: [recoveryExpectation], timeout: 1)
+        XCTAssertTrue(platform.isEngineRunning)
+        platform.stopEngine()
+
+        let engines = enginesLock.withLock { $0 }
+        XCTAssertEqual(engines.count, 2, "initial start + callback-stall recovery")
+        guard engines.count == 2 else { return }
+        XCTAssertFalse(engines[0] === engines[1], "recovery must rebuild the engine")
+    }
+
+    func testContinuousCallbackActivityDoesNotRecoverPastStallTimeout() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let unexpectedRecovery = expectation(description: "callback activity remains healthy")
+        unexpectedRecovery.isInverted = true
+        let tapHandlerLock = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            callbackStallTimeout: 1,
+            callbackStallCheckInterval: 0.02,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                tapHandlerLock.withLock { $0 = tapHandler }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                if invocation == 2 {
+                    unexpectedRecovery.fulfill()
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        let installedTapHandler = try XCTUnwrap(tapHandlerLock.withLock { $0 })
+        for callback in 2...150 {
+            Thread.sleep(forTimeInterval: 0.01)
+            installedTapHandler(
+                buffer.buffer,
+                AVAudioTime(hostTime: UInt64(callback))
+            )
+        }
+
+        wait(for: [unexpectedRecovery], timeout: 0.01)
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 1)
+    }
+
+    func testStopEngineCancelsCallbackStallDetection() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { _, _, _, tapHandler in
+                invocationLock.withLock { $0 += 1 }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        platform.stopEngine()
+        Thread.sleep(forTimeInterval: 0.05)
+
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 1)
+    }
+
+    func testCallbackStallRecoveryFailureReportsUnexpectedStop() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let unexpectedStop = expectation(description: "failed callback-stall recovery is terminal")
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                guard invocation == 1 else {
+                    throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
+                }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        wait(for: [unexpectedStop], timeout: 1)
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2)
+    }
 }
 
 private func makeRecoveryTestBuffer() -> AVAudioPCMBuffer {

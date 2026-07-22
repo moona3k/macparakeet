@@ -88,32 +88,73 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         }
     }
 
-    private let target: OSAllocatedUnfairLock<Target?>
+    private struct State {
+        var target: Target?
+        var monitoringCallbacks = false
+        var lastCallbackUptimeNanoseconds: UInt64?
+    }
+
+    private let state: OSAllocatedUnfairLock<State>
 
     init(_ handler: @escaping Handler) {
-        self.target = OSAllocatedUnfairLock(initialState: Target(handler))
+        self.state = OSAllocatedUnfairLock(
+            initialState: State(target: Target(handler))
+        )
     }
 
     func replace(with handler: @escaping Handler) {
         let replacement = Target(handler)
-        let previous = target.withLock { current in
-            let previous = current
-            current = replacement
+        let previous = state.withLock { state in
+            let previous = state.target
+            state.target = replacement
             return previous
         }
         // Destroy the old function after leaving the lock's critical section.
         withExtendedLifetime(previous) {}
     }
 
+    /// Start a fresh liveness interval without adding another lock to the audio
+    /// callback path: `invoke` already snapshots its mutable target here.
+    func activateCallbackMonitoring() {
+        state.withLock { state in
+            state.monitoringCallbacks = true
+            state.lastCallbackUptimeNanoseconds = nil
+        }
+    }
+
     func invoke(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
-        let current = target.withLock { $0 }
+        let current = state.withLock { state in
+            if state.monitoringCallbacks {
+                state.lastCallbackUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+            }
+            return state.target
+        }
         current?.handler(buffer, time)
     }
 
+    /// A quiet room is healthy because callbacks continue. A route-stalled tap
+    /// has no callback timestamp movement and eventually crosses this timeout.
+    func stalledCallbackGap(
+        nowUptimeNanoseconds: UInt64,
+        timeout: TimeInterval
+    ) -> TimeInterval? {
+        state.withLock { state in
+            guard state.monitoringCallbacks,
+                let lastCallback = state.lastCallbackUptimeNanoseconds,
+                nowUptimeNanoseconds >= lastCallback
+            else { return nil }
+
+            let gap = Double(nowUptimeNanoseconds - lastCallback) / 1_000_000_000
+            return gap >= timeout ? gap : nil
+        }
+    }
+
     func clear() {
-        let previous = target.withLock { current in
-            let previous = current
-            current = nil
+        let previous = state.withLock { state in
+            let previous = state.target
+            state.target = nil
+            state.monitoringCallbacks = false
+            state.lastCallbackUptimeNanoseconds = nil
             return previous
         }
         // An in-flight invocation retains its own Target. Future invocations
@@ -201,7 +242,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             AVAudioEngine,
             Bool,
             AVAudioFrameCount,
-            @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+            @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
         ) throws -> Void
 
     private let logger = Logger(
@@ -223,9 +264,16 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private static let defaultRecoveryRetryDelays: [TimeInterval] = [0.5, 1, 2, 4, 8, 16]
     private static let defaultRecoveryRouteChangeDebounce: TimeInterval = 0.5
     private static let defaultRecoveryReadinessTimeout: TimeInterval = 2
+    /// Tap callbacks normally arrive many times per second. Five seconds is
+    /// long enough to ignore route-settle jitter while matching the existing
+    /// recorder heartbeat cadence that exposed the frozen callback count.
+    private static let defaultCallbackStallTimeout: TimeInterval = 5
+    private static let defaultCallbackStallCheckInterval: TimeInterval = 1
     private let recoveryRetryDelays: [TimeInterval]
     private let recoveryRouteChangeDebounce: TimeInterval
     private let recoveryReadinessTimeout: TimeInterval
+    private let callbackStallTimeout: TimeInterval
+    private let callbackStallCheckInterval: TimeInterval
     private var audioEngine = AVAudioEngine()
     private var running: Bool = false
     private var lastSucceededAttemptLocked: MeetingInputDeviceAttempt?
@@ -235,8 +283,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// next instance gets its own observer. Drives both diagnostic logging
     /// and self-healing restart via `recoverFromConfigurationChangeLocked` —
     /// Core Audio sends this when the input chain reconfigures (default-input
-    /// change, format change, sample-rate change), which is the most likely
-    /// trigger for the silent tap-stall under investigation.
+    /// change, format change, sample-rate change).
     private var configurationChangeObserver: NSObjectProtocol?
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
     /// Parameters for the capture the caller still wants active. This desired
@@ -260,6 +307,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var terminalRecoveryGenerationLocked: UInt64?
     private var unexpectedStopHandlerLocked: (@Sendable () -> Void)?
     private let recoveryTapGate = MicrophoneRecoveryTapGate()
+    private var callbackLivenessTimerLocked: DispatchSourceTimer?
 
     // Prepared-but-stopped engine: device + format + tap are paid, but the engine
     // is not started, so there is no capture and no mic indicator. A later
@@ -329,6 +377,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         self.recoveryRetryDelays = Self.defaultRecoveryRetryDelays
         self.recoveryRouteChangeDebounce = Self.defaultRecoveryRouteChangeDebounce
         self.recoveryReadinessTimeout = Self.defaultRecoveryReadinessTimeout
+        self.callbackStallTimeout = Self.defaultCallbackStallTimeout
+        self.callbackStallCheckInterval = Self.defaultCallbackStallCheckInterval
     }
 
     init(
@@ -339,6 +389,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         recoveryRetryDelays: [TimeInterval] = AVAudioEngineMicrophonePlatform.defaultRecoveryRetryDelays,
         recoveryRouteChangeDebounce: TimeInterval = AVAudioEngineMicrophonePlatform.defaultRecoveryRouteChangeDebounce,
         recoveryReadinessTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultRecoveryReadinessTimeout,
+        callbackStallTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultCallbackStallTimeout,
+        callbackStallCheckInterval: TimeInterval = AVAudioEngineMicrophonePlatform.defaultCallbackStallCheckInterval,
         engineStarter: @escaping EngineStarter
     ) {
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
@@ -347,6 +399,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         self.recoveryRetryDelays = recoveryRetryDelays.map { max(0, $0) }
         self.recoveryRouteChangeDebounce = max(0, recoveryRouteChangeDebounce)
         self.recoveryReadinessTimeout = max(0, recoveryReadinessTimeout)
+        self.callbackStallTimeout = max(0, callbackStallTimeout)
+        self.callbackStallCheckInterval = max(0, callbackStallCheckInterval)
     }
 
     public var isEngineRunning: Bool {
@@ -687,14 +741,22 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         // The injected engineStarter (tests) always starts; prepare() is gated to
         // engineStarter == nil, so startNow is always true here.
 
+        let installedTapHandler = MutableMicrophoneTapHandler(tapHandler)
+        installedTapHandler.activateCallbackMonitoring()
+        let monitoredTapHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = {
+            buffer, time in
+            installedTapHandler.invoke(buffer: buffer, time: time)
+        }
         do {
-            try engineStarter(audioEngine, vpioEnabled, bufferSize, tapHandler)
+            try engineStarter(audioEngine, vpioEnabled, bufferSize, monitoredTapHandler)
         } catch {
             replaceEngineAfterFailureLocked()
             throw error
         }
+        tapHandlerBox = installedTapHandler
         running = true
         installConfigurationChangeObserverLocked()
+        armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
     }
 
     private func startEngineLocked(
@@ -826,6 +888,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             return
         }
 
+        installedTapHandler.activateCallbackMonitoring()
         do {
             let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
@@ -848,6 +911,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         running = true
         installConfigurationChangeObserverLocked()
         installRouteChangeObserversLocked()
+        armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
         let totalMilliseconds = Self.elapsedMilliseconds(
             from: totalStartedAt,
             to: Self.nowNanos()
@@ -891,6 +955,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             tearDownLocked()
             return false
         }
+        guard let tapHandlerBox else {
+            AudioCaptureDiagnostics.append(
+                "shared_mic_engine_prepared_discarded reason=missing_tap_handler"
+            )
+            tearDownLocked()
+            return false
+        }
+        tapHandlerBox.activateCallbackMonitoring()
         let phaseStartedAt = Self.nowNanos()
         do {
             try catchingObjCException {
@@ -916,6 +988,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
         installConfigurationChangeObserverLocked()
         installRouteChangeObserversLocked()
+        armCallbackLivenessTimerLocked(tapHandler: tapHandlerBox)
         AudioCaptureDiagnostics.append(
             "shared_mic_engine_started_from_prepared audio_engine_start_ms=\(Self.elapsedMilliseconds(from: phaseStartedAt, to: Self.nowNanos()))"
         )
@@ -923,6 +996,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     }
 
     private func tearDownLocked(preserveRouteObservation: Bool = false) {
+        cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
         preparedConfigurationGeneration = 0
@@ -959,21 +1033,11 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// Reset between failed device attempts (no tap installed yet, just
     /// hand back a fresh engine for the next try).
     private func resetEngineLocked() {
-        prepared = false
-        preparedRouteSnapshot = nil
-        preparedConfigurationGeneration = 0
-        tapHandlerBox?.clear()
-        tapHandlerBox = nil
-        removeConfigurationChangeObserverLocked()
-        try? catchingObjCException {
-            audioEngine.stop()
-        }
-        audioEngine = AVAudioEngine()
-        running = false
-        lastSucceededAttemptLocked = nil
+        replaceEngineAfterFailureLocked()
     }
 
     private func replaceEngineAfterFailureLocked() {
+        cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
         preparedConfigurationGeneration = 0
@@ -1060,10 +1124,11 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// Begins bounded recovery after an `AVAudioEngineConfigurationChange`.
     /// The notification gates remain strict: the caller still wants capture,
     /// the event belongs to the current engine, and that engine really stopped.
-    /// A failed immediate attempt keeps the desired request alive and retries
-    /// on fresh engines through the production backoff window. Route changes
-    /// trailing-debounce the pending attempt so USB/Bluetooth handoff bursts do
-    /// not create a restart storm.
+    /// Configuration changes and callback stalls converge on the shared episode
+    /// below. A failed immediate attempt keeps the desired request alive and
+    /// retries on fresh engines through the production backoff window. Route
+    /// changes trailing-debounce the pending attempt so USB/Bluetooth handoff
+    /// bursts do not create a restart storm.
     private func recoverFromConfigurationChangeLocked(engineBox: UncheckedSendableAudioEngine) {
         guard running else { return }
         guard engineBox.wraps(audioEngine) else { return }
@@ -1083,6 +1148,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             return
         }
 
+        beginRecoveryEpisodeLocked(trigger: "configuration_change")
+    }
+
+    private func beginRecoveryEpisodeLocked(trigger: String) {
         recoveryEpisodeGenerationLocked &+= 1
         recoveryScheduleGenerationLocked &+= 1
         nextRecoveryRetryIndexLocked = 0
@@ -1093,8 +1162,53 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         terminalRecoveryGenerationLocked = nil
         attemptRecoveryLocked(
             episodeGeneration: recoveryEpisodeGenerationLocked,
-            trigger: "configuration_change"
+            trigger: trigger
         )
+    }
+
+    private func armCallbackLivenessTimerLocked(tapHandler: MutableMicrophoneTapHandler) {
+        cancelCallbackLivenessTimerLocked()
+        guard callbackStallTimeout > 0, callbackStallCheckInterval > 0 else { return }
+
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(
+            deadline: .now() + callbackStallTimeout,
+            repeating: callbackStallCheckInterval
+        )
+        timer.setEventHandler { [weak self, weak tapHandler] in
+            guard let self, let tapHandler else { return }
+            self.checkCallbackLivenessLocked(tapHandler: tapHandler)
+        }
+        callbackLivenessTimerLocked = timer
+        timer.resume()
+    }
+
+    private func cancelCallbackLivenessTimerLocked() {
+        callbackLivenessTimerLocked?.cancel()
+        callbackLivenessTimerLocked = nil
+    }
+
+    private func checkCallbackLivenessLocked(tapHandler: MutableMicrophoneTapHandler) {
+        guard running,
+            activeStartRequestLocked != nil,
+            !recoveryReadinessPendingLocked,
+            !recoveryRetryPendingLocked,
+            tapHandlerBox === tapHandler,
+            let gap = tapHandler.stalledCallbackGap(
+                nowUptimeNanoseconds: Self.nowNanos(),
+                timeout: callbackStallTimeout
+            )
+        else { return }
+
+        let engineIsRunning = audioEngine.isRunning
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_callback_stalled callback_gap_s=\(String(format: "%.3f", gap)) engine_is_running=\(engineIsRunning)"
+        )
+        logger.error(
+            "shared_mic_engine_callback_stalled callback_gap_s=\(gap, privacy: .public) engine_is_running=\(engineIsRunning, privacy: .public)"
+        )
+        cancelCallbackLivenessTimerLocked()
+        beginRecoveryEpisodeLocked(trigger: "callback_stall")
     }
 
     private func attemptRecoveryLocked(
