@@ -1,0 +1,57 @@
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_34694bb29f5678::t_673a2ddaa3c1ed 24-54
+  s_34694bb29f5678::t_927c892c3a1c98 750-825,828,832-834
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformStartupReadinessTests.swift
+  s_34694bb29f5678::t_95554c58fd394f 89-159
+  s_34694bb29f5678::t_675500632f332f 1-88,160-167
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_34694bb29f5678::t_361af034f931de 140
+  s_34694bb29f5678::t_44e9f21996cf4f 100,133,138,142,144-148,155-165,174-176,213
+  s_34694bb29f5678::t_3628978f46dfe6 166-173
+  s_34694bb29f5678::t_367761d00f2ad0 1698,1706-1707
+  s_34694bb29f5678::t_d73f8b44a74233 1250-1257
+  s_34694bb29f5678::t_9ca5ad1b8977f2 222-246,348-351,364-365,472,487,502-503
+  s_34694bb29f5678::t_79695f41bebfa5 473,488-490,729-730,778-781,835-836,843-844,855-857,886-887,972-974
+  s_34694bb29f5678::t_3159e59b35d9ca 79-83,177-179,181-183,185-198,203,356-359,367,475,492,505,1139,1326-1329,1333,1355,1357-1358,1363-1381,1383
+  s_34694bb29f5678::t_b4d01017db7700 104,106-110,139,143
+  s_34694bb29f5678::t_527630ebf95023 851-852,968-969,1101-1102
+  s_34694bb29f5678::t_cd56d290dd3a49 696,702,853-854,858-861,864,872-876,879,970-971,975-977,1041-1044,1083-1085,1103-1108,1133-1137
+  s_6b60a355f5f8d4::t_3e58f4be1581f3 1138
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_34694bb29f5678::t_2b8d6a58156f70 29-33
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_34694bb29f5678::t_a5811e7668dfbc 144,413,420
+Sources/MacParakeetCore/Audio/AudioDeviceManager.swift
+  s_34694bb29f5678::t_58a9700ccd3dcd 263
+Tests/MacParakeetTests/Audio/MutableMicrophoneTapHandlerTests.swift
+  s_34694bb29f5678::t_0e308973e6549f 60,62-63,71,73-74,78,80-81,87,89-90
+  s_34694bb29f5678::t_127ffa2f5e2427 95-115
+spec/05-audio-pipeline.md
+  s_34694bb29f5678::t_f79c620df6acbd 19,24,267,377
+Sources/MacParakeetCore/Audio/README.md
+  s_34694bb29f5678::t_079716ff3758b0 25-28,239-241,262-266,285-291,309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8973655e0b6524c204a1df40f054ca649ff9e5ae",
+  "prompts": {},
+  "sessions": {
+    "s_34694bb29f5678": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bd1-7370-74e0-bf59-d2699a27b6ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_6b60a355f5f8d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bc5-48c5-7853-83ea-e4c648e46831",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
