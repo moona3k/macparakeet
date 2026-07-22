@@ -242,7 +242,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             AVAudioEngine,
             Bool,
             AVAudioFrameCount,
-            @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+            @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
         ) throws -> Void
 
     private let logger = Logger(
@@ -1033,19 +1033,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// Reset between failed device attempts (no tap installed yet, just
     /// hand back a fresh engine for the next try).
     private func resetEngineLocked() {
-        cancelCallbackLivenessTimerLocked()
-        prepared = false
-        preparedRouteSnapshot = nil
-        preparedConfigurationGeneration = 0
-        tapHandlerBox?.clear()
-        tapHandlerBox = nil
-        removeConfigurationChangeObserverLocked()
-        try? catchingObjCException {
-            audioEngine.stop()
-        }
-        audioEngine = AVAudioEngine()
-        running = false
-        lastSucceededAttemptLocked = nil
+        replaceEngineAfterFailureLocked()
     }
 
     private func replaceEngineAfterFailureLocked() {

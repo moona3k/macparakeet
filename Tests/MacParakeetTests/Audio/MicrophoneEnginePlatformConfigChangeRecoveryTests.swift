@@ -610,20 +610,24 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         XCTAssertFalse(engines[0] === engines[1], "recovery must rebuild the engine")
     }
 
-    func testCallbackActivityDoesNotRecoverBeforeStallTimeout() throws {
+    func testContinuousCallbackActivityDoesNotRecoverPastStallTimeout() throws {
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
         let unexpectedRecovery = expectation(description: "callback activity remains healthy")
         unexpectedRecovery.isInverted = true
+        let tapHandlerLock = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
         let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            callbackStallTimeout: 0.2,
+            callbackStallTimeout: 0.05,
             callbackStallCheckInterval: 0.005,
             engineStarter: { _, _, _, tapHandler in
                 let invocation = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
+                tapHandlerLock.withLock { $0 = tapHandler }
                 tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
                 if invocation > 1 {
                     unexpectedRecovery.fulfill()
@@ -638,7 +642,16 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             tapHandler: { _, _ in }
         )
 
-        wait(for: [unexpectedRecovery], timeout: 0.05)
+        let installedTapHandler = try XCTUnwrap(tapHandlerLock.withLock { $0 })
+        for callback in 2...20 {
+            Thread.sleep(forTimeInterval: 0.01)
+            installedTapHandler(
+                buffer.buffer,
+                AVAudioTime(hostTime: UInt64(callback))
+            )
+        }
+
+        wait(for: [unexpectedRecovery], timeout: 0.01)
         XCTAssertTrue(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 1)
     }
