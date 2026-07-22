@@ -89,6 +89,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-07-22
+
 ### Added
 
 - `meetings artifact --json` and envelope output may now include the additive
