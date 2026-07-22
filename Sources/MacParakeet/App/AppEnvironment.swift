@@ -141,7 +141,7 @@ final class AppEnvironment {
         let warmCaptureInputIsBluetooth: @Sendable () -> Bool = {
             Self.shouldSuppressWarmCapture(
                 deviceAttempts: attemptsBuilder(),
-                isBluetoothInput: { AudioDeviceManager.isBluetoothInput($0) }
+                isBluetoothInput: { AudioDeviceManager.bluetoothInputState($0) }
             )
         }
         audioProcessor = AudioProcessor(
@@ -410,14 +410,14 @@ final class AppEnvironment {
 
     nonisolated static func shouldSuppressWarmCapture(
         deviceAttempts: [MeetingInputDeviceAttempt],
-        isBluetoothInput: @Sendable (AudioDeviceID) -> Bool
+        isBluetoothInput: @Sendable (AudioDeviceID) -> Bool?
     ) -> Bool {
         // Fail closed: an unresolvable input (mid device transition — exactly
         // when Bluetooth headsets are settling) skips the warm hold for this
         // round. The hold is an opt-in optimization; the next refresh or
         // post-dictation restart retries.
         guard let deviceID = deviceAttempts.first?.deviceID else { return true }
-        return isBluetoothInput(deviceID)
+        return isBluetoothInput(deviceID) != false
     }
 
     nonisolated static func shouldAttemptLiveDictationTranscription(

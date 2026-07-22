@@ -260,7 +260,7 @@ public enum AudioDeviceManager {
     /// marker and an aggregate with no active sub-devices. Callers that acquire
     /// a microphone while idle should treat that state as risky and fail
     /// closed until Core Audio settles.
-    static func bluetoothInputState(_ deviceID: AudioDeviceID) -> Bool? {
+    public static func bluetoothInputState(_ deviceID: AudioDeviceID) -> Bool? {
         guard let transport = resolvedTransportType(deviceID) else { return nil }
 
         let subTransports: [UInt32]?

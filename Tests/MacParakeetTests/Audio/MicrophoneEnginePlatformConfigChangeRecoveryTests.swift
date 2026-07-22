@@ -21,6 +21,39 @@ import XCTest
 /// returns.
 final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
 
+    func testRunningConfigurationChangeNotifiesInputRouteConsumers() throws {
+        let routeChange = expectation(description: "route consumers are notified")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            routeChange.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            engineStarter: { _, _, _, tapHandler in
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [routeChange], timeout: 0.5)
+    }
+
     // MARK: - Test 1
 
     /// Starting the engine and then posting a configuration-change notification
@@ -43,8 +76,8 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                 }
                 vpioLock.withLock { arr in arr.append(vpio) }
                 bufferSizeLock.withLock { arr in arr.append(bufferSize) }
+                tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: UInt64(engines.count)))
                 if engines.count == 2 {
-                    tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: 1))
                     recoveryExpectation.fulfill()
                 }
             }
@@ -104,10 +137,12 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
     func testConfigurationChangeAfterStopEngineDoesNotRestart() throws {
         // Arrange: count starter invocations.
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            engineStarter: { _, _, _, _ in
+            engineStarter: { _, _, _, tapHandler in
                 invocationLock.withLock { count in count += 1 }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
             }
         )
 
@@ -170,7 +205,6 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                 return []
             },
             recoveryRetryDelays: [0],
-            recoveryReadinessTimeout: 0.02,
             engineStarter: { engine, vpio, bufferSize, tapHandler in
                 let count = invocationLock.withLock { c -> Int in
                     c += 1
@@ -181,6 +215,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                 bufferSizeLock.withLock { $0.append(bufferSize) }
                 switch count {
                 case 1:
+                    tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: 1))
                     firstStartExpectation.fulfill()
                 case 2:
                     recoveryAttemptExpectation.fulfill()
@@ -239,15 +274,19 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let failedRecoveryExpectation = expectation(description: "immediate recovery fails")
         let unexpectedRetryExpectation = expectation(description: "cancelled retry must not run")
         unexpectedRetryExpectation.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0.2],
-            engineStarter: { engine, _, _, _ in
+            engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
                 enginesLock.withLock { $0.append(engine) }
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
                 if count == 2 {
                     failedRecoveryExpectation.fulfill()
                     throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
@@ -287,15 +326,17 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let recoveryExpectation = expectation(description: "one recovery")
         let unexpectedExtraRecovery = expectation(description: "no extra recovery")
         unexpectedExtraRecovery.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0],
-            engineStarter: { engine, _, _, _ in
+            engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
                 enginesLock.withLock { $0.append(engine) }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(count)))
                 if count == 2 {
                     recoveryExpectation.fulfill()
                 } else if count > 2 {
@@ -333,10 +374,11 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
         let unexpectedStopCount = OSAllocatedUnfairLock(initialState: 0)
         let unexpectedStopExpectation = expectation(description: "unexpected stop reported")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0, 0],
-            engineStarter: { engine, _, _, _ in
+            engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
@@ -345,6 +387,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                 guard count == 1 else {
                     throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
                 }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
             }
         )
         platform.setUnexpectedStopHandler {
@@ -378,16 +421,19 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
         let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
         let retryExpectation = expectation(description: "silent replacement is retired and retried")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0],
-            recoveryReadinessTimeout: 0.02,
             engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
                 enginesLock.withLock { $0.append(engine) }
+                if count == 1 || count == 3 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(count)))
+                }
                 if count == 3 {
                     retryExpectation.fulfill()
                 }
@@ -417,13 +463,19 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
         let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
         let unexpectedStopExpectation = expectation(description: "silent recovery exhausts")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [],
-            recoveryReadinessTimeout: 0.02,
-            engineStarter: { engine, _, _, _ in
-                invocationLock.withLock { $0 += 1 }
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
                 enginesLock.withLock { $0.append(engine) }
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
             }
         )
         platform.setUnexpectedStopHandler {
@@ -456,17 +508,20 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         unexpectedRetry.isInverted = true
         let unexpectedStop = expectation(description: "stop is not terminal engine death")
         unexpectedStop.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0],
-            recoveryReadinessTimeout: 0.05,
-            engineStarter: { engine, _, _, _ in
+            startupReadinessTimeout: 5,
+            engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
                 enginesLock.withLock { $0.append(engine) }
-                if count == 2 {
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                } else if count == 2 {
                     silentRecoveryStarted.fulfill()
                 } else if count > 2 {
                     unexpectedRetry.fulfill()
@@ -489,9 +544,16 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         )
         wait(for: [silentRecoveryStarted], timeout: 1.0)
 
+        let stopStartedAt = ContinuousClock.now
         platform.stopEngine()
+        let stopDuration = stopStartedAt.duration(to: .now)
         wait(for: [unexpectedRetry, unexpectedStop], timeout: 0.15)
 
+        XCTAssertLessThan(
+            stopDuration,
+            .seconds(1),
+            "stop must cancel the readiness wait instead of blocking for its five-second timeout"
+        )
         XCTAssertFalse(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 2)
     }
@@ -505,23 +567,40 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let unexpectedFifthAttempt = expectation(description: "retry budget must remain bounded")
         unexpectedFifthAttempt.isInverted = true
         let exhausted = expectation(description: "bounded recovery exhausts")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [0, 0],
-            recoveryReadinessTimeout: 5,
-            engineStarter: { engine, _, _, _ in
+            engineStarter: { engine, _, _, tapHandler in
                 let count = invocationLock.withLock { value -> Int in
                     value += 1
                     return value
                 }
                 enginesLock.withLock { $0.append(engine) }
                 switch count {
+                case 1:
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
                 case 2:
                     secondAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 2))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
                 case 3:
                     thirdAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 3))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
                 case 4:
                     fourthAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 4))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
                 case 5...:
                     unexpectedFifthAttempt.fulfill()
                 default:
@@ -540,28 +619,15 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             tapHandler: { _, _ in }
         )
 
-        func interruptCurrentEngine(
-            thenWaitFor expectation: XCTestExpectation
-        ) {
-            let engine = enginesLock.withLock { $0.last! }
-            NotificationCenter.default.post(
-                name: .AVAudioEngineConfigurationChange,
-                object: engine
-            )
-            wait(for: [expectation], timeout: 1)
-            _ = platform.isEngineRunning
-        }
-
-        interruptCurrentEngine(thenWaitFor: secondAttempt)
-        interruptCurrentEngine(thenWaitFor: thirdAttempt)
-        interruptCurrentEngine(thenWaitFor: fourthAttempt)
-
-        let finalEngine = enginesLock.withLock { $0.last! }
+        let firstEngine = enginesLock.withLock { $0[0] }
         NotificationCenter.default.post(
             name: .AVAudioEngineConfigurationChange,
-            object: finalEngine
+            object: firstEngine
         )
-        wait(for: [exhausted, unexpectedFifthAttempt], timeout: 1)
+        wait(
+            for: [secondAttempt, thirdAttempt, fourthAttempt, exhausted, unexpectedFifthAttempt],
+            timeout: 1
+        )
 
         XCTAssertFalse(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 4)
@@ -579,7 +645,6 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
 
         let platform = AVAudioEngineMicrophonePlatform(
             recoveryRetryDelays: [],
-            recoveryReadinessTimeout: 0.05,
             callbackStallTimeout: 0.02,
             callbackStallCheckInterval: 0.005,
             engineStarter: { engine, _, _, tapHandler in
@@ -716,11 +781,97 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         XCTAssertFalse(platform.isEngineRunning)
         XCTAssertEqual(invocationLock.withLock { $0 }, 2)
     }
+
+    func testSustainedBluetoothZeroFilledCallbacksRecoverThroughFallbackRoute() throws {
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let deliveredBufferCount = OSAllocatedUnfairLock(initialState: 0)
+        let currentDeviceID = OSAllocatedUnfairLock<AudioDeviceID?>(initialState: nil)
+        let uptimeNanoseconds = OSAllocatedUnfairLock<UInt64>(initialState: 0)
+        let initialTapHandler = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let zeroBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        let signalBuffer = UncheckedSendableAudioPCMBuffer(
+            makeRecoveryTestBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [
+                    MeetingInputDeviceAttempt(
+                        source: .selected(uid: "bluetooth"),
+                        deviceID: 10
+                    ),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                currentDeviceID.withLock { $0 = deviceID }
+                return true
+            },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackUptimeProvider: { uptimeNanoseconds.withLock { $0 } },
+            callbackStallTimeout: 1,
+            zeroFilledTimeout: 0.02,
+            callbackStallCheckInterval: 0,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                let deviceID = currentDeviceID.withLock { $0 }
+                switch (invocation, deviceID) {
+                case (1, 10):
+                    initialTapHandler.withLock { $0 = tapHandler }
+                    tapHandler(signalBuffer.buffer, AVAudioTime(hostTime: 1))
+                case (2, 10):
+                    tapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 2))
+                case (3, 20):
+                    tapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 3))
+                default:
+                    XCTFail("Unexpected start attempt \(invocation) for device \(String(describing: deviceID))")
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in
+                deliveredBufferCount.withLock { $0 += 1 }
+            }
+        )
+        let tapHandler = try XCTUnwrap(initialTapHandler.withLock { $0 })
+
+        for hostTime in 2...12 {
+            uptimeNanoseconds.withLock { $0 = UInt64(hostTime) * 5_000_000 }
+            tapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: UInt64(hostTime)))
+        }
+        platform.checkCallbackLivenessNowForTesting()
+
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 3)
+        XCTAssertEqual(
+            deliveredBufferCount.withLock { $0 },
+            2,
+            "Bluetooth zero-filled buffers must not reach consumers"
+        )
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+        )
+    }
 }
 
-private func makeRecoveryTestBuffer() -> AVAudioPCMBuffer {
+private func makeRecoveryTestBuffer(nonZero: Bool = true) -> AVAudioPCMBuffer {
     let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
     let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32)!
     buffer.frameLength = 32
+    if nonZero {
+        buffer.floatChannelData?[0][0] = 0.001
+    }
     return buffer
 }

@@ -646,6 +646,9 @@ final class MicrophoneCaptureTests: XCTestCase {
 
     func testPlatformSkipsInputDeviceSetterForImplicitSystemDefaultAttempt() throws {
         let recorder = MicrophoneCaptureInputDeviceSetterRecorder()
+        let buffer = makeSharedTestBuffer()
+        buffer.floatChannelData?[0][0] = 0.001
+        let readyBuffer = UncheckedSendableAudioPCMBuffer(buffer)
         let platform = AVAudioEngineMicrophonePlatform(
             deviceAttemptsBuilder: {
                 [
@@ -658,7 +661,9 @@ final class MicrophoneCaptureTests: XCTestCase {
                 recorder.record(deviceID)
                 return false
             },
-            engineStarter: { _, _, _, _ in }
+            engineStarter: { _, _, _, tapHandler in
+                tapHandler(readyBuffer.buffer, AVAudioTime(hostTime: 1))
+            }
         )
 
         try platform.configureAndStart(

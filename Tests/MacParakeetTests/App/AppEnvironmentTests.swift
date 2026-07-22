@@ -26,6 +26,14 @@ final class AppEnvironmentTests: XCTestCase {
             deviceAttempts: [.implicitSystemDefault(resolvedDeviceID: nil)],
             isBluetoothInput: { _ in false }
         ))
+
+        XCTAssertTrue(
+            AppEnvironment.shouldSuppressWarmCapture(
+                deviceAttempts: [.implicitSystemDefault(resolvedDeviceID: 20)],
+                isBluetoothInput: { _ in nil }
+            ),
+            "Unresolved transport/topology must not acquire an idle microphone"
+        )
     }
 
     func testCohereDictationRoutingDisablesLiveAndDisplayPreview() {
