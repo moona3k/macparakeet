@@ -22,11 +22,10 @@ owned by `AppEnvironment`.
   fallback chain, VPIO toggle, tap install, engine recreation on
   every teardown (so coreaudiod releases the VPAU aggregate
   device), `AVAudioEngineConfigurationChangeNotification` observer,
-  configuration-change self-healing (strictly gated, bounded retries on HAL
-  reconfiguration — the Apple-documented contract for
-  `AVAudioEngineConfigurationChange` clients). Notifications received while a
-  replacement still awaits its first buffer remain in the same recovery
-  episode; they do not replenish the retry budget.
+  and source-liveness self-healing. A stopped graph or a tap that stops
+  delivering callbacks converges on the same bounded fresh-engine recovery.
+  Notifications received while a replacement still awaits its first buffer
+  remain in the same recovery episode; they do not replenish the retry budget.
 
 **Mic consumers (each subscribes to the shared stream)**
 - `AudioRecorder.swift` — dictation capture.
@@ -262,26 +261,30 @@ remains observability-only. The first-buffer watchdog is now also a
 startup readiness signal: `start()` does not report a healthy recording until
 at least one microphone buffer arrives, and a no-buffer start aborts with a
 microphone-input error. Sustained silent input is classified at `stop()` using
-the capture-health snapshot before STT runs. Keep mid-session heartbeat logs
-non-disruptive; they are still there to diagnose stalls without inventing a
-second recovery path.
+the capture-health snapshot before STT runs. Keep that signal-level heartbeat
+non-disruptive: actual callback liveness belongs to the shared source owner
+below, so dictation and meeting capture do not invent competing recovery paths.
 
-**The configuration-change observer self-heals (gated, bounded recovery).** When
-`AVAudioEngine` stops itself after an `AVAudioEngineConfigurationChange`
-notification (default-input change, format change, sample-rate change), the
-observer in `MicrophoneEnginePlatform` starts self-healing recovery — this is
-the Apple-documented client contract for that notification, not a
-diagnostic-turned-error. Recovery starts only when all four gates pass:
-(1) `running == true` (explicit stop wins), (2) the notification belongs to
-the current engine instance (stale events for replaced engines are discarded),
-(3) `AVAudioEngine.isRunning == false` (benign notifications around a healthy
-start are no-ops), and (4) the original start parameters are known. The
-immediate restart and every retry rebuild the engine, resolve the current input
-route, and query its live format. Failures use a bounded 31.5-second backoff;
-default-input changes trailing-debounce the pending attempt so a USB/Bluetooth
-handoff can settle without causing a restart storm. An engine start is only a
-candidate recovery: the replacement must deliver its first real buffer before
-the attempt is accepted. A silent replacement is torn down and retried.
+**The shared mic source self-heals (gated, bounded recovery).** There are two
+source-owned triggers. First, when `AVAudioEngine` stops itself after an
+`AVAudioEngineConfigurationChange` notification (default-input, format, or
+sample-rate change), the observer follows Apple's restart contract. It requires
+the current engine instance, an active capture request, and
+`AVAudioEngine.isRunning == false`; benign notifications around a healthy graph
+are no-ops. Second, once a tap has delivered its first buffer, a five-second gap
+with no further tap callbacks is treated as a stalled source even if
+`AVAudioEngine.isRunning` remains true. This check is callback-based, not
+amplitude-based: real silence continues to produce buffers and never triggers a
+restart. It is not Bluetooth-specific because USB, aggregate, and virtual
+devices can fail at the same source-lifecycle seam.
+
+Both triggers converge on one recovery implementation. The immediate restart
+and every retry rebuild the engine, resolve the current input route, and query
+its live format. Failures use a bounded 31.5-second backoff; default-input
+changes trailing-debounce a pending attempt so a USB/Bluetooth handoff can
+settle without causing a restart storm. An engine start is only a candidate
+recovery: the replacement must deliver its first real buffer before the attempt
+is accepted. A replacement with no first buffer is torn down and retried.
 Explicit Stop cancels the
 episode and no queued retry may resurrect capture. If every retry fails, the
 platform reports terminal engine death to `SharedMicrophoneStream`, which
@@ -289,8 +292,9 @@ invalidates subscriptions and fires their existing `onEngineDeath` handlers.
 Meeting capture maps that terminal death to a microphone-source interruption
 when system audio is also selected, so the healthy sibling source continues;
 microphone-only capture keeps the existing whole-capture failure semantics.
-The watchdog and heartbeat in `AudioRecorder` remain log-only; only the
-configuration-change path self-heals. Recovery log events include
+The watchdog and heartbeat in `AudioRecorder` remain log-only; platform callback
+liveness is the single mid-session recovery owner. Recovery log events include
+`shared_mic_engine_callback_stalled`,
 `shared_mic_engine_config_change_recovery_attempt`,
 `shared_mic_engine_config_change_recovery_succeeded`, and
 `shared_mic_engine_config_change_recovery_failed`, plus scheduling and terminal

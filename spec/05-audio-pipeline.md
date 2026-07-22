@@ -16,6 +16,7 @@ Mic Input → SharedMicrophoneStream tap → temp WAV → selected local STT eng
 
 - **Shared mic engine**: `AudioRecorder` subscribes to the process-wide `SharedMicrophoneStream` with `wantsVPIO: false`
 - The stream owns the underlying `AVAudioEngine` input-node tap and handles device fallback centrally
+- Once input callbacks begin, the platform treats a five-second callback gap as a stalled source and runs the same bounded fresh-engine recovery used for a stopped configuration-change graph. This is callback-liveness only; acoustic silence remains valid input.
 - **Output format**: temporary WAV, 16kHz mono Float32
 - **Minimum sample threshold**: 4,800 samples (0.3 seconds at 16kHz) required before sending to STT, mirroring FluidAudio's ASR guard. Header-only and near-empty recordings are rejected before they reach the speech engine.
 - Dictation always extracts channel 0 before conversion so VPIO duplex layouts produce the post-AEC mono stream instead of channel-mixed reference audio.
@@ -263,7 +264,7 @@ is the artifact and sidecar contract.
 | Component | Purpose |
 |-----------|---------|
 | `SystemAudioStream` | ScreenCaptureKit system-audio wrapper - creates an audio-only `SCStream`, adapts `CMSampleBuffer` to `AVAudioPCMBuffer`, and maps first-buffer, heartbeat, and unexpected delegate stops into typed lifecycle failures |
-| `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, synchronous buffer fan-out, and terminal engine-death propagation after bounded configuration-change recovery is exhausted |
+| `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, synchronous buffer fan-out, and terminal engine-death propagation after bounded configuration-change or callback-stall recovery is exhausted |
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, awaited teardown, and typed stall propagation |
 | `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>`; owns bounded fresh-instance system recovery, coalesces duplicate failures, and lets Stop invalidate every retry generation |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |

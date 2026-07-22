@@ -50,6 +50,44 @@ final class MutableMicrophoneTapHandlerTests: XCTestCase {
         handler.clear()
     }
 
+    func testCallbackMonitoringRequiresAFirstCallbackAndClearInvalidatesIt() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let handler = MutableMicrophoneTapHandler { _, _ in }
+        let timeout: TimeInterval = 5
+
+        handler.activateCallbackMonitoring()
+        XCTAssertNil(
+            handler.stalledCallbackGap(
+                nowUptimeNanoseconds: DispatchTime.now().uptimeNanoseconds,
+                timeout: timeout
+            ),
+            "startup without a first callback belongs to the existing first-buffer watchdog"
+        )
+
+        handler.invoke(buffer: buffer, time: time)
+        let afterCallback = DispatchTime.now().uptimeNanoseconds
+        XCTAssertNil(
+            handler.stalledCallbackGap(
+                nowUptimeNanoseconds: afterCallback,
+                timeout: timeout
+            )
+        )
+        XCTAssertNotNil(
+            handler.stalledCallbackGap(
+                nowUptimeNanoseconds: afterCallback + 6_000_000_000,
+                timeout: timeout
+            )
+        )
+
+        handler.clear()
+        XCTAssertNil(
+            handler.stalledCallbackGap(
+                nowUptimeNanoseconds: afterCallback + 6_000_000_000,
+                timeout: timeout
+            )
+        )
+    }
+
     private func makeBufferAndTime() throws -> (AVAudioPCMBuffer, AVAudioTime) {
         let format = try XCTUnwrap(
             AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)
