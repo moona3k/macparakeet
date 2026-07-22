@@ -7,6 +7,7 @@ enum ExportFormat: String, ExpressibleByArgument, CaseIterable {
     case markdown
     case srt
     case vtt
+    case dapt
     case json
 
     var fileExtension: String {
@@ -15,6 +16,7 @@ enum ExportFormat: String, ExpressibleByArgument, CaseIterable {
         case .markdown: return "md"
         case .srt: return "srt"
         case .vtt: return "vtt"
+        case .dapt: return "dapt.xml"
         case .json: return "json"
         }
     }
@@ -24,13 +26,13 @@ struct ExportCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "export",
         abstract: "Export a transcription to a file.",
-        discussion: "Supported formats: txt, markdown, srt, vtt, json."
+        discussion: "Supported formats: txt, markdown, srt, vtt, dapt, json."
     )
 
     @Argument(help: "The UUID (or prefix) of the transcription to export.")
     var id: String
 
-    @Option(name: .shortAndLong, help: "Output format: txt, markdown, srt, vtt, json.")
+    @Option(name: .shortAndLong, help: "Output format: txt, markdown, srt, vtt, dapt, json.")
     var format: ExportFormat = .txt
 
     @Option(name: .shortAndLong, help: "Output file path (defaults to current directory with auto-generated name).")
@@ -85,6 +87,8 @@ struct ExportCommand: AsyncParsableCommand {
             return exportService.formatSRT(transcription: transcription)
         case .vtt:
             return exportService.formatVTT(transcription: transcription)
+        case .dapt:
+            return exportService.formatDAPT(transcription: transcription)
         case .json:
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -107,6 +111,8 @@ struct ExportCommand: AsyncParsableCommand {
             try exportService.exportToSRT(transcription: transcription, url: url)
         case .vtt:
             try exportService.exportToVTT(transcription: transcription, url: url)
+        case .dapt:
+            try exportService.exportToDAPT(transcription: transcription, url: url)
         case .json:
             try exportService.exportToJSON(transcription: transcription, url: url)
         }

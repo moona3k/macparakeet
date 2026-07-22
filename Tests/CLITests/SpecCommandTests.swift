@@ -211,6 +211,11 @@ final class SpecCommandTests: XCTestCase {
         let promptSetOptions = try XCTUnwrap(promptsSet["options"] as? [[String: Any]])
         XCTAssertTrue(promptSetOptions.contains { ($0["name"] as? String) == "--source" })
 
+        let export = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["export"] })
+        let exportOptions = try XCTUnwrap(export["options"] as? [[String: Any]])
+        let exportFormat = try XCTUnwrap(exportOptions.first { ($0["name"] as? String) == "--format" })
+        XCTAssertEqual(exportFormat["valueName"] as? String, "txt|markdown|srt|vtt|dapt|json")
+
         let deleteMeetingAudio = try XCTUnwrap(
             commands.first { ($0["path"] as? [String]) == ["history", "delete-meeting-audio"] })
         XCTAssertTrue(
@@ -328,7 +333,7 @@ final class SpecCommandTests: XCTestCase {
         let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
         XCTAssertEqual(engine["valueName"] as? String, "parakeet|nemotron|whisper|cohere|app-default")
         let format = try XCTUnwrap(options.first { ($0["name"] as? String) == "--format" })
-        XCTAssertEqual(format["valueName"] as? String, "text|transcript|json|srt|vtt")
+        XCTAssertEqual(format["valueName"] as? String, "text|transcript|json|srt|vtt|dapt")
         let audioTrack = try XCTUnwrap(options.first { ($0["name"] as? String) == "--audio-track" })
         XCTAssertEqual(audioTrack["valueName"] as? String, "N")
         XCTAssertEqual(

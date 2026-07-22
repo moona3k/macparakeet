@@ -10,6 +10,7 @@ public protocol ExportServiceProtocol: Sendable {
     ) throws
     func exportToSRT(transcription: Transcription, url: URL) throws
     func exportToVTT(transcription: Transcription, url: URL) throws
+    func exportToDAPT(transcription: Transcription, url: URL) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
     func exportToMarkdown(
         transcription: Transcription,
@@ -21,6 +22,7 @@ public protocol ExportServiceProtocol: Sendable {
     @MainActor func exportToDocx(transcription: Transcription, url: URL) throws
     func formatSRT(transcription: Transcription) -> String
     func formatVTT(transcription: Transcription) -> String
+    func formatDAPT(transcription: Transcription) -> String
     func formatSRT(words: [WordTimestamp], speakers: [SpeakerInfo]?) -> String
     func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]?) -> String
     func formatMarkdown(transcription: Transcription) -> String
@@ -28,6 +30,19 @@ public protocol ExportServiceProtocol: Sendable {
 }
 
 public extension ExportServiceProtocol {
+    /// Compatibility fallback so existing protocol conformers automatically
+    /// gain the additive DAPT export surface.
+    func formatDAPT(transcription: Transcription) -> String {
+        DAPTDocumentRenderer.render(transcription: transcription)
+    }
+
+    /// Compatibility fallback so existing protocol conformers automatically
+    /// gain the additive DAPT export surface.
+    func exportToDAPT(transcription: Transcription, url: URL) throws {
+        try formatDAPT(transcription: transcription)
+            .write(to: url, atomically: true, encoding: .utf8)
+    }
+
     /// Compatibility fallback for conformers that only support the original export surface.
     func exportToTxt(
         transcription: Transcription,
@@ -127,6 +142,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Export transcription as WebVTT subtitle file
     public func exportToVTT(transcription: Transcription, url: URL) throws {
         try formatVTT(transcription: transcription).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Export a W3C DAPT original-transcript document.
+    public func exportToDAPT(transcription: Transcription, url: URL) throws {
+        try formatDAPT(transcription: transcription).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Format a transcription as a W3C DAPT original-transcript document.
+    public func formatDAPT(transcription: Transcription) -> String {
+        DAPTDocumentRenderer.render(transcription: transcription)
     }
 
     /// Format a transcription as SRT, falling back to one full-transcript cue.

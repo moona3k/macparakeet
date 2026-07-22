@@ -3431,7 +3431,7 @@ struct TranscriptResultView: View {
     }
 
     private var exportFormatOrder: [TranscriptExportFormat] {
-        [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
+        [.txt, .md, .srt, .vtt, .dapt, .json, .pdf, .docx]
     }
 
     private var exportOptionsPopover: some View {
@@ -3500,10 +3500,8 @@ struct TranscriptResultView: View {
                 }
             }
 
-            // The Options toggles apply only to Text/Markdown. SRT/VTT are
-            // cue-only, and JSON/PDF/DOCX always include whatever the transcript
-            // has — so none of those take these toggles; showing them greyed
-            // would just be noise.
+            // The Options toggles apply only to Text/Markdown. Other formats
+            // have fixed mappings, so showing disabled toggles would be noise.
             if selectedExportFormat.supportsTranscriptOptions {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Options")

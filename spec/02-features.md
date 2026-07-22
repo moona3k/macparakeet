@@ -939,6 +939,7 @@ Important constraints:
 - formatter is a separate toggle, not a dictation mode
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
+- formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
 - formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493)
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
@@ -1300,6 +1301,7 @@ Display result (same view as file transcription)
 | Markdown | `.md` | Notes and documents | Reading paragraphs with optional timestamps, speaker labels, and file details |
 | Subtitles (SRT) | `.srt` | Video editing | Timed subtitle segments |
 | Subtitles (VTT) | `.vtt` | Web video | WebVTT format subtitles |
+| DAPT Transcript | `.dapt.xml` | Localization and structured interchange | DAPT 1.0 original transcript with timing and optional speaker characters |
 | Word Document | `.docx` | Documents | Formatted with headings |
 | PDF | `.pdf` | Sharing | Print-ready formatted |
 | JSON | `.json` | Development | Full data with word-level timestamps + confidence |
@@ -1336,6 +1338,7 @@ new scheduling architecture.
 **Acceptance criteria:**
 - [ ] All supported formats generate correctly
 - [ ] SRT/VTT contain properly timed segments from word-level timestamps
+- [x] DAPT preserves aligned timing and available speaker labels, with an untimed fallback when alignment is absent or stale
 - [ ] DOCX opens correctly in Word/Pages/Google Docs
 - [ ] PDF is well-formatted and print-ready
 - [ ] JSON includes all word-level data with confidence scores
@@ -1393,6 +1396,7 @@ new scheduling architecture.
 - TXT/Markdown: speaker label before each turn
 - DOCX/PDF: speaker name in bold before each turn
 - JSON: `speakerId` field per word in `wordTimestamps`
+- DAPT: character agents and event references only for aligned speaker-attributed words
 
 TXT and Markdown are reading surfaces rather than subtitle surfaces. When word
 timings are available, they group text into deterministic paragraphs and add at

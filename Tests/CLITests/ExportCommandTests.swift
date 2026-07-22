@@ -10,6 +10,7 @@ final class ExportCommandTests: XCTestCase {
         XCTAssertEqual(ExportFormat.markdown.fileExtension, "md")
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
+        XCTAssertEqual(ExportFormat.dapt.fileExtension, "dapt.xml")
         XCTAssertEqual(ExportFormat.json.fileExtension, "json")
     }
 
@@ -19,6 +20,7 @@ final class ExportCommandTests: XCTestCase {
         XCTAssertNotNil(ExportFormat(rawValue: "markdown"))
         XCTAssertNotNil(ExportFormat(rawValue: "srt"))
         XCTAssertNotNil(ExportFormat(rawValue: "vtt"))
+        XCTAssertNotNil(ExportFormat(rawValue: "dapt"))
         XCTAssertNotNil(ExportFormat(rawValue: "json"))
         XCTAssertNil(ExportFormat(rawValue: "pdf"))
         XCTAssertNil(ExportFormat(rawValue: "docx"))
@@ -51,6 +53,45 @@ final class ExportCommandTests: XCTestCase {
         let url = command.resolveOutputURL(transcription: transcription)
 
         XCTAssertEqual(url.lastPathComponent, "folder Meeting notes.md")
+    }
+
+    func testDAPTDefaultOutputURLUsesCompoundExtension() throws {
+        let command = try ExportCommand.parse([
+            "abcd",
+            "--format", "dapt",
+        ])
+        let transcription = Transcription(fileName: "interview.mp3", status: .completed)
+
+        XCTAssertEqual(
+            command.resolveOutputURL(transcription: transcription).lastPathComponent,
+            "interview.dapt.xml"
+        )
+    }
+
+    func testDAPTStdoutUsesSharedRenderer() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let manager = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let transcription = Transcription(
+            fileName: "interview.mp3",
+            rawTranscript: "CLI DAPT transcript.",
+            status: .completed
+        )
+        try repository.save(transcription)
+        let command = try ExportCommand.parse([
+            transcription.id.uuidString,
+            "--format", "dapt",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+
+        let output = try await captureStandardOutput {
+            try await command.run()
+        }
+
+        XCTAssertTrue(output.contains("daptm:scriptType=\"originalTranscript\""))
+        XCTAssertTrue(output.contains("<p>CLI DAPT transcript.</p>"))
     }
 
     func testJSONStdoutEmitsFailureEnvelopeForLookupMiss() async throws {

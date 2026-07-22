@@ -1849,6 +1849,51 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(fetched.meetingCaptureReport, report)
     }
 
+    func testTranscribeMeetingSkipsAIFormatterWhenRawTranscriptIsEmpty() async throws {
+        await mockSTT.configure(result: STTResult(text: ""))
+        let llm = MockLLMService()
+        let assistantReply = "Please provide the raw transcript you would like me to clean."
+        llm.formatTranscriptResult = assistantReply
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: llm,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { true },
+            meetingAutomationHookRunner: nil
+        )
+        let recording = try makeOneSourceMeetingRecording(displayName: "Silent Meeting")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let result = try await service.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.rawTranscript, "")
+        XCTAssertNil(result.cleanTranscript)
+        XCTAssertEqual(llm.formatTranscriptCallCount, 0)
+        XCTAssertTrue(try llmRunRepo.fetchForTranscription(id: result.id).isEmpty)
+
+        let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        XCTAssertEqual(persisted.rawTranscript, "")
+        XCTAssertNil(persisted.cleanTranscript)
+
+        let transcriptURL = recording.folderURL.appendingPathComponent(
+            MeetingArtifactStore.transcriptFileName
+        )
+        let transcriptData = try Data(contentsOf: transcriptURL)
+        let transcriptJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: transcriptData) as? [String: Any]
+        )
+        XCTAssertEqual(transcriptJSON["transcript"] as? String, "")
+
+        let markdownURL = recording.folderURL.appendingPathComponent(
+            MeetingArtifactStore.markdownFileName
+        )
+        let markdown = try String(contentsOf: markdownURL, encoding: .utf8)
+        XCTAssertTrue(markdown.contains("## Transcript"))
+        XCTAssertFalse(markdown.contains(assistantReply))
+    }
+
     func testTranscribeMeetingAppliesEnabledCustomWordsToTextAndWordTokens() async throws {
         // Seed the user's Vocabulary with company-context corrections (issue #550).
         let dbManager = try DatabaseManager()

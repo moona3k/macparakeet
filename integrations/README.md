@@ -185,21 +185,32 @@ macparakeet-cli transcribe /path/to/episode.mkv --audio-track 2 --format json
 `--audio-track` works for local files and folders only; media URLs and podcast
 inputs reject it rather than pretending to control a remote/download stream.
 
-To write a subtitle file directly, transcribe with `--format srt|vtt` and an
-`--output-dir` (one command, no separate `export` step):
+To write a subtitle or structured DAPT transcript directly, use
+`--format srt|vtt|dapt` with an `--output-dir` (one command, no separate
+`export` step):
 
 ```bash
 macparakeet-cli transcribe /path/to/audio.mp3 --format vtt --output-dir .
 # -> ./audio.vtt   (same renderer as `export --format vtt`)
+macparakeet-cli transcribe /path/to/interview.mp3 --format dapt --output-dir .
+# -> ./interview.dapt.xml
 ```
 
-A single input without `--output-dir` prints the subtitle to stdout, so you can
-also redirect it: `macparakeet-cli transcribe audio.mp3 --format vtt > audio.vtt`.
+A single input without `--output-dir` prints the selected document to stdout,
+so you can also redirect it:
+`macparakeet-cli transcribe interview.mp3 --format dapt > interview.dapt.xml`.
+DAPT preserves word timing and speaker attribution when they are aligned with
+the transcript. Current display labels become character aliases; if the
+optional label roster is incomplete, stored anonymous IDs such as `S2` remain
+anonymous aliases. If diarization is off or unavailable, DAPT omits character
+agents; if word timing is unavailable, it emits a valid untimed original
+transcript rather than inventing timing or attribution.
+
 To re-export something already in your library, list it and export by id:
 
 ```bash
 macparakeet-cli history transcriptions          # note the subcommand; lists ids
-macparakeet-cli export <id> --format vtt
+macparakeet-cli export <id> --format dapt
 ```
 
 To rerun STT for an existing saved item without creating a new library row,
@@ -588,10 +599,10 @@ OpenClaw, Hermes, or another local agent framework.
   machine-readable.
 - **JSON flag shape:** read-only query commands take `--json` (a binary flag);
   format-selecting commands take `--format json` because they emit one of
-  several formats (txt / markdown / srt / vtt / json). Commands that normally
-  write files, such as `meetings export`, also require `--stdout` when you want
-  JSON on stdout. The split is deliberate -- see `Sources/CLI/CHANGELOG.md`
-  for the compatibility note.
+  several formats (txt / markdown / srt / vtt / dapt / json). Commands that
+  normally write files, such as `meetings export`, also require `--stdout` when
+  you want JSON on stdout. The split is deliberate -- see
+  `Sources/CLI/CHANGELOG.md` for the compatibility note.
 - **Lookups:** records that take an `<id-or-name>` argument accept full UUID,
   UUID prefix (>= 4 chars), or case-insensitive name. Ambiguous prefixes
   produce a `.ambiguous` error; missing records produce `.notFound`.
