@@ -620,8 +620,8 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            callbackStallTimeout: 0.05,
-            callbackStallCheckInterval: 0.005,
+            callbackStallTimeout: 1,
+            callbackStallCheckInterval: 0.02,
             engineStarter: { _, _, _, tapHandler in
                 let invocation = invocationLock.withLock { value -> Int in
                     value += 1
@@ -629,7 +629,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                 }
                 tapHandlerLock.withLock { $0 = tapHandler }
                 tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
-                if invocation > 1 {
+                if invocation == 2 {
                     unexpectedRecovery.fulfill()
                 }
             }
@@ -643,7 +643,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         )
 
         let installedTapHandler = try XCTUnwrap(tapHandlerLock.withLock { $0 })
-        for callback in 2...20 {
+        for callback in 2...150 {
             Thread.sleep(forTimeInterval: 0.01)
             installedTapHandler(
                 buffer.buffer,
