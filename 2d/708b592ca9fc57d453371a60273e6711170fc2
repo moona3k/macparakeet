@@ -1,0 +1,81 @@
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_c07a27799d30c3::t_4c527e697a20e6 1852-1896
+Sources/CLI/CHANGELOG.md
+  s_c07a27799d30c3::t_4c527e697a20e6 98-102
+README.md
+  s_c07a27799d30c3::t_9b9f0a63650e75 75
+Sources/CLI/Commands/ExportCommand.swift
+  s_c07a27799d30c3::t_d705916fa9fe40 10,19,29,35,90-91,114-115
+Sources/CLI/Commands/SpecCommand.swift
+  s_c07a27799d30c3::t_8b19e62b5a891a 212,1029-1030
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_c07a27799d30c3::t_1511af76e54669 30,101,762-763,967,972-973,975,980,986,991,1003-1004,1026,1028,1032,1123
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_c07a27799d30c3::t_c2f5305781c5e2 6,16,29,42,56-59,326,413,416
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c07a27799d30c3::t_490fd6a8f4018c 3434,3503-3504
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_c07a27799d30c3::t_b6759e9f655f7d 525
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_c07a27799d30c3::t_9c46e56a4360e3 10,19,24-26,135
+Sources/MacParakeetCore/Services/DAPTDocumentRenderer.swift
+  s_c07a27799d30c3::t_25a120b261b2f3 1-194
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_c07a27799d30c3::t_5720b682e93365 13,25,33-45,147-156
+Sources/MacParakeetCore/TextProcessing/TranscriptFormatter.swift
+  s_c07a27799d30c3::t_e6b4c10a823d67 27-30
+Tests/CLITests/ExportCommandTests.swift
+  s_c07a27799d30c3::t_34eb47fe40139b 13,23,58-96
+Tests/CLITests/SpecCommandTests.swift
+  s_c07a27799d30c3::t_e592a2bc71cad3 214-218,336
+Tests/CLITests/TranscribeCommandTests.swift
+  s_c07a27799d30c3::t_0b658bf887eaa0 919,922,925,928-929,931,946,950,953-960,986-1023
+Tests/MacParakeetTests/Services/AutoSaveServiceTests.swift
+  s_c07a27799d30c3::t_f9d163d043d497 148-161,249-255,398-409
+Tests/MacParakeetTests/Services/DAPTExportTests.swift
+  s_c07a27799d30c3::t_1942e9d66262b0 1-237
+Tests/MacParakeetTests/TextProcessing/TranscriptFormatterTests.swift
+  s_c07a27799d30c3::t_a810d4e66a8b6a 18-62
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_c07a27799d30c3::t_a8378014d5b41c 114-133
+docs/cli-testing.md
+  s_c07a27799d30c3::t_e824d64c333545 29,359-361,386-390,434,444,450,453
+docs/marketing.md
+  s_c07a27799d30c3::t_52724c483b7640 74,127
+docs/research/2026-07-20-issue-850-dapt-export.md
+  s_c07a27799d30c3::t_d134c71d8de177 1-147
+docs/telemetry.md
+  s_c07a27799d30c3::t_0708f68e3807bc 309
+integrations/README.md
+  s_c07a27799d30c3::t_c6205330805b54 188-190,195-196,199-208,213,602-605
+plans/README.md
+  s_c07a27799d30c3::t_83a0b363aa9676 33
+plans/active/2026-07-20-dapt-export.md
+  s_c07a27799d30c3::t_012a8099b3c23d 1-124
+spec/02-features.md
+  s_c07a27799d30c3::t_7957dfac878edb 942,1304,1341,1399
+spec/03-architecture.md
+  s_c07a27799d30c3::t_d0fb3d4af12b8b 588-589,593,612-617,1282
+spec/adr/014-meeting-recording.md
+  s_c07a27799d30c3::t_aae3343af55d65 73
+spec/contracts/README.md
+  s_c07a27799d30c3::t_145c53075f24d1 41
+spec/contracts/dapt-export-v1.md
+  s_c07a27799d30c3::t_a00e09c4249431 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2d708b592ca9fc57d453371a60273e6711170fc2",
+  "prompts": {},
+  "sessions": {
+    "s_c07a27799d30c3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f87cf-5c6e-7002-811b-f61854f10c36",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
