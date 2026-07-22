@@ -1081,8 +1081,12 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             self.queue.async { [weak self, engineBox] in
                 guard let self else { return }
                 guard engineBox.wraps(self.audioEngine) else { return }
-                let format = engineBox.inputFormat()
                 let engineIsRunning = engineBox.isEngineRunning()
+                // A stopped engine is exactly the recovery case. Asking its
+                // input node for a format can block on the same Core Audio
+                // reconfiguration that stopped it, delaying recovery for a
+                // diagnostic value that is no longer authoritative.
+                let format = engineIsRunning ? engineBox.inputFormat() : nil
                 let snapshot = (
                     sr: format?.sampleRate ?? 0,
                     ch: format?.channelCount ?? 0,

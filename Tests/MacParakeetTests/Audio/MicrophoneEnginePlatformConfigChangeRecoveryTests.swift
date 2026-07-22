@@ -410,6 +410,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
 
         let engines = enginesLock.withLock { $0 }
         XCTAssertEqual(engines.count, 3, "initial start + silent replacement + retry")
+        guard engines.count == 3 else { return }
         XCTAssertFalse(engines[1] === engines[2], "the retry must use a fresh engine")
     }
 
