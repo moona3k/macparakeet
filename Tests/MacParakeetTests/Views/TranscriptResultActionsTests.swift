@@ -111,6 +111,26 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["my_video.txt"])
     }
 
+    func testBulkExportWritesDAPTWithCompoundExtension() async throws {
+        let transcription = Transcription(
+            fileName: "interview.m4a",
+            rawTranscript: "Structured transcript.",
+            language: "en",
+            status: .completed
+        )
+
+        let result = try await TranscriptResultActions.exportTranscriptsToDirectory(
+            transcriptions: [transcription],
+            format: .dapt,
+            directory: tempDir
+        )
+
+        XCTAssertEqual(result.exportedURLs.map(\.lastPathComponent), ["interview.dapt.xml"])
+        let content = try String(contentsOf: result.exportedURLs[0], encoding: .utf8)
+        XCTAssertTrue(content.contains("daptm:scriptType=\"originalTranscript\""))
+        XCTAssertTrue(content.contains("<p>Structured transcript.</p>"))
+    }
+
     func testBulkExportCompleteSuccessRequiresEveryRequestedFile() {
         let result = BulkTranscriptExportResult(
             directory: tempDir,

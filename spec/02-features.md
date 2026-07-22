@@ -1301,6 +1301,7 @@ Display result (same view as file transcription)
 | Markdown | `.md` | Notes and documents | Reading paragraphs with optional timestamps, speaker labels, and file details |
 | Subtitles (SRT) | `.srt` | Video editing | Timed subtitle segments |
 | Subtitles (VTT) | `.vtt` | Web video | WebVTT format subtitles |
+| DAPT Transcript | `.dapt.xml` | Localization and structured interchange | DAPT 1.0 original transcript with timing and optional speaker characters |
 | Word Document | `.docx` | Documents | Formatted with headings |
 | PDF | `.pdf` | Sharing | Print-ready formatted |
 | JSON | `.json` | Development | Full data with word-level timestamps + confidence |
@@ -1337,6 +1338,7 @@ new scheduling architecture.
 **Acceptance criteria:**
 - [ ] All supported formats generate correctly
 - [ ] SRT/VTT contain properly timed segments from word-level timestamps
+- [x] DAPT preserves aligned timing and available speaker labels, with an untimed fallback when alignment is absent or stale
 - [ ] DOCX opens correctly in Word/Pages/Google Docs
 - [ ] PDF is well-formatted and print-ready
 - [ ] JSON includes all word-level data with confidence scores
@@ -1394,6 +1396,7 @@ new scheduling architecture.
 - TXT/Markdown: speaker label before each turn
 - DOCX/PDF: speaker name in bold before each turn
 - JSON: `speakerId` field per word in `wordTimestamps`
+- DAPT: character agents and event references only for aligned speaker-attributed words
 
 TXT and Markdown are reading surfaces rather than subtitle surfaces. When word
 timings are available, they group text into deterministic paragraphs and add at

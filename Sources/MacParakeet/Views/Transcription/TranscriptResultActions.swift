@@ -3,7 +3,7 @@ import Foundation
 import MacParakeetCore
 
 enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
-    case txt, md, srt, vtt, docx, pdf, json
+    case txt, md, srt, vtt, dapt, docx, pdf, json
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
         case .md: "Markdown"
         case .srt: "SRT"
         case .vtt: "VTT"
+        case .dapt: "DAPT Transcript"
         case .docx: "Word Document"
         case .pdf: "PDF"
         case .json: "JSON"
@@ -25,6 +26,7 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
         case .md: "Markdown"
         case .srt: "SRT"
         case .vtt: "VTT"
+        case .dapt: "DAPT"
         case .docx: "DOCX"
         case .pdf: "PDF"
         case .json: "JSON"
@@ -37,6 +39,7 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
         case .md: "text.document"
         case .srt: "captions.bubble"
         case .vtt: "captions.bubble.fill"
+        case .dapt: "chevron.left.forwardslash.chevron.right"
         case .docx: "doc.richtext"
         case .pdf: "doc.viewfinder"
         case .json: "curlybraces"
@@ -49,6 +52,10 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable, Sendable {
 
     var usesAppKitRenderer: Bool {
         self == .docx || self == .pdf
+    }
+
+    var fileExtension: String {
+        self == .dapt ? "dapt.xml" : rawValue
     }
 }
 
@@ -316,6 +323,7 @@ enum TranscriptResultActions {
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
         case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
         case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+        case .dapt: try exportService.exportToDAPT(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
         case .docx, .pdf:
             preconditionFailure(
@@ -402,10 +410,10 @@ enum TranscriptResultActions {
         stem: String,
         format: TranscriptExportFormat
     ) -> URL {
-        var url = directory.appendingPathComponent("\(stem).\(format.rawValue)")
+        var url = directory.appendingPathComponent("\(stem).\(format.fileExtension)")
         var counter = 1
         while FileManager.default.fileExists(atPath: url.path) {
-            url = directory.appendingPathComponent("\(stem) (\(counter)).\(format.rawValue)")
+            url = directory.appendingPathComponent("\(stem) (\(counter)).\(format.fileExtension)")
             counter += 1
         }
         return url

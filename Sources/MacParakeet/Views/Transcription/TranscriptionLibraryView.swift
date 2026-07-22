@@ -522,7 +522,7 @@ struct TranscriptionLibraryView: View {
     // allocating two Sets on every body re-render (the popover re-renders on
     // each format selection).
     private static let bulkExportFormatOrder: [TranscriptExportFormat] = {
-        let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
+        let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .dapt, .json, .pdf, .docx]
         precondition(
             preferredOrder.count == TranscriptExportFormat.allCases.count &&
                 Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
