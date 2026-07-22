@@ -1,0 +1,20 @@
+spec/adr/025-meeting-capture-reliability.md
+  s_8acad7549c99fe::t_b64c37ff2847a1 3,6,56-82,170-185,374,376-381,429-432,443-445,533-535,537-543,554,570-573
+  s_8acad7549c99fe::t_46bca45065c918 367-368,370-372,468-471
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8f49f74bb1576d52fa5777e1fa2959879b751ce0",
+  "prompts": {},
+  "sessions": {
+    "s_8acad7549c99fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8b41-16fb-7192-861d-eef9ccd50d80",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
