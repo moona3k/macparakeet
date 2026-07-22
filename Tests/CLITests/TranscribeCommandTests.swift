@@ -1002,6 +1002,25 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertTrue(contents.contains("daptm:scriptType=\"originalTranscript\""))
     }
 
+    func testWriteOutputPreservesDAPTCompoundExtensionOnCollision() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-dapt-collision-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            rawTranscript: "Structured transcript.",
+            status: .completed
+        )
+
+        let firstURL = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+        let secondURL = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+
+        XCTAssertEqual(firstURL.lastPathComponent, "clip.dapt.xml")
+        XCTAssertEqual(secondURL.lastPathComponent, "clip-2.dapt.xml")
+    }
+
     func testPlainTextOutputToleratesDuplicateSpeakerIDs() {
         let transcription = Transcription(
             fileName: "dupe-speakers.mp3",

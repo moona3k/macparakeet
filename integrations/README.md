@@ -599,10 +599,10 @@ OpenClaw, Hermes, or another local agent framework.
   machine-readable.
 - **JSON flag shape:** read-only query commands take `--json` (a binary flag);
   format-selecting commands take `--format json` because they emit one of
-  several formats (txt / markdown / srt / vtt / json). Commands that normally
-  write files, such as `meetings export`, also require `--stdout` when you want
-  JSON on stdout. The split is deliberate -- see `Sources/CLI/CHANGELOG.md`
-  for the compatibility note.
+  several formats (txt / markdown / srt / vtt / dapt / json). Commands that
+  normally write files, such as `meetings export`, also require `--stdout` when
+  you want JSON on stdout. The split is deliberate -- see
+  `Sources/CLI/CHANGELOG.md` for the compatibility note.
 - **Lookups:** records that take an `<id-or-name>` argument accept full UUID,
   UUID prefix (>= 4 chars), or case-insensitive name. Ambiguous prefixes
   produce a `.ambiguous` error; missing records produce `.notFound`.

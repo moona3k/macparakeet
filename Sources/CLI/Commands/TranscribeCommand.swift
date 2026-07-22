@@ -988,7 +988,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) async throws -> URL {
         let ext = fileExtension(for: format)
         let base = sanitizedBasename(t.fileName)
-        let url = uniqueURL(dir.appendingPathComponent(base).appendingPathExtension(ext))
+        let url = uniqueURL(in: dir, base: base, fileExtension: ext)
         let contents: String
         switch format {
         case .json:
@@ -1023,15 +1023,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return safe.isEmpty ? "transcript" : safe
     }
 
-    static func uniqueURL(_ url: URL) -> URL {
+    static func uniqueURL(in directory: URL, base: String, fileExtension: String) -> URL {
         let fm = FileManager.default
+        let url = directory.appendingPathComponent("\(base).\(fileExtension)")
         guard fm.fileExists(atPath: url.path) else { return url }
-        let dir = url.deletingLastPathComponent()
-        let stem = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension
         var n = 2
         while true {
-            let candidate = dir.appendingPathComponent("\(stem)-\(n)").appendingPathExtension(ext)
+            let candidate = directory.appendingPathComponent("\(base)-\(n).\(fileExtension)")
             if !fm.fileExists(atPath: candidate.path) { return candidate }
             n += 1
         }
